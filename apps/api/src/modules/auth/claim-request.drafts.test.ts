@@ -167,6 +167,25 @@ describe('a profile that stands on its own stays public whatever its entries (ru
       'draft-imported@example.com',
     ]);
     expect(queriedTables(db.from)).not.toContain('persons');
+    expect(queriedTables(db.from)).not.toContain('event_referees');
+  });
+
+  it('mails the link for an instructor of a public Event entered only in a draft (ruling 177)', async () => {
+    db = mockSupabase({
+      ...baseTables(),
+      // Added from her profile to the staff of another Event: no roster row there.
+      event_instructors: {
+        rows: [
+          {
+            event_id: 'e-spring',
+            person_id: 'draft-only',
+            events: { status: 'running', event_kind: 'standard' },
+          },
+        ],
+      },
+    });
+    await expect(request('draft-only')).resolves.toMatchObject({ status: 'confirmation_sent' });
+    expect(queriedTables(db.from)).not.toContain('persons');
   });
 
   it('asks which of the profiles an account owns or a super admin made', async () => {

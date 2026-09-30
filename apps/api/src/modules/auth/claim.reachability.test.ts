@@ -45,9 +45,11 @@ let db: ReturnType<typeof seededSupabase>;
 let mail: { sendMagicLink: ReturnType<typeof vi.fn> };
 let service: AuthService;
 
+// Nobody here referees or teaches (ruling 177): the draft bar reads their roster rows.
 function build(tables: Record<string, SupabaseRow[]>) {
+  const all = { event_referees: [], event_instructors: [], ...tables };
   db = seededSupabase(
-    Object.fromEntries(Object.entries(tables).map(([table, rows]) => [table, { rows }])),
+    Object.fromEntries(Object.entries(all).map(([table, rows]) => [table, { rows }])),
   );
   mail = { sendMagicLink: vi.fn().mockResolvedValue(undefined) };
   service = new AuthService(

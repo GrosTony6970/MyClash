@@ -19,6 +19,7 @@ import {
   THE_PUBLIC,
 } from './competition-visibility';
 import type { EventAuthzDeps } from './event-authz';
+import { isPublicEvent } from './event-read-gate';
 
 type Row = Record<string, string | null | undefined>;
 
@@ -87,14 +88,15 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
 }
 
 /**
- * The profiles among these the public may know of (rulings 171b, 173-176a): one that stands on its
+ * The profiles among these the public may know of (rulings 171b, 173-177): one that stands on its
  * own — claimed by an account, or made outside a roster (a super admin's) — whatever its entries
  * (ruling 176: hiding it once a draft entry appears would flip a public page to a 404, and the
- * flip tells of the draft); one with no roster row at all; or one with a roster row
- * `knownRosterRows` lets `THE_PUBLIC` know of. A profile known only through entries hidden from
- * the public — a draft Tournament, a draft or test Event — is not, whatever HEMA Ratings id its
- * entry copied onto it (176a). For what spans many Events (ruling 163). A failed read is a 5xx:
- * read as "no roster row", every profile would be known.
+ * flip tells of the draft); one that referees or teaches at an Event the public can see, whatever
+ * its entries (ruling 177: added from the profile, it has no roster row there); one with no roster
+ * row at all; or one with a roster row `knownRosterRows` lets `THE_PUBLIC` know of. A profile known
+ * only through entries hidden from the public — a draft Tournament, a draft or test Event — is not,
+ * whatever HEMA Ratings id its entry copied onto it (176a). For what spans many Events (ruling
+ * 163). A failed read is a 5xx: read as "no roster row", every profile would be known.
  */
 export async function publiclyKnownProfileIds(
   deps: Pick<EventAuthzDeps, 'supabase'>,
@@ -110,8 +112,10 @@ export async function publiclyKnownProfileIds(
       .or('claimed_by_user_id.not.is.null,made_outside_roster.is.true'),
   );
   const onItsOwn = new Set(standing.map((row) => row.id as string));
-  const rest = profileIds.filter((id) => !onItsOwn.has(id));
-  if (rest.length === 0) return onItsOwn;
+  const unsure = profileIds.filter((id) => !onItsOwn.has(id));
+  const staff = await publicStaffIds(deps.supabase.service, unsure);
+  const rest = unsure.filter((id) => !staff.has(id));
+  if (rest.length === 0) return new Set([...onItsOwn, ...staff]);
   const persons = await rows(
     'profile roster',
     deps.supabase.service
@@ -128,7 +132,8 @@ export async function publiclyKnownProfileIds(
   const known = new Set(
     (await knownRosterRows(publicDeps, roster, THE_PUBLIC)).map((row) => row.profileId),
   );
-  // A profile that stands on its own had its roster rows left unread: it is not `listed`, so kept.
+  // A profile that stands on its own or is public staff had its roster rows left unread: it is not
+  // `listed`, so kept.
   const listed = new Set(roster.map((row) => row.profileId));
   return new Set(profileIds.filter((id) => !listed.has(id) || known.has(id)));
 }
@@ -199,6 +204,23 @@ async function enteredOnlyIn(db: SupabaseClient, hidden: Set<string>): Promise<s
     entries.filter((row) => !hidden.has(row.tournament_id as string)).map((row) => row.person_id),
   );
   return candidates.filter((id) => !elsewhere.has(id));
+}
+
+/**
+ * The profiles among these that referee or teach at an Event the public can see (`isPublicEvent`,
+ * ruling 177), at any Event: both tables key on the profile id.
+ */
+async function publicStaffIds(db: SupabaseClient, profileIds: string[]): Promise<Set<string>> {
+  const staff = new Set<string>();
+  if (profileIds.length === 0) return staff;
+  for (const table of ['event_referees', 'event_instructors']) {
+    const found = (await rows(
+      `profile ${table.replace('_', ' ')}`,
+      db.from(table).select('person_id, events(status, event_kind)').in('person_id', profileIds),
+    )) as unknown as Array<{ person_id: string; events: Parameters<typeof isPublicEvent>[0] }>;
+    for (const row of found) if (isPublicEvent(row.events)) staff.add(row.person_id);
+  }
+  return staff;
 }
 
 /** The global ids among `persons` that referee or teach at the Event (both tables key on them). */

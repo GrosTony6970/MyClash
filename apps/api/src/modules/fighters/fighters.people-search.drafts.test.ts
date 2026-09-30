@@ -12,6 +12,7 @@ import {
   filtersFor,
   mockSupabase,
   queriedTables,
+  selectsFor,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { FightersController } from './fighters.controller';
@@ -183,4 +184,68 @@ describe('the people search leaves out a profile known only through hidden entri
     expect(failure).not.toBeInstanceOf(HttpException);
     expect(String(failure)).toContain('profile roster read failed: boom');
   });
+});
+
+// Each entered only in the draft Tournament, and on the staff of another Event with no roster row
+// there: added from their profile.
+const STAFFED = ['r-spring', 'r-autumn', 'r-rehearsal', 's-spring'];
+const role = (personId: string, status: string, kind = 'standard') => ({
+  event_id: `e-${personId}`,
+  person_id: personId,
+  events: { status, event_kind: kind },
+});
+
+function staffedTables(): Tables {
+  return {
+    ...baseTables(),
+    global_persons: { rows: STAFFED.map(profile) },
+    persons: { rows: STAFFED.map((id) => rosterRow(`p-${id}`, 'e-pub', id)) },
+    registrations: { rows: STAFFED.map((id) => entry(`p-${id}`, 't-secret')) },
+    event_referees: {
+      rows: [
+        role('r-spring', 'published'),
+        role('r-autumn', 'draft'),
+        role('r-rehearsal', 'published', 'test'),
+      ],
+    },
+    event_instructors: { rows: [role('s-spring', 'completed')] },
+  };
+}
+
+describe('a profile that referees or teaches at a public Event is public whatever its entries (ruling 177)', () => {
+  beforeEach(() => {
+    db = mockSupabase(staffedTables());
+    ranked = STAFFED;
+  });
+
+  it('shows a referee and an instructor of a public Event, not of a draft or a test one', async () => {
+    expect((await search()).map((row) => row.id)).toEqual(['r-spring', 's-spring']);
+  });
+
+  it("asks each profile's roles, then reads the roster rows of the rest only", async () => {
+    await search();
+    for (const table of ['event_referees', 'event_instructors']) {
+      // The first read; `hiddenEntrantIds` reads the table after, for its own ends.
+      expect(selectsFor(db.from, table)[0]).toBe('person_id, events(status, event_kind)');
+      expect(filtersFor(db.from, table, 'in')[0]).toEqual(['person_id', STAFFED]);
+    }
+    expect(filtersFor(db.from, 'persons', 'in')[0]).toEqual([
+      'global_person_id',
+      ['r-autumn', 'r-rehearsal'],
+    ]);
+  });
+
+  it.each(['event_referees', 'event_instructors'])(
+    '5xxs when %s cannot be read, never showing everyone',
+    async (table) => {
+      db = mockSupabase({
+        ...staffedTables(),
+        [table]: { data: null, error: { message: 'boom' } },
+      });
+      const failure = await search().catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).not.toBeInstanceOf(HttpException);
+      expect(String(failure)).toContain(`profile ${table.replace('_', ' ')} read failed: boom`);
+    },
+  );
 });

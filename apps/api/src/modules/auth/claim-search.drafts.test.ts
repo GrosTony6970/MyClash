@@ -240,6 +240,29 @@ describe('the claim search offers no profile known only through hidden entries (
     expect(filtersFor(db.from, 'persons', 'in')[0]).toEqual(['global_person_id', ['b-draft']]);
   });
 
+  it('offers a referee of a public Event entered only in a draft, not one of a draft Event (ruling 177)', async () => {
+    const tables = baseTables();
+    tables['global_persons'] = { rows: ['r-spring', 'r-autumn'].map(profile) };
+    tables['persons'] = {
+      rows: [
+        rosterRow('p-spring', 'e-pub', 'r-spring'),
+        rosterRow('p-autumn', 'e-pub', 'r-autumn'),
+      ],
+    };
+    tables['registrations'] = {
+      rows: [entry('p-spring', 't-secret'), entry('p-autumn', 't-secret')],
+    };
+    // Added from their profile to the staff of another Event: no roster row there.
+    tables['event_referees'] = {
+      rows: [
+        { event_id: 'e-spring', person_id: 'r-spring', events: event('e-spring', 'published') },
+        { event_id: 'e-autumn', person_id: 'r-autumn', events: event('e-autumn', 'draft') },
+      ],
+    };
+    db = mockSupabase(tables);
+    expect((await search()).map((row) => row.id)).toEqual(['r-spring']);
+  });
+
   it('5xxs when the roster rows cannot be read, never offering everyone', async () => {
     db = mockSupabase({ ...baseTables(), persons: { data: null, error: { message: 'boom' } } });
     const failure = await search().catch((error: unknown) => error);

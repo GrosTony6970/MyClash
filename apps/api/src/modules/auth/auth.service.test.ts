@@ -71,6 +71,13 @@ function seedTables(byTable: Record<string, TableSeed>) {
   return seeded;
 }
 
+/** No roster row and no referee or teaching role: nothing for the draft bar to hide. */
+const NO_ROSTER = {
+  persons: { rows: [] },
+  event_referees: { rows: [] },
+  event_instructors: { rows: [] },
+};
+
 /** The `is('col', null)` scope on a recorded write, which `scopedTo` cannot see. */
 const isNullScoped = (write: RecordedWrite | undefined, column: string): boolean =>
   (write?.filters ?? []).some(
@@ -2287,7 +2294,7 @@ describe('AuthService', () => {
         global_persons: {
           rows: [GLOBAL_DECOY, { id: 'global-1', claimed_by_user_id: 'someone-else' }],
         },
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       // The CODE, not the sentence. These refusals used to throw their machine
@@ -2308,7 +2315,7 @@ describe('AuthService', () => {
       const seeded = seedTables({
         global_person_claim_tokens: { rows: [tokenRow({ user_id: 'other-user' })] },
         global_persons: { rows: [unclaimedTarget] },
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       await expect(confirm()).rejects.toMatchObject({ response: { code: 'user_mismatch' } });
@@ -2322,7 +2329,7 @@ describe('AuthService', () => {
           rows: [TOKEN_DECOY, tokenRow({ expires_at: new Date(Date.now() - 1_000).toISOString() })],
         },
         global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       await expect(confirm()).rejects.toMatchObject({ response: { code: 'expired_or_used' } });
@@ -2337,7 +2344,7 @@ describe('AuthService', () => {
       const seeded = seedTables({
         global_person_claim_tokens: { rows: [TOKEN_DECOY, tokenRow()] },
         global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       await confirm();
@@ -2383,7 +2390,7 @@ describe('AuthService', () => {
         },
         global_person_claim_tokens: { rows: [] },
         // No roster row: nothing for the draft bar to hide (claim-request.drafts.test.ts).
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       const result = await service.requestGlobalPersonClaim(
@@ -2431,7 +2438,7 @@ describe('AuthService', () => {
         },
         global_person_claim_tokens: { rows: [] },
         // No roster row: nothing for the draft bar to hide (claim-request.drafts.test.ts).
-        persons: { rows: [] },
+        ...NO_ROSTER,
       });
 
       const refusal = await service
@@ -2538,7 +2545,7 @@ describe('AuthService', () => {
     ];
 
     const search = async (q: string) => {
-      seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
+      seedTables({ global_persons: { rows: PROFILES }, ...NO_ROSTER });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
       const rows = await service.searchGlobalPersonsForClaim(session(), q);
       return rows.map((row) => row.id);
@@ -2563,7 +2570,7 @@ describe('AuthService', () => {
     // have not agreed to anything. The double ignores projections, so no
     // value assertion can see a widened select — only the select string can.
     it('never asks for email or date of birth', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, ...NO_ROSTER });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await service.searchGlobalPersonsForClaim(session(), 'Jean');
@@ -2573,7 +2580,7 @@ describe('AuthService', () => {
     });
 
     it('returns nothing for a query too short to narrow, without asking', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, ...NO_ROSTER });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await expect(service.searchGlobalPersonsForClaim(session(), 'J')).resolves.toEqual([]);
@@ -2584,7 +2591,7 @@ describe('AuthService', () => {
     // so a query made only of them survives as an empty string. Searching on it
     // would build `display_name.ilike.%%` and offer the whole table.
     it('returns nothing when the query is only filter syntax', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, ...NO_ROSTER });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await expect(service.searchGlobalPersonsForClaim(session(), ',()*')).resolves.toEqual([]);
