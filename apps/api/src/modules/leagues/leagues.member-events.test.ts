@@ -31,12 +31,13 @@ const event = (id: string, status: string) => ({
   start_date: '2026-10-01',
   end_date: null,
   status,
+  event_kind: 'standard',
   organizations: { id: 'org-a', name: 'Club A' },
 });
 const link = (leagueId: string, eventRow: ReturnType<typeof event>, status = 'approved') => ({
   league_id: leagueId,
   status,
-  tournaments: { event_id: eventRow.id, events: eventRow },
+  tournaments: { event_id: eventRow.id, status: 'published', events: eventRow },
 });
 
 const OPEN = event('open', 'published');
@@ -96,7 +97,7 @@ describe('GET leagues/:leagueId/member-events (ruling 88)', () => {
     await controller.listLeagueMemberEvents(PUBLIC);
     expect(selectsFor(db.from, 'leagues')).toEqual(['status, public_visibility']);
     expect(selectsFor(db.from, 'league_tournament_links')).toEqual([
-      'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
+      'status, tournaments!inner(event_id, status, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
     ]);
   });
 

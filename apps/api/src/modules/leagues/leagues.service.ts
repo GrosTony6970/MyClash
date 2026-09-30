@@ -9,7 +9,6 @@ import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
-import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import {
   type LeagueRankingRow,
@@ -106,6 +105,26 @@ async function mapWithLimit<T>(
   await Promise.all(workers);
 }
 
+/**
+ * Does a public league page name this approved link? Only when its Tournament is public: a draft,
+ * or any Tournament of a draft or test Event, counts nowhere, for everyone (ruling 163).
+ */
+function isPublicLink(link: { tournaments?: unknown }): boolean {
+  return isPublicTournamentEmbed(link.tournaments);
+}
+
+/** Who reads the standings: the public league page, or the league admin's own page. */
+type StandingsReader = 'public' | 'league admin';
+
+/** The public links of a links read. A failed read is a 5xx, never a league with no links. */
+function publicLinks<Link extends { tournaments?: unknown }>(read: {
+  data: unknown;
+  error: { message: string } | null;
+}): Link[] {
+  if (read.error) throw new Error(`league links read failed: ${read.error.message}`);
+  return ((read.data ?? []) as Link[]).filter(isPublicLink);
+}
+
 @Injectable()
 export class LeaguesService {
   constructor(
@@ -141,8 +160,9 @@ export class LeaguesService {
    *   - groups            → [{ id, name, tournament_count }] for each
    *                         league_groups row, with each group's
    *                         approved-link count attached
-   * Two parallel batch SELECTs (groups, approved links with the
-   * tournaments(event_id) embed). Aggregation happens in TS to stay
+   * Two parallel batch SELECTs (groups, approved links with their
+   * Tournament's statuses; only public Tournaments count, ruling 163).
+   * Aggregation happens in TS to stay
    * away from PostgREST aggregation quirks. Mirrors the admin-side
    * enrichLeaguesWithCounts pattern but trades fighter_count for
    * the groups breakdown.
@@ -158,7 +178,7 @@ export class LeaguesService {
         .order('sort_order', { ascending: true }),
       this.supabase.service
         .from('league_tournament_links')
-        .select('league_id, group_id, tournaments(event_id)')
+        .select('league_id, group_id, tournaments(event_id, status, events(status, event_kind))')
         .in('league_id', leagueIds)
         .eq('status', 'approved'),
     ]);
@@ -167,14 +187,14 @@ export class LeaguesService {
     type LinkRow = {
       league_id: string;
       group_id: string | null;
-      tournaments?: { event_id: string | null } | { event_id: string | null }[] | null;
+      tournaments?: { event_id: string | null } | null;
     };
 
     // group_id → tournament_count
     const tournamentCountByGroup = new Map<string, number>();
     const tournamentCountByLeague = new Map<string, number>();
     const eventsPerLeague = new Map<string, Set<string>>();
-    for (const link of (linksRes.data ?? []) as LinkRow[]) {
+    for (const link of publicLinks<LinkRow>(linksRes)) {
       tournamentCountByLeague.set(
         link.league_id,
         (tournamentCountByLeague.get(link.league_id) ?? 0) + 1,
@@ -185,8 +205,7 @@ export class LeaguesService {
           (tournamentCountByGroup.get(link.group_id) ?? 0) + 1,
         );
       }
-      const embed = link.tournaments;
-      const eventId = Array.isArray(embed) ? embed[0]?.event_id : embed?.event_id;
+      const eventId = link.tournaments?.event_id;
       if (eventId) {
         if (!eventsPerLeague.has(link.league_id)) eventsPerLeague.set(link.league_id, new Set());
         eventsPerLeague.get(link.league_id)!.add(eventId);
@@ -1288,19 +1307,19 @@ export class LeaguesService {
    * Public listing of every distinct event whose tournaments have an
    * approved link to the league, for the public league page. A league the
    * public pages do not show answers as an unknown one, with an empty list,
-   * and a draft or test Event is left out (rulings 88, 97).
+   * and an Event is listed only through a public Tournament: a draft or test
+   * Event, and a draft Tournament's, are left out (rulings 88, 97, 163).
    */
   async listLeagueMemberEvents(leagueId: string) {
     if (!(await this.isPublicLeagueId(leagueId))) return [];
 
-    const { data, error } = await this.supabase.service
+    const read = await this.supabase.service
       .from('league_tournament_links')
       .select(
-        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
+        'status, tournaments!inner(event_id, status, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
       )
       .eq('league_id', leagueId)
       .eq('status', 'approved');
-    if (error) throw new Error(`league links read failed: ${error.message}`);
 
     const byEventId = new Map<
       string,
@@ -1313,11 +1332,9 @@ export class LeaguesService {
         organization: { id: string; name: string };
       }
     >();
-    for (const row of (data ?? []) as Row[]) {
-      const tournament = row['tournaments'] as Row | null;
-      const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
-      // A draft or test Event is not on the public pages (rulings 88, 97).
-      if (!event || !isPublicEvent(event)) continue;
+    for (const row of publicLinks<Row>(read)) {
+      // A public link's Tournament carries its Event: `isPublicLink` checked both statuses.
+      const event = (row['tournaments'] as Row)['events'] as Row;
       const eventId = String(event['id']);
       if (byEventId.has(eventId)) continue;
       const org = (event['organizations'] as Row | null) ?? null;
@@ -1672,14 +1689,17 @@ export class LeaguesService {
   }
 
   /**
-   * One League's approved links, with the Tournament's name and the pool group. Carries
+   * One League's approved links, with the Tournament (name, Event, both statuses) and the pool
+   * group — the standings' columns, the Recompute and its preflight read it. Carries
    * `league_groups(name)` for the same reason recomputeForEvent's query does: it is the one owner
    * of the group name now that the per-link lookup is gone. A failed read is a 5xx.
    */
   private async approvedLinks(leagueId: string): Promise<Row[]> {
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
-      .select('tournament_id, tournaments(name), league_groups(name)')
+      .select(
+        'tournament_id, tournaments(id, name, event_id, status, events(name, start_date, status, event_kind)), league_groups(name)',
+      )
       .eq('league_id', leagueId)
       .eq('status', 'approved');
     if (error) throw new Error(`league links read failed: ${error.message}`);
@@ -1773,22 +1793,29 @@ export class LeaguesService {
     if (league['public_visibility'] !== true || league['status'] !== 'published') {
       throw new NotFoundException(`League ${leagueId} not found`);
     }
-    return this.fetchStandingsPayload(league, leagueId, group);
+    return this.fetchStandingsPayload(league, leagueId, group, 'public');
   }
 
   /**
    * Same standings shape as the public endpoint but auth-gated on
    * league-manage permissions instead of public visibility — lets the
    * admin Ranking page render rankings for draft / unlisted leagues
-   * that the operator still owns.
+   * that the operator still owns. It names every approved link, a draft
+   * Tournament's included, as the league's links list does.
    */
   async adminStandings(leagueId: string, userId: string, group?: string) {
     await this.assertCanManageLeague(leagueId, userId);
     const league = await this.getLeagueById(leagueId);
-    return this.fetchStandingsPayload(league, leagueId, group);
+    return this.fetchStandingsPayload(league, leagueId, group, 'league admin');
   }
 
-  private async fetchStandingsPayload(league: Row, leagueId: string, group?: string) {
+  /** The public page names only public Tournaments (ruling 163); the league admin's names all. */
+  private async fetchStandingsPayload(
+    league: Row,
+    leagueId: string,
+    group: string | undefined,
+    reader: StandingsReader,
+  ) {
     let q = this.supabase.service
       .from('league_rankings')
       .select('*, global_persons(display_name, clubs(name, city))')
@@ -1798,18 +1825,28 @@ export class LeaguesService {
     if (group) q = q.eq('ranking_group_key', group) as typeof q;
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
+    const { columns, pendingTournaments } = await this.standingsColumns(leagueId, reader);
 
-    const { data: links } = await this.supabase.service
-      .from('league_tournament_links')
-      .select('tournament_id, tournaments(id, name, event_id, events(name, start_date))')
-      .eq('league_id', leagueId)
-      .eq('status', 'approved');
+    // Per-row deciding tie-breaker: for each fighter, the first configured
+    // tie-breaker key on which they differ from the fighter directly above them
+    // in the same ranking group. Read-time derivation over the already-sorted
+    // rows — no migration; every value it needs is on the row already.
+    const tieBreakers = normalizeScoringConfig(league['scoring_config']).tieBreakers;
+    const rows = attachDecidingTiebreaks((data ?? []) as Row[], tieBreakers);
 
-    // Approved tournaments that have contributed no results yet — i.e. not
-    // decided (bracket final unsettled / pool-only still in play). Derived
-    // cheaply from persisted state: recompute writes league_tournament_results
-    // only for decided tournaments, so an approved link with no results row is
-    // still awaiting results. One extra SELECT, no per-tournament recompute.
+    return { league, columns, rows, pendingTournaments };
+  }
+
+  /**
+   * The standings' Tournament columns (the approved links this reader may see), and those that
+   * have contributed no results yet — i.e. not decided (bracket final unsettled / pool-only still
+   * in play). Derived cheaply from persisted state: recompute writes league_tournament_results
+   * only for decided tournaments, so an approved link with no results row is still awaiting
+   * results. One extra SELECT, no per-tournament recompute.
+   */
+  private async standingsColumns(leagueId: string, reader: StandingsReader) {
+    const approved = await this.approvedLinks(leagueId);
+    const columns = reader === 'public' ? approved.filter(isPublicLink) : approved;
     const { data: resultRows } = await this.supabase.service
       .from('league_tournament_results')
       .select('tournament_id')
@@ -1817,7 +1854,7 @@ export class LeaguesService {
     const countedTournamentIds = new Set(
       ((resultRows ?? []) as Row[]).map((row) => String(row['tournament_id'])),
     );
-    const pendingTournaments = ((links ?? []) as Row[])
+    const pendingTournaments = columns
       .filter((link) => !countedTournamentIds.has(String(link['tournament_id'])))
       .map((link) => {
         const tournament = (link['tournaments'] as Row | null) ?? null;
@@ -1828,20 +1865,7 @@ export class LeaguesService {
           eventName: event ? String(event['name'] ?? '') : '',
         };
       });
-
-    // Per-row deciding tie-breaker: for each fighter, the first configured
-    // tie-breaker key on which they differ from the fighter directly above them
-    // in the same ranking group. Read-time derivation over the already-sorted
-    // rows — no migration; every value it needs is on the row already.
-    const tieBreakers = normalizeScoringConfig(league['scoring_config']).tieBreakers;
-    const rows = attachDecidingTiebreaks((data ?? []) as Row[], tieBreakers);
-
-    return {
-      league,
-      columns: links ?? [],
-      rows,
-      pendingTournaments,
-    };
+    return { columns, pendingTournaments };
   }
 
   /**

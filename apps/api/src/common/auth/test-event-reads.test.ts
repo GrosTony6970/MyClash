@@ -93,7 +93,7 @@ const TABLES = {
     rows: EVENTS.map((e) => ({
       league_id: LEAGUE,
       status: 'approved',
-      tournaments: { event_id: e.id, events: e },
+      tournaments: { event_id: e.id, status: 'published', events: e },
     })),
   },
   organization_members: {

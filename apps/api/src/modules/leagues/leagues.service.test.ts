@@ -695,6 +695,7 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
       {
         status: 'approved',
         tournaments: {
+          status: 'published',
           event_id: 'event-A',
           events: {
             id: 'event-A',
@@ -702,6 +703,8 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
             slug: 'spring-cup',
             start_date: '2026-03-14',
             end_date: '2026-03-15',
+            status: 'published',
+            event_kind: 'standard',
             organizations: { id: 'org-A', name: 'HEMA Lyon' },
           },
         },
@@ -710,6 +713,7 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
         // Second tournament from the same event — must dedupe to one event card.
         status: 'approved',
         tournaments: {
+          status: 'published',
           event_id: 'event-A',
           events: {
             id: 'event-A',
@@ -717,6 +721,8 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
             slug: 'spring-cup',
             start_date: '2026-03-14',
             end_date: '2026-03-15',
+            status: 'published',
+            event_kind: 'standard',
             organizations: { id: 'org-A', name: 'HEMA Lyon' },
           },
         },
@@ -724,6 +730,7 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
       {
         status: 'approved',
         tournaments: {
+          status: 'published',
           event_id: 'event-B',
           events: {
             id: 'event-B',
@@ -731,6 +738,8 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
             slug: 'open-bordeaux',
             start_date: '2026-04-18',
             end_date: '2026-04-19',
+            status: 'published',
+            event_kind: 'standard',
             organizations: { id: 'org-B', name: 'HEMA Bordeaux' },
           },
         },
@@ -818,22 +827,38 @@ describe('LeaguesService.listPublic groups breakdown', () => {
                 {
                   league_id: 'L1',
                   group_id: 'g1',
-                  tournaments: { event_id: 'E1' },
+                  tournaments: {
+                    event_id: 'E1',
+                    status: 'published',
+                    events: { status: 'published', event_kind: 'standard' },
+                  },
                 },
                 {
                   league_id: 'L1',
                   group_id: 'g1',
-                  tournaments: { event_id: 'E1' }, // duplicate event
+                  tournaments: {
+                    event_id: 'E1',
+                    status: 'published',
+                    events: { status: 'published', event_kind: 'standard' },
+                  }, // duplicate event
                 },
                 {
                   league_id: 'L1',
                   group_id: 'g2',
-                  tournaments: { event_id: 'E2' },
+                  tournaments: {
+                    event_id: 'E2',
+                    status: 'published',
+                    events: { status: 'published', event_kind: 'standard' },
+                  },
                 },
                 {
                   league_id: 'L2',
                   group_id: null,
-                  tournaments: { event_id: 'E3' },
+                  tournaments: {
+                    event_id: 'E3',
+                    status: 'published',
+                    events: { status: 'published', event_kind: 'standard' },
+                  },
                 },
               ],
               error: null,
