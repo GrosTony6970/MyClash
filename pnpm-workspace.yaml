@@ -130,3 +130,12 @@ overrides:
   # and a bare key would drag a future 5.x consumer back. It arrives through
   # postcss in next, vite and @tailwindcss/postcss: build and test tooling.
   'nanoid@3': ^3.3.18
+  # >=8.10.2 clears GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3 and
+  # GHSA-vp8m-p9jh-q5pm. Nobody declares undici directly: jsdom (^8.9.0, test
+  # tooling) and astro's unifont (^8.0.0, the web-marketing build) both allowed
+  # the fix while the lockfile sat on 8.10.0.
+  'undici@8': ^8.10.2
+  # >=2.1.6 clears GHSA-qhr7-859c-m2p7 and GHSA-6j4f-fj2g-mc7p (unbounded
+  # recursion). Arrives through minimatch 9 (^2.0.2) in eslint and glob: lint
+  # and build tooling.
+  'brace-expansion@2': ^2.1.6
