@@ -9,6 +9,21 @@ import { FightersService } from './fighters.service';
 
 type Row = Record<string, unknown>;
 
+/**
+ * A stub's tables, plus the public-profile check (rulings 174, 176, 177): the profile stands not on
+ * its own (`.in().or()` on `global_persons` finds none), holds no staff role and has no roster row.
+ */
+const NO_ROWS = new Set(['persons', 'event_referees', 'event_instructors']);
+const withNoRoster =
+  (from: (table: string) => unknown) =>
+  (table: string): unknown => {
+    const none = async () => ({ data: [], error: null });
+    if (NO_ROWS.has(table)) return { select: () => ({ in: none }) };
+    const stub = from(table) as { select: (columns: string) => object };
+    if (table !== 'global_persons') return stub;
+    return { select: (columns: string) => ({ ...stub.select(columns), in: () => ({ or: none }) }) };
+  };
+
 // A simpler stub that works for the actual method's call chain
 function buildService(supabase: object): FightersService {
   return new FightersService(supabase as never, {} as never, {} as never);
@@ -62,7 +77,7 @@ describe('FightersService.listMatchesPaginated', () => {
     // Build a service with a hand-rolled stub
     const supabaseStub = {
       service: {
-        from: (table: string) => {
+        from: withNoRoster((table: string) => {
           if (table === 'global_persons') {
             return {
               select: () => ({
@@ -112,7 +127,7 @@ describe('FightersService.listMatchesPaginated', () => {
             };
           }
           return { select: () => ({}) };
-        },
+        }),
       },
     };
 
@@ -185,7 +200,7 @@ describe('FightersService.listMatchesPaginated', () => {
 
     const supabaseStub = {
       service: {
-        from: (table: string) => {
+        from: withNoRoster((table: string) => {
           if (table === 'global_persons') {
             return {
               select: () => ({
@@ -224,7 +239,7 @@ describe('FightersService.listMatchesPaginated', () => {
             };
           }
           return { select: () => ({}) };
-        },
+        }),
       },
     };
 
@@ -266,7 +281,7 @@ describe('FightersService.listMatchesPaginated', () => {
 
     const supabaseStub = {
       service: {
-        from: (table: string) => {
+        from: withNoRoster((table: string) => {
           if (table === 'global_persons') {
             return {
               select: () => ({
@@ -317,7 +332,7 @@ describe('FightersService.listMatchesPaginated', () => {
             };
           }
           return { select: () => ({}) };
-        },
+        }),
       },
     };
 

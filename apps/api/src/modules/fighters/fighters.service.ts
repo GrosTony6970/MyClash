@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { asEventKind, countsTowardStats } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
-import { firstPubliclyKnown } from '../../common/auth/hidden-entrants';
+import { firstPubliclyKnown, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
@@ -587,6 +587,9 @@ export class FightersService {
     }
 
     const row = data as unknown as Record<string, unknown>;
+    if (await this.isHiddenProfile(row['id'] as string)) {
+      throw new NotFoundException(`Fighter "${slug}" not found`);
+    }
     const publicProfile = await this.withPublicProfileRelations(this.sanitizePublicFighter(row));
     const hemaRatingsId = row['hema_ratings_id'] as string | null | undefined;
     if (!hemaRatingsId || !this.hemaRatings) return publicProfile;
@@ -609,17 +612,44 @@ export class FightersService {
   }
 
   /** Public HEMA rating time-series for the ranking-history chart. Empty when
-   *  the fighter has no linked hema_ratings_id or the ratings service is absent. */
+   *  the fighter has no linked hema_ratings_id or the ratings service is absent,
+   *  and for a profile known only through hidden entries, as for an unknown slug (rulings 174,
+   *  176a: a draft entry that carried a HEMA Ratings id made the profile it links). */
   async getRatingHistoryBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('global_persons')
-      .select('hema_ratings_id')
+      .select('id, hema_ratings_id')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     const hemaRatingsId = (data as Row | null)?.['hema_ratings_id'] as string | null | undefined;
     if (!hemaRatingsId || !this.hemaRatings) return { series: [] };
+    if (await this.isHiddenProfile((data as Row)['id'] as string)) return { series: [] };
     return { series: await this.hemaRatings.getRatingHistory(hemaRatingsId) };
+  }
+
+  /**
+   * The profile a public fighter route names by slug: 404 for an unknown slug, and exactly the same
+   * for a profile known only through entries hidden from the public (ruling 174). A failed read is
+   * a 5xx, not a 400 carrying the database's words.
+   */
+  private async publicFighterIdBySlug(slug: string): Promise<string> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw new Error(`fighter read failed: ${error.message}`);
+    const id = (data as Row | null)?.['id'] as string | undefined;
+    if (!id || (await this.isHiddenProfile(id))) {
+      throw new NotFoundException(`Fighter "${slug}" not found`);
+    }
+    return id;
+  }
+
+  /** Known only through entries hidden from the public (`publiclyKnownProfileIds`, ruling 174). */
+  private async isHiddenProfile(id: string): Promise<boolean> {
+    return !(await publiclyKnownProfileIds({ supabase: this.supabase }, [id])).has(id);
   }
 
   // ── Create ───────────────────────────────────────────────────────────────────
@@ -941,21 +971,11 @@ export class FightersService {
     slugOrId: string,
     opts: { limit: number; offset: number; eventId?: string; year?: number },
   ): Promise<{ items: MatchSummary[]; total: number }> {
-    // Resolve to fighter id
+    // Resolve to fighter id. A hidden profile answers as an unknown one (ruling 174): by slug a 404,
+    // by id no bout — else a withdrawn public entry of hers would list its bouts.
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
-    let fighterId: string;
-    if (isUuid) {
-      fighterId = slugOrId;
-    } else {
-      const { data, error } = await this.supabase.service
-        .from('global_persons')
-        .select('id')
-        .eq('slug', slugOrId)
-        .maybeSingle();
-      if (error) throw new BadRequestException(error.message);
-      if (!data) throw new NotFoundException(`Fighter "${slugOrId}" not found`);
-      fighterId = String((data as Row)['id']);
-    }
+    if (isUuid && (await this.isHiddenProfile(slugOrId))) return { items: [], total: 0 };
+    const fighterId = isUuid ? slugOrId : await this.publicFighterIdBySlug(slugOrId);
 
     // Fetch all registrations for this fighter. registrations has no
     // global_person_id (legacy fighter_id dropped in 0083) — walk through
@@ -1103,27 +1123,11 @@ export class FightersService {
   }
 
   async getCareerBySlug(slug: string, query: { year?: string; weapon?: string } = {}) {
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select('id, slug, display_name')
-      .eq('slug', slug)
-      .maybeSingle();
-
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
-    return this.getCareerForFighter(String((data as Row)['id']), query);
+    return this.getCareerForFighter(await this.publicFighterIdBySlug(slug), query);
   }
 
   async getRefereeStatsBySlug(slug: string) {
-    const personId = await this.resolveRefereePersonIdForFighterSlug(slug);
-    return personId
-      ? this.getRefereeStatsForPerson(personId, false)
-      : buildRefereeStats({
-          userId: '',
-          assignments: [],
-          durations: [],
-          penalties: [],
-        });
+    return this.getRefereeStatsForPerson(await this.publicFighterIdBySlug(slug), false);
   }
 
   async getCareerForFighter(
@@ -1767,17 +1771,6 @@ export class FightersService {
         },
       ];
     });
-  }
-
-  private async resolveRefereePersonIdForFighterSlug(slug: string): Promise<string | null> {
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select('id')
-      .eq('slug', slug)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
-    return String((data as Row)['id']);
   }
 
   private async getRefereeStatsForPerson(personId: string, includePrivateDetails: boolean) {

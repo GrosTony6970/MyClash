@@ -56,6 +56,11 @@ function build(tables: Partial<Record<string, TableSeed>> = {}) {
     matches: { rows: [] },
     exchanges: { rows: [] },
     league_rankings: { rows: [] },
+    // No roster row and no staff role: the profile itself is one the public may know of (rulings
+    // 174, 177), so these tests hold the history's own filter.
+    persons: { rows: [] },
+    event_referees: { rows: [] },
+    event_instructors: { rows: [] },
     ...tables,
   } as Record<string, TableSeed>);
   return { db, service: new FightersService(db as never, {} as never) };
