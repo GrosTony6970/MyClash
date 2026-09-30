@@ -1633,6 +1633,14 @@ describe('AuthService', () => {
       events: { id: 'event-1', name: 'FAL 2026' },
       ...over,
     });
+    const publicEvent = (id: string) => ({
+      id,
+      status: 'published',
+      organization_id: 'org-1',
+      event_kind: 'standard',
+    });
+    // The booked Workshop's session, reaching its Event.
+    const SESSION = { id: 's-1', workshops: { id: 'w-1', event_id: 'event-1' } };
 
     const populated = () =>
       seedTables({
@@ -1655,26 +1663,17 @@ describe('AuthService', () => {
           rows: [
             { id: 'ra-other-1', person_id: 'global-other', created_at: '2026-01-01T00:00:00Z' },
             { id: 'ra-other-2', person_id: 'global-other', created_at: '2026-01-02T00:00:00Z' },
-            { id: 'ra-1', person_id: 'global-1', created_at: '2026-02-01T00:00:00Z' },
+            { id: 'ra-1', person_id: 'global-1', event_id: 'event-1', created_at: '2026-02-01' },
           ],
         },
         workshop_enrollments: {
           rows: [
             { id: 'we-other', user_id: 'other-user', enrolled_at: '2026-01-01T00:00:00Z' },
-            { id: 'we-1', user_id: USER, enrolled_at: '2026-02-01T00:00:00Z' },
+            { id: 'we-1', user_id: USER, enrolled_at: '2026-02-01', workshop_sessions: SESSION },
           ],
         },
-        // The suggestion's Event, for the draft bar (ruling 171a): public, nothing hidden.
-        events: {
-          rows: [
-            {
-              id: 'event-2',
-              status: 'published',
-              organization_id: 'org-1',
-              event_kind: 'standard',
-            },
-          ],
-        },
+        // Her rows' Event and the suggestion's, for the draft bar (rulings 171a, 172): public.
+        events: { rows: ['event-1', 'event-2'].map(publicEvent) },
         tournaments: { rows: [] },
       });
 

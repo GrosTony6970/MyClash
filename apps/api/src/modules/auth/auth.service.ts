@@ -17,8 +17,13 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
-import { knownRosterRows, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
+import {
+  knownRosterRows,
+  publiclyKnownProfileIds,
+  visibleEventRows,
+} from '../../common/auth/hidden-entrants';
 import { getStaffSession } from '../../common/auth/identity';
+import type { PublicReader } from '../../common/auth/competition-visibility';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
@@ -126,6 +131,29 @@ function redactEmail(email: string): string {
   const visible = local.length <= 2 ? (local[0] ?? '') : `${local[0]}***${local[local.length - 1]}`;
   return `${visible}@${domain}`;
 }
+
+type DashboardRow = Record<string, unknown>;
+interface RowPlace {
+  eventId: string;
+  tournamentId: string | null;
+}
+
+/** The Tournament of an embed reaching `phases(tournament_id)`, or null without one. */
+const tournamentOf = (embed: unknown): string | null =>
+  (embed as { phases?: { tournament_id?: string } } | null)?.phases?.tournament_id ?? null;
+
+/** A duty's Event and Tournament: its Pool's or its bout's; a piste duty has none (0091's CHECK). */
+const dutyPlace = (duty: DashboardRow): RowPlace => ({
+  eventId: duty['event_id'] as string,
+  tournamentId: tournamentOf(duty['pools']) ?? tournamentOf(duty['matches']),
+});
+
+/** A Workshop booking's Event: a Workshop belongs to no Tournament. */
+const bookingPlace = (booking: DashboardRow): RowPlace => ({
+  eventId: (booking['workshop_sessions'] as { workshops?: { event_id?: string } } | null)?.workshops
+    ?.event_id as string,
+  tournamentId: null,
+});
 
 function normalizeOrganizationMembership(
   row: unknown,
@@ -619,20 +647,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid session');
     }
 
+    // Only what the draft bar lets her know of (ruling 172); the filters 5xx on a failed read.
+    const reader = { userId: user.id, staff: getStaffSession(request) };
     const [claimedPersons, globalPerson, refereeAssignments, workshopEnrollments, claimable] =
       await Promise.all([
-        this.fetchClaimedPersons(user.id),
+        this.fetchClaimedPersons(user.id).then((rows) => this.knownClaimed(rows, reader)),
         this.fetchGlobalPerson(user.id),
-        this.fetchRefereeAssignments(user.id),
-        this.fetchWorkshopEnrollments(user.id),
+        this.fetchRefereeAssignments(user.id).then((rows) => this.visible(rows, dutyPlace, reader)),
+        this.fetchWorkshopEnrollments(user.id).then((rows) =>
+          this.visible(rows, bookingPlace, reader),
+        ),
         this.fetchClaimablePersons(user, request),
       ]);
-
-    const eventIds = new Set<string>();
-    for (const person of claimedPersons) {
-      const eventId = person['event_id'];
-      if (typeof eventId === 'string') eventIds.add(eventId);
-    }
+    const eventIds = new Set(claimedPersons.map((person) => person['event_id']));
 
     return {
       user: {
@@ -738,6 +765,28 @@ export class AuthService {
 
   // ── Private helpers ─────────────────────────────────────────────────────
 
+  /** Her claimed rows she may know of (`knownRosterRows`, ruling 172). */
+  private async knownClaimed(rows: DashboardRow[], reader: PublicReader): Promise<DashboardRow[]> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const roster = rows.map((row) => ({
+      id: row['id'] as string,
+      eventId: row['event_id'] as string,
+      row,
+    }));
+    return (await knownRosterRows(deps, roster, reader)).map(({ row }) => row);
+  }
+
+  /** Her duties or bookings she may know of (`visibleEventRows`, ruling 172). */
+  private async visible(
+    rows: DashboardRow[],
+    place: (row: DashboardRow) => RowPlace,
+    reader: PublicReader,
+  ): Promise<DashboardRow[]> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const placed = rows.map((row) => ({ ...place(row), row }));
+    return (await visibleEventRows(deps, placed, reader)).map(({ row }) => row);
+  }
+
   private async fetchClaimedPersons(userId: string): Promise<Record<string, unknown>[]> {
     try {
       const { data, error } = await this.supabase.service
@@ -788,7 +837,7 @@ export class AuthService {
       const { data, error } = await this.supabase.service
         .from('referee_assignments')
         .select(
-          'id, event_id, role, created_at, events(id, slug, name), matches(id, phase_id, status, scheduled_at, ended_at)',
+          'id, event_id, role, created_at, events(id, slug, name), pool_id, pools(phases(tournament_id)), matches(id, phase_id, status, scheduled_at, ended_at, phases(tournament_id))',
         )
         .eq('person_id', personId)
         .order('created_at', { ascending: false });

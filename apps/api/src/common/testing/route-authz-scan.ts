@@ -97,6 +97,8 @@ const PUBLIC_READ_GATES = new Set([
   'seesHiddenOnLice',
   'visibleTournaments',
   'hiddenTournamentIds',
+  'readableEvents',
+  'visibleEventRows',
   // hidden-entrants.ts: the people a caller may not find.
   'hiddenEntrantIds',
   'knownRosterRows',

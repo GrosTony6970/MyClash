@@ -21,12 +21,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
 import {
-  canReadEvent,
   type CompetitionEvent,
   type PublicReader,
   visibleTournaments,
 } from '../../common/auth/competition-visibility';
-import { knownRosterRows } from '../../common/auth/hidden-entrants';
+import { knownRosterRows, readableEvents } from '../../common/auth/hidden-entrants';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { type PersonSchedule, PublicScheduleService } from '../persons/public-schedule.service';
@@ -495,7 +494,7 @@ export class MeEventsService {
     infos: Iterable<MyEventInfo | null>,
     reader: PublicReader,
   ): Promise<Map<string, EventTournament[]>> {
-    const events = await this.readableEvents(infos, reader);
+    const events = await this.readableOf(infos, reader);
     const tournaments = await this.fetchTournamentsForEvents(events.map((event) => event.id));
     const deps = { supabase: this.supabase, orgs: this.orgs };
     const visible = new Map<string, EventTournament[]>();
@@ -521,27 +520,13 @@ export class MeEventsService {
     return knownRosterRows(deps, inList, reader);
   }
 
-  /**
-   * The Events among these the caller may see: a draft one only an insider may (`canReadEvent`).
-   * A failed read is a 5xx: read as "no Event", it would empty her space without a word.
-   */
-  private async readableEvents(
+  /** The Events among these the caller may see (`readableEvents`); a failed read is a 5xx. */
+  private readableOf(
     infos: Iterable<MyEventInfo | null>,
     reader: PublicReader,
   ): Promise<CompetitionEvent[]> {
-    const ids = [...new Set([...infos].flatMap((info) => (info ? [info.id] : [])))];
-    if (ids.length === 0) return [];
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .select('id, status, organization_id, event_kind')
-      .in('id', ids);
-    if (error) throw new Error(`events read failed: ${error.message}`);
-    const deps = { supabase: this.supabase, orgs: this.orgs };
-    const readable: CompetitionEvent[] = [];
-    for (const event of (data ?? []) as CompetitionEvent[]) {
-      if (await canReadEvent(deps, event, reader)) readable.push(event);
-    }
-    return readable;
+    const ids = [...infos].flatMap((info) => (info ? [info.id] : []));
+    return readableEvents({ supabase: this.supabase, orgs: this.orgs }, ids, reader);
   }
 
   // ── /me/upcoming ──────────────────────────────────────────────────────────
@@ -550,7 +535,7 @@ export class MeEventsService {
     const claimedPersons = await this.fetchClaimedPersons(reader.userId);
     // A draft Event hidden from her is left out (ruling 164); `getSchedule` already leaves out her
     // bouts and duties in a draft Tournament, for everyone.
-    const events = await this.readableEvents(
+    const events = await this.readableOf(
       claimedPersons.map((p) => p.event),
       reader,
     );
