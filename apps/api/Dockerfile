@@ -87,6 +87,10 @@ FROM node:${NODE_VERSION}-alpine AS runner
 # packages from the first build of this layer; CI builds and scans fresh.
 # Refreshing on a host: docs/ENGINEERING_LESSONS.md, Cross-platform & deployment.
 RUN apk upgrade --no-cache
+# Nothing in this image runs npm: the CMD, the health check and deploy.sh's migrate.mjs are node.
+# The npm the base image bundles goes, so an advisory in npm's own dependencies no longer ships
+# with the API (brace-expansion 5.0.9, 2026-09-30).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
 # on Node 26 — harmless upstream deprecation. Disables only this warning.

@@ -127,6 +127,10 @@ FROM node:${NODE_VERSION}-alpine AS runner
 # packages from the first build of this layer; CI builds and scans fresh.
 # Refreshing on a host: docs/ENGINEERING_LESSONS.md, Cross-platform & deployment.
 RUN apk upgrade --no-cache
+# Nothing in this image runs npm: the CMD and the health check are node. The npm the base image
+# bundles goes, so an advisory in npm's own dependencies no longer ships with the app
+# (brace-expansion 5.0.9, 2026-09-30).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
