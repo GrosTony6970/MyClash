@@ -10,7 +10,12 @@
  */
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mockSupabase, selectsFor, type TableSeed } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  selectsFor,
+  writesTo,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { EventsService } from './events.service';
 
 const EVENT = 'e-winter';
@@ -185,5 +190,31 @@ describe('a draft Tournament going live resends its lock messages', () => {
     expect(String(logged.mock.calls[0]?.[0])).toContain(
       `Failed to resend the lock messages of ${SECRET}: boom`,
     );
+  });
+});
+
+/**
+ * Ruling 192. Claire marks the Winter Secret completed while the message queue is down. The
+ * completion is written, but she sees an error, and the page still shows "running". She picks
+ * "completed" again: that save sends the results notice again, and the scheduler skips each Fighter
+ * who already has it (notification-scheduler.worker.test.ts). Swallowing the failure would lose the
+ * missed notices for good; so would sending only on the first save as completed.
+ */
+describe('a failed results notice fails the save, so the organiser saves again', () => {
+  const complete: Act = (s) => s.updateTournament(SECRET, { status: 'completed' }, 'u');
+
+  it('the completion is written, and the save answers the failure', async () => {
+    db = mockSupabase(tables('published', 'running'));
+    notificationEvents.resultsPublished.mockRejectedValue(new Error('results down'));
+    await expect(complete(service())).rejects.toThrow('results down');
+    expect(writesTo(db, 'tournaments').map((write) => write.row)).toEqual([
+      expect.objectContaining({ status: 'completed' }),
+    ]);
+  });
+
+  it('the second save, of a Tournament already completed, sends the notice again', async () => {
+    db = mockSupabase(tables('published', 'completed'));
+    await expect(complete(service())).resolves.toMatchObject({ id: SECRET });
+    expect(notificationEvents.resultsPublished.mock.calls).toEqual([[SECRET]]);
   });
 });

@@ -787,6 +787,9 @@ export class EventsService {
     if (before.status === 'draft' && isLive(next)) {
       await this.resendLockMessages(before.event_id, before.id);
     }
+    // Not best effort, and sent on every save as completed (ruling 192): a failure here fails the
+    // save, which is written, so the organiser saves again, and that save sends the notices that
+    // were missed. The scheduler holds a sent notice for a day, so nobody gets it twice.
     if (next === 'completed') await this.notificationEvents.resultsPublished(before.id);
   }
 
