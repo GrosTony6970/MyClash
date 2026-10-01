@@ -91,7 +91,12 @@ peerDependencyRules:
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing.
 overrides:
-  fastify: ^5.11.2
+  # >=5.12.2 clears GHSA-667r-xxjv-c9mm, GHSA-p68q-wchp-6fh7, GHSA-hwr6-493r-vm6h and
+  # GHSA-9q9j-q6p8-xq58 (request body replacement, an authentication bypass through
+  # malformed URLs, request and header validation bypasses). @nestjs/platform-fastify
+  # 11.2.6 asks for exactly 5.11.3, inside the advisory range, so this pin is what
+  # holds the API on the fix.
+  fastify: ^5.12.2
   # >=3.1.6 clears CVE-2026-75899/75931/75975/76172 (SSRF and host confusion).
   # The pin is the floor AND the ceiling in practice: ^3.1.5 resolved to exactly
   # 3.1.5, which is inside the advisory range, so the pin written to close the

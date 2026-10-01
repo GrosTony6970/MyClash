@@ -8,6 +8,7 @@ import { ApiExceptionFilter } from './common/api-exception.filter';
 import { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } from './common/global-prefix';
 import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
+import { trustOneLocalProxy } from './common/trust-proxy';
 import { ZodOrClassValidationPipe } from './common/zod-or-class-validation.pipe';
 import { buildCorsOrigins } from './security/http-security';
 
@@ -23,13 +24,9 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter({
       logger: process.env['NODE_ENV'] !== 'test',
-      // Traefik is the only hop in front of us, so trust exactly one: `req.ip`
-      // then resolves to the last X-Forwarded-For entry — the address Traefik
-      // itself observed. Without this, `req.ip` is Traefik's container address
-      // and every client shares a single rate-limit bucket. The hop count (not
-      // `true`) is what makes it spoof-proof: a client-supplied X-Forwarded-For
-      // only ever prepends to the chain, so it can't displace the real address.
-      trustProxy: 1,
+      // Traefik is the only proxy in front of us: `req.ip` is the address it saw
+      // (common/trust-proxy.ts). Not `true`, and not a hop count.
+      trustProxy: trustOneLocalProxy,
     }),
   );
 

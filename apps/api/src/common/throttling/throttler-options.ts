@@ -25,9 +25,9 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                surface must NOT be keyed on.
  *
  * IPs in THROTTLE_IP_WHITELIST skip all three. The `global` limit keys off
- * `req.ip`, which is only meaningful because the Fastify adapter sets
- * `trustProxy: 1` (see main.ts); without it every client behind Traefik shares
- * one bucket.
+ * `req.ip`, which is only meaningful because the Fastify adapter trusts the
+ * one local proxy (trust-proxy.ts); without it every client behind Traefik
+ * shares one bucket.
  *
  * Extracted from AppModule so the wiring is testable without booting the whole
  * app graph (see throttler-options.test.ts).

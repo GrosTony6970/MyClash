@@ -214,7 +214,7 @@
   "functions": [
     "apps/api/src/common/event-readonly/event-readonly.guard.ts:18",
     "apps/api/src/common/event-readonly/resolve-event-id.ts:20",
-    "apps/api/src/main.ts:21",
+    "apps/api/src/main.ts:22",
     "apps/api/src/modules/admin/admin-dashboard-stats.service.ts:66",
     "apps/api/src/modules/admin/admin-organizations.service.ts:123",
     "apps/api/src/modules/admin/admin-organizations.service.ts:232",

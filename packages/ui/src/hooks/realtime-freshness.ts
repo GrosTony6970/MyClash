@@ -47,8 +47,8 @@ export interface Freshness {
  * down. Two speeds, because the cost of polling is paid by the venue, not by the
  * browser.
  *
- * The API's throttler keys on the real client IP (Fastify runs with
- * `trustProxy: 1`), and every phone on a hall's wifi shares ONE public address —
+ * The API's throttler keys on the real client IP (Fastify trusts the one
+ * proxy in front of it), and every phone on a hall's wifi shares ONE public address —
  * so a room draws on a single bucket. The three polled endpoints therefore carry
  * PUBLIC_LIVE_READ_THROTTLE (600/min) rather than the global 120/min: at the
  * live cadence below that is 36 req/min per spectator, i.e. a ceiling around

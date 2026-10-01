@@ -2021,8 +2021,11 @@ all of them.
 | Event persons lookup                                                   | 30 req/min/IP                                        |
 | AI natural-language query                                              | 60/hour per (tournament, user); admin-settable 1–500 |
 
-`req.ip` is resolved through `trustProxy: 1` on the Fastify adapter, so it is the
-address Traefik observed rather than a client-supplied `X-Forwarded-For` entry.
+`req.ip` is resolved through `trustProxy` on the Fastify adapter
+(`apps/api/src/common/trust-proxy.ts`): one hop, believed only when the direct caller is
+on a local address, so it is the address Traefik observed rather than a client-supplied
+`X-Forwarded-For` entry. A hop count alone (`trustProxy: 1`) no longer works: fastify 5.12
+takes it and trusts no one, in silence.
 
 Two limits worth knowing about: the throttler store is in-memory, so counters are
 per API container and reset on every redeploy; and there is no edge-level

@@ -4,6 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Test } from '@nestjs/testing';
 import { Throttle, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { trustOneLocalProxy } from '../trust-proxy';
 import { AUTH_ACTION_THROTTLE } from './throttle-profiles';
 import { ThrottleByEmail } from './throttle-by-email';
 import { ThrottleByStaffAccount } from './throttle-by-staff-account';
@@ -94,7 +95,7 @@ beforeAll(async () => {
   app = moduleRef.createNestApplication<NestFastifyApplication>(
     // Mirrors main.ts: without trustProxy the X-Forwarded-For above is ignored
     // and every request in this file would share one bucket.
-    new FastifyAdapter({ trustProxy: 1 }),
+    new FastifyAdapter({ trustProxy: trustOneLocalProxy }),
   );
   await app.init();
   await app.getHttpAdapter().getInstance().ready();

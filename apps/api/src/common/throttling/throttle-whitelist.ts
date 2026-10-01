@@ -30,8 +30,8 @@ export function throttleWhitelist(): ReadonlySet<string> {
 }
 
 /**
- * Relies on `req.ip`, which is trustworthy because the Fastify adapter is
- * configured with `trustProxy: 1` (see main.ts) — it resolves to the address
+ * Relies on `req.ip`, which is trustworthy because the Fastify adapter
+ * trusts the one local proxy (trust-proxy.ts) — it resolves to the address
  * Traefik observed, not to a client-supplied X-Forwarded-For entry.
  */
 export function isThrottleWhitelisted(context: ExecutionContext): boolean {

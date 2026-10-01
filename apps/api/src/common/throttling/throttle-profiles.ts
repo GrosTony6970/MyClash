@@ -11,8 +11,8 @@ export const CATALOG_READ_THROTTLE = {
  * is down: `GET matches/:id`, `matches/:id/exchanges`, `matches/:id/penalties`.
  *
  * Sized for a VENUE, not for a browser. Every phone on the hall's wifi shares
- * one public IP, and `req.ip` is the real client address (Fastify runs with
- * `trustProxy: 1`), so the whole room draws on ONE bucket. At the fallback's
+ * one public IP, and `req.ip` is the real client address (Fastify trusts the
+ * one proxy, trust-proxy.ts), so the whole room draws on ONE bucket. At the fallback's
  * fastest cadence that is 3 requests every 5s per spectator = 36/min: on the
  * global 120/min the fourth phone watching a live bout would start collecting
  * 429s. 600 puts the ceiling around sixteen, which is the difference between
