@@ -49,6 +49,7 @@ function makeSelectChain(result: unknown) {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     ilike: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     is: vi.fn().mockReturnThis(),
     neq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
@@ -125,13 +126,18 @@ describe('PersonEmailChangeService', () => {
   });
 
   it('rejects a new email already used by another Person in any claimed event', async () => {
+    const taken = [{ id: 'other-person', email: 'other@example.com' }];
+    const sameAddress = makeSelectChain({ data: taken, error: null });
     fromMock
       .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
-      .mockReturnValueOnce(makeSelectChain({ data: { id: 'other-person' }, error: null }));
+      .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
+      .mockReturnValueOnce(sameAddress);
 
     await expect(
       service.requestEmailChange(makeRequest('token'), { newEmail: 'other@example.com' }),
     ).rejects.toThrow(ConflictException);
+    expect(sameAddress.in).toHaveBeenCalledWith('event_id', ['event-1', 'event-2']);
+    expect(sameAddress.ilike).toHaveBeenCalledWith('email', 'other@example.com');
   });
 
   it('stores only a token hash and sends confirmation to the new email', async () => {
@@ -147,8 +153,8 @@ describe('PersonEmailChangeService', () => {
 
     fromMock
       .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
-      .mockReturnValueOnce(makeSelectChain({ data: null, error: null }))
-      .mockReturnValueOnce(makeSelectChain({ data: null, error: null }))
+      .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
+      .mockReturnValueOnce(makeSelectChain({ data: [], error: null }))
       .mockReturnValueOnce(cancelChain)
       .mockReturnValueOnce(insertChain);
 
@@ -180,8 +186,8 @@ describe('PersonEmailChangeService', () => {
 
     fromMock
       .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
-      .mockReturnValueOnce(makeSelectChain({ data: null, error: null }))
-      .mockReturnValueOnce(makeSelectChain({ data: null, error: null }))
+      .mockReturnValueOnce(makeSelectChain({ data: claimedPersons, error: null }))
+      .mockReturnValueOnce(makeSelectChain({ data: [], error: null }))
       .mockReturnValueOnce(cancelChain)
       .mockReturnValueOnce(insertChain);
 

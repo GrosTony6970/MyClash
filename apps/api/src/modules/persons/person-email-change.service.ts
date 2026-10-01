@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import type { FastifyRequest } from 'fastify';
+import { addressTakenOnHerRosters, moveClaimedRowsToAddress } from '../auth/claimed-person-sync';
 import { MailService } from '../mail/mail.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -66,19 +67,8 @@ export class PersonEmailChangeService {
       throw new UnauthorizedException('No claimed Person profile linked to this account');
     }
 
-    for (const person of claimedPersons) {
-      const { data: conflict, error } = await this.supabase.service
-        .from('persons')
-        .select('id')
-        .eq('event_id', person.event_id)
-        .ilike('email', newEmail)
-        .neq('id', person.id)
-        .maybeSingle();
-
-      if (error) throw new BadRequestException(error.message);
-      if (conflict) {
-        throw new ConflictException('This email is already used by another person in this event');
-      }
+    if (await addressTakenOnHerRosters(this.supabase, userId, newEmail)) {
+      throw new ConflictException('This email is already used by another person in this event');
     }
 
     const now = new Date();
@@ -185,10 +175,11 @@ export class PersonEmailChangeService {
       .eq('id', request.id);
     if (confirmError) throw new BadRequestException(confirmError.message);
 
-    const { error: personsError } = await this.supabase.service
-      .from('persons')
-      .update({ email: request.new_email, updated_at: confirmedAt })
-      .eq('claimed_by_user_id', request.user_id);
+    const personsError = await moveClaimedRowsToAddress(
+      this.supabase,
+      request.user_id,
+      request.new_email,
+    );
     if (personsError) throw new BadRequestException(personsError.message);
 
     await this.writeAuditLog(request);

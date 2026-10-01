@@ -14,6 +14,7 @@ import {
   type UserListScope,
 } from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
+import { addressTakenOnHerRosters, moveClaimedRowsToAddress } from '../auth/claimed-person-sync';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -415,6 +416,11 @@ export class AdminUsersService {
       // No-op
       return this.getUser(userId);
     }
+    // Her roster rows follow her account's address, as when she changes it herself (ruling 204).
+    // Asked first: an address that another row of her rosters holds would move none of them.
+    if (payload.email && (await addressTakenOnHerRosters(this.supabase, userId, payload.email))) {
+      throw new ConflictException('Another person on a roster of this account has this address');
+    }
     const response = await this.supabase.updateAuthAdminUser(userId, payload);
     if (!response.ok) {
       this.logger.warn(`Could not update Auth user through GoTrue: ${response.status}`);
@@ -424,6 +430,10 @@ export class AdminUsersService {
       email: payload.email ?? undefined,
       display_name_set: payload.user_metadata !== undefined,
     });
+    if (payload.email) {
+      const failed = await moveClaimedRowsToAddress(this.supabase, userId, payload.email);
+      if (failed) throw new Error(`Roster rows of ${userId} kept their address: ${failed.message}`);
+    }
     return this.getUser(userId);
   }
 

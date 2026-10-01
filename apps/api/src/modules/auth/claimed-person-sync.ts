@@ -102,6 +102,69 @@ export async function syncClaimedPersonRows(
 }
 
 /**
+ * An account's address changed: the roster rows it holds take the new one
+ * (operator ruling 204).
+ *
+ * A claimed row carries its holder's account address: a claim needs that match
+ * when it is made. So both of the API's doors that change an account's address
+ * come here: the fighter's own change, and a platform admin's on the Accounts
+ * page. The admin's used to leave the rows behind, and the emails of her
+ * notices went to the old address.
+ *
+ * One write for all her rows: ask `addressTakenOnHerRosters` BEFORE the account
+ * changes. Hands back the write's error: each caller decides what a failure
+ * means.
+ */
+export async function moveClaimedRowsToAddress(
+  supabase: SupabaseService,
+  userId: string,
+  email: string,
+): Promise<{ message: string } | null> {
+  const { error } = await supabase.service
+    .from('persons')
+    .update({ email, updated_at: new Date().toISOString() })
+    .eq('claimed_by_user_id', userId);
+  return error;
+}
+
+/**
+ * Whether a roster this account is on already has the address on ANOTHER row.
+ *
+ * A roster cannot hold one address twice (`persons_event_id_email_key`), and
+ * the move above is one write: a taken address in one Event would move none of
+ * her rows, after the account itself has changed. So both doors ask first and
+ * refuse the change whole.
+ *
+ * The read narrows with `ilike` and the comparison is made here: `ilike` reads
+ * `_` and `%` in an address as wildcards, and a look-alike is not a taken
+ * address. A failed read throws: it says nothing about the address.
+ */
+export async function addressTakenOnHerRosters(
+  supabase: SupabaseService,
+  userId: string,
+  email: string,
+): Promise<boolean> {
+  const held = await supabase.service
+    .from('persons')
+    .select('id, event_id')
+    .eq('claimed_by_user_id', userId);
+  if (held.error) throw new Error(`Roster rows of ${userId} unreadable: ${held.error.message}`);
+  const hers = (held.data ?? []) as Array<{ id: string; event_id: string }>;
+  if (hers.length === 0) return false;
+
+  const same = await supabase.service
+    .from('persons')
+    .select('id, email')
+    .in('event_id', [...new Set(hers.map((row) => row.event_id))])
+    .ilike('email', email);
+  if (same.error) throw new Error(`Roster address read failed: ${same.error.message}`);
+  const herIds = new Set(hers.map((row) => row.id));
+  return ((same.data ?? []) as Array<{ id: string; email: string | null }>).some(
+    (row) => !herIds.has(row.id) && personEmailMatchesUser(row.email, email),
+  );
+}
+
+/**
  * The organiser's side of the same claim (operator ruling 199): a roster row
  * saved for a fighter who already holds her profile becomes hers at once.
  *
