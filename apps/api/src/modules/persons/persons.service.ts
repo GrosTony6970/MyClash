@@ -18,6 +18,7 @@ import type {
   PreviewRow,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+import { syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import type { ResolveGlobalPersonResult } from '../identity/global-person-resolver.service';
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
@@ -218,7 +219,7 @@ export class PersonsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    return { ...this.mapPerson(data as Record<string, unknown>), mintedIdentity };
+    return { ...(await this.savedRow(data as Record<string, unknown>)), mintedIdentity };
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Person ${personId} not found`);
-    return this.mapPerson(data as Record<string, unknown>);
+    return this.savedRow(data as Record<string, unknown>);
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
@@ -489,6 +490,36 @@ export class PersonsService {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * A roster row just saved, or just linked to its profile: the account that
+   * holds the profile takes the row at once when it carries that account's
+   * address (operator ruling 199, `syncRowsOfClaimedProfile`).
+   */
+  private claimForProfileHolder(globalPersonId: string | null): Promise<void> {
+    return syncRowsOfClaimedProfile(
+      { supabase: this.supabase, logger: this.logger },
+      globalPersonId,
+    );
+  }
+
+  /**
+   * The answer to a save. It shows the row as it was written, before the
+   * profile's holder took it: the roster page reloads its list.
+   */
+  private async savedRow(row: Record<string, unknown>): Promise<Person> {
+    await this.claimForProfileHolder(row['global_person_id'] as string | null);
+    return this.mapPerson(row);
+  }
+
+  /** Links an imported row to its profile. */
+  private async linkProfile(
+    personId: string,
+    updates: { global_person_id: string; club_id?: string },
+  ): Promise<void> {
+    await this.supabase.service.from('persons').update(updates).eq('id', personId);
+    await this.claimForProfileHolder(updates.global_person_id);
+  }
 
   private async fetchExistingPersons(eventId: string) {
     const { data } = await this.supabase.service
@@ -903,7 +934,7 @@ export class PersonsService {
         const inherited = (gp as { club_id: string | null } | null)?.club_id ?? null;
         if (inherited) updates.club_id = inherited;
       }
-      await this.supabase.service.from('persons').update(updates).eq('id', personId);
+      await this.linkProfile(personId, updates);
       return null;
     }
 
@@ -932,10 +963,7 @@ export class PersonsService {
       return null;
     }
 
-    await this.supabase.service
-      .from('persons')
-      .update({ global_person_id: resolved.id })
-      .eq('id', personId);
+    await this.linkProfile(personId, { global_person_id: resolved.id });
 
     // Set weapons on a freshly minted profile only. Linking to an existing
     // profile leaves its curated weapons untouched.

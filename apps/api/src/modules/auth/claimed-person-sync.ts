@@ -48,9 +48,10 @@ export interface ClaimedPersonSyncTarget {
  * the read and the write is never taken from its owner.
  *
  * Best-effort: a failure is logged, never thrown — it must not block a login or
- * a claim confirmation. One owner for its three callers (the sign-in autolink,
- * the /me claim confirmation and the admin approval), because the rule about
- * whose rows these are has to be the same at all three.
+ * a claim confirmation. One owner for its callers (the sign-in autolink, the /me
+ * claim confirmation, the admin approval and, through `syncRowsOfClaimedProfile`,
+ * the organiser's saves), because the rule about whose rows these are has to be
+ * the same at all of them.
  */
 export async function syncClaimedPersonRows(
   deps: ClaimedPersonSyncDeps,
@@ -92,6 +93,57 @@ export async function syncClaimedPersonRows(
       .in('id', mine)
       .is('claimed_by_user_id', null);
     if (updateError) throw updateError;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    deps.logger.warn(
+      `persons claim-status sync skipped for global_persons ${globalPersonId}: ${message}`,
+    );
+  }
+}
+
+/**
+ * The organiser's side of the same claim (operator ruling 199): a roster row
+ * saved for a fighter who already holds her profile becomes hers at once.
+ *
+ * The other callers run at the moment an account takes a profile, which happens
+ * once. A row added, imported or given her address afterwards stayed unclaimed:
+ * its Event was missing from /me "My events" and no notification keyed on the
+ * roster row reached her, until she pressed "This is me" on /me.
+ *
+ * This asks who holds the profile, reads that account's own address and hands
+ * both to the owner above, so the rows and the address rule are the same. A
+ * profile nobody holds is the ordinary case and ends here, with nothing to say.
+ * The address is read through `getAuthAdminUser`, the API's own door to GoTrue:
+ * a CSV import asks once per row, and that door does not cross the edge.
+ *
+ * Best-effort, as above: a failed read is logged and never fails the organiser's
+ * save, and the /me claim stays her remedy. Her own "This is me" at the same
+ * moment writes the same two values, and the write above never takes a row
+ * from an account that holds it.
+ */
+export async function syncRowsOfClaimedProfile(
+  deps: ClaimedPersonSyncDeps,
+  globalPersonId: string | null,
+): Promise<void> {
+  if (!globalPersonId) return;
+
+  try {
+    const { data, error } = await deps.supabase.service
+      .from('global_persons')
+      .select('claimed_by_user_id')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const userId = (data as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
+    if (!userId) return;
+
+    const account = await deps.supabase.getAuthAdminUser(userId);
+    if (!account.ok) throw new Error(`the account read answered ${account.status}`);
+    await syncClaimedPersonRows(deps, {
+      userId,
+      globalPersonId,
+      accountEmail: account.data?.email,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     deps.logger.warn(
