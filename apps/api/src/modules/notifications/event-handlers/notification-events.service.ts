@@ -48,29 +48,26 @@ export class NotificationEventsService {
   async assignmentChanged(assignmentId: string, { resend = false } = {}): Promise<void> {
     const { data: assignment } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, event_id, person_id, role, matches ( match_number_label )')
+      .select('id, person_id, role, matches ( match_number_label )')
       .eq('id', assignmentId)
       .maybeSingle();
     if (!assignment) return;
 
     const row = assignment as {
       id: string;
-      event_id: string;
       person_id: string | null;
       role: string | null;
       matches?: { match_number_label?: string | null } | null;
     };
     if (!row.person_id) return;
 
-    // Post-0063: row.person_id is global_persons.id. Resolve to an
-    // event-scoped persons row (for email + claimed_by_user_id).
-    const contact = await this.getContactByGlobalPerson(row.event_id, row.person_id);
-    if (!contact?.claimed_by_user_id) return;
+    const contact = await this.refereeAccount(row.id, row.person_id);
+    if (!contact) return;
 
     const message: ScheduledNotificationJob = {
       kind: 'assignment_changed',
       entityId: row.id,
-      userId: contact.claimed_by_user_id,
+      userId: contact.userId,
       title: 'Referee assignment updated',
       body: `${row.role ?? 'Your referee assignment'}${
         row.matches?.match_number_label ? ` for ${row.matches.match_number_label}` : ''
@@ -370,22 +367,25 @@ export class NotificationEventsService {
   }
 
   /**
-   * Resolve a global_persons.id (post-0063 referee identity) to the
-   * event-scoped persons row carrying the email + claimed_by_user_id.
-   * Used by referee notification paths where the source identity is
-   * global, but email delivery is per-event.
+   * The account behind a duty's referee: the one that holds his profile, with that account's own
+   * address (rulings 201, 201a). Not his roster row in the Event: a referee from the directory has
+   * none. Not the profile's address: an organiser may have typed it, and nothing keeps it current.
    */
-  private async getContactByGlobalPerson(
-    eventId: string,
+  private async refereeAccount(
+    dutyId: string,
     globalPersonId: string,
-  ): Promise<ContactRow | null> {
-    const { data } = await this.supabase.service
-      .from('persons')
-      .select('id, claimed_by_user_id, email')
-      .eq('event_id', eventId)
-      .eq('global_person_id', globalPersonId)
+  ): Promise<{ userId: string; email: string | null } | null> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('claimed_by_user_id')
+      .eq('id', globalPersonId)
       .maybeSingle();
-    return (data as ContactRow | null) ?? null;
+    if (error) this.logger.warn(`Lock message of ${dutyId}: profile unreadable: ${error.message}`);
+    const userId = (data as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
+    if (!userId) return null;
+    const { status, data: account } = await this.supabase.getAuthAdminUser(userId);
+    if (!account) this.logger.warn(`Lock message of ${dutyId}: account unreadable: ${status}`);
+    return { userId, email: account?.email ?? null };
   }
 
   private async getContacts(personIds: string[]): Promise<ContactRow[]> {

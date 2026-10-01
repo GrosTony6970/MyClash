@@ -31,26 +31,21 @@ function makeSupabase(resultsByTable: Record<string, unknown>) {
 describe('notification event handlers', () => {
   it('sends assignment changed notifications to the assigned referee', async () => {
     const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const supabase = makeSupabase({
+      referee_assignments: {
+        data: {
+          id: 'assignment-1',
+          person_id: 'person-1',
+          role: 'arbitre_table',
+          matches: { match_number_label: 'L1-P1-M1' },
+        },
+        error: null,
+      },
+      global_persons: { data: { claimed_by_user_id: 'user-1' }, error: null },
+    });
+    const account = { ok: true, status: 200, data: { id: 'user-1', email: 'ref@example.com' } };
     const service = new NotificationEventsService(
-      makeSupabase({
-        referee_assignments: {
-          data: {
-            id: 'assignment-1',
-            person_id: 'person-1',
-            role: 'arbitre_table',
-            matches: { match_number_label: 'L1-P1-M1' },
-          },
-          error: null,
-        },
-        persons: {
-          data: {
-            id: 'person-1',
-            claimed_by_user_id: 'user-1',
-            email: 'ref@example.com',
-          },
-          error: null,
-        },
-      }) as never,
+      { ...supabase, getAuthAdminUser: vi.fn().mockResolvedValue(account) } as never,
       scheduler as never,
     );
 

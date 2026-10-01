@@ -49,21 +49,14 @@ beforeEach(() => {
         },
       ],
     },
-    persons: {
-      rows: [
-        {
-          id: 'p-marc',
-          event_id: 'e-winter',
-          global_person_id: 'gp-marc',
-          claimed_by_user_id: 'u-marc',
-          email: 'marc@example.test',
-        },
-      ],
+    global_persons: {
+      rows: [{ id: 'gp-marc', claimed_by_user_id: 'u-marc' }],
     },
   });
   queue = keepingQueue();
+  const getAuthAdminUser = async () => ({ ok: true, status: 200, data: { id: 'u-marc' } });
   events = new NotificationEventsService(
-    db as never,
+    { ...db, getAuthAdminUser } as never,
     new NotificationSchedulerService(queue as never, db as never),
   );
 });
