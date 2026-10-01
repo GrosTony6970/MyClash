@@ -807,14 +807,16 @@ export const publicApp = {
     notif: {
       inboxLink: 'View announcements',
       enabledLabel: 'Enable notifications',
-      enabledDescription: 'Turn off to pause all reminders and alerts.',
+      enabledDescription:
+        'Turn off to pause all reminders and alerts. Announcements from an organiser or an instructor still reach you by email.',
       leadMatch: 'Remind me before a bout',
       leadReferee: 'Remind me before a refereeing slot',
       leadWorkshop: 'Remind me before a workshop',
       minutesBefore: '{count} min before',
       immediate: 'At start',
       scheduleChanges: 'Schedule changes',
-      scheduleChangesDescription: 'Get notified when your match or workshop times move.',
+      scheduleChangesDescription:
+        'Get notified when your refereeing assignments change, and when a correction you asked for is refused.',
       resultsPublished: 'Results published',
       resultsPublishedDescription: 'Get notified when a tournament publishes its results.',
       organizerUpdates: 'New events from organisers you follow',

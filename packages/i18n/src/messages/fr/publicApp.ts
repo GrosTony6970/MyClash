@@ -812,14 +812,16 @@ export const publicApp = {
     notif: {
       inboxLink: 'Voir les annonces',
       enabledLabel: 'Activer les notifications',
-      enabledDescription: 'Desactivez pour suspendre tous les rappels et alertes.',
+      enabledDescription:
+        "Désactivez pour suspendre tous les rappels et alertes. Les annonces d'un organisateur ou d'un instructeur continuent de vous parvenir par email.",
       leadMatch: 'Me rappeler avant un combat',
       leadReferee: "Me rappeler avant un créneau d'arbitrage",
       leadWorkshop: 'Me rappeler avant un atelier',
       minutesBefore: '{count} min avant',
       immediate: 'Au début',
       scheduleChanges: "Changements d'horaire",
-      scheduleChangesDescription: "Être notifie quand vos horaires de match ou d'atelier changent.",
+      scheduleChangesDescription:
+        "Être notifié quand vos créneaux d'arbitrage changent, et quand une correction que vous avez demandée est refusée.",
       resultsPublished: 'Résultats publies',
       resultsPublishedDescription: 'Être notifie quand un tournoi publie ses résultats.',
       organizerUpdates: 'Nouveaux événements des organisateurs suivis',

@@ -555,11 +555,11 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   private async deliver(job: Job<ScheduledNotificationJob>): Promise<void> {
     const deliveryUserId = job.data.forceEmail ? null : job.data.userId;
     const preference = deliveryUserId ? await this.getPreference(deliveryUserId) : null;
-    if (
-      !deliveryUserId ||
-      preference?.enabled === false ||
-      this.isDisabledByPreference(job.data, preference)
-    ) {
+    if (this.isSwitchedOff(job.data, preference)) {
+      return this.logger.log(`Skipped ${job.data.kind} for ${job.data.entityId}: switched off`);
+    }
+    // An address with no account, or an announcement to a reader whose main switch is off.
+    if (!deliveryUserId || preference?.enabled === false) {
       await this.sendEmailFallback(job.data);
       await this.markRecipient(job.data, 'delivered');
       return;
@@ -608,20 +608,30 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     );
   }
 
+  /** The reader's switches. Unreadable ones count as never saved: the notice goes, with a warning. */
   private async getPreference(userId: string): Promise<TogglePreferences | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('notification_preferences')
       .select(`user_id, enabled, ${PREFERENCE_TOGGLE_COLUMNS.join(', ')}`)
       .eq('user_id', userId)
       .maybeSingle();
+    if (error) this.logger.warn(`Switches of ${userId} unreadable, taken as on: ${error.message}`);
     return (data as TogglePreferences | null) ?? null;
   }
 
-  private isDisabledByPreference(
+  /**
+   * Off means off (operator ruling 200): no push and no email. A notice is off
+   * when its own switch is, or when the main switch is. A broadcast (an
+   * organiser's, or an instructor's to a Workshop) passes the main switch and
+   * goes by email: "the venue changed" is not a reminder. The email is the
+   * fallback of a reader with no push subscription, never the answer to a switch.
+   */
+  private isSwitchedOff(
     job: ScheduledNotificationJob,
     preference: TogglePreferences | null,
   ): boolean {
-    return Boolean(job.preference && preference?.[job.preference] === false);
+    if (job.preference && preference?.[job.preference] === false) return true;
+    return preference?.enabled === false && job.kind !== 'organizer_broadcast';
   }
 
   private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {

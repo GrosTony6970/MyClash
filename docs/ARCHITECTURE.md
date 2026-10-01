@@ -1297,21 +1297,28 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 
 | Event                               | Default lead time | Toggleable |
 | ----------------------------------- | ----------------- | ---------- |
-| Your match starts                   | 10 min before     | yes        |
-| Your refereeing slot starts         | 10 min before     | yes        |
-| Your workshop starts                | 15 min before     | yes        |
-| Your match assignment changed       | immediate         | yes        |
-| Workshop you enrolled in cancelled  | immediate         | always on  |
-| Promoted from waitlist to confirmed | immediate         | always on  |
+| Your match starts                   | 10 min before     | main only  |
+| Your refereeing slot starts         | 10 min before     | main only  |
+| Your workshop starts                | 15 min before     | main only  |
+| Your referee assignment changed     | immediate         | yes        |
+| Your exchange correction refused    | immediate         | yes        |
+| Workshop you enrolled in cancelled  | immediate         | main only  |
+| Promoted from waitlist to confirmed | immediate         | main only  |
 | Final results published             | immediate         | yes        |
-| Organizer event broadcast           | immediate         | global     |
+| Next Swiss round paired             | immediate         | yes        |
+| New Event of a followed organiser   | immediate         | yes        |
+| Organizer or instructor broadcast   | immediate         | push only  |
+
+"yes" = its own switch (`PREFERENCE_TOGGLE_COLUMNS`; the two referee rows share "Schedule changes")
+and the main switch (`enabled`); "main only" = the main switch alone, the lead time being a setting,
+not a switch; "push only" = the main switch stops the push, and the broadcast then goes by email.
 
 ### 11ter.3 Implementation
 
 - BullMQ scheduled jobs ("delayed jobs") created when a match/session schedule changes.
 - Job picks the user's `push_subscriptions`, sends via `web-push` library with VAPID keys.
 - Offline-tolerant: if a user's device is offline, the push is queued by the OS; delivered on reconnect.
-- Falls back to email for users with `enabled=false` for push but who opted in to email.
+- Off means off (operator ruling 200): a notice whose own switch is off, or any notice while the main switch is off (`enabled=false`), sends neither a push nor an email. The one exception is a broadcast (an organiser's, or an instructor's to a Workshop), which still reaches a reader whose main switch is off, by email, when the recipient row carries an address. The email is the fallback of a reader with no push subscription, never the answer to a switch.
 - Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
 - Broadcasts may include `tournamentId` for tournament-scoped fighter/referee targeting. Pool/bracket publish flows use this to open editable "ready" notification drafts without auto-sending.
 - **Scheduling alone is not enough.** A delayed job carries the time the schedule had when it was

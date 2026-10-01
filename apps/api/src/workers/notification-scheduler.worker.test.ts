@@ -550,46 +550,6 @@ describe('notification worker', () => {
     );
   });
 
-  it('falls back to email for immediate jobs when push is disabled', async () => {
-    const from = makeSupabaseFrom({
-      notification_preferences: {
-        data: { user_id: 'user-1', enabled: false },
-        error: null,
-      },
-    });
-    const sender = { send: vi.fn().mockResolvedValue(undefined) };
-    const mail = { sendNotification: vi.fn().mockResolvedValue(undefined) };
-    const worker = new NotificationSchedulerWorker(
-      { service: { from } } as never,
-      new ConfigService({}) as never,
-      sender as never,
-      mail as never,
-    );
-
-    await worker.process({
-      id: 'job-1',
-      data: {
-        kind: 'workshop_cancelled',
-        entityId: 'session-1',
-        userId: 'user-1',
-        title: 'Workshop cancelled',
-        body: 'Messer fundamentals was cancelled.',
-        url: '/notifications',
-        email: 'user@example.com',
-        emailSubject: 'Workshop cancelled',
-      },
-    } as never);
-
-    expect(sender.send).not.toHaveBeenCalled();
-    expect(mail.sendNotification).toHaveBeenCalledWith({
-      to: 'user@example.com',
-      subject: 'Workshop cancelled',
-      title: 'Workshop cancelled',
-      body: 'Messer fundamentals was cancelled.',
-      actionUrl: '/notifications',
-    });
-  });
-
   it('falls back to email for immediate jobs when no push subscriptions exist', async () => {
     const from = makeSupabaseFrom({
       push_subscriptions: {
