@@ -40,12 +40,13 @@ export const GENERATED_TARGETS = {
   'openapi.json':
     'the output of `pnpm openapi:emit`, which boots dist/app.module to produce it. Committing it would make the drift gate compare the document against itself.',
   'packages/i18n/dist/index.test.js':
-    'packages/i18n has no vitest config — its `test` script is `pnpm build && node dist/*.test.js`, so the COMPILED tests are the runner. See EXEMPT in check-test-code-leak.mjs.',
-  'packages/i18n/dist/encoding.test.js': 'same as dist/index.test.js — compiled by its own build.',
+    'packages/i18n has no vitest config — its `test` script is `tsc --project tsconfig.json && node dist/*.test.js`, so the COMPILED tests are the runner. The build (tsconfig.build.json) leaves them out of dist.',
+  'packages/i18n/dist/encoding.test.js':
+    'same as dist/index.test.js — compiled by its own test script.',
   'packages/i18n/dist/no-literal-string-rule.test.js':
-    'same as dist/index.test.js — compiled by its own build.',
+    'same as dist/index.test.js — compiled by its own test script.',
   'packages/i18n/dist/t-key-references.test.js':
-    'same as dist/index.test.js — compiled by its own build.',
+    'same as dist/index.test.js — compiled by its own test script.',
 };
 
 /**

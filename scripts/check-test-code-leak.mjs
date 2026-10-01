@@ -46,10 +46,7 @@ const root = process.cwd();
  * Every entry needs a reason: this is the escape hatch, so it is also the thing
  * most likely to be abused.
  */
-export const EXEMPT = {
-  'packages/i18n':
-    'its `test` script is `pnpm build && node dist/*.test.js` — the compiled tests ARE the runner. Its dist is copied into no image; the web apps ship Next standalone output, which traces from entry points. If this package ever gains a vitest config, delete this entry and split it.',
-};
+export const EXEMPT = {};
 
 /**
  * Rule 3 carve-outs: production modules that only a test currently imports.

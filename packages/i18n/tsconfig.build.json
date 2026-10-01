@@ -1,0 +1,10 @@
+{
+  // EMIT surface — see packages/rulesets/tsconfig.build.json. This package's
+  // dist is copied into the API production image, and one of its compiled tests
+  // starts with `require("eslint")`, a devDependency the runner does not
+  // install. The tests are compiled by the `test` script instead, from
+  // tsconfig.json.
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}
