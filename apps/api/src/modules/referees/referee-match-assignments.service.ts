@@ -82,7 +82,7 @@ export class RefereeMatchAssignmentsService {
 
     const { data: registrationRows, error: registrationErr } = await this.supabase.service
       .from('registrations')
-      .select('id, persons ( id, global_person_id, given_name, family_name, display_name )')
+      .select('id, persons ( id, global_person_id, given_name, family_name )')
       .in('tournament_id', tournamentIds)
       .limit(ROW_LIMIT);
     if (registrationErr) throw new BadRequestException(registrationErr.message);

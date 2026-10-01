@@ -390,7 +390,6 @@ interface PersonEmbedRow {
   global_person_id: string | null;
   given_name: string | null;
   family_name: string | null;
-  display_name?: string | null;
   club_id?: string | null;
   clubs?: { name: string | null } | Array<{ name: string | null }> | null;
 }
@@ -413,7 +412,6 @@ interface PoolMemberRow {
           global_person_id: string | null;
           given_name: string | null;
           family_name: string | null;
-          display_name?: string | null;
           club_id?: string | null;
           clubs?: { name: string | null } | Array<{ name: string | null }> | null;
         } | null;
@@ -426,7 +424,6 @@ interface PoolMemberRow {
           global_person_id: string | null;
           given_name: string | null;
           family_name: string | null;
-          display_name?: string | null;
           club_id?: string | null;
           clubs?: { name: string | null } | Array<{ name: string | null }> | null;
         } | null;
@@ -1512,7 +1509,7 @@ export class AssignmentBoardService {
     const { data, error } = await this.supabase.service
       .from('registrations')
       .select(
-        'id, person_id, persons(id, global_person_id, given_name, family_name, display_name, club_id, clubs(name))',
+        'id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name))',
       )
       .in('id', registrationIds);
     if (error) throw new BadRequestException(error.message);
@@ -2241,12 +2238,10 @@ export class AssignmentBoardService {
     person?: {
       given_name?: string | null;
       family_name?: string | null;
-      display_name?: string | null;
     } | null,
   ) {
     if (!person) return '';
-    const name = `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
-    return name || person.display_name || '';
+    return `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
   }
 }
 

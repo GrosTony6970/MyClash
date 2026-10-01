@@ -198,7 +198,6 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
                     global_person_id: FIGHTER_REF_GLOBAL_ID,
                     given_name: 'Fighter',
                     family_name: 'Referee',
-                    display_name: null,
                     clubs: { name: 'Salle A' },
                   },
                 },
@@ -747,7 +746,6 @@ describe('AssignmentBoardService', () => {
                   global_person_id: FIGHTER_REF_GLOBAL_ID,
                   given_name: 'Fighter',
                   family_name: 'Referee',
-                  display_name: null,
                   clubs: { name: 'Salle A' },
                 },
               },
@@ -786,6 +784,21 @@ describe('AssignmentBoardService', () => {
       expect(units[0]!.swissRoundId).toBe('round-3');
       expect(units[0]!.liceId).toBe('lice-1');
       expect(units[0]!.scheduledStart).toBe('2026-05-21T10:00:00.000Z');
+    });
+
+    /**
+     * The mock ignores the projection. The read used to ask the roster for a `display_name` it
+     * does not have, PostgREST refused it, and the board of an Event with a paired round was a 400.
+     */
+    it("reads the round's Fighters by the names the roster has", async () => {
+      queueSwissBoardReads();
+
+      await service.getBoard('event-1');
+
+      expect(selectsFor(fromMock as never, 'registrations')).toEqual([
+        'id, person_id, tournament_id, persons(global_person_id)',
+        'id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name))',
+      ]);
     });
 
     it('ends each (round × piste) unit at its latest planned bout end', async () => {

@@ -200,7 +200,7 @@ describe('RefereeMatchAssignmentsService', () => {
    * so the board simply never warns and looks perfectly healthy. Nothing about
    * that failure is visible without this assertion.
    */
-  it('projects global_person_id on the registration embed', async () => {
+  it('projects global_person_id and the names the roster has on the registration embed', async () => {
     const registrations = chain({ data: [], error: null });
     const service = makeService({
       events: eventChain(),
@@ -211,8 +211,10 @@ describe('RefereeMatchAssignmentsService', () => {
 
     await service.getForEvent('event-1', 'user-1');
 
+    // The whole string: the roster table has no `display_name`, and PostgREST refuses a read
+    // that names a column a table does not have. The schedule board then had no referee check.
     expect(registrations['select']).toHaveBeenCalledWith(
-      expect.stringContaining('global_person_id'),
+      'id, persons ( id, global_person_id, given_name, family_name )',
     );
   });
 

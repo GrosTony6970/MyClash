@@ -66,7 +66,7 @@ export interface RefereeMatchAssignmentsPayload {
   rules: RefereeSwitches;
 }
 
-/** Name columns shared by both embeds. */
+/** Name columns of the two embeds. Only a profile has a display name; a roster row has none. */
 interface PersonNameColumns {
   given_name?: string | null;
   family_name?: string | null;
