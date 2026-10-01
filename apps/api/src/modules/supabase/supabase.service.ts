@@ -360,9 +360,11 @@ export class SupabaseService {
     const serviceRoleKey = this.config.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
 
     let response: Response;
+    let text: string;
     try {
       response = await fetch(`${authUrl.replace(/\/+$/u, '')}${requestPath}`, {
         ...init,
+        signal: AbortSignal.timeout(GOTRUE_TIMEOUT_MS),
         headers: {
           'Content-Type': 'application/json',
           apikey: serviceRoleKey,
@@ -370,11 +372,11 @@ export class SupabaseService {
           ...init.headers,
         },
       });
+      text = await response.text();
     } catch (error) {
       return { ok: false, status: 0, data: null, detail: String(error) };
     }
 
-    const text = await response.text();
     let detail: unknown = null;
     if (text) {
       try {

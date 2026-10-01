@@ -136,6 +136,51 @@ describe('SupabaseService.getAuthUser', () => {
   });
 });
 
+/**
+ * The admin door to GoTrue answers `{ ok, status, data }` and never throws: its callers sit inside
+ * an organiser's save, a lock and a publish, and take `status: 0` for "no answer".
+ */
+describe('SupabaseService.getAuthAdminUser', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const account = { id: 'u-lea', email: 'lea@example.com' };
+  const answer = (text: () => Promise<string>) => ({ ok: true, status: 200, text });
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue(answer(async () => JSON.stringify(account)));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('reads the account on the internal address', async () => {
+    const read = await new SupabaseService(makeConfig()).getAuthAdminUser('u-lea');
+    expect(read).toMatchObject({ ok: true, status: 200, data: account });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://supabase-auth:9999/admin/users/u-lea');
+  });
+
+  it('gives GoTrue five seconds to answer', async () => {
+    const limit = AbortSignal.abort();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(limit);
+    await new SupabaseService(makeConfig()).getAuthAdminUser('u-lea');
+    expect(timeout.mock.calls).toEqual([[5000]]);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', signal: limit });
+  });
+
+  it.each<[string, () => void]>([
+    ['a GoTrue that cannot be reached', () => fetchMock.mockRejectedValue(new Error('stalled'))],
+    [
+      'an answer cut off while it is read',
+      () => fetchMock.mockResolvedValue(answer(() => Promise.reject(new Error('stalled')))),
+    ],
+  ])('%s is "no answer", not a throw', async (_, arrange) => {
+    arrange();
+    const read = await new SupabaseService(makeConfig()).getAuthAdminUser('u-lea');
+    expect(read).toEqual({ ok: false, status: 0, data: null, detail: 'Error: stalled' });
+  });
+});
+
 describe('SupabaseService.refreshSession', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
