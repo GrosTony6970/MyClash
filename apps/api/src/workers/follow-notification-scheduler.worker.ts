@@ -21,7 +21,7 @@ interface MatchRow {
   scheduled_at: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
-  lices?: { name?: string | null; label?: string | null } | null;
+  lices?: { name?: string | null } | null;
   pools?: { name?: string | null } | null;
 }
 
@@ -213,7 +213,7 @@ export class FollowNotificationSchedulerService {
             opponent: fighterName(opponentRegistration),
             minutes: leadMinutes,
             label: match.pools?.name ?? match.match_number_label,
-            piste: match.lices?.name ?? match.lices?.label,
+            piste: match.lices?.name,
           }),
           url: '/notifications',
         };
@@ -332,14 +332,31 @@ export class FollowNotificationSchedulerService {
     });
   }
 
+  /**
+   * The rows of a read; a read that failed gives none, and says so.
+   *
+   * The alerts are best effort (see `MatchAlertRefresherService`), so a failed read fails nothing.
+   * It used to say nothing either: the bout read below asked for a `label` column the lices table
+   * never had, PostgREST refused it each time, and no follower was ever told of a bout.
+   */
+  private rowsOf<T>(
+    failure: string,
+    { data, error }: { data: unknown; error: { message: string } | null },
+  ): T[] {
+    if (error) this.logger.warn(`${failure}: ${error.message}`);
+    return (data ?? []) as T[];
+  }
+
   private async getMatches(matchIds: string[]): Promise<MatchRow[]> {
-    const { data } = await this.supabase.service
-      .from('matches')
-      .select(
-        'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name, label ), pools ( name )',
-      )
-      .in('id', matchIds);
-    return (data ?? []) as MatchRow[];
+    return this.rowsOf<MatchRow>(
+      'Bouts unreadable; their follower alerts stay as they were',
+      await this.supabase.service
+        .from('matches')
+        .select(
+          'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name ), pools ( name )',
+        )
+        .in('id', matchIds),
+    );
   }
 
   private async getRegistrations(
@@ -347,33 +364,41 @@ export class FollowNotificationSchedulerService {
   ): Promise<RegistrationRow[]> {
     const ids = registrationIds.filter((id): id is string => Boolean(id));
     if (ids.length === 0) return [];
-    const { data } = await this.supabase.service
-      .from('registrations')
-      .select('id, person_id, persons ( given_name, family_name )')
-      .in('id', ids);
-    return (data ?? []) as RegistrationRow[];
+    return this.rowsOf<RegistrationRow>(
+      'Fighters of the bouts unreadable; their follower alerts stay as they were',
+      await this.supabase.service
+        .from('registrations')
+        .select('id, person_id, persons ( given_name, family_name )')
+        .in('id', ids),
+    );
   }
 
   private async getClaimedMatchFollows(personIds: string[]): Promise<FollowRow[]> {
-    const { data } = await this.supabase.service
-      .from('follows')
-      .select('followed_person_id, follower_user_id, notify_match_start')
-      .in('followed_person_id', personIds)
-      .eq('notify_match_start', true);
-    return ((data ?? []) as FollowRow[]).filter(
+    const follows = this.rowsOf<FollowRow>(
+      'Followers unreadable; their alerts stay as they were',
+      await this.supabase.service
+        .from('follows')
+        .select('followed_person_id, follower_user_id, notify_match_start')
+        .in('followed_person_id', personIds)
+        .eq('notify_match_start', true),
+    );
+    return follows.filter(
       (follow) => Boolean(follow.follower_user_id) && follow.notify_match_start !== false,
     );
   }
 
   private async getPreferences(userIds: string[]): Promise<Map<string, NotificationPreferenceRow>> {
     if (userIds.length === 0) return new Map();
-    const { data } = await this.supabase.service
-      .from('notification_preferences')
-      .select(
-        'user_id, enabled, match_starting_minutes_before, referee_starting_minutes_before, workshop_starting_minutes_before',
-      )
-      .in('user_id', userIds);
-    return new Map(((data ?? []) as NotificationPreferenceRow[]).map((row) => [row.user_id, row]));
+    const preferences = this.rowsOf<NotificationPreferenceRow>(
+      'Follower switches unreadable, taken as never saved',
+      await this.supabase.service
+        .from('notification_preferences')
+        .select(
+          'user_id, enabled, match_starting_minutes_before, referee_starting_minutes_before, workshop_starting_minutes_before',
+        )
+        .in('user_id', userIds),
+    );
+    return new Map(preferences.map((row) => [row.user_id, row]));
   }
 
   // ── Referee-starting (followers of a person who is about to referee) ───────────
