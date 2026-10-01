@@ -18,7 +18,7 @@ import type {
   PreviewRow,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
-import { syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
+import { freeRowOfAnotherAddress, syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import type { ResolveGlobalPersonResult } from '../identity/global-person-resolver.service';
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
@@ -246,6 +246,8 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Person ${personId} not found`);
+    // An edit may leave the row with an address that is not its holder's: asked before the sync.
+    await freeRowOfAnotherAddress({ supabase: this.supabase, logger: this.logger }, data);
     return this.savedRow(data as Record<string, unknown>);
   }
 
@@ -505,7 +507,8 @@ export class PersonsService {
 
   /**
    * The answer to a save. It shows the row as it was written, before the
-   * profile's holder took it: the roster page reloads its list.
+   * profile's holder took it or its account let it go: the roster page reloads
+   * its list.
    */
   private async savedRow(row: Record<string, unknown>): Promise<Person> {
     await this.claimForProfileHolder(row['global_person_id'] as string | null);

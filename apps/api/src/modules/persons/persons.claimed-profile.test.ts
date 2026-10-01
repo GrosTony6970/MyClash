@@ -6,17 +6,29 @@
  *
  * Each door calls it AFTER its own write. The sync reads the roster, so a call made before the row
  * is saved, or before the import links it to its profile, would not find the row.
+ *
+ * The edit of a row also hands the saved row to the release rule (ruling 203), BEFORE the sync: a
+ * row Claire corrected from Léa's address to Tom's stops being Léa's. What the rule then frees is
+ * tested beside it (`auth/claimed-row-release.test.ts`).
  */
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ImportDecision } from '@myclash/types';
-import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
-import { syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
+import {
+  mockSupabase,
+  selectsFor,
+  writesTo,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
+import { freeRowOfAnotherAddress, syncRowsOfClaimedProfile } from '../auth/claimed-person-sync';
 import { CsvImportService } from './csv-import.service';
 import type { CreatePersonDto } from './dto/persons.dto';
 import { PersonsService } from './persons.service';
 
-vi.mock('../auth/claimed-person-sync', () => ({ syncRowsOfClaimedProfile: vi.fn() }));
+vi.mock('../auth/claimed-person-sync', () => ({
+  freeRowOfAnotherAddress: vi.fn(),
+  syncRowsOfClaimedProfile: vi.fn(),
+}));
 
 const OPEN = 'ev-open';
 const HER_PROFILE = 'gp-lea';
@@ -27,10 +39,13 @@ const LEA: CreatePersonDto = {
 } as CreatePersonDto;
 
 const sync = vi.mocked(syncRowsOfClaimedProfile);
+const release = vi.mocked(freeRowOfAnotherAddress);
 const resolver = { resolveOrCreateGlobalPerson: vi.fn() };
 let db: ReturnType<typeof mockSupabase>;
 /** The writes to the roster already made when the sync was called, one list per call. */
 let writtenBefore: string[][];
+/** The release rule and the sync, in the order they were called. */
+let called: string[];
 
 function service(seed: Record<string, TableSeed>): PersonsService {
   db = mockSupabase(seed);
@@ -42,11 +57,20 @@ const handedProfiles = () => sync.mock.calls.map(([, profileId]) => profileId);
 
 beforeEach(() => {
   writtenBefore = [];
+  called = [];
   resolver.resolveOrCreateGlobalPerson
     .mockReset()
     .mockResolvedValue({ id: HER_PROFILE, created: false, mintReason: null });
   sync.mockReset().mockImplementation(async () => {
+    called.push('sync');
     writtenBefore.push(writesTo(db, 'persons').map((write) => write.op));
+  });
+  release.mockReset().mockImplementation(async () => {
+    called.push(
+      `release after ${writesTo(db, 'persons')
+        .map((write) => write.op)
+        .join()}`,
+    );
   });
 });
 
@@ -61,6 +85,8 @@ describe('the organiser adds a row to the roster', () => {
     expect(handedProfiles()).toEqual([HER_PROFILE]);
     expect(writtenBefore).toEqual([['insert']]);
     expect(sync.mock.calls[0]?.[0]).toMatchObject({ supabase: db });
+    // A new row is nobody's: there is nothing to release.
+    expect(release).not.toHaveBeenCalled();
   });
 
   it('hands the profile Claire picked herself', async () => {
@@ -98,12 +124,29 @@ describe('the organiser edits a row of the roster', () => {
     expect(handedProfiles()).toEqual([null]);
   });
 
+  it('hands the saved row to the release rule, before the sync (ruling 203)', async () => {
+    // The row as the save hands it back: its address, and the account that holds it.
+    const held = {
+      id: 'p-tom-open',
+      global_person_id: HER_PROFILE,
+      email: 'tom@example.com',
+      claimed_by_user_id: 'u-lea',
+      clubs: null,
+    };
+    await service({ persons: { rows: [held] } }).updatePerson('p-tom-open', { givenName: 'Tom' });
+    expect(called).toEqual(['release after update', 'sync']);
+    expect(release.mock.calls).toEqual([[{ supabase: db, logger: expect.anything() }, held]]);
+    // The double ignores projections: a read-back without the address would free every claimed row.
+    expect(selectsFor(db.from, 'persons')).toEqual(['*, clubs ( name )']);
+  });
+
   it('hands nothing when the edit is not saved', async () => {
     const seed = { persons: { error: { message: 'boom' } } };
     await expect(
       service(seed).updatePerson('p-lea-open', { email: 'lea@example.com' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(sync).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
   });
 });
 
@@ -132,6 +175,7 @@ describe('the organiser imports a roster file', () => {
       ['insert', 'update'],
       ['insert', 'update', 'insert', 'update'],
     ]);
+    expect(release).not.toHaveBeenCalled();
   });
 
   it('hands the profile Claire linked a row to in the preview', async () => {

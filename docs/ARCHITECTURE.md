@@ -1736,6 +1736,8 @@ This is intentional — preventing self-registration is what makes guest session
 
 **Email typos by the organizer** — if the participant's email in the roster is wrong, they can't claim. The organizer admin has an "edit person" form. After a participant has claimed a profile, they can change their login/roster email through `/e/<eventSlug>/profile/email`; the new email must confirm by link before Supabase Auth and all claimed Person rows are updated.
 
+**A claimed row carries its holder's email** — a claim needs the roster row's email to be the account's own. A change of the account's email (the participant's own, or a platform admin's on the Accounts page) rewrites it on every Person row the account has claimed, and is refused whole when another row of one of those rosters already has that email. An organizer's edit that leaves a claimed row with another email, or with none, frees the row: it is unclaimed again, and the usual rule offers it to the account whose email it carries.
+
 ### 12.5 Implementation notes
 
 - The lookup endpoint uses Postgres `pg_trgm` indexes on `unaccent(given_name)` and `unaccent(family_name)`.

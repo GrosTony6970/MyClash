@@ -102,6 +102,60 @@ export async function syncClaimedPersonRows(
 }
 
 /**
+ * An organiser's save that leaves a claimed roster row with an address that is
+ * not its holder's account address frees the row (operator rulings 203, 203a).
+ *
+ * An organiser adds Tom and types Léa's address by mistake. Léa has an account,
+ * so the row becomes hers: at once (ruling 199), or at her next sign-in. The
+ * organiser corrects the address, or deletes it. Nothing gave the row back: it
+ * stayed Léa's, Tom's claim was refused, and only deleting Léa's account freed
+ * it.
+ *
+ * The saved address is compared with the holder's account address. No address
+ * is not her address either (203a). The ruled cost: swapping a fighter's
+ * address for another one of hers frees her row too. Once the row carries her
+ * account's address again she is linked again: at that save when the row is
+ * linked to the profile she holds (`syncRowsOfClaimedProfile` runs next), and
+ * otherwise by the "This is me" card on /me.
+ *
+ * The other writers keep a claimed row at its holder's address: a claim needs
+ * the match, and an account address change rewrites the rows (204). So this
+ * is asked at the organiser's save only.
+ *
+ * The write names the holder that was read: a row that changed hands in between
+ * is left alone. It does not name the address: a second save of the same row
+ * landing between the read and the write is judged on the first one's address.
+ * Best-effort, as the sync: an account that cannot be read frees nothing, is
+ * logged, and never fails the organiser's save. A holder whose account is gone
+ * answers 404 and is kept too: deleting an account frees its rows itself.
+ */
+export async function freeRowOfAnotherAddress(
+  deps: ClaimedPersonSyncDeps,
+  row: { id: string; email: string | null; claimed_by_user_id: string | null },
+): Promise<void> {
+  const holder = row.claimed_by_user_id;
+  if (!holder) return;
+
+  try {
+    const account = await deps.supabase.getAuthAdminUser(holder);
+    if (!account.data) throw new Error(`the account read answered ${account.status}`);
+    if (!account.data.email?.trim()) throw new Error('the account has no email');
+    if (personEmailMatchesUser(row.email, account.data.email)) return;
+
+    const { error } = await deps.supabase.service
+      .from('persons')
+      .update({ claim_status: 'unclaimed', claimed_by_user_id: null })
+      .eq('id', row.id)
+      .eq('claimed_by_user_id', holder);
+    if (error) throw new Error(error.message);
+    deps.logger.log(`persons ${row.id} freed from its account: its address is not the account's`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    deps.logger.warn(`persons ${row.id} not freed: ${message}`);
+  }
+}
+
+/**
  * An account's address changed: the roster rows it holds take the new one
  * (operator ruling 204).
  *
