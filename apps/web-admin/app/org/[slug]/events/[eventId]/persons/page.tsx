@@ -16,6 +16,7 @@ import {
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 import { formatRosterName } from './roster-name';
+import { editPersonBody } from './edit-person-body';
 import { personMatchesFilter, type PersonFilterValue } from './filter-persons';
 import {
   computeClubPickerRows,
@@ -669,13 +670,7 @@ export default function ParticipantsPage() {
     try {
       const saved = await apiRequest(apiUrl, `/api/v1/persons/${editPerson.id}`, {
         method: 'PATCH',
-        body: {
-          givenName: editForm.givenName.trim(),
-          familyName: editForm.familyName.trim(),
-          email: editForm.email.trim() || null,
-          clubId: editClubId || null,
-          hemaRatingsId: editForm.hemaRatingsId.trim() || null,
-        },
+        body: editPersonBody(editPerson, editForm, editClubId),
       });
       if (!saved.ok) {
         const message = failureMessage(saved, t, t('admin.common.saveFailed'));
