@@ -1,6 +1,19 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import {
+  bump,
+  closingParen,
+  columnsFromSelect,
+  embedsFromSelect,
+  PLAIN_COLUMN,
+  skipQuoted,
+  splitTopLevel,
+  type EmbedNode,
+} from './supabase-select-parse';
+
+export type { EmbedNode } from './supabase-select-parse';
+
 /**
  * Which (table, column) pairs does the API actually name in its PostgREST calls?
  *
@@ -14,7 +27,9 @@ import path from 'node:path';
  * (`'leagues:league_id(id, name)'`), aggregates (`'sum:cost_eur.sum()'`), hints
  * (`'persons!inner(…)'`) and dotted paths that walk an embed
  * (`.eq('matches.phases.tournament_id', …)`). None of those name a column on
- * the table `.from()` opened, so every one is SKIPPED rather than guessed at.
+ * the table `.from()` opened, so none is counted as one. An embed is handed
+ * over as written (`EmbedRoot`), for the caller to resolve against the schema;
+ * the rest is SKIPPED rather than guessed at.
  *
  * That cowardice is only safe because the caller asserts a FLOOR on the
  * resolved count. Without it, a parser that quietly stopped understanding
@@ -58,6 +73,14 @@ export interface ColumnRef {
   line: number;
 }
 
+/** The embeds of one select, under the table its `.from()` opened. */
+export interface EmbedRoot {
+  table: string;
+  file: string;
+  line: number;
+  embeds: EmbedNode[];
+}
+
 export interface ScanCounts {
   /** `.from('literal')` chains that looked like PostgREST queries. */
   chains: number;
@@ -67,17 +90,21 @@ export interface ScanCounts {
 
 export interface ScanResult {
   refs: ColumnRef[];
+  embeds: EmbedRoot[];
   counts: ScanCounts;
 }
 
 // ── Lexing ───────────────────────────────────────────────────────────────────
 
 /**
- * Blank out comments and the INSIDE of template literals, preserving offsets.
+ * Blank out comments and the INSIDE of interpolated template literals, preserving offsets.
  *
  * Offsets must survive because line numbers are reported back to a human. and
  * template bodies are blanked rather than dropped so a `${...}` holding its own
  * `.from('x')` cannot be mistaken for a top-level chain.
+ *
+ * A template with no `${…}` is kept: it is as static as a quoted string, and it is how a
+ * multi-line select is written, which is where the embeds are.
  */
 function blankNoise(src: string): string {
   const out = src.split('');
@@ -99,69 +126,11 @@ function blankNoise(src: string): string {
       i = skipQuoted(src, i);
     } else if (src[i] === '`') {
       const end = skipQuoted(src, i);
-      blank(i + 1, end - 1);
+      if (src.slice(i, end).includes('${')) blank(i + 1, end - 1);
       i = end;
     } else i++;
   }
   return out.join('');
-}
-
-/** Index just past the string starting at `start` (a quote character). */
-function skipQuoted(src: string, start: number): number {
-  const quote = src[start];
-  let i = start + 1;
-  while (i < src.length) {
-    if (src[i] === '\\') i += 2;
-    else if (src[i] === quote) return i + 1;
-    else i++;
-  }
-  return src.length;
-}
-
-/** Index of the `)` closing the `(` at `open`, or -1. Quote-aware. */
-function closingParen(src: string, open: number): number {
-  let depth = 0;
-  let i = open;
-  while (i < src.length) {
-    const char = src[i]!;
-    if (char === "'" || char === '"' || char === '`') {
-      i = skipQuoted(src, i);
-      continue;
-    }
-    if (char === '(') depth++;
-    else if (char === ')') {
-      depth--;
-      if (depth === 0) return i;
-    }
-    i++;
-  }
-  return -1;
-}
-
-/** Top-level split on `separator`, ignoring anything nested or quoted. */
-function splitTopLevel(body: string, separator: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let current = '';
-  let i = 0;
-  while (i < body.length) {
-    const char = body[i]!;
-    if (char === "'" || char === '"' || char === '`') {
-      const end = skipQuoted(body, i);
-      current += body.slice(i, end);
-      i = end;
-      continue;
-    }
-    if (char === '(' || char === '[' || char === '{') depth++;
-    if (char === ')' || char === ']' || char === '}') depth--;
-    if (char === separator && depth === 0) {
-      parts.push(current);
-      current = '';
-    } else current += char;
-    i++;
-  }
-  parts.push(current);
-  return parts;
 }
 
 // ── Chain walking ────────────────────────────────────────────────────────────
@@ -197,37 +166,25 @@ function walkChain(src: string, from: number): ChainCall[] {
   }
 }
 
-/** The first argument when it is a plain string literal, else null. */
-function firstStringArg(args: string): string | null {
-  const trimmed = args.trimStart();
-  if (trimmed[0] !== "'" && trimmed[0] !== '"') return null;
-  const end = skipQuoted(trimmed, 0);
-  return trimmed.slice(1, end - 1);
-}
-
-// ── Column extraction ────────────────────────────────────────────────────────
-
-const PLAIN_COLUMN = /^[a-z_][a-z0-9_]*$/;
-
 /**
- * The columns a PostgREST select string names ON THE TABLE ITSELF.
- *
- * Anything carrying `(`, `:`, `!` or `.` belongs to an embedded relation, an
- * alias or an aggregate, and is skipped — see the file header.
+ * The first argument when it is a string literal, else null. Literals joined by `+` are one
+ * string: a long select is written that way, and reading its first piece alone dropped every
+ * embed after it. A template counts when it interpolates nothing; one that does arrives here
+ * blanked, and is no literal.
  */
-function columnsFromSelect(select: string, skipped: Record<string, number>): string[] {
-  const columns: string[] = [];
-  for (const raw of splitTopLevel(select, ',')) {
-    const part = raw.trim();
-    if (!part || part === '*') continue;
-    if (part.includes('(') || part.includes(':') || part.includes('!') || part.includes('.')) {
-      bump(skipped, 'select embed/alias/aggregate');
-      continue;
-    }
-    if (PLAIN_COLUMN.test(part)) columns.push(part);
-    else bump(skipped, 'select unparsed');
+function firstStringArg(args: string): string | null {
+  let rest = args.trimStart();
+  let text = '';
+  for (;;) {
+    if (rest[0] !== "'" && rest[0] !== '"' && rest[0] !== '`') return null;
+    const end = skipQuoted(rest, 0);
+    const piece = rest.slice(1, end - 1);
+    if (rest[0] === '`' && !piece.trim()) return null;
+    text += piece;
+    rest = rest.slice(end).trimStart();
+    if (rest[0] !== '+') return text;
+    rest = rest.slice(1).trimStart();
   }
-  return columns;
 }
 
 /**
@@ -291,10 +248,6 @@ function matchingBrace(src: string, open: number): number {
   return -1;
 }
 
-function bump(counts: Record<string, number>, reason: string): void {
-  counts[reason] = (counts[reason] ?? 0) + 1;
-}
-
 // ── Scanning ─────────────────────────────────────────────────────────────────
 
 const FROM_LITERAL = /\.from\(\s*'([a-z_][a-z0-9_]*)'\s*\)/g;
@@ -337,8 +290,16 @@ function columnsFromCall(call: ChainCall, counts: ScanCounts): string[] {
   return [];
 }
 
-/** Every resolvable (table, column) pair one source file names. */
-export function scanSource(source: string, file: string, counts: ScanCounts): ColumnRef[] {
+/**
+ * Every resolvable (table, column) pair one source file names. The embeds of its selects go to
+ * `embeds`, as written: resolving them needs the schema.
+ */
+export function scanSource(
+  source: string,
+  file: string,
+  counts: ScanCounts,
+  embeds: EmbedRoot[] = [],
+): ColumnRef[] {
   const src = blankNoise(source);
   const refs: ColumnRef[] = [];
 
@@ -355,6 +316,9 @@ export function scanSource(source: string, file: string, counts: ScanCounts): Co
       for (const column of columnsFromCall(call, counts)) {
         refs.push({ table, column, file, line });
       }
+      const select = call.name === 'select' ? firstStringArg(call.args) : null;
+      const found = select === null ? [] : embedsFromSelect(select, counts.skipped);
+      if (found.length > 0) embeds.push({ table, file, line, embeds: found });
     }
   }
 
@@ -380,8 +344,10 @@ export function apiSourceFiles(dir: string): string[] {
 export function scanApiSources(root: string): ScanResult {
   const counts: ScanCounts = { chains: 0, skipped: {} };
   const refs: ColumnRef[] = [];
+  const embeds: EmbedRoot[] = [];
   for (const file of apiSourceFiles(root)) {
-    refs.push(...scanSource(readFileSync(file, 'utf8'), path.relative(root, file), counts));
+    const source = readFileSync(file, 'utf8');
+    refs.push(...scanSource(source, path.relative(root, file), counts, embeds));
   }
-  return { refs, counts };
+  return { refs, embeds, counts };
 }

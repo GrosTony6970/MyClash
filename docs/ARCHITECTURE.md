@@ -2580,8 +2580,14 @@ Every API service test drives the same double, in `apps/api/src/common/testing/`
 | `supabase-chain-internals.ts` | the lazy chain and the write log                            |
 | `supabase-chain-seeded.ts`    | row narrowing, ordering and counting over seeded tables     |
 | `supabase-chain-or.ts`        | `.or()` predicate parsing                                   |
-| `supabase-query-scan.ts`      | `selectsFor`, which reads the SELECT string a call issued   |
 | `migration-schema.ts`         | replays `packages/db/migrations/` so tests see real columns |
+| `supabase-query-scan.ts`      | finds every PostgREST chain the API source writes           |
+| `supabase-select-parse.ts`    | reads one select string: its columns and its embeds         |
+
+The last three feed `common/db-schema-conformance.test.ts`, which holds the tables, columns and
+embeds the API names in a literal PostgREST call against the migrations: PostgREST refuses a whole
+read over one unknown column, and a mock never does. A select held in a named constant, or built
+with `${}`, is not read.
 
 Reach for these before hand-rolling a mock. Two traps they exist to close: a mock ignores the
 projection, so a test over a read is only real if it asserts the SELECT string (`selectsFor` does
