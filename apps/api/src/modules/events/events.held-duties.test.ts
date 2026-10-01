@@ -1,10 +1,12 @@
 /**
- * Leaving draft resends the referees' lock messages (ruling 186). Claire locked the referee board
- * while the Winter Games, and its Winter Secret Tournament, were drafts: the send gate dropped each
- * lock message. The Event leaving draft, and then the Winter Secret going public, each send them
- * again (`lockedDutiesPublished`), whatever door the status came through: publish or the edit
- * form. A status that stays a draft, or stays public, sends nothing. The publish stands when the
- * sending fails: it is logged, as the first-publish announcement.
+ * A draft that goes live resends the referees' lock messages (ruling 186). Claire locked the
+ * referee board while the Winter Games, and its Winter Secret Tournament, were drafts: the send gate
+ * dropped each lock message. The Event going to published or running, and then the Winter Secret,
+ * each call `lockedDutiesPublished` (which duties each tells: locked-duties.test.ts), whatever door
+ * the status came through: publish or the edit form. A status that stays a draft, or stays public,
+ * sends nothing. A draft marked
+ * completed or archived is old news: its duties are over, so no referee is told (rulings 190, 191).
+ * The publish stands when the sending fails: it is logged, as the first-publish announcement.
  */
 import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -61,7 +63,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('the Event leaving draft resends the lock messages', () => {
+describe('a draft Event going live resends the lock messages', () => {
   it.each<[string, Act]>([
     ['publishing a draft Event', (s) => s.publishEvent(EVENT, 'u')],
     [
@@ -100,14 +102,32 @@ describe('the Event leaving draft resends the lock messages', () => {
       'draft',
       (s) => s.updateEvent(EVENT, { status: 'draft' }, 'u'),
     ],
+    [
+      'the edit form marking a draft Event completed: old news (ruling 190)',
+      'draft',
+      (s) => s.updateEvent(EVENT, { status: 'completed' }, 'u'),
+    ],
+    [
+      'the edit form archiving a draft Event: old news (ruling 190)',
+      'draft',
+      (s) => s.updateEvent(EVENT, { status: 'archived' }, 'u'),
+    ],
   ])('not %s', async (_, status, act) => {
     db = mockSupabase(tables(status, 'draft'));
     await act(service());
     expect(notificationEvents.lockedDutiesPublished).not.toHaveBeenCalled();
   });
+
+  it('not the edit form setting a completed Event to running: the cost ruling 190 accepts', async () => {
+    // A draft marked completed by mistake: stamped then, nobody told. Set running, still nobody.
+    db = mockSupabase(tables('completed', 'draft', '2026-09-01T00:00:00Z'));
+    await service().updateEvent(EVENT, { status: 'running' }, 'u');
+    expect(notificationEvents.lockedDutiesPublished).not.toHaveBeenCalled();
+    expect(notificationEvents.organizerPublishedEvent).not.toHaveBeenCalled();
+  });
 });
 
-describe('a Tournament going public resends its lock messages', () => {
+describe('a draft Tournament going live resends its lock messages', () => {
   it.each<[string, Act]>([
     ['publishing the Winter Secret', (s) => s.publishTournament(SECRET, 'u')],
     [
@@ -126,32 +146,28 @@ describe('a Tournament going public resends its lock messages', () => {
     expect(selectsFor(db.from, 'tournaments')[0]).toMatch(/^(id, event_id, status|\*)$/);
   });
 
-  it('the edit form completing a draft Tournament resends them, and sends its results', async () => {
+  it('the edit form completing a draft Tournament sends its results, not the lock messages of bouts that are over (ruling 191)', async () => {
     db = mockSupabase(tables('published', 'draft'));
     await service().updateTournament(SECRET, { status: 'completed' }, 'u');
-    expect(notificationEvents.lockedDutiesPublished.mock.calls).toEqual([[EVENT, SECRET]]);
     expect(notificationEvents.resultsPublished.mock.calls).toEqual([[SECRET]]);
-  });
-
-  it('resends them before the results message, which a failure there cannot stop', async () => {
-    db = mockSupabase(tables('published', 'draft'));
-    notificationEvents.resultsPublished.mockRejectedValue(new Error('results down'));
-    await expect(service().updateTournament(SECRET, { status: 'completed' }, 'u')).rejects.toThrow(
-      'results down',
-    );
-    expect(notificationEvents.lockedDutiesPublished.mock.calls).toEqual([[EVENT, SECRET]]);
+    expect(notificationEvents.lockedDutiesPublished).not.toHaveBeenCalled();
   });
 
   it.each<[string, string, Act]>([
     ['publishing it again', 'published', (s) => s.publishTournament(SECRET, 'u')],
     ['sending it back to draft', 'published', (s) => s.unpublishTournament(SECRET, 'u')],
     [
+      'the edit form setting a completed Tournament to published',
+      'completed',
+      (s) => s.updateTournament(SECRET, { status: 'published' }, 'u'),
+    ],
+    [
       'the edit form renaming a draft',
       'draft',
       (s) => s.updateTournament(SECRET, { name: 'Winter Open' }, 'u'),
     ],
     [
-      'the edit form archiving a draft: archived is not public',
+      'the edit form archiving a draft',
       'draft',
       (s) => s.updateTournament(SECRET, { status: 'archived' }, 'u'),
     ],

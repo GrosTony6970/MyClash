@@ -30,9 +30,10 @@ export class NotificationEventsService {
   ) {}
 
   /**
-   * Send again the lock messages of an Event's locked duties, or of one Tournament's, as it leaves
-   * draft (ruling 186): the send gate dropped each while it was a draft's. The gate still decides
-   * each one. A duty told before an unpublish is told again.
+   * Send again the lock messages of an Event's locked duties, or of one Tournament's, as a draft
+   * goes to published or running (rulings 186, 190, 191): the send gate dropped each while it was a
+   * draft's. An Event skips the duties of a Tournament that is not live (193). The gate still
+   * decides each one. A duty told before an unpublish is told again.
    */
   async lockedDutiesPublished(eventId: string, tournamentId: string | null): Promise<void> {
     const ids = await lockedDutyIds(this.supabase, eventId, tournamentId);

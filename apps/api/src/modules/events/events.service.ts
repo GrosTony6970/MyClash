@@ -45,6 +45,7 @@ import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { nextIsoDay } from './date-window';
 import { computeEventReadiness, type ReadinessRows } from './event-readiness';
 import { buildReadinessSnapshot } from './event-readiness-snapshot';
+import { isLive } from '../../common/live-status';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import type {
   CreateEventDto,
@@ -758,9 +759,10 @@ export class EventsService {
   }
 
   /**
-   * After an Event's status write: its first publish is announced, unless it went straight to
-   * completed or archived, which is old news (ruling 189; it still counts as announced). Leaving
-   * draft resends the referees the lock messages the send gate dropped while it was one (186).
+   * After an Event's status write, when it went to published or running: its first publish is
+   * announced (ruling 189), and a draft resends the lock messages the send gate dropped while it
+   * was one (186), those of a completed Tournament left out (193). Straight to completed or
+   * archived is old news: nobody is told (190), though it still counts as announced.
    */
   private async afterEventStatus(
     eventId: string,
@@ -768,23 +770,21 @@ export class EventsService {
     next: string | undefined,
     firstPublish: boolean,
   ): Promise<void> {
-    if (firstPublish && (next === 'published' || next === 'running')) {
-      await this.announceFirstPublish(eventId);
-    }
-    if (before.status === 'draft' && next !== undefined && next !== 'draft') {
-      await this.resendLockMessages(eventId, null);
-    }
+    if (!isLive(next)) return;
+    if (firstPublish) await this.announceFirstPublish(eventId);
+    if (before.status === 'draft') await this.resendLockMessages(eventId, null);
   }
 
   /**
-   * After a Tournament's status write: leaving draft for a public status resends the lock messages
-   * the send gate dropped while it was one (ruling 186), and completing it publishes its results.
+   * After a Tournament's status write: a draft that goes to published or running resends the lock
+   * messages the send gate dropped while it was one (ruling 186), and completing it publishes its
+   * results. A draft marked completed sends the results only: its duties are over (191).
    */
   private async afterTournamentStatus(
     before: { id: string; event_id: string; status?: unknown },
     next: string | undefined,
   ): Promise<void> {
-    if (before.status === 'draft' && next !== undefined && PUBLIC_TOURNAMENT_STATUSES.has(next)) {
+    if (before.status === 'draft' && isLive(next)) {
       await this.resendLockMessages(before.event_id, before.id);
     }
     if (next === 'completed') await this.notificationEvents.resultsPublished(before.id);

@@ -218,28 +218,28 @@ describe('a draft that skips published', () => {
 
 /**
  * Claire rehearsed on the Spring Open as a test Event. In one save she makes it a standard Event
- * and publishes it, or marks it completed. Either save recomputes its Leagues (a standard Event
+ * and publishes it, or sets it running. Either save recomputes its Leagues (a standard Event
  * counts toward them), and the recompute fails. The status is written
  * and the first publish stamped by then, so the announcement and the referees' lock messages
  * must already be sent: nothing would ever send them again.
  */
-describe('a failed league recompute', () => {
-  it.each<[string, 'published' | 'completed', string[][]]>([
-    ['announces the first publish and resends the lock messages', 'published', [[EVENT]]],
-    ['resends the lock messages of a draft marked completed', 'completed', []],
-  ])('still %s', async (_, status, announced) => {
-    const { db, notificationEvents } = setup('draft', null, 'test');
-    const service = new EventsService(
-      db as never,
-      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
-      notificationEvents as never,
-      {} as never,
-      { recomputeForEvent: vi.fn().mockRejectedValue(new Error('recompute failed')) } as never,
-    );
-    await expect(
-      service.updateEvent(EVENT, { status, eventKind: 'standard' }, 'u'),
-    ).rejects.toThrow('recompute failed');
-    expect(notificationEvents.organizerPublishedEvent.mock.calls).toEqual(announced);
-    expect(notificationEvents.lockedDutiesPublished.mock.calls).toEqual([[EVENT, null]]);
-  });
+describe('a failed league recompute still announces the first publish and resends the lock messages', () => {
+  it.each<'published' | 'running'>(['published', 'running'])(
+    'of a draft set %s',
+    async (status) => {
+      const { db, notificationEvents } = setup('draft', null, 'test');
+      const service = new EventsService(
+        db as never,
+        { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+        notificationEvents as never,
+        {} as never,
+        { recomputeForEvent: vi.fn().mockRejectedValue(new Error('recompute failed')) } as never,
+      );
+      await expect(
+        service.updateEvent(EVENT, { status, eventKind: 'standard' }, 'u'),
+      ).rejects.toThrow('recompute failed');
+      expect(notificationEvents.organizerPublishedEvent.mock.calls).toEqual([[EVENT]]);
+      expect(notificationEvents.lockedDutiesPublished.mock.calls).toEqual([[EVENT, null]]);
+    },
+  );
 });
