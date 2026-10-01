@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import { correctionRejectedTitle } from '../notifications/notice-texts/notice-texts';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -186,7 +187,7 @@ export class FrozenResultsGuard {
       kind: 'exchange_edit_rejected',
       entityId: request.id,
       userId: request.requested_by_user_id,
-      title: 'Exchange correction rejected',
+      title: correctionRejectedTitle(),
       body: trimmed,
       url: '/notifications',
       preference: 'schedule_changes',

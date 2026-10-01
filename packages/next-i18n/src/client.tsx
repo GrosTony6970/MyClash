@@ -38,7 +38,7 @@ export type I18nContextValue = {
  *
  * It deliberately does NOT seed real messages. Doing that means importing the
  * composed dictionary, and this module is in every app's client graph — one
- * such import puts all 15 namespaces in both locales back on every page and
+ * such import puts every namespace in both locales back on every page and
  * undoes the per-surface split entirely.
  */
 const I18nContext = createContext<I18nContextValue>({

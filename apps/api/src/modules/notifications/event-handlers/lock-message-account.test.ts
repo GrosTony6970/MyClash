@@ -66,11 +66,11 @@ const toMarc = (email: string | null) => ({
   kind: 'assignment_changed',
   entityId: 'd-marc',
   userId: MARC,
-  title: 'Referee assignment updated',
-  body: 'Referee for L1-P1-M1 has been updated.',
+  title: "Affectation d'arbitrage mise à jour / Referee assignment updated",
+  body: 'Mise à jour : Referee, L1-P1-M1. / Referee for L1-P1-M1 has been updated.',
   url: '/notifications',
   email,
-  emailSubject: 'Referee assignment updated',
+  emailSubject: "Affectation d'arbitrage mise à jour / Referee assignment updated",
   preference: 'schedule_changes',
 });
 

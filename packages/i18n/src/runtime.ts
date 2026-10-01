@@ -3,7 +3,7 @@
  *
  * This split is what makes the per-surface entries work. `index.ts` imports both
  * composed locales at module scope, so **any** import from the package root —
- * even `defaultLocale`, even `LOCALE_COOKIE` — drags all 15 namespaces in both
+ * even `defaultLocale`, even `LOCALE_COOKIE` — drags every namespace in both
  * languages into the bundle. @myclash/next-i18n sits in every app's client
  * graph, so one such import there would put the whole 181KB back on every page
  * and quietly undo the split.

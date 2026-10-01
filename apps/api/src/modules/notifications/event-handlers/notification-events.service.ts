@@ -6,6 +6,7 @@ import {
   type ScheduledNotificationJob,
 } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
+import * as texts from '../notice-texts/notice-texts';
 import { lockedDutyIds } from './locked-duties';
 import { loadSwissRoundContext } from './swiss-round-context';
 
@@ -68,13 +69,9 @@ export class NotificationEventsService {
       kind: 'assignment_changed',
       entityId: row.id,
       userId: contact.userId,
-      title: 'Referee assignment updated',
-      body: `${row.role ?? 'Your referee assignment'}${
-        row.matches?.match_number_label ? ` for ${row.matches.match_number_label}` : ''
-      } has been updated.`,
+      ...texts.lockMessage(row.role, row.matches?.match_number_label),
       url: '/notifications',
       email: contact.email,
-      emailSubject: 'Referee assignment updated',
       preference: 'schedule_changes',
     };
     await this.scheduler.sendImmediate(message, { replace: resend });
@@ -100,11 +97,9 @@ export class NotificationEventsService {
           kind: 'workshop_cancelled',
           entityId: sessionId,
           userId: contact.claimed_by_user_id,
-          title: 'Workshop cancelled',
-          body: `${title} was cancelled.`,
+          ...texts.workshopCancelled(title),
           url: '/notifications',
           email: contact.email,
-          emailSubject: 'Workshop cancelled',
         });
       }),
     );
@@ -121,11 +116,9 @@ export class NotificationEventsService {
       kind: 'waitlist_promoted',
       entityId: sessionId,
       userId: contact.claimed_by_user_id,
-      title: 'Workshop place confirmed',
-      body: `You have been promoted from the waitlist for ${title}.`,
+      ...texts.waitlistPromoted(title),
       url: '/notifications',
       email: contact.email,
-      emailSubject: 'Workshop place confirmed',
     });
   }
 
@@ -140,7 +133,7 @@ export class NotificationEventsService {
     if (!isPublicTournamentEmbed(tournament))
       return this.logger.log(`Dropped results_published for ${tournamentId}: hidden or gone`);
 
-    const tournamentName = (tournament as { name?: string | null }).name ?? 'Tournament';
+    const text = texts.resultsPublished((tournament as { name: string }).name);
     const { data: registrations } = await this.supabase.service
       .from('registrations')
       .select('person_id')
@@ -157,11 +150,9 @@ export class NotificationEventsService {
           kind: 'results_published',
           entityId: tournamentId,
           userId: contact.claimed_by_user_id,
-          title: 'Results published',
-          body: `${tournamentName} results are now published.`,
+          ...text,
           url: '/notifications',
           email: contact.email,
-          emailSubject: 'Results published',
           preference: 'results_published',
         });
       }),
@@ -201,11 +192,10 @@ export class NotificationEventsService {
           kind: 'swiss_round_published' as const,
           entityId: roundId,
           userId: contact.claimed_by_user_id,
-          title: `${round.tournamentName} — round ${round.roundNumber}`,
+          ...texts.swissRound(round.tournamentName, round.roundNumber),
           body: round.opponentLine(registrationId),
           url: round.url,
           email: contact.email,
-          emailSubject: `${round.tournamentName}: round ${round.roundNumber} pairings`,
           preference: 'swiss_round_published' as const,
         },
       ];
@@ -267,7 +257,7 @@ export class NotificationEventsService {
       .maybeSingle();
     const row = event as {
       id: string;
-      name: string | null;
+      name: string;
       slug: string | null;
       city: string | null;
       start_date: string | null;
@@ -286,7 +276,7 @@ export class NotificationEventsService {
       .select('name')
       .eq('id', row.organization_id)
       .maybeSingle();
-    const orgName = (org as { name?: string | null } | null)?.name ?? 'An organiser';
+    const orgName = (org as { name?: string | null } | null)?.name;
 
     const { data: follows } = await this.supabase.service
       .from('organization_follows')
@@ -326,8 +316,8 @@ export class NotificationEventsService {
       }
     }
 
-    const eventName = row.name ?? 'A new event';
     const detail = [row.start_date, row.city].filter(Boolean).join(' · ');
+    const text = texts.newEvent(orgName, row.name, detail);
     const url = row.slug ? `/e/${row.slug}/home` : '/';
 
     await this.scheduler.sendImmediateBulk(
@@ -335,26 +325,23 @@ export class NotificationEventsService {
         kind: 'organizer_published_event' as const,
         entityId: eventId,
         userId,
-        title: orgName,
-        body: detail ? `${eventName} — ${detail}` : eventName,
+        ...text,
         url,
         email: emailByUser.get(userId) ?? null,
-        emailSubject: `${orgName} published ${eventName}`,
         preference: 'organizer_updates' as const,
       })),
     );
   }
 
-  private async getWorkshopTitle(sessionId: string): Promise<string> {
+  private async getWorkshopTitle(sessionId: string): Promise<string | null> {
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
       .select('id, workshops ( title )')
       .eq('id', sessionId)
       .maybeSingle();
-    return (
-      (session as { workshops?: { title?: string | null } | null } | null)?.workshops?.title ??
-      'Your workshop'
-    );
+    const workshop = (session as { workshops?: { title?: string | null } | null } | null)
+      ?.workshops;
+    return workshop?.title ?? null;
   }
 
   private async getContact(personId: string): Promise<ContactRow | null> {

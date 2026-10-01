@@ -57,10 +57,10 @@ function findRepoRoot(): string {
 
 const REPO_ROOT = findRepoRoot();
 
-// Every surface that references i18n keys: the three FE app trees plus the
-// shared packages that call `t()` / hold key literals. Verified exhaustive —
-// no key is referenced only outside this set (packages/i18n itself excluded;
-// the API never renders `t()`).
+// Every surface that references i18n keys: the three FE app trees, the shared
+// packages that call `t()` / hold key literals, and the one API directory that
+// words the notices. Verified exhaustive — no key is referenced only outside
+// this set (packages/i18n itself excluded; the rest of the API names no key).
 //
 // A root missing from this list does not weaken the FORWARD check, it breaks
 // the REVERSE one: keys referenced only from an unscanned directory are
@@ -89,6 +89,10 @@ const ROOTS = [
   // the `common.round.` prefix instead would have exempted that whole family
   // from the orphan check forever.
   'packages/types/src',
+  // The API's one owner of notice texts: it names every key of the notices
+  // namespace as a whole literal. Only this directory, not the API's whole
+  // source: a job id built there in a template would become a key prefix.
+  'apps/api/src/modules/notifications/notice-texts',
 ];
 
 const SKIP_DIRS = new Set(['node_modules', '.next', 'dist', '.turbo', 'coverage']);

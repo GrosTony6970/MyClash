@@ -96,13 +96,32 @@ describe('the Swiss round message of a public Tournament', () => {
     async (status) => {
       const jobs = await told(tables('running', winterGames(status)));
       const page = '/e/winter-games/t/longsword#swiss';
+      const toMarie = 'Round 2: you face Paul Petit on Piste 3.';
+      const toPaul = 'Round 2: you face Marie Martin on Piste 3.';
       expect(jobs.map((job) => [job['userId'], job['body'], job['url']])).toEqual([
-        ['u-marie', 'Round 2: you face Paul Petit on Piste 3.', page],
-        ['u-paul', 'Round 2: you face Marie Martin on Piste 3.', page],
+        ['u-marie', `Ronde 2 : vous affrontez Paul Petit sur Piste 3. / ${toMarie}`, page],
+        ['u-paul', `Ronde 2 : vous affrontez Marie Martin sur Piste 3. / ${toPaul}`, page],
       ]);
+      expect(jobs[0]).toMatchObject({
+        title: 'Longsword — ronde 2 / Longsword — round 2',
+        emailSubject: 'Longsword : appariements de la ronde 2 / Longsword: round 2 pairings',
+      });
       expect(log).not.toHaveBeenCalledWith(DROPPED);
     },
   );
+
+  it('calls an opponent whose name cannot be read "your next opponent", in each language', async () => {
+    const registrations = {
+      rows: [
+        { id: 'reg-marie', persons: { given_name: 'Marie', family_name: 'Martin' } },
+        { id: 'reg-paul', persons: null },
+      ],
+    };
+    const jobs = await told({ ...tables('running', winterGames('running')), registrations });
+    expect(jobs.find((job) => job['userId'] === 'u-marie')?.['body']).toBe(
+      'Ronde 2 : vous affrontez votre prochain adversaire sur Piste 3. / Round 2: you face your next opponent on Piste 3.',
+    );
+  });
 
   it('tells them in a club Event: its pages are public', async () => {
     expect(await told(tables('running', winterGames('running', 'club')))).toHaveLength(2);

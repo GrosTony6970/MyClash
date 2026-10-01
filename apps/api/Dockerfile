@@ -28,10 +28,11 @@ COPY packages/rulesets/package.json ./packages/rulesets/
 COPY packages/time/package.json ./packages/time/
 COPY packages/schedule-core/package.json ./packages/schedule-core/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
+COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/db/package.json ./packages/db/
 # Install with frozen lockfile; cache the pnpm store
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/schedule-core --filter @myclash/feature-flags --filter @myclash/db
+    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/schedule-core --filter @myclash/feature-flags --filter @myclash/i18n --filter @myclash/db
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -54,6 +55,7 @@ COPY packages/rulesets/ ./packages/rulesets/
 COPY packages/time/ ./packages/time/
 COPY packages/schedule-core/ ./packages/schedule-core/
 COPY packages/feature-flags/ ./packages/feature-flags/
+COPY packages/i18n/ ./packages/i18n/
 # Build shared packages first, then the API. Dependencies before dependents:
 # rulesets imports schedule-core (the referee checker), which imports time.
 RUN pnpm --filter @myclash/rules build
@@ -62,6 +64,7 @@ RUN pnpm --filter @myclash/time build
 RUN pnpm --filter @myclash/schedule-core build
 RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/feature-flags build
+RUN pnpm --filter @myclash/i18n build
 RUN pnpm --filter @myclash/api build
 
 # Runtime dependencies only. This avoids shipping pnpm, Vite, Vitest, esbuild,
@@ -75,9 +78,10 @@ COPY packages/rulesets/package.json ./packages/rulesets/
 COPY packages/time/package.json ./packages/time/
 COPY packages/schedule-core/package.json ./packages/schedule-core/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
+COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/db/package.json ./packages/db/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/schedule-core --filter @myclash/feature-flags --filter @myclash/db
+    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/schedule-core --filter @myclash/feature-flags --filter @myclash/i18n --filter @myclash/db
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
@@ -110,8 +114,8 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/package.json ./apps/ap
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 # EVERY package with a dependency needs its node_modules here, because that is
 # where pnpm puts the link — including a link to another WORKSPACE package.
-# `packages/rules` and `packages/feature-flags` are the only two that declare
-# none, so they are the only two with no node_modules COPY.
+# `packages/rules`, `packages/feature-flags` and `packages/i18n` are the only
+# three that declare none, so they are the only three with no node_modules COPY.
 #
 # `packages/types` was missed, and it took the api and the worker down on the
 # first deploy after `@myclash/types` gained a runtime dependency on
@@ -130,6 +134,7 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/time/node_modules ./pa
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/schedule-core/package.json ./packages/schedule-core/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/schedule-core/node_modules ./packages/schedule-core/node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/feature-flags/package.json ./packages/feature-flags/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/i18n/package.json ./packages/i18n/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
@@ -139,6 +144,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages
 COPY --from=builder --chown=nestjs:nodejs /app/packages/time/dist ./packages/time/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/schedule-core/dist ./packages/schedule-core/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/feature-flags/dist ./packages/feature-flags/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/i18n/dist ./packages/i18n/dist
 COPY --chown=nestjs:nodejs VERSION ./VERSION
 COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml
 COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json

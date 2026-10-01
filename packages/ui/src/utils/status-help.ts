@@ -18,7 +18,7 @@
  */
 // Just the one namespace, not the composed dictionary. packages/ui is a single
 // CJS barrel with no tree-shaking, so importing `en` from '@myclash/i18n' here
-// put all 15 namespaces in both locales into every app that touches any UI
+// put every namespace in both locales into every app that touches any UI
 // component — 181KB gzip on every page, which is exactly what the per-surface
 // split exists to stop.
 import { statusHelp } from '@myclash/i18n/messages/en/statusHelp';

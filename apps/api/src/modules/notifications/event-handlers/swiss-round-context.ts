@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { isPublicTournamentEmbed } from '../../../common/auth/competition-visibility';
 import type { SupabaseService } from '../../supabase/supabase.service';
+import { swissBye, swissFace, swissPairings } from '../notice-texts/notice-texts';
 
 /**
  * Everything the `swiss_round_published` message needs, loaded once.
@@ -61,7 +62,7 @@ export async function loadSwissRoundContext(
   return {
     roundNumber: round.round_number,
     phaseId: round.phase_id,
-    tournamentName: tournament.name ?? 'Tournament',
+    tournamentName: tournament.name,
     url:
       tournament.events?.slug && tournament.slug
         ? `/e/${tournament.events.slug}/t/${tournament.slug}#swiss`
@@ -76,7 +77,7 @@ interface SwissRoundRow {
   bye_registration_id: string | null;
   phases?: {
     tournaments?: {
-      name?: string | null;
+      name: string;
       slug?: string | null;
       status?: string | null;
       events?: { slug?: string | null; status?: string | null; event_kind?: string | null } | null;
@@ -95,15 +96,10 @@ function buildLine(
   opponents: Map<string, Pairing>,
   names: Map<string, string>,
 ): string {
-  if (registrationId === round.bye_registration_id) {
-    return `You have a bye in round ${round.round_number}.`;
-  }
+  if (registrationId === round.bye_registration_id) return swissBye(round.round_number);
   const pairing = opponents.get(registrationId);
-  if (!pairing) return `Round ${round.round_number} pairings are published.`;
-  const opponent = names.get(pairing.opponentId) ?? 'your next opponent';
-  return pairing.liceName
-    ? `Round ${round.round_number}: you face ${opponent} on ${pairing.liceName}.`
-    : `Round ${round.round_number}: you face ${opponent}.`;
+  if (!pairing) return swissPairings(round.round_number);
+  return swissFace(round.round_number, names.get(pairing.opponentId), pairing.liceName);
 }
 
 /** registrationId → who they face and where, both directions per bout. */

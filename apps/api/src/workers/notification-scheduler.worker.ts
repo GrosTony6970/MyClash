@@ -5,6 +5,11 @@ import type { Job, Queue } from 'bullmq';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import * as webPush from 'web-push';
 import { MailService } from '../modules/mail/mail.service';
+import {
+  matchStarting,
+  refereeStarting,
+  workshopStarting,
+} from '../modules/notifications/notice-texts/notice-texts';
 import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { isPublicAlert } from './alert-visibility';
@@ -312,8 +317,7 @@ export class NotificationSchedulerService {
             userId,
             startsAt: row.scheduled_at,
             leadMinutes: readLeadMinutes(preference, 'match_starting_minutes_before', 10),
-            title: 'Match starting soon',
-            body: `${row.match_number_label ?? 'Your match'} starts soon.`,
+            ...matchStarting(row.match_number_label),
             url: '/notifications',
             now,
           });
@@ -414,8 +418,7 @@ export class NotificationSchedulerService {
           userId,
           startsAt: row.starts_at,
           leadMinutes: readLeadMinutes(preference, 'workshop_starting_minutes_before', 15),
-          title: 'Workshop starting soon',
-          body: `${row.workshops?.title ?? 'Your workshop'} starts soon.`,
+          ...workshopStarting(row.workshops?.title),
           url: '/notifications',
           now,
         });
@@ -453,10 +456,7 @@ export class NotificationSchedulerService {
       userId,
       startsAt: start.startsAt,
       leadMinutes: readLeadMinutes(preference, 'referee_starting_minutes_before', 10),
-      title: 'Referee slot starting soon',
-      body: `${row.role ?? 'Your referee assignment'} starts soon${
-        row.matches?.match_number_label ? ` for ${row.matches.match_number_label}` : ''
-      }.`,
+      ...refereeStarting(row.role, row.matches?.match_number_label),
       url: '/notifications',
       now,
     });

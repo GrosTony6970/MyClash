@@ -121,6 +121,9 @@ importers:
       '@myclash/feature-flags':
         specifier: workspace:^
         version: link:../../packages/feature-flags
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../../packages/i18n
       '@myclash/rules':
         specifier: workspace:^
         version: link:../../packages/rules

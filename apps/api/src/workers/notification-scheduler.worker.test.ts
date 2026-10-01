@@ -229,7 +229,11 @@ describe('notification scheduler jobs', () => {
     expect(queue.add).toHaveBeenCalledTimes(2);
     expect(queue.add).toHaveBeenCalledWith(
       'send',
-      expect.objectContaining({ userId: 'user-red' }),
+      expect.objectContaining({
+        userId: 'user-red',
+        title: 'Combat imminent / Match starting soon',
+        body: 'L1-P1-M1 commence bientôt. / L1-P1-M1 starts soon.',
+      }),
       expect.objectContaining({ delay: 25 * 60_000 }),
     );
     expect(queue.add).toHaveBeenCalledWith(
@@ -340,7 +344,12 @@ describe('notification scheduler jobs', () => {
     expect(queue.add).toHaveBeenCalledTimes(2);
     expect(queue.add).toHaveBeenCalledWith(
       'send',
-      expect.objectContaining({ kind: 'workshop_starting', userId: 'user-1' }),
+      expect.objectContaining({
+        kind: 'workshop_starting',
+        userId: 'user-1',
+        title: 'Atelier imminent / Workshop starting soon',
+        body: 'Messer fundamentals commence bientôt. / Messer fundamentals starts soon.',
+      }),
       expect.objectContaining({ delay: 10 * 60_000 }),
     );
     expect(queue.add).toHaveBeenCalledWith(
@@ -390,7 +399,12 @@ describe('notification scheduler jobs', () => {
       // 12:00 is the Pool's earliest placed Match; 12 minutes' lead from 11:30.
       expect(queue.add).toHaveBeenCalledWith(
         'send',
-        expect.objectContaining({ kind: 'referee_starting', userId: 'user-1' }),
+        expect.objectContaining({
+          kind: 'referee_starting',
+          userId: 'user-1',
+          title: 'Arbitrage imminent / Referee slot starting soon',
+          body: 'Bientôt : arbitre_table. / arbitre_table starts soon.',
+        }),
         expect.objectContaining({ delay: 18 * 60_000 }),
       );
       // The double ignores the projection: assert the read names no stored time.
@@ -400,6 +414,28 @@ describe('notification scheduler jobs', () => {
       expect(selectsFor(from as never, 'matches')).toEqual([
         'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',
       ]);
+    });
+
+    it('calls a duty with no role "your referee assignment", in each language', async () => {
+      const queue = makeQueue();
+      const from = withDutyMatches(tables({ pool_id: 'pool-1', role: null }));
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
+
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      expect(queue.add).toHaveBeenCalledWith(
+        'send',
+        expect.objectContaining({
+          body: "Bientôt : votre affectation d'arbitrage. / Your referee assignment starts soon.",
+        }),
+        expect.anything(),
+      );
     });
 
     it('times a duty on one Match from that Match', async () => {

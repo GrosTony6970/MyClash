@@ -95,11 +95,40 @@ describe('notification event handlers', () => {
 
     expect(scheduler.sendImmediate).toHaveBeenCalledTimes(2);
     expect(scheduler.sendImmediate).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'workshop_cancelled', userId: 'user-1' }),
+      expect.objectContaining({
+        kind: 'workshop_cancelled',
+        userId: 'user-1',
+        title: 'Atelier annulé / Workshop cancelled',
+        body: 'Annulé : Messer fundamentals. / Messer fundamentals was cancelled.',
+        emailSubject: 'Atelier annulé / Workshop cancelled',
+      }),
     );
     expect(scheduler.sendImmediate).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'workshop_cancelled', userId: 'user-2' }),
     );
+  });
+
+  it('calls a Workshop whose title cannot be read "your workshop", in each language', async () => {
+    const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const supabase = makeSupabase({
+      workshop_sessions: { data: null, error: null },
+      workshop_enrollments: { data: [{ user_id: 'person-1' }], error: null },
+      persons: {
+        data: [{ id: 'person-1', claimed_by_user_id: 'user-1', email: 'one@example.com' }],
+        error: null,
+      },
+    });
+    const service = new NotificationEventsService(supabase as never, scheduler as never);
+
+    await service.workshopCancelled('session-1');
+
+    expect(scheduler.sendImmediate.mock.calls).toEqual([
+      [
+        expect.objectContaining({
+          body: 'Annulé : votre atelier. / Your workshop was cancelled.',
+        }),
+      ],
+    ]);
   });
 
   it('sends waitlist promotion notification to the promoted person', async () => {
@@ -133,6 +162,9 @@ describe('notification event handlers', () => {
         entityId: 'session-1',
         userId: 'user-1',
         email: 'promoted@example.com',
+        title: 'Place en atelier confirmée / Workshop place confirmed',
+        body: "Vous quittez la liste d'attente : votre place est confirmée pour Messer fundamentals. / You have been promoted from the waitlist for Messer fundamentals.",
+        emailSubject: 'Place en atelier confirmée / Workshop place confirmed',
       }),
     );
   });
@@ -264,7 +296,9 @@ describe('notification event handlers', () => {
     const ada = jobs.find((job) => job['userId'] === 'user-1')!;
     expect(ada['kind']).toBe('swiss_round_published');
     expect(ada['preference']).toBe('swiss_round_published');
-    expect(ada['body']).toBe('Round 2: you face Alan Turing on Piste 3.');
+    expect(ada['body']).toBe(
+      'Ronde 2 : vous affrontez Alan Turing sur Piste 3. / Round 2: you face Alan Turing on Piste 3.',
+    );
     expect(ada['url']).toBe('/e/spring-open/t/longsword#swiss');
   });
 
@@ -279,7 +313,7 @@ describe('notification event handlers', () => {
 
     const jobs = scheduler.sendImmediateBulk.mock.calls[0]![0] as Array<Record<string, unknown>>;
     expect(jobs.find((job) => job['userId'] === 'user-3')!['body']).toBe(
-      'You have a bye in round 2.',
+      "Ronde 2 : vous n'avez pas d'adversaire (exemption). / You have a bye in round 2.",
     );
   });
 

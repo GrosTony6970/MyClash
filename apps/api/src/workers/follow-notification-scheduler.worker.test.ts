@@ -140,8 +140,9 @@ describe('follow notification scheduler — workshops, referees, unfollow', () =
         kind: 'follow_workshop_starting',
         entityId: 'session-1',
         userId: 'user-1',
-        title: 'Followed instructor workshop soon',
-        body: 'Longsword Basics with Coach Ada starts in 15 min.',
+        title:
+          "L'atelier d'un instructeur suivi commence bientôt / Followed instructor workshop soon",
+        body: 'Longsword Basics avec Coach Ada commence dans 15 min. / Longsword Basics with Coach Ada starts in 15 min.',
       }),
       expect.objectContaining({
         jobId: 'follow.workshop_starting.session-1.user-1',
@@ -201,7 +202,11 @@ describe('follow notification scheduler — workshops, referees, unfollow', () =
 });
 
 describe('follow notification scheduler — a followed referee starting', () => {
-  const tables = (assignment: Record<string, unknown>, follows: unknown[] = [FOLLOW]) =>
+  const tables = (
+    assignment: Record<string, unknown>,
+    follows: unknown[] = [FOLLOW],
+    referee: string | null = 'Ref Rita',
+  ) =>
     makeSupabaseFrom({
       referee_assignments: {
         data: {
@@ -222,7 +227,7 @@ describe('follow notification scheduler — a followed referee starting', () => 
         data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '10' }],
         error: null,
       },
-      global_persons: { data: { display_name: 'Ref Rita' }, error: null },
+      global_persons: { data: { display_name: referee }, error: null },
     });
 
   const service = (queue: ReturnType<typeof makeQueue>, from: unknown) =>
@@ -245,6 +250,8 @@ describe('follow notification scheduler — a followed referee starting', () => 
         kind: 'follow_referee_starting',
         entityId: 'assignment-1',
         userId: 'user-1',
+        title: 'Un arbitre suivi officie bientôt / Followed referee starting soon',
+        body: 'Ref Rita officie dans 10 min. / Ref Rita referees in 10 min.',
       }),
       expect.objectContaining({ delay: 20 * 60_000 }),
     );
@@ -255,6 +262,24 @@ describe('follow notification scheduler — a followed referee starting', () => 
     expect(selectsFor(from as never, 'matches')).toEqual([
       'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',
     ]);
+  });
+
+  it('calls a referee whose name cannot be read "a followed referee", in each language', async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ pool_id: 'pool-1' }, [FOLLOW], null));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'send',
+      expect.objectContaining({
+        body: 'Un arbitre suivi officie dans 10 min. / A followed referee referees in 10 min.',
+      }),
+      expect.anything(),
+    );
   });
 
   it('times a duty on one Match from that Match', async () => {

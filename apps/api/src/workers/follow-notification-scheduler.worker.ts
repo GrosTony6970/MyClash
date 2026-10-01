@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import {
+  followMatch,
+  followReferee,
+  followWorkshop,
+} from '../modules/notifications/notice-texts/notice-texts';
 import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
@@ -79,7 +84,7 @@ export function buildFollowWorkshopJobId(sessionId: string, followerUserId: stri
 function fighterName(registration: RegistrationRow | undefined): string {
   const given = registration?.persons?.given_name?.trim() ?? '';
   const family = registration?.persons?.family_name?.trim() ?? '';
-  return `${given} ${family}`.trim() || 'A followed fighter';
+  return `${given} ${family}`.trim();
 }
 
 function parseLeadMinutes(raw: string | number | null | undefined, fallback = 10): number {
@@ -203,12 +208,13 @@ export class FollowNotificationSchedulerService {
           kind: 'follow_match_starting',
           entityId: match.id,
           userId: follow.follower_user_id,
-          title: 'Followed fighter starting soon',
-          body: `${fighterName(followedRegistration)} fights in ${leadMinutes} min - ${
-            match.pools?.name ?? match.match_number_label ?? 'Match'
-          } vs ${fighterName(opponentRegistration)} on ${
-            match.lices?.name ?? match.lices?.label ?? 'their lice'
-          }.`,
+          ...followMatch({
+            fighter: fighterName(followedRegistration),
+            opponent: fighterName(opponentRegistration),
+            minutes: leadMinutes,
+            label: match.pools?.name ?? match.match_number_label,
+            piste: match.lices?.name ?? match.lices?.label,
+          }),
           url: '/notifications',
         };
         return this.replaceJob(job, startsAt, leadMinutes, now);
@@ -412,10 +418,7 @@ export class FollowNotificationSchedulerService {
           kind: 'follow_referee_starting',
           entityId: assignment.id,
           userId: follow.follower_user_id,
-          title: 'Followed referee starting soon',
-          body: `${refereeName} referees in ${leadMinutes} min${
-            matchLabel ? ` - ${matchLabel}` : ''
-          }${liceName ? ` on ${liceName}` : ''}.`,
+          ...followReferee(refereeName, leadMinutes, matchLabel, liceName),
           url: '/notifications',
         };
         return this.replaceJob(job, startsAt, leadMinutes, now);
@@ -489,8 +492,7 @@ export class FollowNotificationSchedulerService {
       .select('display_name')
       .eq('id', globalPersonId)
       .maybeSingle();
-    const name = (data as { display_name?: string | null } | null)?.display_name?.trim() ?? '';
-    return name || 'A followed referee';
+    return (data as { display_name?: string | null } | null)?.display_name?.trim() ?? '';
   }
 
   // ── Workshop-starting (followers of a workshop instructor) ─────────────────────
@@ -530,8 +532,6 @@ export class FollowNotificationSchedulerService {
     const nameByGlobal = await this.getGlobalPersonNames([
       ...new Set(personRows.map((r) => r.global_person_id)),
     ]);
-    const title = workshop.title ?? 'A workshop';
-
     await Promise.all(
       follows.map((follow) => {
         if (!follow.follower_user_id || !follow.followed_person_id) return undefined;
@@ -540,13 +540,12 @@ export class FollowNotificationSchedulerService {
 
         const leadMinutes = readWorkshopLeadMinutes(preference);
         const globalId = personToGlobal.get(follow.followed_person_id);
-        const instructor = (globalId && nameByGlobal.get(globalId)) || 'A followed instructor';
+        const instructor = globalId ? nameByGlobal.get(globalId) : undefined;
         const job: ScheduledNotificationJob = {
           kind: 'follow_workshop_starting',
           entityId: session.id,
           userId: follow.follower_user_id,
-          title: 'Followed instructor workshop soon',
-          body: `${title} with ${instructor} starts in ${leadMinutes} min.`,
+          ...followWorkshop(workshop.title, instructor, leadMinutes),
           url: '/notifications',
         };
         return this.replaceJob(job, session.starts_at!, leadMinutes, now);
