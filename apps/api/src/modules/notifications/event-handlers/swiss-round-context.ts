@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+import { isPublicTournamentEmbed } from '../../../common/auth/competition-visibility';
 import type { SupabaseService } from '../../supabase/supabase.service';
 
 /**
@@ -10,8 +12,7 @@ import type { SupabaseService } from '../../supabase/supabase.service';
  * under three queries.
  */
 
-/** Tournament statuses whose Swiss pairings are already public. */
-const PUBLIC_TOURNAMENT_STATUSES = ['published', 'running', 'completed'];
+const logger = new Logger('SwissRoundContext');
 
 export interface SwissRoundContext {
   roundNumber: number;
@@ -27,7 +28,9 @@ export interface SwissRoundContext {
  *
  * The status gate lives here rather than at the call site because it is the
  * reason this returns null at all: generating a Swiss phase on a `draft`
- * tournament to try the format out must not message the whole field.
+ * tournament to try the format out must not message the whole field. Nor may a
+ * public Tournament of a draft or test Event (ruling 198): its pages answer
+ * "not found" for the fighters, as for the results notice (rulings 196, 197).
  */
 export async function loadSwissRoundContext(
   supabase: SupabaseService,
@@ -37,7 +40,7 @@ export async function loadSwissRoundContext(
     .from('swiss_rounds')
     .select(
       'id, round_number, phase_id, bye_registration_id, ' +
-        'phases ( tournaments ( name, slug, status, events ( slug ) ) )',
+        'phases ( tournaments ( name, slug, status, events ( slug, status, event_kind ) ) )',
     )
     .eq('id', roundId)
     .maybeSingle();
@@ -45,7 +48,10 @@ export async function loadSwissRoundContext(
   const round = data as SwissRoundRow | null;
   const tournament = round?.phases?.tournaments;
   if (!round || !tournament) return null;
-  if (!PUBLIC_TOURNAMENT_STATUSES.includes(tournament.status ?? '')) return null;
+  if (!isPublicTournamentEmbed(tournament)) {
+    logger.log(`Dropped swiss_round_published for ${roundId}: hidden`);
+    return null;
+  }
 
   const opponents = await loadOpponents(supabase, roundId);
   const names = await resolveRegistrationNames(supabase, [
@@ -73,7 +79,7 @@ interface SwissRoundRow {
       name?: string | null;
       slug?: string | null;
       status?: string | null;
-      events?: { slug?: string | null } | null;
+      events?: { slug?: string | null; status?: string | null; event_kind?: string | null } | null;
     } | null;
   } | null;
 }

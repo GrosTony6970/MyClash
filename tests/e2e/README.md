@@ -816,7 +816,7 @@ between them `next build` proved the components compile and `t-key-references`
 proved every static key resolves, but nothing proved they render. It builds its
 own `event_kind: 'club'` event (publishing a `standard` event announces it to the
 organisation's real followers) and **plays before it publishes**, because
-`swiss_round_published` fires per round once the tournament is public. Its
+`swiss_round_published` fires per round once the tournament and its event are public. Its
 `expectNoRawKeys` is the only check that catches a dynamically-composed `t()` key
 the i18n sweep is blind to.
 

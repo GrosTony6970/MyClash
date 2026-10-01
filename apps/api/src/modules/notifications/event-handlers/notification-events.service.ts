@@ -179,8 +179,8 @@ export class NotificationEventsService {
    * learns their next opponent and piste, and there is no organiser action to
    * hang it off instead.
    *
-   * Suppressed while the tournament is still `draft`: generating a phase to try
-   * the format out must not message the whole field.
+   * Suppressed unless the Tournament and its Event are public (ruling 198): trying
+   * the format out in a draft, or in a test Event, must not message the whole field.
    *
    * The bye holder IS notified. Sitting a round out is information they need as
    * much as a pairing, and they are the one person who would otherwise hear

@@ -25,7 +25,7 @@ import { buildSwissTournament, playSwiss, readSwissStandings } from './_swiss';
  * ── Why it plays BEFORE it publishes ─────────────────────────────────────────
  *
  * `swiss_round_published` fires from the commit path on every round, gated on
- * the tournament being published. Publishing first and then playing would fan
+ * the tournament and its event being public. Publishing first, then playing, would fan
  * that out four times. The roster is `ensureRoster`, so every entrant is
  * unclaimed and nothing could actually be delivered — but that is a property of
  * the fixture, not of the code, and it is one edit away from being false.

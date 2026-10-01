@@ -103,7 +103,7 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   // Checked when queued: a public Tournament of a public Event (`resultsPublished`, rulings 196,
   // 197). Held here, a refused notice would keep its job id and swallow the later send for a day.
   results_published: null,
-  // Checked when queued, on the Tournament's status alone (swiss-round-context.ts).
+  // Checked when queued, on the same bar (swiss-round-context.ts, ruling 198).
   swiss_round_published: null,
 };
 
