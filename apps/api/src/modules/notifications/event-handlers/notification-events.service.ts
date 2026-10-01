@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { announcesOnPublish, asEventKind } from '@myclash/types';
+import { isPublicTournamentEmbed } from '../../../common/auth/competition-visibility';
 import {
   NotificationSchedulerService,
   type ScheduledNotificationJob,
@@ -132,12 +133,15 @@ export class NotificationEventsService {
   }
 
   async resultsPublished(tournamentId: string): Promise<void> {
-    const { data: tournament } = await this.supabase.service
+    const { data: tournament, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, name')
+      .select('id, name, status, events(status, event_kind)')
       .eq('id', tournamentId)
       .maybeSingle();
-    if (!tournament) return;
+    if (error) throw new Error(`Results notice: Tournament read failed: ${error.message}`);
+    // Not for a draft or test Event (rulings 196, 197). Asked before a job exists: see `CHECKS`.
+    if (!isPublicTournamentEmbed(tournament))
+      return this.logger.log(`Dropped results_published for ${tournamentId}: hidden or gone`);
 
     const tournamentName = (tournament as { name?: string | null }).name ?? 'Tournament';
     const { data: registrations } = await this.supabase.service

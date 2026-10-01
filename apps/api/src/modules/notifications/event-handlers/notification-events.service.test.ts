@@ -147,7 +147,12 @@ describe('notification event handlers', () => {
     const service = new NotificationEventsService(
       makeSupabase({
         tournaments: {
-          data: { id: 'tournament-1', name: 'Longsword' },
+          data: {
+            id: 'tournament-1',
+            name: 'Longsword',
+            status: 'completed',
+            events: { status: 'published', event_kind: 'standard' },
+          },
           error: null,
         },
         registrations: {
