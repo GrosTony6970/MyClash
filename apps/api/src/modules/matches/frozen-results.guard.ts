@@ -10,6 +10,7 @@ import { correctionRejectedTitle } from '../notifications/notice-texts/notice-te
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
+import { isOver } from '../../common/live-status';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
 export type ExchangeEditRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -62,7 +63,9 @@ export class FrozenResultsGuard {
   }
 
   /**
-   * Refuse any write that changes a match result once the event is completed.
+   * Refuse any write that changes a match result once the Event is over:
+   * completed, or archived, which an Event becomes on its own a day later and
+   * never leaves (ruling 222a).
    *
    * Named for what it guards rather than for its first caller: creating an
    * exchange and recording a result override are the same question — "may this
@@ -72,7 +75,7 @@ export class FrozenResultsGuard {
    */
   async assertResultMutationAllowed(matchId: string, userId?: string): Promise<void> {
     const state = await this.getEventStateForMatch(matchId);
-    if (state.status !== 'completed') return;
+    if (!isOver(state.status)) return;
     if (await this.isSuperAdmin(userId)) return;
     throw new ConflictException('Event results are frozen');
   }
@@ -84,7 +87,7 @@ export class FrozenResultsGuard {
     userId?: string;
   }): Promise<FrozenReviewResponse | null> {
     const state = await this.getEventStateForMatch(input.exchange.match_id);
-    if (state.status !== 'completed') return null;
+    if (!isOver(state.status)) return null;
     if (await this.isSuperAdmin(input.userId)) return null;
     if (!input.userId) throw new UnauthorizedException('Authentication required');
 
