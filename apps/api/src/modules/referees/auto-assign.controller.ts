@@ -103,6 +103,10 @@ export class AutoAssignController {
    * duty with its `key`, unless the organiser sends anyway over exactly those duties
    * (`confirmedDuties`, ruling 138): one they did not see refuses again, with the whole
    * list. Discouraged duties never refuse it: each was confirmed when it was made.
+   *
+   * Each locked duty gets its referee's "starting soon" and his followers', by ruling 221
+   * (`duty-alert-rings.ts`): none for a duty that has started, and none again for one whose
+   * alert already rang for this start, so a second lock at midday is quiet for the morning.
    */
   @Post('events/:eventId/lock-referee-assignments')
   @HttpCode(HttpStatus.OK)

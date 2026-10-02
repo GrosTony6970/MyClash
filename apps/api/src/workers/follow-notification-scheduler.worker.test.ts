@@ -228,7 +228,8 @@ describe('follow notification scheduler — a followed referee starting', () => 
         data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '10' }],
         error: null,
       },
-      global_persons: { data: { display_name: referee }, error: null },
+      // The names are one read for many referees: rows, keyed by profile.
+      global_persons: { data: [{ id: 'gp-ref', display_name: referee }], error: null },
     });
 
   const service = (queue: ReturnType<typeof makeQueue>, from: unknown) =>

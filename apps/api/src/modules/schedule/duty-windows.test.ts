@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { readDutyStart, resolveDutyWindows, resolvePoolSpans } from './duty-windows';
+import { readDutyStarts, resolveDutyWindows, resolvePoolSpans } from './duty-windows';
 
 /**
  * The seeded double, which applies `.in()`, and decoys: another Pool with an
@@ -76,11 +76,16 @@ function db(over: { sheets?: unknown[]; matches?: unknown } = {}) {
 
 const logger = () => ({ warn: vi.fn() });
 
-describe('readDutyStart', () => {
+/** One duty's start, as the many-duty read answers it. */
+async function startOf(client: SupabaseClient, duty: Parameters<typeof readDutyStarts>[1][number]) {
+  return (await readDutyStarts(client, [duty])).get(duty.id);
+}
+
+describe('readDutyStarts', () => {
   it("starts a Pool duty at its own Pool's earliest placed Match", async () => {
     const { client, supabase } = db();
 
-    const start = await readDutyStart(client, { id: 'd1', matchId: null, poolId: 'pool-a' });
+    const start = await startOf(client, { id: 'd1', matchId: null, poolId: 'pool-a' });
 
     expect(start).toBe('2026-06-01T10:00:00.000Z');
     expect(selectsFor(supabase.from, 'matches')).toEqual([MATCH_COLUMNS]);
@@ -90,7 +95,7 @@ describe('readDutyStart', () => {
   it('starts a Match duty at its own Match, even when a Pool is named too', async () => {
     const { client, supabase } = db();
 
-    const start = await readDutyStart(client, { id: 'd1', matchId: 'a3', poolId: 'pool-a' });
+    const start = await startOf(client, { id: 'd1', matchId: 'a3', poolId: 'pool-a' });
 
     expect(start).toBe('2026-06-01T14:00:00.000Z');
     expect(filtersFor(supabase.from, 'matches', 'in')).toEqual([['id', ['a3']]]);
@@ -99,24 +104,44 @@ describe('readDutyStart', () => {
   it('has no start when nothing it covers is placed', async () => {
     const { client } = db();
 
-    expect(
-      await readDutyStart(client, { id: 'd1', matchId: 'a-unplaced', poolId: null }),
-    ).toBeNull();
+    expect(await startOf(client, { id: 'd1', matchId: 'a-unplaced', poolId: null })).toBeNull();
   });
 
   it('reads nothing for a duty that names neither a Match nor a Pool', async () => {
     const { client, supabase } = db();
 
-    expect(await readDutyStart(client, { id: 'd1', matchId: null, poolId: null })).toBeNull();
+    expect(await startOf(client, { id: 'd1', matchId: null, poolId: null })).toBeNull();
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it('throws when the Matches cannot be read', async () => {
     const { client } = db({ matches: { data: null, error: { message: 'matches exploded' } } });
 
-    await expect(
-      readDutyStart(client, { id: 'd1', matchId: null, poolId: 'pool-a' }),
-    ).rejects.toThrow('matches exploded');
+    await expect(startOf(client, { id: 'd1', matchId: null, poolId: 'pool-a' })).rejects.toThrow(
+      'matches exploded',
+    );
+  });
+
+  it('times many duties in two reads: each its own, a bout of a Pool apart from the Pool', async () => {
+    const { client, supabase } = db();
+
+    const starts = await readDutyStarts(client, [
+      { id: 'pool', matchId: null, poolId: 'pool-a' },
+      { id: 'bout-of-the-pool', matchId: 'a3', poolId: null },
+      { id: 'same-bout', matchId: 'a3', poolId: null },
+      { id: 'other-pool', matchId: null, poolId: 'pool-b' },
+    ]);
+
+    expect(Object.fromEntries(starts)).toEqual({
+      pool: '2026-06-01T10:00:00.000Z',
+      'bout-of-the-pool': '2026-06-01T14:00:00.000Z',
+      'same-bout': '2026-06-01T14:00:00.000Z',
+      'other-pool': '2026-06-02T09:00:00.000Z',
+    });
+    expect(filtersFor(supabase.from, 'matches', 'in')).toEqual([
+      ['id', ['a3']],
+      ['pool_id', ['pool-a', 'pool-b']],
+    ]);
   });
 });
 

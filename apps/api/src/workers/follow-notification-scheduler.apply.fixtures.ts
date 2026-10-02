@@ -4,6 +4,7 @@
  */
 import { vi } from 'vitest';
 import { mockSupabase } from '../common/testing/supabase-chain';
+import type { HeldAlert } from './duty-alert-rings';
 import { FollowNotificationSchedulerService } from './follow-notification-scheduler.worker';
 
 export const NOW = new Date('2026-05-02T10:00:00.000Z');
@@ -131,16 +132,49 @@ const TABLES = {
 
 export const BOOM = { data: null, error: { message: 'boom' } };
 
-export function setup(tables: Record<string, unknown> = {}) {
+/**
+ * A queue that holds its jobs as BullMQ does (probed on the real one, ruling 221): a removed job
+ * is gone, and an add under an id still held is IGNORED. `held` is what it holds at first;
+ * `removed` collects the ids that were removed.
+ */
+export function holdingQueue(held: Record<string, HeldAlert>, removed: string[] = []) {
+  const jobs = new Map(Object.entries(held));
+  const landed: string[] = [];
+  const job = (id: string) => {
+    const kept = jobs.get(id);
+    return kept && { ...kept, remove: async () => void (removed.push(id), jobs.delete(id)) };
+  };
+  return {
+    jobs,
+    landed,
+    add: vi.fn(async (_name: string, data: HeldAlert['data'], opts: { jobId: string }) => {
+      if (jobs.has(opts.jobId)) return;
+      jobs.set(opts.jobId, { data });
+      landed.push(opts.jobId);
+    }),
+    getJob: vi.fn(async (id: string) => job(id) ?? null),
+  };
+}
+
+/** `held`: the queue holds these jobs, and nothing else. Left out: every id holds a waiting job. */
+export function setup(tables: Record<string, unknown> = {}, held?: Record<string, HeldAlert>) {
   const removed: string[] = [];
   const waiting = (id: string) => ({ remove: async () => void removed.push(id) });
-  const queue = {
-    add: vi.fn().mockResolvedValue(undefined),
-    getJob: vi.fn(async (id: string) => waiting(id)),
-  };
+  const queue = held
+    ? holdingQueue(held, removed)
+    : {
+        jobs: new Map<string, HeldAlert>(),
+        landed: undefined,
+        add: vi.fn().mockResolvedValue(undefined),
+        getJob: vi.fn(async (id: string) => waiting(id)),
+      };
   const db = mockSupabase({ ...TABLES, ...tables } as Parameters<typeof mockSupabase>[0]);
   const service = new FollowNotificationSchedulerService(queue as never, db as never);
-  const set = () => queue.add.mock.calls.map((call) => (call[2] as { jobId: string }).jobId).sort();
+  // With a queue that holds its jobs, an add under a held id did not land: it is not "set".
+  const set = () =>
+    (
+      queue.landed ?? queue.add.mock.calls.map((call) => (call[2] as { jobId: string }).jobId)
+    ).sort();
   // An alert that is set again is removed twice (once here, once by the write): count it once.
   const gone = () => [...new Set(removed)].sort();
   const bodyOf = (jobId: string) =>

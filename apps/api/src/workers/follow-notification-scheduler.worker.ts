@@ -7,8 +7,9 @@ import {
   followWorkshop,
 } from '../modules/notifications/notice-texts/notice-texts';
 import { isOver } from '../common/live-status';
-import { readDutyStart } from '../modules/schedule/duty-windows';
+import { readDutyStarts } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { DUTY_ALERT_KEPT, dutyAlertStep, hasFired, namedDuties } from './duty-alert-rings';
 import {
   computeNotificationDelayMs,
   NOTIFICATION_QUEUE,
@@ -60,6 +61,9 @@ interface RefereeAssignmentRow {
     lices?: { name?: string | null } | null;
   } | null;
 }
+
+/** One referee in one Event: who is alerted before his duties is asked once per such pair. */
+const refereeKey = (duty: RefereeAssignmentRow) => `${duty.person_id}.${duty.event_id}`;
 
 /** A Workshop session that can ring: timed, not cancelled, of a Workshop in an Event. */
 interface TimedSession {
@@ -282,7 +286,9 @@ export class FollowNotificationSchedulerService {
    * again from the saved follows. Removing alone is wrong: an alert is ONE job per bout and
    * follower, whoever he follows in it. Marc follows Léa and Tom, who meet at 10:30, and mutes
    * Léa: the 10:30 alert stays, for Tom. It reads the saved rows, not switches handed over by the
-   * caller, so it can only write what was saved at some moment.
+   * caller, so it can only write what was saved at some moment. A duty alert that already FIRED
+   * is not removed: it is the record of what rang, and a follow changed inside the lead time
+   * does not ring a second time for the same start (ruling 221, `duty-alert-rings.ts`).
    *
    * Alerts used to be set only when a bout or a Workshop session got or changed its time, and when
    * a duty was locked. So a follower who came after the timetable was built heard nothing until
@@ -428,7 +434,8 @@ export class FollowNotificationSchedulerService {
     await this.queue.add(NOTIFICATION_SEND_JOB, job, {
       jobId,
       delay: computeNotificationDelayMs(startsAt, leadMinutes, now),
-      removeOnComplete: true,
+      // A duty alert that fired is kept: it is the memory of what rang (ruling 221).
+      removeOnComplete: job.kind === 'follow_referee_starting' ? DUTY_ALERT_KEPT : true,
       removeOnFail: 100,
     });
   }
@@ -527,61 +534,140 @@ export class FollowNotificationSchedulerService {
   // ── Referee-starting (followers of a person who is about to referee) ───────────
 
   /**
-   * Schedule "someone you follow is about to referee" reminders. Who is alerted is
-   * `refereeAlertFollowers`: the Event follows on the referee's roster rows with the switch on,
-   * and the hub follows with theirs on where the follower has no Event follow (ruling 217).
-   * Delivery reuses the same NOTIFICATION_QUEUE → push/email pipeline.
-   *
-   * Only a LOCKED duty rings (`getLockedDuty`). `onlyFollower` as for a bout.
+   * Schedule "someone you follow is about to referee" reminders for one duty, once it is LOCKED
+   * (`getLockedDuty`): as for many (`scheduleRefereeDutiesStarting`). `onlyFollower` as for a bout.
    */
   async scheduleRefereeStarting(
     assignmentId: string,
     now = new Date(),
     onlyFollower?: string,
   ): Promise<void> {
+    const duty = await this.getLockedDuty(assignmentId, onlyFollower !== undefined);
+    if (duty) await this.scheduleRefereeDutiesStarting([duty], now, onlyFollower);
+  }
+
+  /**
+   * The followers' alerts for MANY locked duties: the lock tells one, a retime of the bouts
+   * every locked duty they start (`MatchAlertRefresherService`). Who is alerted is
+   * `refereeAlertFollowers`: the Event follows on the referee's roster rows with the switch on,
+   * and the hub follows with theirs on where the follower has no Event follow (ruling 217). It
+   * is asked once per referee and Event, then the bouts, the switches and the names are read in
+   * sets, not per duty.
+   *
+   * Each alert follows ruling 221 (`duty-alert-rings.ts`): set at its start, the record of one
+   * that rang kept for the same start, one that still waits removed when the duty has started,
+   * has no bout placed, or its follower's main switch is off. Delivery reuses the same
+   * NOTIFICATION_QUEUE → push/email pipeline.
+   */
+  async scheduleRefereeDutiesStarting(
+    duties: readonly RefereeAssignmentRow[],
+    now = new Date(),
+    onlyFollower?: string,
+  ): Promise<void> {
     const strict = onlyFollower !== undefined;
-    const assignment = await this.getLockedDuty(assignmentId, strict);
-    if (!assignment?.person_id || !assignment.event_id) return;
+    const followersOf = await this.followersOfReferees(duties, strict, onlyFollower);
+    const followed = duties.flatMap((duty) => {
+      const followers = followersOf.get(refereeKey(duty)) ?? [];
+      const profileId = duty.person_id;
+      return profileId && followers.length > 0 ? [{ duty, profileId, followers }] : [];
+    });
+    if (followed.length === 0) return;
 
-    const followers = await refereeAlertFollowers(
-      this.supabase.service,
-      { profileId: assignment.person_id, eventId: assignment.event_id },
-      (what, read, loses) => this.dataOf(what, `; ${loses}`, read, strict),
-      onlyFollower,
+    // Read only once someone is waiting for it. A duty starts at its earliest placed Match.
+    const starts = await this.refereeDutyStarts(
+      followed.map((one) => one.duty),
+      strict,
     );
-    if (followers.length === 0) return;
-
-    // Read only once someone is waiting for it. The duty starts at its
-    // earliest placed Match.
-    const startsAt = await this.refereeDutyStart(assignment, strict);
-    if (!startsAt) return;
-
-    const preferences = await this.getPreferences(followers, strict);
-    const refereeName = await this.getGlobalPersonName(assignment.person_id, strict);
+    if (!starts) return;
+    const everyone = [...new Set(followed.flatMap((one) => one.followers))];
+    const preferences = await this.getPreferences(everyone, strict);
+    const profileIds = [...new Set(followed.map((one) => one.profileId))];
+    const names = await this.getGlobalPersonNames(profileIds, strict, 'Name of a referee');
 
     await Promise.all(
-      followers.map((followerUserId) => {
-        const preference = preferences.get(followerUserId);
-        if (preference?.enabled === false) return undefined;
-
-        const leadMinutes = readRefereeLeadMinutes(preference);
-        const matchLabel = assignment.matches?.match_number_label;
-        const liceName = assignment.matches?.lices?.name;
-        const job: ScheduledNotificationJob = {
-          kind: 'follow_referee_starting',
-          entityId: assignment.id,
-          userId: followerUserId,
-          ...followReferee(refereeName, leadMinutes, matchLabel, liceName),
-          url: '/notifications',
-        };
-        return this.replaceJob(job, startsAt, leadMinutes, now);
-      }),
+      followed.flatMap(({ duty, profileId, followers }) =>
+        followers.map((followerUserId) =>
+          this.setRefereeAlert(duty, followerUserId, {
+            startsAt: starts.get(duty.id) ?? null,
+            preference: preferences.get(followerUserId),
+            referee: names.get(profileId) ?? '',
+            now,
+          }),
+        ),
+      ),
     );
   }
 
+  /** Who is alerted before the duties of each referee in each Event, asked once per pair. */
+  private async followersOfReferees(
+    duties: readonly RefereeAssignmentRow[],
+    strict: boolean,
+    onlyFollower?: string,
+  ): Promise<Map<string, string[]>> {
+    const referees = new Map<string, { profileId: string; eventId: string }>();
+    for (const duty of duties) {
+      if (!duty.person_id || !duty.event_id) continue;
+      referees.set(refereeKey(duty), { profileId: duty.person_id, eventId: duty.event_id });
+    }
+    const found = await Promise.all(
+      [...referees].map(async ([key, referee]) => {
+        const followers = await refereeAlertFollowers(
+          this.supabase.service,
+          referee,
+          (what, read, loses) => this.dataOf(what, `; ${loses}`, read, strict),
+          onlyFollower,
+        );
+        return [key, followers] as const;
+      }),
+    );
+    return new Map(found);
+  }
+
+  /** One follower's alert for one duty: set it, keep the record of one that rang, or remove one that waits. */
+  private async setRefereeAlert(
+    duty: RefereeAssignmentRow,
+    followerUserId: string,
+    at: {
+      startsAt: string | null;
+      preference: NotificationPreferenceRow | undefined;
+      referee: string;
+      now: Date;
+    },
+  ): Promise<void> {
+    const held = await this.queue.getJob(buildFollowRefereeJobId(duty.id, followerUserId));
+    const { startsAt } = at;
+    if (startsAt === null || at.preference?.enabled === false) {
+      return this.cancelRefereeStarting(duty.id, followerUserId);
+    }
+    const step = dutyAlertStep(startsAt, at.now, held);
+    if (step === 'keep') return;
+    if (step === 'remove') return this.cancelRefereeStarting(duty.id, followerUserId);
+
+    const leadMinutes = readRefereeLeadMinutes(at.preference);
+    const job: ScheduledNotificationJob = {
+      kind: 'follow_referee_starting',
+      entityId: duty.id,
+      userId: followerUserId,
+      startsAt,
+      ...followReferee(
+        at.referee,
+        leadMinutes,
+        duty.matches?.match_number_label,
+        duty.matches?.lices?.name,
+      ),
+      url: '/notifications',
+    };
+    return this.replaceJob(job, startsAt, leadMinutes, at.now);
+  }
+
+  /**
+   * Remove a follower's alert that still WAITS. One that fired is kept: it is inert, and it is
+   * the memory of what rang (ruling 221), so a follow changed inside the lead time does not ring
+   * a second time for the same start.
+   */
   async cancelRefereeStarting(assignmentId: string, followerUserId: string): Promise<void> {
     const existing = await this.queue.getJob(buildFollowRefereeJobId(assignmentId, followerUserId));
-    await existing?.remove();
+    if (existing && !hasFired(existing)) await existing.remove();
   }
 
   /**
@@ -591,8 +677,8 @@ export class FollowNotificationSchedulerService {
    * walk is over the profile's duties, in every Event that is not over (nothing waits in one
    * that is: an assumption that bounds the work, not a check).
    *
-   * As `applyFollow`: it removes, then sets again from the saved rows, because a duty's alert is
-   * ONE job per duty and follower, whichever follow asked for it. Nothing is best effort: the
+   * As `applyFollow`: it removes what still waits, then sets again from the saved rows, because
+   * a duty's alert is ONE job per duty and follower, whichever follow asked for it. Nothing is best effort: the
    * read below and every read of `scheduleRefereeStarting` for one follower throw. The switch is
    * saved by then, the call fails, and the same call again repairs the alerts.
    *
@@ -654,35 +740,31 @@ export class FollowNotificationSchedulerService {
     return duty?.status === 'confirmed' ? duty : null;
   }
 
-  /** The duty's start, or null (logged) when its Matches cannot be read at a retime. */
-  private async refereeDutyStart(
-    assignment: RefereeAssignmentRow,
+  /**
+   * Each duty's start, null where no Match is placed. The Matches unreadable at a retime is a
+   * different answer: `null` for the whole set, logged once, and nothing is touched.
+   */
+  private async refereeDutyStarts(
+    duties: readonly RefereeAssignmentRow[],
     strict: boolean,
-  ): Promise<string | null> {
+  ): Promise<Map<string, string | null> | null> {
     try {
-      return await readDutyStart(this.supabase.service, {
-        id: assignment.id,
-        matchId: assignment.match_id,
-        poolId: assignment.pool_id,
-      });
+      return await readDutyStarts(
+        this.supabase.service,
+        duties.map((duty) => ({ id: duty.id, matchId: duty.match_id, poolId: duty.pool_id })),
+      );
     } catch (err) {
-      // `readDutyStart` throws a 400 for a read that failed. Here it is a failed read like any
+      // `readDutyStarts` throws a 400 for a read that failed. Here it is a failed read like any
       // other: a warning at a retime, a plain Error (a 5xx) for one follower.
       const error = { message: err instanceof Error ? err.message : String(err) };
-      const what = `Referee assignment ${assignment.id}: its Matches are`;
-      this.dataOf(what, NONE_SET, { data: null, error }, strict);
+      this.dataOf(
+        `Referee assignment ${namedDuties(duties)}: its Matches are`,
+        NONE_SET,
+        { data: null, error },
+        strict,
+      );
       return null;
     }
-  }
-
-  private async getGlobalPersonName(globalPersonId: string, strict: boolean): Promise<string> {
-    const read = await this.supabase.service
-      .from('global_persons')
-      .select('display_name')
-      .eq('id', globalPersonId)
-      .maybeSingle();
-    const row = this.dataOf('Name of a referee', STAND_IN, read, strict);
-    return (row as { display_name?: string | null } | null)?.display_name?.trim() ?? '';
   }
 
   // ── Workshop-starting (followers of a workshop instructor) ─────────────────────
@@ -717,6 +799,7 @@ export class FollowNotificationSchedulerService {
     const nameByGlobal = await this.getGlobalPersonNames(
       [...new Set(personRows.map((r) => r.global_person_id))],
       strict,
+      'Names of the instructors',
     );
     await Promise.all(
       follows.map((follow) => {
@@ -820,6 +903,7 @@ export class FollowNotificationSchedulerService {
   private async getGlobalPersonNames(
     globalPersonIds: string[],
     strict: boolean,
+    what: string,
   ): Promise<Map<string, string>> {
     const map = new Map<string, string>();
     if (globalPersonIds.length === 0) return map;
@@ -828,7 +912,7 @@ export class FollowNotificationSchedulerService {
       .select('id, display_name')
       .in('id', globalPersonIds);
     const rows = this.rowsOf<{ id: string; display_name: string | null }>(
-      'Names of the instructors',
+      what,
       STAND_IN,
       read,
       strict,

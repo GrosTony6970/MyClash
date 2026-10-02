@@ -19,7 +19,7 @@
  * (her opponent, whom he follows too) stays.
  *
  * A hub follow has a switch too (ruling 217): the ones that are on are muted once her roster
- * rows are read, before any Event follow is touched; their followers' duty alerts are removed
+ * rows are read, before any Event follow is touched; their followers' waiting duty alerts go
  * once the Event follows are gone, and the hub follows go last. A second run after a failure
  * finds those switches off and walks nobody: an alert left then stays in the queue and does not
  * ring (`alert-still-wanted.ts`).

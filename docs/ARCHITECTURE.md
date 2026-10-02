@@ -1363,7 +1363,20 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   enqueued, so every subsequent reschedule leaves a stale alert in the queue.
   `apps/api/src/modules/notifications/match-alert-refresher.service.ts` is the reconciliation half:
   it re-derives the alerts a match should have and drops the ones it should not. Anything that
-  moves a match in time has to go through it.
+  moves a match in time has to go through it. It serves three families: the Fighters' own alerts,
+  their followers', and the referees' duties. A duty starts at the earliest placed bout it covers,
+  so the locked duties of the moved bouts (`apps/api/src/modules/notifications/duties-of-bouts.ts`)
+  get their referee's alert and his followers' set again, in set-based reads: a crew on a Swiss
+  round or a bracket is one duty per bout and role.
+- A duty alert that has rung does not ring again for the same start (operator ruling 221,
+  `apps/api/src/workers/duty-alert-rings.ts`). The two duty kinds stay in the queue for a day
+  after they complete, with the start they were set for and what the worker answered (`sent`, or
+  `dropped` by the fire-time check); one that failed stays as long as it is among the queue's
+  last 100 failures. At every door (the lock, a retime, a change of a follow) one
+  rule decides: a duty that has started gets no alert; one whose alert fired for this same start
+  keeps that record and gets none; any other is set, and rings at once when its minute has
+  passed. A dropped alert rang for nobody, so the next door sets it again; a failed one counts as
+  rung.
 
 ---
 

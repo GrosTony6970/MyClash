@@ -133,12 +133,16 @@ function earliestStartIso(matches: readonly DutyMatch[]): string | null {
 }
 
 /**
- * When one duty starts: the earliest placed Match it covers. Needs no length,
- * so a reminder can be timed even when the Event's sheet cannot be read.
+ * When each duty starts, keyed by duty id: the earliest placed Match it covers, null when none
+ * is placed. Needs no length, so a reminder can be timed even when the Event's sheet cannot be
+ * read. One read per 200 Matches and per 200 Pools, not per duty; a failed read throws.
  */
-export async function readDutyStart(db: SupabaseClient, duty: DutyRef): Promise<string | null> {
-  const matches = await readDutyMatches(db, [duty]);
-  return earliestStartIso(matches.get(duty.id) ?? []);
+export async function readDutyStarts(
+  db: SupabaseClient,
+  duties: readonly DutyRef[],
+): Promise<Map<string, string | null>> {
+  const matches = await readDutyMatches(db, duties);
+  return new Map(duties.map((duty) => [duty.id, earliestStartIso(matches.get(duty.id) ?? [])]));
 }
 
 /** How one Event's placed Matches end: by planned length, or at their next bout. */

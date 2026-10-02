@@ -10,10 +10,19 @@ import {
   refereeStarting,
   workshopStarting,
 } from '../modules/notifications/notice-texts/notice-texts';
-import { readDutyStart } from '../modules/schedule/duty-windows';
+import { readDutyStarts } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import { isStillWanted } from './alert-still-wanted';
 import { isPublicAlert } from './alert-visibility';
+import {
+  ALERT_DROPPED,
+  ALERT_SENT,
+  DUTY_ALERT_KEPT,
+  dutyAlertStep,
+  hasFired,
+  namedDuties,
+  type AlertOutcome,
+} from './duty-alert-rings';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
 export const NOTIFICATION_SEND_JOB = 'send';
@@ -75,6 +84,8 @@ export interface ScheduledNotificationJob {
   emailSubject?: string | null;
   preference?: NotificationPreferenceToggle | null;
   severity?: 'info' | 'warning' | 'alert' | null;
+  /** The start an alert was set for, where its builder says it: a duty alert rang for it (ruling 221). */
+  startsAt?: string | null;
 }
 
 export interface ReminderInput extends ScheduledNotificationJob {
@@ -233,7 +244,8 @@ export class NotificationSchedulerService {
     await this.queue.add(NOTIFICATION_SEND_JOB, this.toJobData(input), {
       jobId,
       delay: computeNotificationDelayMs(input.startsAt, input.leadMinutes, input.now),
-      removeOnComplete: true,
+      // A duty alert that fired is kept: it is the memory of what rang (ruling 221).
+      removeOnComplete: input.kind === 'referee_starting' ? DUTY_ALERT_KEPT : true,
       removeOnFail: 100,
     });
   }
@@ -510,40 +522,101 @@ export class NotificationSchedulerService {
     return data;
   }
 
+  /** The referee's own alert for one duty: as for many (`scheduleRefereeDutiesStarting`). */
   async scheduleRefereeAssignmentStarting(assignmentId: string, now = new Date()): Promise<void> {
-    // Post-0063: referee_assignments keys on person_id. Resolve to the
-    // claimed user_id (notifications need a Supabase auth identity to
-    // target). Unclaimed referees can't receive push/email — skip.
     const row = await this.getRefereeAssignment(assignmentId);
-    if (!row?.person_id) return;
+    if (row) await this.scheduleRefereeDutiesStarting([row], now);
+  }
 
-    const { data: gp } = await this.supabase.service
-      .from('global_persons')
-      .select('claimed_by_user_id')
-      .eq('id', row.person_id)
-      .maybeSingle();
-    const userId = (gp as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
-    if (!userId) return;
+  /**
+   * The referee's own "your duty starts soon" for MANY duties: the lock tells one, a retime of
+   * the bouts every locked duty they start (`MatchAlertRefresherService`). It goes to the account
+   * that holds his profile; a referee nobody holds is told nothing. The holders, their switches
+   * and the bouts are read in sets, not per duty.
+   *
+   * Each alert follows ruling 221 (`duty-alert-rings.ts`): set at its start, the record of one
+   * that rang kept for the same start, one that still waits removed when the duty has started,
+   * has no bout placed, or its account's main switch is off. The holders or the bouts
+   * unreadable say nothing about the duties: their alerts stay as they were, with a warning. The
+   * switches unreadable count as never saved, and nothing says so.
+   */
+  async scheduleRefereeDutiesStarting(
+    duties: readonly RefereeAssignmentRow[],
+    now = new Date(),
+  ): Promise<void> {
+    const holders = await this.holdersOf(duties);
+    const told = duties.flatMap((duty) => {
+      const userId = duty.person_id ? holders.get(duty.person_id) : undefined;
+      return userId ? [{ duty, userId }] : [];
+    });
+    if (told.length === 0) return;
+    const accounts = [...new Set(told.map((one) => one.userId))];
+    const preferences = await this.getPreferencesByUser(accounts);
 
-    const preferences = await this.getPreferencesByUser([userId]);
-    const preference = preferences.get(userId);
-    if (preference?.enabled === false) return;
+    // Read only once a reminder can be set.
+    const starts = await this.refereeDutyStarts(told.map((one) => one.duty));
+    if (!starts) return;
+    await Promise.all(
+      told.map(({ duty, userId }) => {
+        const at = starts.get(duty.id) ?? null;
+        return this.setOwnDutyAlert(duty, userId, preferences.get(userId), at, now);
+      }),
+    );
+  }
 
-    // Read only once a reminder can be set. A read that failed says nothing about
-    // the duty, so any older reminder stays; nothing placed cancels it below.
-    const start = await this.refereeDutyStart(row);
-    if (start === 'unreadable') return;
-
+  /** One duty's own alert: set it, keep the record of one that rang, or remove one that waits. */
+  private async setOwnDutyAlert(
+    duty: RefereeAssignmentRow,
+    userId: string,
+    preference: Partial<NotificationPreferenceRow> | undefined,
+    startsAt: string | null,
+    now: Date,
+  ): Promise<void> {
+    const held = await this.queue.getJob(
+      buildNotificationJobId('referee_starting', duty.id, userId),
+    );
+    const rings = startsAt !== null && preference?.enabled !== false;
+    const step = rings ? dutyAlertStep(startsAt, now, held) : 'remove';
+    if (step === 'keep') return;
+    // One that fired is kept: it is the memory of what rang.
+    if (step === 'remove') {
+      if (held && !hasFired(held)) await held.remove();
+      return;
+    }
     await this.scheduleReminder({
       kind: 'referee_starting',
-      entityId: row.id,
+      entityId: duty.id,
       userId,
-      startsAt: start.startsAt,
+      startsAt,
       leadMinutes: readLeadMinutes(preference, 'referee_starting_minutes_before', 10),
-      ...refereeStarting(row.role, row.matches?.match_number_label),
+      ...refereeStarting(duty.role, duty.matches?.match_number_label),
       url: '/notifications',
       now,
     });
+  }
+
+  /**
+   * The account that holds each referee's profile (post-0063 a duty names the profile, and an
+   * alert needs an account). One read; a failed one is said, and tells nobody.
+   */
+  private async holdersOf(duties: readonly RefereeAssignmentRow[]): Promise<Map<string, string>> {
+    const profileIds = [...new Set(duties.map((duty) => duty.person_id))].filter(
+      (id): id is string => Boolean(id),
+    );
+    if (profileIds.length === 0) return new Map();
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id, claimed_by_user_id')
+      .in('id', profileIds);
+    if (error) {
+      this.logger.warn(
+        `Holders of ${profileIds.length} referee profile(s) unreadable; their reminders are left as they were: ${error.message}`,
+      );
+    }
+    const rows = (data ?? []) as Array<{ id: string; claimed_by_user_id: string | null }>;
+    return new Map(
+      rows.flatMap((row) => (row.claimed_by_user_id ? [[row.id, row.claimed_by_user_id]] : [])),
+    );
   }
 
   private async getRefereeAssignment(assignmentId: string): Promise<RefereeAssignmentRow | null> {
@@ -561,27 +634,24 @@ export class NotificationSchedulerService {
   }
 
   /**
-   * The duty's start: its earliest placed Match, null when none is placed. The
-   * Matches unreadable is a different answer — `unreadable`, logged.
+   * Each duty's start: its earliest placed Match, null when none is placed. The Matches
+   * unreadable is a different answer, `null` for the whole set, logged once.
    */
-  private async refereeDutyStart(
-    row: RefereeAssignmentRow,
-  ): Promise<{ startsAt: string | null } | 'unreadable'> {
+  private async refereeDutyStarts(
+    duties: readonly RefereeAssignmentRow[],
+  ): Promise<Map<string, string | null> | null> {
     try {
-      return {
-        startsAt: await readDutyStart(this.supabase.service, {
-          id: row.id,
-          matchId: row.match_id,
-          poolId: row.pool_id,
-        }),
-      };
+      return await readDutyStarts(
+        this.supabase.service,
+        duties.map((duty) => ({ id: duty.id, matchId: duty.match_id, poolId: duty.pool_id })),
+      );
     } catch (err) {
       this.logger.warn(
-        `Referee assignment ${row.id}: its Matches are unreadable; its reminder is left as it was: ${
+        `Referee assignment ${namedDuties(duties)}: its Matches are unreadable; its reminder is left as it was: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      return 'unreadable';
+      return null;
     }
   }
 
@@ -612,6 +682,7 @@ export class NotificationSchedulerService {
       title: input.title,
       body: input.body,
       url: input.url,
+      startsAt: input.startsAt,
     };
   }
 }
@@ -630,10 +701,18 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
     super();
   }
 
-  async process(job: Job<ScheduledNotificationJob>): Promise<void> {
+  /**
+   * What came of the job, which BullMQ keeps as its `returnvalue`: a duty alert that fired is
+   * kept a day, and a dropped one rang for nobody (ruling 221, `duty-alert-rings.ts`).
+   */
+  async process(job: Job<ScheduledNotificationJob>): Promise<AlertOutcome> {
     const dropped = await this.reasonToDrop(job.data);
-    if (!dropped) return this.deliver(job);
-    this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: ${dropped}`);
+    if (dropped) {
+      this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: ${dropped}`);
+      return ALERT_DROPPED;
+    }
+    await this.deliver(job);
+    return ALERT_SENT;
   }
 
   /**
@@ -643,7 +722,8 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   private async reasonToDrop(job: ScheduledNotificationJob): Promise<string | null> {
     // Hidden (a draft, or one sent back to draft) or gone.
     if (!(await isPublicAlert(this.supabase, job))) return 'hidden or gone';
-    // The follow, the booking or the roster row it was set for is no longer there (ruling 213).
+    // The follow, the booking or the roster row it was set for is no longer there (ruling 213),
+    // or the duty is no longer locked (ruling 220).
     if (!(await isStillWanted(this.supabase, job))) return 'no longer wanted';
     return null;
   }

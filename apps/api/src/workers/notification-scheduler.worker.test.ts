@@ -328,8 +328,8 @@ describe('notification scheduler jobs', () => {
           error: null,
         },
         // Post-0063: scheduler resolves person_id → user_id via global_persons
-        // before targeting the notification.
-        global_persons: { data: { claimed_by_user_id: claimed }, error: null },
+        // before targeting the notification. One read for many referees: rows, keyed by profile.
+        global_persons: { data: [{ id: 'person-1', claimed_by_user_id: claimed }], error: null },
         notification_preferences: {
           data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '12' }],
           error: null,

@@ -107,15 +107,22 @@ describe('the worker asks when the alert fires', () => {
       sender as never,
       { sendNotification: vi.fn() } as never,
     );
-    await worker.process({
+    const answer: unknown = await worker.process({
       id: 'job-1',
       data: { ...alert, title: 'Soon', body: 'Léa fights soon.', url: '/n' },
     } as never);
-    return { db, sent: sender.send.mock.calls.length };
+    return { db, sent: sender.send.mock.calls.length, answer };
   }
 
   it('sends the alert of a follow that is still saved', async () => {
     expect((await fire()).sent).toBe(1);
+  });
+
+  it('answers what came of it: the queue keeps the answer of a duty alert (ruling 221)', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+
+    expect((await fire()).answer).toBe('sent');
+    expect((await fire(follows())).answer).toBe('dropped');
   });
 
   it('drops the alert of a follow that is gone, and says so in the log', async () => {
