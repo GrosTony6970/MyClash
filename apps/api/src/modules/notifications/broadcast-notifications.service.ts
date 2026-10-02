@@ -3,6 +3,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { refereeRecipients, type BroadcastRecipient } from './broadcast-referee-recipients';
 import type { SendBroadcastNotificationDto } from './dto/notifications.dto';
 
 export type BroadcastSeverity = 'info' | 'warning' | 'alert';
@@ -14,12 +15,6 @@ interface EventRow {
   organization_id: string;
   slug?: string | null;
   name?: string | null;
-}
-
-interface PersonRecipient {
-  personId: string;
-  userId: string | null;
-  email: string | null;
 }
 
 interface RecipientRow {
@@ -124,7 +119,7 @@ export class BroadcastNotificationsService {
       body: string;
       tournamentId: string | null;
     },
-    recipients: PersonRecipient[],
+    recipients: BroadcastRecipient[],
   ): Promise<{ id: string; recipientCount: number }> {
     const { severity, targetType, title, body, tournamentId } = params;
 
@@ -153,7 +148,10 @@ export class BroadcastNotificationsService {
           broadcast_id: broadcastId,
           person_id: recipient.personId,
           user_id: recipient.userId,
-          email: recipient.email,
+          // Only a roster row's address is saved. A referee with no roster row here gave this
+          // Event no address, and every member of its organisation may read these rows: his
+          // account's own address rides on his job alone (ruling 216).
+          email: recipient.personId ? recipient.email : null,
           delivery_status: 'queued',
         })),
       )
@@ -168,11 +166,35 @@ export class BroadcastNotificationsService {
       recipientCount: recipients.length,
     });
 
-    // The broadcast is already persisted at this point. A queue failure is a
-    // DELIVERY failure, not a write failure — record it on the recipient row and
-    // keep going, rather than 500-ing a request whose durable effect succeeded.
+    await this.queueDeliveries(
+      broadcastId,
+      { severity, title, body },
+      (insertedRecipients ?? []) as RecipientRow[],
+      recipients,
+    );
+
+    return { id: broadcastId, recipientCount: recipients.length };
+  }
+
+  /**
+   * One immediate job per saved recipient. The broadcast is already persisted at this point. A
+   * queue failure is a DELIVERY failure, not a write failure — record it on the recipient row
+   * and keep going, rather than 500-ing a request whose durable effect succeeded.
+   */
+  private async queueDeliveries(
+    broadcastId: string,
+    { severity, title, body }: { severity: BroadcastSeverity; title: string; body: string },
+    saved: RecipientRow[],
+    recipients: BroadcastRecipient[],
+  ): Promise<void> {
+    // The addresses that were not saved with their recipient, by account.
+    const ownAddress = new Map(
+      recipients
+        .filter((recipient) => !recipient.personId)
+        .map((recipient) => [recipient.userId, recipient.email]),
+    );
     await Promise.all(
-      ((insertedRecipients ?? []) as RecipientRow[]).map(async (recipient) => {
+      saved.map(async (recipient) => {
         try {
           await this.scheduler.sendImmediate({
             kind: 'organizer_broadcast',
@@ -183,7 +205,7 @@ export class BroadcastNotificationsService {
             title,
             body,
             url: '/notifications',
-            email: recipient.email,
+            email: recipient.person_id ? recipient.email : ownAddress.get(recipient.user_id),
             emailSubject: title,
             severity,
           });
@@ -199,8 +221,6 @@ export class BroadcastNotificationsService {
         }
       }),
     );
-
-    return { id: broadcastId, recipientCount: recipients.length };
   }
 
   async listEventBroadcasts(eventId: string, actorUserId: string) {
@@ -262,7 +282,7 @@ export class BroadcastNotificationsService {
   private async resolveRecipients(
     eventId: string,
     dto: SendBroadcastNotificationDto,
-  ): Promise<PersonRecipient[]> {
+  ): Promise<BroadcastRecipient[]> {
     if (dto.targetType === 'all') return this.getPersonsForEvent(eventId);
     if (dto.targetType === 'specific_persons') {
       const personIds = Array.from(new Set(dto.personIds ?? []));
@@ -282,7 +302,7 @@ export class BroadcastNotificationsService {
     return [...fighters, ...referees];
   }
 
-  private async getPersonsForEvent(eventId: string): Promise<PersonRecipient[]> {
+  private async getPersonsForEvent(eventId: string): Promise<BroadcastRecipient[]> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, claimed_by_user_id, email')
@@ -292,7 +312,10 @@ export class BroadcastNotificationsService {
     return this.mapPersons(data ?? []);
   }
 
-  private async getPersonsByIds(eventId: string, personIds: string[]): Promise<PersonRecipient[]> {
+  private async getPersonsByIds(
+    eventId: string,
+    personIds: string[],
+  ): Promise<BroadcastRecipient[]> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, claimed_by_user_id, email')
@@ -327,7 +350,7 @@ export class BroadcastNotificationsService {
   private async getFighterRecipients(
     eventId: string,
     tournamentId?: string,
-  ): Promise<PersonRecipient[]> {
+  ): Promise<BroadcastRecipient[]> {
     const tournamentIds = await this.getTournamentIds(eventId, tournamentId);
     if (tournamentIds.length === 0) return [];
 
@@ -352,11 +375,11 @@ export class BroadcastNotificationsService {
   private async getRefereeRecipients(
     eventId: string,
     tournamentId?: string,
-  ): Promise<PersonRecipient[]> {
+  ): Promise<BroadcastRecipient[]> {
     // Post-0063: referee_* tables key on person_id (= global_persons.id).
-    // Recipients are still event-scoped persons rows (carry the email +
-    // userId), so we resolve global_persons.id → persons row via
-    // persons.global_person_id.
+    // A referee's recipient is his roster row in the Event when he has one
+    // (it carries the email + userId), and his account when he has none:
+    // `broadcast-referee-recipients.ts`.
     if (tournamentId) {
       await this.getTournamentIds(eventId, tournamentId);
       const { data: phases, error: phasesError } = await this.supabase.service
@@ -433,63 +456,15 @@ export class BroadcastNotificationsService {
     return this.resolveRefereeRecipients(eventId, personIds);
   }
 
-  /**
-   * Resolve a list of global_persons.id (post-0063 referee identity) to
-   * `PersonRecipient`s with email addresses. Picks the event-scoped
-   * `persons` row when one exists (it carries the per-event email +
-   * claimed_by_user_id); falls back to global_persons for unclaimed
-   * referees who don't have an event-scoped row yet.
-   */
-  private async resolveRefereeRecipients(
+  /** The referees behind a list of profile ids: see `broadcast-referee-recipients.ts`. */
+  private resolveRefereeRecipients(
     eventId: string,
-    personIds: string[],
-  ): Promise<PersonRecipient[]> {
-    if (personIds.length === 0) return [];
-
-    const { data: persons, error: personsError } = await this.supabase.service
-      .from('persons')
-      .select('id, global_person_id, claimed_by_user_id, email')
-      .eq('event_id', eventId)
-      .in('global_person_id', personIds);
-    if (personsError) throw new BadRequestException(personsError.message);
-
-    const personsByGlobal = new Map<string, PersonRecipient>();
-    for (const row of (persons ?? []) as Array<{
-      id: string;
-      global_person_id: string | null;
-      claimed_by_user_id: string | null;
-      email: string | null;
-    }>) {
-      if (!row.global_person_id) continue;
-      personsByGlobal.set(row.global_person_id, {
-        personId: row.id,
-        userId: row.claimed_by_user_id ?? null,
-        email: row.email ?? null,
-      });
-    }
-
-    const missing = personIds.filter((id) => !personsByGlobal.has(id));
-    if (missing.length > 0) {
-      const { data: gpRows } = await this.supabase.service
-        .from('global_persons')
-        .select('id, claimed_by_user_id')
-        .in('id', missing);
-      for (const gp of (gpRows ?? []) as Array<{
-        id: string;
-        claimed_by_user_id: string | null;
-      }>) {
-        personsByGlobal.set(gp.id, {
-          personId: gp.id,
-          userId: gp.claimed_by_user_id ?? null,
-          email: null,
-        });
-      }
-    }
-
-    return Array.from(personsByGlobal.values());
+    profileIds: string[],
+  ): Promise<BroadcastRecipient[]> {
+    return refereeRecipients({ supabase: this.supabase, logger: this.logger }, eventId, profileIds);
   }
 
-  private mapPersons(rows: unknown[]): PersonRecipient[] {
+  private mapPersons(rows: unknown[]): BroadcastRecipient[] {
     return (rows as Array<Record<string, unknown>>).map((row) => ({
       personId: String(row['id']),
       userId: typeof row['claimed_by_user_id'] === 'string' ? row['claimed_by_user_id'] : null,
@@ -497,9 +472,9 @@ export class BroadcastNotificationsService {
     }));
   }
 
-  private dedupeRecipients(recipients: PersonRecipient[]): PersonRecipient[] {
+  private dedupeRecipients(recipients: BroadcastRecipient[]): BroadcastRecipient[] {
     const seen = new Set<string>();
-    const deduped: PersonRecipient[] = [];
+    const deduped: BroadcastRecipient[] = [];
     for (const recipient of recipients) {
       const key = recipient.userId
         ? `user:${recipient.userId}`
