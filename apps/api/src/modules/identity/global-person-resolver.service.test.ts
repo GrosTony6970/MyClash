@@ -38,6 +38,7 @@ function makeChain(
     update: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     ilike: vi.fn(() => chain),
+    not: vi.fn(() => chain),
     is: vi.fn(() => chain),
     in: vi.fn(() => chain),
     limit: vi.fn((n: number) => {
@@ -218,7 +219,9 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
   it('links by email before minting when an identity already owns it', async () => {
     const { supabase, queue, insertCaptures } = makeSupabase();
     queue('global_persons', {
-      data: [{ id: 'gp-email', email: 'jean@example.com' }],
+      data: [
+        { id: 'gp-email', email: 'jean@example.com', given_name: 'Jean', family_name: 'Dupont' },
+      ],
       error: null,
     });
 
@@ -241,7 +244,9 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
     queue('global_persons', { data: [], error: null }); // email link → none
     queue('global_persons', { data: null, error: { message: 'duplicate key value' } }); // mint fails
     queue('global_persons', {
-      data: [{ id: 'gp-collide', email: 'jean@example.com' }],
+      data: [
+        { id: 'gp-collide', email: 'jean@example.com', given_name: 'Jean', family_name: 'Dupont' },
+      ],
       error: null,
     }); // collision lookup
 
@@ -274,7 +279,13 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
  * or the right id are the three outcomes that tell the two apart.
  */
 describe('the email link compares the address exactly', () => {
-  const LOOKALIKE = { id: 'gp-michel', email: 'm.martin@x.fr' };
+  // Each profile has the row's name: these cases hold the ADDRESS (ruling 211 holds the name).
+  const LOOKALIKE = {
+    id: 'gp-michel',
+    email: 'm.martin@x.fr',
+    given_name: 'Jean',
+    family_name: 'Dupont',
+  };
   const TYPED = 'm_martin@x.fr';
 
   const resolve = (svc: GlobalPersonResolverService, email: string) =>
@@ -301,7 +312,7 @@ describe('the email link compares the address exactly', () => {
     // from it, PostgREST hands back `undefined`, nothing ever matches exactly,
     // and the email tier stops linking at all — under a green suite, because
     // this double answers from its queue whatever the read asked for.
-    expect(selectCaptures['global_persons']).toContain('id, email');
+    expect(selectCaptures['global_persons']).toContain('id, email, given_name, family_name');
   });
 
   it('refuses the same look-alike on the duplicate-key retry', async () => {
@@ -323,7 +334,7 @@ describe('the email link compares the address exactly', () => {
       data: [
         LOOKALIKE,
         { id: 'gp-other', email: 'mXmartin@x.fr' },
-        { id: 'gp-marie', email: ' M_Martin@X.fr ' },
+        { id: 'gp-marie', email: ' M_Martin@X.fr ', given_name: 'Jean', family_name: 'Dupont' },
       ],
       error: null,
     });
@@ -340,7 +351,16 @@ describe('the email link compares the address exactly', () => {
   it('links a profile that its own fighter has already claimed', async () => {
     const { supabase, queue, insertCaptures } = makeSupabase();
     queue('global_persons', {
-      data: [LOOKALIKE, { id: 'gp-marie', email: TYPED, claimed_by_user_id: 'user-marie' }],
+      data: [
+        LOOKALIKE,
+        {
+          id: 'gp-marie',
+          email: TYPED,
+          claimed_by_user_id: 'user-marie',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+        },
+      ],
       error: null,
     });
 

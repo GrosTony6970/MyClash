@@ -308,7 +308,13 @@ Three relationships are easy to get wrong, so they are worth stating explicitly:
   is `persons.global_person_id` — migration `0023` renamed both the table (`fighters` →
   `global_persons`) and this column (`global_fighter_id` → `global_person_id`,
   `0023_global_persons.sql:37`). A `global_fighter_id` anywhere in code or docs predates that
-  migration and is wrong.
+  migration and is wrong. When nobody picks the identity (an explicit link, the import's link
+  decision and a promotion pick it), one resolver decides which one a roster row lands on
+  (`GlobalPersonResolverService`, tiers in its docstring). Its email tier links only a profile that
+  has the SAME NAME as the row (operator ruling 211): an email alone proves nothing, so a typo or a
+  brother at the family address gets a profile of his own, minted without that email. His next
+  roster row finds that profile again through the rows already on it: the same email and the same
+  name (ruling 211a).
 - **A match hangs off a phase, not off a pool.** `matches.phase_id` is `NOT NULL` while `pool_id` and
   `bracket_slot_id` are both nullable — a pool bout carries `pool_id`, an elimination bout carries
   `bracket_slot_id`. Note `phase_id` has no FK constraint, only the `NOT NULL`.

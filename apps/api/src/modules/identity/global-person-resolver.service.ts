@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { personEmailMatchesUser } from '../auth/person-email-match';
-import { applyReachable } from '../fighters/directory-predicate';
 import { SupabaseService } from '../supabase/supabase.service';
+import { profileOfRosterAddress, profileOfRosterHemaId } from './roster-row-tiers';
+import { sameName, type NameParts } from './same-name';
 
 /** The identity inputs used to match (or mint) a `global_persons` row. */
 export interface ResolveGlobalPersonInput {
@@ -21,7 +22,10 @@ export interface ResolveGlobalPersonInput {
  * no HEMA Ratings id and no email, NO tier below can ever fire — tier 1 needs a
  * ratings id, tiers 2 and 3 need a club, the email tier needs an email. Such a
  * person mints a BRAND NEW identity at every event they attend, so their
- * results never aggregate across events and their league points scatter.
+ * results never aggregate across events and their league points scatter. An
+ * email on the ROW counts, even when the profile is minted without it (ruling
+ * 211): the next row with that email and that name finds the profile again
+ * through this one (ruling 211a).
  *
  * `first_sighting` carries at least one matchable identifier, so the next event
  * links to this row instead of minting another. Nothing to fix.
@@ -55,6 +59,19 @@ interface GpMatchRow {
   id: string;
 }
 
+/** What a mint inserts, the address apart: `mint` decides whether the profile may carry it. */
+interface MintFields {
+  slug: string;
+  display_name: string;
+  given_name: string;
+  family_name: string;
+  club_id: string | null;
+  hema_ratings_id: string | null;
+  date_of_birth: string | null;
+  gender_category: string | null;
+  is_fighter: true;
+}
+
 /** Slug seed for newly-created global_persons rows (mirrors the helpers in
  *  persons.service.ts / fighters.service.ts). */
 function slugifyName(name: string): string {
@@ -86,10 +103,20 @@ function maskEmail(email: string): string {
  *   Tier 3: name + club_id (unique, non-merged) — no DOB. Looser tier that
  *           dedupes rosters imported per-event without email/DOB (the E2E-7
  *           seed) which would otherwise mint a duplicate identity per event.
- *   Email : reuse a row that already owns the email (unique index on
- *           LOWER(email) for unmerged rows) before minting.
- *   Roster: last resort, the one tier with an accepted false positive; skipped
- *           when any profile holds the id (see `profileOfRosterHemaId`).
+ *   Email : reuse the row that already owns the email (unique index on
+ *           LOWER(email) for unmerged rows), when it has the SAME NAME (operator
+ *           ruling 211, `sameName`). An address alone proves nothing: an
+ *           organiser's typo, or a brother at the family address, used to put a
+ *           roster row on somebody else's profile, and nothing repaired it. A
+ *           profile of another name is not linked, and the minted profile then
+ *           leaves the address out: the index forbids it twice.
+ *   Roster: a tier with an accepted false positive; skipped when any profile
+ *           holds the id (see `profileOfRosterHemaId`).
+ *   Rows  : before minting, the profile that roster rows carrying this email
+ *           AND this name already sit on (rulings 211a-c,
+ *           `profileOfRosterAddress`). It is what finds a second spelling again,
+ *           or the brother at the family address, whose profiles were minted
+ *           without the email.
  *
  * Each tier only auto-links on a UNIQUE hit; two or more candidates fall
  * through, so ambiguous namesakes still mint fresh. The conservatism is
@@ -114,6 +141,11 @@ export class GlobalPersonResolverService {
   private readonly logger = new Logger(GlobalPersonResolverService.name);
 
   constructor(private readonly supabase: SupabaseService) {}
+
+  /** What the two roster-row tiers read and log with (`roster-row-tiers.ts`). */
+  private get rosterTiers() {
+    return { supabase: this.supabase, logger: this.logger };
+  }
 
   async resolveOrCreateGlobalPerson(
     input: ResolveGlobalPersonInput,
@@ -167,54 +199,87 @@ export class GlobalPersonResolverService {
     }
 
     // Email link — reuse the identity that already owns this email rather than
-    // minting a duplicate (and so the fighter can auto-claim on first login).
-    if (email) {
-      const existingByEmail = await this.profileByExactEmail(email);
-      if (existingByEmail) return { id: existingByEmail, created: false, mintReason: null };
+    // minting a duplicate (and so the fighter can auto-claim on first login),
+    // when it has the row's name (ruling 211).
+    const holder = email ? await this.profileByExactEmail(email) : null;
+    if (holder && sameName(holder, { givenName, familyName })) {
+      return { id: holder.id, created: false, mintReason: null };
     }
+    if (holder) this.refusedByName(holder.id);
 
-    // Last resort — the roster rows that carry the HEMA Ratings id.
+    // The roster rows that carry the HEMA Ratings id.
     if (hemaRatingsId && !idOnAProfile) {
-      const viaRoster = await this.profileOfRosterHemaId(hemaRatingsId);
+      const viaRoster = await profileOfRosterHemaId(this.rosterTiers, hemaRatingsId);
       if (viaRoster) return { id: viaRoster, created: false, mintReason: null };
     }
 
-    // No confident match — mint a fresh global identity.
-    const displayName = `${givenName} ${familyName}`.trim();
-    const slug = `${slugifyName(`${givenName}-${familyName}`)}-${Date.now().toString(36)}`;
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .insert({
-        slug,
-        display_name: displayName,
+    // Before minting — the roster rows that carry this address and this name.
+    const viaRows = email
+      ? await profileOfRosterAddress(this.rosterTiers, email, { givenName, familyName })
+      : null;
+    if (viaRows) return { id: viaRows, created: false, mintReason: null };
+
+    // No confident match — mint a fresh global identity. The address stays on
+    // the roster row when a profile of another name holds it.
+    return this.mint(
+      {
+        slug: `${slugifyName(`${givenName}-${familyName}`)}-${Date.now().toString(36)}`,
+        display_name: `${givenName} ${familyName}`.trim(),
         given_name: givenName,
         family_name: familyName,
         club_id: input.clubId,
         hema_ratings_id: hemaRatingsId,
         date_of_birth: dateOfBirth,
-        email,
         gender_category: input.genderCategory ?? null,
         is_fighter: true,
-      })
+      },
+      holder ? null : email,
+      classifyMint({ clubId: input.clubId, hemaRatingsId, email }),
+    );
+  }
+
+  /**
+   * Mints a profile. `email` is null when the row has no address, and when its address belongs to
+   * a profile of another name: 0075's unique index allows one unmerged profile per address. The
+   * reason comes from the caller, decided on what the ROW carries: a row with an address finds its
+   * profile again whether or not the profile carries it (`profileOfRosterAddress`).
+   *
+   * Named race: a profile can take the address between the Email tier's read and this insert,
+   * which the index refuses. The holder is read again. With the row's name it is the same person
+   * minted twice at once: link it. With another name, mint once more without the address.
+   */
+  private async mint(
+    fields: MintFields,
+    email: string | null,
+    mintReason: MintReason,
+  ): Promise<ResolveGlobalPersonResult> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .insert({ ...fields, email })
       .select('id')
       .single();
-    if (error) {
-      // A concurrent insert may have taken the email (unique on LOWER(email)
-      // for unmerged rows) — link to it rather than failing.
-      if (email && /duplicate key|unique/i.test(error.message)) {
-        const collided = await this.profileByExactEmail(email);
-        if (collided) return { id: collided, created: false, mintReason: null };
-        throw new BadRequestException(
-          `Email ${maskEmail(email)} is already linked to another global profile`,
-        );
-      }
+    if (!error) return { id: (data as { id: string }).id, created: true, mintReason };
+    if (!email || !/duplicate key|unique/i.test(error.message)) {
       throw new BadRequestException(error.message);
     }
-    return {
-      id: (data as { id: string }).id,
-      created: true,
-      mintReason: classifyMint({ clubId: input.clubId, hemaRatingsId, email }),
-    };
+    const holder = await this.profileByExactEmail(email);
+    if (!holder) {
+      throw new BadRequestException(
+        `Email ${maskEmail(email)} is already linked to another global profile`,
+      );
+    }
+    if (sameName(holder, { givenName: fields.given_name, familyName: fields.family_name })) {
+      return { id: holder.id, created: false, mintReason: null };
+    }
+    this.refusedByName(holder.id);
+    return this.mint(fields, null, mintReason);
+  }
+
+  /** The trace of a refused email link (ruling 211). The id only: a name in a log is personal data. */
+  private refusedByName(profileId: string): void {
+    this.logger.log(
+      `email link refused: global_persons ${profileId} holds the address under another name`,
+    );
   }
 
   /**
@@ -241,55 +306,27 @@ export class GlobalPersonResolverService {
    * `ilike` is anchored at both ends, so a stored address padded with spaces is
    * never returned in the first place, and two unmerged rows cannot share a
    * lowered address — 0075's unique index on `LOWER(email)` forbids it.
+   *
+   * The profile comes back with its NAME: the caller links it only to a row of
+   * the same name (ruling 211).
    */
-  private async profileByExactEmail(email: string): Promise<string | null> {
+  private async profileByExactEmail(email: string): Promise<(GpMatchRow & NameParts) | null> {
     const { data, error } = await this.supabase.service
       .from('global_persons')
-      .select('id, email')
+      .select('id, email, given_name, family_name')
       .ilike('email', email)
       .is('merged_into_id', null);
     if (error) {
       this.logger.warn(`email link: candidate read failed: ${error.message}`);
       return null;
     }
-    const rows = (data ?? []) as Array<{ id: string; email: string | null }>;
-    return rows.find((row) => personEmailMatchesUser(row.email, email))?.id ?? null;
-  }
-
-  /**
-   * The last resort before minting (operator rulings 43 and 44, 2026-09-22):
-   * the profile every linked roster row typed with this HEMA Ratings id points at,
-   * asked only when no profile holds the id and no other tier matched. Since
-   * ruling 35 a typed id stays on the roster row, so a fighter first seen
-   * without one would otherwise never be found by it again. The operator
-   * accepted that one typo can then attach a stranger's later entries to the
-   * wrong profile.
-   *
-   * Rows linked to two profiles link nothing. The profile must be live — erasure
-   * blanks a profile's id but keeps the roster rows' own — and hold no HEMA
-   * Ratings id of its own: once the fighter a typo sends strangers to sets
-   * their real id, it stops; so it does once the id's owner has a profile.
-   */
-  private async profileOfRosterHemaId(hemaRatingsId: string): Promise<string | null> {
-    const { data: rows } = await this.supabase.service
-      .from('persons')
-      .select('global_person_id')
-      .eq('hema_ratings_id', hemaRatingsId)
-      .not('global_person_id', 'is', null);
-    const linked = new Set(
-      ((rows ?? []) as Array<{ global_person_id: string }>).map((row) => row.global_person_id),
-    );
-    if (linked.size !== 1) return null;
-
-    const [profileId] = linked;
-    const { data: live } = await applyReachable(
-      this.supabase.service.from('global_persons').select('id').eq('id', profileId),
-    )
-      .is('hema_ratings_id', null)
-      .maybeSingle();
-    if (!live) return null;
-    // The one tier with an accepted false positive: leave a trace of it.
-    this.logger.log(`HEMA Ratings id ${hemaRatingsId} matched through roster rows: ${profileId}`);
-    return (live as GpMatchRow).id;
+    const rows = (data ?? []) as Array<{
+      id: string;
+      email: string | null;
+      given_name: string | null;
+      family_name: string | null;
+    }>;
+    const row = rows.find((candidate) => personEmailMatchesUser(candidate.email, email));
+    return row ? { id: row.id, givenName: row.given_name, familyName: row.family_name } : null;
   }
 }

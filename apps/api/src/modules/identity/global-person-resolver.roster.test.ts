@@ -37,11 +37,21 @@ describe('a match writes nothing onto the profile it links to', () => {
     // No tier can ask, so the email link does, and finds Anna by that email. It
     // never filled anything; this row keeps a fill from being added there. The
     // link reads a LIST and keeps the exact addresses (ruling 49), so the row
-    // has to carry the one asked for.
+    // has to carry the one asked for, and the name asked for (ruling 211).
     [
       'the email link',
       NO_TIER,
-      { data: [{ id: 'gp-anna', email: 'mallory@example.com' }], error: null },
+      {
+        data: [
+          {
+            id: 'gp-anna',
+            email: 'mallory@example.com',
+            given_name: 'Jean',
+            family_name: 'Dupont',
+          },
+        ],
+        error: null,
+      },
     ],
   ])('%s', async (_tier, identifiers, seed) => {
     const db = mockSupabase({ global_persons: seed });
@@ -170,11 +180,18 @@ describe('the roster rows, as the last resort', () => {
     await expect(result).resolves.toMatchObject({ id: 'gp-new', created: true });
   });
 
-  it('lets an email match win over the roster rows', async () => {
+  it('lets an email match of the same name win over the roster rows', async () => {
     const { result } = resolve(
       {
         global_persons: {
-          rows: [live('gp-anna'), live('gp-bruno', { email: 'bruno@example.com' })],
+          rows: [
+            live('gp-anna'),
+            live('gp-bruno', {
+              email: 'bruno@example.com',
+              given_name: 'Jean',
+              family_name: 'Dupont',
+            }),
+          ],
           ...MINTABLE,
         },
         persons: { rows: [typed('gp-anna')] },
