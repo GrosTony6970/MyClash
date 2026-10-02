@@ -87,8 +87,28 @@ describe("a follower's duty alert", () => {
     ['he follows her in another Event only', 'duty-1', follows(follow('marc', 'lea-elsewhere'))],
     ['he follows another person of the Event', 'duty-1', follows(follow('marc', 'tom'))],
     ['the duty is gone', 'duty-gone', {}],
+    ['the duty is unlocked: the board is being planned again (ruling 220)', 'duty-planned', {}],
   ])('stays silent when %s', async (_, dutyId, overrides) => {
     const { answer } = wanted('follow_referee_starting', dutyId, 'marc', overrides);
+    await expect(answer).resolves.toBe(false);
+  });
+});
+
+describe("a referee's own duty alert rings only while his duty is locked (ruling 220)", () => {
+  it('rings for a locked duty', async () => {
+    await expect(wanted('referee_starting', 'duty-1', 'u-lea').answer).resolves.toBe(true);
+  });
+
+  it.each<[string, string, Record<string, TableSeed>]>([
+    ['the organiser unlocked the board', 'duty-planned', {}],
+    ['the duty is gone', 'duty-gone', {}],
+    [
+      'its status is one the lock never wrote',
+      'duty-1',
+      { referee_assignments: { rows: [{ id: 'duty-1', status: 'pending' }] } },
+    ],
+  ])('stays silent when %s', async (_, dutyId, overrides) => {
+    const { answer } = wanted('referee_starting', dutyId, 'u-lea', overrides);
     await expect(answer).resolves.toBe(false);
   });
 });
@@ -108,6 +128,11 @@ describe("a hub follower's duty alert (ruling 217)", () => {
       "the hub follow is another follower's",
       'duty-of-paul',
       hubFollows(hubFollow('nina', 'gp-paul', true)),
+    ],
+    [
+      'the duty is unlocked, his hub switch on (ruling 220)',
+      'duty-planned',
+      { ...follows(), ...hubFollows(hubFollow('marc', 'gp-lea', true)) },
     ],
     [
       'his hub follow is of another person',
@@ -230,11 +255,17 @@ describe('what the check reads', () => {
       'duty-1',
       'marc',
       {
-        referee_assignments: ['person_id, event_id'],
+        referee_assignments: ['person_id, event_id, status'],
         persons: ['id'],
         follows: ['follower_user_id, notify_referee_start'],
         directory_follows: ['follower_user_id'],
       },
+    ],
+    [
+      'referee_starting',
+      'duty-1',
+      'u-lea',
+      { referee_assignments: ['person_id, event_id, status'] },
     ],
     [
       'follow_workshop_starting',
@@ -270,7 +301,6 @@ describe('what the check reads', () => {
   });
 
   it.each<[NotificationKind]>([
-    ['referee_starting'],
     ['assignment_changed'],
     ['workshop_cancelled'],
     ['waitlist_promoted'],
@@ -291,6 +321,7 @@ describe('what the check reads', () => {
     ['follow_match_starting', 'bout-1', 'marc', 'registrations', 'alert bout entries'],
     ['follow_match_starting', 'bout-1', 'marc', 'follows', 'alert follows'],
     ['follow_referee_starting', 'duty-1', 'marc', 'referee_assignments', 'alert referee duty'],
+    ['referee_starting', 'duty-1', 'u-lea', 'referee_assignments', 'alert referee duty'],
     ['follow_referee_starting', 'duty-1', 'marc', 'persons', 'Roster rows of a referee'],
     ['follow_referee_starting', 'duty-1', 'marc', 'follows', 'Followers of a referee'],
     [

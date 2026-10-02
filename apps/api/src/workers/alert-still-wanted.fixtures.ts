@@ -45,12 +45,21 @@ export const seat = (row: string, status: string, session = 'session-1') => ({
   user_id: row,
   status,
 });
+/** A piste duty of a published Event: locked unless the test says otherwise. */
+const duty = (id: string, profile: string, eventId: string, status = 'confirmed') => ({
+  id,
+  person_id: profile,
+  event_id: eventId,
+  status,
+  events: { status: 'published' },
+});
 
 /**
  * Léa fights Tom in bout-1; Zoé fights Ana in bout-2. Léa referees duty-1 and teaches the Workshop
  * of session-1, all in event-1; she is also on the roster of event-2. Marc follows Léa. Léa holds a
  * confirmed seat in session-1, Tom is on its waitlist. Paul referees duty-of-paul in event-1 and
- * duty-of-paul-test in a TEST Event, with no roster row in either.
+ * duty-of-paul-test in a TEST Event, with no roster row in either. Every duty is locked but
+ * duty-planned, Léa's second one, which the organiser is still planning.
  */
 export function tables(): Record<string, TableSeed> {
   return {
@@ -80,10 +89,11 @@ export function tables(): Record<string, TableSeed> {
     organization_members: { rows: [{ organization_id: 'org-1', user_id: 'nina' }] },
     referee_assignments: {
       rows: [
-        { id: 'duty-1', person_id: 'gp-lea', event_id: 'event-1' },
+        duty('duty-1', 'gp-lea', 'event-1'),
+        duty('duty-planned', 'gp-lea', 'event-1', 'assigned'),
         // Paul referees from the directory: he has no roster row in either Event.
-        { id: 'duty-of-paul', person_id: 'gp-paul', event_id: 'event-1' },
-        { id: 'duty-of-paul-test', person_id: 'gp-paul', event_id: 'event-test' },
+        duty('duty-of-paul', 'gp-paul', 'event-1'),
+        duty('duty-of-paul-test', 'gp-paul', 'event-test'),
       ],
     },
     workshop_sessions: {

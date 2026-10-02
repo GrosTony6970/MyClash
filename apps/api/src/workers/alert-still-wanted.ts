@@ -10,6 +10,8 @@
  * So the saved rows are read once more when the alert fires, and they decide:
  * - a follower's alert rings only if a saved follow of that account still wants it (for a
  *   duty, an Event follow or a hub follow: `referee-alert-followers.ts`);
+ * - a duty's alert, the referee's own or a follower's, only while the duty is locked (ruling
+ *   220): the unlock removes no alert, so this check is what silences an unlocked board;
  * - the alert of a booked Workshop, only if a roster row the account holds has a confirmed seat;
  * - a Fighter's own bout alert, only if the account holds the roster row of a Fighter of the bout.
  *
@@ -100,15 +102,34 @@ async function rosterRowsOf(db: Db, profileIds: string[], eventId: string): Prom
 const followsAFighter: Wanted = async (db, boutId, userId) =>
   follows(db, userId, await fightersOf(db, boutId), 'notify_match_start');
 
-const followsTheReferee: Wanted = async (db, dutyId, userId) => {
-  const duty = read<{ person_id: string | null; event_id: string | null } | null>(
+/** A duty as the check reads it: its referee, its Event, and whether it is locked. */
+interface DutyRow {
+  person_id: string | null;
+  event_id: string | null;
+  status: string | null;
+}
+
+/**
+ * The duty, while it is LOCKED (operator ruling 220); null when it is unlocked or gone. The lock
+ * is what tells a referee his duty. An unlocked board is being planned again: its alerts wait in
+ * the queue, ring for nobody, and the next lock sets them again.
+ */
+async function lockedDuty(db: Db, dutyId: string): Promise<DutyRow | null> {
+  const duty = read<DutyRow | null>(
     'alert referee duty',
     await db
       .from('referee_assignments')
-      .select('person_id, event_id')
+      .select('person_id, event_id, status')
       .eq('id', dutyId)
       .maybeSingle(),
   );
+  return duty?.status === 'confirmed' ? duty : null;
+}
+
+const dutyIsLocked: Wanted = async (db, dutyId) => (await lockedDuty(db, dutyId)) !== null;
+
+const followsTheReferee: Wanted = async (db, dutyId, userId) => {
+  const duty = await lockedDuty(db, dutyId);
   if (!duty?.person_id || !duty.event_id) return false;
   // The rule the scheduler set the alert by, asked again for this account alone (ruling 217).
   const alerted = await refereeAlertFollowers(
@@ -192,9 +213,11 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   follow_workshop_starting: followsAnInstructor,
   workshop_starting: holdsAConfirmedSeat,
   match_starting: holdsAFightersRow,
-  // The referee's own alert and lock message: set for the account that holds his profile. Not
-  // asked again here, so not closed: a profile that changes holder leaves the old account's alert.
-  referee_starting: null,
+  // The referee's own alert: set for the account that holds his profile. The holder is not asked
+  // again here, so not closed: a profile that changes holder leaves the old account's alert.
+  referee_starting: dutyIsLocked,
+  // The lock message: sent at once, by the lock, and again as a draft goes live
+  // (`lockedDutiesPublished`).
   assignment_changed: null,
   // Sent at once, to a recipient decided at that moment.
   workshop_cancelled: null,

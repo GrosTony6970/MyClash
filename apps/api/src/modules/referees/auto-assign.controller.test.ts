@@ -63,7 +63,7 @@ function makeController(
     orgs as never,
     { checkEvent } as never,
   );
-  return { controller, supabase, checkEvent, notifications, orgs };
+  return { controller, supabase, checkEvent, notifications, follows, events, orgs };
 }
 
 const REQ = { headers: {} } as never;
@@ -75,7 +75,7 @@ const unexpected = (): never => {
 
 describe('locking the referee board (ADR-019)', () => {
   it('with no body and no Impossible duty, confirms every assigned row and notifies', async () => {
-    const { controller, supabase, checkEvent, notifications, orgs } = makeController({
+    const { controller, supabase, checkEvent, notifications, follows, orgs } = makeController({
       conflicts: [entry('discouraged', 'Léa')],
     });
 
@@ -90,7 +90,12 @@ describe('locking the referee board (ADR-019)', () => {
     expect(update?.row).toEqual({ status: 'confirmed' });
     expect(scopedTo(update, 'event_id')).toBe('event-1');
     expect(scopedTo(update, 'status')).toBe('assigned');
-    expect(notifications.scheduleRefereeAssignmentStarting).toHaveBeenCalledTimes(2);
+    // Each locked duty gets its referee's alert and his followers': a second lock sets them again.
+    expect(notifications.scheduleRefereeAssignmentStarting.mock.calls).toEqual([
+      ['ra-1'],
+      ['ra-2'],
+    ]);
+    expect(follows.scheduleRefereeStarting.mock.calls).toEqual([['ra-1'], ['ra-2']]);
   });
 
   it('refuses 409 with the Impossible duties only, and locks nothing', async () => {
@@ -176,6 +181,21 @@ describe('locking the referee board (ADR-019)', () => {
       'Could not lock the referee assignments: connection reset',
     );
     await expect(failure).rejects.not.toHaveProperty('status');
+  });
+
+  it('the unlock reopens every locked row, sends nothing and touches no alert (ruling 220)', async () => {
+    const { controller, supabase, notifications, follows, events } = makeController();
+
+    await expect(controller.unlockAssignments('event-1', REQ)).resolves.toEqual({ reopened: 2 });
+
+    const [update] = writesTo(supabase, 'referee_assignments');
+    expect(update?.row).toEqual({ status: 'assigned' });
+    expect(scopedTo(update, 'event_id')).toBe('event-1');
+    expect(scopedTo(update, 'status')).toBe('confirmed');
+    // The alerts wait: the check asked when each one fires is what keeps them silent.
+    expect(notifications.scheduleRefereeAssignmentStarting).not.toHaveBeenCalled();
+    expect(follows.scheduleRefereeStarting).not.toHaveBeenCalled();
+    expect(events.assignmentChanged).not.toHaveBeenCalled();
   });
 
   it('a failed unlock is a plain Error (a 5xx)', async () => {

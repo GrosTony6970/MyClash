@@ -1342,13 +1342,16 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   dropped when it fires.
 - A timed alert is checked when it FIRES, because what was true when it was queued may not be any
   more. Its bout, duty or Workshop must be public (`apps/api/src/workers/alert-visibility.ts`: a
-  draft's alert is dropped, and so is a cancelled Workshop session's). And three families must still
-  be wanted (`apps/api/src/workers/alert-still-wanted.ts`, operator ruling 213): a follower's alert
+  draft's alert is dropped, and so is a cancelled Workshop session's). And it must still be
+  wanted (`apps/api/src/workers/alert-still-wanted.ts`, operator ruling 213): a follower's alert
   needs a saved follow of that account with its switch on, the alert of a booked Workshop a
   confirmed seat on a roster row the account holds, a Fighter's own bout alert a roster row of that
   bout held by the account. A dropped alert is logged with its reason. This silences an alert left
   behind when a follow, a booking or a roster row's holder changed. It sets none: a new holder gets
-  his alert at the next retime. The referee's own alert is not asked again.
+  his alert at the next retime. A referee duty's alert, his own or a follower's, rings only while
+  the duty is locked (operator ruling 220): unlocking the referee board sends nothing and removes
+  no alert, each one is dropped at its minute while the board is unlocked, and the next lock sets
+  them again. The holder of the referee's profile is not asked again.
 - The notice of a new Event is mailed to each follower's own account address (operator ruling
   215), never a roster row's: a follower of an organiser may be on no roster. The worker mails only
   a follower who has no push subscription; the others get a push, and a follower who switched this

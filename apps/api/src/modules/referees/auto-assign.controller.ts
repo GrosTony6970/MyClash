@@ -67,8 +67,8 @@ export class AutoAssignController {
   ) {}
 
   /**
-   * Both routes flip every assignment's status for a whole event and fan out
-   * notifications. Unauthorized until 2026-08-15.
+   * Both routes flip every assignment's status for a whole event; the lock fans out
+   * notifications, the unlock sends none. Unauthorized until 2026-08-15.
    */
   private async assertWriter(eventId: string, req: FastifyRequest): Promise<void> {
     const userId = await resolveRequestUserId(req, this.supabase);
@@ -152,8 +152,11 @@ export class AutoAssignController {
    * Slice 7a of the referees overhaul: reverse the lock-status transition
    * so an operator can re-open a confirmed board without manual SQL.
    * Mirrors `lockAssignments` above — same scope, same row filter, opposite
-   * status flip. Notifications stay attached to the assignment row, so a
-   * subsequent re-lock re-uses the existing notification record.
+   * status flip.
+   *
+   * An unlocked duty rings for nobody (operator ruling 220). Nothing is sent here and no alert
+   * is removed: each "starting soon" waits in the queue and is dropped at its minute while its
+   * duty is unlocked (`alert-still-wanted.ts`). The next lock sets the alerts again.
    */
   @Post('events/:eventId/unlock-referee-assignments')
   @HttpCode(HttpStatus.OK)
