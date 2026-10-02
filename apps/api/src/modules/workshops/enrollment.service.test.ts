@@ -544,7 +544,7 @@ describe('EnrollmentService.refuse', () => {
 
     await svc.refuse('s-1', 'p-c');
 
-    // The refused person keeps a row (sticky) with status 'refused'.
+    // The refused person keeps a row with status 'refused'.
     expect(fake.rows.find((r) => r.user_id === 'p-c')?.status).toBe('refused');
     // The freed seat promotes the top of the waitlist.
     expect(fake.rows.find((r) => r.user_id === 'p-w')?.status).toBe('confirmed');

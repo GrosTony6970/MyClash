@@ -92,7 +92,7 @@ export class EnrollmentService {
 
     if (existing) {
       const e = existing as { id: string; status: string; position: number | null };
-      // Soft-block: an instructor-refused person cannot silently re-register.
+      // While the refusal is there, the person cannot book again (he may cancel it: ruling 219).
       if (e.status === 'refused') {
         throw new ForbiddenException('You were removed from this workshop by the instructor.');
       }
@@ -259,7 +259,7 @@ export class EnrollmentService {
   /**
    * Delete one person's booking of a session, whatever its state. Two doors: the person's own
    * cancel, and the organiser's "Remove" (ruling 214), after which the person may book again.
-   * The person's own cancel deletes a refusal too; no ruling covers that yet.
+   * The person's own cancel deletes a refusal too, and he may then book again (ruling 219).
    *
    * A delete that fails is a failure, never "removed": answered as done, the seat would be given
    * to the next person while it is still taken.
@@ -357,9 +357,11 @@ export class EnrollmentService {
   }
 
   /**
-   * Refuse an enrollee — soft + sticky. Sets status 'refused' (keeps the row so
-   * enroll() blocks silent re-registration). A freed confirmed seat promotes the
-   * top of the waitlist. No-ops if not enrolled or already refused.
+   * Refuse an enrollee. Sets status 'refused' and keeps the row: while it is there, enroll()
+   * answers "removed by the instructor". It is a removal, not a ban (operator ruling 219): the
+   * person's own cancel deletes the row, and he may then book again; the instructor refuses him
+   * again if needed. A freed confirmed seat promotes the top of the waitlist. No-ops if not
+   * enrolled or already refused.
    */
   async refuse(sessionId: string, personId: string): Promise<void> {
     const { data: enrollment } = await this.supabase.service
