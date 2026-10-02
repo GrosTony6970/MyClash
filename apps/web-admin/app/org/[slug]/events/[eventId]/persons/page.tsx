@@ -1461,15 +1461,11 @@ export default function ParticipantsPage() {
                           </td>
                           <td className="sticky right-0 z-10 bg-surface py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_var(--color-border)] group-hover:bg-background">
                             <div className="flex gap-2">
+                              {/* Open on an archived Event too: the row's own fields
+                                stay editable for the export (ruling 222b). */}
                               <button
                                 onClick={() => openEdit(p)}
-                                disabled={isReadOnly}
-                                title={
-                                  isReadOnly
-                                    ? t('organizer.deletionRequest.archivedReadOnly')
-                                    : undefined
-                                }
-                                className="text-xs text-info hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="text-xs text-info hover:underline"
                               >
                                 {t('admin.orgPersons.edit')}
                               </button>
@@ -2040,6 +2036,10 @@ export default function ParticipantsPage() {
                     <input
                       type="checkbox"
                       checked={editForm.isReferee}
+                      disabled={isReadOnly}
+                      title={
+                        isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                      }
                       onChange={(e) => setEditForm((f) => ({ ...f, isReferee: e.target.checked }))}
                       className="rounded"
                     />
@@ -2058,6 +2058,10 @@ export default function ParticipantsPage() {
                     <input
                       type="checkbox"
                       checked={editForm.isInstructor}
+                      disabled={isReadOnly}
+                      title={
+                        isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                      }
                       onChange={(e) =>
                         setEditForm((f) => ({ ...f, isInstructor: e.target.checked }))
                       }
@@ -2082,6 +2086,12 @@ export default function ParticipantsPage() {
                           <input
                             type="checkbox"
                             checked={editSelectedTournaments.has(tour.id)}
+                            disabled={isReadOnly}
+                            title={
+                              isReadOnly
+                                ? t('organizer.deletionRequest.archivedReadOnly')
+                                : undefined
+                            }
                             onChange={() =>
                               setEditSelectedTournaments((prev) => {
                                 const next = new Set(prev);

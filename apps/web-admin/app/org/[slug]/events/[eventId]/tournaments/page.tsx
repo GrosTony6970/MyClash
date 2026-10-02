@@ -487,7 +487,8 @@ export default function EventTournamentsPage() {
         )}
       </section>
 
-      {!isReadOnly && !loading && tournaments.length > 0 && (
+      {/* Shown on an archived Event too: a League link writes no row of it (ruling 224). */}
+      {!loading && tournaments.length > 0 && (
         <div className="mt-6">
           <AttachToLeaguePanel eventId={eventId} />
         </div>
