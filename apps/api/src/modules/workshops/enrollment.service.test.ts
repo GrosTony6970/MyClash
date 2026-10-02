@@ -214,13 +214,15 @@ function buildFake(opts: {
 }
 
 const notif = { waitlistPromoted: vi.fn().mockResolvedValue(undefined) };
+// The booking's own alert (ruling 210) is held in enrollment.alerts.test.ts.
+const alerts = { scheduleWorkshopSessionStarting: vi.fn().mockResolvedValue(undefined) };
 
 describe('EnrollmentService.enroll', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('confirms when there is space', async () => {
     const fake = buildFake({ capacity: 2 });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'person-1');
 
@@ -247,7 +249,7 @@ describe('EnrollmentService.enroll', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'p-b');
 
@@ -267,7 +269,7 @@ describe('EnrollmentService.enroll', () => {
         position: null,
       })),
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'p-new');
     expect(res.status).toBe('confirmed');
@@ -286,7 +288,7 @@ describe('EnrollmentService.enroll', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'p-1');
     expect(res.id).toBe('e-9');
@@ -306,7 +308,7 @@ describe('EnrollmentService.enroll', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await expect(svc.enroll('s-1', 'p-refused')).rejects.toThrow(/instructor/i);
     expect(fake.inserts).toHaveLength(0);
@@ -318,7 +320,7 @@ describe('EnrollmentService.enroll', () => {
       personGlobalId: 'gp-teacher',
       instructorGlobalIds: ['gp-teacher'],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await expect(svc.enroll('s-1', 'p-teacher')).rejects.toThrow(/teach/i);
     expect(fake.inserts).toHaveLength(0);
@@ -341,7 +343,7 @@ describe('EnrollmentService.enroll', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await expect(svc.enroll('s-1', 'p-teacher')).rejects.toThrow(/teach/i);
   });
@@ -352,7 +354,7 @@ describe('EnrollmentService.enroll', () => {
       personGlobalId: 'gp-other',
       instructorGlobalIds: ['gp-teacher'],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'p-other');
     expect(res.status).toBe('confirmed');
@@ -364,7 +366,7 @@ describe('EnrollmentService.enroll', () => {
       personGlobalId: null,
       instructorGlobalIds: ['gp-teacher'],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'guest-1');
     expect(res.status).toBe('confirmed');
@@ -372,7 +374,7 @@ describe('EnrollmentService.enroll', () => {
 
   it('ticks global_persons.is_workshop_participant when the person has a global link', async () => {
     const fake = buildFake({ capacity: 2, personGlobalId: 'gp-42' });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await svc.enroll('s-1', 'person-1');
 
@@ -384,7 +386,7 @@ describe('EnrollmentService.enroll', () => {
 
   it('does not touch global_persons when the person has no global link', async () => {
     const fake = buildFake({ capacity: 2, personGlobalId: null });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'guest-1');
 
@@ -398,7 +400,7 @@ describe('EnrollmentService.enroll', () => {
       personGlobalId: 'gp-42',
       globalUpdateError: { message: 'boom' },
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     const res = await svc.enroll('s-1', 'person-1');
 
@@ -430,7 +432,7 @@ describe('EnrollmentService.cancel', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await svc.cancel('s-1', 'p-conf');
 
@@ -458,7 +460,7 @@ describe('EnrollmentService.accept', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await svc.accept('s-1', 'p-w');
 
@@ -479,7 +481,7 @@ describe('EnrollmentService.accept', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await svc.accept('s-1', 'p-r');
 
@@ -511,7 +513,7 @@ describe('EnrollmentService.refuse', () => {
         },
       ],
     });
-    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
 
     await svc.refuse('s-1', 'p-c');
 

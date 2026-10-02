@@ -51,6 +51,7 @@ const CHECKED: Array<[NotificationKind, Read]> = [
   ['follow_referee_starting', DUTY],
   ['assignment_changed', DUTY],
   ['follow_workshop_starting', SESSION],
+  ['workshop_starting', SESSION],
 ];
 
 function baseTables(): Record<string, TableSeed> {
@@ -166,7 +167,10 @@ describe.each([
   });
 });
 
-describe("a followed instructor's Workshop alert", () => {
+describe.each([
+  ["a followed instructor's Workshop alert", 'follow_workshop_starting'],
+  ['the alert of a booked Workshop (ruling 210)', 'workshop_starting'],
+] as Array<[string, NotificationKind]>)('%s', (_, kind) => {
   it.each([
     ['a draft Workshop', 's-draft', false],
     ['a published Workshop', 's-open', true],
@@ -174,7 +178,7 @@ describe("a followed instructor's Workshop alert", () => {
     ['a published Workshop of a test Event', 's-test-event', true],
     ['a session deleted since it was queued', 's-gone', false],
   ])('%s (%s): rings = %s', async (_, session, rings) => {
-    expect(await fire('follow_workshop_starting', session)).toBe(rings);
+    expect(await fire(kind, session)).toBe(rings);
   });
 });
 

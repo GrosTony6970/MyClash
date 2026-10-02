@@ -92,9 +92,8 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   // The lock message (ruling 186): held for a draft, sent again as it goes to published or running
   // (`lockedDutiesPublished`).
   assignment_changed: dutyIsPublic,
-  // Addressed to the booking's roster id, not an account: it reaches no one (enrollment.service).
-  // Once it reaches an account, it takes `workshopIsPublic`.
-  workshop_starting: null,
+  // The booking's own alert (ruling 210): the same bar as a follower's.
+  workshop_starting: workshopIsPublic,
   workshop_cancelled: null,
   waitlist_promoted: null,
   exchange_edit_rejected: null,

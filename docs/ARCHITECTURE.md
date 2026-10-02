@@ -1322,6 +1322,13 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
 - Every automatic notice is written in French and in English, side by side, French first (operator ruling 202): the API does not know a reader's language. The texts live in the `notices` namespace of `@myclash/i18n`, and `apps/api/src/modules/notifications/notice-texts/notice-texts.ts` is the one module that words a notice. A broadcast is sent as its organiser or instructor typed it.
 - Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
 - Broadcasts may include `tournamentId` for tournament-scoped fighter/referee targeting. Pool/bracket publish flows use this to open editable "ready" notification drafts without auto-sending.
+- The "your workshop starts" alert follows the booking (operator ruling 210).
+  `NotificationSchedulerService.scheduleWorkshopSessionStarting` sets it for the account that holds
+  the roster row of a confirmed seat (a booking names a roster row, not an account; a guest has no
+  account and is told nothing). It runs when an organiser saves the session, and each time a
+  booking changes: a confirmed seat, a promotion from the waitlist, a cancellation, a refusal. A
+  session that is cancelled or has started sets none, and an alert about a draft Workshop is
+  dropped when it fires.
 - **Scheduling alone is not enough.** A delayed job carries the time the schedule had when it was
   enqueued, so every subsequent reschedule leaves a stale alert in the queue.
   `apps/api/src/modules/notifications/match-alert-refresher.service.ts` is the reconciliation half:

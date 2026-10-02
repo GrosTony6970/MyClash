@@ -185,6 +185,24 @@ export class WebPushSender {
   }
 }
 
+/** A `workshop_sessions` row as the own Workshop alert reads it. */
+interface WorkshopSessionRow {
+  id: string;
+  starts_at: string | null;
+  status: string | null;
+  workshops?: { title?: string | null } | null;
+}
+
+/**
+ * When a Workshop session rings: its start, or null when it has no time, is cancelled or has
+ * begun. A delay cannot be negative, so the alert of a session already running would be sent at
+ * once, as "starting soon".
+ */
+function sessionRingsAt(session: WorkshopSessionRow, now: Date): string | null {
+  if (!session.starts_at || session.status === 'cancelled') return null;
+  return new Date(session.starts_at).getTime() > now.getTime() ? session.starts_at : null;
+}
+
 /** A `referee_assignments` row as the referee's own reminder reads it. */
 interface RefereeAssignmentRow {
   id: string;
@@ -381,49 +399,112 @@ export class NotificationSchedulerService {
     return byMatch;
   }
 
-  async scheduleWorkshopSessionStarting(sessionId: string, now = new Date()): Promise<void> {
-    const { data: session } = await this.supabase.service
-      .from('workshop_sessions')
-      .select('id, starts_at, workshops ( title, slug )')
-      .eq('id', sessionId)
-      .maybeSingle();
+  /**
+   * The own Workshop "starting soon" alert follows each booking as SAVED (operator ruling 210): set
+   * for a confirmed seat of a session that can ring, removed for anything else (a seat that is not
+   * confirmed, a session that is cancelled, has no time or has started, an account whose main
+   * switch is off).
+   *
+   * It goes to the ACCOUNT that holds the booking's roster row. A booking names a roster row
+   * (`workshop_enrollments.user_id` holds a `persons.id`), and the alert used to be addressed to
+   * that id as if it were an account: it reached nobody. A guest has no account, and is told
+   * nothing, as for the two sister notices (Workshop cancelled, waitlist place).
+   *
+   * Two doors. An organiser saved the session (`onlyPersonId` absent): every booking of it. One
+   * booking changed (`onlyPersonId`): that one alone, whether its row is still there or not.
+   * Its three reads here are best effort: one that fails is logged, and the alerts stay as they
+   * were. The switches unreadable count as never saved. The queue is not caught: a booking door
+   * logs it (`EnrollmentService`), and a session save still fails on it, as before.
+   *
+   * Named, not closed. A booking tapped again, or a session saved, inside the lead time sends the
+   * alert a second time: a sent job is gone, and the new one is due at once. A booking that read
+   * the session's time just before an organiser moved it can write last, and ring at the old
+   * time. And nothing looks at the booking when the alert fires: one whose removal failed rings.
+   */
+  async scheduleWorkshopSessionStarting(
+    sessionId: string,
+    onlyPersonId?: string,
+    now = new Date(),
+  ): Promise<void> {
+    const oneBooking = onlyPersonId !== undefined;
+    const what = `Workshop session ${sessionId}`;
+    const db = this.supabase.service;
+    const session = this.workshopRead(
+      what,
+      await db
+        .from('workshop_sessions')
+        .select('id, starts_at, status, workshops ( title )')
+        .eq('id', sessionId)
+        .maybeSingle(),
+    ) as WorkshopSessionRow | null;
     if (!session) return;
 
-    const row = session as {
-      id: string;
-      starts_at: string | null;
-      workshops?: { title?: string | null; slug?: string | null } | null;
-    };
-    const { data: enrollments } = await this.supabase.service
+    const bookings = db
       .from('workshop_enrollments')
-      .select('user_id')
-      .eq('workshop_session_id', sessionId)
-      .eq('status', 'confirmed');
-    const userIds = Array.from(
-      new Set(
-        ((enrollments ?? []) as Array<{ user_id: string | null }>)
-          .map((enrollment) => enrollment.user_id)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
+      .select('user_id, status')
+      .eq('workshop_session_id', sessionId);
+    const booked = this.workshopRead(
+      `Bookings of ${what}`,
+      await (oneBooking ? bookings.eq('user_id', onlyPersonId) : bookings),
+    ) as Array<{ user_id: string | null; status: string | null }> | null;
+    // A read that failed says nothing: read as "no booking", it would remove a confirmed seat's alert.
+    if (!booked) return;
+    const statusByRow = new Map(booked.map((row) => [row.user_id, row.status]));
+    // One booking: its roster row even when the booking is gone, so a cancelled seat loses its alert.
+    const rowIds = oneBooking ? [onlyPersonId] : booked.map((row) => row.user_id);
+    const ids = rowIds.filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
 
-    const preferences = await this.getPreferencesByUser(userIds);
+    const holders = this.workshopRead(
+      `Roster rows of the bookings of ${what}`,
+      await db.from('persons').select('id, claimed_by_user_id').in('id', ids),
+    ) as Array<{ id: string; claimed_by_user_id: string | null }> | null;
+    if (holders) await this.setBookingAlerts(session, statusByRow, holders, now);
+  }
+
+  /** Each account's alert for its booking of a session, at the lead its switches say. */
+  private async setBookingAlerts(
+    session: WorkshopSessionRow,
+    statusByRow: Map<string | null, string | null>,
+    holders: Array<{ id: string; claimed_by_user_id: string | null }>,
+    now: Date,
+  ): Promise<void> {
+    const ringsAt = sessionRingsAt(session, now);
+    const preferences = await this.getPreferencesByUser(
+      holders.map((row) => row.claimed_by_user_id).filter((id): id is string => Boolean(id)),
+    );
     await Promise.all(
-      userIds.map((userId) => {
+      holders.map((row) => {
+        const userId = row.claimed_by_user_id;
+        // A guest booking: no account to tell.
+        if (!userId) return undefined;
         const preference = preferences.get(userId);
-        if (preference?.enabled === false) return undefined;
+        const wanted = statusByRow.get(row.id) === 'confirmed' && preference?.enabled !== false;
         return this.scheduleReminder({
           kind: 'workshop_starting',
-          entityId: row.id,
+          entityId: session.id,
           userId,
-          startsAt: row.starts_at,
+          // A null time removes the alert: a seat that is not confirmed has none, nor has an
+          // account whose main switch is off.
+          startsAt: wanted ? ringsAt : null,
           leadMinutes: readLeadMinutes(preference, 'workshop_starting_minutes_before', 15),
-          ...workshopStarting(row.workshops?.title),
+          ...workshopStarting(session.workshops?.title),
           url: '/notifications',
           now,
         });
       }),
     );
+  }
+
+  /** A read of the own Workshop alert. Best effort: one that fails is logged, and sets nothing. */
+  private workshopRead(
+    what: string,
+    { data, error }: { data: unknown; error: { message: string } | null },
+  ): unknown {
+    if (error) {
+      this.logger.warn(`${what} unreadable; its alerts stay as they were: ${error.message}`);
+    }
+    return data;
   }
 
   async scheduleRefereeAssignmentStarting(assignmentId: string, now = new Date()): Promise<void> {

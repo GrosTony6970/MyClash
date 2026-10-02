@@ -308,57 +308,6 @@ describe('notification scheduler jobs', () => {
     expect(from.mock.calls.filter((call) => call[0] === 'persons')).toHaveLength(1);
   });
 
-  it('uses workshop lead preferences for confirmed enrollments', async () => {
-    const queue = makeQueue();
-    const from = makeSupabaseFrom({
-      workshop_sessions: {
-        data: {
-          id: 'session-1',
-          starts_at: '2026-05-02T11:00:00.000Z',
-          workshops: { title: 'Messer fundamentals' },
-        },
-        error: null,
-      },
-      workshop_enrollments: {
-        data: [{ user_id: 'user-1' }, { user_id: 'user-2' }],
-        error: null,
-      },
-      notification_preferences: {
-        data: [
-          { user_id: 'user-1', enabled: true, workshop_starting_minutes_before: '20' },
-          { user_id: 'user-2', enabled: true, workshop_starting_minutes_before: '5' },
-        ],
-        error: null,
-      },
-    });
-    const service = new NotificationSchedulerService(
-      queue as never,
-      { service: { from } } as never,
-    );
-
-    await service.scheduleWorkshopSessionStarting(
-      'session-1',
-      new Date('2026-05-02T10:30:00.000Z'),
-    );
-
-    expect(queue.add).toHaveBeenCalledTimes(2);
-    expect(queue.add).toHaveBeenCalledWith(
-      'send',
-      expect.objectContaining({
-        kind: 'workshop_starting',
-        userId: 'user-1',
-        title: 'Atelier imminent / Workshop starting soon',
-        body: 'Messer fundamentals commence bientôt. / Messer fundamentals starts soon.',
-      }),
-      expect.objectContaining({ delay: 10 * 60_000 }),
-    );
-    expect(queue.add).toHaveBeenCalledWith(
-      'send',
-      expect.objectContaining({ kind: 'workshop_starting', userId: 'user-2' }),
-      expect.objectContaining({ delay: 25 * 60_000 }),
-    );
-  });
-
   describe('a referee duty reminder', () => {
     const tables = (assignment: Record<string, unknown>, claimed: string | null = 'user-1') =>
       makeSupabaseFrom({

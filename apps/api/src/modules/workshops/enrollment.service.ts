@@ -14,6 +14,9 @@
  *   - Confirmed cancellation triggers promotion; waitlist top moves to confirmed
  *   - Race-condition safe: relies on the confirmed-count check
  *   - An instructor cannot take a participant seat in a workshop they teach
+ *   - Each change of a booking brings its own "starting soon" alert in line (ruling 210):
+ *     the alert follows the booking as saved, so it is asked for AFTER the write. It is best
+ *     effort (`bookingAlert`): the booking is saved, and the steps after it must still run.
  */
 
 import {
@@ -23,6 +26,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -41,11 +45,22 @@ export class EnrollmentService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notificationEvents: NotificationEventsService,
+    private readonly alerts: NotificationSchedulerService,
   ) {}
 
   // ── Enroll ────────────────────────────────────────────────────────────────────
 
+  /**
+   * Book a seat, then ask for the booking's alert: set for a confirmed seat, none for the
+   * waitlist. A booking that already exists asks again, which is how a second tap repairs.
+   */
   async enroll(sessionId: string, personId: string): Promise<EnrollmentResult> {
+    const booking = await this.book(sessionId, personId);
+    await this.bookingAlert(sessionId, personId);
+    return booking;
+  }
+
+  private async book(sessionId: string, personId: string): Promise<EnrollmentResult> {
     // Session first: it carries both the parent workshop (for the instructor
     // guard below) and the effective capacity (sessions have no own column).
     const { data: session } = await this.supabase.service
@@ -249,11 +264,14 @@ export class EnrollmentService {
       .eq('user_id', personId)
       .maybeSingle();
 
-    if (!enrollment) return; // already not enrolled
+    // Already not enrolled. The alert is asked for all the same: a cancel whose alert could not
+    // be removed left no booking behind, and a second cancel removes it.
+    if (!enrollment) return this.bookingAlert(sessionId, personId);
 
     const e = enrollment as { id: string; status: string };
 
     await this.supabase.service.from('workshop_enrollments').delete().eq('id', e.id);
+    await this.bookingAlert(sessionId, personId);
 
     // Freeing a confirmed seat promotes the top of the waitlist.
     if (e.status === 'confirmed') {
@@ -282,6 +300,7 @@ export class EnrollmentService {
       .from('workshop_enrollments')
       .update({ status: 'confirmed', position: null })
       .eq('id', e.id);
+    await this.bookingAlert(sessionId, personId);
 
     await this.recompactWaitlist(sessionId);
     await this.notificationEvents.waitlistPromoted(sessionId, personId);
@@ -311,6 +330,7 @@ export class EnrollmentService {
       .from('workshop_enrollments')
       .update({ status: 'confirmed', position: null })
       .eq('id', e.id);
+    await this.bookingAlert(sessionId, personId);
 
     if (wasWaitlisted) {
       await this.recompactWaitlist(sessionId);
@@ -340,9 +360,33 @@ export class EnrollmentService {
       .from('workshop_enrollments')
       .update({ status: 'refused', position: null })
       .eq('id', e.id);
+    await this.bookingAlert(sessionId, personId);
 
     if (wasConfirmed) {
       await this.promoteNextWaitlisted(sessionId);
+    }
+  }
+
+  // ── Private: the booking's own alert ─────────────────────────────────────────
+
+  /**
+   * Brings one booking's "starting soon" alert in line with the booking as saved (ruling 210).
+   *
+   * Best effort, on purpose. The booking write has landed, and what follows it must still run: a
+   * freed seat promotes the next person, a promotion tells her. An alert step that throws (the
+   * queue is down, or the job is being sent and cannot be removed) would skip those steps, with
+   * no call left to repair them. So a failure is logged: the alert then stays as it was until the
+   * booking or its session is saved again.
+   */
+  private async bookingAlert(sessionId: string, personId: string): Promise<void> {
+    try {
+      await this.alerts.scheduleWorkshopSessionStarting(sessionId, personId);
+    } catch (err) {
+      this.logger.warn(
+        `Workshop alert of booking ${personId} in session ${sessionId} not brought in line: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -368,6 +412,7 @@ export class EnrollmentService {
 
     await this.recompactWaitlist(sessionId);
     if (promoted.user_id) {
+      await this.bookingAlert(sessionId, promoted.user_id);
       await this.notificationEvents.waitlistPromoted(sessionId, promoted.user_id);
     }
   }
