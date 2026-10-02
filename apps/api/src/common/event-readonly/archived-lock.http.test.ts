@@ -57,6 +57,11 @@ class ProbeController {
     return { ok: true };
   }
 
+  @Patch('lices/:id')
+  piste(): { ok: true } {
+    return { ok: true };
+  }
+
   @Post('referee-assignments')
   @HttpCode(HttpStatus.OK)
   bodyNamesTheEvent(@Body() _body: unknown): { ok: true } {
@@ -79,6 +84,7 @@ const database = mockSupabase({
   },
   matches: { rows: [{ id: OLD_BOUT, phases: { tournaments: { event_id: ARCHIVED } } }] },
   workshops: { rows: [{ id: OLD_WORKSHOP, event_id: ARCHIVED }] },
+  lices: { data: null, error: { code: '08006', message: 'connection refused' } },
 });
 
 let app: NestFastifyApplication;
@@ -156,5 +162,9 @@ describe('the archived-Event lock, over HTTP', () => {
 
   it('leaves a row it does not know to the handler', async () => {
     expect((await send('PATCH', `tournaments/${UNKNOWN}`)).status).toBe(200);
+  });
+
+  it('answers 500 when it cannot read the database, and lets no write through', async () => {
+    expect((await send('PATCH', `lices/${UNKNOWN}`)).status).toBe(500);
   });
 });

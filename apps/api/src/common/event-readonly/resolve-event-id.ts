@@ -26,7 +26,19 @@ import type { SupabaseService } from '../../modules/supabase/supabase.service';
 import { isEventUuid } from '../event-ref';
 
 type Db = SupabaseService['service'];
-type Read = (db: Db, id: string) => PromiseLike<{ data: unknown }>;
+type Answer = { data: unknown; error: { code?: string; message: string } | null };
+type Read = (db: Db, id: string) => PromiseLike<Answer>;
+
+/**
+ * The rows a read found, or a plain Error (a 500): a lock that cannot read must
+ * not let the write through. An id Postgres cannot read as a uuid (22P02) names
+ * no row: the handler's pipe refuses it, after this guard.
+ */
+export function rowsOf({ data, error }: Answer, what: string): unknown {
+  if (!error) return data;
+  if (error.code === '22P02') return null;
+  throw new Error(`The archived-Event lock could not read ${what}: ${error.message}`);
+}
 
 const phaseEvent: Read = (db, id) =>
   db.from('phases').select('tournaments!inner(event_id)').eq('id', id).maybeSingle();
@@ -139,11 +151,11 @@ const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 async function eventOfReference(db: Db, ref: string): Promise<string | null> {
   if (isEventUuid(ref)) return ref;
   if (UUID_SHAPE.test(ref)) {
-    const { data } = await db.from('events').select('id').eq('id', ref).maybeSingle();
-    if (data) return ref;
+    const byId = await db.from('events').select('id').eq('id', ref).maybeSingle();
+    if (rowsOf(byId, 'an Event')) return ref;
   }
-  const { data } = await db.from('events').select('id').eq('slug', ref).limit(2);
-  const rows = (data ?? []) as Array<{ id: string }>;
+  const bySlug = await db.from('events').select('id').eq('slug', ref).limit(2);
+  const rows = (rowsOf(bySlug, 'an Event') ?? []) as Array<{ id: string }>;
   return rows.length === 1 ? (rows[0] as { id: string }).id : null;
 }
 
@@ -174,7 +186,7 @@ export async function resolveEventId(
   for (const { segment, value } of placementsOf(pattern, params)) {
     const read = EVENT_OF[segment];
     const eventId = read
-      ? eventIn((await read(supabase.service, value)).data)
+      ? eventIn(rowsOf(await read(supabase.service, value), segment))
       : await eventOfReference(supabase.service, value);
     if (eventId) return eventId;
   }

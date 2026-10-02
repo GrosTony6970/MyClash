@@ -111,6 +111,16 @@ describe('EventReadOnlyGuard', () => {
     expect(await guard.canActivate(context(eventWrite))).toBe(true);
   });
 
+  it('answers 500 when it cannot read the Event, and lets no write through', async () => {
+    const db = mockSupabase({
+      events: { data: null, error: { code: '08006', message: 'connection refused' } },
+    });
+    const guard = new EventReadOnlyGuard(db as never, reflector as never);
+    await expect(guard.canActivate(context(eventWrite))).rejects.toEqual(
+      new Error('The archived-Event lock could not read an Event: connection refused'),
+    );
+  });
+
   it('lets a route through that is about no Event, without a read', async () => {
     // `clubs/:id` binds `:id` for a club: the resolver keys on the segment, so it
     // is not read as an Event's id.

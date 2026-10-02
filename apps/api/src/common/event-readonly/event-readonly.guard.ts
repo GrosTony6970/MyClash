@@ -4,7 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { ALLOW_ON_ARCHIVED_EVENT_KEY } from './allow-on-archived.decorator';
 import { BLOCK_ON_COMPLETED_EVENT_KEY } from './block-on-completed.decorator';
-import { resolveEventId } from './resolve-event-id';
+import { resolveEventId, rowsOf } from './resolve-event-id';
 
 const READ_VERBS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -64,11 +64,11 @@ export class EventReadOnlyGuard implements CanActivate {
     }
 
     // (5) Fetch the event status
-    const { data: event } = await this.supabase.service
-      .from('events')
-      .select('status')
-      .eq('id', eventId)
-      .maybeSingle();
+    // A failed read answers 500: the lock lets nothing through that it could not check.
+    const event = rowsOf(
+      await this.supabase.service.from('events').select('status').eq('id', eventId).maybeSingle(),
+      'an Event',
+    );
 
     // (6) Event not found — let the downstream handler return its own 404
     if (!event) return true;

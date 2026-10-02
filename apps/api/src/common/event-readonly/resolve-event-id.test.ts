@@ -96,6 +96,24 @@ describe('resolveEventId', () => {
     );
   });
 
+  it('answers a failed read with a plain Error, so the write gets a 500 and not a pass', async () => {
+    const db = mockSupabase({
+      tournaments: { data: null, error: { code: '08006', message: 'connection refused' } },
+    });
+    const write = resolveEventId(db as never, request('/api/v1/tournaments/:id', { id: ROW }));
+    await expect(write).rejects.toEqual(
+      new Error('The archived-Event lock could not read tournaments: connection refused'),
+    );
+  });
+
+  it('reads an id Postgres cannot read as a uuid as no row (the pipe refuses it after)', async () => {
+    const db = mockSupabase({
+      tournaments: { data: null, error: { code: '22P02', message: 'invalid input syntax' } },
+    });
+    const typo = request('/api/v1/tournaments/:id', { id: 'abc' });
+    expect(await resolveEventId(db as never, typo)).toBe(null);
+  });
+
   it('places no system skill: it belongs to no Event', async () => {
     const db = mockSupabase({ referee_skills: { rows: [{ id: 'arbitre', event_id: null }] } });
     const skill = request('/api/v1/referee-skills/:skillId', { skillId: 'arbitre' });
