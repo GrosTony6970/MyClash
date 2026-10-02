@@ -41,6 +41,7 @@ import {
   publicReader,
 } from '../../common/auth/competition-visibility';
 import { resolveRequestUserId } from '../../common/auth/request-user';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import {
   AdjustClockDto,
   CreateExchangeDto,
@@ -314,6 +315,7 @@ export class MatchesController {
   }
 
   @Patch('match-forfeits/:id/void')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({ summary: 'Void a match forfeit or result override when downstream state allows' })
   async voidForfeit(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const actor = await this.staff.authorizeForfeitOrganizer(req, id);
@@ -434,6 +436,7 @@ export class MatchesController {
    * Sets voided=true. Never deletes the row.
    */
   @Patch('exchanges/:id/void')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({ summary: 'Void an exchange (organizer+). Never deletes.' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async voidExchange(
@@ -453,6 +456,7 @@ export class MatchesController {
    * Restores a voided exchange (sets voided=false). Recomputes score.
    */
   @Patch('exchanges/:id/revert-void')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({
     summary: 'Revert a voided exchange (organizer+). Restores and recomputes score.',
   })
@@ -472,6 +476,7 @@ export class MatchesController {
   // clear-last button voids the specific latest row via `exchanges/:id/void`.)
 
   @Patch('exchanges/:id/edit')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({ summary: 'Edit an exchange by voiding and replacing it (scorekeeper+)' })
   async editExchange(
     @Param('id', ParseUUIDPipe) id: string,

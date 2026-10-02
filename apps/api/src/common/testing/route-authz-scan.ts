@@ -134,7 +134,7 @@ type Reach = (
   seen: Seen,
 ) => string;
 
-function decoratorName(decorator: ts.Decorator): string | null {
+export function decoratorName(decorator: ts.Decorator): string | null {
   const call = decorator.expression;
   if (ts.isIdentifier(call)) return call.text;
   if (ts.isCallExpression(call) && ts.isIdentifier(call.expression)) return call.expression.text;
@@ -238,7 +238,7 @@ const guardedByPlatformRole = (decorators: readonly ts.Decorator[]): boolean =>
   );
 
 /** The first string argument of the first decorator named in `names`, or ''. */
-function pathArg(decorators: readonly ts.Decorator[], names: ReadonlySet<string>): string {
+export function pathArg(decorators: readonly ts.Decorator[], names: ReadonlySet<string>): string {
   const call = decorators.find((d) => names.has(decoratorName(d) ?? ''))?.expression;
   const first = call && ts.isCallExpression(call) ? call.arguments[0] : undefined;
   return first && ts.isStringLiteral(first) ? first.text : '';

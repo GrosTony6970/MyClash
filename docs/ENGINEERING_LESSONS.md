@@ -170,6 +170,13 @@ here.
   ended" on a page that should work for me as org admin, while other org-gated endpoints succeed in
   the same session.
 
+- **A guard reads the route the router matched, never `request.url`.** Fastify decodes an address
+  before it matches it: `/api/v1/m%61tches/<id>/exchanges` reaches the matches handler while
+  `request.url` still says `m%61tches`. Read `request.routeOptions.url` (the pattern) and
+  `request.params` (decoded). The archived-Event lock was passed this way on every route it
+  found by its address: `events`, `matches`, `lices`, `swiss-rounds`, `referee-assignments`
+  (ruling 222).
+
 ## Auth & cookies
 
 - **`@fastify/cookie` must be registered via `require()`** under the Fastify adapter — the ESM

@@ -1841,9 +1841,30 @@ An admin who must edit a customer's schedule gets added to the organisation.
 
 Two related failure modes worth knowing: `@PlatformRole` on a `GET` is a silent no-op, and a guard
 that resolves the event by a params **name** fails open on a route that spells the param
-differently. `apps/api/src/common/event-readonly/` resolves by path for exactly that reason —
-`EventReadonlyGuard` blocks writes to archived and completed events, with
-`@AllowOnArchived()` / `@BlockOnCompleted()` as the deliberate exceptions.
+differently. `EventReadOnlyGuard` (`apps/api/src/common/event-readonly/`) refuses every write to an
+archived Event, and the routes marked `@BlockOnCompletedEvent()` on a completed one.
+
+An Event archives itself a day after both its end date and its last Tournament's completion
+(`workers/event-archive.worker.ts`) and nothing un-archives it, so the guard's reach is the
+Event's whole afterlife. `resolve-event-id.ts` finds the Event of a write from the route the router
+MATCHED (`request.routeOptions.url`) and the decoded params, never the address as written: the
+router decodes `%61` before it matches, and a pattern run over `request.url` was passed by one
+encoded letter. Each `segment/:param` pair is read through a table from the row to its Event,
+keyed on the segment (a param named `eventId` is an Event reference wherever it sits); then a
+uuid in `body.eventId`. A write nothing places passes, so
+`archived-lock.routes.test.ts` lists every write route of the API and fails on one that is
+neither placed, nor opted out, nor filed with its reason in `common/testing/archived-lock-ledger.ts`
+(ruling 222).
+
+`@AllowOnArchivedEvent()` marks what stays open, each by a ruling: deletion requests and their
+review, a Workshop or Event rating (223, 223a), a roster row's edit but not its deletion (222b),
+a League link, its request, its detach and the League recompute (224, 224a), and the score
+corrections, which follow the rules of a completed Event (222a): `FrozenResultsGuard` reads
+completed and archived alike, so an Exchange's void goes through a super admin's review and a
+forfeit's void is a super admin's; an Exchange edit, a penalty void and a penalty review ask
+no review, on a completed Event as on an archived one. A Tournament restored from an archive is
+refused into an archived Event by the restore itself. web-admin offers the roster edit
+and the League panel on an archived Event (222d).
 
 ### 12.6 Roles (unchanged from earlier draft)
 

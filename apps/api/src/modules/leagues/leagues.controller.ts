@@ -30,6 +30,7 @@ import {
   UpdateLeagueGroupDto,
 } from './dto/leagues.dto';
 import { Public } from '../../common/auth/public.decorator';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { LeaguesService } from './leagues.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -297,6 +298,7 @@ export class LeaguesController {
   }
 
   @Delete('admin/leagues/:leagueId/events/:eventId/tournament-links')
+  @AllowOnArchivedEvent() // ruling 224: League rows only
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove all tournament links for an event from a league' })
@@ -310,6 +312,7 @@ export class LeaguesController {
   }
 
   @Post('admin/leagues/:leagueId/tournaments/:tournamentId/link')
+  @AllowOnArchivedEvent() // ruling 224: League rows only
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin direct-add a tournament to a league (approved immediately)' })
@@ -324,6 +327,7 @@ export class LeaguesController {
   }
 
   @Post('admin/leagues/:leagueId/events/:eventId/link')
+  @AllowOnArchivedEvent() // ruling 224: League rows only
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin direct-add all tournaments from an event to a league' })
@@ -458,6 +462,7 @@ export class LeaguesController {
   }
 
   @Post('admin/leagues/:leagueId/tournaments/:tournamentId/request')
+  @AllowOnArchivedEvent() // ruling 224: League rows only
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Request tournament attachment to a league' })
   async requestTournamentLink(
@@ -534,6 +539,7 @@ export class LeaguesController {
   }
 
   @Patch('admin/events/:eventId/league-tournament-links/:linkId')
+  @AllowOnArchivedEvent() // ruling 224a: League rows only
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({
@@ -658,6 +664,7 @@ export class LeaguesController {
   }
 
   @Post('admin/events/:eventId/leagues/recompute')
+  @AllowOnArchivedEvent() // ruling 224a: League rows only
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Manually recompute league rankings for an event' })
   async recomputeEvent(

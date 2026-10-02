@@ -43,6 +43,7 @@ import { EnrollmentService } from './enrollment.service';
 import { FeedbackService } from './feedback.service';
 import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { WorkshopsService } from './workshops.service';
 
@@ -302,6 +303,7 @@ export class WorkshopsController {
   // ── Workshop feedback (ratings) ─────────────────────────────────────────────────
 
   @Post('workshops/:id/feedback')
+  @AllowOnArchivedEvent() // ruling 223: a rating outlives the Event
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Submit/update your rating for a workshop (enrolled + started)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

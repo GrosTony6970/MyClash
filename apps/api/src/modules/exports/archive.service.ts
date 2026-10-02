@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
+import { ARCHIVED_EVENT_MESSAGE } from '../../common/event-readonly/event-readonly.guard';
 import { dropRestoredPins } from './archive-pins';
 import { danglingReferences, describeDangling } from './archive-references';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
@@ -306,6 +308,11 @@ export class ArchiveService {
     const targetEvent = await this.assertEventAdmin(options.targetEventId, userId);
     if (targetEvent['status'] === 'running') {
       throw new ConflictException('Cannot restore into a running event.');
+    }
+    // The archived-Event lock cannot place this route: the Event is a query or
+    // body field it does not read. An archived Event takes no new Tournament (ruling 222).
+    if (targetEvent['status'] === 'archived') {
+      throw new ForbiddenException(ARCHIVED_EVENT_MESSAGE);
     }
 
     const data = normalizeArchiveTables(archive.data);

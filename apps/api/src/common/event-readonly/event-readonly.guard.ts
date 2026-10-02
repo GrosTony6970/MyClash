@@ -8,6 +8,9 @@ import { resolveEventId } from './resolve-event-id';
 
 const READ_VERBS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** What an archived Event answers to a write it refuses. Also said by the archive restore. */
+export const ARCHIVED_EVENT_MESSAGE = 'This event is archived and read-only.';
+
 @Injectable()
 export class EventReadOnlyGuard implements CanActivate {
   constructor(
@@ -74,9 +77,7 @@ export class EventReadOnlyGuard implements CanActivate {
 
     // (7) Block archived events
     if (status === 'archived') {
-      throw new ForbiddenException(
-        'This event is archived and read-only. Only deletion requests are allowed.',
-      );
+      throw new ForbiddenException(ARCHIVED_EVENT_MESSAGE);
     }
 
     // (7b) Block destructive plan changes once the event is completed. Re-timing

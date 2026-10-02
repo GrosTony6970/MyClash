@@ -1,204 +1,186 @@
 /**
- * "Which event does this request touch?", answered off the URL and params.
+ * "Which Event does this write touch?", answered off the route the router matched.
  *
- * Its own module because two guards ask it now — the archived check and the
- * completed-event block — and because this logic has failed OPEN twice. Both
- * post-mortems are still in the branch comments below, and they share a shape:
- * a branch keyed on a param name that no route actually binds matches nothing,
- * the resolver returns null, and the caller reads that as "not event-scoped"
- * and waves the write through. Nothing errors. One owner makes the next such
- * hole a one-line fix in one place instead of two.
+ * One owner, asked by the archived-Event lock and the completed-Event block
+ * (`event-readonly.guard.ts`). Returns null when nothing places the request,
+ * and the lock reads that as "not about one Event" and lets the write through.
+ * So a route this cannot place is an open door, not an error: the holes here
+ * all had that shape. `archived-lock.routes.test.ts` lists every write route of
+ * the API and fails on one that is placed by nothing and listed nowhere.
  *
- * Returns null when the request genuinely is not event-scoped. Callers decide
- * what null means: passing is right for the archived sweep, which runs on every
- * route in the API, and wrong for a route explicitly marked as needing
- * protection.
+ * It reads the matched ROUTE (`request.routeOptions.url`, e.g.
+ * `/api/v1/tournaments/:id/publish`) and the decoded params, never
+ * `request.url`. The router decodes an address before it matches it:
+ * `/api/v1/m%61tches/<id>/exchanges` reaches the matches handler, and a pattern
+ * run over the raw address did not see `matches` in it (ruling 222). A query
+ * string is no part of the route either.
+ *
+ * Each `segment/:param` pair is asked once, left to right, and keyed on the
+ * SEGMENT, not on the param's name: `params.id`, `params.matchId` and
+ * `params.tournamentId` each left routes open, because the routes named their
+ * param something else. The one name read is `eventId`: an Event reference
+ * wherever it sits. Last, the Event the body names.
  */
 import type { FastifyRequest } from 'fastify';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
+import { isEventUuid } from '../event-ref';
+
+type Db = SupabaseService['service'];
+type Read = (db: Db, id: string) => PromiseLike<{ data: unknown }>;
+
+const phaseEvent: Read = (db, id) =>
+  db.from('phases').select('tournaments!inner(event_id)').eq('id', id).maybeSingle();
+
+/**
+ * From a row to its Event, per URL segment. Each select is a literal, so the
+ * schema conformance check reads it, and names one column or one embed.
+ */
+const EVENT_OF: Readonly<Record<string, Read>> = {
+  tournaments: (db, id) => db.from('tournaments').select('event_id').eq('id', id).maybeSingle(),
+  phases: phaseEvent,
+  'swiss-phases': phaseEvent,
+  pools: (db, id) =>
+    db.from('pools').select('phases!inner(tournaments!inner(event_id))').eq('id', id).maybeSingle(),
+  matches: (db, id) =>
+    db
+      .from('matches')
+      .select('phases!inner(tournaments!inner(event_id))')
+      .eq('id', id)
+      .maybeSingle(),
+  'swiss-rounds': (db, id) =>
+    db
+      .from('swiss_rounds')
+      .select('phases!inner(tournaments!inner(event_id))')
+      .eq('id', id)
+      .maybeSingle(),
+  'bracket-slots': (db, id) =>
+    db
+      .from('bracket_slots')
+      .select('phases!inner(tournaments!inner(event_id))')
+      .eq('id', id)
+      .maybeSingle(),
+  exchanges: (db, id) =>
+    db
+      .from('exchanges')
+      .select('matches!inner(phases!inner(tournaments!inner(event_id)))')
+      .eq('id', id)
+      .maybeSingle(),
+  registrations: (db, id) =>
+    db.from('registrations').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
+  'match-forfeits': (db, id) =>
+    db.from('match_forfeits').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
+  'match-penalties': (db, id) =>
+    db.from('match_penalties').select('tournaments!inner(event_id)').eq('id', id).maybeSingle(),
+  'tournament-penalty-reviews': (db, id) =>
+    db
+      .from('tournament_penalty_reviews')
+      .select('tournaments!inner(event_id)')
+      .eq('id', id)
+      .maybeSingle(),
+  persons: (db, id) => db.from('persons').select('event_id').eq('id', id).maybeSingle(),
+  lices: (db, id) => db.from('lices').select('event_id').eq('id', id).maybeSingle(),
+  'referee-assignments': (db, id) =>
+    db.from('referee_assignments').select('event_id').eq('id', id).maybeSingle(),
+  'referee-qualifications': (db, id) =>
+    db.from('referee_qualifications').select('event_id').eq('id', id).maybeSingle(),
+  // A system skill has no Event (`event_id` null) and is no Event's row.
+  'referee-skills': (db, id) =>
+    db.from('referee_skills').select('event_id').eq('id', id).maybeSingle(),
+  workshops: (db, id) => db.from('workshops').select('event_id').eq('id', id).maybeSingle(),
+  'workshop-sessions': (db, id) =>
+    db.from('workshop_sessions').select('workshops!inner(event_id)').eq('id', id).maybeSingle(),
+  'workshop-breaks': (db, id) =>
+    db.from('workshop_breaks').select('event_id').eq('id', id).maybeSingle(),
+};
+
+/** The URL segments whose row the lock reads, for the API-wide test. */
+export const PLACING_SEGMENTS: readonly string[] = ['events', ...Object.keys(EVENT_OF)];
+
+export interface Placement {
+  /** `events`, or a key of the table above. */
+  segment: string;
+  value: string;
+}
+
+/**
+ * The pairs of a route that can name its Event, left to right. Pure: the
+ * API-wide test asks it about every route without a database.
+ */
+export function placementsOf(
+  pattern: string,
+  params: Readonly<Record<string, string | undefined>>,
+): Placement[] {
+  const parts = pattern.split('/');
+  const found: Placement[] = [];
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i] as string;
+    if (!part.startsWith(':')) continue;
+    const name = part.slice(1);
+    const segment = name === 'eventId' ? 'events' : (parts[i - 1] as string);
+    const value = params[name];
+    if (value && (segment === 'events' || Object.hasOwn(EVENT_OF, segment))) {
+      found.push({ segment, value });
+    }
+  }
+  return found;
+}
+
+/** Any version, as Postgres and `ParseUUIDPipe` read one. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * An Event named by id or by slug, read as the handlers read it. `event-ref.ts`
+ * takes an RFC uuid for an id and anything else for a slug; `ParseUUIDPipe`
+ * takes any uuid for an id. So a uuid of no RFC version is looked for as both.
+ * A slug is unique within one organisation only (`UNIQUE(organization_id,
+ * slug)`): two Events of that slug place nothing, and `event-ref.ts` finds no
+ * Event either.
+ */
+async function eventOfReference(db: Db, ref: string): Promise<string | null> {
+  if (isEventUuid(ref)) return ref;
+  if (UUID_SHAPE.test(ref)) {
+    const { data } = await db.from('events').select('id').eq('id', ref).maybeSingle();
+    if (data) return ref;
+  }
+  const { data } = await db.from('events').select('id').eq('slug', ref).limit(2);
+  const rows = (data ?? []) as Array<{ id: string }>;
+  return rows.length === 1 ? (rows[0] as { id: string }).id : null;
+}
+
+/**
+ * The `event_id` at the end of an answer's embeds. A to-one embed the typed
+ * client hands back as an array is walked like a row: its values are its items.
+ */
+function eventIn(answer: unknown): string | null {
+  let node = answer;
+  while (node !== null && typeof node === 'object') {
+    const row = node as Record<string, unknown>;
+    if (typeof row['event_id'] === 'string') return row['event_id'];
+    node = Object.values(row).find((value) => value !== null && typeof value === 'object');
+  }
+  return null;
+}
 
 export async function resolveEventId(
   supabase: SupabaseService,
   request: FastifyRequest,
 ): Promise<string | null> {
-  const params = (request.params ?? {}) as Record<string, string>;
-  const body = (request.body ?? {}) as Record<string, unknown>;
+  const pattern = request.routeOptions?.url;
+  // Behind the router every request has one. A hand-built request without it
+  // would place nothing and pass: refuse to answer instead.
+  if (!pattern) throw new Error(`${request.method} ${request.url}: no matched route to read`);
 
-  // (a) Direct eventId route param
-  if (params['eventId']) return params['eventId'];
-
-  // (a′) `/events/<uuid>` anywhere in the path.
-  //
-  // The event's OWN mutating routes name the param `:id`, not `:eventId` —
-  // PATCH events/:id, POST events/:id/publish, /unpublish, /logo, /hero. A
-  // params-only lookup resolved nothing for any of them, so the guard fell
-  // through to "not event-scoped" and an ARCHIVED event stayed fully
-  // editable: rename it, re-slug it, publish it again. Nothing threw.
-  //
-  // Read off the path rather than off `params['id']`: `:id` means a different
-  // entity on most other controllers (tournaments, clubs, deletion requests),
-  // and matching the path segment cannot be broken by a param rename either.
-  const url = request.url ?? '';
-  const fromPath = /(?:^|\/)events\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
-  if (fromPath) return fromPath[1] as string;
-
-  // (a″) `/matches/<uuid>` — same defect, same fix. Every match route names
-  // its param `:id`, so the params-only `matchId` branch this replaces
-  // matched NO route in the API and the guard fell through to "not
-  // event-scoped": PATCH matches/:id/schedule re-timed bouts on an ARCHIVED
-  // event, and nothing threw.
-  //
-  // One query, not the three that branch walked: the embedded select is the
-  // shape `event-authz.orgIdForPool` already uses. `match-forfeits/<uuid>`
-  // does not match — the segment has to be exactly `matches`.
-  const fromMatch = /(?:^|\/)matches\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
-  if (fromMatch) {
-    const { data } = await supabase.service
-      .from('matches')
-      .select('phases!inner(tournaments!inner(event_id))')
-      .eq('id', fromMatch[1] as string)
-      .maybeSingle();
-    const eventId = (data as { phases?: { tournaments?: { event_id?: string } } } | null)?.phases
-      ?.tournaments?.event_id;
+  const params = (request.params ?? {}) as Record<string, string | undefined>;
+  for (const { segment, value } of placementsOf(pattern, params)) {
+    const read = EVENT_OF[segment];
+    const eventId = read
+      ? eventIn((await read(supabase.service, value)).data)
+      : await eventOfReference(supabase.service, value);
     if (eventId) return eventId;
   }
 
-  // (a‴) `/lices/<uuid>` — PATCH and DELETE both live here, and deleting a
-  // piste is ON DELETE SET NULL on matches.lice_id, i.e. it unschedules every
-  // match on that strip. `lices.event_id` is required, so the hop is single.
-  const fromLice = /(?:^|\/)lices\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
-  if (fromLice) {
-    const { data } = await supabase.service
-      .from('lices')
-      .select('event_id')
-      .eq('id', fromLice[1] as string)
-      .maybeSingle();
-    const eventId = (data as { event_id?: string } | null)?.event_id;
-    if (eventId) return eventId;
-  }
-
-  // (a⁗) `/swiss-rounds/<uuid>` — DELETE swiss-rounds/:roundId/referee-assignments
-  // clears a whole Swiss round's crew. No branch reached it: the param is named
-  // `roundId`, which nothing else here looks for, so the route resolved to null
-  // and was never event-scoped for ANY status check. Two hops, same shape as (c).
-  const fromSwissRound = /(?:^|\/)swiss-rounds\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
-  if (fromSwissRound) {
-    const { data: round } = await supabase.service
-      .from('swiss_rounds')
-      .select('phases!inner(tournaments!inner(event_id))')
-      .eq('id', fromSwissRound[1] as string)
-      .maybeSingle();
-    const eventId = (round as { phases?: { tournaments?: { event_id?: string } } } | null)?.phases
-      ?.tournaments?.event_id;
-    if (eventId) return eventId;
-  }
-
-  // (a⁵) `/referee-assignments/<uuid>` — the row carries `event_id` itself, so
-  // this is the one single-hop lookup here.
-  const fromAssignment = /(?:^|\/)referee-assignments\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
-  if (fromAssignment) {
-    const { data: assignment } = await supabase.service
-      .from('referee_assignments')
-      .select('event_id')
-      .eq('id', fromAssignment[1] as string)
-      .maybeSingle();
-    const eventId = (assignment as { event_id?: string } | null)?.event_id;
-    if (eventId) return eventId;
-  }
-
-  // (b) tournamentId → tournaments.event_id
-  if (params['tournamentId']) {
-    const { data } = await supabase.service
-      .from('tournaments')
-      .select('event_id')
-      .eq('id', params['tournamentId'])
-      .maybeSingle();
-    const eventId = (data as { event_id?: string } | null)?.event_id;
-    if (eventId) return eventId;
-  }
-
-  // (c) phaseId → phases.tournament_id → tournaments.event_id
-  if (params['phaseId']) {
-    const { data: phase } = await supabase.service
-      .from('phases')
-      .select('tournament_id')
-      .eq('id', params['phaseId'])
-      .maybeSingle();
-    const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
-    if (tournamentId) {
-      const { data: tournament } = await supabase.service
-        .from('tournaments')
-        .select('event_id')
-        .eq('id', tournamentId)
-        .maybeSingle();
-      const eventId = (tournament as { event_id?: string } | null)?.event_id;
-      if (eventId) return eventId;
-    }
-  }
-
-  // (d) poolId → pools.phase_id → phases.tournament_id → tournaments.event_id
-  if (params['poolId']) {
-    const { data: pool } = await supabase.service
-      .from('pools')
-      .select('phase_id')
-      .eq('id', params['poolId'])
-      .maybeSingle();
-    const phaseId = (pool as { phase_id?: string } | null)?.phase_id;
-    if (phaseId) {
-      const { data: phase } = await supabase.service
-        .from('phases')
-        .select('tournament_id')
-        .eq('id', phaseId)
-        .maybeSingle();
-      const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
-      if (tournamentId) {
-        const { data: tournament } = await supabase.service
-          .from('tournaments')
-          .select('event_id')
-          .eq('id', tournamentId)
-          .maybeSingle();
-        const eventId = (tournament as { event_id?: string } | null)?.event_id;
-        if (eventId) return eventId;
-      }
-    }
-  }
-
-  // (e) — REMOVED. It read `params['matchId']`, which no mutating route in
-  // this API binds: they are all `matches/:id`. The one exception,
-  // PATCH matches/:matchId/swiss-sides, has a URL that (a″) matches, and
-  // gear.controller's GET match/:matchId never reaches here (read verbs skip
-  // at the top). So the branch was dead code guarding nothing, and (a″)
-  // covers every URL it could ever have covered — in one query instead of
-  // three. A spec pins swiss-sides so the removal cannot silently regress.
-
-  // (f) registrationId → registrations.tournament_id → tournaments.event_id
-  //
-  // `registrations` has NO event_id — it is scoped by tournament (0001). The
-  // old one-hop read 400'd, the error is swallowed here by design, and the
-  // guard then fell through to "no event" — so every registration-addressed
-  // route stayed WRITEABLE on an archived event. Same two-hop shape as (d).
-  if (params['registrationId']) {
-    const { data: registration } = await supabase.service
-      .from('registrations')
-      .select('tournament_id')
-      .eq('id', params['registrationId'])
-      .maybeSingle();
-    const tournamentId = (registration as { tournament_id?: string } | null)?.tournament_id;
-    if (tournamentId) {
-      const { data: tournament } = await supabase.service
-        .from('tournaments')
-        .select('event_id')
-        .eq('id', tournamentId)
-        .maybeSingle();
-      const eventId = (tournament as { event_id?: string } | null)?.event_id;
-      if (eventId) return eventId;
-    }
-  }
-
-  // (g) body.eventId fallback
-  if (typeof body['eventId'] === 'string' && body['eventId']) {
-    return body['eventId'];
-  }
-
-  return null;
+  // Every body that names its Event names it as a uuid (`z.uuid()`); anything
+  // else is the validation pipe's to refuse, after this guard.
+  const named = (request.body as Record<string, unknown> | null | undefined)?.['eventId'];
+  return typeof named === 'string' && UUID_SHAPE.test(named) ? named : null;
 }

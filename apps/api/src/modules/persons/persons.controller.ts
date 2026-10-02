@@ -28,6 +28,7 @@ import { assertCanManageEvent, assertEventMember } from '../../common/auth/event
 import { assertCanManagePerson } from '../../common/auth/person-authz';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
 import { AssignmentsService } from '../registrations/assignments.service';
@@ -244,6 +245,7 @@ export class PersonsController {
    * Update a person (organizer only).
    */
   @Patch('persons/:id')
+  @AllowOnArchivedEvent() // ruling 222b: the roster is still corrected
   @ApiOperation({ summary: 'Update a person' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Updated person' })

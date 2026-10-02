@@ -34,6 +34,7 @@ import {
   VoidPenaltyDto,
 } from './dto/penalties.dto';
 import { Public } from '../../common/auth/public.decorator';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { RulesetImportDto } from '../../common/ruleset-export';
 import { PenaltiesService } from './penalties.service';
 
@@ -353,6 +354,7 @@ export class PenaltiesController {
   }
 
   @Patch('match-penalties/:id/void')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({ summary: 'Void a match penalty without deleting it' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async voidPenalty(
@@ -373,6 +375,7 @@ export class PenaltiesController {
   }
 
   @Patch('tournament-penalty-reviews/:id')
+  @AllowOnArchivedEvent() // ruling 222a: as on a completed Event
   @ApiOperation({ summary: 'Confirm or dismiss a tournament penalty review' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async reviewTournamentPenalty(

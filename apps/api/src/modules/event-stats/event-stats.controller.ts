@@ -26,6 +26,7 @@ import { EventStatsService } from './event-stats.service';
 import { EventFeedbackService } from './event-feedback.service';
 import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { SubmitEventFeedbackDto } from './dto/event-feedback.dto';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -57,6 +58,7 @@ export class EventStatsController {
    * ROLE is derived from the roster in the service, never taken from the body.
    */
   @Post('events/:eventId/feedback')
+  @AllowOnArchivedEvent() // ruling 223a: a rating outlives the Event
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Submit feedback on an event you attended' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })

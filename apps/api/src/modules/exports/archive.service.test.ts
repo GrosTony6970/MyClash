@@ -888,6 +888,25 @@ describe('ArchiveService', () => {
     expect(inserted.phases?.[0]?.tournament_id).toBe(insertedTournamentId);
   });
 
+  it('refuses to restore a Tournament into an archived Event (ruling 222)', async () => {
+    const rows = scopedRows();
+    const { service, inserted } = makeService({
+      ...rows,
+      events: rows.events.map((event) => ({ ...event, status: 'archived' })),
+    });
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    await expect(
+      service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetEventId: 'event-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      }),
+    ).rejects.toEqual(new ForbiddenException('This event is archived and read-only.'));
+    expect(inserted).toEqual({});
+  });
+
   it('drops org-level references when restoring into a different org', async () => {
     const { service, inserted } = makeService({
       ...scopedRows(),
