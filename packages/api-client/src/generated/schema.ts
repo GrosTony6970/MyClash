@@ -8707,7 +8707,8 @@ export interface paths {
     put?: never;
     /** Enroll a specified person into a session — organizer adds an attendee (workshop_lead+). Waitlisted if full. */
     post: operations['WorkshopsController_enrollPerson'];
-    delete?: never;
+    /** Remove a specified person from a session — organizer deletes the booking, and the person may book again (workshop_lead+). A freed seat goes to the top of the waitlist. */
+    delete: operations['WorkshopsController_removeBooking'];
     options?: never;
     head?: never;
     patch?: never;
@@ -24691,6 +24692,26 @@ export interface operations {
     requestBody?: never;
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  WorkshopsController_removeBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        personId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
         headers: {
           [name: string]: unknown;
         };

@@ -256,26 +256,44 @@ export class EnrollmentService {
 
   // ── Cancel ────────────────────────────────────────────────────────────────────
 
+  /**
+   * Delete one person's booking of a session, whatever its state. Two doors: the person's own
+   * cancel, and the organiser's "Remove" (ruling 214), after which the person may book again.
+   * The person's own cancel deletes a refusal too; no ruling covers that yet.
+   *
+   * A delete that fails is a failure, never "removed": answered as done, the seat would be given
+   * to the next person while it is still taken.
+   *
+   * ONE statement deletes the booking and hands back the row it removed. What follows goes by
+   * that row, not by an earlier read: of two cancels at the same moment (the organiser's "Remove"
+   * and the person's own) only the one that removed the row gives the seat away, and a refusal or
+   * a promotion that landed just before is seen as it was saved.
+   */
   async cancel(sessionId: string, personId: string): Promise<void> {
-    const { data: enrollment } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('workshop_enrollments')
-      .select('id, status')
+      .delete()
       .eq('workshop_session_id', sessionId)
       .eq('user_id', personId)
-      .maybeSingle();
-
-    // Already not enrolled. The alert is asked for all the same: a cancel whose alert could not
-    // be removed left no booking behind, and a second cancel removes it.
-    if (!enrollment) return this.bookingAlert(sessionId, personId);
-
-    const e = enrollment as { id: string; status: string };
-
-    await this.supabase.service.from('workshop_enrollments').delete().eq('id', e.id);
+      .select('id, status');
+    if (error) {
+      throw new Error(
+        `Booking of ${personId} in session ${sessionId} not deleted: ${error.message}`,
+      );
+    }
+    // Asked for also when no booking was left: a cancel whose alert could not be removed left no
+    // booking behind, and a second cancel removes it.
     await this.bookingAlert(sessionId, personId);
 
+    // At most one: a person has one booking per session (UNIQUE in 0001).
+    const [removed] = (data ?? []) as Array<{ status: string }>;
     // Freeing a confirmed seat promotes the top of the waitlist.
-    if (e.status === 'confirmed') {
+    if (removed?.status === 'confirmed') {
       await this.promoteNextWaitlisted(sessionId);
+    }
+    // A place left on the waitlist closes up, or the next booking takes a number already held.
+    if (removed?.status === 'waitlisted') {
+      await this.recompactWaitlist(sessionId);
     }
   }
 

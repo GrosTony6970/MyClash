@@ -100,8 +100,7 @@ describe("a booking's alert follows the booking (ruling 210)", () => {
 describe('a seat given up, or given', () => {
   it('a cancelled seat loses its alert, and the person promoted in its place gets hers', async () => {
     const { service, asked, writesWhenAsked } = build([
-      row({ id: 'e-1', status: 'confirmed' }),
-      OK, // the delete
+      row([{ id: 'e-1', status: 'confirmed' }]), // the delete, and the row it removed
       row({ id: 'e-2', user_id: 'zoe-row' }), // the top of the waitlist
       OK, // her promotion
       row([]), // nobody left on the waitlist
@@ -120,8 +119,7 @@ describe('a seat given up, or given', () => {
   it('a seat whose alert cannot be removed still gives its place to the next person', async () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const { service, supabase, asked, waitlistPromoted } = build([
-      row({ id: 'e-1', status: 'confirmed' }),
-      OK,
+      row([{ id: 'e-1', status: 'confirmed' }]),
       row({ id: 'e-2', user_id: 'zoe-row' }),
       OK,
       row([]),
@@ -143,12 +141,13 @@ describe('a seat given up, or given', () => {
   });
 
   it('a cancel with no booking left asks still: it repairs a cancel whose alert was not removed', async () => {
-    const { service, supabase, asked } = build(NONE);
+    const { service, supabase, asked } = build(row([]));
 
     await service.cancel(SESSION, 'lea-row');
 
     expect(asked.mock.calls).toEqual([[SESSION, 'lea-row']]);
-    expect(writesTo(supabase, 'workshop_enrollments')).toEqual([]);
+    // The delete that found no row, and nothing after it.
+    expect(writesTo(supabase, 'workshop_enrollments').map((write) => write.op)).toEqual(['delete']);
   });
 
   it.each<['promote' | 'accept']>([['promote'], ['accept']])(

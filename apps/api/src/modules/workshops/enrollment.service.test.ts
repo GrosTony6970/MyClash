@@ -129,6 +129,13 @@ function buildFake(opts: {
 
     const builder: Record<string, unknown> = {
       select: (_cols: string, cfg?: { count?: string; head?: boolean }) => {
+        // A delete lands when its read-back is asked, once every filter is in:
+        // `.delete().eq(…).eq(…).select()` answers the rows it removed.
+        if (op === 'delete') {
+          const hits = matched();
+          for (const h of hits) rows.splice(rows.indexOf(h), 1);
+          return Promise.resolve({ data: hits, error: null });
+        }
         op = 'select';
         if (cfg?.count) countMode = true;
         return builder;
@@ -159,13 +166,8 @@ function buildFake(opts: {
       },
       eq: (col: string, val: unknown) => {
         filters.push({ col, val });
-        if (op === 'update' || op === 'delete') {
-          const hits = matched();
-          if (op === 'delete') {
-            for (const h of hits) rows.splice(rows.indexOf(h), 1);
-          } else if (updatePayload) {
-            for (const h of hits) Object.assign(h, updatePayload);
-          }
+        if (op === 'update' && updatePayload) {
+          for (const h of matched()) Object.assign(h, updatePayload);
         }
         return builder;
       },
@@ -441,6 +443,31 @@ describe('EnrollmentService.cancel', () => {
     expect(promoted?.position).toBeNull();
     expect(fake.rows.find((r) => r.user_id === 'p-conf')).toBeUndefined();
     expect(notif.waitlistPromoted).toHaveBeenCalledWith('s-1', 'p-wait');
+  });
+
+  it('closes the waitlist up when a person leaves its middle, and promotes nobody', async () => {
+    const waiting = (id: string, position: number): Row => ({
+      id,
+      workshop_session_id: 's-1',
+      user_id: `p-${id}`,
+      status: 'waitlisted',
+      position,
+    });
+    // Seeded out of order: the places go by `position`, not by the order the rows come in.
+    const fake = buildFake({
+      capacity: 1,
+      seed: [waiting('three', 3), waiting('two', 2), waiting('one', 1)],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never, alerts as never);
+
+    await svc.cancel('s-1', 'p-two');
+
+    // Left at 1 and 3, the next booking would take 3 a second time.
+    expect(fake.rows.map((r) => [r.id, r.status, r.position])).toEqual([
+      ['three', 'waitlisted', 2],
+      ['one', 'waitlisted', 1],
+    ]);
+    expect(notif.waitlistPromoted).not.toHaveBeenCalled();
   });
 });
 

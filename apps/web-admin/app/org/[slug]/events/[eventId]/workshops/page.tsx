@@ -48,6 +48,7 @@ import {
   workshopSearchHaystack,
   workshopSortValue,
 } from './filter-workshops';
+import { rosterRequests } from './roster-requests';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -115,6 +116,8 @@ interface RosterEntry {
   status: 'confirmed' | 'waitlisted';
   waitlistPosition: number | null;
   enrolledAt: string;
+  /** The booking's roster row: what the roster's requests name (`roster-requests.ts`). */
+  personId: string;
   global_person_id?: string | null;
   persons: {
     id: string;
@@ -599,12 +602,9 @@ export default function WorkshopsAdminPage() {
     setRosterLoading(false);
   }
 
-  async function handlePromote(sessionId: string, personId: string) {
-    const r = await apiRequest(
-      apiUrl,
-      `/api/v1/workshop-sessions/${sessionId}/promote/${personId}`,
-      { method: 'POST' },
-    );
+  async function handlePromote(sessionId: string, entry: RosterEntry) {
+    const { path, method } = rosterRequests(sessionId, entry).promote;
+    const r = await apiRequest(apiUrl, path, { method });
     if (!r.ok) {
       // A full session refuses the promotion by name. The write had no success
       // check at all, so the roster just re-rendered unchanged.
@@ -615,12 +615,11 @@ export default function WorkshopsAdminPage() {
     await openRoster(sessionId);
   }
 
-  async function handleRemove(sessionId: string, _personId: string) {
+  async function handleRemove(sessionId: string, entry: RosterEntry) {
     if (!(await confirm({ title: t('admin.common.confirmRemoveEnrollment'), danger: true })))
       return;
-    const r = await apiRequest(apiUrl, `/api/v1/workshop-sessions/${sessionId}/enroll`, {
-      method: 'DELETE',
-    });
+    const { path, method } = rosterRequests(sessionId, entry).remove;
+    const r = await apiRequest(apiUrl, path, { method });
     if (!r.ok) {
       const message = failureMessage(r, t, t('admin.common.removeFailed'));
       if (message) toast.error(message);
@@ -1520,22 +1519,20 @@ export default function WorkshopsAdminPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {entry.status === 'waitlisted' && entry.persons && (
+                    {entry.status === 'waitlisted' && (
                       <button
-                        onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
+                        onClick={() => void handlePromote(rosterSession, entry)}
                         className="text-xs text-success hover:underline"
                       >
                         {t('organizer.workshopsPage.promote')}
                       </button>
                     )}
-                    {entry.persons && (
-                      <button
-                        onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
-                        className="text-xs text-danger hover:underline"
-                      >
-                        {t('organizer.workshopsPage.remove')}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => void handleRemove(rosterSession, entry)}
+                      className="text-xs text-danger hover:underline"
+                    >
+                      {t('organizer.workshopsPage.remove')}
+                    </button>
                   </div>
                 </div>
               ))}

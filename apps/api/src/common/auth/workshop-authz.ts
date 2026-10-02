@@ -25,12 +25,12 @@ import { assertCanManageEvent, type EventAuthzDeps, type OrgRole } from './event
  * to a global profile is a roster edit, so it takes the same bar (operator
  * ruling 38, 2026-09-22).
  *
- * Its roster siblings do not all agree, so be exact: enrolling a person and
- * promoting off the waitlist take this bar, through `assertCanManageSession`.
- * Accepting and refusing an enrollee go through
+ * Its roster siblings do not all agree, so be exact: enrolling a person,
+ * removing one (ruling 214) and promoting off the waitlist take this bar,
+ * through `assertCanManageSession`. Accepting and refusing an enrollee go through
  * `assertCanManageSessionAsInstructorOrLead`, which ALSO admits an instructor
  * of that workshop holding no org role — so this route is stricter than two of
- * the four. RLS `workshop_enrollments_write` says `editor`; the module has been
+ * the five. RLS `workshop_enrollments_write` says `editor`; the module has been
  * the looser of the two since it shipped, and the ruling kept the module's own
  * bar rather than RLS's.
  */

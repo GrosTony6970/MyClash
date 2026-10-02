@@ -556,6 +556,23 @@ export class WorkshopsController {
     return this.enrollment.enroll(id, personId);
   }
 
+  @Delete('workshop-sessions/:id/enrollments/:personId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Remove a specified person from a session — organizer deletes the booking, and the person may book again (workshop_lead+). A freed seat goes to the top of the waitlist.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async removeBooking(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.workshops.authorizeSession(id, await getUserId(req, this.supabase));
+    await this.enrollment.cancel(id, personId);
+  }
+
   @Post('workshop-sessions/:id/promote/:userId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Promote waitlisted person to confirmed (workshop_lead+)' })

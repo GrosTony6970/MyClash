@@ -953,7 +953,7 @@ export class WorkshopsService {
         status: e.status,
         waitlistPosition: e.position,
         enrolledAt: e.enrolled_at,
-        // Event-scoped persons.id — the target for accept/refuse/promote.
+        // Event-scoped persons.id — the target for accept/refuse/promote/remove.
         personId: e.user_id,
         global_person_id: e.global_person_id,
         persons,
