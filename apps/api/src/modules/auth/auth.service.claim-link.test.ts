@@ -59,11 +59,12 @@ function makeReply() {
 describe('AuthService.handleCallback — claim', () => {
   const USER = 'user-1';
   const EMAIL = 'fighter@example.com';
+  const MINE = { email: EMAIL, given_name: 'Ada', family_name: 'Fighter' }; // one name: 218
   const ROW = '00000000-0000-0000-0000-000000000001';
   const APP = 'https://app.myclash.localhost';
   const NEIGHBOUR = {
     id: '00000000-0000-0000-0000-0000000000ff',
-    email: EMAIL,
+    ...MINE,
     claim_status: 'unclaimed',
     claimed_by_user_id: null,
     global_person_id: null,
@@ -326,7 +327,7 @@ describe('AuthService.handleCallback — claim', () => {
           NEIGHBOUR,
           {
             id: ROW,
-            email: EMAIL,
+            ...MINE,
             claim_status: 'claimed',
             claimed_by_user_id: USER,
             global_person_id: 'global-1',
@@ -337,7 +338,7 @@ describe('AuthService.handleCallback — claim', () => {
       global_persons: {
         rows: [
           { id: 'global-other', email: 'someone.else@example.com', claimed_by_user_id: null },
-          { id: 'global-1', email: EMAIL, claimed_by_user_id: null, merged_into_id: null },
+          { id: 'global-1', ...MINE, claimed_by_user_id: null, merged_into_id: null },
         ],
       },
       fighter_clubs: { rows: [] },
@@ -365,7 +366,7 @@ describe('AuthService.handleCallback — claim', () => {
         rows: [
           {
             id: ROW,
-            email: EMAIL,
+            ...MINE,
             claim_status: 'claimed',
             claimed_by_user_id: 'other-user',
             global_person_id: 'global-mine',
@@ -373,7 +374,7 @@ describe('AuthService.handleCallback — claim', () => {
           },
           {
             id: OWN,
-            email: EMAIL,
+            ...MINE,
             claim_status: 'unclaimed',
             claimed_by_user_id: null,
             global_person_id: 'global-mine',
@@ -381,7 +382,7 @@ describe('AuthService.handleCallback — claim', () => {
         ],
       },
       global_persons: {
-        rows: [{ id: 'global-mine', email: EMAIL, claimed_by_user_id: null, merged_into_id: null }],
+        rows: [{ id: 'global-mine', ...MINE, claimed_by_user_id: null, merged_into_id: null }],
       },
     });
     const reply = makeReply();

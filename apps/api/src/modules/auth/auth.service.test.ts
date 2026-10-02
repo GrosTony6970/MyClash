@@ -1749,6 +1749,8 @@ describe('AuthService', () => {
             {
               id: 'ok',
               email: 'Fighter@example.com',
+              given_name: 'Ada',
+              family_name: 'Fighter',
               claimed_by_user_id: null,
               global_person_id: 'global-ok',
             },
@@ -1768,6 +1770,8 @@ describe('AuthService', () => {
             {
               id: 'global-ok',
               email: 'FIGHTER@example.com',
+              given_name: 'Ada',
+              family_name: 'Fighter',
               claimed_by_user_id: null,
               merged_into_id: null,
             },
@@ -1827,7 +1831,7 @@ describe('AuthService', () => {
         expect(writesTo(seeded, 'global_persons')).toEqual([]);
         // The double ignores the projection: pin the column the check reads.
         expect(selectsFor(seeded.from, 'global_persons')).toContain(
-          `id, email, claimed_by_user_id, ${REACHABLE_COLUMNS.join(', ')}`,
+          `id, email, given_name, family_name, claimed_by_user_id, ${REACHABLE_COLUMNS.join(', ')}`,
         );
         // The refusal leaves a trace.
         expect(log).toHaveBeenCalledWith(expect.stringMatching(/global-anna.*account's email/));
@@ -1874,6 +1878,8 @@ describe('AuthService', () => {
     const globalPerson = (over: Record<string, unknown> = {}) => ({
       id: 'global-1',
       email: EMAIL,
+      given_name: 'Ada',
+      family_name: 'Fighter',
       claimed_by_user_id: null,
       merged_into_id: null,
       club_id: null,
@@ -1920,6 +1926,8 @@ describe('AuthService', () => {
      */
     const rosterRow = (over: Record<string, unknown> = {}) => ({
       id: 'p-roster',
+      given_name: 'Ada',
+      family_name: 'Fighter',
       claimed_by_user_id: null,
       global_person_id: 'global-1',
       email: EMAIL,
@@ -2027,7 +2035,9 @@ describe('AuthService', () => {
 
       expect(writesTo(seeded, 'global_persons')).toEqual([]);
       // The candidate read ran: nothing stopped the method before it.
-      expect(selectsFor(seeded.from, 'global_persons')).toContain('id, email');
+      expect(selectsFor(seeded.from, 'global_persons')).toContain(
+        'id, email, given_name, family_name',
+      );
     });
 
     it('links the exact address when a wildcard in it matches other profiles too', async () => {
@@ -2049,7 +2059,9 @@ describe('AuthService', () => {
       const [link] = writesTo(seeded, 'global_persons');
       expect(scopedTo(link, 'id')).toBe('global-1');
       // The double ignores the projection: pin the column the compare reads.
-      expect(selectsFor(seeded.from, 'global_persons')).toContain('id, email');
+      expect(selectsFor(seeded.from, 'global_persons')).toContain(
+        'id, email, given_name, family_name',
+      );
     });
 
     it('retries through the claimed Persons when the email read failed', async () => {

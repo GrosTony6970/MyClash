@@ -314,7 +314,11 @@ Three relationships are easy to get wrong, so they are worth stating explicitly:
   has the SAME NAME as the row (operator ruling 211): an email alone proves nothing, so a typo or a
   brother at the family address gets a profile of his own, minted without that email. His next
   roster row finds that profile again through the rows already on it: the same email and the same
-  name (ruling 211a).
+  name (ruling 211a). The sign-in reads names too (ruling 218,
+  `apps/api/src/modules/auth/roster-names-of-address.ts`): it gives an account the unclaimed profile
+  that carries its email only when no roster row of that email has another name than the profile.
+  Otherwise it gives nothing, and the person claims a profile from their page. Its limit: when the
+  mistyped row is the only roster row of that email, the profile minted from it is still given.
 - **A match hangs off a phase, not off a pool.** `matches.phase_id` is `NOT NULL` while `pool_id` and
   `bracket_slot_id` are both nullable — a pool bout carries `pool_id`, an elimination bout carries
   `bracket_slot_id`. Note `phase_id` has no FK constraint, only the `NOT NULL`.

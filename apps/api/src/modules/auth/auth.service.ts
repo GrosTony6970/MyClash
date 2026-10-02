@@ -51,6 +51,7 @@ import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.ser
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
+import { anotherNameOnRoster, type NamedProfile } from './roster-names-of-address';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
 import type { PasswordLoginDto } from './dto/password-login.dto';
@@ -988,7 +989,10 @@ export class AuthService {
    * - Skip if the user already has a linked global profile (idempotent).
    * - Match must be EXACTLY one unclaimed, unmerged row whose email is this
    *   one, trimmed and lower-cased (ruling 47).
-   * - Zero or multiple matches, or a failed read or write → the repair from
+   * - No roster row of this email may have another name than that profile
+   *   (ruling 218, `roster-names-of-address.ts`): if one has, nothing is
+   *   given, and the repair below is not tried either.
+   * - Zero or multiple matches, a failed candidate read or a failed write → the repair from
    *   the Persons the user claimed. It links only a profile carrying this
    *   email (ruling 40): a retry, not a second way in (ruling 45). Failing
    *   that, the user falls through to the manual /me search UI.
@@ -1002,22 +1006,16 @@ export class AuthService {
     const normalized = email.trim().toLowerCase();
 
     try {
-      const { data: existing } = await this.supabase.service
-        .from('global_persons')
-        .select('id')
-        .eq('claimed_by_user_id', userId)
-        .is('merged_into_id', null)
-        .limit(1)
-        .maybeSingle();
-      if (existing) return;
+      if (await this.holdsLiveProfile(userId)) return;
 
-      const candidates = await this.unclaimedProfilesWithEmail(normalized);
-      if (candidates.length !== 1) {
+      const [target, ...others] = await this.unclaimedProfilesWithEmail(normalized);
+      if (!target || others.length > 0) {
         await this.tryAutolinkClaimedPersonGlobalProfile(userId, normalized);
         return;
       }
+      const deps = { supabase: this.supabase, logger: this.logger };
+      if (await anotherNameOnRoster(deps, userId, normalized, target)) return;
 
-      const target = candidates[0] as { id: string };
       const { error: updateError } = await this.supabase.service
         .from('global_persons')
         .update({ claimed_by_user_id: userId, updated_at: new Date().toISOString() })
@@ -1048,12 +1046,12 @@ export class AuthService {
    * kept. No limit: one could cut the exact row off behind the look-alikes.
    * A failed read finds none, so the caller retries as it does for no match.
    */
-  private async unclaimedProfilesWithEmail(email: string): Promise<Array<{ id: string }>> {
+  private async unclaimedProfilesWithEmail(email: string): Promise<NamedProfile[]> {
     // An erased, deleted or merged profile is never a candidate (ruling 106).
     const { data, error } = await applyReachable(
       this.supabase.service
         .from('global_persons')
-        .select('id, email')
+        .select('id, email, given_name, family_name')
         .ilike('email', email)
         .is('claimed_by_user_id', null),
     );
@@ -1061,9 +1059,21 @@ export class AuthService {
       this.logger.warn(`autolink: candidate read failed: ${error?.message}`);
       return [];
     }
-    return (data as Array<{ id: string; email: string | null }>).filter((row) =>
+    return (data as Array<NamedProfile & { email: string | null }>).filter((row) =>
       personEmailMatchesUser(row.email, email),
     );
+  }
+
+  /** Whether the account already holds a live profile: the sign-in gives one, once. */
+  private async holdsLiveProfile(userId: string): Promise<boolean> {
+    const { data } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .is('merged_into_id', null)
+      .limit(1)
+      .maybeSingle();
+    return Boolean(data);
   }
 
   private async linkClaimedPersonGlobalProfile(
@@ -1109,46 +1119,43 @@ export class AuthService {
 
   /**
    * Hands an unclaimed, unmerged global profile to the user, only when the
-   * profile carries the account's own email (ruling 40). An organiser can link
-   * a roster row to ANY profile, so owning the row proves nothing about the
+   * profile carries the account's own email (ruling 40) and no roster row of
+   * that email has another name than the profile (ruling 218). An organiser can
+   * link a roster row to ANY profile, so owning the row proves nothing about the
    * profile behind it. Such a profile stays unclaimed: with no email, its
    * fighter's /me claim goes to a super admin; with an older one, the /me
-   * claim mails that address, or a super admin corrects it.
+   * claim mails that address, or a super admin corrects it; refused for a
+   * name (218), it carries the account's own email, so the /me claim mails it.
    */
   private async linkGlobalPersonToUserIfSafe(
     userId: string,
     userEmail: string | undefined,
     globalPersonId: string,
   ): Promise<void> {
-    const { data: existing } = await this.supabase.service
-      .from('global_persons')
-      .select('id')
-      .eq('claimed_by_user_id', userId)
-      .is('merged_into_id', null)
-      .limit(1)
-      .maybeSingle();
-    if (existing) return;
+    if (await this.holdsLiveProfile(userId)) return;
 
     const { data: target, error: targetError } = await this.supabase.service
       .from('global_persons')
-      .select('id, email, claimed_by_user_id, deleted_at, merged_into_id, account_deleted_at')
+      .select(
+        'id, email, given_name, family_name, claimed_by_user_id, deleted_at, merged_into_id, account_deleted_at',
+      )
       .eq('id', globalPersonId)
       .maybeSingle();
     if (targetError || !target) return;
 
-    const row = target as ReachableRow & {
-      id: string;
-      email: string | null;
-      claimed_by_user_id: string | null;
-    };
+    const row = target as ReachableRow &
+      NamedProfile & { email: string | null; claimed_by_user_id: string | null };
     // An erased, deleted or merged profile is never linked (ruling 106).
     if (!isReachable(row) || row.claimed_by_user_id) return;
-    if (!personEmailMatchesUser(row.email, userEmail)) {
+    if (!userEmail || !personEmailMatchesUser(row.email, userEmail)) {
       this.logger.log(
         `global-person link refused for user ${userId}: global_persons ${globalPersonId} does not carry the account's email`,
       );
       return;
     }
+    // Nor when a roster row of that email has another name than the profile (ruling 218).
+    const deps = { supabase: this.supabase, logger: this.logger };
+    if (await anotherNameOnRoster(deps, userId, userEmail, row)) return;
 
     const { error: updateError } = await this.supabase.service
       .from('global_persons')
