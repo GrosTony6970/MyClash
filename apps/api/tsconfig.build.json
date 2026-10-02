@@ -80,6 +80,9 @@
     // Léa's bouts, duties and Workshops for the follower alert tests (rulings 207, 209), split
     // out when their test reached the 400-line cap. It imports vitest.
     "src/workers/follow-notification-scheduler.apply.fixtures.ts",
+    // The seeded rows of the fire-time "still wanted" check's tests (ruling 213), split out for
+    // the same reason. Imported by tests and nothing else.
+    "src/workers/alert-still-wanted.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

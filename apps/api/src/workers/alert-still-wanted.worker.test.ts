@@ -1,0 +1,96 @@
+/**
+ * The fire-time "still wanted" check, where it meets its neighbours (operator ruling 213): the
+ * scheduler that sets a follower's alerts, and the worker that sends them.
+ */
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mockSupabase, queriedTables, type TableSeed } from '../common/testing/supabase-chain';
+import { bout, follows, tables } from './alert-still-wanted.fixtures';
+import { isStillWanted } from './alert-still-wanted';
+import { NOW, setup } from './follow-notification-scheduler.apply.fixtures';
+import {
+  NotificationSchedulerWorker,
+  type NotificationKind,
+} from './notification-scheduler.worker';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('who an alert is for has two owners: the one that sets it, and this check', () => {
+  it('lets every alert ring that a follow has just set', async () => {
+    // The real builder, on the fixture of its own tests: Marc follows Léa, every switch on.
+    const { service, queue, db } = setup();
+    await service.applyFollow('lea', 'marc', NOW);
+    const jobs = queue.add.mock.calls.map((call) => call[1] as { kind: NotificationKind });
+
+    expect(jobs.map((job) => job.kind).sort()).toEqual([
+      'follow_match_starting',
+      'follow_referee_starting',
+      'follow_workshop_starting',
+    ]);
+    for (const job of jobs) {
+      await expect(isStillWanted(db as never, job as never)).resolves.toBe(true);
+    }
+  });
+});
+
+describe('the worker asks when the alert fires', () => {
+  const sender = { send: vi.fn() };
+  const delivery = {
+    notification_preferences: { rows: [] },
+    push_subscriptions: {
+      rows: [
+        { user_id: 'marc', endpoint: 'https://push.example/1', p256dh_key: 'k', auth_key: 'a' },
+      ],
+    },
+  };
+  async function fire(overrides: Record<string, TableSeed> = {}) {
+    sender.send.mockReset();
+    const db = mockSupabase({ ...tables(), ...delivery, ...overrides });
+    const worker = new NotificationSchedulerWorker(
+      db as never,
+      new ConfigService({}) as never,
+      sender as never,
+      { sendNotification: vi.fn() } as never,
+    );
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'follow_match_starting',
+        entityId: 'bout-1',
+        userId: 'marc',
+        title: 'Soon',
+        body: 'Léa fights soon.',
+        url: '/n',
+      },
+    } as never);
+    return { db, sent: sender.send.mock.calls.length };
+  }
+
+  it('sends the alert of a follow that is still saved', async () => {
+    expect((await fire()).sent).toBe(1);
+  });
+
+  it('drops the alert of a follow that is gone, and says so in the log', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+
+    const { db, sent } = await fire(follows());
+
+    expect(sent).toBe(0);
+    expect(log).toHaveBeenCalledWith('Dropped follow_match_starting for bout-1: no longer wanted');
+    expect(queriedTables(db.from)).not.toContain('push_subscriptions');
+  });
+
+  it("asks whether it is public first: a draft's alert reads nobody's follow", async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const draft = { ...bout('bout-1', 'lea', 'tom'), phases: { tournaments: { status: 'draft' } } };
+
+    const { db, sent } = await fire({ matches: { rows: [draft] } });
+
+    expect(sent).toBe(0);
+    expect(log).toHaveBeenCalledWith('Dropped follow_match_starting for bout-1: hidden or gone');
+    expect(queriedTables(db.from)).toEqual(['matches']);
+  });
+});

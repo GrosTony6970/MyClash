@@ -12,6 +12,7 @@ import {
 } from '../modules/notifications/notice-texts/notice-texts';
 import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { isStillWanted } from './alert-still-wanted';
 import { isPublicAlert } from './alert-visibility';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
@@ -419,7 +420,9 @@ export class NotificationSchedulerService {
    * Named, not closed. A booking tapped again, or a session saved, inside the lead time sends the
    * alert a second time: a sent job is gone, and the new one is due at once. A booking that read
    * the session's time just before an organiser moved it can write last, and ring at the old
-   * time. And nothing looks at the booking when the alert fires: one whose removal failed rings.
+   * time. An alert whose removal failed does not ring once its seat is no longer confirmed, or its
+   * session is cancelled: both are read again when it fires (`alert-still-wanted.ts`, ruling 213;
+   * `alert-visibility.ts`).
    */
   async scheduleWorkshopSessionStarting(
     sessionId: string,
@@ -628,9 +631,21 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   }
 
   async process(job: Job<ScheduledNotificationJob>): Promise<void> {
-    if (await isPublicAlert(this.supabase, job.data)) return this.deliver(job);
-    // Its minute came while it was hidden (a draft, or one sent back to draft) or gone.
-    this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: hidden or gone`);
+    const dropped = await this.reasonToDrop(job.data);
+    if (!dropped) return this.deliver(job);
+    this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: ${dropped}`);
+  }
+
+  /**
+   * Why an alert whose minute came is not sent, or null. Asked when it FIRES: what was true when
+   * it was queued may not be any more. Public first: a draft's alert reads nobody's follow.
+   */
+  private async reasonToDrop(job: ScheduledNotificationJob): Promise<string | null> {
+    // Hidden (a draft, or one sent back to draft) or gone.
+    if (!(await isPublicAlert(this.supabase, job))) return 'hidden or gone';
+    // The follow, the booking or the roster row it was set for is no longer there (ruling 213).
+    if (!(await isStillWanted(this.supabase, job))) return 'no longer wanted';
+    return null;
   }
 
   private async deliver(job: Job<ScheduledNotificationJob>): Promise<void> {

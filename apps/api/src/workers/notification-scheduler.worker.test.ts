@@ -9,6 +9,10 @@ import {
   NotificationSchedulerWorker,
 } from './notification-scheduler.worker';
 
+// Whether an alert is still WANTED when it fires is another question (ruling 213), held in
+// alert-still-wanted.test.ts: here every alert is.
+vi.mock('./alert-still-wanted', () => ({ isStillWanted: async () => true }));
+
 function makeQueue() {
   return {
     add: vi.fn().mockResolvedValue(undefined),

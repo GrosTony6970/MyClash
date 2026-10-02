@@ -1335,6 +1335,15 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   booking changes: a confirmed seat, a promotion from the waitlist, a cancellation, a refusal. A
   session that is cancelled or has started sets none, and an alert about a draft Workshop is
   dropped when it fires.
+- A timed alert is checked when it FIRES, because what was true when it was queued may not be any
+  more. Its bout, duty or Workshop must be public (`apps/api/src/workers/alert-visibility.ts`: a
+  draft's alert is dropped, and so is a cancelled Workshop session's). And three families must still
+  be wanted (`apps/api/src/workers/alert-still-wanted.ts`, operator ruling 213): a follower's alert
+  needs a saved follow of that account with its switch on, the alert of a booked Workshop a
+  confirmed seat on a roster row the account holds, a Fighter's own bout alert a roster row of that
+  bout held by the account. A dropped alert is logged with its reason. This silences an alert left
+  behind when a follow, a booking or a roster row's holder changed. It sets none: a new holder gets
+  his alert at the next retime. The referee's own alert is not asked again.
 - **Scheduling alone is not enough.** A delayed job carries the time the schedule had when it was
   enqueued, so every subsequent reschedule leaves a stale alert in the queue.
   `apps/api/src/modules/notifications/match-alert-refresher.service.ts` is the reconciliation half:

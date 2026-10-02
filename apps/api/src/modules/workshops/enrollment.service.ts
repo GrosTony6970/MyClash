@@ -376,7 +376,8 @@ export class EnrollmentService {
    * freed seat promotes the next person, a promotion tells her. An alert step that throws (the
    * queue is down, or the job is being sent and cannot be removed) would skip those steps, with
    * no call left to repair them. So a failure is logged: the alert then stays as it was until the
-   * booking or its session is saved again.
+   * booking or its session is saved again. One left for a seat that is no longer confirmed does
+   * not ring: the seat is read again when it fires (`alert-still-wanted.ts`, ruling 213).
    */
   private async bookingAlert(sessionId: string, personId: string): Promise<void> {
     try {

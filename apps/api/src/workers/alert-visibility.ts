@@ -7,7 +7,8 @@
  * included: a follower's alerts (rulings 129, 130, 163) and the fighter's and the referee's own
  * (rulings 183, 184); a duty holds ruling 126's bar. A TEST Event rings like any other: it is a
  * rehearsal of the day (ruling 185). A draft published before the minute comes still rings; one
- * sent back to draft goes silent. A deleted one is silent too. The referee's lock message is sent
+ * sent back to draft goes silent. A deleted one is silent too, and so is a cancelled Workshop
+ * session. The referee's lock message is sent
  * at once, so a draft going to published or running sends it again (rulings 186, 190, 191).
  */
 import { PUBLIC_TOURNAMENT_STATUSES } from '../common/auth/competition-visibility';
@@ -70,9 +71,13 @@ const dutyIsPublic: Check = async (supabase, id) => {
 };
 
 const workshopIsPublic: Check = async (supabase, id) => {
-  const select = 'workshops(status, events(status))';
+  const select = 'status, workshops(status, events(status))';
   const read = ['workshop_sessions', select, 'alert Workshop session'] as const;
-  const workshop = one((await readRow(supabase, read, id))?.['workshops']);
+  const session = await readRow(supabase, read, id);
+  // A cancelled session rings for nobody. Cancelling keeps its seats confirmed, and removes no
+  // follower's alert: so the alert is stopped here, when it fires.
+  if (session?.['status'] === 'cancelled') return false;
+  const workshop = one(session?.['workshops']);
   return (
     PUBLIC_WORKSHOP_STATUSES.includes(String(workshop?.['status'])) &&
     eventRings(one(workshop?.['events']))

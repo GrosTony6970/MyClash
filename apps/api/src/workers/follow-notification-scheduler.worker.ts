@@ -292,12 +292,13 @@ export class FollowNotificationSchedulerService {
    * down, or a job being sent, which cannot be removed). The follow is saved by then, the call
    * fails, and the same call again repairs the alerts.
    *
-   * Races, named and not closed:
+   * Races, named. The first two leave a job no saved follow wants. It stays in the queue, and it
+   * does not ring: his follows are read again when it fires (`alert-still-wanted.ts`, ruling 213).
    * - A retime that read his follow BEFORE his unfollow or mute writes its job AFTER this call
-   *   removed it. No saved follow wants that job, and it fires: a later retime does not remove
-   *   it, because a retime touches only the followers it finds.
+   *   removed it. A later retime does not remove it: a retime touches only the followers it finds.
    * - Two calls at once, on then off: the first reads his follows before the second's write, and
-   *   writes its job after the second removed it. The same stale job.
+   *   writes its job after the second removed it.
+   * Not closed:
    * - This call read a bout's time BEFORE a retime, and writes its job AFTER the retime wrote its:
    *   an alert at the old time, until the bout is timed again.
    * - His follows of both Fighters of one bout write one job id twice, with either body.

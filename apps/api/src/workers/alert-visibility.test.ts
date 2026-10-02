@@ -21,6 +21,10 @@ import {
   type NotificationKind,
 } from './notification-scheduler.worker';
 
+// Whether an alert is still WANTED when it fires is another question (ruling 213), held in
+// alert-still-wanted.test.ts: here every alert is.
+vi.mock('./alert-still-wanted', () => ({ isStillWanted: async () => true }));
+
 const SAM = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d';
 const PUBLIC_EVENT = { status: 'published', event_kind: 'standard' };
 const DRAFT_EVENT = { status: 'draft', event_kind: 'standard' };
@@ -40,7 +44,7 @@ const DUTY: Read = [
 ];
 const SESSION: Read = [
   'workshop_sessions',
-  'workshops(status, events(status))',
+  'status, workshops(status, events(status))',
   'alert Workshop session',
 ];
 // The kinds the gate checks: the table each reads, its projection, and the words of its 5xx.
@@ -85,6 +89,11 @@ function baseTables(): Record<string, TableSeed> {
         { id: 's-open', workshops: { status: 'published', events: PUBLIC_EVENT } },
         { id: 's-draft-event', workshops: { status: 'published', events: DRAFT_EVENT } },
         { id: 's-test-event', workshops: { status: 'published', events: TEST_EVENT } },
+        {
+          id: 's-cancelled',
+          status: 'cancelled',
+          workshops: { status: 'published', events: PUBLIC_EVENT },
+        },
       ],
     },
   };
@@ -176,6 +185,7 @@ describe.each([
     ['a published Workshop', 's-open', true],
     ['a published Workshop of a draft Event', 's-draft-event', false],
     ['a published Workshop of a test Event', 's-test-event', true],
+    ['a cancelled session of a published Workshop', 's-cancelled', false],
     ['a session deleted since it was queued', 's-gone', false],
   ])('%s (%s): rings = %s', async (_, session, rings) => {
     expect(await fire(kind, session)).toBe(rings);

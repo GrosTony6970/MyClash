@@ -22,13 +22,15 @@
  * tap sends "off" again and this runs again. After a reload the page reads off: the repair is
  * then on, and off again.
  *
- * Races, named and not closed. Each needs a call that was already running when she saved:
+ * Races, named. Each needs a call that was already running when she saved:
  * - a follow that passed the check, and is inserted after the followers were read here: its row
- *   goes with the delete (or stays, when nobody followed her yet), and the alerts it set fire;
+ *   goes with the delete, or stays when nobody followed her yet (not closed);
  * - a "follow everywhere" whose directory follow lands after the delete below: she stays in his
- *   "Following" tab, and each Event follow is then refused;
+ *   "Following" tab, and each Event follow is then refused (not closed);
  * - a follower who turns a switch back on between the mute and the delete, or a retime that read
- *   his follow before the mute: an alert is set again after his were removed, and fires.
+ *   his follow before the mute: an alert is set again after his were removed.
+ * An alert left behind by any of them does not ring once its follow is gone: the follows are read
+ * again when it fires (`alert-still-wanted.ts`, ruling 213).
  */
 import type { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import type { SupabaseService } from '../supabase/supabase.service';

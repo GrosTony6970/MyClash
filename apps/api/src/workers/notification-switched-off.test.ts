@@ -24,6 +24,10 @@ import {
   type ScheduledNotificationJob,
 } from './notification-scheduler.worker';
 
+// Whether an alert is still WANTED when it fires is another question (ruling 213), held in
+// alert-still-wanted.test.ts: here every alert is.
+vi.mock('./alert-still-wanted', () => ({ isStillWanted: async () => true }));
+
 const LEA = 'u-lea';
 const THING = 'thing-1';
 const PHONE = {
