@@ -95,7 +95,16 @@ function build(choice: Choice, overrides: Record<string, TableSeed> = {}) {
     global_persons: { rows: profiles },
     persons: { rows: roster },
     follows: FOLLOWS,
-    directory_follows: { rows: [] },
+    // Marc follows her from the People hub too, with "notify when refereeing" on (ruling 217).
+    directory_follows: {
+      rows: [
+        {
+          follower_user_id: 'marc',
+          followed_global_person_id: 'survivor',
+          notify_referee_start: true,
+        },
+      ],
+    },
     ...overrides,
   });
   // What had been written when the function was called: nothing may go before the merge.
@@ -108,12 +117,15 @@ function build(choice: Choice, overrides: Record<string, TableSeed> = {}) {
     },
   );
   const applyFollow = vi.fn(async (_person: string, _follower: string) => undefined);
+  const applyHubFollow = vi.fn(
+    async (_profile: string, _followers: readonly string[]) => undefined,
+  );
   const service = new FighterMergeService(
     { service: { from: db.from, rpc } } as never,
-    { applyFollow } as never,
+    { applyFollow, applyHubFollow } as never,
   );
   const merge = () => service.merge({ sourceId: 'duplicate', targetId: 'survivor' }, 'admin');
-  return { db, rpc, applyFollow, writesAtMerge, merge };
+  return { db, rpc, applyFollow, applyHubFollow, writesAtMerge, merge };
 }
 
 /** The ruling's story: the duplicate may be followed, the real profile may not. */
@@ -153,7 +165,9 @@ describe('a merge that leaves the survivor "off" removes its followers (ruling 2
         { op: 'update', filters: HERS },
         { op: 'delete', filters: HERS },
       ]);
+      // The hub switches that were on go off first; the hub follows go last (ruling 217).
       expect(writesTo(db, 'directory_follows')).toMatchObject([
+        { op: 'update', row: { notify_referee_start: false } },
         {
           op: 'delete',
           filters: [{ method: 'eq', args: ['followed_global_person_id', 'survivor'] }],
@@ -241,9 +255,30 @@ describe('the merge is done, whatever happens to the removal', () => {
       ['lea-spring', 'nina'],
     ]);
     expect(writesTo(db, 'follows').map((write) => write.op)).toEqual(['update', 'delete']);
-    expect(writesTo(db, 'directory_follows')).toHaveLength(1);
+    expect(writesTo(db, 'directory_follows').map((write) => write.op)).toEqual([
+      'update',
+      'delete',
+    ]);
     expect(errors(error)).toEqual([
       'Merge: the alerts of follower marc about lea-spring were not brought in line: queue down',
+    ]);
+  });
+
+  it('removes the hub follows all the same when their duty alerts cannot be removed, and logs it', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { db, applyHubFollow, merge } = build(DUPLICATE_ON);
+    applyHubFollow.mockRejectedValueOnce(new Error('queue down'));
+
+    await expect(merge()).resolves.toEqual(MERGED);
+
+    // The followers whose hub switch was on, once the Event follows are gone.
+    expect(applyHubFollow.mock.calls).toEqual([['survivor', ['marc']]]);
+    expect(writesTo(db, 'directory_follows').map((write) => write.op)).toEqual([
+      'update',
+      'delete',
+    ]);
+    expect(errors(error)).toEqual([
+      'Merge: the alerts of the hub followers of survivor were not brought in line: queue down',
     ]);
   });
 
@@ -253,7 +288,10 @@ describe('the merge is done, whatever happens to the removal', () => {
 
     await expect(merge()).resolves.toEqual(MERGED);
 
-    expect(db.writes).toEqual([]);
+    // The hub switches went off before that read; nothing else was written.
+    expect(db.writes.map((write) => [write.table, write.op])).toEqual([
+      ['directory_follows', 'update'],
+    ]);
     expect(applyFollow).not.toHaveBeenCalled();
     expect(errors(error)).toEqual([
       'Merge into survivor is done, but the removal of its followers failed: followers read ' +

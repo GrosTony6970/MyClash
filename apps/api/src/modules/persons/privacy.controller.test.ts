@@ -38,7 +38,7 @@ function world(globalPersons: Parameters<typeof mockSupabase>[0]['global_persons
   const controller = new PrivacyController(
     new PrivacyService(supabase as never),
     supabase as never,
-    { applyFollow } as never,
+    { applyFollow, applyHubFollow: vi.fn() } as never,
   );
   return { db, controller, applyFollow };
 }
@@ -89,9 +89,11 @@ describe('PrivacyController (ruling 132)', () => {
 
     await controller.updatePrivacy(as('u-lea'), { allowBeingFollowed: false } as never);
 
-    // The choice first, so no new follow lands; then his follow, muted and deleted.
+    // The choice first, so no new follow lands; then the hub switches off (ruling 217), then his
+    // follow, muted and deleted.
     expect(db.writes.map((write) => [write.table, write.op])).toEqual([
       ['global_persons', 'update'],
+      ['directory_follows', 'update'],
       ['follows', 'update'],
       ['follows', 'delete'],
       ['directory_follows', 'delete'],

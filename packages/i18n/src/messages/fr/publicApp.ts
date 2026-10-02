@@ -315,6 +315,7 @@ export const publicApp = {
       loadError: 'Impossible de charger les personnes suivies.',
       notifyMatch: 'Notifier au début du match',
       notifyReferee: "Notifier lors de l'arbitrage",
+      notifyRefereeElsewhere: "Notifier lors de l'arbitrage à d'autres événements",
       notifyWorkshop: "Notifier au début de l'atelier",
       unfollow: 'Ne plus suivre',
       unfollowConfirm: 'Ne plus suivre {name} ?',

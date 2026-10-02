@@ -5,6 +5,7 @@
  * POST   /events/:eventId/follows          — follow a person (idempotent)
  * DELETE /events/:eventId/follows/:personId — unfollow
  * PATCH  /events/:eventId/follows/:personId — update notification prefs
+ * PATCH  /me/follows/by-global-person/:globalPersonId — the hub follow's own switch (ruling 217)
  */
 
 import {
@@ -54,6 +55,14 @@ const followByGlobalPersonSchema = z
   })
   .strict();
 class FollowByGlobalPersonDto extends createZodDto(followByGlobalPersonSchema) {}
+
+/** The hub follow has ONE switch (ruling 217a): tell me before he referees. */
+export const hubFollowSchema = z
+  .object({
+    notifyRefereeStart: z.boolean(),
+  })
+  .strict();
+class UpdateHubFollowDto extends createZodDto(hubFollowSchema) {}
 
 const followOrganizationSchema = z
   .object({
@@ -106,6 +115,22 @@ export class FollowsController {
   ) {
     const identity = await this.resolveIdentity(req);
     await this.follows.unfollowAllEvents(globalPersonId, identity);
+  }
+
+  // Accounts only, as the organisation follows below: a hub follow is an account's, and the
+  // alert it asks for needs an identity to deliver to.
+  @Patch('me/follows/by-global-person/:globalPersonId')
+  @ApiOperation({
+    summary: 'Set the hub follow switch: notify before this person referees',
+  })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async updateHubFollow(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Body() dto: UpdateHubFollowDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await this.requireUserId(req, 'set this alert');
+    return this.follows.setHubRefereeAlert(globalPersonId, userId, dto.notifyRefereeStart);
   }
 
   // ── Organisation follows ─────────────────────────────────────────────────────
@@ -190,11 +215,15 @@ export class FollowsController {
   /**
    * Like resolveIdentity, but rejects guests. Organisation follows exist to be
    * notified, and there is nowhere to deliver a notification for a guest
-   * session — better a 401 than a follow row that can never fire.
+   * session — better a 401 than a follow row that can never fire. `what` ends the 401's
+   * sentence: what the caller must sign in for.
    */
-  private async requireUserId(req: FastifyRequest): Promise<string> {
+  private async requireUserId(
+    req: FastifyRequest,
+    what = 'follow an organisation',
+  ): Promise<string> {
     const identity = await this.resolveIdentity(req);
-    if (!identity.userId) throw new UnauthorizedException('Sign in to follow an organisation');
+    if (!identity.userId) throw new UnauthorizedException(`Sign in to ${what}`);
     return identity.userId;
   }
 

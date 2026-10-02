@@ -24,6 +24,7 @@ const mockPrivacy = {
 };
 const mockFollowNotifications = {
   applyFollow: vi.fn().mockResolvedValue(undefined),
+  applyHubFollow: vi.fn().mockResolvedValue(undefined),
 };
 
 function makeChain(result: unknown) {
@@ -286,6 +287,7 @@ describe('FollowsService', () => {
       const personsChain = makeAwaitableChain({ data: [], error: null });
 
       fromMock
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // the hub switch, off first
         .mockReturnValueOnce(personsChain) // resolveEventPersons (no events)
         .mockReturnValueOnce(dirFollowsChain); // directory_follows delete, last
 
@@ -310,8 +312,8 @@ describe('FollowsService', () => {
 
       const rows = await service.listDirectoryFollows('user-1');
       expect(rows).toEqual([
-        { globalPersonId: 'gp-a', followedAt: '2026-02-01T00:00:00Z' },
-        { globalPersonId: 'gp-b', followedAt: '2026-01-01T00:00:00Z' },
+        { globalPersonId: 'gp-a', followedAt: '2026-02-01T00:00:00Z', notifyRefereeStart: false },
+        { globalPersonId: 'gp-b', followedAt: '2026-01-01T00:00:00Z', notifyRefereeStart: false },
       ]);
     });
 

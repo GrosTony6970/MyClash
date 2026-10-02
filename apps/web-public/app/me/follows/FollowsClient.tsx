@@ -3,27 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import {
-  Avatar,
-  EmptyState,
-  Switch,
-  formatCountryName,
-  useConfirm,
-  useNow,
-  useToast,
-} from '@myclash/ui';
+import { Avatar, EmptyState, formatCountryName, useConfirm, useNow, useToast } from '@myclash/ui';
 import { flagEmoji } from '@/lib/flag';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import { refusalKey } from './action-error';
 import { Chevron } from './Chevron';
+import { FollowSwitches, type NotifyKey } from './FollowSwitches';
+import { saveHubSwitch, withHubSwitch } from './hub-follow-switch';
 import { usePersistedOpen } from './usePersistedOpen';
 import { PersonContextDetails } from './PersonContextDetails';
 import type { PersonFollowing } from './personContext';
 
 type Status = 'loading' | 'ready' | 'error';
-
-type NotifyKey = 'notifyMatchStart' | 'notifyWorkshopStart' | 'notifyRefereeStart';
 
 /** Live activity first, otherwise preserve newest-first order (stable sort). */
 function liveFirst(list: PersonFollowing[]): PersonFollowing[] {
@@ -50,7 +42,8 @@ function groupKeyOf(f: PersonFollowing): { id: string; name: string } | null {
  * fighter shows here even with no upcoming event, enriched with their live
  * tournament context. Once follows span 2+ events, the list groups into
  * collapsible per-event sections. Match/referee/workshop notify toggles appear
- * only when an active event-follow backs them.
+ * only when an active event-follow backs them; the hub follow's own switch is on
+ * every card (`FollowSwitches`).
  */
 export default function FollowsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, locale } = useI18n();
@@ -124,6 +117,16 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
     }
   }
 
+  async function toggleHub(follow: PersonFollowing, value: boolean) {
+    setFollows((prev) => withHubSwitch(prev, follow.globalPersonId, value));
+    const saved = await saveHubSwitch(apiUrl, follow.globalPersonId, value);
+    if (saved.ok) return;
+    // As the Event switches: put it back AND say so. A failure that left the switch saved
+    // shows the old value until a reload; the next tap sends the same value, which repairs.
+    setFollows((prev) => withHubSwitch(prev, follow.globalPersonId, !value));
+    toast.error(t(refusalKey(saved.status, 'publicApp.me.follows.updateFailed')));
+  }
+
   async function unfollow(follow: PersonFollowing) {
     if (
       !(await confirm({
@@ -187,40 +190,11 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
 
         <PersonContextDetails ctx={follow} now={now} hideEvent={hideEvent} />
 
-        {follow.eventFollow?.active && (
-          <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium text-muted">
-                {t('publicApp.me.follows.notifyMatch')}
-              </span>
-              <Switch
-                checked={follow.eventFollow.notifyMatchStart}
-                onChange={(v) => void toggleNotify(follow, 'notifyMatchStart', v)}
-                ariaLabel={t('publicApp.me.follows.notifyMatch')}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium text-muted">
-                {t('publicApp.me.follows.notifyReferee')}
-              </span>
-              <Switch
-                checked={follow.eventFollow.notifyRefereeStart}
-                onChange={(v) => void toggleNotify(follow, 'notifyRefereeStart', v)}
-                ariaLabel={t('publicApp.me.follows.notifyReferee')}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium text-muted">
-                {t('publicApp.me.follows.notifyWorkshop')}
-              </span>
-              <Switch
-                checked={follow.eventFollow.notifyWorkshopStart}
-                onChange={(v) => void toggleNotify(follow, 'notifyWorkshopStart', v)}
-                ariaLabel={t('publicApp.me.follows.notifyWorkshop')}
-              />
-            </label>
-          </div>
-        )}
+        <FollowSwitches
+          follow={follow}
+          onToggle={(key, value) => void toggleNotify(follow, key, value)}
+          onHubToggle={(value) => void toggleHub(follow, value)}
+        />
       </article>
     );
   }

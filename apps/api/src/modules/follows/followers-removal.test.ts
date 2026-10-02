@@ -27,6 +27,11 @@ const follow = (person: string, user: string | null) => ({
   follower_user_id: user,
   follower_guest_session_id: user ? null : 'guest-1',
 });
+const hubFollow = (follower: string, profile: string, on: boolean) => ({
+  follower_user_id: follower,
+  followed_global_person_id: profile,
+  notify_referee_start: on,
+});
 const HER_ROWS = ['lea-spring', 'lea-draft', 'lea-past', 'lea-archived'];
 const FOLLOWS = [
   follow('lea-spring', 'marc'),
@@ -63,7 +68,15 @@ function tables(): Record<string, TableSeed> {
       ],
     },
     follows: { rows: FOLLOWS },
-    directory_follows: { rows: [] },
+    // From the People hub: Marc's switch "notify when refereeing" is on, Nina's is off; Zoé
+    // follows Tom, not her.
+    directory_follows: {
+      rows: [
+        hubFollow('marc', 'gp-lea', true),
+        hubFollow('nina', 'gp-lea', false),
+        hubFollow('zoe', 'gp-tom', true),
+      ],
+    },
   };
 }
 
@@ -74,10 +87,17 @@ function build(overrides: Record<string, TableSeed> = {}) {
   const applyFollow = vi.fn(async (_person: string, _follower: string) => {
     followWritesWhenAsked.push(writesTo(supabase, 'follows').length);
   });
-  const run = () =>
-    removeFollowersOf({ supabase: supabase as never, alerts: { applyFollow } }, LEA);
-  return { supabase, applyFollow, followWritesWhenAsked, run };
+  // What had been written when the hub followers' duty alerts were asked for.
+  const writtenAtHub: Array<[string, string]> = [];
+  const applyHubFollow = vi.fn(async (_profile: string, _followers: readonly string[]) => {
+    writtenAtHub.push(...supabase.writes.map((w): [string, string] => [w.table, w.op]));
+  });
+  const alerts = { applyFollow, applyHubFollow };
+  const run = () => removeFollowersOf({ supabase: supabase as never, alerts }, LEA);
+  return { supabase, applyFollow, applyHubFollow, writtenAtHub, followWritesWhenAsked, run };
 }
+const NO_ALERTS = () => ({ applyFollow: vi.fn(), applyHubFollow: vi.fn() });
+const OF_LEA = { method: 'eq', args: ['followed_global_person_id', 'gp-lea'] };
 
 const HERS = [{ method: 'in', args: ['followed_person_id', HER_ROWS] }];
 const BOOM = { data: null, error: { message: 'boom' } };
@@ -101,9 +121,35 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
       filters: HERS,
     });
     expect(writesTo(supabase, 'follows')).toHaveLength(2);
+    expect(writesTo(supabase, 'directory_follows').at(-1)).toMatchObject({
+      op: 'delete',
+      filters: [OF_LEA],
+    });
+  });
+
+  it('turns the hub switches that are on off FIRST, then removes their duty alerts (ruling 217)', async () => {
+    const { supabase, applyHubFollow, writtenAtHub, run } = build();
+
+    await run();
+
     expect(writesTo(supabase, 'directory_follows')).toMatchObject([
-      { op: 'delete', filters: [{ method: 'eq', args: ['followed_global_person_id', 'gp-lea'] }] },
+      {
+        op: 'update',
+        row: { notify_referee_start: false },
+        filters: [OF_LEA, { method: 'eq', args: ['notify_referee_start', true] }],
+      },
+      { op: 'delete' },
     ]);
+    // Marc alone: Nina's switch was off, so no hub follow of hers set an alert; Zoé follows Tom.
+    expect(applyHubFollow.mock.calls).toEqual([['gp-lea', ['marc']]]);
+    // Every follow is muted and the Event follows are gone by then; the hub follows go last.
+    expect(writtenAtHub).toEqual([
+      ['directory_follows', 'update'],
+      ['follows', 'update'],
+      ['follows', 'delete'],
+    ]);
+    expect(supabase.writes.at(0)).toMatchObject({ table: 'directory_follows', op: 'update' });
+    expect(supabase.writes.at(-1)).toMatchObject({ table: 'directory_follows', op: 'delete' });
   });
 
   it("removes each account's waiting alerts about her, in the Events that are not over", async () => {
@@ -131,6 +177,8 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
     expect(selectsFor(supabase.from, 'global_persons')).toEqual(['id']);
     expect(selectsFor(supabase.from, 'persons')).toEqual(['id, events ( status )']);
     expect(selectsFor(supabase.from, 'follows')).toEqual(['followed_person_id, follower_user_id']);
+    // The mute hands back whose switches it turned off: PostgREST returns no row unless asked.
+    expect(selectsFor(supabase.from, 'directory_follows')).toEqual(['follower_user_id']);
   });
 
   it('writes nothing to the follows when nobody follows her', async () => {
@@ -140,7 +188,10 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
 
     expect(writesTo(supabase, 'follows')).toEqual([]);
     expect(applyFollow).not.toHaveBeenCalled();
-    expect(writesTo(supabase, 'directory_follows')).toHaveLength(1);
+    expect(writesTo(supabase, 'directory_follows').map((write) => write.op)).toEqual([
+      'update',
+      'delete',
+    ]);
   });
 
   it.each([
@@ -149,10 +200,7 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
   ])('does nothing for an account that holds %s', async (_, account) => {
     const supabase = mockSupabase(tables());
 
-    await removeFollowersOf(
-      { supabase: supabase as never, alerts: { applyFollow: vi.fn() } },
-      account,
-    );
+    await removeFollowersOf({ supabase: supabase as never, alerts: NO_ALERTS() }, account);
 
     expect(queriedTables(supabase.from)).toEqual(['global_persons']);
     expect(supabase.writes).toEqual([]);
@@ -160,11 +208,11 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
 
   it('removes the followers of a profile by its id, whoever holds it (the door of a merge)', async () => {
     const supabase = mockSupabase(tables());
-    const applyFollow = vi.fn();
+    const { applyFollow, applyHubFollow } = NO_ALERTS();
 
     // Tom's profile, asked by id: no account is looked up.
     await removeFollowersOfProfile(
-      { supabase: supabase as never, alerts: { applyFollow } },
+      { supabase: supabase as never, alerts: { applyFollow, applyHubFollow } },
       'gp-tom',
     );
 
@@ -175,9 +223,11 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
       { op: 'delete', filters: his },
     ]);
     expect(applyFollow.mock.calls).toEqual([['tom-spring', 'marc']]);
-    expect(writesTo(supabase, 'directory_follows')).toMatchObject([
-      { op: 'delete', filters: [{ method: 'eq', args: ['followed_global_person_id', 'gp-tom'] }] },
-    ]);
+    expect(applyHubFollow.mock.calls).toEqual([['gp-tom', ['zoe']]]);
+    expect(writesTo(supabase, 'directory_follows').at(-1)).toMatchObject({
+      op: 'delete',
+      filters: [{ method: 'eq', args: ['followed_global_person_id', 'gp-tom'] }],
+    });
   });
 });
 
@@ -189,7 +239,7 @@ describe('a second tap repairs a first that failed', () => {
     await expect(run()).rejects.toThrow('Followed person unreadable: boom');
     // Muted, not deleted: the rows still say whose alerts are left to remove.
     expect(writesTo(supabase, 'follows').map((write) => write.op)).toEqual(['update']);
-    expect(writesTo(supabase, 'directory_follows')).toEqual([]);
+    expect(writesTo(supabase, 'directory_follows').map((write) => write.op)).toEqual(['update']);
 
     await run();
     expect(writesTo(supabase, 'follows').map((write) => write.op)).toEqual([
@@ -197,7 +247,22 @@ describe('a second tap repairs a first that failed', () => {
       'update',
       'delete',
     ]);
-    expect(writesTo(supabase, 'directory_follows')).toHaveLength(1);
+    expect(writesTo(supabase, 'directory_follows').map((write) => write.op)).toEqual([
+      'update',
+      'update',
+      'delete',
+    ]);
+  });
+
+  it('keeps the hub follows when their duty alerts cannot be removed', async () => {
+    const { supabase, applyHubFollow, run } = build();
+    applyHubFollow.mockRejectedValueOnce(
+      new Error('Duties of a followed referee unreadable: boom'),
+    );
+
+    await expect(run()).rejects.toThrow('Duties of a followed referee unreadable: boom');
+
+    expect(writesTo(supabase, 'directory_follows').map((write) => write.op)).toEqual(['update']);
   });
 
   it.each<[string, Record<string, TableSeed>, string]>([
@@ -214,9 +279,10 @@ describe('a second tap repairs a first that failed', () => {
       { follows: [{ data: FOLLOWS, error: null }, OK, BOOM] },
       'followers delete failed: boom',
     ],
+    ['the hub mute', { directory_follows: BOOM }, 'directory followers mute failed: boom'],
     [
       'the directory delete',
-      { directory_follows: BOOM },
+      { directory_follows: [{ data: [], error: null }, BOOM] },
       'directory followers delete failed: boom',
     ],
   ])('a failed read or write of %s is a plain error, a 5xx', async (_, overrides, message) => {

@@ -5,7 +5,8 @@
  *     set of global persons (Search-tab cards). Follow state is viewer-scoped;
  *     works anonymously (isFollowing=false) so it never blocks search.
  * GET /me/following — the caller's persistent follows (directory_follows),
- *     each enriched + with the event-follow that backs its notify toggles.
+ *     each enriched + with the event-follow that backs its notify toggles, and the hub
+ *     follow's own switch (ruling 217).
  */
 import { Controller, Get, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -68,6 +69,7 @@ export class MePeopleController {
           ...ctx,
           followedAt: f.followedAt,
           eventFollow: eventState.get(f.globalPersonId) ?? null,
+          hubFollow: { notifyRefereeStart: f.notifyRefereeStart },
         };
       })
       .filter(Boolean);

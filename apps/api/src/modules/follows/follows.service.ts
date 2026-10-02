@@ -26,6 +26,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { readEventPerson } from '../../common/auth/event-person-gate';
+import { setHubRefereeAlert, writeHubSwitch } from './hub-referee-switch';
 
 export interface FollowRow {
   id: string;
@@ -107,6 +108,8 @@ export interface FollowAllSummary {
 export interface DirectoryFollow {
   globalPersonId: string;
   followedAt: string;
+  /** The hub follow's own switch (ruling 217): tell me before he referees. Off at first. */
+  notifyRefereeStart: boolean;
 }
 
 /** The event-scoped follow that backs a global person's notification toggles. */
@@ -522,9 +525,17 @@ export class FollowsService {
    *  fully off, including any follow left over from a now-finished event) and
    *  removes the persistent directory follow. The directory follow goes LAST: an Event whose
    *  alerts cannot be removed fails the call, and the person must still be in the "Following"
-   *  tab for the second tap that repairs it. */
+   *  tab for the second tap that repairs it.
+   *
+   *  The hub switch goes off FIRST (ruling 217): each Event unfollow sets his alerts again from
+   *  the rows as saved, and with the hub switch still on it would set the duty alerts back, now
+   *  that no Event follow decides there. A failure after that leaves the switch saved off while
+   *  the card, put back by the page, still shows what it showed. */
   async unfollowAllEvents(globalPersonId: string, identity: FollowIdentity): Promise<void> {
     if (!hasFollower(identity)) return;
+    if (identity.userId) {
+      await writeHubSwitch(this.supabase, identity.userId, globalPersonId, false);
+    }
 
     const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
     for (const t of targets) {
@@ -532,6 +543,7 @@ export class FollowsService {
     }
 
     if (identity.userId) {
+      await this.followNotifications.applyHubFollow(globalPersonId, [identity.userId]);
       dataOrThrow(
         await this.supabase.service
           .from('directory_follows')
@@ -543,6 +555,12 @@ export class FollowsService {
     }
   }
 
+  /** The hub follow's switch "notify when refereeing" (ruling 217): `hub-referee-switch.ts`. */
+  setHubRefereeAlert(globalPersonId: string, userId: string, on: boolean) {
+    const deps = { supabase: this.supabase, alerts: this.followNotifications };
+    return setHubRefereeAlert(deps, globalPersonId, userId, on);
+  }
+
   // ── Directory follows (persistent, event-independent) ─────────────────────────
 
   /** The user's persistent directory follows (global-person level), newest first. */
@@ -550,7 +568,7 @@ export class FollowsService {
     const data = dataOrThrow(
       await this.supabase.service
         .from('directory_follows')
-        .select('followed_global_person_id, created_at')
+        .select('followed_global_person_id, created_at, notify_referee_start')
         .eq('follower_user_id', userId)
         .order('created_at', { ascending: false }),
       'directory follows read',
@@ -558,6 +576,7 @@ export class FollowsService {
     return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
       globalPersonId: r['followed_global_person_id'] as string,
       followedAt: r['created_at'] as string,
+      notifyRefereeStart: r['notify_referee_start'] === true,
     }));
   }
 

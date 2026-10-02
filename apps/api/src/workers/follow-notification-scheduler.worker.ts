@@ -6,6 +6,7 @@ import {
   followReferee,
   followWorkshop,
 } from '../modules/notifications/notice-texts/notice-texts';
+import { isOver } from '../common/live-status';
 import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
@@ -14,6 +15,7 @@ import {
   NOTIFICATION_SEND_JOB,
   type ScheduledNotificationJob,
 } from './notification-scheduler.worker';
+import { refereeAlertFollowers } from './referee-alert-followers';
 
 interface MatchRow {
   id: string;
@@ -35,7 +37,6 @@ interface FollowRow {
   followed_person_id: string | null;
   follower_user_id: string | null;
   notify_match_start?: boolean | null;
-  notify_referee_start?: boolean | null;
   notify_workshop_start?: boolean | null;
 }
 
@@ -526,11 +527,10 @@ export class FollowNotificationSchedulerService {
   // ── Referee-starting (followers of a person who is about to referee) ───────────
 
   /**
-   * Schedule "someone you follow is about to referee" reminders. Referee
-   * assignments key on the GLOBAL person, whereas follows key on the event-scoped
-   * persons.id — so we bridge global + event → persons.id, then read the follows
-   * with notify_referee_start on. Mirrors scheduleMatchStarting; delivery reuses
-   * the same NOTIFICATION_QUEUE → push/email pipeline.
+   * Schedule "someone you follow is about to referee" reminders. Who is alerted is
+   * `refereeAlertFollowers`: the Event follows on the referee's roster rows with the switch on,
+   * and the hub follows with theirs on where the follower has no Event follow (ruling 217).
+   * Delivery reuses the same NOTIFICATION_QUEUE → push/email pipeline.
    *
    * Only a LOCKED duty rings (`getLockedDuty`). `onlyFollower` as for a bout.
    */
@@ -543,31 +543,25 @@ export class FollowNotificationSchedulerService {
     const assignment = await this.getLockedDuty(assignmentId, strict);
     if (!assignment?.person_id || !assignment.event_id) return;
 
-    const personIds = await this.getEventPersonIds(
-      assignment.person_id,
-      assignment.event_id,
-      strict,
+    const followers = await refereeAlertFollowers(
+      this.supabase.service,
+      { profileId: assignment.person_id, eventId: assignment.event_id },
+      (what, read, loses) => this.dataOf(what, `; ${loses}`, read, strict),
+      onlyFollower,
     );
-    if (personIds.length === 0) return;
-
-    const follows = await this.getClaimedRefereeFollows(personIds, onlyFollower);
-    if (follows.length === 0) return;
+    if (followers.length === 0) return;
 
     // Read only once someone is waiting for it. The duty starts at its
     // earliest placed Match.
     const startsAt = await this.refereeDutyStart(assignment, strict);
     if (!startsAt) return;
 
-    const preferences = await this.getPreferences(
-      follows.map((follow) => follow.follower_user_id).filter((id): id is string => Boolean(id)),
-      strict,
-    );
+    const preferences = await this.getPreferences(followers, strict);
     const refereeName = await this.getGlobalPersonName(assignment.person_id, strict);
 
     await Promise.all(
-      follows.map((follow) => {
-        if (!follow.follower_user_id) return undefined;
-        const preference = preferences.get(follow.follower_user_id);
+      followers.map((followerUserId) => {
+        const preference = preferences.get(followerUserId);
         if (preference?.enabled === false) return undefined;
 
         const leadMinutes = readRefereeLeadMinutes(preference);
@@ -576,7 +570,7 @@ export class FollowNotificationSchedulerService {
         const job: ScheduledNotificationJob = {
           kind: 'follow_referee_starting',
           entityId: assignment.id,
-          userId: follow.follower_user_id,
+          userId: followerUserId,
           ...followReferee(refereeName, leadMinutes, matchLabel, liceName),
           url: '/notifications',
         };
@@ -588,6 +582,56 @@ export class FollowNotificationSchedulerService {
   async cancelRefereeStarting(assignmentId: string, followerUserId: string): Promise<void> {
     const existing = await this.queue.getJob(buildFollowRefereeJobId(assignmentId, followerUserId));
     await existing?.remove();
+  }
+
+  /**
+   * Bring these followers' waiting alerts about ONE referee's duties in line with their follows
+   * as SAVED (ruling 217). The hub switch, the hub unfollow and the removal of a person's
+   * followers call it once their write landed: the hub follow is keyed on the profile, so the
+   * walk is over the profile's duties, in every Event that is not over (nothing waits in one
+   * that is: an assumption that bounds the work, not a check).
+   *
+   * As `applyFollow`: it removes, then sets again from the saved rows, because a duty's alert is
+   * ONE job per duty and follower, whichever follow asked for it. Nothing is best effort: the
+   * read below and every read of `scheduleRefereeStarting` for one follower throw. The switch is
+   * saved by then, the call fails, and the same call again repairs the alerts.
+   *
+   * Cost, named: about four reads per duty and follower, inside the caller's request.
+   *
+   * Races, named. Each leaves a job no saved follow wants; it stays in the queue and does not
+   * ring, because the follows are read again when it fires (`alert-still-wanted.ts`):
+   * - two calls at once, on then off: the first reads the saved switch before the second's
+   *   write, and writes its job after the second removed it;
+   * - a lock that read the hub switch before it went off writes its job after this removed it.
+   */
+  async applyHubFollow(
+    profileId: string,
+    followerUserIds: readonly string[],
+    now = new Date(),
+  ): Promise<void> {
+    if (followerUserIds.length === 0) return;
+    const duties = this.rowsOf<{ id: string; events: unknown }>(
+      'Duties of a followed referee',
+      '',
+      await this.supabase.service
+        .from('referee_assignments')
+        .select('id, events ( status )')
+        .eq('person_id', profileId),
+      true,
+    );
+    // A to-one embed, as PostgREST hands it: an object or a one-element array.
+    const statusOf = ({ events }: { events: unknown }) =>
+      (Array.isArray(events) ? events[0] : events)?.status;
+    const ahead = duties.filter((duty) => !isOver(statusOf(duty))).map((duty) => duty.id);
+    // One follower at a time: each reads and writes for one account, inside this request.
+    for (const followerUserId of followerUserIds) {
+      await Promise.all(
+        ahead.map(async (id) => {
+          await this.cancelRefereeStarting(id, followerUserId);
+          await this.scheduleRefereeStarting(id, now, followerUserId);
+        }),
+      );
+    }
   }
 
   /**
@@ -629,44 +673,6 @@ export class FollowNotificationSchedulerService {
       this.dataOf(what, NONE_SET, { data: null, error }, strict);
       return null;
     }
-  }
-
-  /** Bridge a referee's global identity to their event-scoped persons row(s). */
-  private async getEventPersonIds(
-    globalPersonId: string,
-    eventId: string,
-    strict: boolean,
-  ): Promise<string[]> {
-    return this.rowsOf<{ id: string }>(
-      'Roster rows of a referee',
-      NONE_SET,
-      await this.supabase.service
-        .from('persons')
-        .select('id')
-        .eq('global_person_id', globalPersonId)
-        .eq('event_id', eventId),
-      strict,
-    ).map((row) => row.id);
-  }
-
-  private async getClaimedRefereeFollows(
-    personIds: string[],
-    onlyFollower?: string,
-  ): Promise<FollowRow[]> {
-    const query = this.supabase.service
-      .from('follows')
-      .select('followed_person_id, follower_user_id, notify_referee_start')
-      .in('followed_person_id', personIds)
-      .eq('notify_referee_start', true);
-    const follows = this.rowsOf<FollowRow>(
-      'Followers of a referee',
-      NONE_SET,
-      await (onlyFollower === undefined ? query : query.eq('follower_user_id', onlyFollower)),
-      onlyFollower !== undefined,
-    );
-    return follows.filter(
-      (follow) => Boolean(follow.follower_user_id) && follow.notify_referee_start !== false,
-    );
   }
 
   private async getGlobalPersonName(globalPersonId: string, strict: boolean): Promise<string> {

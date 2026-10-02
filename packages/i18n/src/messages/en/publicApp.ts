@@ -316,6 +316,7 @@ export const publicApp = {
       loadError: 'Could not load the people you follow.',
       notifyMatch: 'Notify on match start',
       notifyReferee: 'Notify when refereeing',
+      notifyRefereeElsewhere: 'Notify when refereeing at other events',
       notifyWorkshop: 'Notify on workshop start',
       unfollow: 'Unfollow',
       unfollowConfirm: 'Stop following {name}?',

@@ -94,8 +94,10 @@ export class FighterMergeService {
    *   follows, until that bout or session is timed again;
    * - a failed read of her roster rows or her followers, or a failed mute, leaves the followers
    *   in place and still told about her (nothing reads her choice when an alert is set or rings);
+   *   the hub switches that were on go off after the roster read and before the followers are
+   *   read, so past that point a hub follower is not told of her duties (ruling 217);
    * - a failed delete leaves them muted, so not told; a failed delete of the directory follows
-   *   leaves her in each "Following" tab only;
+   *   leaves her in each "Following" tab only, with the hub switch off (ruling 217);
    * - a merge that committed while its answer was lost never reaches this step.
    * No new follow lands in any of these. Two repairs: her own, "people may follow me" saved as
    * off again from her settings (on, then off: the page sends a change); and an admin's, a revert
@@ -120,7 +122,16 @@ export class FighterMergeService {
       await removeFollowersOfProfile(
         {
           supabase: this.supabase,
-          alerts: { applyFollow: (person, follower) => this.removeAlerts(person, follower) },
+          alerts: {
+            applyFollow: (person, follower) =>
+              this.removeAlerts(`follower ${follower} about ${person}`, () =>
+                this.followAlerts.applyFollow(person, follower),
+              ),
+            applyHubFollow: (profile, followers) =>
+              this.removeAlerts(`the hub followers of ${profile}`, () =>
+                this.followAlerts.applyHubFollow(profile, followers),
+              ),
+          },
         },
         profileId,
       );
@@ -131,13 +142,13 @@ export class FighterMergeService {
     }
   }
 
-  /** One follower's waiting alerts about her, brought in line with his follows; logged on failure. */
-  private async removeAlerts(personId: string, followerId: string): Promise<void> {
+  /** Waiting alerts about her, brought in line with the follows as saved; logged on failure. */
+  private async removeAlerts(whose: string, step: () => Promise<void>): Promise<void> {
     try {
-      await this.followAlerts.applyFollow(personId, followerId);
+      await step();
     } catch (err) {
       this.logger.error(
-        `Merge: the alerts of follower ${followerId} about ${personId} were not brought in line: ${messageOf(err)}`,
+        `Merge: the alerts of ${whose} were not brought in line: ${messageOf(err)}`,
       );
     }
   }

@@ -50,7 +50,7 @@ function followsWith(tables: Record<string, TableSeed>) {
   const service = new FollowsService(
     supabase as never,
     privacy as never,
-    { applyFollow: vi.fn() } as never,
+    { applyFollow: vi.fn(), applyHubFollow: vi.fn() } as never,
     {} as never,
   );
   return { service, supabase };
@@ -117,7 +117,8 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
     // One Event to unfollow them in. Its unfollow runs first: the person stays in the "Following"
     // tab until every Event is done, so a second tap can repair a failure.
     const { service, supabase } = followsWith({
-      directory_follows: FAILED,
+      // The hub switch is turned off first (ruling 217): that write lands, the delete fails.
+      directory_follows: [{ data: [], error: null }, FAILED],
       persons: {
         data: [
           { id: PERSON, event_id: EVENT, events: { status: 'published', event_kind: 'standard' } },
@@ -127,7 +128,17 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
       follows: { data: null, error: null },
     });
     await expectFailure(service.unfollowAllEvents(GLOBAL, USER), 'directory follow delete');
-    expect(supabase.writes.map((w) => w.table)).toEqual(['follows', 'directory_follows']);
+    expect(supabase.writes.map((w) => [w.table, w.op])).toEqual([
+      ['directory_follows', 'update'],
+      ['follows', 'delete'],
+      ['directory_follows', 'delete'],
+    ]);
+  });
+
+  it('the hub switch write of an unfollow, which comes before anything else', async () => {
+    const { service, supabase } = followsWith({ directory_follows: FAILED });
+    await expectFailure(service.unfollowAllEvents(GLOBAL, USER), 'directory follow write');
+    expect(supabase.writes.map((w) => w.table)).toEqual(['directory_follows']);
   });
 
   it('the Following tab list', async () => {

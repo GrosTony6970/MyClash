@@ -1634,6 +1634,17 @@ lock waits until the follower's next change). A retime is best effort (a read th
 and fails nothing); a change of a follow is not (a read that fails is a 5xx, and the same call
 again repairs the alerts). An alert about a draft is dropped when it fires (`alert-visibility.ts`).
 
+A follow made from the People hub is on the Person's profile, not on a roster row of one Event, and
+a referee taken from the directory has no roster row in the Event. So the hub follow carries one
+switch of its own, "notify when refereeing" (`directory_follows.notify_referee_start`, off at
+first; `PATCH /me/follows/by-global-person/:globalPersonId`). It covers every Event where the
+follower has no Event follow of that Person; where he has one, that Event's own referee switch
+decides. In a test Event, which the public cannot open, it rings only for a member of the Event's
+organisation. Who is alerted before a duty has one owner, `referee-alert-followers.ts`, asked when
+the duty is locked and again when the alert fires. The hub switch acts at once, as the others do
+(`applyHubFollow`); a hub unfollow, and the removal of a Person's followers, turn it off before
+any follow is removed, so that no alert is set back while the follows go.
+
 ---
 
 ## 12. Authentication & Identity

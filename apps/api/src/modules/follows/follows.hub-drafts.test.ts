@@ -82,7 +82,7 @@ function baseTables(): Tables {
 }
 
 let db: ReturnType<typeof mockSupabase>;
-const scheduler = { applyFollow: vi.fn() };
+const scheduler = { applyFollow: vi.fn(), applyHubFollow: vi.fn() };
 
 function service() {
   return new FollowsService(
@@ -135,10 +135,12 @@ describe('the hub counts and follows only the Events the public may know him in 
     await expect(service().unfollowAllEvents(TOM, { userId: PAUL })).rejects.toThrow(
       'Followed person unreadable: boom',
     );
-    expect(writesTo(db, 'directory_follows')).toEqual([]);
+    // The hub switch is off by then (ruling 217); the hub follow itself is still there.
+    const ops = () => writesTo(db, 'directory_follows').map((write) => write.op);
+    expect(ops()).toEqual(['update']);
 
     await service().unfollowAllEvents(TOM, { userId: PAUL });
-    expect(writesTo(db, 'directory_follows')).toHaveLength(1);
+    expect(ops()).toEqual(['update', 'update', 'delete']);
   });
 
   it('a second tap on "follow everywhere" sets the alerts of a follow that is already there', async () => {

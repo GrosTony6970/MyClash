@@ -18,6 +18,12 @@
  * (`applyFollow`): a muted follow wants none, and an alert that also serves another follow of his
  * (her opponent, whom he follows too) stays.
  *
+ * A hub follow has a switch too (ruling 217): the ones that are on are muted once her roster
+ * rows are read, before any Event follow is touched; their followers' duty alerts are removed
+ * once the Event follows are gone, and the hub follows go last. A second run after a failure
+ * finds those switches off and walks nobody: an alert left then stays in the queue and does not
+ * ring (`alert-still-wanted.ts`).
+ *
  * WHAT A FAILURE LEAVES. The choice is saved before this runs, so no new follow lands
  * (`FollowsService.follow` refuses), and a failure here answers a 5xx with the choice already off
  * and her followers muted, not gone. The settings page puts its switch back to on, so her next
@@ -34,12 +40,13 @@
  * An alert left behind by any of them does not ring once its follow is gone: the follows are read
  * again when it fires (`alert-still-wanted.ts`, ruling 213).
  */
+import { isOver } from '../../common/live-status';
 import type { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import type { SupabaseService } from '../supabase/supabase.service';
 
 export interface FollowersRemovalDeps {
   supabase: SupabaseService;
-  alerts: Pick<FollowNotificationSchedulerService, 'applyFollow'>;
+  alerts: Pick<FollowNotificationSchedulerService, 'applyFollow' | 'applyHubFollow'>;
 }
 
 interface Answer {
@@ -53,12 +60,6 @@ const MUTED = {
   notify_referee_start: false,
   notify_workshop_start: false,
 };
-
-/**
- * An Event that is over is taken to have no alert waiting: its follows are deleted, and no alert
- * is looked for. An assumption, not a check: it bounds the work to the Events still to come.
- */
-const OVER = ['completed', 'archived'];
 
 /** A failed read or write is a plain Error, a 5xx: never "nobody follows her". */
 function answered(what: string, { data, error }: Answer): unknown {
@@ -103,7 +104,23 @@ export async function removeFollowersOfProfile(
     await db.from('persons').select('id, events ( status )').eq('global_person_id', profileId),
   ) ?? []) as Array<{ id: string; events: unknown }>;
   const rowIds = roster.map((row) => row.id);
+  // The hub switches that are on go off before any follow is touched, in one statement that
+  // hands back whose they were (ruling 217): only they can have an alert set by a hub follow,
+  // about a duty in an Event where they have no Event follow. Muted, the scheduler sets none of
+  // them again.
+  const hubFollowers = (
+    (answered(
+      'directory followers mute',
+      await db
+        .from('directory_follows')
+        .update({ notify_referee_start: false })
+        .eq('followed_global_person_id', profileId)
+        .eq('notify_referee_start', true)
+        .select('follower_user_id'),
+    ) ?? []) as Array<{ follower_user_id: string }>
+  ).map((row) => row.follower_user_id);
   if (rowIds.length > 0) await removeEventFollows(deps, roster, rowIds);
+  await deps.alerts.applyHubFollow(profileId, hubFollowers);
 
   answered(
     'directory followers delete',
@@ -132,9 +149,7 @@ async function removeEventFollows(
     await db.from('follows').update(MUTED).in('followed_person_id', rowIds),
   );
   const notOver = new Set(
-    roster
-      .filter((row) => !OVER.includes(String(one(row.events)?.['status'])))
-      .map((row) => row.id),
+    roster.filter((row) => !isOver(one(row.events)?.['status'])).map((row) => row.id),
   );
   // One follower at a time: each call reads and writes for one account, inside this request.
   for (const follow of follows) {

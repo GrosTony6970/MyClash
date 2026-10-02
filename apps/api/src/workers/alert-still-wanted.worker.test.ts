@@ -34,6 +34,41 @@ describe('who an alert is for has two owners: the one that sets it, and this che
       await expect(isStillWanted(db as never, job as never)).resolves.toBe(true);
     }
   });
+
+  it('lets the alert ring that a hub follow has just set (ruling 217)', async () => {
+    // Paul referees from the directory: no roster row in the Event, so no Event follow of him.
+    const { service, queue, db } = setup({
+      referee_assignments: {
+        rows: [
+          {
+            id: 'duty-of-paul',
+            person_id: 'gp-paul',
+            event_id: 'event-1',
+            match_id: 'bout-of-zoe',
+            status: 'confirmed',
+          },
+        ],
+      },
+      directory_follows: {
+        rows: [
+          {
+            follower_user_id: 'marc',
+            followed_global_person_id: 'gp-paul',
+            notify_referee_start: true,
+          },
+        ],
+      },
+      events: { rows: [{ id: 'event-1', event_kind: 'standard', organization_id: 'org-1' }] },
+    });
+
+    await service.scheduleRefereeStarting('duty-of-paul', NOW);
+    const jobs = queue.add.mock.calls.map((call) => call[1] as { kind: NotificationKind });
+
+    expect(jobs).toMatchObject([
+      { kind: 'follow_referee_starting', entityId: 'duty-of-paul', userId: 'marc' },
+    ]);
+    await expect(isStillWanted(db as never, jobs[0] as never)).resolves.toBe(true);
+  });
 });
 
 describe('the worker asks when the alert fires', () => {

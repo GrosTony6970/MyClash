@@ -13,7 +13,15 @@ import {
   selectsFor,
   type TableSeed,
 } from '../common/testing/supabase-chain';
-import { follow, follows, rosterRow, seat, tables } from './alert-still-wanted.fixtures';
+import {
+  follow,
+  follows,
+  hubFollow,
+  hubFollows,
+  rosterRow,
+  seat,
+  tables,
+} from './alert-still-wanted.fixtures';
 import { isStillWanted } from './alert-still-wanted';
 import type { NotificationKind } from './notification-scheduler.worker';
 
@@ -82,6 +90,58 @@ describe("a follower's duty alert", () => {
   ])('stays silent when %s', async (_, dutyId, overrides) => {
     const { answer } = wanted('follow_referee_starting', dutyId, 'marc', overrides);
     await expect(answer).resolves.toBe(false);
+  });
+});
+
+describe("a hub follower's duty alert (ruling 217)", () => {
+  it('rings for Marc, whose hub switch is on, before a duty of a referee with no roster row', async () => {
+    const hub = hubFollows(hubFollow('marc', 'gp-paul', true));
+    await expect(
+      wanted('follow_referee_starting', 'duty-of-paul', 'marc', hub).answer,
+    ).resolves.toBe(true);
+  });
+
+  it.each<[string, string, Record<string, TableSeed>]>([
+    ['his hub switch is off', 'duty-of-paul', hubFollows(hubFollow('marc', 'gp-paul', false))],
+    ['he unfollowed him from the hub', 'duty-of-paul', hubFollows()],
+    [
+      "the hub follow is another follower's",
+      'duty-of-paul',
+      hubFollows(hubFollow('nina', 'gp-paul', true)),
+    ],
+    [
+      'his hub follow is of another person',
+      'duty-of-paul',
+      hubFollows(hubFollow('marc', 'gp-lea', true)),
+    ],
+    [
+      'he has an Event follow there with its switch off: that Event decides (217b)',
+      'duty-1',
+      {
+        ...follows(follow('marc', 'lea', { notify_referee_start: false })),
+        ...hubFollows(hubFollow('marc', 'gp-lea', true)),
+      },
+    ],
+  ])('stays silent when %s', async (_, dutyId, overrides) => {
+    const { answer } = wanted('follow_referee_starting', dutyId, 'marc', overrides);
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it.each<[string, string, boolean]>([
+    ['nina', 'a member of the club that runs it', true],
+    ['marc', 'not a member of that club', false],
+  ])('in a TEST Event, %s, %s: rings = %s (ruling 217c)', async (user, _, rings) => {
+    const hub = hubFollows(hubFollow('marc', 'gp-paul', true), hubFollow('nina', 'gp-paul', true));
+    const { answer } = wanted('follow_referee_starting', 'duty-of-paul-test', user, hub);
+    await expect(answer).resolves.toBe(rings);
+  });
+
+  it('rings when his only Event follow of her is in another Event', async () => {
+    const { answer } = wanted('follow_referee_starting', 'duty-1', 'marc', {
+      ...follows(follow('marc', 'lea-elsewhere', { notify_referee_start: false })),
+      ...hubFollows(hubFollow('marc', 'gp-lea', true)),
+    });
+    await expect(answer).resolves.toBe(true);
   });
 });
 
@@ -169,7 +229,12 @@ describe('what the check reads', () => {
       'follow_referee_starting',
       'duty-1',
       'marc',
-      { referee_assignments: ['person_id, event_id'], persons: ['id'], follows: ['id'] },
+      {
+        referee_assignments: ['person_id, event_id'],
+        persons: ['id'],
+        follows: ['follower_user_id, notify_referee_start'],
+        directory_follows: ['follower_user_id'],
+      },
     ],
     [
       'follow_workshop_starting',
@@ -226,7 +291,15 @@ describe('what the check reads', () => {
     ['follow_match_starting', 'bout-1', 'marc', 'registrations', 'alert bout entries'],
     ['follow_match_starting', 'bout-1', 'marc', 'follows', 'alert follows'],
     ['follow_referee_starting', 'duty-1', 'marc', 'referee_assignments', 'alert referee duty'],
-    ['follow_referee_starting', 'duty-1', 'marc', 'persons', 'alert roster rows'],
+    ['follow_referee_starting', 'duty-1', 'marc', 'persons', 'Roster rows of a referee'],
+    ['follow_referee_starting', 'duty-1', 'marc', 'follows', 'Followers of a referee'],
+    [
+      'follow_referee_starting',
+      'duty-1',
+      'marc',
+      'directory_follows',
+      'Hub followers of a referee',
+    ],
     [
       'follow_workshop_starting',
       'session-1',

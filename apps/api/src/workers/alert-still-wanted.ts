@@ -8,7 +8,8 @@
  * roster row goes to another account: the old holder's alert stays.
  *
  * So the saved rows are read once more when the alert fires, and they decide:
- * - a follower's alert rings only if a saved follow of that account still wants it;
+ * - a follower's alert rings only if a saved follow of that account still wants it (for a
+ *   duty, an Event follow or a hub follow: `referee-alert-followers.ts`);
  * - the alert of a booked Workshop, only if a roster row the account holds has a confirmed seat;
  * - a Fighter's own bout alert, only if the account holds the roster row of a Fighter of the bout.
  *
@@ -18,6 +19,7 @@
  */
 import type { SupabaseService } from '../modules/supabase/supabase.service';
 import type { NotificationKind, ScheduledNotificationJob } from './notification-scheduler.worker';
+import { refereeAlertFollowers } from './referee-alert-followers';
 
 type Db = SupabaseService['service'];
 /** Does this account still want the alert about this bout, duty or session? */
@@ -58,7 +60,7 @@ async function fightersOf(db: Db, boutId: string): Promise<string[]> {
   return (rows ?? []).map((row) => row.person_id).filter((id): id is string => Boolean(id));
 }
 
-type FollowSwitch = 'notify_match_start' | 'notify_referee_start' | 'notify_workshop_start';
+type FollowSwitch = 'notify_match_start' | 'notify_workshop_start';
 
 /** Does the account follow one of these roster rows, with this switch on? */
 async function follows(
@@ -108,8 +110,14 @@ const followsTheReferee: Wanted = async (db, dutyId, userId) => {
       .maybeSingle(),
   );
   if (!duty?.person_id || !duty.event_id) return false;
-  const rows = await rosterRowsOf(db, [duty.person_id], duty.event_id);
-  return follows(db, userId, rows, 'notify_referee_start');
+  // The rule the scheduler set the alert by, asked again for this account alone (ruling 217).
+  const alerted = await refereeAlertFollowers(
+    db,
+    { profileId: duty.person_id, eventId: duty.event_id },
+    read,
+    userId,
+  );
+  return alerted.includes(userId);
 };
 
 const followsAnInstructor: Wanted = async (db, sessionId, userId) => {

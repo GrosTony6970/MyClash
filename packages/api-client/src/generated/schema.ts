@@ -8205,7 +8205,8 @@ export interface paths {
     delete: operations['FollowsController_unfollowByGlobalPerson'];
     options?: never;
     head?: never;
-    patch?: never;
+    /** Set the hub follow switch: notify before this person referees */
+    patch: operations['FollowsController_updateHubFollow'];
     trace?: never;
   };
   '/api/v1/me/follows/organizations': {
@@ -11476,6 +11477,9 @@ export interface components {
     FollowByGlobalPersonDto: {
       /** Format: uuid */
       globalPersonId: string;
+    };
+    UpdateHubFollowDto: {
+      notifyRefereeStart: boolean;
     };
     FollowOrganizationDto: {
       /** Format: uuid */
@@ -23840,6 +23844,29 @@ export interface operations {
     requestBody?: never;
     responses: {
       204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FollowsController_updateHubFollow: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateHubFollowDto'];
+      };
+    };
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

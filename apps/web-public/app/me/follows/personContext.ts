@@ -68,6 +68,8 @@ export interface PersonContext {
 /** A persistent follow, enriched, with the event-follow backing its toggles. */
 export interface PersonFollowing extends PersonContext {
   followedAt: string;
+  /** The hub follow's own switch (ruling 217): off at first. */
+  hubFollow: { notifyRefereeStart: boolean };
   eventFollow: {
     eventId: string;
     personId: string;

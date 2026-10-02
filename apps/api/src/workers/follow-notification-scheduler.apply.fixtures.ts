@@ -88,6 +88,8 @@ const TABLES = {
     ],
   },
   follows: { rows: [follow('marc'), follow('nina')] },
+  // Nobody follows her from the People hub: a hub follow has its own tests.
+  directory_follows: { rows: [] },
   notification_preferences: { rows: [] },
   persons: {
     rows: [

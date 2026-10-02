@@ -49,7 +49,8 @@ export const seat = (row: string, status: string, session = 'session-1') => ({
 /**
  * Léa fights Tom in bout-1; Zoé fights Ana in bout-2. Léa referees duty-1 and teaches the Workshop
  * of session-1, all in event-1; she is also on the roster of event-2. Marc follows Léa. Léa holds a
- * confirmed seat in session-1, Tom is on its waitlist.
+ * confirmed seat in session-1, Tom is on its waitlist. Paul referees duty-of-paul in event-1 and
+ * duty-of-paul-test in a TEST Event, with no roster row in either.
  */
 export function tables(): Record<string, TableSeed> {
   return {
@@ -67,7 +68,24 @@ export function tables(): Record<string, TableSeed> {
       ],
     },
     follows: { rows: [follow('marc', 'lea'), follow('nina', 'zoe')] },
-    referee_assignments: { rows: [{ id: 'duty-1', person_id: 'gp-lea', event_id: 'event-1' }] },
+    // Nobody follows from the People hub here; `hubFollows` below seeds some.
+    directory_follows: { rows: [] },
+    events: {
+      rows: [
+        { id: 'event-1', event_kind: 'standard', organization_id: 'org-1' },
+        { id: 'event-test', event_kind: 'test', organization_id: 'org-1' },
+      ],
+    },
+    // Nina is a member of the club that runs both Events.
+    organization_members: { rows: [{ organization_id: 'org-1', user_id: 'nina' }] },
+    referee_assignments: {
+      rows: [
+        { id: 'duty-1', person_id: 'gp-lea', event_id: 'event-1' },
+        // Paul referees from the directory: he has no roster row in either Event.
+        { id: 'duty-of-paul', person_id: 'gp-paul', event_id: 'event-1' },
+        { id: 'duty-of-paul-test', person_id: 'gp-paul', event_id: 'event-test' },
+      ],
+    },
     workshop_sessions: {
       rows: [{ id: 'session-1', workshop_id: 'w-1', workshops: { event_id: 'event-1' } }],
     },
@@ -84,3 +102,13 @@ export function tables(): Record<string, TableSeed> {
 }
 
 export const follows = (...rows: Array<ReturnType<typeof follow>>) => ({ follows: { rows } });
+
+/** One hub follow (the People hub's, on a profile) with its "notify when refereeing" switch. */
+export const hubFollow = (follower: string, profile: string, on: boolean) => ({
+  follower_user_id: follower,
+  followed_global_person_id: profile,
+  notify_referee_start: on,
+});
+export const hubFollows = (...rows: Array<ReturnType<typeof hubFollow>>) => ({
+  directory_follows: { rows },
+});
