@@ -6,6 +6,9 @@
  *
  * Only the Person themselves (claimed account) can write.
  * Super admin can read via admin endpoints (not this controller).
+ *
+ * "People may follow me" saved as off also removes the people who already follow her (ruling 208,
+ * `followers-removal.ts`).
  */
 
 import {
@@ -22,6 +25,8 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
+import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
+import { removeFollowersOf } from '../follows/followers-removal';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService, type PersonPrivacy } from './privacy.service';
 
@@ -39,6 +44,7 @@ export class PrivacyController {
   constructor(
     private readonly privacy: PrivacyService,
     private readonly supabase: SupabaseService,
+    private readonly followAlerts: FollowNotificationSchedulerService,
   ) {}
 
   @Get('privacy')
@@ -56,12 +62,20 @@ export class PrivacyController {
   @ApiResponse({ status: 401, description: 'Not authenticated' })
   async updatePrivacy(@Req() req: FastifyRequest, @Body() dto: UpdatePrivacyDto) {
     const userId = await this.authenticate(req);
-    return this.found(
+    const saved = this.found(
       await this.privacy.updateForUser(userId, {
         hideWorkshopsPublicly: dto.hideWorkshopsPublicly,
         allowBeingFollowed: dto.allowBeingFollowed,
       }),
     );
+    // Off removes the people who already follow her (ruling 208), once the choice is saved so no
+    // new follow lands. On EVERY save that says off, not only the one that changes it: when this
+    // fails the choice is already off, the page puts its switch back, and her next tap sends
+    // "off" again. (After a reload the page reads off, and the repair is on, then off.)
+    if (dto.allowBeingFollowed === false) {
+      await removeFollowersOf({ supabase: this.supabase, alerts: this.followAlerts }, userId);
+    }
+    return saved;
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

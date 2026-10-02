@@ -8,12 +8,20 @@
  */
 import { HttpException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, queriedTables, writesTo } from '../../common/testing/supabase-chain';
 import { PrivacyController } from './privacy.controller';
 import { PrivacyService } from './privacy.service';
 
 function world(globalPersons: Parameters<typeof mockSupabase>[0]['global_persons']) {
-  const db = mockSupabase({ global_persons: globalPersons });
+  // Marc follows Léa in the Spring Open (ruling 208: switching the choice off removes him).
+  const db = mockSupabase({
+    global_persons: globalPersons,
+    persons: {
+      rows: [{ id: 'lea-spring', global_person_id: 'gp-lea', events: { status: 'published' } }],
+    },
+    follows: { rows: [{ followed_person_id: 'lea-spring', follower_user_id: 'marc' }] },
+    directory_follows: { rows: [] },
+  });
   const supabase = {
     service: db.service,
     anon: {
@@ -26,11 +34,13 @@ function world(globalPersons: Parameters<typeof mockSupabase>[0]['global_persons
       },
     },
   };
+  const applyFollow = vi.fn();
   const controller = new PrivacyController(
     new PrivacyService(supabase as never),
     supabase as never,
+    { applyFollow } as never,
   );
-  return { db, controller };
+  return { db, controller, applyFollow };
 }
 
 const LEA_ROW = {
@@ -72,6 +82,51 @@ describe('PrivacyController (ruling 132)', () => {
       await expect(call()).rejects.toBeInstanceOf(UnauthorizedException);
       await expect(call()).rejects.toThrow(/^No person profile linked to this account$/);
     }
+  });
+
+  it('saved as off, removes the people who already follow her, once the choice is saved', async () => {
+    const { db, controller, applyFollow } = world({ rows: [{ ...LEA_ROW, merged_into_id: null }] });
+
+    await controller.updatePrivacy(as('u-lea'), { allowBeingFollowed: false } as never);
+
+    // The choice first, so no new follow lands; then his follow, muted and deleted.
+    expect(db.writes.map((write) => [write.table, write.op])).toEqual([
+      ['global_persons', 'update'],
+      ['follows', 'update'],
+      ['follows', 'delete'],
+      ['directory_follows', 'delete'],
+    ]);
+    expect(applyFollow.mock.calls).toEqual([['lea-spring', 'marc']]);
+  });
+
+  it.each<[string, Record<string, boolean>]>([
+    ['saved as on', { allowBeingFollowed: true }],
+    ['not part of the save', { hideWorkshopsPublicly: true }],
+  ])('%s, keeps her followers', async (_, patch) => {
+    const { db, controller, applyFollow } = world({ rows: [{ ...LEA_ROW, merged_into_id: null }] });
+
+    await controller.updatePrivacy(as('u-lea'), patch as never);
+
+    expect(queriedTables(db.from)).not.toContain('follows');
+    expect(db.writes.map((write) => write.table)).toEqual(['global_persons']);
+    expect(applyFollow).not.toHaveBeenCalled();
+  });
+
+  it('fails the save when a follower cannot be removed; the choice is saved, a second tap repairs', async () => {
+    const { db, controller, applyFollow } = world({ rows: [{ ...LEA_ROW, merged_into_id: null }] });
+    applyFollow.mockRejectedValueOnce(new Error('Followed person unreadable: boom'));
+    const off = () => controller.updatePrivacy(as('u-lea'), { allowBeingFollowed: false } as never);
+
+    await expect(off()).rejects.toThrow('Followed person unreadable: boom');
+    expect(writesTo(db, 'global_persons')).toHaveLength(1);
+    expect(writesTo(db, 'follows').map((write) => write.op)).toEqual(['update']);
+
+    await expect(off()).resolves.toMatchObject({ allowBeingFollowed: false });
+    expect(writesTo(db, 'follows').map((write) => write.op)).toEqual([
+      'update',
+      'update',
+      'delete',
+    ]);
   });
 
   it('401s with no session cookie, and with a dead one', async () => {

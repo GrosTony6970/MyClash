@@ -843,7 +843,7 @@ export const publicApp = {
         'Gardez les ateliers que vous rejoignez hors de votre profil public.',
       allowFollows: 'Autoriser les autres a me suivre',
       allowFollowsDescription:
-        "Laissez d'autres personnes suivre votre programme et recevoir vos alertes.",
+        "Laissez d'autres personnes suivre votre programme et recevoir vos alertes. Désactiver cette option retire les personnes qui vous suivent déjà.",
       signInRequired: 'Connectez-vous pour gérer vos paramètres de confidentialite.',
       loadError: 'Impossible de charger vos paramètres de confidentialite.',
       saveError: "Impossible d'enregistrer ce changement. Veuillez réessayer.",

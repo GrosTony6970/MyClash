@@ -13,11 +13,20 @@ import { AuthModule } from '../auth/auth.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { RegistrationsModule } from '../registrations/registrations.module';
 import { IdentityModule } from '../identity/identity.module';
+import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 
 @Module({
   // OrganizationsModule imports only UserDirectoryModule (@Global, SupabaseService
   // alone) and PrivacyModule (imports nothing), so this edge cannot form a cycle.
-  imports: [AuthModule, OrganizationsModule, RegistrationsModule, IdentityModule],
+  // NotificationSchedulingModule is a leaf too (it imports only its own queue): the privacy
+  // controller removes a follower's waiting alerts through it (ruling 208).
+  imports: [
+    AuthModule,
+    OrganizationsModule,
+    RegistrationsModule,
+    IdentityModule,
+    NotificationSchedulingModule,
+  ],
   controllers: [
     PersonsController,
     LookupController,

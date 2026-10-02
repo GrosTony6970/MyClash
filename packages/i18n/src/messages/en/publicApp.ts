@@ -836,7 +836,8 @@ export const publicApp = {
       hideWorkshops: 'Hide my workshops publicly',
       hideWorkshopsDescription: 'Keep the workshops you join off your public profile.',
       allowFollows: 'Allow others to follow me',
-      allowFollowsDescription: 'Let other people follow your schedule and receive your alerts.',
+      allowFollowsDescription:
+        'Let other people follow your schedule and receive your alerts. Switching this off removes the people who already follow you.',
       signInRequired: 'Sign in to manage your privacy settings.',
       loadError: 'Could not load your privacy settings.',
       saveError: 'Could not save that change. Please try again.',
