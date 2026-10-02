@@ -8,7 +8,9 @@
  * follow her again.
  *
  * A leaf, called by the privacy controller: `FollowsService` depends on `PrivacyService`, so a
- * call from the privacy service into the follows service would be a module cycle.
+ * call from the privacy service into the follows service would be a module cycle. The fighter
+ * merge calls it too, by profile, when it leaves its survivor "off" (ruling 212): what a failure
+ * leaves there is said at that call (`merge.service.ts`).
  *
  * THE ORDER keeps a failure repairable. The followers are read before anything is deleted, and
  * their rows go LAST: once a row is gone, nothing says whose alerts are left. In between the rows
@@ -83,19 +85,29 @@ export async function removeFollowersOf(deps: FollowersRemovalDeps, userId: stri
       .is('merged_into_id', null)
       .maybeSingle(),
   ) as { id: string } | null;
-  if (!profile) return;
+  if (profile) await removeFollowersOfProfile(deps, profile.id);
+}
 
+/**
+ * Removes the followers of one profile, whoever holds it. The door of a merge that leaves its
+ * surviving profile "off" (ruling 212): the survivor may have no account, or another one.
+ */
+export async function removeFollowersOfProfile(
+  deps: FollowersRemovalDeps,
+  profileId: string,
+): Promise<void> {
+  const db = deps.supabase.service;
   // One roster row per Event she is in: a short list, so it rides in the URL as it is.
   const roster = (answered(
     'followed roster rows read',
-    await db.from('persons').select('id, events ( status )').eq('global_person_id', profile.id),
+    await db.from('persons').select('id, events ( status )').eq('global_person_id', profileId),
   ) ?? []) as Array<{ id: string; events: unknown }>;
   const rowIds = roster.map((row) => row.id);
   if (rowIds.length > 0) await removeEventFollows(deps, roster, rowIds);
 
   answered(
     'directory followers delete',
-    await db.from('directory_follows').delete().eq('followed_global_person_id', profile.id),
+    await db.from('directory_follows').delete().eq('followed_global_person_id', profileId),
   );
 }
 

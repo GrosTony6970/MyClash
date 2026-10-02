@@ -22,6 +22,7 @@ const SOURCE = {
   date_of_birth: '1990-04-17',
   merged_into_id: null,
   deleted_at: null,
+  allow_being_followed: true,
 };
 const TARGET = {
   id: 'target',
@@ -30,6 +31,7 @@ const TARGET = {
   date_of_birth: '1991-02-03',
   merged_into_id: null,
   deleted_at: null,
+  allow_being_followed: true,
 };
 
 type Rpc = ReturnType<typeof vi.fn>;
@@ -43,7 +45,11 @@ function makeDb(
 ) {
   const db = mockSupabase({ global_persons: profiles });
   const rpc: Rpc = vi.fn().mockResolvedValue(rpcResult);
-  const service = new FighterMergeService({ service: { from: db.from, rpc } } as never);
+  // No follow alerts here: these profiles may be followed, so the merge removes nobody.
+  const service = new FighterMergeService(
+    { service: { from: db.from, rpc } } as never,
+    {} as never,
+  );
   return { db, rpc, service };
 }
 
@@ -72,10 +78,12 @@ describe('FighterMergeService.merge — one database call (ruling 133)', () => {
       'actor-user',
     );
 
-    expect(queriedTables(db.from)).toEqual(['global_persons', 'global_persons']);
-    expect(selectsFor(db.from, 'global_persons')).toEqual(['*', '*']);
+    // The third read is the survivor's follow choice, once merged (`merge.followers.test.ts`).
+    expect(queriedTables(db.from)).toEqual(['global_persons', 'global_persons', 'global_persons']);
+    expect(selectsFor(db.from, 'global_persons')).toEqual(['*', '*', 'allow_being_followed']);
     expect(filtersFor(db.from, 'global_persons', 'eq')).toEqual([
       ['id', 'source'],
+      ['id', 'target'],
       ['id', 'target'],
     ]);
     expect(rpc).toHaveBeenCalledTimes(1);

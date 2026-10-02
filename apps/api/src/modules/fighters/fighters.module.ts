@@ -12,6 +12,7 @@ import { CsvImportService } from '../persons/csv-import.service';
 import { TournamentPlacementModule } from '../tournament-placement/tournament-placement.module';
 import { PrivacyModule } from '../privacy/privacy.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
 
 @Module({
   // TournamentPlacementModule provides the shared placement service used to
@@ -20,12 +21,15 @@ import { OrganizationsModule } from '../organizations/organizations.module';
   // getBySlug uses ErasureService to answer 410 on a retired slug.
   // OrganizationsModule provides the org-role check the workshop-enrolment link
   // runs through (`assertCanManageWorkshopEnrollment`).
+  // NotificationSchedulingModule is a leaf too (it imports only its own queue): a merge that
+  // leaves the survivor "off" removes its followers' waiting alerts through it (ruling 212).
   imports: [
     HemaRatingsModule,
     AdminModule,
     TournamentPlacementModule,
     PrivacyModule,
     OrganizationsModule,
+    NotificationSchedulingModule,
   ],
   controllers: [FightersController, WeaponsController, GlobalPersonsController],
   providers: [FightersService, FighterMergeService, CsvImportService],

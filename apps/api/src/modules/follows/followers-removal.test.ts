@@ -14,7 +14,7 @@ import {
   writesTo,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
-import { removeFollowersOf } from './followers-removal';
+import { removeFollowersOf, removeFollowersOfProfile } from './followers-removal';
 
 const LEA = 'u-lea';
 const rosterRow = (id: string, profile: string, events: unknown) => ({
@@ -156,6 +156,28 @@ describe('"people may follow me" switched off removes her followers (ruling 208)
 
     expect(queriedTables(supabase.from)).toEqual(['global_persons']);
     expect(supabase.writes).toEqual([]);
+  });
+
+  it('removes the followers of a profile by its id, whoever holds it (the door of a merge)', async () => {
+    const supabase = mockSupabase(tables());
+    const applyFollow = vi.fn();
+
+    // Tom's profile, asked by id: no account is looked up.
+    await removeFollowersOfProfile(
+      { supabase: supabase as never, alerts: { applyFollow } },
+      'gp-tom',
+    );
+
+    expect(queriedTables(supabase.from)).not.toContain('global_persons');
+    const his = [{ method: 'in', args: ['followed_person_id', ['tom-spring']] }];
+    expect(writesTo(supabase, 'follows')).toMatchObject([
+      { op: 'update', filters: his },
+      { op: 'delete', filters: his },
+    ]);
+    expect(applyFollow.mock.calls).toEqual([['tom-spring', 'marc']]);
+    expect(writesTo(supabase, 'directory_follows')).toMatchObject([
+      { op: 'delete', filters: [{ method: 'eq', args: ['followed_global_person_id', 'gp-tom'] }] },
+    ]);
   });
 });
 
