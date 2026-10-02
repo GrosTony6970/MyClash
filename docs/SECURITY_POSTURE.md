@@ -111,16 +111,19 @@ deliberate, recorded here so they are not re-litigated at every Studio visit.
 a mutable `search_path` grants no escalation: the function already runs with the caller's own
 rights. Shadowing is impossible regardless, because `anon`/`authenticated` hold only `USAGE` on
 `public` (`infra/db/init/supabase-postgrest.sh`), never `CREATE`, and PG15+ removed `PUBLIC`'s
-default CREATE on the schema. The one function that genuinely needed pinning —
-`admin_runtime_db_stats`, the only `SECURITY DEFINER` read — already has it.
+default CREATE on the schema. The four functions that genuinely needed pinning, the `SECURITY
+DEFINER` ones, already have it: `admin_runtime_db_stats` (0156), `record_query_error` (0180),
+`record_device_sync_report` (0182) and `account_emails` (0217: the addresses of a list of accounts,
+read from `auth.users` for the API alone). The first three pin `public, pg_catalog`; `account_emails`
+is the first with an empty path, and spells every name with its schema.
 
 Pinning the rest would cost measurable performance: PostgreSQL will not inline an SQL function
 carrying a `SET` clause (a non-null `proconfig` disqualifies it in `inline_function`). Ten of the 21
 are RLS helpers (`is_org_member`, `event_org_id`, `has_org_role`, `is_super_admin`, …) evaluated
 per row across 276 policy clauses in 29 migrations, and `immutable_unaccent` is baked into four GIN
 index expressions. If this is ever revisited, use the repo's existing
-`SET search_path = public, pg_catalog` form (0156/0180/0182) and **not** `SET search_path = ''`,
-which would break the unqualified `similarity()` calls in `lookup_persons`, `find_club_by_name` and
+`SET search_path = public, pg_catalog` form (0156/0180/0182) and **not** the `SET search_path = ''`
+of 0217, which would break the unqualified `similarity()` calls in `lookup_persons`, `find_club_by_name` and
 `lookup_global_persons`.
 
 **`extension_in_public` (`pg_trgm`, `unaccent`) — accepted.** Relocating them breaks

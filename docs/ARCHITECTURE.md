@@ -1344,6 +1344,13 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   bout held by the account. A dropped alert is logged with its reason. This silences an alert left
   behind when a follow, a booking or a roster row's holder changed. It sets none: a new holder gets
   his alert at the next retime. The referee's own alert is not asked again.
+- The notice of a new Event is mailed to each follower's own account address (operator ruling
+  215), never a roster row's: a follower of an organiser may be on no roster. The worker mails only
+  a follower who has no push subscription; the others get a push, and a follower who switched this
+  notice off gets neither (ruling 200). The addresses of all the followers are read in one call, `account_emails` (migration 0217, the service role only;
+  `apps/api/src/modules/notifications/account-emails.ts`). A read that fails is logged and the
+  notice goes out with no address: the phones are told, and the followers who would have been
+  mailed are not. An Event is announced once, so they are never told.
 - **Scheduling alone is not enough.** A delayed job carries the time the schedule had when it was
   enqueued, so every subsequent reschedule leaves a stale alert in the queue.
   `apps/api/src/modules/notifications/match-alert-refresher.service.ts` is the reconciliation half:

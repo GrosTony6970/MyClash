@@ -6,6 +6,7 @@ import {
   type ScheduledNotificationJob,
 } from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { accountEmails } from '../account-emails';
 import * as texts from '../notice-texts/notice-texts';
 import { lockedDutyIds } from './locked-duties';
 import { loadSwissRoundContext } from './swiss-round-context';
@@ -245,9 +246,9 @@ export class NotificationEventsService {
    * because BullMQ's jobId dedupe expires with removeOnComplete (24h), and an
    * unpublish/republish a week later would otherwise re-spam every follower.
    *
-   * The follower queries are inlined rather than delegated to
+   * The follower read is inlined rather than delegated to
    * OrganizationFollowsService so NotificationsModule does not have to depend
-   * on FollowsModule for two selects.
+   * on FollowsModule for one select.
    */
   async organizerPublishedEvent(eventId: string): Promise<void> {
     const { data: event } = await this.supabase.service
@@ -295,26 +296,13 @@ export class NotificationEventsService {
       followerIds = followerIds.slice(0, MAX_PUBLISH_FANOUT);
     }
 
-    // Batched email resolution. A follower is an auth user and may have no
-    // persons row at all, in which case they simply get push-only — the worker
-    // skips the email fallback when `email` is absent.
-    const { data: contacts } = await this.supabase.service
-      .from('persons')
-      .select('claimed_by_user_id, email')
-      .in('claimed_by_user_id', followerIds);
-    const emailByUser = new Map<string, string>();
-    for (const contact of (contacts ?? []) as Array<{
-      claimed_by_user_id: string | null;
-      email: string | null;
-    }>) {
-      if (
-        contact.claimed_by_user_id &&
-        contact.email &&
-        !emailByUser.has(contact.claimed_by_user_id)
-      ) {
-        emailByUser.set(contact.claimed_by_user_id, contact.email);
-      }
-    }
+    // Each follower's own account address, in one read (ruling 215). Not a roster row's: a
+    // follower may be on no roster. An account with no address is told by push only, if it has one.
+    const emailByUser = await accountEmails(
+      { supabase: this.supabase, logger: this.logger },
+      followerIds,
+      `New-Event notice of ${eventId}`,
+    );
 
     const detail = [row.start_date, row.city].filter(Boolean).join(' · ');
     const text = texts.newEvent(orgName, row.name, detail);
