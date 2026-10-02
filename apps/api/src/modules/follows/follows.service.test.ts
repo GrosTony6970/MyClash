@@ -23,7 +23,7 @@ const mockPrivacy = {
   update: vi.fn(),
 };
 const mockFollowNotifications = {
-  cancelForFollowedPerson: vi.fn().mockResolvedValue(undefined),
+  applyFollow: vi.fn().mockResolvedValue(undefined),
 };
 
 function makeChain(result: unknown) {
@@ -169,10 +169,7 @@ describe('FollowsService', () => {
 
       await service.unfollow('event-1', 'person-1', { userId: 'user-1' });
 
-      expect(mockFollowNotifications.cancelForFollowedPerson).toHaveBeenCalledWith(
-        'person-1',
-        'user-1',
-      );
+      expect(mockFollowNotifications.applyFollow).toHaveBeenCalledWith('person-1', 'user-1');
     });
   });
 
@@ -289,8 +286,8 @@ describe('FollowsService', () => {
       const personsChain = makeAwaitableChain({ data: [], error: null });
 
       fromMock
-        .mockReturnValueOnce(dirFollowsChain) // directory_follows delete
-        .mockReturnValueOnce(personsChain); // resolveEventPersons (no events)
+        .mockReturnValueOnce(personsChain) // resolveEventPersons (no events)
+        .mockReturnValueOnce(dirFollowsChain); // directory_follows delete, last
 
       await service.unfollowAllEvents('gp-1', { userId: 'user-1' });
 

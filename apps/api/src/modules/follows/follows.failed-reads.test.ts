@@ -50,7 +50,7 @@ function followsWith(tables: Record<string, TableSeed>) {
   const service = new FollowsService(
     supabase as never,
     privacy as never,
-    { cancelForFollowedPerson: vi.fn() } as never,
+    { applyFollow: vi.fn() } as never,
     {} as never,
   );
   return { service, supabase };
@@ -113,8 +113,9 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
     await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'matches read');
   });
 
-  it('the directory unfollow, before the per-Event unfollows run', async () => {
-    // One Event to unfollow them in: had its unfollow run first, `follows` would show a write.
+  it('the directory unfollow, which comes after the per-Event unfollows', async () => {
+    // One Event to unfollow them in. Its unfollow runs first: the person stays in the "Following"
+    // tab until every Event is done, so a second tap can repair a failure.
     const { service, supabase } = followsWith({
       directory_follows: FAILED,
       persons: {
@@ -126,7 +127,7 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
       follows: { data: null, error: null },
     });
     await expectFailure(service.unfollowAllEvents(GLOBAL, USER), 'directory follow delete');
-    expect(supabase.writes.map((w) => w.table)).toEqual(['directory_follows']);
+    expect(supabase.writes.map((w) => w.table)).toEqual(['follows', 'directory_follows']);
   });
 
   it('the Following tab list', async () => {

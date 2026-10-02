@@ -441,7 +441,6 @@
     "apps/api/src/modules/workshops/workshops.service.ts:472",
     "apps/api/src/modules/workshops/workshops.service.ts:875",
     "apps/api/src/workers/event-archive.worker.ts:61",
-    "apps/api/src/workers/follow-notification-scheduler.worker.ts:241",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:186",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:81",
     "apps/api/src/workers/notification-scheduler.worker.ts:555",

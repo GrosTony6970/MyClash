@@ -57,7 +57,7 @@ function followsWith(tables: Record<string, TableSeed>) {
       forPerson: vi.fn(),
       forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
     } as never,
-    { cancelForFollowedPerson: vi.fn() } as never,
+    { applyFollow: vi.fn() } as never,
     {} as never,
   );
   return { service, supabase };

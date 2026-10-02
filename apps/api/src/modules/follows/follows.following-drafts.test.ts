@@ -96,7 +96,7 @@ function service() {
   return new FollowsService(
     db as never,
     {} as never,
-    { cancelForFollowedPerson: vi.fn() } as never,
+    { applyFollow: vi.fn() } as never,
     new OrganizationsService(db as never),
   );
 }

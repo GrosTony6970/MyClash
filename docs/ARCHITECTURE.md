@@ -1588,6 +1588,18 @@ Per-follow toggles (set on the Follow button's "..." menu):
 - ☐ Notify me when their referee slot starts
 - ☐ Notify me when their workshop starts (only if they share workshops)
 
+An alert is one delayed job per bout (or duty, or Workshop session) and follower, whoever the
+follower follows in it. It is set when a bout or a Workshop session gets or changes its time, when
+a duty is locked, and also when the follower's own follows change: a follow, a switch change and
+an unfollow each remove his waiting alerts about that Person, then set them again from his follows
+as saved (`FollowNotificationSchedulerService.applyFollow`). So a follow made after the timetable
+is built still rings, a switch turned off stops its alert at once, and muting one Fighter of a
+bout keeps the alert when the follower also follows the other. What has already started sets no
+alert, and neither does a duty that is not locked (an unlock removes nothing: an alert set at the
+lock waits until the follower's next change). A retime is best effort (a read that fails is logged
+and fails nothing); a change of a follow is not (a read that fails is a 5xx, and the same call
+again repairs the alerts). An alert about a draft is dropped when it fires (`alert-visibility.ts`).
+
 ---
 
 ## 12. Authentication & Identity

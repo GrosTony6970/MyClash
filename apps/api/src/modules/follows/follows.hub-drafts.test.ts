@@ -11,6 +11,7 @@ import {
   filtersFor,
   mockSupabase,
   queriedTables,
+  writesTo,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -81,7 +82,7 @@ function baseTables(): Tables {
 }
 
 let db: ReturnType<typeof mockSupabase>;
-const scheduler = { cancelForFollowedPerson: vi.fn() };
+const scheduler = { applyFollow: vi.fn() };
 
 function service() {
   return new FollowsService(
@@ -97,7 +98,8 @@ const cards = async () =>
 
 beforeEach(() => {
   db = mockSupabase(baseTables());
-  scheduler.cancelForFollowedPerson.mockClear();
+  // A reset, not a clear: a queued rejection a test did not use must not reach the next one.
+  scheduler.applyFollow.mockReset();
 });
 
 describe('the hub counts and follows only the Events the public may know him in (ruling 163)', () => {
@@ -121,10 +123,38 @@ describe('the hub counts and follows only the Events the public may know him in 
 
   it('unfollows him everywhere, his hidden row included', async () => {
     await service().unfollowAllEvents(TOM, { userId: PAUL });
-    expect(scheduler.cancelForFollowedPerson.mock.calls).toEqual([
+    expect(scheduler.applyFollow.mock.calls).toEqual([
       ['p-spring', PAUL],
       ['p-winter', PAUL],
     ]);
+  });
+
+  it('keeps him in the "Following" tab when an Event cannot be unfollowed, for the second tap', async () => {
+    scheduler.applyFollow.mockRejectedValueOnce(new Error('Followed person unreadable: boom'));
+
+    await expect(service().unfollowAllEvents(TOM, { userId: PAUL })).rejects.toThrow(
+      'Followed person unreadable: boom',
+    );
+    expect(writesTo(db, 'directory_follows')).toEqual([]);
+
+    await service().unfollowAllEvents(TOM, { userId: PAUL });
+    expect(writesTo(db, 'directory_follows')).toHaveLength(1);
+  });
+
+  it('a second tap on "follow everywhere" sets the alerts of a follow that is already there', async () => {
+    const summary = await service().followAllEvents(TOM, { userId: PAUL });
+
+    // The first tap saved the follow and its alerts could not be set: this tap repairs them.
+    expect(summary).toMatchObject({ followedCount: 0, alreadyFollowingCount: 1 });
+    expect(scheduler.applyFollow.mock.calls).toEqual([['p-spring', PAUL]]);
+  });
+
+  it('5xxs that second tap when the alerts cannot be set again', async () => {
+    scheduler.applyFollow.mockRejectedValueOnce(new Error('Followed person unreadable: boom'));
+
+    await expect(service().followAllEvents(TOM, { userId: PAUL })).rejects.toThrow(
+      'Followed person unreadable: boom',
+    );
   });
 
   it.each([

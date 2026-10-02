@@ -35,7 +35,7 @@ function hub() {
   const service = new FollowsService(
     supabase as never,
     new PrivacyService(supabase as never),
-    { cancelForFollowedPerson: vi.fn() } as never,
+    { applyFollow: vi.fn() } as never,
     {} as never,
   );
   return { service, supabase };

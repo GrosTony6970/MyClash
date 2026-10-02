@@ -193,7 +193,7 @@ describe('follow notification scheduler — workshops, referees, unfollow', () =
       { service: { from } } as never,
     );
 
-    await service.cancelForFollowedPerson('person-1', 'user-1');
+    await service.applyFollow('person-1', 'user-1');
 
     expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-1');
     expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-2.user-1');
@@ -216,6 +216,7 @@ describe('follow notification scheduler — a followed referee starting', () => 
           pool_id: null,
           match_id: null,
           role: 'arbitre_table',
+          status: 'confirmed',
           matches: null,
           ...assignment,
         },
@@ -257,7 +258,7 @@ describe('follow notification scheduler — a followed referee starting', () => 
     );
     // The double ignores the projection: assert the read names no stored time.
     expect(selectsFor(from as never, 'referee_assignments')).toEqual([
-      'id, person_id, event_id, pool_id, match_id, role, matches ( match_number_label, lices ( name ) )',
+      'id, person_id, event_id, pool_id, match_id, role, status, matches ( match_number_label, lices ( name ) )',
     ]);
     expect(selectsFor(from as never, 'matches')).toEqual([
       'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',
@@ -301,6 +302,18 @@ describe('follow notification scheduler — a followed referee starting', () => 
   it('queues nothing when nothing the duty covers is placed', async () => {
     const queue = makeQueue();
     const from = withDutyMatches(tables({ match_id: 'm-unplaced' }));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('queues nothing for a duty that is not locked: its referee has not been told either', async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ pool_id: 'pool-1', status: 'assigned' }));
 
     await service(queue, from).scheduleRefereeStarting(
       'assignment-1',

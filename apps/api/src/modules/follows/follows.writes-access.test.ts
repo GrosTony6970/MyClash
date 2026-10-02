@@ -47,7 +47,7 @@ function build(tables: Record<string, TableSeed> = {}) {
     forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
     forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
   };
-  const notifications = { cancelForFollowedPerson: vi.fn().mockResolvedValue(undefined) };
+  const notifications = { applyFollow: vi.fn().mockResolvedValue(undefined) };
   follows = new FollowsService(
     { service: db.service } as never,
     privacy as never,

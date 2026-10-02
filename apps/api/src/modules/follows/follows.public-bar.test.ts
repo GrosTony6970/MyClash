@@ -107,7 +107,7 @@ function build(overrides: Record<string, TableSeed> = {}) {
   const service = new FollowsService(
     supabase as never,
     privacy as never,
-    { cancelForFollowedPerson: vi.fn() } as never,
+    { applyFollow: vi.fn() } as never,
     orgs as never,
   );
   return { service, supabase, privacy };

@@ -256,7 +256,7 @@ export class FollowsService {
 
     // Idempotency check
     const existing = await this.findExisting(eventId, personId, identity);
-    if (existing) return this.mapWrittenRow(existing, eventId);
+    if (existing) return this.followed(existing, eventId, identity);
 
     // Insert
     const insert: Record<string, unknown> = {
@@ -279,11 +279,36 @@ export class FollowsService {
     // follow it asked for exists. Answer the winner's row, not a failure (ruling 122).
     if ((inserted.error as { code?: string } | null)?.code === '23505') {
       const winner = await this.findExisting(eventId, personId, identity);
-      if (winner) return this.mapWrittenRow(winner, eventId);
+      if (winner) return this.followed(winner, eventId, identity);
     }
     const data = dataOrThrow(inserted, 'follow write');
 
-    return this.mapWrittenRow(data as Record<string, unknown>, eventId);
+    return this.followed(data as Record<string, unknown>, eventId, identity);
+  }
+
+  /**
+   * The answer to a follow that is saved, new or already there. The follower's alerts about the
+   * person are set first (ruling 207): her bouts had their times before he followed her, and an
+   * alert used to be set only when a time changed.
+   */
+  private async followed(
+    row: Record<string, unknown>,
+    eventId: string,
+    identity: FollowIdentity,
+  ): Promise<FollowRow> {
+    await this.setAlerts(row['followed_person_id'] as string, identity);
+    return this.mapWrittenRow(row, eventId);
+  }
+
+  /**
+   * Brings an account's waiting alerts about a person in line with its follows as SAVED. So it
+   * runs after the write, at every door: a follow, a switch change, an unfollow, the People hub.
+   * A guest session has no account to tell. Not best effort: the write is saved, a failure here
+   * fails the call, and the same call again repairs the alerts.
+   */
+  private async setAlerts(personId: string, identity: FollowIdentity): Promise<void> {
+    if (!identity.userId) return;
+    await this.followNotifications.applyFollow(personId, identity.userId);
   }
 
   /** Does this caller follow this person in this Event? A caller with no follower id does not. */
@@ -305,9 +330,7 @@ export class FollowsService {
         .eq(...follower),
       'follow delete',
     );
-    if (identity.userId) {
-      await this.followNotifications.cancelForFollowedPerson(personId, identity.userId);
-    }
+    await this.setAlerts(personId, identity);
   }
 
   // ── Update notification prefs ─────────────────────────────────────────────────
@@ -356,6 +379,8 @@ export class FollowsService {
     // No row: the caller does not follow this person here (any more). A 404, not a 5xx.
     if (!data) throw new NotFoundException('Follow not found');
 
+    // The switch acts at once (ruling 209): off removes his waiting alerts, on sets them.
+    await this.setAlerts(personId, identity);
     return this.mapWrittenRow(data as Record<string, unknown>, eventId);
   }
 
@@ -469,6 +494,8 @@ export class FollowsService {
     for (const t of targets) {
       const existing = await this.findExisting(t.eventId, t.personId, identity);
       if (existing) {
+        // A second tap after alerts that could not be set: the follow is there, they may not be.
+        await this.setAlerts(t.personId, identity);
         summary.alreadyFollowingCount += 1;
         continue;
       }
@@ -493,9 +520,16 @@ export class FollowsService {
 
   /** Unfollow a global person across ALL their events (toggles the hub button
    *  fully off, including any follow left over from a now-finished event) and
-   *  removes the persistent directory follow. */
+   *  removes the persistent directory follow. The directory follow goes LAST: an Event whose
+   *  alerts cannot be removed fails the call, and the person must still be in the "Following"
+   *  tab for the second tap that repairs it. */
   async unfollowAllEvents(globalPersonId: string, identity: FollowIdentity): Promise<void> {
     if (!hasFollower(identity)) return;
+
+    const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
+    for (const t of targets) {
+      await this.unfollow(t.eventId, t.personId, identity);
+    }
 
     if (identity.userId) {
       dataOrThrow(
@@ -506,11 +540,6 @@ export class FollowsService {
           .eq('followed_global_person_id', globalPersonId),
         'directory follow delete',
       );
-    }
-
-    const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
-    for (const t of targets) {
-      await this.unfollow(t.eventId, t.personId, identity);
     }
   }
 

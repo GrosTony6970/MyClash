@@ -81,7 +81,7 @@ function build(overrides: Record<string, TableSeed> = {}) {
   const db = mockSupabase({ ...SEED, ...overrides });
   const orgs = new OrganizationsService(db as never);
   const privacy = new PrivacyService(db as never);
-  const follows = new FollowsService(db as never, privacy, {} as never, orgs);
+  const follows = new FollowsService(db as never, privacy, { applyFollow: vi.fn() } as never, orgs);
   const header = new PublicPersonService(db as never, orgs, privacy, follows);
   const schedule = new PublicScheduleService(db as never, privacy, orgs);
   return {
