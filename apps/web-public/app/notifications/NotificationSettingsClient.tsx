@@ -4,17 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../src/lib/api-url';
+import { dropForeignAddress, savedForMe, turnOffPhoneAlerts } from '../../src/lib/phone-alerts';
 import { markBroadcastsSeen } from '../../src/components/me/useUnreadBroadcasts';
 
 type PermissionStateLabel = NotificationPermission | 'unsupported' | 'loading';
 
 interface Props {
   embedded?: boolean;
-}
-
-interface SubscribeResponse {
-  id: string;
-  endpoint: string;
 }
 
 type BroadcastSeverity = 'info' | 'warning' | 'alert';
@@ -55,8 +51,9 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
   const { t } = useI18n();
   const [permission, setPermission] = useState<PermissionStateLabel>('loading');
   const [busy, setBusy] = useState(false);
-  const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
+  // The server could not say whose this browser's address is: neither "on" nor "off" is known.
+  const [unchecked, setUnchecked] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
@@ -76,8 +73,12 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => registration.pushManager.getSubscription())
-        .then((subscription) => {
-          setEnabled(Boolean(subscription));
+        .then(async (subscription) => {
+          // The browser holds one address whoever is signed in: only the server knows whether
+          // it rings for THIS account (ruling 238).
+          const saved = subscription ? await savedForMe(apiUrl, subscription.endpoint) : 'no';
+          setEnabled(saved === 'yes');
+          setUnchecked(saved === 'unknown');
         })
         .catch(() => {
           setPermission('unsupported');
@@ -85,7 +86,7 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [apiUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -131,6 +132,7 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
       if (!keyResponse.ok) throw new Error(t('publicApp.notifications.errKeysNotConfigured'));
 
       const { publicKey } = (await keyResponse.json()) as { publicKey: string };
+      await dropForeignAddress(apiUrl);
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       const subscription =
@@ -145,7 +147,7 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
         throw new Error(t('publicApp.notifications.errIncompleteSubscription'));
       }
 
-      const response = await fetch(`${apiUrl}/api/v1/notifications/subscribe`, {
+      const response = await fetch(`${apiUrl}/api/v1/notifications/me/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -163,9 +165,8 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
       }
       if (!response.ok) throw new Error(t('publicApp.notifications.errSaveSubscription'));
 
-      const saved = (await response.json()) as SubscribeResponse;
-      setSubscriptionId(saved.id);
       setEnabled(true);
+      setUnchecked(false);
       setMessage(t('publicApp.notifications.msgEnabled'));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t('publicApp.notifications.errEnable'));
@@ -180,41 +181,36 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
     setMessage(null);
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      await subscription?.unsubscribe();
-
-      if (subscriptionId) {
-        await fetch(`${apiUrl}/api/v1/notifications/subscribe/${subscriptionId}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
+      if (!(await turnOffPhoneAlerts(apiUrl))) {
+        setMessage(t('publicApp.notifications.errDisable'));
+        return;
       }
-
-      setSubscriptionId(null);
       setEnabled(false);
+      setUnchecked(false);
       setMessage(t('publicApp.notifications.msgDisabled'));
-    } catch {
-      setMessage(t('publicApp.notifications.errDisable'));
     } finally {
       setBusy(false);
     }
   }
 
-  const canEnable = permission !== 'unsupported' && permission !== 'denied' && !enabled;
-  const canDisable = enabled;
+  const canEnable =
+    permission !== 'unsupported' && permission !== 'denied' && !enabled && !unchecked;
+  // Unchecked, the browser may still hold an address: "Turn off" stays open.
+  const canDisable = enabled || unchecked;
   const statusText =
     permission === 'unsupported'
       ? t('publicApp.notifications.statusUnsupported')
       : permission === 'loading'
         ? t('publicApp.notifications.statusLoading')
-        : enabled
-          ? t('publicApp.notifications.statusEnabled')
-          : permission === 'denied'
-            ? t('publicApp.notifications.statusDenied')
-            : permission === 'granted'
-              ? t('publicApp.notifications.statusGranted')
-              : t('publicApp.notifications.statusNeedsPermission');
+        : unchecked
+          ? t('publicApp.notifications.statusUnchecked')
+          : enabled
+            ? t('publicApp.notifications.statusEnabled')
+            : permission === 'denied'
+              ? t('publicApp.notifications.statusDenied')
+              : permission === 'granted'
+                ? t('publicApp.notifications.statusGranted')
+                : t('publicApp.notifications.statusNeedsPermission');
 
   const content = (
     <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
@@ -253,7 +249,7 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
           <Button
             variant="primary"
             disabled={!canEnable || busy}
-            loading={busy && !enabled}
+            loading={busy && canEnable}
             onClick={() => void enableNotifications()}
           >
             {t('publicApp.notifications.enable')}
@@ -264,7 +260,7 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
             onClick={() => void disableNotifications()}
             className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy && enabled
+            {busy && canDisable
               ? t('publicApp.notifications.disabling')
               : t('publicApp.notifications.disable')}
           </button>

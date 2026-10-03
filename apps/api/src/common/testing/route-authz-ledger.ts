@@ -44,10 +44,6 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
     "the caller's own preferences",
   'modules/notifications/notifications.controller.ts#NotificationsController.listUserBroadcasts':
     "the caller's own broadcasts",
-  'modules/notifications/notifications.controller.ts#NotificationsController.subscribe':
-    "the caller's own push subscription",
-  'modules/notifications/notifications.controller.ts#NotificationsController.unsubscribe':
-    ".eq('user_id', the caller)",
   'modules/compensation/compensation.controller.ts#CompensationController.listPlans':
     "the caller's organisations' plans",
   'modules/leagues/leagues.controller.ts#LeaguesController.listManageable':

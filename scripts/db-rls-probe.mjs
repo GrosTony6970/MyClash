@@ -39,6 +39,7 @@ import { join } from 'node:path';
 import postgres from 'postgres';
 
 import { accountEmailsFailures } from './lib/account-emails-probe.mjs';
+import { pushAddressFailures } from './lib/push-address-probe.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -378,7 +379,7 @@ try {
       await viewsRunAsCaller(tx);
       await apiOnlyWritesRefused(tx);
       await visibleLeagueIsPublished(tx);
-      failures.push(...(await accountEmailsFailures(tx)));
+      failures.push(...(await accountEmailsFailures(tx)), ...(await pushAddressFailures(tx)));
       throw ROLLBACK;
     }),
   );
@@ -387,7 +388,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes, a visible League is a published one, account addresses are read by the service role only.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes, a visible League is a published one, account addresses are read by the service role only, a push address has one account.`,
     );
   }
 } catch (error) {

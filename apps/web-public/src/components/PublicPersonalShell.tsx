@@ -8,6 +8,7 @@ import { Avatar, NavIcon, type NavIconName } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
+import { dropForeignAddress, signOut } from '../lib/phone-alerts';
 import { resolvePublicPersonal } from './public-personal-decision';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
@@ -85,6 +86,8 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       setDisplayName(decision.displayName);
       setPhotoUrl(decision.photoUrl);
       setHasAdminAccess(decision.hasAdminAccess);
+      // The browser may still hold the alert address of whoever used it before (ruling 238).
+      void dropForeignAddress(apiUrl);
       setReady(true);
     })();
 
@@ -122,15 +125,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
-
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      window.location.assign('/login');
-    }
+    await signOut(apiUrl, '/login');
   }
 
   const sidebar = (

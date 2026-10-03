@@ -175,7 +175,6 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'DELETE me/follows/organizations/:organizationId',
     'DELETE me/groups/:groupId',
     'DELETE me/groups/:groupId/members/:globalPersonId',
-    'DELETE notifications/subscribe/:id',
     'PATCH fighters/me/profile',
     'PATCH me/ai-keys/:id',
     'PATCH me/follows/by-global-person/:globalPersonId',
@@ -198,7 +197,9 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'POST me/insight/publish',
     'POST me/insight/unpublish',
     'POST me/legal',
-    'POST notifications/subscribe',
+    'POST notifications/me/subscribe',
+    'POST notifications/me/subscribed',
+    'POST notifications/me/unsubscribe',
     'POST staff-auth/logout',
   ],
 };

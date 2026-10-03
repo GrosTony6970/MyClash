@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
@@ -284,7 +285,7 @@ function DeleteAccountSection({
         setError(t('publicApp.security.errors.deleteFailed'));
         return;
       }
-      window.location.replace('/?account_deleted=1');
+      await leaveDeletedAccount('/?account_deleted=1');
     } catch {
       setError(t('publicApp.security.errors.network'));
     } finally {

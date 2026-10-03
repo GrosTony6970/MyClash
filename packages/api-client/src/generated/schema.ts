@@ -7368,7 +7368,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/notifications/subscribe': {
+  '/api/v1/notifications/me/subscribe': {
     parameters: {
       query?: never;
       header?: never;
@@ -7377,7 +7377,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Store current user push subscription */
+    /** Save this browser's push address for the current user */
     post: operations['NotificationsController_subscribe'];
     delete?: never;
     options?: never;
@@ -7420,7 +7420,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/notifications/subscribe/{id}': {
+  '/api/v1/notifications/me/unsubscribe': {
     parameters: {
       query?: never;
       header?: never;
@@ -7429,9 +7429,26 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    post?: never;
-    /** Delete current user push subscription */
-    delete: operations['NotificationsController_unsubscribe'];
+    /** Remove this browser's push address from the current user */
+    post: operations['NotificationsController_unsubscribe'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/notifications/me/subscribed': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Is this browser's push address saved for the current user? */
+    post: operations['NotificationsController_isSubscribed'];
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -11317,6 +11334,10 @@ export interface components {
       organizerUpdates?: boolean;
       swissRoundPublished?: boolean;
       enabled?: boolean;
+    };
+    PushAddressDto: {
+      /** Format: uri */
+      endpoint: string;
     };
     SendBroadcastNotificationDto: {
       /** @enum {string} */
@@ -22731,12 +22752,35 @@ export interface operations {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        id: string;
-      };
+      path?: never;
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PushAddressDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  NotificationsController_isSubscribed: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PushAddressDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

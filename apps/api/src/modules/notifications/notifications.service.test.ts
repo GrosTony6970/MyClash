@@ -44,13 +44,12 @@ describe('NotificationsService', () => {
     expect(() => service.getVapidPublicKey()).toThrow(BadRequestException);
   });
 
-  it('stores a push subscription for the authenticated user', async () => {
-    const deleteChain = makeChain({ data: null, error: null });
-    const insertChain = makeChain({
+  it('saves the address for the caller in ONE write, on the address itself (ruling 238)', async () => {
+    const saveChain = makeChain({
       data: { id: 'sub-1', endpoint: 'https://push.example/1' },
       error: null,
     });
-    const from = vi.fn().mockReturnValueOnce(deleteChain).mockReturnValueOnce(insertChain);
+    const from = vi.fn().mockReturnValue(saveChain);
     const service = new NotificationsService(
       { service: { from } } as never,
       {
@@ -69,20 +68,25 @@ describe('NotificationsService', () => {
       ),
     ).resolves.toEqual({ id: 'sub-1', endpoint: 'https://push.example/1' });
 
-    expect(deleteChain.delete).toHaveBeenCalled();
-    expect(deleteChain.eq).toHaveBeenCalledWith('user_id', 'user-1');
-    expect(deleteChain.eq).toHaveBeenCalledWith('endpoint', 'https://push.example/1');
-    expect(insertChain.insert).toHaveBeenCalledWith({
-      user_id: 'user-1',
-      endpoint: 'https://push.example/1',
-      p256dh_key: 'p256dh-key',
-      auth_key: 'auth-key',
-      user_agent: 'Mozilla/5.0',
-      last_seen_at: expect.any(String),
-    });
+    // The conflict target is what moves an address another account saved: without it the write
+    // is a second row, and the browser rings for both accounts.
+    expect(saveChain.upsert).toHaveBeenCalledWith(
+      {
+        user_id: 'user-1',
+        endpoint: 'https://push.example/1',
+        p256dh_key: 'p256dh-key',
+        auth_key: 'auth-key',
+        user_agent: 'Mozilla/5.0',
+        last_seen_at: expect.any(String),
+      },
+      { onConflict: 'endpoint' },
+    );
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(saveChain.delete).not.toHaveBeenCalled();
+    expect(saveChain.select).toHaveBeenCalledWith('id, endpoint');
   });
 
-  it('deletes only the authenticated user subscription', async () => {
+  it('removes the address of the caller alone, by the address', async () => {
     const deleteChain = makeChain({ data: null, error: null });
     const from = vi.fn().mockReturnValue(deleteChain);
     const service = new NotificationsService(
@@ -92,11 +96,15 @@ describe('NotificationsService', () => {
       } as never,
     );
 
-    await expect(service.unsubscribe('user-1', 'sub-1')).resolves.toEqual({ deleted: true });
+    await expect(service.unsubscribe('user-1', 'https://push.example/1')).resolves.toEqual({
+      deleted: true,
+    });
 
     expect(deleteChain.delete).toHaveBeenCalled();
-    expect(deleteChain.eq).toHaveBeenCalledWith('id', 'sub-1');
-    expect(deleteChain.eq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(deleteChain.eq.mock.calls).toEqual([
+      ['user_id', 'user-1'],
+      ['endpoint', 'https://push.example/1'],
+    ]);
   });
 
   it('returns default preferences when the user has no row yet', async () => {

@@ -8,13 +8,19 @@ const pushSubscriptionKeysSchema = z.object({
   auth: z.string().min(1),
 });
 
+// A browser's push address. Bounded: it is the key of a unique index (0219).
+const endpointSchema = z.url().max(2048);
+
 const subscribeSchema = z
   .object({
-    endpoint: z.url(),
+    endpoint: endpointSchema,
     keys: pushSubscriptionKeysSchema,
   })
   .strict();
 export class SubscribeDto extends createZodDto(subscribeSchema) {}
+
+const pushAddressSchema = z.object({ endpoint: endpointSchema }).strict();
+export class PushAddressDto extends createZodDto(pushAddressSchema) {}
 
 const updateNotificationPreferencesSchema = z
   .object({

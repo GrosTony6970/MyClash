@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { signOut } from '@/lib/phone-alerts';
 import { useI18n } from '@myclash/next-i18n/client';
 import { AccountSection } from './AccountSection';
 import { AISettingsSection } from './AISettingsSection';
@@ -23,14 +24,7 @@ export default function SettingsClient() {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      window.location.assign('/login');
-    }
+    await signOut(apiUrl, '/login');
   }
 
   return (

@@ -1317,7 +1317,7 @@ requireContains(
 requireContains(
   publicPersonalShellText,
   'apps/web-public/src/components/PublicPersonalShell.tsx',
-  '/api/v1/auth/logout',
+  "await signOut(apiUrl, '/login')",
 );
 requireContains(
   publicPersonalShellText,

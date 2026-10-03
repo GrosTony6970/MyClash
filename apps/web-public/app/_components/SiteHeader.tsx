@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { signOut } from '@/lib/phone-alerts';
 import { resolvePublicPersonal } from '@/components/public-personal-decision';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 
@@ -82,14 +83,10 @@ export function SiteHeader() {
     return () => controller.abort();
   }, [authState, apiUrl]);
 
-  async function signOut() {
+  async function handleSignOut() {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
-    } finally {
-      window.location.assign('/');
-    }
+    await signOut(apiUrl, '/');
   }
 
   return (
@@ -148,7 +145,7 @@ export function SiteHeader() {
               </Link>
               <button
                 type="button"
-                onClick={() => void signOut()}
+                onClick={() => void handleSignOut()}
                 disabled={loggingOut}
                 aria-label={t('publicApp.personalShell.logout')}
                 className="rounded-md border border-border p-2 text-foreground-secondary transition hover:border-accent hover:text-accent disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent"

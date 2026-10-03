@@ -895,6 +895,8 @@ export const publicApp = {
     statusUnsupported: 'Push notifications are not supported by this browser.',
     statusLoading: 'Checking browser support...',
     statusEnabled: 'Push notifications are enabled on this device.',
+    statusUnchecked:
+      'Could not check the notifications of this device. Reload the page to try again.',
     statusDenied: 'Notifications are blocked in this browser.',
     statusGranted: 'Notifications are allowed but not enabled for this device.',
     statusNeedsPermission: 'Notifications need permission before they can be enabled.',

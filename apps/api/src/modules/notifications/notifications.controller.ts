@@ -1,23 +1,24 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
-  Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../../common/auth/public.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { BroadcastNotificationsService } from './broadcast-notifications.service';
-import { SubscribeDto, UpdateNotificationPreferencesDto } from './dto/notifications.dto';
+import {
+  PushAddressDto,
+  SubscribeDto,
+  UpdateNotificationPreferencesDto,
+} from './dto/notifications.dto';
 import { NotificationsService } from './notifications.service';
 
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -50,10 +51,10 @@ export class NotificationsController {
     return this.notifications.getVapidPublicKey();
   }
 
-  @Post('subscribe')
+  @Post('me/subscribe')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Store current user push subscription' })
+  @ApiOperation({ summary: "Save this browser's push address for the current user" })
   async subscribe(@Body() dto: SubscribeDto, @Req() req: FastifyRequest) {
     const userId = await getClaimedUserId(req, this.supabase);
     const userAgent = req.headers['user-agent'];
@@ -87,13 +88,21 @@ export class NotificationsController {
     return this.broadcasts.listUserBroadcasts(userId);
   }
 
-  @Delete('subscribe/:id')
+  @Post('me/unsubscribe')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete current user push subscription' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async unsubscribe(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+  @ApiOperation({ summary: "Remove this browser's push address from the current user" })
+  async unsubscribe(@Body() dto: PushAddressDto, @Req() req: FastifyRequest) {
     const userId = await getClaimedUserId(req, this.supabase);
-    return this.notifications.unsubscribe(userId, id);
+    return this.notifications.unsubscribe(userId, dto.endpoint);
+  }
+
+  @Post('me/subscribed')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Is this browser's push address saved for the current user?" })
+  async isSubscribed(@Body() dto: PushAddressDto, @Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.notifications.isSubscribed(userId, dto.endpoint);
   }
 }

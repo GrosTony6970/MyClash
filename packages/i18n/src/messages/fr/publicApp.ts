@@ -902,6 +902,8 @@ export const publicApp = {
     statusUnsupported: 'Les notifications push ne sont pas prises en charge par ce navigateur.',
     statusLoading: 'Vérification du navigateur...',
     statusEnabled: 'Les notifications push sont activées sur cet appareil.',
+    statusUnchecked:
+      'Impossible de vérifier les notifications de cet appareil. Rechargez la page pour réessayer.',
     statusDenied: 'Les notifications sont bloquées dans ce navigateur.',
     statusGranted: 'Les notifications sont autorisées mais pas activées sur cet appareil.',
     statusNeedsPermission: 'Les notifications doivent être autorisées avant activation.',

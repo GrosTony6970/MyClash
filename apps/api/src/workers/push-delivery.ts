@@ -53,8 +53,9 @@ const said = ({ message, statusCode }: PushFailure): string =>
   statusCode ? `${message} ${statusCode}` : message;
 
 /**
- * Removed by row id, not by address: a browser that saves its address again gets a new row
- * (`NotificationsService.subscribe`), which a removal decided a moment earlier must not take.
+ * Removed by the row ids this alert read. Such a row may have moved to another account since
+ * (ruling 238); it is as dead there. An address the push service called gone does not come back:
+ * a browser that turns alerts on again gets a new address.
  * Best effort: a removal that fails is said, and the next alert finds the address dead again.
  */
 async function removeDead({ db, logger }: PushDeps, userId: string, ids: string[]): Promise<void> {
