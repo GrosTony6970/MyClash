@@ -144,3 +144,24 @@ overrides:
   # recursion). Arrives through minimatch 9 (^2.0.2) in eslint and glob: lint
   # and build tooling.
   'brace-expansion@2': ^2.1.6
+
+# Advisories the Dependency audit does not fail on (operator ruling,
+# 2026-10-03). Each has NO fixed release to install and reaches no running
+# service. `pnpm audit` still prints them as "(N ignored)", and a NEW advisory
+# still fails the job. Trivy scans the images on the same rule
+# (`ignore-unfixed: true` in ci.yml).
+#
+# An entry never expires on its own: the audit stays silent after the fix is
+# published. Delete the entry the day `pnpm view <name> version` shows the
+# patched version, then bump the lockfile.
+auditConfig:
+  ignoreGhsas:
+    # http-cache-semantics <=4.2.0; the advisory names >=4.2.1, the registry's
+    # latest is 4.2.0. Only astro asks for it, to cache REMOTE images during
+    # `astro build`. web-marketing is `output: 'static'`, served by Caddy, and
+    # loads no remote image.
+    - GHSA-ch52-4w7c-c8xp
+    # braces <=3.0.3; the advisory names >=3.0.4, the registry's latest is
+    # 3.0.3. Only @next/eslint-plugin-next > fast-glob > micromatch asks for it:
+    # lint tooling that expands our own patterns.
+    - GHSA-vfj7-8cjw-p6xm

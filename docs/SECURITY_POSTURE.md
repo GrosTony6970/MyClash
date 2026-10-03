@@ -134,7 +134,8 @@ self-hosted database where the blast radius far exceeds the benefit.
 
 ## Supply Chain And Containers
 
-- CI runs `pnpm audit --audit-level high`.
+- CI runs `pnpm audit --audit-level high`. An advisory with no fixed release that reaches no running
+  service is listed, with its reason, under `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`.
 - Dependabot is enabled for npm, GitHub Actions, and Docker.
 - Gitleaks scans committed secrets.
 - Trivy scans production images for high/critical vulnerabilities.
