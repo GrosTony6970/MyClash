@@ -16,11 +16,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const FONTS = __dirname;
-/** The Latin file of each family, with the weights the apps asked Google for. */
+/** The Latin file of each family, with the whole weight axis of the file. */
 const LATIN: Record<string, string> = {
   'fraunces-latin-opsz-normal.woff2': '100 900',
-  'geist-latin-wght-normal.woff2': '400 700',
-  'jetbrains-mono-latin-wght-normal.woff2': '400 500',
+  'geist-latin-wght-normal.woff2': '100 900',
+  'jetbrains-mono-latin-wght-normal.woff2': '100 800',
 };
 /** The unicode-range of every Latin file, as Google Fonts and fontsource declare it. */
 const LATIN_RANGE =
@@ -73,7 +73,7 @@ describe('the font files', () => {
     }
   });
 
-  it('a face has the weights of the Latin file of its family, so both clamp alike', () => {
+  it('a face has the weights of the Latin file of its family: one name, one weight', () => {
     const weightOf = (prefix: string) =>
       Object.entries(LATIN).find(([file]) => file.startsWith(prefix))?.[1];
     for (const face of faces) {

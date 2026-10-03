@@ -17,18 +17,18 @@ import { fileURLToPath } from 'node:url';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const APPS = ['web-public', 'web-admin', 'web-staff'];
-/** The Latin file of each family, with the weights the apps asked Google for. */
+/** The Latin file of each family, with the whole weight axis of the file. */
 const LATIN = {
   'fraunces-latin-opsz-normal.woff2': '100 900',
-  'geist-latin-wght-normal.woff2': '400 700',
-  'jetbrains-mono-latin-wght-normal.woff2': '400 500',
+  'geist-latin-wght-normal.woff2': '100 900',
+  'jetbrains-mono-latin-wght-normal.woff2': '100 800',
 };
 const GOOGLE = /next\/font\/google|fonts\.googleapis|fonts\.gstatic/;
 
 const layoutOf = (app) => join(repo, 'apps', app, 'app', 'layout.tsx');
 
 for (const app of APPS) {
-  test(`${app}: the layout loads each Latin file from the repo, with the weights Google served`, () => {
+  test(`${app}: the layout loads each Latin file from the repo, with its whole weight axis`, () => {
     const source = readFileSync(layoutOf(app), 'utf8');
     assert.match(source, /import localFont from 'next\/font\/local';/);
     for (const [file, weight] of Object.entries(LATIN)) {

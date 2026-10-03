@@ -27,15 +27,15 @@ const fraunces = localFont({
 
 const geist = localFont({
   src: '../../../packages/ui/src/fonts/geist-latin-wght-normal.woff2',
-  // The weights the apps asked Google for: a heavier or lighter request is clamped, as before.
-  weight: '400 700',
+  // The whole axis of the file: `font-black` and `font-light` draw at their own weight.
+  weight: '100 900',
   variable: '--font-geist',
   display: 'swap',
 });
 
 const jetbrainsMono = localFont({
   src: '../../../packages/ui/src/fonts/jetbrains-mono-latin-wght-normal.woff2',
-  weight: '400 500',
+  weight: '100 800',
   variable: '--font-jetbrains',
   display: 'swap',
 });
