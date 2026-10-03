@@ -481,6 +481,10 @@ export const admin = {
     previewFailed: 'Preview failed',
     generationFailed: 'Generation failed',
     voidFailed: 'Void failed',
+    correctionLaterBoutFought:
+      'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
+    correctionLeavesBoutLevel:
+      'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
     reseedFailed: 'Reseed failed',
     populateFailed: 'Populate failed',
     overrideFailed: 'Override failed',

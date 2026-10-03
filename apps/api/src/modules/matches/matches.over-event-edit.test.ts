@@ -26,7 +26,10 @@ function setup(eventStatus: string) {
     events: { rows: [{ id: 'event-1', status: eventStatus }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
   });
-  const scoring = { recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }) };
+  const scoring = {
+    recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
+    assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
+  };
   const service = new MatchesService(
     db as never,
     scoring as never,

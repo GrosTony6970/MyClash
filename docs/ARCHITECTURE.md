@@ -1875,9 +1875,18 @@ and a draw only where the phase's level chain allows one. A Swiss bout with a la
 is treated the same way, because its reopen is refused. On a running Event a bout the engine
 no longer ends still goes back to its referee; one that is still over with another result names
 it at once and re-feeds the next bracket slot. A bout that did not end on the board (a forfeit,
-a black card, a spent series, a result recorded by hand) never changes its winner. On an over
+a black card, a spent series, a result with no end reason) never changes its winner. On an over
 Event a grand final that the losers' side now wins makes no second final: the final ranking
 reads the grand final while no reset was played.
+
+A correction lands whole or not at all (226). When it would change the result of a bout that
+FEEDS a bout already fought, or leave a level board where no draw is allowed, it is refused with
+nothing written (`correction_later_bout_fought`, `correction_leaves_bout_level`). There is no
+transaction, so the four correction doors (an Exchange's void, its restore, its edit, a card's
+void) ask `ScoringService.assertCorrectionLands` before their first write, about the sheet as it
+would read (`matches/correction-preflight.ts`). A Swiss round or a bracket seeded from a ranking
+is not fed by one result, so neither refuses (228). A new Exchange and a new card do not ask:
+that path is the pad's offline outbox.
 
 ### 12.6 Roles (unchanged from earlier draft)
 

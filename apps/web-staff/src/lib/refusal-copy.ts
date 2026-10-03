@@ -47,6 +47,8 @@ const FORFEIT_BLOCKED = 'scoring.corrections.forfeitBlocked';
 const SWISS_AHEAD = 'scoring.corrections.swissRoundAhead';
 const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
+const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
+const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
@@ -79,6 +81,14 @@ function levelAtTime(t: Translate, details: Record<string, unknown> | null): str
   return t(LEVEL_SUDDEN_DEATH);
 }
 
+/** A correction on a finished bout lands whole or not at all (ruling 226). */
+function correctionRefusedWhole(
+  t: Translate,
+  code: 'correction_later_bout_fought' | 'correction_leaves_bout_level',
+): string {
+  return t(code === 'correction_later_bout_fought' ? LATER_BOUT_FOUGHT : LEAVES_BOUT_LEVEL);
+}
+
 export function refusalMessage(
   failure: ApiFailure,
   t: Translate,
@@ -103,6 +113,9 @@ export function refusalMessage(
       return t(SWISS_AHEAD);
     case 'uncomplete_requires_organiser':
       return t(ORGANISER_ONLY);
+    case 'correction_later_bout_fought':
+    case 'correction_leaves_bout_level':
+      return correctionRefusedWhole(t, failure.code);
     case 'level_at_time_unresolved':
       // The bout is level and the phase says play it out. `remedy` carries which
       // one; the server's own message names it in English, which is exactly what

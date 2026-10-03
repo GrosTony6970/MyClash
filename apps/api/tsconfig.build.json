@@ -60,6 +60,7 @@
     // The placement owner's seeded tables, split out when its service test reached
     // the 400-line cap. It imports vitest.
     "src/modules/matches/match-placement.fixtures.ts",
+    "src/modules/matches/scoring.service.corrections.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",
     // The person schedule's seeded rows, split out for the same reason.

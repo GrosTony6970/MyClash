@@ -280,6 +280,10 @@ export const scoring = {
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
       'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
+    laterBoutFought:
+      "Un assaut suivant a déjà été combattu à partir de ce résultat. Cette correction changerait le vainqueur : elle n'a pas été appliquée.",
+    leavesBoutLevel:
+      "Cette correction laisserait l'assaut à égalité, et ses règles n'autorisent pas le match nul. Elle n'a pas été appliquée.",
   },
   clock: {
     loading: 'Chargement du chrono...',

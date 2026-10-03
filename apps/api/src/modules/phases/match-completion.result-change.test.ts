@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchCompletionService } from './match-completion.service';
 import { dependentClosure } from './bracket-dependents';
 import type * as BracketDependents from './bracket-dependents';
@@ -23,6 +24,7 @@ function setup(over: { eventOver?: boolean; roundsAhead?: unknown[] } = {}) {
   const order: string[] = [];
   const bracketAdvance = {
     clearDownstreamOf: vi.fn(async () => void order.push('clear')),
+    findDownstreamMatchIds: vi.fn().mockResolvedValue(['semi-final', 'losers-round']),
     asksForGrandFinalReset: vi.fn().mockResolvedValue(false),
     onMatchCompleted: vi.fn(async () => void order.push('advance')),
   };
@@ -30,14 +32,15 @@ function setup(over: { eventOver?: boolean; roundsAhead?: unknown[] } = {}) {
     roundsAhead: vi.fn().mockResolvedValue(over.roundsAhead ?? []),
     onMatchCompleted: vi.fn().mockResolvedValue(undefined),
   };
+  const db = mockSupabase({ matches: { rows: [{ id: 'semi-final' }, { id: 'losers-round' }] } });
   const service = new MatchCompletionService(
-    { service: {} } as never,
+    db as never,
     frozenResults as never,
     bracketAdvance as never,
     undefined,
     swissAdvance as never,
   );
-  return { service, frozenResults, bracketAdvance, swissAdvance, order };
+  return { db, service, frozenResults, bracketAdvance, swissAdvance, order };
 }
 
 beforeEach(() => {
@@ -107,6 +110,20 @@ describe('MatchCompletionService.onResultChanged', () => {
     expect(bracketAdvance.clearDownstreamOf).toHaveBeenCalledWith('m1');
     expect(bracketAdvance.onMatchCompleted).toHaveBeenCalledWith('m1');
     expect(order).toEqual(['clear', 'advance']);
+  });
+
+  it('takes the old pairing off each bout it feeds: a draw advances nobody', async () => {
+    const { db, service, bracketAdvance } = setup();
+
+    await service.onResultChanged('m1', false);
+
+    expect(bracketAdvance.findDownstreamMatchIds).toHaveBeenCalledWith('m1');
+    const cleared = writesTo(db, 'matches');
+    expect(cleared.map((write) => write.row)).toEqual([
+      { red_registration_id: null, blue_registration_id: null },
+      { red_registration_id: null, blue_registration_id: null },
+    ]);
+    expect(cleared.map((write) => scopedTo(write, 'id'))).toEqual(['semi-final', 'losers-round']);
   });
 
   it('on an over Event, makes no second grand final (ruling 230)', async () => {

@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, scopedTo, selectsFor } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
+import {
+  BOUT,
+  hit,
+  phase,
+  RUNNING_EVENT,
+  OVER_EVENT,
+  setup,
+  storedBout,
+} from './scoring.service.corrections.fixtures';
 
 /**
  * Rulings 225 to 230: a correction on a FINISHED bout moves its result with its
@@ -8,99 +17,6 @@ import { ScoringService } from './scoring.service';
  * that the recompute reads what the rule needs, writes what it answers, and
  * tells the bracket after the row is written.
  */
-const BOUT = 'm1';
-
-/** A clean hit, as the `exchanges` table holds it. */
-function hit(seq: number, color: 'red' | 'blue', value: number) {
-  return {
-    id: `e${seq}`,
-    match_id: BOUT,
-    sequence: seq,
-    type: 'clean',
-    occurred_at: '2026-01-01T00:00:00Z',
-    first_striker_color: color,
-    first_strike_value: value,
-    afterblow_value: null,
-    no_exchange_reason: null,
-    round_number: 1,
-    voided: false,
-  };
-}
-
-/** A Pool that may end level, a bracket that may not; first to 7. */
-const phase = (type: 'pool' | 'single_elim') => ({
-  type,
-  tournaments: {
-    ruleset_config: {
-      matchFormat: {
-        pointCap: 7,
-        bestOf: { pool: 1, bracket: 1, finals: 1 },
-        levelAtTime: {
-          pool: [{ kind: 'draw' }],
-          bracket: [{ kind: 'sudden_death' }],
-          finals: [{ kind: 'sudden_death' }],
-        },
-      },
-    },
-    scoring_config_json: null,
-  },
-});
-
-/** Red won 5-4 when the time ran out. The sheet below says what it reads NOW. */
-function storedBout(over: Record<string, unknown> = {}) {
-  return {
-    id: BOUT,
-    red_registration_id: 'red',
-    blue_registration_id: 'blue',
-    ruleset_code: 'TF_v1',
-    ruleset_version: '1.0.0',
-    status: 'completed',
-    winner_registration_id: 'red',
-    end_reason: 'time_limit',
-    red_score: 5,
-    blue_score: 4,
-    match_number_label: 'P1M1',
-    current_round: 1,
-    rounds_json: null,
-    phases: phase('pool'),
-    ...over,
-  };
-}
-
-const OVER_EVENT = { eventOver: true, staysFinished: true, laterBoutFought: false };
-const RUNNING_EVENT = { eventOver: false, staysFinished: false, laterBoutFought: false };
-
-function setup(
-  bout: Record<string, unknown>,
-  sheet: Array<Record<string, unknown>>,
-  context: Record<string, boolean> = OVER_EVENT,
-) {
-  const db = mockSupabase({
-    // A second bout: unscoped, the reads and the write would take it too.
-    matches: { rows: [bout, storedBout({ id: 'm2' })] },
-    exchanges: { rows: [...sheet, { ...hit(9, 'red', 3), match_id: 'm2' }] },
-    match_penalties: { rows: [] },
-  });
-  const writesWhenToldTheBracket: number[] = [];
-  const matchCompletion = {
-    onMatchCompleted: vi.fn().mockResolvedValue(undefined),
-    onMatchUncompleted: vi.fn().mockResolvedValue(undefined),
-    resultChangeContext: vi.fn().mockResolvedValue(context),
-    onResultChanged: vi.fn(async () => {
-      writesWhenToldTheBracket.push(writesTo(db, 'matches').length);
-    }),
-  };
-  const clock = { getClockState: vi.fn().mockResolvedValue({ levelResolutionSteps: 0 }) };
-  const service = new ScoringService(
-    db as never,
-    { resolve: vi.fn().mockResolvedValue(null) } as never,
-    clock as never,
-    matchCompletion as never,
-  );
-  const written = () => writesTo(db, 'matches')[0];
-  return { db, clock, matchCompletion, service, written, writesWhenToldTheBracket };
-}
-
 const SHEET_3_4 = [hit(1, 'red', 3), hit(2, 'blue', 2), hit(3, 'blue', 2)];
 const SHEET_5_3 = [hit(1, 'red', 3), hit(2, 'red', 2), hit(3, 'blue', 3)];
 const SHEET_4_4 = [hit(1, 'red', 2), hit(2, 'red', 2), hit(3, 'blue', 2), hit(4, 'blue', 2)];
@@ -248,13 +164,43 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
     expect(matchCompletion.resultChangeContext).not.toHaveBeenCalled();
   });
 
-  it('a context that cannot be read fails the recompute, and writes nothing', async () => {
-    const { db, service, matchCompletion } = setup(storedBout(), SHEET_3_4);
+  it('a context that cannot be read moves the score only: the door has already written', async () => {
+    // A new Exchange is retried by its client id with no second recompute, so a
+    // throw here would leave the score itself stale.
+    const { service, written, matchCompletion } = setup(storedBout(), SHEET_3_4);
     matchCompletion.resultChangeContext.mockRejectedValueOnce(new Error('read failed'));
 
-    await expect(service.recomputeMatchScore(BOUT)).rejects.toThrow('read failed');
-    expect(db.writes).toEqual([]);
+    await expect(service.recomputeMatchScore(BOUT)).resolves.toEqual({ redScore: 3, blueScore: 4 });
+
+    expect(written()?.row).toMatchObject({ red_score: 3, blue_score: 4 });
+    expect(written()?.row).not.toHaveProperty('winner_registration_id');
+    expect(written()?.row).not.toHaveProperty('status');
+    expect(matchCompletion.onMatchUncompleted).not.toHaveBeenCalled();
+    expect(matchCompletion.onResultChanged).not.toHaveBeenCalled();
   });
+
+  it.each<'exchanges' | 'match_penalties'>(['exchanges', 'match_penalties'])(
+    'a sheet whose %s cannot be read is not an empty sheet: nothing is written',
+    async (table) => {
+      const db = mockSupabase({
+        matches: { rows: [storedBout()] },
+        exchanges: { rows: SHEET_3_4 },
+        match_penalties: { rows: [] },
+        [table]: { data: null, error: { message: 'connection reset' } },
+      });
+      const service = new ScoringService(
+        db as never,
+        { resolve: vi.fn().mockResolvedValue(null) } as never,
+        {} as never,
+        {} as never,
+      );
+
+      await expect(service.recomputeMatchScore(BOUT)).rejects.toThrow(
+        'Could not read the sheet of match m1: connection reset',
+      );
+      expect(db.writes).toEqual([]);
+    },
+  );
 
   it('reads the stored result and each card’s id', async () => {
     const { db, service } = setup(storedBout(), SHEET_3_4);

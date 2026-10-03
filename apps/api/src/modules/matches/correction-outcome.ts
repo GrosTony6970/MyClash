@@ -55,9 +55,10 @@ export interface CorrectionInput {
 /**
  * The end reasons a correction may decide again: the ones the engine and the
  * clock write from the board. Named one by one ON PURPOSE. A forfeit, a black
- * card, a spent series or a result somebody recorded by hand awards the bout
- * for a reason the score does not hold, so the score must never take it back,
- * and a reason added later stays out until somebody places it here.
+ * card or a spent series awards the bout for a reason the score does not
+ * hold, so the score must never take it back, and a reason added later stays
+ * out until somebody places it here. A bout with no reason at all is left
+ * alone too, except the drawn one `storedReason` names.
  */
 const DECIDED_ON_THE_BOARD: readonly string[] = [
   'first_to_points',

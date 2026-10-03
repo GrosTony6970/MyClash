@@ -12,6 +12,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
+import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -120,7 +121,7 @@ export default function ExchangeEditRequestsPage() {
         method: 'POST',
       });
       if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.approvalFailed'));
+        const message = correctionFailureMessage(r, t, t('admin.common.approvalFailed'));
         if (message) setError(message);
         return;
       }

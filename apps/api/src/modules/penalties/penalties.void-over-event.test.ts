@@ -24,13 +24,17 @@ function setup(eventStatus: string) {
     events: { rows: [{ id: 'event-1', organization_id: 'org-1', status: eventStatus }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
   });
-  const scoring = { recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }) };
+  const askedWithWrites: number[] = [];
+  const scoring = {
+    recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
+    assertCorrectionLands: vi.fn(async () => void askedWithWrites.push(db.writes.length)),
+  };
   const service = new PenaltiesService(
     db as never,
     scoring as never,
     new FrozenResultsGuard(db as never, {} as never),
   );
-  return { db, scoring, service };
+  return { db, scoring, service, askedWithWrites };
 }
 
 describe('PenaltiesService.voidPenalty — an over Event', () => {
@@ -65,6 +69,29 @@ describe('PenaltiesService.voidPenalty — an over Event', () => {
     expect(voided?.row).toMatchObject({ voided: true, voided_reason: 'wrong fighter' });
     expect(scopedTo(voided, 'id')).toBe('card-1');
     expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
+  });
+
+  it('asks whether the correction lands BEFORE it writes (ruling 226)', async () => {
+    const { scoring, service, askedWithWrites } = setup('running');
+
+    await service.voidPenalty('card-1', { reason: 'wrong fighter' }, { userId: ORGANISER });
+
+    expect(scoring.assertCorrectionLands).toHaveBeenCalledWith('m1', {
+      dropPenaltyIds: ['card-1'],
+    });
+    expect(askedWithWrites).toEqual([0]);
+  });
+
+  it('a correction that is refused leaves the card as it was', async () => {
+    const { db, scoring, service } = setup('running');
+    const refusal = new ConflictException({ code: 'correction_later_bout_fought' });
+    scoring.assertCorrectionLands.mockRejectedValueOnce(refusal);
+
+    await expect(
+      service.voidPenalty('card-1', { reason: 'wrong fighter' }, { userId: ORGANISER }),
+    ).rejects.toBe(refusal);
+    expect(db.writes).toEqual([]);
+    expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
   });
 
   it('lets an organiser void a card while the Event runs', async () => {

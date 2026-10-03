@@ -488,6 +488,10 @@ export const admin = {
     previewFailed: "Échec de l'aperçu",
     generationFailed: 'Échec de la génération',
     voidFailed: "Échec de l'annulation",
+    correctionLaterBoutFought:
+      "Un assaut suivant a déjà été combattu à partir de ce résultat. Cette correction changerait le vainqueur : elle n'a pas été appliquée.",
+    correctionLeavesBoutLevel:
+      "Cette correction laisserait l'assaut à égalité, et ses règles n'autorisent pas le match nul. Elle n'a pas été appliquée.",
     reseedFailed: 'Échec du réamorçage',
     populateFailed: 'Échec du remplissage',
     overrideFailed: 'Échec de la dérogation',

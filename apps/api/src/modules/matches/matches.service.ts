@@ -53,6 +53,31 @@ type MatchActor = {
   canDiscardDependentResults?: boolean;
 };
 
+/**
+ * The `exchanges` row that replaces an edited one, less what only the service
+ * knows (its sequence, its netted deltas, who wrote it).
+ */
+function replacementExchange(original: Record<string, unknown>, dto: EditExchangeDto) {
+  const now = new Date().toISOString();
+  return {
+    client_uuid: randomUUID(),
+    match_id: original['match_id'] as string,
+    // Keep the correction in the SAME round as the exchange it replaces.
+    round_number: (original['round_number'] as number | null) ?? 1,
+    type: dto.type,
+    occurred_at: now,
+    recorded_at: now,
+    duration_since_prev_ms: original['duration_since_prev_ms'] ?? null,
+    first_striker_color: dto.firstStrikerColor ?? null,
+    first_strike_value: dto.firstStrikeValue ?? null,
+    afterblow_value: dto.afterblowValue ?? null,
+    no_exchange_reason: dto.noExchangeReason ?? null,
+    corrected_exchange_id: original['id'] as string,
+    correction_reason: dto.reason ?? null,
+    voided: false,
+  };
+}
+
 @Injectable()
 export class MatchesService {
   constructor(
@@ -861,13 +886,12 @@ export class MatchesService {
       });
       if (pending) return pending;
     }
+    // BEFORE the write: a refusal must leave nothing behind (ruling 226).
+    await this.scoring.assertCorrectionLands(ex.match_id, { dropExchangeIds: [exchangeId] });
 
     const { data, error } = await this.supabase.service
       .from('exchanges')
-      .update({
-        voided: true,
-        voided_reason: dto.reason ?? null,
-      })
+      .update({ voided: true, voided_reason: dto.reason ?? null })
       .eq('id', exchangeId)
       .select('*')
       .single();
@@ -915,6 +939,8 @@ export class MatchesService {
       });
       if (pending) return pending;
     }
+    // BEFORE the write: a refusal must leave nothing behind (ruling 226).
+    await this.scoring.assertCorrectionLands(ex.match_id, { restoreExchangeIds: [exchangeId] });
 
     const { data, error } = await this.supabase.service
       .from('exchanges')
@@ -1024,6 +1050,19 @@ export class MatchesService {
       afterblowMode,
     );
 
+    const replacement = {
+      ...replacementExchange(row, dto),
+      sequence: await this.nextExchangeSequence(matchId),
+      red_score_delta: redDelta,
+      blue_score_delta: blueDelta,
+      staff_account_id: context?.staffAccountId ?? null,
+    };
+    // BEFORE both writes: a refusal must leave nothing behind (ruling 226).
+    await this.scoring.assertCorrectionLands(matchId, {
+      dropExchangeIds: [exchangeId],
+      addExchanges: [replacement],
+    });
+
     await this.supabase.service
       .from('exchanges')
       .update({
@@ -1032,30 +1071,9 @@ export class MatchesService {
       })
       .eq('id', exchangeId);
 
-    const sequence = await this.nextExchangeSequence(matchId);
     const { data, error } = await this.supabase.service
       .from('exchanges')
-      .insert({
-        client_uuid: randomUUID(),
-        match_id: matchId,
-        // Keep the correction in the SAME round as the exchange it replaces.
-        round_number: (row['round_number'] as number | null) ?? 1,
-        sequence,
-        type: dto.type,
-        occurred_at: new Date().toISOString(),
-        recorded_at: new Date().toISOString(),
-        duration_since_prev_ms: row['duration_since_prev_ms'] ?? null,
-        first_striker_color: dto.firstStrikerColor ?? null,
-        first_strike_value: dto.firstStrikeValue ?? null,
-        afterblow_value: dto.afterblowValue ?? null,
-        no_exchange_reason: dto.noExchangeReason ?? null,
-        red_score_delta: redDelta,
-        blue_score_delta: blueDelta,
-        staff_account_id: context?.staffAccountId ?? null,
-        corrected_exchange_id: exchangeId,
-        correction_reason: dto.reason ?? null,
-        voided: false,
-      })
+      .insert(replacement)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);

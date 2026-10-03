@@ -25,6 +25,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { apiRequest, failureMessage } from '@myclash/api-client';
+import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
@@ -318,7 +319,7 @@ export default function MatchDetailPage() {
         // The forfeit-void rule is narrow and the API says exactly which of its
         // conditions this exchange failed. That is the sentence an organiser
         // needs to decide what to do next.
-        const message = failureMessage(r, t, t('admin.common.voidFailed'));
+        const message = correctionFailureMessage(r, t, t('admin.common.voidFailed'));
         if (message) setVoidError(message);
         return;
       }
@@ -354,7 +355,7 @@ export default function MatchDetailPage() {
       { method: 'PATCH' },
     );
     if (!r.ok) {
-      const message = failureMessage(r, t, t('admin.common.revertFailed'));
+      const message = correctionFailureMessage(r, t, t('admin.common.revertFailed'));
       if (message) toast.error(message);
       return;
     }

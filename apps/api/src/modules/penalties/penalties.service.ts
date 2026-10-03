@@ -1139,6 +1139,8 @@ export class PenaltiesService {
     // Ruling 231: a card's void asks no review, so on an over Event it is a
     // super admin's, as a new card already is there.
     await this.frozenResults?.assertResultMutationAllowed(match.id, context?.userId);
+    // BEFORE the write: a refusal must leave nothing behind (ruling 226).
+    await this.scoring?.assertCorrectionLands(match.id, { dropPenaltyIds: [penaltyId] });
 
     const { data, error } = await this.supabase.service
       .from('match_penalties')

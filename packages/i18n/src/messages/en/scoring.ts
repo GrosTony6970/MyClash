@@ -289,6 +289,10 @@ export const scoring = {
       'The next Swiss round has already been drawn from this result. Only an organiser can undo it now.',
     organiserOnly: 'Only an organiser can do this. Ask one for help.',
     offlineRefusal: 'No connection. This needs the network — try again once you are back online.',
+    laterBoutFought:
+      'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
+    leavesBoutLevel:
+      'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
   },
   clock: {
     loading: 'Loading clock...',

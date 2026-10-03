@@ -48,7 +48,8 @@ import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest } from '@myclash/api-client';
+import { refusalMessage } from '../lib/refusal-copy';
 
 interface ScoringCenterControlsProps {
   matchId: string;
@@ -358,7 +359,7 @@ export function ScoringCenterControls({
         const message =
           kind === 'offline'
             ? t('scoring.corrections.onlineOnly')
-            : failureMessage(result, t, t('scoring.corrections.clearLastFailed'));
+            : refusalMessage(result, t, 'scoring.corrections.clearLastFailed');
         if (message) setClearError(message);
         return;
       }

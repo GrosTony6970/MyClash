@@ -201,9 +201,12 @@ export class MatchCompletionService {
    * A bout that STAYS completed names another result (rulings 225, 229).
    *
    * The sides it fed are cleared first, because advancement fills a side only
-   * while it is null. Only the SLOT sides: the advance that follows hands each
-   * slot to `syncMatchToSlot`, which rewrites the row. The caller has
-   * established that no bout this one feeds was fought.
+   * while it is null: the slot sides, and the pairing on the row of each bout
+   * it feeds directly. The advance that follows hands each slot to
+   * `syncMatchToSlot`, which writes the row again. It returns early when the
+   * new result names nobody (a draw), and the cleared row is then what says
+   * so: an empty bout waiting on its feeder. The caller has established that
+   * no bout this one feeds was fought.
    *
    * On an over Event a grand final that the losers' side now wins is NOT
    * advanced: that would make a second final nobody can fight. The final
@@ -214,6 +217,9 @@ export class MatchCompletionService {
   async onResultChanged(matchId: string, eventOver: boolean): Promise<void> {
     try {
       await this.bracketAdvance?.clearDownstreamOf(matchId);
+      for (const fed of (await this.bracketAdvance?.findDownstreamMatchIds(matchId)) ?? []) {
+        await clearDependentPairing(this.supabase.service, fed);
+      }
       if (eventOver && (await this.bracketAdvance?.asksForGrandFinalReset(matchId))) return;
     } catch (err) {
       this.logger.warn(`Bracket re-advance after match ${matchId} failed: ${describe(err)}`);

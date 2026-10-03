@@ -46,6 +46,12 @@ import {
   type CorrectionInput,
   type CorrectionOutcome,
 } from './correction-outcome';
+import {
+  applyScoreChange,
+  correctionRefused,
+  type ScoreChange,
+  type ScoreRows,
+} from './correction-preflight';
 
 /**
  * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.
@@ -87,12 +93,6 @@ function resolveMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfi
     return { ...matchFormat, maxDoubleHits: null };
   }
   return matchFormat;
-}
-
-/** The rows a score is derived from. A correction asks about rows that are not saved yet. */
-interface ScoreRows {
-  rawRows: Record<string, unknown>[];
-  penaltyRows: Record<string, unknown>[];
 }
 
 /** One bout, read once: what it is fought under and what is on its sheet. */
@@ -200,7 +200,8 @@ export class ScoringService {
 
     // A bout that was ALREADY completed: the score just moved under a result
     // somebody recorded. `correctionOutcome` owns what happens to that result.
-    const correction = match.status === 'completed' ? await this.correctionFor(bout, scored) : null;
+    const correction =
+      match.status === 'completed' ? await this.correctionOrNone(bout, scored) : null;
     const outcome = correction?.outcome ?? { kind: 'unchanged' };
     // The side effects of an un-completion run BEFORE the row write, because
     // `onMatchUncompleted` can REFUSE and there is no transaction to undo a
@@ -243,6 +244,35 @@ export class ScoringService {
     return { redScore: score.redScore, blueScore: score.blueScore };
   }
 
+  /**
+   * Would this correction land whole? Asked by a door BEFORE it writes (ruling
+   * 226): the score is derived from the sheet as it would read, and a result
+   * that a later fought bout or a level board forbids is refused here, with
+   * nothing written. The recompute after the write asks the same owner.
+   *
+   * A bout that is not completed has no result to protect. A best-of series
+   * keeps its closed rounds as snapshots, so a correction moves nothing there.
+   */
+  async assertCorrectionLands(matchId: string, change: ScoreChange): Promise<void> {
+    const m = await this.loadMatchRow(matchId);
+    if (!m || m['status'] !== 'completed') return;
+    const bout = await this.loadBout(m);
+    if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) return;
+
+    const restored = await this.voidedExchanges(change.restoreExchangeIds ?? []);
+    const scored = this.scoreSingleFight(bout, applyScoreChange(bout, change, restored));
+    const { outcome } = await this.correctionFor(bout, scored);
+    if (outcome.kind === 'refuse') throw correctionRefused(outcome.code);
+  }
+
+  /** The rows of exchanges about to be restored. A failed read is not "none". */
+  private async voidedExchanges(ids: string[]): Promise<Record<string, unknown>[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await this.supabase.service.from('exchanges').select('*').in('id', ids);
+    if (error) throw new Error(`Could not read the exchanges to restore: ${error.message}`);
+    return (data ?? []) as Record<string, unknown>[];
+  }
+
   /** The bout's own row, with the format it is fought under. `null` when gone. */
   private async loadMatchRow(matchId: string): Promise<Record<string, unknown> | null> {
     const { data, error } = await this.supabase.service
@@ -258,18 +288,22 @@ export class ScoringService {
   /** Everything a score is derived from: the live exchanges, the live cards, the ruleset. */
   private async loadBout(m: Record<string, unknown>): Promise<LoadedBout> {
     const matchId = m['id'] as string;
-    const { data: exchangeRows } = await this.supabase.service
+    const { data: exchangeRows, error: exchangesError } = await this.supabase.service
       .from('exchanges')
       .select('*')
       .eq('match_id', matchId)
       .eq('voided', false)
       .order('sequence', { ascending: true });
 
-    const { data: penaltyRows } = await this.supabase.service
+    const { data: penaltyRows, error: penaltiesError } = await this.supabase.service
       .from('match_penalties')
       .select('id, score_delta, registration_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
+    // An unread sheet is not an empty one: scored as 0-0 it would write a wrong
+    // score, and on a finished bout a wrong result with it.
+    const unread = exchangesError ?? penaltiesError;
+    if (unread) throw new Error(`Could not read the sheet of match ${matchId}: ${unread.message}`);
 
     const match = rulesetMatch(m, this.phaseType(m['phases']));
 
@@ -331,6 +365,30 @@ export class ScoringService {
         matchFormat,
       ),
     };
+  }
+
+  /**
+   * `correctionFor`, for the recompute: `null` when the Event or the bracket
+   * could not be read. The recompute runs AFTER its door has written, and a new
+   * Exchange is retried by `client_uuid` without a second recompute, so a throw
+   * here would leave the score itself stale. The score moves, the result waits
+   * for the next recompute, and the log says so. A door that asks BEFORE it
+   * writes calls `correctionFor` and lets the failure through.
+   */
+  private async correctionOrNone(
+    bout: LoadedBout,
+    scored: SingleFightScore,
+  ): Promise<{ outcome: CorrectionOutcome; eventOver: boolean } | null> {
+    try {
+      return await this.correctionFor(bout, scored);
+    } catch (err) {
+      this.logger.warn(
+        `Match ${bout.match.id} kept its result beside a new score: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
+    }
   }
 
   /**

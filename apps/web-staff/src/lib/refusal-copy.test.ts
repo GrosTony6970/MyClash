@@ -114,6 +114,16 @@ describe('refusalMessage', () => {
     );
   });
 
+  it.each<[string, string]>([
+    ['correction_later_bout_fought', 'scoring.corrections.laterBoutFought'],
+    ['correction_leaves_bout_level', 'scoring.corrections.leavesBoutLevel'],
+  ])('explains a correction refused whole: %s', (code, key) => {
+    // The API's own sentence rides along, in English: the code must win.
+    expect(refusalMessage(refusal(409, { code, detail: 'It was not applied.' }), t, FALLBACK)).toBe(
+      key,
+    );
+  });
+
   it('explains the Swiss refusal', () => {
     expect(
       refusalMessage(refusal(409, { code: 'swiss_later_round_already_drawn' }), t, FALLBACK),

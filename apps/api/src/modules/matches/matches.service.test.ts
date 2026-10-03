@@ -14,6 +14,8 @@ import { MatchesService } from './matches.service';
 
 const mockScoring = {
   recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
+  // Every correction asks before it writes: `matches.correction-doors.test.ts`.
+  assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
 };
 /**
  * The service no longer injects the two schedulers directly. Every write of a
