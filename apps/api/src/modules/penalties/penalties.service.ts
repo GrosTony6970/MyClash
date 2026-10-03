@@ -884,7 +884,6 @@ export class PenaltiesService {
     context?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
   ) {
     const match = await this.getMatchContext(matchId);
-    this.assertMatchNotLocked(match, context);
     if (!context?.staffAccountId) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
@@ -901,9 +900,10 @@ export class PenaltiesService {
       .eq('client_uuid', dto.clientUuid)
       .maybeSingle();
     if (existing) return existing;
-    // AFTER the replay answer: a card the server already holds is not a result
-    // change, and the pad reads a 409 as "never taken" and holds the card.
+    // Both refusals AFTER the replay answer, in a hit's order: a card the server holds is not
+    // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
+    this.assertMatchNotLocked(match, context);
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting

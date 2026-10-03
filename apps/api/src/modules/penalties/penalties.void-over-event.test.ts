@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
@@ -17,12 +17,12 @@ const FROZEN = new ConflictException({
   code: 'event_results_frozen',
 });
 
-function setup(eventStatus: string) {
+function setup(eventStatus: string, lockedAt: string | null = null) {
   const db = mockSupabase({
     match_penalties: {
       rows: [{ id: 'card-1', match_id: 'm1', voided: false, client_uuid: 'card-uuid' }],
     },
-    matches: { rows: [{ id: 'm1', phase_id: 'phase-1', locked_at: null, current_round: 1 }] },
+    matches: { rows: [{ id: 'm1', phase_id: 'phase-1', locked_at: lockedAt, current_round: 1 }] },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
     tournaments: {
       rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'ruleset-1' }],
@@ -140,6 +140,68 @@ describe('PenaltiesService.createPenalty — a repeated card on an over Event', 
         { userId: ORGANISER },
       ),
     ).rejects.toEqual(FROZEN);
+    expect(db.writes).toEqual([]);
+  });
+});
+
+describe('PenaltiesService.createPenalty — a repeated card on a locked bout', () => {
+  const CARD = {
+    registrationId: 'reg-red',
+    occurredAt: '2026-10-03T10:00:00.000Z',
+    directCard: 'yellow',
+    reason: 'late hit',
+  };
+  const LOCKED_AT = '2026-10-03T09:00:00.000Z';
+
+  // As for a hit: the bout was locked after the card was saved and before the pad heard so.
+  it('answers the saved card, and writes nothing', async () => {
+    const { db, service } = setup('running', LOCKED_AT);
+
+    const saved = await service.createPenalty('m1', { ...CARD, clientUuid: 'card-uuid' } as never, {
+      userId: ORGANISER,
+    });
+
+    expect(saved).toMatchObject({ id: 'card-1', client_uuid: 'card-uuid' });
+    expect(db.writes).toEqual([]);
+  });
+
+  it('answers it to a scorekeeper’s PIN session too', async () => {
+    const { db, service } = setup('running', LOCKED_AT);
+
+    const saved = await service.createPenalty('m1', { ...CARD, clientUuid: 'card-uuid' } as never, {
+      staffAccountId: 'staff-1',
+    });
+
+    expect(saved).toMatchObject({ id: 'card-1' });
+    expect(db.writes).toEqual([]);
+  });
+
+  it('asks who may score BEFORE it answers the saved card', async () => {
+    const { service } = setup('running', LOCKED_AT);
+
+    await expect(
+      service.createPenalty('m1', { ...CARD, clientUuid: 'card-uuid' } as never, {}),
+    ).rejects.toEqual(new UnauthorizedException('Authentication required'));
+  });
+
+  it('a new card on a locked bout of an over Event gets the over-Event refusal, as a hit does', async () => {
+    const { service } = setup('completed', LOCKED_AT);
+
+    await expect(
+      service.createPenalty('m1', { ...CARD, clientUuid: 'new-uuid' } as never, {
+        userId: ORGANISER,
+      }),
+    ).rejects.toEqual(FROZEN);
+  });
+
+  it('still refuses a card the server does not hold', async () => {
+    const { db, service } = setup('running', LOCKED_AT);
+
+    await expect(
+      service.createPenalty('m1', { ...CARD, clientUuid: 'new-uuid' } as never, {
+        userId: ORGANISER,
+      }),
+    ).rejects.toEqual(new BadRequestException('Match is locked'));
     expect(db.writes).toEqual([]);
   });
 });
