@@ -42,7 +42,12 @@ const KNOWN_EVENT: Record<string, TableSeed> = {
 };
 
 function followsWith(tables: Record<string, TableSeed>) {
-  const supabase = mockSupabase({ ...KNOWN_EVENT, ...tables });
+  // A roster row with no profile, unless a case says otherwise: a new follow asks for it.
+  const supabase = mockSupabase({
+    ...KNOWN_EVENT,
+    persons: { data: null, error: null },
+    ...tables,
+  });
   const privacy = {
     forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
     forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
@@ -88,12 +93,13 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
     await expectFailure(service.unfollow(EVENT, PERSON, USER), 'follow delete');
   });
 
-  it('the notification toggles', async () => {
-    const { service } = followsWith({ follows: FAILED });
+  it("a tap on a card's switch, before anything is written", async () => {
+    const { service, supabase } = followsWith({ follows: FAILED });
     await expectFailure(
-      service.updateNotifications(EVENT, PERSON, USER, { notifyMatchStart: false }),
-      'follow notifications write',
+      service.setCardSwitches(GLOBAL, USER.userId, { notifyMatchStart: false }),
+      'follows read',
     );
+    expect(supabase.writes).toEqual([]);
   });
 
   it('the next-bout line of a listed follow', async () => {

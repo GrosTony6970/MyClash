@@ -9,7 +9,8 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import { refusalKey } from './action-error';
 import { Chevron } from './Chevron';
-import { FollowSwitches, type NotifyKey } from './FollowSwitches';
+import { type NotifyKey, saveCardSwitch, withCardSwitch } from './card-switches';
+import { FollowSwitches } from './FollowSwitches';
 import { saveHubSwitch, withHubSwitch } from './hub-follow-switch';
 import { usePersistedOpen } from './usePersistedOpen';
 import { PersonContextDetails } from './PersonContextDetails';
@@ -42,8 +43,9 @@ function groupKeyOf(f: PersonFollowing): { id: string; name: string } | null {
  * fighter shows here even with no upcoming event, enriched with their live
  * tournament context. Once follows span 2+ events, the list groups into
  * collapsible per-event sections. Match/referee/workshop notify toggles appear
- * only when an active event-follow backs them; the hub follow's own switch is on
- * every card (`FollowSwitches`).
+ * only when the person is followed in a coming Event, and speak for every such
+ * Event at once (ruling 239); the hub follow's own switch is on every card
+ * (`FollowSwitches`).
  */
 export default function FollowsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { t, locale } = useI18n();
@@ -92,29 +94,14 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
   const grouped = eventGroups.size >= 2;
 
   async function toggleNotify(follow: PersonFollowing, key: NotifyKey, value: boolean) {
-    const ev = follow.eventFollow;
-    if (!ev) return;
-    const patch = (f: PersonFollowing, v: boolean): PersonFollowing =>
-      f.globalPersonId === follow.globalPersonId && f.eventFollow
-        ? { ...f, eventFollow: { ...f.eventFollow, [key]: v } }
-        : f;
-    setFollows((prev) => prev.map((f) => patch(f, value)));
-    let status: number | null = null;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${ev.eventId}/follows/${ev.personId}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
-      });
-      status = res.status;
-      if (!res.ok) throw new Error('patch');
-    } catch {
-      // Roll back the optimistic update AND say so — a toggle that silently
-      // undoes itself reads as a broken switch.
-      setFollows((prev) => prev.map((f) => patch(f, !value)));
-      toast.error(t(refusalKey(status, 'publicApp.me.follows.updateFailed')));
-    }
+    setFollows((prev) => withCardSwitch(prev, follow.globalPersonId, key, value));
+    const saved = await saveCardSwitch(apiUrl, follow.globalPersonId, key, value);
+    if (saved.ok) return;
+    // Roll back the optimistic update AND say so — a toggle that silently
+    // undoes itself reads as a broken switch. As the hub switch below: a failure that left the
+    // switch saved shows the old value until a reload, and the next tap repairs.
+    setFollows((prev) => withCardSwitch(prev, follow.globalPersonId, key, !value));
+    toast.error(t(refusalKey(saved.status, 'publicApp.me.follows.updateFailed')));
   }
 
   async function toggleHub(follow: PersonFollowing, value: boolean) {

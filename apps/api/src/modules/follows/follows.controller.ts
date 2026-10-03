@@ -4,8 +4,9 @@
  * GET    /events/:eventId/follows          — list follows for session
  * POST   /events/:eventId/follows          — follow a person (idempotent)
  * DELETE /events/:eventId/follows/:personId — unfollow
- * PATCH  /events/:eventId/follows/:personId — update notification prefs
  * PATCH  /me/follows/by-global-person/:globalPersonId — the hub follow's own switch (ruling 217)
+ * PATCH  /me/follows/by-global-person/:globalPersonId/events — a Following card's three
+ *        switches, on every coming Event follow of that person (ruling 239)
  */
 
 import {
@@ -40,14 +41,18 @@ const followSchema = z
   .strict();
 class FollowDto extends createZodDto(followSchema) {}
 
-const updateFollowSchema = z
+/** A tap on a card of the Following tab (ruling 239): at least one of its three switches. */
+export const cardSwitchesSchema = z
   .object({
     notifyMatchStart: z.boolean().optional(),
     notifyWorkshopStart: z.boolean().optional(),
     notifyRefereeStart: z.boolean().optional(),
   })
-  .strict();
-class UpdateFollowDto extends createZodDto(updateFollowSchema) {}
+  .strict()
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: 'Name at least one switch',
+  });
+class UpdateCardSwitchesDto extends createZodDto(cardSwitchesSchema) {}
 
 const followByGlobalPersonSchema = z
   .object({
@@ -133,6 +138,26 @@ export class FollowsController {
     return this.follows.setHubRefereeAlert(globalPersonId, userId, dto.notifyRefereeStart);
   }
 
+  // Accounts only, as the hub switch above: the Following tab is an account's, and a guest
+  // session has no card.
+  @Patch('me/follows/by-global-person/:globalPersonId/events')
+  @ApiOperation({
+    summary: "Set a Following card's switches on every coming Event follow of this person",
+  })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async updateCardSwitches(
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Body() dto: UpdateCardSwitchesDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await this.requireUserId(req, 'set this alert');
+    return this.follows.setCardSwitches(globalPersonId, userId, {
+      notifyMatchStart: dto.notifyMatchStart,
+      notifyWorkshopStart: dto.notifyWorkshopStart,
+      notifyRefereeStart: dto.notifyRefereeStart,
+    });
+  }
+
   // ── Organisation follows ─────────────────────────────────────────────────────
   // Claimed users only: the payoff is a push/email notification, which needs an
   // identity to deliver to. A guest session has none, so these 401 rather than
@@ -190,24 +215,6 @@ export class FollowsController {
   ) {
     const identity = await this.resolveIdentity(req);
     await this.follows.unfollow(eventId, personId, identity);
-  }
-
-  @Patch('events/:eventId/follows/:personId')
-  @ApiOperation({ summary: 'Update follow notification preferences' })
-  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
-  async updateNotifications(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Param('personId', ParseUUIDPipe) personId: string,
-    @Body() dto: UpdateFollowDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const identity = await this.resolveIdentity(req);
-    return this.follows.updateNotifications(eventId, personId, identity, {
-      notifyMatchStart: dto.notifyMatchStart,
-      notifyWorkshopStart: dto.notifyWorkshopStart,
-      notifyRefereeStart: dto.notifyRefereeStart,
-    });
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────

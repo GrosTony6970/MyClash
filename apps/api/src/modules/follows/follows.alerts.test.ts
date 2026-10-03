@@ -30,7 +30,12 @@ const NONE = { data: null, error: null };
 const saved = (row: Record<string, unknown>) => ({ data: row, error: null });
 
 function build(follows: TableSeed) {
-  const supabase = mockSupabase({ follows, registrations: { rows: [] } });
+  // The roster row has no profile here: a new follow starts with the first follow's switches.
+  const supabase = mockSupabase({
+    follows,
+    registrations: { rows: [] },
+    persons: { data: null, error: null },
+  });
   // What was written to `follows` when the alerts were asked for: the alerts come after the write.
   const writesWhenAsked: number[] = [];
   const applyFollow = vi.fn(async () => {
@@ -94,27 +99,8 @@ describe("a follow sets the follower's alerts at once (ruling 207)", () => {
   });
 });
 
-describe('a switch of a follow acts at once (ruling 209)', () => {
-  it('a switch change asks for his alerts about her, once it is saved', async () => {
-    const { service, applyFollow, writesWhenAsked } = build(
-      saved({ ...ROW, notify_match_start: false }),
-    );
-
-    await service.updateNotifications(EVENT, LEA, MARC, { notifyMatchStart: false });
-
-    expect(applyFollow.mock.calls).toEqual([[LEA, 'marc']]);
-    expect(writesWhenAsked).toEqual([1]);
-  });
-
-  it('a switch change on a follow that is gone asks for nothing', async () => {
-    const { service, applyFollow } = build(NONE);
-
-    await expect(
-      service.updateNotifications(EVENT, LEA, MARC, { notifyMatchStart: true }),
-    ).rejects.toThrow('Follow not found');
-    expect(applyFollow).not.toHaveBeenCalled();
-  });
-
+// A switch change acts at once too: `follows.card-switches.test.ts`.
+describe('an unfollow acts at once (ruling 209)', () => {
   it('an unfollow asks once the follow is deleted', async () => {
     const { service, applyFollow, writesWhenAsked } = build(NONE);
 

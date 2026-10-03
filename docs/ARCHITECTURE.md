@@ -1643,11 +1643,20 @@ When a followed Person's match is scheduled to start within `notify_lead_time_mi
 
 Same scheduling mechanism as the user's own match notifications (BullMQ delayed jobs). Idempotent on `(user_id, match_id, notification_kind)` so rescheduling a match doesn't duplicate.
 
-Per-follow toggles (set on the Follow button's "..." menu):
+Each follow carries three switches. A Person followed from the People hub has a card in the
+"Following" tab, which sets them; a follow made on an Event's page alone has no card, and keeps
+the switches it started with:
 
 - ☑ Notify me when their match starts
 - ☐ Notify me when their referee slot starts
-- ☐ Notify me when their workshop starts (only if they share workshops)
+- ☐ Notify me when their workshop starts
+
+A follow is saved per Event, and the card has ONE set of switches (`follows/card-switches.ts`). The
+set speaks for every follow of that Person in a coming Event the public may know them in
+(`FollowsService.comingEventFollows`, the one owner of that set). A switch shows on only when it is
+on in every one of them. A tap saves them all in one statement
+(`PATCH /me/follows/by-global-person/:globalPersonId/events`). A follow made later takes the
+card's switches as they stand; a first follow starts as above. No screen sets one Event apart.
 
 An alert is one delayed job per bout (or duty, or Workshop session) and follower, whoever the
 follower follows in it. It is set when a bout or a Workshop session gets or changes its time, when

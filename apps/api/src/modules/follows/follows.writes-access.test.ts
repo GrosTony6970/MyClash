@@ -42,7 +42,13 @@ let privacy: { forPerson: ReturnType<typeof vi.fn>; forGlobalPerson: ReturnType<
 let follows: FollowsService;
 
 function build(tables: Record<string, TableSeed> = {}) {
-  db = mockSupabase({ follows: { data: ROW }, registrations: { rows: [] }, ...tables });
+  // `persons`: a roster row with no profile, which a new signed-in follow asks for.
+  db = mockSupabase({
+    follows: { data: ROW },
+    registrations: { rows: [] },
+    persons: { data: null },
+    ...tables,
+  });
   privacy = {
     forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
     forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
@@ -59,12 +65,10 @@ function build(tables: Record<string, TableSeed> = {}) {
 beforeEach(() => build());
 
 const NOBODY = {};
-const PATCH = { notifyMatchStart: false };
 
 describe('follows writes (ruling 102)', () => {
   it.each([
     ['unfollow', () => follows.unfollow(EVENT, ANNA, NOBODY)],
-    ['change the notifications of', () => follows.updateNotifications(EVENT, ANNA, NOBODY, PATCH)],
     ['follow', () => follows.follow(EVENT, ANNA, NOBODY)],
   ])(
     'refuses a caller with no account and no guest session to %s a person, touching nothing',
@@ -85,12 +89,6 @@ describe('follows writes (ruling 102)', () => {
     await follows.unfollow(EVENT, ANNA, { guestSessionId: GUEST });
     const [write] = writesTo(db, 'follows');
     expect(scopedTo(write, 'follower_guest_session_id')).toBe(GUEST);
-  });
-
-  it("changes only the caller's own notifications", async () => {
-    await follows.updateNotifications(EVENT, ANNA, { userId: USER }, PATCH);
-    const [write] = writesTo(db, 'follows');
-    expect(scopedTo(write, 'follower_user_id')).toBe(USER);
   });
 
   it.each([

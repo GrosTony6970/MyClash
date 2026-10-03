@@ -5,8 +5,9 @@
  * his rows before the draft existed. Paul runs the Winter Games' club; Sam does not.
  *
  * The Following tab spans many Events, so it shows public things only, for everyone, Paul
- * included (ruling 163): it backs Tom's switches with the Spring Open follow, never the Winter
- * Games one, which would show them "active" while his card names no Event. The one-Event list
+ * included (ruling 163): the Winter Games follow backs no switch on Tom's card, which would show
+ * them while the card names no Event. The Spring Open follow backs none either: a card's
+ * switches speak for the COMING Events (ruling 239). The one-Event list
  * holds the bar of that Event's own pages (129): Paul still sees his follow there, Sam does not.
  */
 import { HttpException } from '@nestjs/common';
@@ -115,28 +116,22 @@ beforeEach(() => {
 });
 
 describe('the Following tab shows public follows only, for everyone (ruling 163)', () => {
-  it("backs Tom's switches with his Spring Open follow, not the draft-only Winter Games one", async () => {
-    expect(await switchesOf(PAUL)).toEqual({
-      eventId: 'e-spring',
-      personId: 'p-spring',
-      notifyMatchStart: true,
-      notifyWorkshopStart: false,
-      notifyRefereeStart: false,
-      active: false,
-    });
-    expect(selectsFor(db.from, 'follows')[0]).toMatch(/^event_id, followed_person_id,/);
+  it("shows no switches for Tom: his draft-only Winter Games follow backs none, for the club's member too", async () => {
+    // His Spring Open follow backs none either: that Event is over (ruling 239).
+    expect(await switchesOf(PAUL)).toBeUndefined();
+    expect(await switchesOf(SAM)).toBeUndefined();
+    expect(selectsFor(db.from, 'follows')[0]).toMatch(/^id, event_id, followed_person_id,/);
     expect(queriedTables(db.from)).not.toContain('organization_members');
   });
 
-  it('answers exactly as if the hidden follow did not exist', async () => {
-    const shown = await switchesOf(SAM);
-    db = mockSupabase({ ...baseTables(), follows: { rows: FOLLOWS.filter(isSpring) } });
-    expect(await switchesOf(SAM)).toEqual(shown);
-  });
-
-  it('shows no switches when Tom is known only through the draft', async () => {
-    db = mockSupabase({ ...baseTables(), follows: { rows: FOLLOWS.filter((f) => !isSpring(f)) } });
-    expect(await switchesOf(PAUL)).toBeUndefined();
+  it('shows them once Tom is entered in a public Tournament of the Winter Games', async () => {
+    const open = { id: 't-winter-secret', event_id: 'e-winter', status: 'published' };
+    db = mockSupabase({ ...baseTables(), tournaments: { rows: [open] } });
+    expect(await switchesOf(SAM)).toEqual({
+      notifyMatchStart: true,
+      notifyWorkshopStart: false,
+      notifyRefereeStart: false,
+    });
   });
 
   it('lists only the Spring Open follow across Events, for the club member too', async () => {
@@ -180,7 +175,3 @@ describe('a failed Events read fails the list (ruling 117a)', () => {
     expect(String(failure)).toContain('events read failed: boom');
   });
 });
-
-function isSpring(follow: { event_id: string }): boolean {
-  return follow.event_id === 'e-spring';
-}

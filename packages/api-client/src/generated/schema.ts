@@ -8226,6 +8226,23 @@ export interface paths {
     patch: operations['FollowsController_updateHubFollow'];
     trace?: never;
   };
+  '/api/v1/me/follows/by-global-person/{globalPersonId}/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Set a Following card's switches on every coming Event follow of this person */
+    patch: operations['FollowsController_updateCardSwitches'];
+    trace?: never;
+  };
   '/api/v1/me/follows/organizations': {
     parameters: {
       query?: never;
@@ -8275,8 +8292,7 @@ export interface paths {
     delete: operations['FollowsController_unfollow'];
     options?: never;
     head?: never;
-    /** Update follow notification preferences */
-    patch: operations['FollowsController_updateNotifications'];
+    patch?: never;
     trace?: never;
   };
   '/api/v1/events/{eventId}/people/{personId}': {
@@ -11502,6 +11518,11 @@ export interface components {
     UpdateHubFollowDto: {
       notifyRefereeStart: boolean;
     };
+    UpdateCardSwitchesDto: {
+      notifyMatchStart?: boolean;
+      notifyWorkshopStart?: boolean;
+      notifyRefereeStart?: boolean;
+    };
     FollowOrganizationDto: {
       /** Format: uuid */
       organizationId: string;
@@ -11509,11 +11530,6 @@ export interface components {
     FollowDto: {
       /** Format: uuid */
       personId: string;
-    };
-    UpdateFollowDto: {
-      notifyMatchStart?: boolean;
-      notifyWorkshopStart?: boolean;
-      notifyRefereeStart?: boolean;
     };
     CreateGroupDto: {
       name: string;
@@ -23918,6 +23934,29 @@ export interface operations {
       };
     };
   };
+  FollowsController_updateCardSwitches: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        globalPersonId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateCardSwitchesDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   FollowsController_listFollowedOrganizations: {
     parameters: {
       query?: never;
@@ -23988,30 +24027,6 @@ export interface operations {
     requestBody?: never;
     responses: {
       204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  FollowsController_updateNotifications: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        eventId: string;
-        personId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateFollowDto'];
-      };
-    };
-    responses: {
-      200: {
         headers: {
           [name: string]: unknown;
         };

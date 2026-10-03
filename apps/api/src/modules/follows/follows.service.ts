@@ -26,6 +26,14 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { readEventPerson } from '../../common/auth/event-person-gate';
+import {
+  type CardSwitches,
+  type CardSwitchPatch,
+  cardSwitches,
+  FIRST_FOLLOW_SWITCHES,
+  switchColumns,
+  writeCardSwitches,
+} from './card-switches';
 import { setHubRefereeAlert, writeHubSwitch } from './hub-referee-switch';
 
 export interface FollowRow {
@@ -110,17 +118,6 @@ export interface DirectoryFollow {
   followedAt: string;
   /** The hub follow's own switch (ruling 217): tell me before he referees. Off at first. */
   notifyRefereeStart: boolean;
-}
-
-/** The event-scoped follow that backs a global person's notification toggles. */
-export interface EventFollowState {
-  eventId: string;
-  personId: string;
-  notifyMatchStart: boolean;
-  notifyWorkshopStart: boolean;
-  notifyRefereeStart: boolean;
-  /** The backing Event is upcoming and public: not over, not a draft, not a test Event. */
-  active: boolean;
 }
 
 /** Normalize a PostgREST embed that may arrive as an object or a 1-element array. */
@@ -265,8 +262,7 @@ export class FollowsService {
     const insert: Record<string, unknown> = {
       event_id: eventId,
       followed_person_id: personId,
-      notify_match_start: true,
-      notify_workshop_start: false,
+      ...switchColumns(await this.startSwitches(personId, identity)),
       [followerColumn]: follower,
     };
 
@@ -290,6 +286,34 @@ export class FollowsService {
   }
 
   /**
+   * The switches a new follow starts with (ruling 239b). An account that already follows that
+   * person in another coming Event starts from those follows, as a card shows them: a switch
+   * that is off there stays silent in the new Event too. A first follow, and a guest session's
+   * (it has no card), starts told of the bouts alone.
+   *
+   * The race, not closed: a tap that lands between this read and the insert is not in the new
+   * follow. After a tap OFF the card then shows off while the new Event still rings; a tap on,
+   * then off, repairs it. The same holds for a follow that enters the set later with its own
+   * switches: one made in a draft Event that is then published, or of a roster row linked to
+   * its profile afterwards.
+   */
+  private async startSwitches(personId: string, identity: FollowIdentity): Promise<CardSwitches> {
+    if (!identity.userId) return FIRST_FOLLOW_SWITCHES;
+    const person = dataOrThrow(
+      await this.supabase.service
+        .from('persons')
+        .select('global_person_id')
+        .eq('id', personId)
+        .maybeSingle(),
+      'followed person read',
+    ) as { global_person_id: string | null } | null;
+    const profile = person?.global_person_id;
+    if (!profile) return FIRST_FOLLOW_SWITCHES;
+    const others = (await this.comingEventFollows(identity.userId, [profile])).get(profile);
+    return others ? cardSwitches(others) : FIRST_FOLLOW_SWITCHES;
+  }
+
+  /**
    * The answer to a follow that is saved, new or already there. The follower's alerts about the
    * person are set first (ruling 207): her bouts had their times before he followed her, and an
    * alert used to be set only when a time changed.
@@ -305,7 +329,8 @@ export class FollowsService {
 
   /**
    * Brings an account's waiting alerts about a person in line with its follows as SAVED. So it
-   * runs after the write, at every door: a follow, a switch change, an unfollow, the People hub.
+   * runs after the write, at every door: a follow, an unfollow, the People hub (a switch change
+   * asks the scheduler itself, once per Event: `setCardSwitches`).
    * A guest session has no account to tell. Not best effort: the write is saved, a failure here
    * fails the call, and the same call again repairs the alerts.
    */
@@ -334,57 +359,6 @@ export class FollowsService {
       'follow delete',
     );
     await this.setAlerts(personId, identity);
-  }
-
-  // ── Update notification prefs ─────────────────────────────────────────────────
-
-  async updateNotifications(
-    eventId: string,
-    personId: string,
-    identity: FollowIdentity,
-    patch: {
-      notifyMatchStart?: boolean;
-      notifyWorkshopStart?: boolean;
-      notifyRefereeStart?: boolean;
-    },
-  ): Promise<FollowRow> {
-    const follower = followerFilter(identity);
-    const updates: Record<string, unknown> = {};
-    if (patch.notifyMatchStart !== undefined)
-      updates['notify_match_start'] = patch.notifyMatchStart;
-    if (patch.notifyWorkshopStart !== undefined)
-      updates['notify_workshop_start'] = patch.notifyWorkshopStart;
-    if (patch.notifyRefereeStart !== undefined)
-      updates['notify_referee_start'] = patch.notifyRefereeStart;
-
-    const q = this.supabase.service
-      .from('follows')
-      .update(updates)
-      .eq('event_id', eventId)
-      .eq('followed_person_id', personId)
-      .eq(...follower);
-
-    const data = dataOrThrow(
-      await (
-        q as never as {
-          select: (s: string) => {
-            maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
-          };
-        }
-      )
-        .select(
-          `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
-         persons ( given_name, family_name, clubs ( name ) )`,
-        )
-        .maybeSingle(),
-      'follow notifications write',
-    );
-    // No row: the caller does not follow this person here (any more). A 404, not a 5xx.
-    if (!data) throw new NotFoundException('Follow not found');
-
-    // The switch acts at once (ruling 209): off removes his waiting alerts, on sets them.
-    await this.setAlerts(personId, identity);
-    return this.mapWrittenRow(data as Record<string, unknown>, eventId);
   }
 
   // ── Guest→claimed migration ───────────────────────────────────────────────────
@@ -603,24 +577,28 @@ export class FollowsService {
   }
 
   /**
-   * For each global person, the event-scoped follow row that backs their
-   * notification toggles (prefers an active/upcoming event over a finished
-   * one). Lets the "Following" tab render match/workshop toggles that PATCH the
-   * right `/events/:eventId/follows/:personId`. One query total.
+   * The follows a card of the Following tab speaks for (ruling 239), by profile: this account's
+   * follows of these people in an Event that is coming and that the public may know them in. The
+   * ONE owner of that set: the list reads it, a tap writes it, a new follow starts from it.
+   *
+   * The Following tab spans many Events (ruling 163), so it holds the public's bar, for a club
+   * member too: a follow in a draft or test Event, or of someone entered only in a hidden
+   * Tournament, is not in the set. Neither is a follow of an Event that is over. Every follow of
+   * the account is read and sorted here, whoever it is of.
    */
-  async getEventFollowStateForGlobalPersons(
+  private async comingEventFollows(
     userId: string,
     globalPersonIds: string[],
-  ): Promise<Map<string, EventFollowState>> {
+  ): Promise<Map<string, Array<Record<string, unknown>>>> {
     const ids = [...new Set(globalPersonIds.filter(Boolean))];
-    const map = new Map<string, EventFollowState>();
-    if (ids.length === 0) return map;
+    const byProfile = new Map<string, Array<Record<string, unknown>>>();
+    if (ids.length === 0) return byProfile;
 
     const data = dataOrThrow(
       await this.supabase.service
         .from('follows')
         .select(
-          `event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
+          `id, event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
          persons ( global_person_id, events ( status, event_kind ) )`,
         )
         .eq('follower_user_id', userId),
@@ -629,27 +607,54 @@ export class FollowsService {
 
     const globalOf = (r: Record<string, unknown>) =>
       one(r['persons'])?.['global_person_id'] as string | undefined;
-    const followed = ((data ?? []) as Array<Record<string, unknown>>).filter((r) =>
-      ids.includes(globalOf(r) ?? ''),
+    // An Event that is over first: it is told from the row itself, and costs no read below.
+    const coming = ((data ?? []) as Array<Record<string, unknown>>).filter(
+      (r) =>
+        ids.includes(globalOf(r) ?? '') &&
+        isUpcomingPublicEvent(one(one(r['persons'])?.['events'])),
     );
-    // The Following tab spans many Events (ruling 163): a follow the public may not know of backs
-    // no switch, or the switches would say "active" while the card names no Event.
-    for (const r of await this.knownFollows(followed, THE_PUBLIC)) {
+    for (const r of await this.knownFollows(coming, THE_PUBLIC)) {
       const gp = globalOf(r) as string;
-      const active = isUpcomingPublicEvent(one(one(r['persons'])?.['events']));
-      const state: EventFollowState = {
-        eventId: r['event_id'] as string,
-        personId: r['followed_person_id'] as string,
-        notifyMatchStart: Boolean(r['notify_match_start']),
-        notifyWorkshopStart: Boolean(r['notify_workshop_start']),
-        notifyRefereeStart: Boolean(r['notify_referee_start']),
-        active,
-      };
-      const existing = map.get(gp);
-      // Prefer an active event-follow; otherwise keep the first seen.
-      if (!existing || (active && !existing.active)) map.set(gp, state);
+      byProfile.set(gp, [...(byProfile.get(gp) ?? []), r]);
     }
-    return map;
+    return byProfile;
+  }
+
+  /** The switches each card shows: on only when on in every coming Event (`card-switches.ts`). */
+  async getEventFollowStateForGlobalPersons(
+    userId: string,
+    globalPersonIds: string[],
+  ): Promise<Map<string, CardSwitches>> {
+    const follows = await this.comingEventFollows(userId, globalPersonIds);
+    return new Map([...follows].map(([profile, rows]) => [profile, cardSwitches(rows)]));
+  }
+
+  /**
+   * A tap on a card's switch: saved on every coming Event follow of that person, in one
+   * statement (ruling 239). It acts at once, Event by Event (ruling 209): off removes the
+   * account's waiting alerts, on sets them. Not best effort: the switches are saved, a failure
+   * after them fails the call, and the same call again repairs the alerts.
+   *
+   * The race, not closed: a follow made between the read and the write is not written. After a
+   * tap ON the card shows the switch off at its next load, which is what "on in every one" says.
+   * After a tap OFF it shows off too, and that follow still rings (see `startSwitches`).
+   */
+  async setCardSwitches(
+    globalPersonId: string,
+    userId: string,
+    patch: CardSwitchPatch,
+  ): Promise<CardSwitches> {
+    const follows = (await this.comingEventFollows(userId, [globalPersonId])).get(globalPersonId);
+    const ids = (follows ?? []).map((follow) => follow['id'] as string);
+    const saved = ids.length > 0 ? await writeCardSwitches(this.supabase, userId, ids, patch) : [];
+    // No row: he follows that person in no coming Event (any more). A 404, the same for a person
+    // nobody knows.
+    if (saved.length === 0) throw new NotFoundException('Follow not found');
+    // One roster row after the other: a failure is one clear error.
+    for (const personId of new Set(saved.map((row) => row['followed_person_id'] as string))) {
+      await this.followNotifications.applyFollow(personId, userId);
+    }
+    return cardSwitches(saved);
   }
 
   /**

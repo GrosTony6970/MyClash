@@ -83,9 +83,12 @@ describe('a groups load that is pending or failed says so, never "no groups"', (
 describe('the Following and Organizers tabs name a session that ended', () => {
   it('the Following tab, on a toggle and on an unfollow', () => {
     const source = read('FollowsClient.tsx');
-    expect(source).toContain("t(refusalKey(status, 'publicApp.me.follows.updateFailed'))");
+    // A toggle: the three switches of a card and the hub switch, each through its own save.
+    expect(
+      source.match(/t\(refusalKey\(saved\.status, 'publicApp\.me\.follows\.updateFailed'\)\)/g),
+    ).toHaveLength(2);
     expect(source).toContain("t(refusalKey(status, 'publicApp.me.follows.unfollowFailed'))");
-    expect(source.match(/status = res\.status;/g)).toHaveLength(2);
+    expect(source.match(/status = res\.status;/g)).toHaveLength(1);
   });
 
   it('the Organizers tab says a refused unfollow failed', () => {

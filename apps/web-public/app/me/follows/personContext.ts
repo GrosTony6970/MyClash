@@ -65,18 +65,19 @@ export interface PersonContext {
   nextMatch: PersonContextMatch | null;
 }
 
-/** A persistent follow, enriched, with the event-follow backing its toggles. */
+/** A persistent follow, enriched, with the switches its card shows. */
 export interface PersonFollowing extends PersonContext {
   followedAt: string;
   /** The hub follow's own switch (ruling 217): off at first. */
   hubFollow: { notifyRefereeStart: boolean };
+  /**
+   * The three switches for every coming Event where the person is followed (ruling 239): on only
+   * when on in every one. Null when there is no such Event.
+   */
   eventFollow: {
-    eventId: string;
-    personId: string;
     notifyMatchStart: boolean;
     notifyWorkshopStart: boolean;
     notifyRefereeStart: boolean;
-    active: boolean;
   } | null;
 }
 

@@ -112,7 +112,7 @@ describe('the archived-Event lock, API-wide', () => {
   });
 
   it('pins the routes it places, and NAMED_OPEN may only shrink', () => {
-    expect(placed).toHaveLength(184);
+    expect(placed).toHaveLength(183);
     expect(LISTS.NAMED_OPEN).toHaveLength(3);
   });
 });

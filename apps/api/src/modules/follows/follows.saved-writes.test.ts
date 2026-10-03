@@ -1,12 +1,12 @@
 /**
  * A failed decorative read after a saved write does not fail the write (operator ruling 122).
  *
- * A follow, a notification toggle and an "add to group" each read decoration AFTER their write
+ * A follow and an "add to group" each read decoration AFTER their write
  * (the next bout; a card's stats). A failed read there answered 5xx, so the page rolled back a
  * change the server had saved. The write now answers without the decoration and the failure goes
  * to the log. The lists stay strict: a failed read of follows is a 5xx (ruling 117a).
  */
-import { HttpException, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { THE_PUBLIC } from '../../common/auth/competition-visibility';
 import {
@@ -32,7 +32,8 @@ const ROW = {
 };
 
 function build(tables: Record<string, TableSeed>) {
-  const supabase = mockSupabase(tables);
+  // A roster row with no profile: a new follow asks for it, and starts as a first follow.
+  const supabase = mockSupabase({ persons: { data: null, error: null }, ...tables });
   const service = new FollowsService(
     supabase as never,
     {
@@ -92,33 +93,6 @@ describe('a saved follow write survives a failed next-bout read (ruling 122)', (
     warnings();
     const { service } = build({ follows: { data: ROW, error: null }, registrations: FAILED });
     await expect(service.follow(EVENT, PERSON, FAN)).resolves.toMatchObject({ nextEvent: null });
-  });
-
-  it('a saved notification toggle answers without its next bout', async () => {
-    const warn = warnings();
-    const { service, supabase } = build({
-      follows: { data: ROW, error: null },
-      registrations: FAILED,
-    });
-    const row = await service.updateNotifications(EVENT, PERSON, FAN, { notifyMatchStart: false });
-    expect(row).toMatchObject({ id: 'f1', nextEvent: null });
-    expect(writesTo(supabase, 'follows')).toHaveLength(1);
-    expect(warn).toHaveBeenCalledOnce();
-  });
-
-  it('a toggle on a follow that is gone is a 404, not a 5xx', async () => {
-    // A seeded table, so the terminal matters: `.single()` on no row is PGRST116 (a 5xx).
-    const { service } = build({ follows: { rows: [] } });
-    const run = service.updateNotifications(EVENT, PERSON, FAN, { notifyMatchStart: false });
-    await expect(run).rejects.toBeInstanceOf(NotFoundException);
-    await expect(run).rejects.toThrow('Follow not found');
-  });
-
-  it('a failed toggle WRITE is still a 5xx', async () => {
-    const { service } = build({ follows: FAILED });
-    const run = service.updateNotifications(EVENT, PERSON, FAN, { notifyMatchStart: false });
-    await expect(run).rejects.toThrow('follow notifications write failed: boom');
-    await expect(run).rejects.not.toBeInstanceOf(HttpException);
   });
 
   it('a list read stays strict: its failed next bout is a 5xx (ruling 117a)', async () => {

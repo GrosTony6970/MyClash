@@ -8,8 +8,9 @@ import type { PersonFollowing } from './personContext';
  * The hub follow's switch "notify when refereeing" on a card of the Following tab (operator
  * rulings 217, 217a).
  *
- * A person followed from the People hub alone had no switch: the three of a card sit on a follow
- * of ONE Event. The hub switch is saved on the hub follow itself, by the person's profile id.
+ * A person followed from the People hub alone had no switch: the three of a card speak for his
+ * coming Event follows. The hub switch is saved on the hub follow itself, by the person's profile
+ * id.
  *
  * This package's vitest does not compile TSX, so the request and the list change live in a pure
  * module, driven here, and the components are read as text for the wiring.
@@ -99,13 +100,11 @@ describe('the wiring of the card', () => {
     expect(source).toContain('onHubToggle={(value) => void toggleHub(follow, value)}');
   });
 
-  it('every card has the hub switch; the Event switches only with an active Event follow', () => {
+  it('every card has the hub switch; the Event switches only with a coming Event follow', () => {
     const source = read('FollowSwitches.tsx');
     expect(source).toContain('checked={follow.hubFollow.notifyRefereeStart}');
     expect(source).toContain('onChange={onHubToggle}');
-    expect(source).toContain(
-      'const eventFollow = follow.eventFollow?.active ? follow.eventFollow : null;',
-    );
+    expect(source).toContain('const { eventFollow } = follow;');
     // Beside the Event's own referee switch, the hub switch says what it covers.
     expect(source).toMatch(
       /eventFollow\s*\? 'publicApp\.me\.follows\.notifyRefereeElsewhere'\s*: 'publicApp\.me\.follows\.notifyReferee'/,

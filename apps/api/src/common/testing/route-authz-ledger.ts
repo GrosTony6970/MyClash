@@ -36,8 +36,6 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
     "the caller's own follow; 401 with no identity; the person page's bar first (ruling 130)",
   'modules/follows/follows.controller.ts#FollowsController.unfollow':
     "the caller's own follow; 401 with no identity",
-  'modules/follows/follows.controller.ts#FollowsController.updateNotifications':
-    "the caller's own follow; 401 with no identity",
   'modules/notifications/notifications.controller.ts#NotificationsController.getPreferences':
     "the caller's own preferences",
   'modules/notifications/notifications.controller.ts#NotificationsController.updatePreferences':

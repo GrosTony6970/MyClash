@@ -1,9 +1,10 @@
 /**
  * `GET /me/following` hands each card the hub follow's own switch (operator rulings 217, 217a).
  *
- * The three older switches of a card sit on a follow of ONE Event (`eventFollow`); a person
- * followed from the People hub alone had none. The hub switch is saved on the hub follow, so the
- * list hands it for every person, with or without an Event follow.
+ * The three older switches of a card speak for the coming Event follows of that person
+ * (`eventFollow`, ruling 239); a person followed from the People hub alone has none. The hub
+ * switch is saved on the hub follow, so the list hands it for every person, with or without an
+ * Event follow.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { MePeopleController } from './me-people.controller';
@@ -14,12 +15,9 @@ const followed = (globalPersonId: string, notifyRefereeStart: boolean) => ({
   notifyRefereeStart,
 });
 const EVENT_FOLLOW = {
-  eventId: 'open',
-  personId: 'lea-open',
   notifyMatchStart: true,
   notifyWorkshopStart: false,
   notifyRefereeStart: false,
-  active: true,
 };
 
 describe('GET /me/following', () => {

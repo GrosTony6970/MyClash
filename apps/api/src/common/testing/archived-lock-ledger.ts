@@ -178,6 +178,7 @@ export const NOT_EVENT_OWNED: Readonly<Record<string, readonly string[]>> = {
     'PATCH fighters/me/profile',
     'PATCH me/ai-keys/:id',
     'PATCH me/follows/by-global-person/:globalPersonId',
+    'PATCH me/follows/by-global-person/:globalPersonId/events',
     'PATCH me/groups/:groupId',
     'PATCH notifications/preferences',
     'POST auth/logout',
