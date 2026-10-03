@@ -253,6 +253,10 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
                     <span className="shrink-0 rounded-full bg-instructor/15 px-2 py-0.5 text-[11px] font-bold text-instructor">
                       {t('publicApp.me.events.roleInstructor')}
                     </span>
+                  ) : w.involvement === 'waitlisted' ? (
+                    <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-bold text-warning">
+                      {t('publicApp.me.workshops.onWaitlist')}
+                    </span>
                   ) : (
                     <span className="shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
                       {t('publicApp.me.events.roleParticipant')}

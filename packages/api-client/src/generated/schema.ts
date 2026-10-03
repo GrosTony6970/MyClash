@@ -8688,7 +8688,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Enroll in a session (authenticated). Waitlisted if full. */
+    /** Enroll in a session (authenticated). Waitlisted if full. `again=true` removes the caller’s own refusal first. */
     post: operations['WorkshopsController_enroll'];
     /** Cancel enrollment (authenticated) */
     delete: operations['WorkshopsController_cancel'];
@@ -24670,7 +24670,9 @@ export interface operations {
   };
   WorkshopsController_enroll: {
     parameters: {
-      query?: never;
+      query?: {
+        again?: 'true';
+      };
       header?: never;
       path: {
         id: string;

@@ -45,7 +45,7 @@ function controller(tables: Parameters<typeof mockSupabase>[0] = TABLES) {
   const identity = new ParticipantIdentityService(supabase as never, guestJwt);
   // Each takes (target, personId, …): the person is what these tests are about.
   const enrollment = {
-    enroll: vi.fn(async (_session: string, _person: string) => ({})),
+    enroll: vi.fn(async (_session: string, _person: string, _again?: boolean) => ({})),
     cancel: vi.fn(async (_session: string, _person: string) => undefined),
   };
   const feedback = {

@@ -79,6 +79,9 @@ export interface WorkshopEnrollment {
   sessionStart: string | null;
   sessionEnd: string | null;
   location: string | null;
+  /** A seat, or a place on the waitlist (the viewer's own schedule only). Absent in a
+   *  copy cached before the API sent it: read as a seat. */
+  status?: 'confirmed' | 'waitlisted';
 }
 
 /** One of the fighter's Pools, from its earliest placed bout to the planned end of
@@ -99,6 +102,9 @@ export interface PersonSchedule {
   poolSpans?: PoolSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
+  /** Sessions whose instructor refused the viewer (their own schedule only). Absent in a
+   *  copy cached before the API sent it. */
+  refusedWorkshopIds?: string[];
 }
 
 /** A non-commitment programme block (lunch, ceremony, registration…) shown as

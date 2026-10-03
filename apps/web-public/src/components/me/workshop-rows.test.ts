@@ -34,6 +34,24 @@ describe('buildWorkshopRows', () => {
     expect(rows.map((r) => r.key)).toEqual(['teach-w1', 'att-s1']);
   });
 
+  it('names a place on the waitlist as such, not as attending', () => {
+    const rows = buildWorkshopRows(
+      [],
+      [
+        { ...attend({ workshopId: 's-seat' }), status: 'confirmed' },
+        { ...attend({ workshopId: 's-wait' }), status: 'waitlisted' },
+        // A copy cached before the API sent the status reads as a seat.
+        attend({ workshopId: 's-old' }),
+      ],
+      'fosse-2027',
+    );
+    expect(rows.map((r) => [r.key, r.involvement])).toEqual([
+      ['att-s-seat', 'attending'],
+      ['att-s-wait', 'waitlisted'],
+      ['att-s-old', 'attending'],
+    ]);
+  });
+
   it('sorts by session start with unscheduled (null start) last', () => {
     const rows = buildWorkshopRows(
       [

@@ -29,6 +29,7 @@ import { readEventPerson } from '../../common/auth/event-person-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
+import { readPersonWorkshops, type WorkshopEnrollment } from './person-workshops';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
@@ -120,17 +121,6 @@ export interface RefereeSlot {
   poolMatchCount: number | null;
 }
 
-export interface WorkshopEnrollment {
-  /** workshop_sessions.id (the enrolled session), NOT the parent workshop id. */
-  workshopId: string;
-  /** Parent workshop slug — deep-links to the workshop in the Workshops tab. */
-  workshopSlug: string | null;
-  workshopName: string;
-  sessionStart: string | null;
-  sessionEnd: string | null;
-  location: string | null;
-}
-
 /**
  * One of the fighter's Pools, from its earliest placed Match to the planned end
  * of its last, whoever fights them. A fighter is busy for the whole of it, not
@@ -159,6 +149,8 @@ export interface PersonSchedule {
   poolSpans: PoolSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
+  /** Sessions whose instructor refused the person: their own read only (ruling 236). */
+  refusedWorkshopIds: string[];
 }
 
 /** A fighter's bout's phase, as `fetchMatches` embeds it. */
@@ -218,9 +210,13 @@ export class PublicScheduleService {
       this.fetchTimezone(eventId),
     ]);
 
-    const workshops = showWorkshops ? await this.fetchWorkshops(eventId, personId) : null;
+    // A waitlist place and a refusal are the person's own business (rulings 235, 236).
+    const own = requesterPersonId === personId;
+    const booked = showWorkshops
+      ? await readPersonWorkshops(this.supabase.service, personId, own)
+      : { workshops: null, refusedWorkshopIds: [] };
 
-    return { personId, timezone, matches, poolSpans, refereeSlots, workshops };
+    return { personId, timezone, matches, poolSpans, refereeSlots, ...booked };
   }
 
   /**
@@ -664,45 +660,5 @@ export class PublicScheduleService {
       skillColor: s.skillColor,
       poolMatchCount: s.poolMatchCount,
     }));
-  }
-
-  private async fetchWorkshops(_eventId: string, personId: string): Promise<WorkshopEnrollment[]> {
-    // `user_id` is the event-scoped persons.id, so filtering by it already
-    // scopes to this event — there is no `event_id` column on enrollments.
-    const { data } = await this.supabase.service
-      .from('workshop_enrollments')
-      .select(
-        `
-        workshop_sessions (
-          id, starts_at, ends_at, location_label,
-          workshops ( title, slug )
-        )
-      `,
-      )
-      .eq('user_id', personId);
-
-    if (!data) return [];
-
-    return (data as Array<Record<string, unknown>>).map((e) => {
-      const sessionRaw = e['workshop_sessions'];
-      const session = (Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw) as Record<
-        string,
-        unknown
-      > | null;
-      const workshopRaw = session?.['workshops'];
-      const workshop = (Array.isArray(workshopRaw) ? workshopRaw[0] : workshopRaw) as {
-        title?: string;
-        slug?: string;
-      } | null;
-
-      return {
-        workshopId: (session?.['id'] as string) ?? '',
-        workshopSlug: workshop?.slug ?? null,
-        workshopName: workshop?.title ?? '',
-        sessionStart: (session?.['starts_at'] as string | null) ?? null,
-        sessionEnd: (session?.['ends_at'] as string | null) ?? null,
-        location: (session?.['location_label'] as string | null) ?? null,
-      };
-    });
   }
 }

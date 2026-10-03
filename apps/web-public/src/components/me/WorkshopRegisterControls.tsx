@@ -2,6 +2,7 @@
 
 import { Button } from '@myclash/ui';
 import type { ReactNode } from 'react';
+import type { WorkshopBooking } from './workshop-booking';
 
 export interface WorkshopRegisterLabels {
   register: string;
@@ -9,13 +10,20 @@ export interface WorkshopRegisterLabels {
   cancel: string;
   registered: string;
   joinWaitlist: string;
+  /** The chip of a place on the waitlist, and the button that gives it up. */
+  onWaitlist: string;
+  leaveWaitlist: string;
+  /** The sentence a refused viewer reads, and the button that books them again. */
+  refused: string;
+  registerAgain: string;
   full: string;
   /** Shown on the disabled button when the viewer teaches this workshop. */
   instructorOwn: string;
 }
 
 export interface WorkshopRegisterControlsProps {
-  enrolled: boolean;
+  /** What the viewer's booking of this session is. */
+  booking: WorkshopBooking;
   full: boolean;
   conflict?: string | null;
   busy?: boolean;
@@ -48,11 +56,43 @@ function CheckIcon() {
   );
 }
 
+/** What the viewer's booking is, said above the button. Nothing when there is none. */
+function BookingNotice({
+  booking,
+  labels,
+}: {
+  booking: WorkshopBooking;
+  labels: WorkshopRegisterLabels;
+}): ReactNode {
+  if (booking === 'confirmed') {
+    return (
+      <p className="mb-2.5 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
+        <CheckIcon />
+        {labels.registered}
+      </p>
+    );
+  }
+  if (booking === 'waitlisted') {
+    return (
+      <p className="mb-2.5 inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-bold text-warning">
+        {labels.onWaitlist}
+      </p>
+    );
+  }
+  if (booking === 'refused') {
+    return <p className="mb-2.5 text-xs font-semibold text-muted">{labels.refused}</p>;
+  }
+  return null;
+}
+
 /**
  * Registration footer for a personal-space workshop card: the warn-but-allow
- * conflict badge, the enrolled chip, and the action button
- * (Register / Register-anyway / Join-waitlist / Cancel). Slotted into the shared
- * `WorkshopCard` footer.
+ * conflict badge, the chip of the viewer's booking, and the action button
+ * (Register / Register-anyway / Join-waitlist / Cancel / Leave-waitlist /
+ * Register-again). Slotted into the shared `WorkshopCard` footer.
+ *
+ * A seat says "Registered"; a place on the waitlist says so and can be given up
+ * (ruling 235); a refusal is told, with one button that books again (ruling 236).
  *
  * `isInstructor` disables the button: someone who teaches the workshop takes no
  * participant seat, so the conflict badge is meaningless too. The API enforces
@@ -61,7 +101,7 @@ function CheckIcon() {
  * rather than only from the instructor roster.
  */
 export function WorkshopRegisterControls({
-  enrolled,
+  booking,
   full,
   conflict,
   busy,
@@ -70,7 +110,8 @@ export function WorkshopRegisterControls({
   onRegister,
   onCancel,
 }: WorkshopRegisterControlsProps): ReactNode {
-  if (isInstructor && !enrolled) {
+  const booked = booking === 'confirmed' || booking === 'waitlisted';
+  if (isInstructor && !booked) {
     return (
       <div>
         <Button variant="secondary" size="sm" className="w-full" disabled>
@@ -82,22 +123,21 @@ export function WorkshopRegisterControls({
 
   return (
     <div>
-      {conflict && !enrolled && (
+      {conflict && !booked && (
         <p className="mb-2.5 inline-flex items-center gap-1.5 rounded-lg bg-danger/10 px-2 py-1.5 text-xs font-semibold text-danger">
           <WarningIcon />
           {conflict}
         </p>
       )}
-      {enrolled && (
-        <p className="mb-2.5 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
-          <CheckIcon />
-          {labels.registered}
-        </p>
-      )}
+      <BookingNotice booking={booking} labels={labels} />
 
-      {enrolled ? (
+      {booked ? (
         <Button variant="danger" size="sm" className="w-full" loading={busy} onClick={onCancel}>
-          {labels.cancel}
+          {booking === 'waitlisted' ? labels.leaveWaitlist : labels.cancel}
+        </Button>
+      ) : booking === 'refused' ? (
+        <Button variant="primary" size="sm" className="w-full" loading={busy} onClick={onRegister}>
+          {labels.registerAgain}
         </Button>
       ) : full ? (
         <Button

@@ -8,7 +8,8 @@ import type { MyEventWorkshopTeaching, WorkshopEnrollment } from './types';
 /** A row in the unified Workshops section — a workshop the user teaches or attends. */
 export interface WorkshopRow {
   key: string;
-  involvement: 'teaching' | 'attending';
+  /** `waitlisted`: a place on the waitlist, not a seat (ruling 235). */
+  involvement: 'teaching' | 'attending' | 'waitlisted';
   name: string;
   start: string | null;
   end: string | null;
@@ -44,7 +45,7 @@ export function buildWorkshopRows(
     .filter((w) => !(w.workshopSlug && teachingSlugs.has(w.workshopSlug)))
     .map((w) => ({
       key: `att-${w.workshopId}`,
-      involvement: 'attending',
+      involvement: w.status === 'waitlisted' ? 'waitlisted' : 'attending',
       name: w.workshopName,
       start: w.sessionStart,
       end: w.sessionEnd,

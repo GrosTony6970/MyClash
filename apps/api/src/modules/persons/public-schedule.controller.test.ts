@@ -102,8 +102,15 @@ const TABLES = {
 };
 
 /** The Event gate asks `getAuthUser`; the viewer's own person (ParticipantIdentityService) asks GoTrue. */
-function door(opts: { userId?: string; member?: boolean } = {}) {
-  const db = mockSupabase(TABLES);
+function door(
+  opts: {
+    userId?: string;
+    member?: boolean;
+    bookings?: Array<Record<string, unknown>>;
+    hidesWorkshops?: boolean;
+  } = {},
+) {
+  const db = mockSupabase({ ...TABLES, workshop_enrollments: { rows: opts.bookings ?? [] } });
   const user = opts.userId ? { id: opts.userId } : null;
   const getUser = vi.fn(async () => ({ data: { user } }));
   const supabase = { ...db, getAuthUser: vi.fn(async () => user), anon: { auth: { getUser } } };
@@ -114,7 +121,8 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
   };
   // Hidden workshops show to the person themself only, as the real PrivacyService does.
   const privacy = {
-    canSeeWorkshops: async (person: string, viewer: string | null) => person === viewer,
+    canSeeWorkshops: async (person: string, viewer: string | null) =>
+      opts.hidesWorkshops === false || person === viewer,
   };
   const service = new PublicScheduleService(supabase as never, privacy as never, orgs as never);
   const guestJwt = new GuestJwtService({ getOrThrow: () => GUEST_SECRET } as never);
@@ -230,6 +238,55 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
     expect((await own.controller.getSchedule(OPEN, CARL, byCookie)).workshops).toEqual([]);
     const someoneElse = door({ userId: 'u-someone-else' });
     expect((await someoneElse.controller.getSchedule(OPEN, CARL, byCookie)).workshops).toBeNull();
+  });
+
+  it('tells a waitlist place and a refusal to the person alone (rulings 235, 236)', async () => {
+    const booking = (session: string, status: string) => ({
+      user_id: CARL,
+      status,
+      workshop_sessions: { id: session, workshops: { title: session, slug: session } },
+    });
+    const bookings = [
+      booking('s-seat', 'confirmed'),
+      booking('s-wait', 'waitlisted'),
+      booking('s-refused', 'refused'),
+    ];
+    const states = (schedule: {
+      workshops: Array<{ workshopId: string; status: string }> | null;
+      refusedWorkshopIds: string[];
+    }) => ({
+      workshops: schedule.workshops?.map((w) => [w.workshopId, w.status]),
+      refused: schedule.refusedWorkshopIds,
+    });
+
+    const own = await door({ bookings }).controller.getSchedule(
+      OPEN,
+      CARL,
+      guest('gs-live', CARL, OPEN),
+    );
+    expect(states(own)).toEqual({
+      workshops: [
+        ['s-seat', 'confirmed'],
+        ['s-wait', 'waitlisted'],
+      ],
+      refused: ['s-refused'],
+    });
+
+    // Carl does not hide his Workshops here: anybody reads his seat, and only his seat.
+    const open = door({ bookings, hidesWorkshops: false });
+    const stranger = await open.controller.getSchedule(OPEN, CARL, anonymous);
+    expect(states(stranger)).toEqual({ workshops: [['s-seat', 'confirmed']], refused: [] });
+    // Another person of the Event, on a live guest session, is no more the owner than nobody is.
+    const neighbour = await open.controller.getSchedule(
+      OPEN,
+      CARL,
+      guest('gs-live', 'p-dora', OPEN),
+    );
+    expect(states(neighbour)).toEqual({ workshops: [['s-seat', 'confirmed']], refused: [] });
+
+    // Hidden by his privacy: no list, and no refusal either.
+    const hidden = await door({ bookings }).controller.getSchedule(OPEN, CARL, anonymous);
+    expect(states(hidden)).toEqual({ workshops: undefined, refused: [] });
   });
 });
 

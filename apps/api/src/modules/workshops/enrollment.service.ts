@@ -53,8 +53,10 @@ export class EnrollmentService {
   /**
    * Book a seat, then ask for the booking's alert: set for a confirmed seat, none for the
    * waitlist. A booking that already exists asks again, which is how a second tap repairs.
+   * `again` is the person's own "Register again" on a refusal (ruling 236).
    */
-  async enroll(sessionId: string, personId: string): Promise<EnrollmentResult> {
+  async enroll(sessionId: string, personId: string, again = false): Promise<EnrollmentResult> {
+    if (again) await this.removeRefusal(sessionId, personId);
     const booking = await this.book(sessionId, personId);
     await this.bookingAlert(sessionId, personId);
     return booking;
@@ -177,6 +179,28 @@ export class EnrollmentService {
       status: 'confirmed',
       waitlistPosition: null,
     };
+  }
+
+  /**
+   * The first half of the person's own "Register again" (ruling 236): remove the refusal, and
+   * ONLY a refusal. The booking that follows is anybody's.
+   *
+   * The race it handles: the refusal is taken back (`accept`) while the person's page still
+   * shows it. The delete names the status, so it cannot remove the seat just given back; a
+   * plain cancel would, and would hand that seat to the waitlist.
+   */
+  private async removeRefusal(sessionId: string, personId: string): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('workshop_enrollments')
+      .delete()
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
+      .eq('status', 'refused');
+    if (error) {
+      throw new Error(
+        `Refusal of ${personId} in session ${sessionId} not removed: ${error.message}`,
+      );
+    }
   }
 
   // ── Instructor self-enrollment guard ───────────────────────────────────────────
@@ -357,10 +381,10 @@ export class EnrollmentService {
   }
 
   /**
-   * Refuse an enrollee. Sets status 'refused' and keeps the row: while it is there, enroll()
-   * answers "removed by the instructor". It is a removal, not a ban (operator ruling 219): the
-   * person's own cancel deletes the row, and he may then book again; the instructor refuses him
-   * again if needed. A freed confirmed seat promotes the top of the waitlist. No-ops if not
+   * Refuse an enrollee. Sets status 'refused' and keeps the row: while it is there, a plain
+   * enroll() answers "removed by the instructor". It is a removal, not a ban (operator ruling
+   * 219): the person's own cancel deletes the row, or his "Register again" does (ruling 236),
+   * and he may then book again; the instructor refuses him again if needed. A freed confirmed seat promotes the top of the waitlist. No-ops if not
    * enrolled or already refused.
    */
   async refuse(sessionId: string, personId: string): Promise<void> {

@@ -7,7 +7,11 @@ import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
-import { WorkshopRegisterControls } from '@/components/me/WorkshopRegisterControls';
+import {
+  WorkshopRegisterControls,
+  type WorkshopRegisterLabels,
+} from '@/components/me/WorkshopRegisterControls';
+import { bookingsOf, enrollPath, type WorkshopBooking } from '@/components/me/workshop-booking';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
   groupWorkshopsByDay,
@@ -103,13 +107,11 @@ function WorkshopsContent({
     return () => controller.abort();
   }, [api, event.slug, wsKey]);
 
-  const enrolledIds = useMemo(
-    () => new Set((schedule?.workshops ?? []).map((w) => w.workshopId)),
-    [schedule],
-  );
+  // Session id → what the viewer's booking of it is: a seat, a waitlist place, a refusal.
+  const bookings = useMemo(() => bookingsOf(schedule), [schedule]);
 
   // Workshops the viewer TEACHES (parent workshop ids, so these key off `w.id`,
-  // unlike `enrolledIds` above which holds session ids). Teaching one means no
+  // unlike `bookings` above which is keyed by session id). Teaching one means no
   // participant seat in it — the API rejects the enroll either way.
   const teachingIds = useMemo(() => new Set(teaching.map((w) => w.workshopId)), [teaching]);
 
@@ -155,10 +157,10 @@ function WorkshopsContent({
   };
 
   const act = useCallback(
-    async (sessionId: string, method: 'POST' | 'DELETE') => {
+    async (sessionId: string, method: 'POST' | 'DELETE', booking: WorkshopBooking = 'none') => {
       setBusy(sessionId);
       try {
-        await fetch(`${api}/api/v1/workshop-sessions/${sessionId}/enroll`, {
+        await fetch(`${api}${enrollPath(sessionId, booking)}`, {
           method,
           credentials: 'include',
         });
@@ -178,15 +180,7 @@ function WorkshopsContent({
   if (visible.length === 0) return <EmptyState title={t('publicApp.me.workshops.empty')} />;
 
   const groups = groupWorkshopsByDay(visible, tz);
-  const labels = {
-    register: t('publicApp.me.workshops.register'),
-    registerAnyway: t('publicApp.me.workshops.registerAnyway'),
-    cancel: t('publicApp.me.workshops.cancel'),
-    registered: t('publicApp.me.workshops.registered'),
-    joinWaitlist: t('publicApp.me.workshops.joinWaitlist'),
-    full: t('publicApp.me.workshops.full'),
-    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
-  };
+  const labels = registerLabels(t);
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,12 +194,12 @@ function WorkshopsContent({
             {group.items.map((w) => {
               const session = w.sessions.find((s) => s.status !== 'cancelled')!;
               const teaches = teachingIds.has(w.id);
-              const enrolled = enrolledIds.has(session.id);
+              const booking = bookings.get(session.id) ?? 'none';
               const remaining =
                 session.capacity != null
                   ? Math.max(0, session.capacity - session.confirmedCount)
                   : null;
-              const full = session.capacity != null && remaining === 0 && !enrolled;
+              const full = session.capacity != null && remaining === 0;
               // Rating unlocks for attendees once the session has started.
               const started =
                 session.startsAt != null && new Date(session.startsAt).getTime() <= Date.now();
@@ -214,21 +208,21 @@ function WorkshopsContent({
                   <WorkshopCard
                     workshop={w}
                     timezone={tz}
-                    highlighted={enrolled}
+                    highlighted={booking === 'confirmed'}
                     showLocation
                     footer={
                       <div className="flex flex-col gap-2">
                         <WorkshopRegisterControls
-                          enrolled={enrolled}
+                          booking={booking}
                           full={full}
-                          conflict={enrolled ? null : conflictFor(session)}
+                          conflict={conflictFor(session)}
                           busy={busy === session.id}
                           isInstructor={teaches}
                           labels={labels}
-                          onRegister={() => void act(session.id, 'POST')}
+                          onRegister={() => void act(session.id, 'POST', booking)}
                           onCancel={() => void act(session.id, 'DELETE')}
                         />
-                        {enrolled && started && (
+                        {booking === 'confirmed' && started && (
                           <WorkshopRatingControl workshopId={w.id} api={api} />
                         )}
                       </div>
@@ -242,6 +236,23 @@ function WorkshopsContent({
       ))}
     </div>
   );
+}
+
+/** The words of the register controls, in the reader's language. */
+function registerLabels(t: ReturnType<typeof useI18n>['t']): WorkshopRegisterLabels {
+  return {
+    register: t('publicApp.me.workshops.register'),
+    registerAnyway: t('publicApp.me.workshops.registerAnyway'),
+    cancel: t('publicApp.me.workshops.cancel'),
+    registered: t('publicApp.me.workshops.registered'),
+    joinWaitlist: t('publicApp.me.workshops.joinWaitlist'),
+    onWaitlist: t('publicApp.me.workshops.onWaitlist'),
+    leaveWaitlist: t('publicApp.me.workshops.leaveWaitlist'),
+    refused: t('publicApp.me.workshops.refused'),
+    registerAgain: t('publicApp.me.workshops.registerAgain'),
+    full: t('publicApp.me.workshops.full'),
+    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
+  };
 }
 
 // Participant rating for a workshop they attended (session already started).

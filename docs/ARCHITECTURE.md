@@ -1284,6 +1284,10 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
 - New enrollment when full → `status='waitlisted'` with `position=N`.
 - When a confirmed enrollment cancels → top of waitlist auto-promotes (BullMQ job, sends notification).
 - Organizer can manually promote/demote.
+- A person's schedule reads a booking by what it IS (`apps/api/src/modules/persons/person-workshops.ts`):
+  anybody the person's privacy lets in reads the seats; the person alone reads their waitlist places,
+  marked, and the sessions whose instructor refused them (rulings 235, 236). A refusal is a removal,
+  not a ban (ruling 219): the person's "Register again" removes it, then books.
 
 ### 11bis.5 Public discovery
 

@@ -433,6 +433,11 @@ export function ScheduleView({
         place={w.location}
         title={w.workshopName}
         meta={null}
+        status={
+          w.status === 'waitlisted'
+            ? { label: t('publicApp.me.workshops.onWaitlist'), tone: 'pending' }
+            : undefined
+        }
         conflict={conflictLabel}
         isNext={item.key === nextKey}
         nextLabel={t('publicApp.me.schedule.next')}

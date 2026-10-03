@@ -31,6 +31,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
@@ -525,11 +526,19 @@ export class WorkshopsController {
 
   @Post('workshop-sessions/:id/enroll')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Enroll in a session (authenticated). Waitlisted if full.' })
+  @ApiOperation({
+    summary:
+      'Enroll in a session (authenticated). Waitlisted if full. `again=true` removes the caller’s own refusal first.',
+  })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+  @ApiQuery({ name: 'again', required: false, enum: ['true'] })
+  async enroll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+    @Query('again') again?: string,
+  ) {
     const personId = await this.resolvePersonId(req, id);
-    return this.enrollment.enroll(id, personId);
+    return this.enrollment.enroll(id, personId, again === 'true');
   }
 
   @Delete('workshop-sessions/:id/enroll')

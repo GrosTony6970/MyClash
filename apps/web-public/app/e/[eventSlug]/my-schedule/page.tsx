@@ -85,6 +85,8 @@ interface WorkshopEnrollment {
   sessionStart: string | null;
   sessionEnd: string | null;
   location: string | null;
+  /** A seat, or a place on the waitlist. */
+  status: 'confirmed' | 'waitlisted';
 }
 
 interface PersonSchedule {
@@ -506,14 +508,7 @@ export default function MySchedulePage() {
                         </>
                       )}
 
-                      {item.kind === 'workshop' && (
-                        <>
-                          <p className="font-semibold text-warning">{item.data.workshopName}</p>
-                          {item.data.location && (
-                            <p className="text-warning text-xs mt-0.5">📍 {item.data.location}</p>
-                          )}
-                        </>
-                      )}
+                      {item.kind === 'workshop' && <WorkshopLines workshop={item.data} />}
 
                       {/* Conflict warning */}
                       {hasConflict && (
@@ -540,5 +535,19 @@ export default function MySchedulePage() {
         </section>
       ))}
     </main>
+  );
+}
+
+/** A Workshop of the schedule: its name, its waitlist mark (ruling 235), its place. */
+function WorkshopLines({ workshop }: { workshop: WorkshopEnrollment }) {
+  const { t } = useI18n();
+  return (
+    <>
+      <p className="font-semibold text-warning">{workshop.workshopName}</p>
+      {workshop.status === 'waitlisted' && (
+        <p className="text-warning text-xs mt-0.5">{t('publicApp.me.workshops.onWaitlist')}</p>
+      )}
+      {workshop.location && <p className="text-warning text-xs mt-0.5">📍 {workshop.location}</p>}
+    </>
   );
 }
