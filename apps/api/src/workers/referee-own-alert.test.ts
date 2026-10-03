@@ -136,21 +136,22 @@ describe('the lock tells a referee of his duty', () => {
 });
 
 describe('an alert that rang does not ring again for the same start (ruling 221)', () => {
-  it.each<[string, unknown]>([
-    ['was sent', ALERT_SENT],
-    ['failed: the live phones rang before the dead one threw', null],
-  ])('keeps the record of an alert that %s, and sets nothing', async (_, answer) => {
-    const { service, queue, removed } = setup({ [POOL_3]: fired(answer, at('10:00')) });
+  it.each<[string, unknown]>([['was sent', ALERT_SENT]])(
+    'keeps the record of an alert that %s, and sets nothing',
+    async (_, answer) => {
+      const { service, queue, removed } = setup({ [POOL_3]: fired(answer, at('10:00')) });
 
-    await service.scheduleRefereeDutiesStarting(one('paul-pool-3'), NOW);
+      await service.scheduleRefereeDutiesStarting(one('paul-pool-3'), NOW);
 
-    expect(queue.add).not.toHaveBeenCalled();
-    expect(removed).toEqual([]);
-    expect(queue.jobs.get(POOL_3)?.finishedOn).toBe(1);
-  });
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(removed).toEqual([]);
+      expect(queue.jobs.get(POOL_3)?.finishedOn).toBe(1);
+    },
+  );
 
   it.each<[string, HeldAlert]>([
     ['was dropped at its minute: an unlocked board, or a draft', fired(ALERT_DROPPED, at('10:00'))],
+    ['failed at its minute: no phone was reached (ruling 237)', fired(null, at('10:00'))],
     ['rang for another start: the duty moved', fired(ALERT_SENT, at('09:58'))],
     ['still waits for an older start', waiting(at('11:00'))],
   ])('sets it again when the one held %s', async (_, held) => {

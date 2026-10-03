@@ -441,7 +441,6 @@
     "apps/api/src/workers/event-archive.worker.ts:61",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:186",
     "apps/api/src/workers/hema-ratings-sync.worker.ts:81",
-    "apps/api/src/workers/notification-scheduler.worker.ts:731",
     "apps/api/src/workers/runtime-health-monitor.worker.ts:75",
     "apps/web-admin/app/_components/LegalUpdateBanner.tsx:21",
     "apps/web-admin/app/admin/ai/budget/page.tsx:22",

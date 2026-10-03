@@ -1334,6 +1334,7 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
 
 - BullMQ scheduled jobs ("delayed jobs") created when a match/session schedule changes.
 - Job picks the user's `push_subscriptions`, sends via `web-push` library with VAPID keys.
+- One address that fails does not fail the alert the other phones got (`apps/api/src/workers/push-delivery.ts`). An address the push service calls gone (404 or 410) is removed: the browser turned phone alerts off, or the phone is gone. With no phone rung and none unreachable, the reader has no phone alert set up and the email goes. A push service that cannot be reached removes nothing; when no phone rang at all, the job fails and is reported.
 - Offline-tolerant: if a user's device is offline, the push is queued by the OS; delivered on reconnect.
 - Off means off (operator ruling 200): a notice whose own switch is off, or any notice while the main switch is off (`enabled=false`), sends neither a push nor an email. The one exception is a broadcast (an organiser's, or an instructor's to a Workshop), which still reaches a reader whose main switch is off, by email, when the recipient has an address. The email is the fallback of a reader with no push subscription, never the answer to a switch.
 - Every automatic notice is written in French and in English, side by side, French first (operator ruling 202): the API does not know a reader's language. The texts live in the `notices` namespace of `@myclash/i18n`, and `apps/api/src/modules/notifications/notice-texts/notice-texts.ts` is the one module that words a notice. A broadcast is sent as its organiser or instructor typed it.
@@ -1378,12 +1379,11 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
 - A duty alert that has rung does not ring again for the same start (operator ruling 221,
   `apps/api/src/workers/duty-alert-rings.ts`). The two duty kinds stay in the queue for a day
   after they complete, with the start they were set for and what the worker answered (`sent`, or
-  `dropped` by the fire-time check); one that failed stays as long as it is among the queue's
-  last 100 failures. At every door (the lock, a retime, a change of a follow) one
+  `dropped` by the fire-time check). At every door (the lock, a retime, a change of a follow) one
   rule decides: a duty that has started gets no alert; one whose alert fired for this same start
   keeps that record and gets none; any other is set, and rings at once when its minute has
-  passed. A dropped alert rang for nobody, so the next door sets it again; a failed one counts as
-  rung.
+  passed. A dropped alert rang for nobody, so the next door sets it again. So did a failed one
+  (operator ruling 237): a job fails before any phone rings, or when no phone could be reached.
 
 ---
 

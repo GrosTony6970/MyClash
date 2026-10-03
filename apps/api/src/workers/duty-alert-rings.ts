@@ -11,10 +11,9 @@
  * The memory is the alert that fired. A duty alert that completed stays in the queue for a day
  * after its minute (`DUTY_ALERT_KEPT`), with the start it was set for and what the worker answered. One that was
  * SENT is not sent again for the same start. One the send gate DROPPED (a draft's, an unlocked
- * duty's) rang for nobody, so the next door sets it again. One that FAILED counts as sent: a
- * dead push subscription fails the job after the live phones rang. A failed job is kept by
- * COUNT, not by age: the queue holds its last 100 failures, of every kind, so that record can go
- * within the hour or outlive the day. No job at all is no memory: the alert is set.
+ * duty's) rang for nobody, so the next door sets it again. So did one that FAILED (ruling 237):
+ * a job fails before any phone rings, or when none could be reached (`push-delivery.ts`; a dead
+ * address fails nothing). No job at all is no memory: the alert is set.
  *
  * A duty that has started rings for nobody: a delay cannot be negative, so its alert would be
  * sent at once, as "starting soon". A second lock at midday is quiet for the morning's duties.
@@ -50,9 +49,9 @@ export type DutyAlertStep = 'set' | 'keep' | 'remove';
 /** Has this job fired? One that has not still waits for its minute. */
 export const hasFired = (held: HeldAlert | null | undefined): boolean => Boolean(held?.finishedOn);
 
-/** The start an alert rang for, as an instant; null when none fired, or it was dropped. */
+/** The start an alert rang for, as an instant; null unless the worker answered that it was sent. */
 function rangFor(held: HeldAlert | null | undefined): number | null {
-  if (!hasFired(held) || held?.returnvalue === ALERT_DROPPED) return null;
+  if (held?.returnvalue !== ALERT_SENT) return null;
   const startsAt = held?.data?.startsAt;
   return startsAt ? new Date(startsAt).getTime() : null;
 }

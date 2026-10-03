@@ -23,6 +23,7 @@ import {
   namedDuties,
   type AlertOutcome,
 } from './duty-alert-rings';
+import { ringPhones } from './push-delivery';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
 export const NOTIFICATION_SEND_JOB = 'send';
@@ -101,12 +102,6 @@ interface MatchStartRow {
   scheduled_at: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
-}
-
-interface PushSubscriptionRow {
-  endpoint: string;
-  p256dh_key: string;
-  auth_key: string;
 }
 
 type NotificationPreferenceRow = {
@@ -741,46 +736,21 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
       return;
     }
 
-    const { data, error } = await this.supabase.service
-      .from('push_subscriptions')
-      .select('endpoint, p256dh_key, auth_key')
-      .eq('user_id', deliveryUserId);
-
-    if (error) throw new Error(`Failed to load push subscriptions: ${error.message}`);
-
-    const subscriptions = (data ?? []) as PushSubscriptionRow[];
-    if (subscriptions.length === 0) {
-      await this.sendEmailFallback(job.data);
-      await this.markRecipient(job.data, 'delivered');
-      this.logger.log(
-        `Sent ${job.data.kind} notification for ${job.data.entityId} to 0 subscriptions`,
-      );
-      return;
-    }
-
-    await Promise.all(
-      subscriptions.map((subscription) =>
-        this.sender.send(
-          {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dh_key,
-              auth: subscription.auth_key,
-            },
-          },
-          {
-            title: job.data.title,
-            body: job.data.body,
-            url: job.data.url,
-            severity: job.data.severity ?? undefined,
-          },
-        ),
-      ),
+    const rang = await ringPhones(
+      { db: this.supabase.service, sender: this.sender, logger: this.logger },
+      deliveryUserId,
+      {
+        title: job.data.title,
+        body: job.data.body,
+        url: job.data.url,
+        severity: job.data.severity ?? undefined,
+      },
     );
-
+    // No phone alert set up, or every address was dead: the email is the fallback.
+    if (rang === 0) await this.sendEmailFallback(job.data);
     await this.markRecipient(job.data, 'delivered');
     this.logger.log(
-      `Sent ${job.data.kind} notification for ${job.data.entityId} to ${subscriptions.length} subscriptions`,
+      `Sent ${job.data.kind} notification for ${job.data.entityId} to ${rang} subscriptions`,
     );
   }
 

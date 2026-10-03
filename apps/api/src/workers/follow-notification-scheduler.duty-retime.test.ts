@@ -89,10 +89,7 @@ describe("a retime sets each follower's alert at the duty's start", () => {
 });
 
 describe('an alert that rang does not ring again for the same start (ruling 221)', () => {
-  it.each<[string, unknown]>([
-    ['was sent', ALERT_SENT],
-    ['failed', null],
-  ])(
+  it.each<[string, unknown]>([['was sent', ALERT_SENT]])(
     'keeps the record of an alert that %s, and still sets the other follower’s',
     async (_, answer) => {
       const { service, queue, set, gone } = setup({}, { [HIS_DUTY]: fired(answer, at('11:00')) });
@@ -107,6 +104,7 @@ describe('an alert that rang does not ring again for the same start (ruling 221)
 
   it.each<[string, HeldAlert]>([
     ['was dropped at its minute', fired(ALERT_DROPPED, at('11:00'))],
+    ['failed at its minute: no phone was reached (ruling 237)', fired(null, at('11:00'))],
     ['rang for another start: the duty moved', fired(ALERT_SENT, at('10:05'))],
     ['still waits for an older start', waiting(at('12:00'))],
   ])('sets it again when the one held %s', async (_, held) => {

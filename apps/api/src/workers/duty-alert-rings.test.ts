@@ -30,10 +30,6 @@ describe('an alert that rang does not ring again for the same start', () => {
     expect(dutyAlertStep(START, NOW, fired(ALERT_SENT))).toBe('keep');
   });
 
-  it('counts an alert that failed as sent: the live phones rang before the dead one threw', () => {
-    expect(dutyAlertStep(START, NOW, fired(null))).toBe('keep');
-  });
-
   it('reads the start as an instant, however it is written', () => {
     expect(dutyAlertStep(START, NOW, fired(ALERT_SENT, '2026-05-02T12:00:00+02:00'))).toBe('keep');
   });
@@ -45,6 +41,7 @@ describe('an alert is set when nobody was told of this start', () => {
     ['nothing is held, as the queue says it', undefined],
     ['it still waits: it moves with the duty', waiting(at('14:00'))],
     ['it was dropped at its minute: a draft, or an unlocked board', fired(ALERT_DROPPED)],
+    ['it failed at its minute: no phone was reached (ruling 237)', fired(null)],
     ['it rang for another start: the duty moved', fired(ALERT_SENT, at('09:58'))],
     ['it failed for another start', fired(null, at('09:58'))],
     ['it fired with no start in its data: no memory', fired(ALERT_SENT, null)],
