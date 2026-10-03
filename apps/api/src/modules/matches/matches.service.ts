@@ -1005,6 +1005,9 @@ export class MatchesService {
     if (row['voided']) throw new BadRequestException('Exchange is already voided');
     const matchId = row['match_id'] as string;
     await this.assertMatchUnlocked(matchId, context);
+    // Ruling 231: an edit asks no review, so on an over Event it is a super
+    // admin's. An organiser there has the void, which files a request.
+    await this.frozenResults?.assertResultMutationAllowed(matchId, context?.userId);
 
     const afterblowMode = dto.type === 'afterblow' ? await this.getAfterblowMode(matchId) : 'full';
     const { redDelta, blueDelta } = this.computeDeltas(

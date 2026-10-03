@@ -1861,8 +1861,9 @@ review, a Workshop or Event rating (223, 223a), a roster row's edit but not its 
 a League link, its request, its detach and the League recompute (224, 224a), and the score
 corrections, which follow the rules of a completed Event (222a): `FrozenResultsGuard` reads
 completed and archived alike, so an Exchange's void goes through a super admin's review and a
-forfeit's void is a super admin's; an Exchange edit, a penalty void and a penalty review ask
-no review, on a completed Event as on an archived one. A Tournament restored from an archive is
+forfeit's void is a super admin's; an Exchange edit and a penalty void have no review, so on an
+over Event they are a super admin's too (231); a penalty review asks no review, on a completed
+Event as on an archived one. A Tournament restored from an archive is
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 
