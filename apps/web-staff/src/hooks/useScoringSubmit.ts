@@ -66,7 +66,7 @@ export function useScoringSubmit({
       try {
         // Durable-first: write to the IndexedDB outbox, then let the SyncEngine POST
         // it. Online it syncs immediately; offline it stays queued and drains on
-        // reconnect. clientUuid makes the POST idempotent (a re-drain is a 409 no-op).
+        // reconnect. clientUuid makes the POST idempotent (a re-drain answers the saved row).
         await enqueue({
           clientUuid: crypto.randomUUID(),
           matchId,

@@ -148,6 +148,8 @@ export const scoring = {
     typeNoExchange: 'No exchange',
     typePenalty: 'Penalty',
     typeUnknown: 'Queued entry',
+    eventOver:
+      'This event is over, so the server did not accept this entry. It is held here, not lost. Ask an organiser.',
   },
   lice: {
     loadingMatch: 'Loading match...',
@@ -293,6 +295,7 @@ export const scoring = {
       'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
     leavesBoutLevel:
       'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
+    eventOver: 'This event is over and its results are closed. Ask an organiser.',
   },
   clock: {
     loading: 'Loading clock...',

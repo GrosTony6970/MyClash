@@ -370,12 +370,18 @@ describe('MatchesService', () => {
     });
 
     it('rejects new exchange creation when event results are frozen', async () => {
-      // Seeded with NOTHING: the refusal happens before any query, so any read
-      // at all would throw on an unconfigured table.
-      const { service: exchangeService, supabase } = makeService({}, { frozen: true });
-      mockFrozenResults.assertExchangeCreationAllowed.mockRejectedValueOnce(
-        new BadRequestException('Event results are frozen'),
+      // Seeded with the replay probe only: a hit the server does not hold is
+      // refused right after it, so any other read would throw on an
+      // unconfigured table.
+      const { service: exchangeService, supabase } = makeService(
+        { exchanges: { rows: [] } },
+        { frozen: true },
       );
+      const frozen = new ConflictException({
+        message: 'Event results are frozen',
+        code: 'event_results_frozen',
+      });
+      mockFrozenResults.assertExchangeCreationAllowed.mockRejectedValueOnce(frozen);
 
       await expect(
         exchangeService.createExchange(
@@ -390,8 +396,9 @@ describe('MatchesService', () => {
           },
           { userId: 'organizer-1' },
         ),
-      ).rejects.toThrow(BadRequestException);
-      expect(supabase.from).not.toHaveBeenCalled();
+      ).rejects.toBe(frozen);
+      expect(queriedTables(supabase.from)).toEqual(['exchanges']);
+      expect(supabase.writes).toEqual([]);
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });

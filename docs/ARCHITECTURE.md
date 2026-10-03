@@ -1110,14 +1110,14 @@ sequenceDiagram
   loop each pending entry
     E->>A: POST /matches/{id}/exchanges { clientUuid, sequence, … }
     alt 2xx
-      A-->>E: created
+      A-->>E: created, or the saved row for a repeated clientUuid
       E->>O: markSynced() → moves to `synced` table
-    else 409 conflict
-      A-->>E: already exists (idempotent on clientUuid)
-      E->>O: markSynced() — treated as success
-    else 400 terminal
+    else 409 refused
+      A-->>E: the Event is over
+      E->>O: quarantine() — held in `rejected` with its code, never marked synced
+    else 400 refused
       A-->>E: rejected (stale sequence, round awaiting advance, …)
-      E->>O: dropTerminal() — retrying can never succeed
+      E->>O: one re-send under a fresh sequence, else quarantine() — held, never deleted
     else 5xx / network
       A-->>E: failure
       E->>O: markFailed() — stays queued, retried later
@@ -1145,9 +1145,12 @@ stateDiagram-v2
 The split between `offline` and `error` is deliberate: a network failure means "keep waiting, this will
 resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
 
-> One behaviour worth knowing at the pad: a **400 is terminal** — the entry is dropped from the outbox
-> with a console warning rather than retried, because retrying a stale sequence or a round awaiting
-> advance can never succeed and would block the whole queue behind it.
+> One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
+> saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409, the
+> entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining. The bar
+> stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on the two
+> create routes is an Event that is over: the server answers a repeated `clientUuid` with the saved
+> row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds.
 
 ### 10.3 Conflict resolution
 
@@ -1863,7 +1866,8 @@ corrections, which follow the rules of a completed Event (222a): `FrozenResultsG
 completed and archived alike, so an Exchange's void goes through a super admin's review and a
 forfeit's void is a super admin's; an Exchange edit and a penalty void have no review, so on an
 over Event they are a super admin's too (231); a penalty review asks no review, on a completed
-Event as on an archived one. A Tournament restored from an archive is
+Event as on an archived one. The guard's refusal carries the code `event_results_frozen`, which
+the pad (its refused-hits inbox included) and web-admin say in the reader's language. A Tournament restored from an archive is
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 

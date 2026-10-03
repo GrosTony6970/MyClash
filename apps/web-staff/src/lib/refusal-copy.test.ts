@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 
-import { refusalMessage } from './refusal-copy';
+import { heldReason, refusalMessage } from './refusal-copy';
 
 /**
  * Each case pins one thing the referee must be told. The mapper's whole job is
@@ -41,6 +43,31 @@ function refusal(
     ? { kind: 'unauthenticated', ...base, status: status as 401 | 403 }
     : { kind: 'http', ...base, validationErrors: null };
 }
+
+describe('heldReason', () => {
+  it('says a hit held because the Event is over in the reader’s language', () => {
+    expect(
+      heldReason(
+        { rejectedReason: 'Event results are frozen', rejectedCode: 'event_results_frozen' },
+        t,
+      ),
+    ).toBe('scoring.quarantine.eventOver');
+  });
+
+  it('keeps the server’s own words for any other refusal', () => {
+    expect(heldReason({ rejectedReason: 'Match is locked' }, t)).toBe('Match is locked');
+    expect(heldReason({ rejectedReason: 'Match is locked', rejectedCode: 'BAD_REQUEST' }, t)).toBe(
+      'Match is locked',
+    );
+  });
+
+  it('is what the refused-hits inbox shows', () => {
+    // The pad's vitest mounts no component: the inbox is pinned as text.
+    const inbox = readFileSync(join(__dirname, '..', 'components', 'QuarantineInbox.tsx'), 'utf8');
+    expect(inbox).toContain('{heldReason(entry, t)}');
+    expect(inbox).not.toContain('{entry.rejectedReason}');
+  });
+});
 
 describe('refusalMessage', () => {
   it('names the offline case, which carries no message at all', () => {
@@ -122,6 +149,16 @@ describe('refusalMessage', () => {
     expect(refusalMessage(refusal(409, { code, detail: 'It was not applied.' }), t, FALLBACK)).toBe(
       key,
     );
+  });
+
+  it('says the Event is over, instead of the API sentence', () => {
+    expect(
+      refusalMessage(
+        refusal(409, { code: 'event_results_frozen', detail: 'Event results are frozen' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.eventOver');
   });
 
   it('explains the Swiss refusal', () => {

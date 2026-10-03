@@ -176,8 +176,8 @@ export class SyncEngine {
     if (sequence === null || sequence === entry.sequence) return null;
 
     const res = await this.postExchange(entry, sequence);
-    // 409 is the idempotency answer on client_uuid: it IS on the server.
-    if (!res.ok && res.status !== 201 && res.status !== 409) return null;
+    // Only a 2xx is on the server. A 409 is a refusal, as in `drain`.
+    if (!res.ok) return null;
     const data = (await res.json().catch(() => ({}))) as Partial<ExchangeResponse>;
     return { sequence, serverId: data.id ?? entry.clientUuid };
   }
@@ -249,16 +249,15 @@ export class SyncEngine {
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else if (res.status === 409) {
-          // Conflict = already exists on server (idempotency) — treat as success
-          const data = (await res.json()) as ExchangeResponse;
-          await markSynced(
-            entry.id!,
-            entry.clientUuid,
-            entry.matchId,
-            entry.sequence,
-            data.id ?? entry.clientUuid,
-          );
+          // A refusal, NEVER "already on the server": the API answers a repeated
+          // client_uuid with the saved row and a 2xx. Its 409 here is an Event
+          // that is over. This branch used to mark the hit synced, a green bar
+          // over a hit the server never took. Held with its code, and not
+          // re-sent: no other sequence makes an over Event take it.
+          const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
+          await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
           consecutiveFailures = 0;
+          await this.emit('syncing');
         } else if (res.status === 400) {
           // A refusal, NOT proof that a retry can never succeed. The single
           // most likely cause is a sequence this match has already used (two

@@ -3,7 +3,7 @@
  *
  * AC:
  *   ✓ Reconnect → pending exchanges drain in order
- *   ✓ Server idempotency on client_uuid (409 treated as success)
+ *   ✓ Server idempotency on client_uuid (a repeated hit answers 2xx with the saved row)
  *   ✓ UI shows pending count, syncing indicator, error state
  */
 
@@ -85,24 +85,7 @@ describe('drain — order', () => {
 // ── Idempotency ───────────────────────────────────────────────────────────────
 
 describe('drain — idempotency', () => {
-  it('treats 409 as success (already on server)', async () => {
-    await addExchange('m1', 1, 'uuid-dup');
-
-    mockFetch([{ status: 409, body: { id: 'srv-existing' } }]);
-
-    const engine = new SyncEngine(API_URL);
-    const states: string[] = [];
-    engine.subscribe((s) => states.push(s.status));
-
-    await engine.drain();
-
-    // Entry removed from outbox
-    expect(await db.outbox.count()).toBe(0);
-    // Written to synced
-    const synced = await db.synced.get('uuid-dup');
-    expect(synced?.serverId).toBe('srv-existing');
-  });
-
+  // A 409 is NOT one of these: see sync.event-over.test.ts.
   it('treats 201 as success', async () => {
     await addExchange('m1', 1, 'uuid-new');
     mockFetch([{ status: 201, body: { id: 'srv-new' } }]);

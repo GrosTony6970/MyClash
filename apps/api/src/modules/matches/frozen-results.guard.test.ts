@@ -47,8 +47,14 @@ describe('FrozenResultsGuard', () => {
   ])('a result write on a %s Event is frozen: %s', async (status, frozen) => {
     const { guard } = setup(status);
     const write = guard.assertResultMutationAllowed(BOUT, ORGANISER);
+    // The object form: the pad and web-admin say it in their reader's language by its `code`.
     if (frozen)
-      await expect(write).rejects.toEqual(new ConflictException('Event results are frozen'));
+      await expect(write).rejects.toEqual(
+        new ConflictException({
+          message: 'Event results are frozen',
+          code: 'event_results_frozen',
+        }),
+      );
     else await expect(write).resolves.toBeUndefined();
   });
 

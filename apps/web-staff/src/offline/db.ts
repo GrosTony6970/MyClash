@@ -100,6 +100,8 @@ export interface RejectedEntry extends Omit<OutboxEntry, 'id'> {
   id?: number;
   /** The server's own explanation — a 400 carries a real message (only 5xx is masked). */
   rejectedReason: string;
+  /** The refusal's `code`, when it carried one: the inbox says a known one in the reader's language. */
+  rejectedCode?: string;
   rejectedAt: number; // ms
 }
 

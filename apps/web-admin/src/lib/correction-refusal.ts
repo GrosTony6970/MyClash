@@ -5,9 +5,10 @@ import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-clien
  *
  * A correction lands whole or not at all (ruling 226): when a later bout was
  * fought from the result, or when the board would be level where no draw is
- * allowed, the API refuses with a `code`. Its own sentence is English, so the
- * screens that can correct a bout ask here first and fall back to
- * `failureMessage` for every other refusal.
+ * allowed, the API refuses with a `code`. So does a result change on an Event
+ * that is over (`event_results_frozen`), a forfeit and its void included. Its
+ * own sentence is English, so the screens that can change a bout's result ask
+ * here first and fall back to `failureMessage` for every other refusal.
  *
  * Literal keys, never composed: the i18n reverse sweep resolves a dotted string
  * literal only.
@@ -18,6 +19,8 @@ export function correctionRefusal(failure: ApiFailure, t: (key: string) => strin
       return t('admin.common.correctionLaterBoutFought');
     case 'correction_leaves_bout_level':
       return t('admin.common.correctionLeavesBoutLevel');
+    case 'event_results_frozen':
+      return t('admin.common.eventResultsFrozen');
     default:
       return null;
   }

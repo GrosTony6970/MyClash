@@ -132,12 +132,17 @@ export async function dequeueLastForMatch(matchId: string): Promise<OutboxEntry 
  * match and a round awaiting advance all clear on their own; only the payload
  * as-sent is known to be unacceptable. See `retryRejected` in sync.ts.
  */
-export async function quarantine(id: number, reason: string): Promise<void> {
+export async function quarantine(id: number, reason: string, code?: string): Promise<void> {
   await db.transaction('rw', db.outbox, db.rejected, async () => {
     const entry = await db.outbox.get(id);
     if (!entry) return;
     const { id: _outboxId, ...payload } = entry;
-    await db.rejected.add({ ...payload, rejectedReason: reason, rejectedAt: Date.now() });
+    await db.rejected.add({
+      ...payload,
+      rejectedReason: reason,
+      ...(code ? { rejectedCode: code } : {}),
+      rejectedAt: Date.now(),
+    });
     await db.outbox.delete(id);
   });
 }
@@ -170,7 +175,14 @@ export async function requeueRejected(): Promise<number> {
 
   await db.transaction('rw', db.outbox, db.rejected, async () => {
     for (const entry of entries) {
-      const { id, rejectedReason: _reason, rejectedAt: _at, lastError: _err, ...payload } = entry;
+      const {
+        id,
+        rejectedReason: _reason,
+        rejectedCode: _code,
+        rejectedAt: _at,
+        lastError: _err,
+        ...payload
+      } = entry;
       const sequence = nextByMatch.get(entry.matchId) ?? entry.sequence;
       nextByMatch.set(entry.matchId, sequence + 1);
       await db.outbox.add({ ...payload, sequence, attempts: 0 });
@@ -208,6 +220,7 @@ export async function requeueRejectedEntry(id: number): Promise<boolean> {
     const {
       id: _id,
       rejectedReason: _reason,
+      rejectedCode: _code,
       rejectedAt: _at,
       lastError: _err,
       ...payload

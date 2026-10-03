@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { heldReason } from '../lib/refusal-copy';
 import { getRejected } from '../offline/outbox';
 import type { ExchangeType, RejectedEntry } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
@@ -116,9 +117,10 @@ function QuarantineRow({
           {new Date(entry.rejectedAt).toLocaleTimeString()}
         </span>
       </div>
-      {/* The server's own words. A 400 carries a real message; only 5xx is
-          scrubbed, and a scrubbed one would say so. */}
-      <p className="mt-1 text-sm text-danger">{entry.rejectedReason}</p>
+      {/* The server's own words, unless the pad knows the refusal by its code.
+          A 400 carries a real message; only 5xx is scrubbed, and a scrubbed
+          one would say so. */}
+      <p className="mt-1 text-sm text-danger">{heldReason(entry, t)}</p>
       <div className="mt-3 flex gap-2">
         <button
           type="button"

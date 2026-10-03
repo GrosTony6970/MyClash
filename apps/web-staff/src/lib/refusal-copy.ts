@@ -49,6 +49,8 @@ const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
 const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
+const EVENT_OVER = 'scoring.corrections.eventOver';
+const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
@@ -89,6 +91,54 @@ function correctionRefusedWhole(
   return t(code === 'correction_later_bout_fought' ? LATER_BOUT_FOUGHT : LEAVES_BOUT_LEVEL);
 }
 
+/**
+ * Why a queued hit is held, for the refused-hits inbox. A refusal the pad knows
+ * by its `code` is said in the reader's language; any other keeps the server's
+ * own words, which are the useful part there.
+ */
+export function heldReason(
+  held: { rejectedReason: string; rejectedCode?: string },
+  t: Translate,
+): string {
+  return held.rejectedCode === 'event_results_frozen' ? t(HELD_EVENT_OVER) : held.rejectedReason;
+}
+
+/** A refusal the pad knows by its `code`, or null. */
+function codedRefusal(
+  t: Translate,
+  code: string | null,
+  details: Record<string, unknown> | null,
+): string | null {
+  switch (code) {
+    case 'dependent_results_would_be_discarded':
+      return counted(t, DEPENDENTS_ONE, DEPENDENTS_MANY, foughtCount(details));
+    case 'forfeit_withdrew_fighter':
+      return t(FORFEIT_BLOCKED);
+    case 'swiss_later_round_already_drawn':
+      return t(SWISS_AHEAD);
+    case 'uncomplete_requires_organiser':
+      return t(ORGANISER_ONLY);
+    case 'correction_later_bout_fought':
+    case 'correction_leaves_bout_level':
+      return correctionRefusedWhole(t, code);
+    case 'event_results_frozen':
+      // The Event is completed or archived: a result is a super admin's now.
+      return t(EVENT_OVER);
+    case 'level_at_time_unresolved':
+      // The bout is level and the phase says play it out. `remedy` carries which
+      // one; the server's own message names it in English, which is exactly what
+      // this file exists to keep off a referee's tablet.
+      return levelAtTime(t, details);
+    case 'time_not_finished':
+      // The OTHER level refusal, and it must not read like that one: the scores
+      // are level but the time is not up, so there is nothing to play yet —
+      // carry on fighting. No remedy is named because none applies.
+      return t(TIME_NOT_FINISHED);
+    default:
+      return null;
+  }
+}
+
 export function refusalMessage(
   failure: ApiFailure,
   t: Translate,
@@ -104,31 +154,8 @@ export function refusalMessage(
   if (failure.kind === 'network') return t(OFFLINE);
   if (failure.status === 503) return t(OFFLINE);
 
-  switch (failure.code) {
-    case 'dependent_results_would_be_discarded':
-      return counted(t, DEPENDENTS_ONE, DEPENDENTS_MANY, foughtCount(failure.details));
-    case 'forfeit_withdrew_fighter':
-      return t(FORFEIT_BLOCKED);
-    case 'swiss_later_round_already_drawn':
-      return t(SWISS_AHEAD);
-    case 'uncomplete_requires_organiser':
-      return t(ORGANISER_ONLY);
-    case 'correction_later_bout_fought':
-    case 'correction_leaves_bout_level':
-      return correctionRefusedWhole(t, failure.code);
-    case 'level_at_time_unresolved':
-      // The bout is level and the phase says play it out. `remedy` carries which
-      // one; the server's own message names it in English, which is exactly what
-      // this file exists to keep off a referee's tablet.
-      return levelAtTime(t, failure.details);
-    case 'time_not_finished':
-      // The OTHER level refusal, and it must not read like that one: the scores
-      // are level but the time is not up, so there is nothing to play yet —
-      // carry on fighting. No remedy is named because none applies.
-      return t(TIME_NOT_FINISHED);
-    default:
-      break;
-  }
+  const coded = codedRefusal(t, failure.code, failure.details);
+  if (coded) return coded;
 
   // A 403 on one of these routes is always the same thing — the actor may act on
   // the bout but may not discard what a later one produced. Kept as a status

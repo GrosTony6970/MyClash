@@ -12,10 +12,16 @@ import { PenaltiesService } from './penalties.service';
  */
 const ORGANISER = 'a0000000-0000-4000-8000-000000000001';
 const SUPER_ADMIN = 'a0000000-0000-4000-8000-000000000002';
+const FROZEN = new ConflictException({
+  message: 'Event results are frozen',
+  code: 'event_results_frozen',
+});
 
 function setup(eventStatus: string) {
   const db = mockSupabase({
-    match_penalties: { rows: [{ id: 'card-1', match_id: 'm1', voided: false }] },
+    match_penalties: {
+      rows: [{ id: 'card-1', match_id: 'm1', voided: false, client_uuid: 'card-uuid' }],
+    },
     matches: { rows: [{ id: 'm1', phase_id: 'phase-1', locked_at: null, current_round: 1 }] },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
     tournaments: {
@@ -45,7 +51,7 @@ describe('PenaltiesService.voidPenalty — an over Event', () => {
 
       await expect(
         service.voidPenalty('card-1', { reason: 'wrong fighter' }, { userId: ORGANISER }),
-      ).rejects.toEqual(new ConflictException('Event results are frozen'));
+      ).rejects.toEqual(FROZEN);
       expect(db.writes).toEqual([]);
       expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
     },
@@ -56,7 +62,7 @@ describe('PenaltiesService.voidPenalty — an over Event', () => {
 
     await expect(
       service.voidPenalty('card-1', { reason: 'wrong fighter' }, { staffAccountId: 'staff-1' }),
-    ).rejects.toEqual(new ConflictException('Event results are frozen'));
+    ).rejects.toEqual(FROZEN);
     expect(db.writes).toEqual([]);
   });
 
@@ -100,5 +106,40 @@ describe('PenaltiesService.voidPenalty — an over Event', () => {
     await service.voidPenalty('card-1', { reason: 'wrong fighter' }, { userId: ORGANISER });
 
     expect(writesTo(db, 'match_penalties')).toHaveLength(1);
+  });
+});
+
+describe('PenaltiesService.createPenalty — a repeated card on an over Event', () => {
+  const CARD = { registrationId: 'reg-red', occurredAt: '2026-10-03T10:00:00.000Z' };
+
+  // The server saved it and the answer was lost: the pad's replay must get the
+  // saved row, not the refusal it could not tell from "never taken".
+  it.each<'completed' | 'archived'>(['completed', 'archived'])(
+    'answers the saved card on a %s Event, and writes nothing',
+    async (status) => {
+      const { db, service } = setup(status);
+
+      const saved = await service.createPenalty(
+        'm1',
+        { ...CARD, clientUuid: 'card-uuid', directCard: 'yellow', reason: 'late hit' } as never,
+        { userId: ORGANISER },
+      );
+
+      expect(saved).toMatchObject({ id: 'card-1', client_uuid: 'card-uuid' });
+      expect(db.writes).toEqual([]);
+    },
+  );
+
+  it('still refuses a card the server does not hold', async () => {
+    const { db, service } = setup('completed');
+
+    await expect(
+      service.createPenalty(
+        'm1',
+        { ...CARD, clientUuid: 'new-uuid', directCard: 'yellow', reason: 'late hit' } as never,
+        { userId: ORGANISER },
+      ),
+    ).rejects.toEqual(FROZEN);
+    expect(db.writes).toEqual([]);
   });
 });

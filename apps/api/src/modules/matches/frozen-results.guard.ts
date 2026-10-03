@@ -77,7 +77,12 @@ export class FrozenResultsGuard {
     const state = await this.getEventStateForMatch(matchId);
     if (!isOver(state.status)) return;
     if (await this.isSuperAdmin(userId)) return;
-    throw new ConflictException('Event results are frozen');
+    // The object form: the pad and web-admin map it by `code`. A bare string
+    // put this English sentence in front of a French referee.
+    throw new ConflictException({
+      message: 'Event results are frozen',
+      code: 'event_results_frozen',
+    });
   }
 
   /**

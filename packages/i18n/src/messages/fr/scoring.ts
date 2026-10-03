@@ -157,6 +157,8 @@ export const scoring = {
     typeNoExchange: "Pas d'échange",
     typePenalty: 'Pénalité',
     typeUnknown: 'Entrée en attente',
+    eventOver:
+      "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",
@@ -284,6 +286,8 @@ export const scoring = {
       "Un assaut suivant a déjà été combattu à partir de ce résultat. Cette correction changerait le vainqueur : elle n'a pas été appliquée.",
     leavesBoutLevel:
       "Cette correction laisserait l'assaut à égalité, et ses règles n'autorisent pas le match nul. Elle n'a pas été appliquée.",
+    eventOver:
+      'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
   },
   clock: {
     loading: 'Chargement du chrono...',

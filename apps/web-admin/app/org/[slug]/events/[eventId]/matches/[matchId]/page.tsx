@@ -406,7 +406,7 @@ export default function MatchDetailPage() {
         // Re-opening an ended bout is refused by what it would empty. The
         // pre-flight dialog says that up front, and this is the answer when
         // the state changed between the dialog and the request.
-        const message = failureMessage(r, t, t('admin.common.couldNotReopenMatch'));
+        const message = correctionFailureMessage(r, t, t('admin.common.couldNotReopenMatch'));
         if (message) toast.error(message);
         return;
       }
@@ -451,7 +451,7 @@ export default function MatchDetailPage() {
       // A refused forfeit is a class-validator refusal as often as not, and
       // `detail` carries only the FIRST bad field. `failureMessage` joins all
       // of them, so an override with two bad scores is fixed in one pass.
-      const message = failureMessage(r, t, t('admin.common.forfeitFailed'));
+      const message = correctionFailureMessage(r, t, t('admin.common.forfeitFailed'));
       if (message) toast.error(message);
       return;
     }
@@ -488,7 +488,7 @@ export default function MatchDetailPage() {
     });
     setVoidingForfeit(false);
     if (!r.ok) {
-      const message = failureMessage(r, t, t('organizer.bracketPage.voidRecordFailed'));
+      const message = correctionFailureMessage(r, t, t('organizer.bracketPage.voidRecordFailed'));
       if (message) toast.error(message);
       return;
     }

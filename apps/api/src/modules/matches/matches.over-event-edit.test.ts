@@ -13,6 +13,10 @@ import { MatchesService } from './matches.service';
 const ORGANISER = 'a0000000-0000-4000-8000-000000000001';
 const SUPER_ADMIN = 'a0000000-0000-4000-8000-000000000002';
 const EDIT = { type: 'no_exchange', noExchangeReason: 'other', reason: 'wrong side' };
+const FROZEN = new ConflictException({
+  message: 'Event results are frozen',
+  code: 'event_results_frozen',
+});
 
 function setup(eventStatus: string) {
   const db = mockSupabase({
@@ -49,7 +53,7 @@ describe('MatchesService.editExchange — an over Event', () => {
 
       await expect(
         service.editExchange('ex-1', EDIT as never, { userId: ORGANISER }),
-      ).rejects.toEqual(new ConflictException('Event results are frozen'));
+      ).rejects.toEqual(FROZEN);
       expect(db.writes).toEqual([]);
       expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
     },
@@ -60,7 +64,7 @@ describe('MatchesService.editExchange — an over Event', () => {
 
     await expect(
       service.editExchange('ex-1', EDIT as never, { staffAccountId: 'staff-1' }),
-    ).rejects.toEqual(new ConflictException('Event results are frozen'));
+    ).rejects.toEqual(FROZEN);
     expect(db.writes).toEqual([]);
   });
 

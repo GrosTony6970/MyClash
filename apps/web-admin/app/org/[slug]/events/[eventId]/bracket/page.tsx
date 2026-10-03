@@ -39,6 +39,7 @@ import {
 } from './DoubleElimPodiumOptions';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
 import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
 import { saveRoleChanges } from './save-role-changes';
@@ -295,7 +296,7 @@ export default function BracketPage() {
         // A forfeit is refused by the engine's own rule — the bout is already
         // scored, the void is narrower than this — and that sentence used to be
         // replaced by the invented line "HTTP 409".
-        setForfeitError(failureMessage(r, t, t('admin.common.forfeitFailed')));
+        setForfeitError(correctionFailureMessage(r, t, t('admin.common.forfeitFailed')));
         return;
       }
       resetForfeitDraft();

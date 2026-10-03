@@ -757,10 +757,9 @@ export class MatchesService {
    * as the source of truth.
    */
   async createExchange(matchId: string, dto: CreateExchangeDto, context?: MatchActor) {
-    await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
-    if (context) await this.assertMatchUnlocked(matchId, context);
-
-    // Idempotency check: if client_uuid already exists, return existing row
+    // Idempotency check FIRST: if client_uuid already exists, return existing
+    // row. A replay of a saved hit is not a result change, so no refusal below
+    // may answer it: the pad reads a refusal as "never taken" and holds the hit.
     const { data: existing } = await this.supabase.service
       .from('exchanges')
       .select('*')
@@ -771,6 +770,8 @@ export class MatchesService {
       // Idempotent — return the existing exchange without error
       return existing;
     }
+    await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
+    if (context) await this.assertMatchUnlocked(matchId, context);
 
     // Best-of: a new exchange belongs to the current open round, and scoring is
     // blocked while a round is awaiting advance (the operator must start the next

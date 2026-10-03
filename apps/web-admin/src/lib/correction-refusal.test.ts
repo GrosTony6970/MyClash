@@ -18,6 +18,7 @@ describe('correctionRefusal', () => {
   it.each<[string, string]>([
     ['correction_later_bout_fought', 'admin.common.correctionLaterBoutFought'],
     ['correction_leaves_bout_level', 'admin.common.correctionLeavesBoutLevel'],
+    ['event_results_frozen', 'admin.common.eventResultsFrozen'],
   ])('says %s in the reader’s language', (code, key) => {
     expect(correctionRefusal(refused(code), t)).toBe(key);
   });
