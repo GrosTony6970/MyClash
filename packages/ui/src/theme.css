@@ -16,10 +16,21 @@
  * This file lives in @myclash/ui/src (already @source'd + Docker-copied by both
  * apps) so the shared import needs no extra build/Docker wiring.
  */
+@import './fonts/subsets.css';
+
 @theme {
-  --font-display: var(--font-fraunces), 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
-  --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
+  /*
+   * Each stack opens with the family of the non-Latin subsets (fonts/subsets.css): its faces
+   * match no Latin character, so Latin text falls through to the var(), the Latin file an app's
+   * layout loads. After the var() it would never be reached: next/font puts a fallback family
+   * that holds every character in the var() itself.
+   */
+  --font-display:
+    'Fraunces Subsets', var(--font-fraunces), 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
+  --font-body:
+    'Geist Subsets', var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:
+    'JetBrains Mono Subsets', var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Light-surface defaults (page background + content). */
   --color-background: #fafaf9; /* stone-50 — page surface */

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
 import { OfflineDrillBanner } from '../src/components/OfflineDrillBanner';
@@ -15,29 +15,33 @@ import '../src/styles/globals.css';
 // Tournament Manual aesthetic — same font stack as apps/web-admin and
 // apps/web-public. Load-bearing, not decoration: src/styles/globals.css imports
 // packages/ui/src/theme.css, which declares
-//   --font-display: var(--font-fraunces), ..., Georgia, serif
+//   --font-display: 'Fraunces Subsets', var(--font-fraunces), ..., Georgia, serif
 // so an app that imports the theme but never DEFINES --font-fraunces produces
 // valid CSS with correct colours that silently renders in Georgia. This app did
 // exactly that until 2026-07-17. `pnpm design:lint` now asserts it can't recur.
-const fraunces = Fraunces({
-  subsets: ['latin'],
+// The files are in the repo (packages/ui/src/fonts): a build needs no font server. The Google
+// loader fetched them at every build, and a slow answer failed the build and the deploy.
+// The Latin file is here; the other subsets are in packages/ui/src/fonts/subsets.css.
+const fraunces = localFont({
+  src: '../../../packages/ui/src/fonts/fraunces-latin-opsz-normal.woff2',
+  // Variable font: the opsz axis gives optical sizing, and every weight is in the one file.
+  weight: '100 900',
   variable: '--font-fraunces',
   display: 'swap',
-  // Variable font: the opsz axis gives us optical sizing for free, and all
-  // weights resolve through the same file.
-  axes: ['opsz'],
+  adjustFontFallback: 'Times New Roman',
 });
 
-const geist = Geist({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const geist = localFont({
+  src: '../../../packages/ui/src/fonts/geist-latin-wght-normal.woff2',
+  // The weights the apps asked Google for: a heavier or lighter request is clamped, as before.
+  weight: '400 700',
   variable: '--font-geist',
   display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const jetbrainsMono = localFont({
+  src: '../../../packages/ui/src/fonts/jetbrains-mono-latin-wght-normal.woff2',
+  weight: '400 500',
   variable: '--font-jetbrains',
   display: 'swap',
 });

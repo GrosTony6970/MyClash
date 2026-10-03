@@ -363,7 +363,7 @@ Do not reintroduce a per-event tint by inlining `var(--event-*, …)` in a compo
 
 ## Typography
 
-Three faces, loaded through `next/font/google` and referenced indirectly, so a font swap is one edit:
+Three faces, referenced indirectly, so a font swap is one edit. Their files are in the repo (`packages/ui/src/fonts/`, SIL Open Font License): a build asks no font server. Each app's layout loads the Latin file through `next/font/local`; the other subsets (latin-ext, Cyrillic, Greek, Vietnamese) are declared once, in `packages/ui/src/fonts/subsets.css`, under a family that opens each stack of `theme.css`:
 
 | Face               | Role                                                                                                                    | Loaded as                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -371,7 +371,7 @@ Three faces, loaded through `next/font/google` and referenced indirectly, so a f
 | **Geist**          | Body, labels, tables, numbers. Distinctive but neutral; read fast and at an angle.                                      | `--font-geist` → `--font-body`                       |
 | **JetBrains Mono** | Codes, slugs, IDs.                                                                                                      | `--font-jetbrains` → `--font-display`'s mono sibling |
 
-The indirection has a failure mode worth naming: `theme.css` declares `--font-display: var(--font-fraunces), …, Georgia, serif`. An app that imports `theme.css` but never defines `--font-fraunces` produces **valid CSS with correct colours that silently renders in Georgia**. `pnpm quality:design-drift` asserts every app defines the font variables it references, because this shipped once already.
+The indirection has a failure mode worth naming: `theme.css` declares `--font-display: 'Fraunces Subsets', var(--font-fraunces), …, Georgia, serif`. An app that imports `theme.css` but never defines `--font-fraunces` produces **valid CSS with correct colours that silently renders in Georgia**. `pnpm quality:design-drift` asserts every app defines the font variables it references, because this shipped once already.
 
 ### The scale
 
