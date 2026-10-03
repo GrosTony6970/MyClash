@@ -1867,7 +1867,10 @@ completed and archived alike, so an Exchange's void goes through a super admin's
 forfeit's void is a super admin's; an Exchange edit and a penalty void have no review, so on an
 over Event they are a super admin's too (231); a penalty review asks no review, on a completed
 Event as on an archived one. The guard's refusal carries the code `event_results_frozen`, which
-the pad (its refused-hits inbox included) and web-admin say in the reader's language. A Tournament restored from an archive is
+the pad (its refused-hits inbox included) and web-admin say in the reader's language. The lock's
+own refusal carries the code `event_archived`; `failureMessage` of `@myclash/api-client` says it in
+the reader's language on every screen of web-admin and web-public that shows a failed call through
+it, the one coded refusal that function maps (ruling 234). A Tournament restored from an archive is
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 

@@ -22,6 +22,9 @@ export const common = {
     // and it would outrank a localized fallback on a 4xx like any other
     // `detail`. This is the one refusal whose reason says less than ours.
     tooManyRequests: 'Too many requests. Wait a moment and retry.',
+    // The archived-Event lock's refusal, by its code `event_archived`: nearly
+    // every screen of an archived Event can receive it (ruling 234).
+    eventArchived: 'This event is archived and read-only.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',

@@ -8,7 +8,7 @@ import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Ruleset {
@@ -163,8 +163,9 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
     }
     // NOT a message, and kept as it was: a 403 here means the commit-1 guard
     // blocked the fast path because matches are scored, so the screen opens the
-    // audited re-pin ceremony instead of saying anything.
-    if (r.kind === 'unauthenticated' && r.status === 403) {
+    // audited re-pin ceremony instead of saying anything. An archived Event
+    // answers 403 too, and that one is said (ruling 234).
+    if (r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)) {
       setRepinDiff(null);
       setRepinOpen(true);
       // Load the computed lineage diff so the ceremony shows which buckets
@@ -202,7 +203,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         // operator would need ("the ruleset's owner"), which the guard's own
         // words do not. Every other refusal now carries the API's reason.
         const message =
-          r.kind === 'unauthenticated' && r.status === 403
+          r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)
             ? t('admin.orgTournaments.repinRulesetOwnerOnly')
             : failureMessage(r, t, t('admin.common.saveFailed'));
         if (message) setRepinError(message);

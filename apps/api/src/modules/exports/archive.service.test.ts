@@ -898,12 +898,17 @@ describe('ArchiveService', () => {
       include: 'scoring',
     });
 
-    await expect(
-      service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+    const refusal = await service
+      .restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
         targetEventId: 'event-1',
         confirmation: 'RESTORE MYCLASH ARCHIVE',
-      }),
-    ).rejects.toEqual(new ForbiddenException('This event is archived and read-only.'));
+      })
+      .catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(ForbiddenException);
+    expect((refusal as ForbiddenException).getResponse()).toEqual({
+      message: 'This event is archived and read-only.',
+      code: 'event_archived',
+    });
     expect(inserted).toEqual({});
   });
 

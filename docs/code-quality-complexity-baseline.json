@@ -211,7 +211,7 @@
     "tests/e2e/_bracket.ts"
   ],
   "functions": [
-    "apps/api/src/common/event-readonly/event-readonly.guard.ts:21",
+    "apps/api/src/common/event-readonly/event-readonly.guard.ts:31",
     "apps/api/src/main.ts:22",
     "apps/api/src/modules/admin/admin-dashboard-stats.service.ts:66",
     "apps/api/src/modules/admin/admin-organizations.service.ts:123",
@@ -280,9 +280,9 @@
     "apps/api/src/modules/exports/archive-reports.ts:232",
     "apps/api/src/modules/exports/archive-reports.ts:77",
     "apps/api/src/modules/exports/archive.service.test.ts:356",
-    "apps/api/src/modules/exports/archive.service.ts:242",
-    "apps/api/src/modules/exports/archive.service.ts:300",
-    "apps/api/src/modules/exports/archive.service.ts:438",
+    "apps/api/src/modules/exports/archive.service.ts:241",
+    "apps/api/src/modules/exports/archive.service.ts:299",
+    "apps/api/src/modules/exports/archive.service.ts:437",
     "apps/api/src/modules/exports/exports.service.ts:213",
     "apps/api/src/modules/fighters/fighters.service.ts:1216",
     "apps/api/src/modules/fighters/fighters.service.ts:1370",

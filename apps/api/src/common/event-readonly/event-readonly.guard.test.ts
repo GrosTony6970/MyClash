@@ -78,11 +78,15 @@ describe('EventReadOnlyGuard', () => {
     expect(db.from).not.toHaveBeenCalled();
   });
 
-  it('refuses a write to an archived Event, in its own words', async () => {
+  // The code is what a screen says in the reader's language (ruling 234).
+  it('refuses a write to an archived Event, in its own words and with its code', async () => {
     const { guard } = harness('archived');
-    await expect(guard.canActivate(context(eventWrite))).rejects.toEqual(
-      new ForbiddenException(ARCHIVED_WORDING),
-    );
+    const refusal = await guard.canActivate(context(eventWrite)).catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(ForbiddenException);
+    expect((refusal as ForbiddenException).getResponse()).toEqual({
+      message: ARCHIVED_WORDING,
+      code: 'event_archived',
+    });
   });
 
   it('refuses a write to a Tournament of an archived Event (ruling 222)', async () => {

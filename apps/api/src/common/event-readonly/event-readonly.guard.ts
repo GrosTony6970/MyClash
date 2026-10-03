@@ -8,8 +8,18 @@ import { resolveEventId, rowsOf } from './resolve-event-id';
 
 const READ_VERBS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-/** What an archived Event answers to a write it refuses. Also said by the archive restore. */
-export const ARCHIVED_EVENT_MESSAGE = 'This event is archived and read-only.';
+/** What an archived Event answers to a write it refuses. */
+const ARCHIVED_EVENT_MESSAGE = 'This event is archived and read-only.';
+
+/**
+ * The refusal itself, also thrown by the archive restore. The object form: every page of an archived Event can send
+ * a write, so `failureMessage` of `@myclash/api-client` maps this `code` to the
+ * reader's language (ruling 234). A bare string put the English sentence in
+ * front of a French organiser.
+ */
+export function archivedEventRefusal(): ForbiddenException {
+  return new ForbiddenException({ message: ARCHIVED_EVENT_MESSAGE, code: 'event_archived' });
+}
 
 @Injectable()
 export class EventReadOnlyGuard implements CanActivate {
@@ -77,7 +87,7 @@ export class EventReadOnlyGuard implements CanActivate {
 
     // (7) Block archived events
     if (status === 'archived') {
-      throw new ForbiddenException(ARCHIVED_EVENT_MESSAGE);
+      throw archivedEventRefusal();
     }
 
     // (7b) Block destructive plan changes once the event is completed. Re-timing

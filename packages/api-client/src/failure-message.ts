@@ -49,6 +49,14 @@ import type { ApiFailure } from './request';
  * ~1,900 coded throws plus a key pair each. Do not re-open this by adding a
  * "translate the detail" branch here; the decision is the API's to revisit.
  *
+ * ONE named exception, ruled on 2026-10-03 (ruling 234): the archived-Event
+ * lock's refusal, by its `code`. It is not one throw site's reason: a global
+ * guard answers it to every write of an archived Event that no ruling keeps
+ * open, so nearly every screen of that Event in web-admin and web-public can
+ * receive it, and an Event archives itself. A per-screen mapper (the shape of `correction-refusal.ts`) would need
+ * a call at every one of them. It is an exception, not a pattern: a second
+ * coded refusal belongs in its own screens' mapper.
+ *
  * ── An intermediary is not a dead session ──────────────────────────────────
  * The API fills `detail` AND `code` on every problem+json body it sends, so a
  * 401 or 403 carrying neither did not come from the API. An edge proxy, a
@@ -117,6 +125,37 @@ export function failureDetail(failure: ApiFailure): string | null {
   return failure.kind === 'http' || failure.kind === 'unauthenticated' ? failure.detail : null;
 }
 
+/**
+ * Is this the API's archived-Event refusal (`archivedEventRefusal`,
+ * event-readonly.guard.ts)? Exported for the screen that gives a 403 its own
+ * meaning: it asks here first, or an archived Event is read as that meaning.
+ */
+export function isArchivedEventRefusal(failure: ApiFailure): boolean {
+  return failureCode(failure) === 'event_archived';
+}
+
+/** The sentence for a 401 or a 403. */
+function refusedMessage(
+  failure: Extract<ApiFailure, { kind: 'unauthenticated' }>,
+  t: (key: string) => string,
+): string {
+  // Neither half of a problem+json body, so the API did not send this —
+  // see "an intermediary is not a dead session" in the header.
+  if (failure.detail === null && failure.code === null) {
+    return t('common.apiFailure.blocked');
+  }
+  // The archived-Event lock: the one coded refusal said here — see the header.
+  if (isArchivedEventRefusal(failure)) {
+    return t('common.apiFailure.eventArchived');
+  }
+  // A 403 usually names the thing you may not do, and that beats our
+  // sentence. A 401 does not: the server's word for it is "Unauthorized",
+  // while ours says the session expired AND what to do about it.
+  return failure.status === 403
+    ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
+    : t('common.apiFailure.unauthenticated');
+}
+
 export function failureMessage(
   failure: ApiFailure,
   t: (key: string) => string,
@@ -135,17 +174,7 @@ export function failureMessage(
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':
-      // Neither half of a problem+json body, so the API did not send this —
-      // see "an intermediary is not a dead session" in the header.
-      if (failure.detail === null && failure.code === null) {
-        return t('common.apiFailure.blocked');
-      }
-      // A 403 usually names the thing you may not do, and that beats our
-      // sentence. A 401 does not: the server's word for it is "Unauthorized",
-      // while ours says the session expired AND what to do about it.
-      return failure.status === 403
-        ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
-        : t('common.apiFailure.unauthenticated');
+      return refusedMessage(failure, t);
     case 'http':
       // A class name is not a reason, and neither is "Action failed" — see the
       // header. Ours wins outright, as it does on a 401.
