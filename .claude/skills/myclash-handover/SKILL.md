@@ -1,6 +1,6 @@
 ---
 name: myclash-handover
-description: Hand a MyClash session over to the next one — ground truth from git, gh and the pins, a dated READ FIRST section in the handoff, the slice's memory note and MEMORY.md line, then the prompt file and the prompt. Use when asked for a handover, a handoff or the prompt for a new session, and before ending a session that leaves work uncommitted.
+description: Hand a MyClash session over to the next one — ground truth from git, gh and the pins, a dated READ FIRST section in the handoff, the slice's memory note and MEMORY.md line, then the prompt file and a short prompt that points at it. Use when asked for a handover, a handoff or the prompt for a new session, and before ending a session that leaves work uncommitted.
 ---
 
 # MyClash handover
@@ -8,7 +8,8 @@ description: Hand a MyClash session over to the next one — ground truth from g
 The next session starts with none of this one's context. It reads `CLAUDE.md`, the handoff's READ
 FIRST section, the memory notes the prompt names, and the prompt. Anything that lives only in this
 chat is lost. A handover is therefore four writes to disk and one reply, in this order, and it ends
-when the prompt in the chat is the prompt on disk.
+when the reply gives the short prompt that points at the prompt file. The file is read from disk by
+the next session; it is never printed in the chat.
 
 Paths. The handoff is the file `MEMORY.md` names under "Product direction" — today
 `C:\Users\Tony\.claude\plans\w3-remaining-work-handoff.md`; a new work track gets a new file and that
@@ -101,5 +102,14 @@ Done when every section is present and every SHA, path, pin and CI verdict in it
 ## 5. The reply
 
 One line of context, then the one thing that would surprise the reader — the wait-what — in
-Simplified Technical English with the nouns of `docs/HIERARCHY.md`. Then the prompt in a fenced
-block, byte-identical to the file.
+Simplified Technical English with the nouns of `docs/HIERARCHY.md`. Then the short prompt the
+operator pastes into the new session, in a fenced block, and nothing more:
+
+```
+Repo: F:\Github Repo\MyClash. Read CLAUDE.md first, then read
+C:\Users\Tony\.claude\plans\next-session-prompt.md in full and follow it: it names the handoff, the
+memory notes, the state, the scripts and the next item.
+```
+
+Do not print the prompt file, or any part of it: the operator asked for the pointer alone
+(2026-10-04), and a retyped copy of a long file drifts from the file. Say its path and its size.
