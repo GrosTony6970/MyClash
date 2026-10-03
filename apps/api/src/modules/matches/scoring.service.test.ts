@@ -668,6 +668,10 @@ describe('ScoringService — a single fight, penalties included', () => {
   const matchCompletion = {
     onMatchCompleted: vi.fn().mockResolvedValue(undefined),
     onMatchUncompleted: vi.fn().mockResolvedValue(undefined),
+    // A running Event that feeds no fought bout: every case in this block.
+    resultChangeContext: vi
+      .fn()
+      .mockResolvedValue({ eventOver: false, staysFinished: false, laterBoutFought: false }),
   };
   let service: ScoringService;
   let lastUpdate: Record<string, unknown> | null;

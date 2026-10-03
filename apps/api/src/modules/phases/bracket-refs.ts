@@ -63,6 +63,16 @@ export function resolveLoser(match: {
   return null;
 }
 
+/** Is this slot the grand final of a double elimination that has a reset? */
+export function isGrandFinalWithReset(
+  phaseType: string,
+  config: PhaseConfig,
+  slot: { round: number },
+): boolean {
+  if (phaseType !== 'double_elim' || config.grandFinalReset !== true) return false;
+  return slot.round === (config.wbRounds ?? 0) + (config.lbRounds ?? 0) + 1;
+}
+
 /**
  * True when a completed double-elim grand final ends the bracket, so nothing
  * downstream should be filled.
@@ -85,9 +95,7 @@ export function grandFinalEndsBracket(
   slot: { round: number; registration_a_id: string | null },
   match: { winner_registration_id: string | null },
 ): boolean {
-  if (phaseType !== 'double_elim' || config.grandFinalReset !== true) return false;
-  const gfRound = (config.wbRounds ?? 0) + (config.lbRounds ?? 0) + 1;
-  if (slot.round !== gfRound) return false;
+  if (!isGrandFinalWithReset(phaseType, config, slot)) return false;
   return (
     match.winner_registration_id !== null && match.winner_registration_id === slot.registration_a_id
   );

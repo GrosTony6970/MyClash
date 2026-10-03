@@ -80,6 +80,15 @@ export class FrozenResultsGuard {
     throw new ConflictException('Event results are frozen');
   }
 
+  /**
+   * Is the Event of this bout over? A fact, not a permission: no super-admin
+   * bypass. The recompute asks it to know whether anybody is still there to end
+   * a bout again (rulings 225 to 230).
+   */
+  async isEventOver(matchId: string): Promise<boolean> {
+    return isOver((await this.getEventStateForMatch(matchId)).status);
+  }
+
   async guardExchangeMutation(input: {
     exchange: ExchangeForFrozenCheck;
     requestType: ExchangeEditRequestType;

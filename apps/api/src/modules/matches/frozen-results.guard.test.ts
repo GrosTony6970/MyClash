@@ -52,6 +52,15 @@ describe('FrozenResultsGuard', () => {
     else await expect(write).resolves.toBeUndefined();
   });
 
+  it.each<[string, boolean]>([
+    ['running', false],
+    ['pending', false],
+    ['completed', true],
+    ['archived', true],
+  ])('says whether a %s Event is over: %s', async (status, over) => {
+    expect(await setup(status).guard.isEventOver(BOUT)).toBe(over);
+  });
+
   it('lets a super admin change a result of an archived Event', async () => {
     const { guard } = setup('archived');
     await expect(guard.assertResultMutationAllowed(BOUT, SUPER_ADMIN)).resolves.toBeUndefined();

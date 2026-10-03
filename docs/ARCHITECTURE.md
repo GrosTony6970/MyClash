@@ -1867,6 +1867,18 @@ Event as on an archived one. A Tournament restored from an archive is
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 
+A correction moves a finished bout's RESULT with its score (rulings 225 to 230;
+`matches/correction-outcome.ts` is the one owner, asked by the recompute). On an over Event
+nobody can end the bout again, so it stays completed and names its result as the End button
+would: the engine's answer while the cap or the doubles ceiling still ends it, else who leads,
+and a draw only where the phase's level chain allows one. A Swiss bout with a later round drawn
+is treated the same way, because its reopen is refused. On a running Event a bout the engine
+no longer ends still goes back to its referee; one that is still over with another result names
+it at once and re-feeds the next bracket slot. A bout that did not end on the board (a forfeit,
+a black card, a spent series, a result recorded by hand) never changes its winner. On an over
+Event a grand final that the losers' side now wins makes no second final: the final ranking
+reads the grand final while no reset was played.
+
 ### 12.6 Roles (unchanged from earlier draft)
 
 ```

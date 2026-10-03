@@ -176,6 +176,53 @@ export class MatchCompletionService {
   }
 
   /**
+   * What a correction on this finished bout has to know before it decides.
+   *
+   * `staysFinished`: nobody will end the bout again. The Event is over, or a
+   * later Swiss round was drawn from it, which is exactly when
+   * `assertUncompletable` refuses a reopen. `laterBoutFought`: a bout this one
+   * FEEDS has been fought. A Swiss round or a bracket seeded from a ranking is
+   * not fed by one result, so neither counts (ruling 228).
+   */
+  async resultChangeContext(
+    matchId: string,
+  ): Promise<{ eventOver: boolean; staysFinished: boolean; laterBoutFought: boolean }> {
+    const eventOver = await this.frozenResults.isEventOver(matchId);
+    const dependents = await dependentClosure(this.supabase.service, matchId);
+    const laterRounds = eventOver ? [] : ((await this.swissAdvance?.roundsAhead(matchId)) ?? []);
+    return {
+      eventOver,
+      staysFinished: eventOver || laterRounds.length > 0,
+      laterBoutFought: dependents.some((bout) => bout.hasBeenFought),
+    };
+  }
+
+  /**
+   * A bout that STAYS completed names another result (rulings 225, 229).
+   *
+   * The sides it fed are cleared first, because advancement fills a side only
+   * while it is null. Only the SLOT sides: the advance that follows hands each
+   * slot to `syncMatchToSlot`, which rewrites the row. The caller has
+   * established that no bout this one feeds was fought.
+   *
+   * On an over Event a grand final that the losers' side now wins is NOT
+   * advanced: that would make a second final nobody can fight. The final
+   * ranking reads the grand final while no reset was played (ruling 230).
+   *
+   * Never throws, like `onMatchCompleted`: the row is already written.
+   */
+  async onResultChanged(matchId: string, eventOver: boolean): Promise<void> {
+    try {
+      await this.bracketAdvance?.clearDownstreamOf(matchId);
+      if (eventOver && (await this.bracketAdvance?.asksForGrandFinalReset(matchId))) return;
+    } catch (err) {
+      this.logger.warn(`Bracket re-advance after match ${matchId} failed: ${describe(err)}`);
+      return;
+    }
+    await this.onMatchCompleted(matchId);
+  }
+
+  /**
    * Every refusal, before any write.
    *
    * A 409 raised after two bouts have already been reverted is exactly the

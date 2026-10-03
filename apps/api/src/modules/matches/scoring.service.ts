@@ -41,6 +41,11 @@ import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
+import {
+  correctionOutcome,
+  type CorrectionInput,
+  type CorrectionOutcome,
+} from './correction-outcome';
 
 /**
  * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.
@@ -84,6 +89,58 @@ function resolveMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfi
   return matchFormat;
 }
 
+/** The rows a score is derived from. A correction asks about rows that are not saved yet. */
+interface ScoreRows {
+  rawRows: Record<string, unknown>[];
+  penaltyRows: Record<string, unknown>[];
+}
+
+/** One bout, read once: what it is fought under and what is on its sheet. */
+interface LoadedBout extends ScoreRows {
+  match: RulesetMatch;
+  ruleset: Ruleset;
+  config: unknown;
+  afterblowMode: AfterblowMode;
+  matchFormat: MatchFormatConfig;
+  /** The result as the row holds it, before this recompute writes anything. */
+  stored: CorrectionInput['bout'];
+}
+
+interface SingleFightScore {
+  score: MatchScore;
+  decision: MatchEndDecision;
+  winnerRegistrationId: string | null;
+}
+
+/** Map a `matches` row to the ruleset's own type. */
+function rulesetMatch(
+  m: Record<string, unknown>,
+  phaseType: RulesetMatch['phaseType'],
+): RulesetMatch {
+  return {
+    id: m['id'] as string,
+    redRegistrationId: m['red_registration_id'] as string,
+    blueRegistrationId: m['blue_registration_id'] as string,
+    rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
+    rulesetVersion: (m['ruleset_version'] as string) ?? '1.0.0',
+    status: (m['status'] as RulesetMatch['status']) ?? 'running',
+    phaseType,
+    matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
+  };
+}
+
+function storedBout(m: Record<string, unknown>): CorrectionInput['bout'] {
+  return {
+    status: m['status'] as string,
+    winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
+    endReason: (m['end_reason'] as string | null) ?? null,
+    redRegistrationId: (m['red_registration_id'] as string | null) ?? null,
+    blueRegistrationId: (m['blue_registration_id'] as string | null) ?? null,
+    redScore: Number(m['red_score'] ?? 0),
+    blueScore: Number(m['blue_score'] ?? 0),
+  };
+}
+
 @Injectable()
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
@@ -108,113 +165,25 @@ export class ScoringService {
    * single source of truth.
    */
   async recomputeMatchScore(matchId: string): Promise<{ redScore: number; blueScore: number }> {
-    // Fetch match + all non-voided exchanges
-    const { data: matchData, error: matchError } = await this.supabase.service
-      .from('matches')
-      .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json))',
-      )
-      .eq('id', matchId)
-      .maybeSingle();
-
-    if (matchError || !matchData) {
+    const m = await this.loadMatchRow(matchId);
+    if (!m) {
       this.logger.error(`Cannot recompute score for match ${matchId}: not found`);
       return { redScore: 0, blueScore: 0 };
     }
+    const bout = await this.loadBout(m);
+    const { match, matchFormat } = bout;
 
-    const { data: exchangeRows } = await this.supabase.service
-      .from('exchanges')
-      .select('*')
-      .eq('match_id', matchId)
-      .eq('voided', false)
-      .order('sequence', { ascending: true });
-
-    const { data: penaltyRows } = await this.supabase.service
-      .from('match_penalties')
-      .select('score_delta, registration_id, round_number')
-      .eq('match_id', matchId)
-      .eq('voided', false);
-
-    const m = matchData as Record<string, unknown>;
-
-    // Map DB rows to ruleset types
-    const match: RulesetMatch = {
-      id: m['id'] as string,
-      redRegistrationId: m['red_registration_id'] as string,
-      blueRegistrationId: m['blue_registration_id'] as string,
-      rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
-      rulesetVersion: (m['ruleset_version'] as string) ?? '1.0.0',
-      status: (m['status'] as RulesetMatch['status']) ?? 'running',
-      phaseType: this.phaseType(m['phases']),
-      matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
-    };
-
-    const rawRows = (exchangeRows ?? []) as Record<string, unknown>[];
-    const exchanges: RulesetExchange[] = rawRows.map((e) => this.mapExchange(e));
-
-    // Resolve the ruleset (registry first, then DB-driven FormulaRuleset).
-    let ruleset = await this.rulesets.resolve(match.rulesetCode, match.rulesetVersion);
-    if (!ruleset) {
-      this.logger.warn(
-        `Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`,
-      );
-      ruleset = TF_v1;
-    }
-
-    const config = this.rulesetConfig(m['phases']);
-    // afterblowMode lives in the tournament's scoring_config_json, not in
-    // ruleset_config. It used to be spliced ONTO the config object so the engine
-    // could dig it back out before its Zod parse; the contract takes it as a
-    // required parameter now, so the splice is gone and the config travels as
-    // the ruleset authored it.
-    const afterblowMode = this.afterblowMode(m['phases']);
-
-    const matchFormat = resolveMatchFormat(config, ruleset);
     // Best-of-N (bestOf > 1) runs the round lifecycle instead of the single-fight
     // path below. bestOf = 1 falls through to the exact existing behaviour.
     if (getEffectiveBestOf(match, matchFormat) > 1) {
-      return this.recomputeBestOfRounds({
-        matchId,
-        match,
-        ruleset,
-        config,
-        matchFormat,
-        afterblowMode,
-        rawRows,
-        penaltyRows: (penaltyRows ?? []) as Record<string, unknown>[],
-        matchRow: m,
-      });
+      return this.recomputeBestOfRounds({ matchId, ...bout, matchRow: m });
     }
 
-    // Every card in the bout: a single fight has one round, so there is nothing
-    // to filter by — `current_round` never leaves 1.
-    const score = this.applyPenaltyDeltas(
-      ruleset.computeMatchScore(match, exchanges, afterblowMode, config),
-      match,
-      (penaltyRows ?? []) as Record<string, unknown>[],
-    );
-
-    // AFTER the penalties, so the end decision and the winner read the SAME
-    // number — the one the referee is looking at. They used to disagree: the
-    // decision was taken on the bare exchanges and the winner on the penalised
-    // score, so a penalty that dropped the cap-reacher back below the cap
-    // completed the bout with `end_reason: 'first_to_points'` and no winner.
-    const matchEndDecision = ruleset.isMatchOver(match, score, config);
-    const winnerRegistrationId = this.endWinnerRegistrationId(
-      matchEndDecision.reason,
-      match,
-      score,
-      matchFormat,
-    );
+    const scored = this.scoreSingleFight(bout, bout);
+    const { score, decision } = scored;
     // True only on the transition INTO completed — the guard makes the
     // side effects below (clock end) fire exactly once.
-    const justCompleted = match.status !== 'completed' && matchEndDecision.isOver;
-    // And the transition back OUT. A penalty can now END a bout, so voiding one
-    // has to be able to reopen it — both paths call this method
-    // (`PenaltiesService`). Without this the bout would stay completed, holding
-    // a winner whose end condition no longer holds, in front of the referee who
-    // just voided the penalty.
-    const justReopened = match.status === 'completed' && !matchEndDecision.isOver;
+    const justCompleted = match.status !== 'completed' && decision.isOver;
     const matchUpdates: Record<string, unknown> = {
       red_score: score.redScore,
       blue_score: score.blueScore,
@@ -223,17 +192,30 @@ export class ScoringService {
     if (justCompleted) {
       matchUpdates['status'] = 'completed';
       matchUpdates['ended_at'] = new Date().toISOString();
-      matchUpdates['winner_registration_id'] = winnerRegistrationId;
+      matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
-      matchUpdates['end_reason'] = matchEndDecision.reason;
+      matchUpdates['end_reason'] = decision.reason;
     }
 
+    // A bout that was ALREADY completed: the score just moved under a result
+    // somebody recorded. `correctionOutcome` owns what happens to that result.
+    const correction = match.status === 'completed' ? await this.correctionFor(bout, scored) : null;
+    const outcome = correction?.outcome ?? { kind: 'unchanged' };
     // The side effects of an un-completion run BEFORE the row write, because
     // `onMatchUncompleted` can REFUSE and there is no transaction to undo a
     // half-applied reopen. Only once it has agreed do the result columns move.
-    if (justReopened && (await this.uncompleteBestEffort(matchId))) {
+    if (outcome.kind === 'reopen' && (await this.uncompleteBestEffort(matchId))) {
       Object.assign(matchUpdates, reopenedResultColumns());
+    }
+    if (outcome.kind === 'redecide') {
+      matchUpdates['winner_registration_id'] = outcome.winnerRegistrationId;
+      matchUpdates['end_reason'] = outcome.endReason;
+    }
+    if (outcome.kind === 'refuse') {
+      // The doors that can refuse ask BEFORE they write. Here the correction is
+      // already in, so only the score follows, and the log says the result did not.
+      this.logger.warn(`Match ${matchId} kept its result beside a new score: ${outcome.code}`);
     }
 
     // Persist derived scores back to matches row
@@ -253,8 +235,149 @@ export class ScoringService {
       // errors, so this cannot fail the exchange that triggered it.
       await this.matchCompletion?.onMatchCompleted(matchId);
     }
+    // AFTER the write: the bracket reads the winner off the row.
+    if (outcome.kind === 'redecide' && correction) {
+      await this.matchCompletion?.onResultChanged(matchId, correction.eventOver);
+    }
 
     return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  /** The bout's own row, with the format it is fought under. `null` when gone. */
+  private async loadMatchRow(matchId: string): Promise<Record<string, unknown> | null> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json))',
+      )
+      .eq('id', matchId)
+      .maybeSingle();
+    return error || !data ? null : (data as Record<string, unknown>);
+  }
+
+  /** Everything a score is derived from: the live exchanges, the live cards, the ruleset. */
+  private async loadBout(m: Record<string, unknown>): Promise<LoadedBout> {
+    const matchId = m['id'] as string;
+    const { data: exchangeRows } = await this.supabase.service
+      .from('exchanges')
+      .select('*')
+      .eq('match_id', matchId)
+      .eq('voided', false)
+      .order('sequence', { ascending: true });
+
+    const { data: penaltyRows } = await this.supabase.service
+      .from('match_penalties')
+      .select('id, score_delta, registration_id, round_number')
+      .eq('match_id', matchId)
+      .eq('voided', false);
+
+    const match = rulesetMatch(m, this.phaseType(m['phases']));
+
+    // Resolve the ruleset (registry first, then DB-driven FormulaRuleset).
+    let ruleset = await this.rulesets.resolve(match.rulesetCode, match.rulesetVersion);
+    if (!ruleset) {
+      this.logger.warn(
+        `Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`,
+      );
+      ruleset = TF_v1;
+    }
+
+    const config = this.rulesetConfig(m['phases']);
+    return {
+      match,
+      ruleset,
+      config,
+      // afterblowMode lives in the tournament's scoring_config_json, not in
+      // ruleset_config. It used to be spliced ONTO the config object so the engine
+      // could dig it back out before its Zod parse; the contract takes it as a
+      // required parameter now, so the splice is gone and the config travels as
+      // the ruleset authored it.
+      afterblowMode: this.afterblowMode(m['phases']),
+      matchFormat: resolveMatchFormat(config, ruleset),
+      stored: storedBout(m),
+      rawRows: (exchangeRows ?? []) as Record<string, unknown>[],
+      penaltyRows: (penaltyRows ?? []) as Record<string, unknown>[],
+    };
+  }
+
+  /**
+   * A single fight's score, its end decision and the winner that decision names.
+   *
+   * Every card in the bout: a single fight has one round, so there is nothing
+   * to filter by — `current_round` never leaves 1.
+   *
+   * The decision is taken AFTER the penalties, so it and the winner read the
+   * SAME number — the one the referee is looking at. They used to disagree: the
+   * decision was taken on the bare exchanges and the winner on the penalised
+   * score, so a penalty that dropped the cap-reacher back below the cap
+   * completed the bout with `end_reason: 'first_to_points'` and no winner.
+   */
+  private scoreSingleFight(bout: LoadedBout, rows: ScoreRows): SingleFightScore {
+    const { match, ruleset, config, afterblowMode, matchFormat } = bout;
+    const exchanges = rows.rawRows.map((e) => this.mapExchange(e));
+    const score = this.applyPenaltyDeltas(
+      ruleset.computeMatchScore(match, exchanges, afterblowMode, config),
+      match,
+      rows.penaltyRows,
+    );
+    const decision = ruleset.isMatchOver(match, score, config);
+    return {
+      score,
+      decision,
+      winnerRegistrationId: this.endWinnerRegistrationId(
+        decision.reason,
+        match,
+        score,
+        matchFormat,
+      ),
+    };
+  }
+
+  /**
+   * What this score does to the result of a bout that is already completed.
+   *
+   * The context comes from the un-completion owner, which knows the Event and
+   * the bracket. Unit wiring without it reads as a running Event that feeds
+   * nothing, which is what every bout was before rulings 225 to 230.
+   */
+  private async correctionFor(
+    bout: LoadedBout,
+    scored: SingleFightScore,
+  ): Promise<{ outcome: CorrectionOutcome; eventOver: boolean }> {
+    const { match, matchFormat, stored } = bout;
+    const context = (await this.matchCompletion?.resultChangeContext(match.id)) ?? {
+      eventOver: false,
+      staysFinished: false,
+      laterBoutFought: false,
+    };
+    const { score, decision } = scored;
+    // Asked only of a level board the engine does not end: the one case the
+    // phase's chain of remedies decides, as it does for the End button.
+    const level = !decision.isOver && leadingColor(score) === null;
+    const drawAllowed =
+      level &&
+      pendingLevelStep(
+        matchFormat,
+        match.phaseType,
+        match.matchNumberLabel,
+        (await this.clock.getClockState(match.id)).levelResolutionSteps,
+      )?.kind === 'draw';
+    const outcome = correctionOutcome({
+      bout: stored,
+      score,
+      engine:
+        decision.isOver && decision.reason
+          ? {
+              isOver: true,
+              reason: decision.reason,
+              winnerRegistrationId: scored.winnerRegistrationId,
+            }
+          : { isOver: false },
+      staysFinished: context.staysFinished,
+      laterBoutFought: context.laterBoutFought,
+      drawAllowed,
+    });
+    return { outcome, eventOver: context.eventOver };
   }
 
   /**

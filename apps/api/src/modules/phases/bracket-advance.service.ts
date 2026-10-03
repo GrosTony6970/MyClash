@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   buildSelfRef,
   grandFinalEndsBracket,
+  isGrandFinalWithReset,
   resolveLoser,
   type PhaseConfig,
 } from './bracket-refs';
@@ -66,6 +67,26 @@ export class BracketAdvanceService {
     } catch (err) {
       this.logger.error(`Bracket advance failed for match ${matchId}: ${String(err)}`);
     }
+  }
+
+  /**
+   * Does this bout's stored result ask for a second grand final? True for the
+   * grand final of a bracket with a reset, unless the winners' side won it.
+   * Advancing from it MAKES that bout, so a caller that must not make one asks
+   * first (ruling 230).
+   */
+  async asksForGrandFinalReset(matchId: string): Promise<boolean> {
+    const match = await this.loadMatch(matchId);
+    if (!match?.bracket_slot_id) return false;
+    const slot = await this.loadSlot(match.bracket_slot_id);
+    if (!slot) return false;
+    const phase = await this.loadPhase(slot.phase_id);
+    if (!phase) return false;
+    const config = (phase.config_json ?? {}) as PhaseConfig;
+    return (
+      isGrandFinalWithReset(phase.type as string, config, slot) &&
+      !grandFinalEndsBracket(phase.type as string, config, slot, match)
+    );
   }
 
   /** The matches this one feeds. See bracket-downstream.ts for the ref algebra. */
