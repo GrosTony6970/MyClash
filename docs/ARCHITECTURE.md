@@ -1376,7 +1376,10 @@ not a switch; "push only" = the main switch stops the push, and the broadcast th
   their followers', and the referees' duties. A duty starts at the earliest placed bout it covers,
   so the locked duties of the moved bouts (`apps/api/src/modules/notifications/duties-of-bouts.ts`)
   get their referee's alert and his followers' set again, in set-based reads: a crew on a Swiss
-  round or a bracket is one duty per bout and role.
+  round or a bracket is one duty per bout and role. A bout that is DELETED from a Pool that stays
+  moves that Pool's duties too, and cannot be named any more: the Pool is named instead
+  (`refreshPools`), by the two writes that do it, a Pool member added or removed and a
+  force-deleted Fighter. A bout created with a time goes through the same seam as a moved one.
 - A duty alert that has rung does not ring again for the same start (operator ruling 221,
   `apps/api/src/workers/duty-alert-rings.ts`). The two duty kinds stay in the queue for a day
   after they complete, with the start they were set for and what the worker answered (`sent`, or

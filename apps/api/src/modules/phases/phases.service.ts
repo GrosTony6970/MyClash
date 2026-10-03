@@ -2641,7 +2641,21 @@ export class PhasesService {
     return { poolId, registrationId };
   }
 
+  /**
+   * Make a Pool's bouts again after a member came or went, then bring its referees' alerts in
+   * line. The new bouts have no time, so a locked duty on the Pool has no start any more, and
+   * its "your duty starts soon" would still ring at the old minute (operator ruling 221).
+   * `finally`: the old bouts can be gone when a later step is refused.
+   */
   private async regeneratePoolMatches(poolId: string) {
+    try {
+      await this.remakePoolMatches(poolId);
+    } finally {
+      await this.matchAlerts?.refreshPools([poolId]);
+    }
+  }
+
+  private async remakePoolMatches(poolId: string) {
     const ctx = await this.getPoolContext(poolId);
 
     // Wipe existing matches for the pool

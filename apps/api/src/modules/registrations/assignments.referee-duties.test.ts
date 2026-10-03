@@ -38,7 +38,7 @@ function makeService(globalPersonId: string | null) {
       ],
     },
   });
-  return { service: new AssignmentsService(supabase as never), supabase };
+  return { service: new AssignmentsService(supabase as never, {} as never), supabase };
 }
 
 describe("the assignment report's referee duties", () => {

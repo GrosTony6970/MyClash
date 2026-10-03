@@ -4,7 +4,8 @@
  * A duty starts at the earliest placed bout it covers (`schedule/duty-windows.ts`): its own bout,
  * or every bout of its own Pool. So a bout that gets another time or piste touches the duties on
  * that bout, and the duties on its Pool. A row holds exactly one of piste, Pool and bout
- * (`referee_assignments_scope_check`), so a row with a `pool_id` is a Pool duty.
+ * (`referee_assignments_scope_check`), so a row with a `pool_id` is a Pool duty. A bout that is
+ * DELETED touches the duties on its Pool too, and is asked by its Pool (`lockedDutiesOfPools`).
  *
  * Only locked duties are asked: an unlocked one rings for nobody (operator ruling 220), and the
  * next lock sets its alerts.
@@ -62,9 +63,21 @@ export async function lockedDutiesOfBouts(
       .in('match_id', matchIds),
   );
   const poolIds = [...new Set(bouts.map((bout) => bout.pool_id).filter(Boolean))] as string[];
-  if (poolIds.length === 0) return onBouts;
-  const onPools = rowsOf<LockedDuty>(
-    'duties on the Pools of the moved bouts',
+  return [...onBouts, ...(await lockedDutiesOfPools(db, poolIds))];
+}
+
+/**
+ * The locked duties on these Pools: the door for bouts that were deleted, which cannot be named
+ * any more. A duty on one of the deleted bouts went with its bout (0179), so only the Pool's own
+ * duties are left to ask. `poolIds`: at most `IN_LIST_MAX` of them.
+ */
+export async function lockedDutiesOfPools(
+  db: Db,
+  poolIds: readonly string[],
+): Promise<LockedDuty[]> {
+  if (poolIds.length === 0) return [];
+  return rowsOf<LockedDuty>(
+    'duties on the Pools',
     await db
       .from('referee_assignments')
       .select(
@@ -73,5 +86,4 @@ export async function lockedDutiesOfBouts(
       .eq('status', 'confirmed')
       .in('pool_id', poolIds),
   );
-  return [...onBouts, ...onPools];
 }

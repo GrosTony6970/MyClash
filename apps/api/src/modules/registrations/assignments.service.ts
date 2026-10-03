@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { isRefereeBoardLocked, refereeBoardLocked } from '../referees/referee-lock';
 
@@ -82,7 +83,10 @@ interface RegistrationRow {
 
 @Injectable()
 export class AssignmentsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly matchAlerts: MatchAlertRefresherService,
+  ) {}
 
   /**
    * The person's referee duties in this Event. A duty carries the GLOBAL person (0063);
@@ -412,19 +416,31 @@ export class AssignmentsService {
       .filter(Boolean) as string[];
     // Its bouts take their crews with them (0179): the same wait for an unlock.
     await this.assertNoLockedDutyGoes(eventId, 0, unplayedMatchIds);
-    if (unplayedMatchIds.length > 0) {
-      const { error: delMatchesErr } = await this.supabase.service
-        .from('matches')
-        .delete()
-        .in('id', unplayedMatchIds);
-      if (delMatchesErr) throw new BadRequestException(delMatchesErr.message);
-    }
+    await this.deleteUnplayedBouts(unplayedMatchIds);
 
     const { error: delRegErr } = await this.supabase.service
       .from('registrations')
       .delete()
       .eq('id', registrationId);
     if (delRegErr) throw new BadRequestException(delRegErr.message);
+  }
+
+  /**
+   * Delete a Fighter's unplayed bouts, then bring the alerts of their Pools' referees in line. A
+   * locked duty on a Pool starts at the Pool's earliest placed bout, and that bout can be one
+   * of these: its "your duty starts soon" would ring at the old minute (operator ruling 221).
+   * The Pools come back from the delete itself: afterwards the bouts cannot be read.
+   */
+  private async deleteUnplayedBouts(matchIds: readonly string[]): Promise<void> {
+    if (matchIds.length === 0) return;
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .delete()
+      .in('id', matchIds)
+      .select('pool_id');
+    if (error) throw new BadRequestException(error.message);
+    const bouts = (data ?? []) as Array<{ pool_id: string | null }>;
+    await this.matchAlerts.refreshPools(bouts.map((bout) => bout.pool_id));
   }
 
   /**
@@ -494,13 +510,7 @@ export class AssignmentsService {
       .map((r) => (r as { id: string }).id)
       .filter((id) => typeof id === 'string');
 
-    if (unplayedMatchIds.length > 0) {
-      const { error: delMatchesErr } = await this.supabase.service
-        .from('matches')
-        .delete()
-        .in('id', unplayedMatchIds);
-      if (delMatchesErr) throw new BadRequestException(delMatchesErr.message);
-    }
+    await this.deleteUnplayedBouts(unplayedMatchIds);
 
     if (regIds.length > 0) {
       const { error: delRegsErr } = await this.supabase.service

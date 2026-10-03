@@ -395,6 +395,15 @@ export class MatchesService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    // A new bout goes to the alert seam like a moved one: with a time, its Fighters and their
+    // followers get their alert, and in a Pool it can be the earliest, which moves the Pool's
+    // locked duties. The bout is saved by now: a queue that is down must not answer 500, or the
+    // retry makes a second bout.
+    const id = (data as { id: string }).id;
+    await this.matchAlerts.refresh([id]).catch((err: unknown) => {
+      const why = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`The alerts of the new bout ${id} were not set: ${why}`);
+    });
     return data;
   }
 

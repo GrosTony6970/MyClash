@@ -13,7 +13,7 @@ import {
   selectsFor,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
-import { lockedDutiesOfBouts } from './duties-of-bouts';
+import { lockedDutiesOfBouts, lockedDutiesOfPools } from './duties-of-bouts';
 
 const bout = (id: string, poolId: string | null) => ({ id, pool_id: poolId });
 const onPool = (id: string, poolId: string, status = 'confirmed') => ({
@@ -125,7 +125,7 @@ describe('the locked duties of some bouts', () => {
 
   it.each<[string, unknown[]]>([
     ['duties on the moved bouts', [BOOM]],
-    ['duties on the Pools of the moved bouts', [{ data: [{ id: 'marc-a2' }], error: null }, BOOM]],
+    ['duties on the Pools', [{ data: [{ id: 'marc-a2' }], error: null }, BOOM]],
   ])('a failed read of the %s is a plain Error too', async (what, answers) => {
     const failure = await dutiesOf(['bout-a1', 'bout-a2'], {
       referee_assignments: answers as never,
@@ -133,5 +133,46 @@ describe('the locked duties of some bouts', () => {
 
     expect((failure as Error).constructor).toBe(Error);
     expect((failure as Error).message).toBe(`${what} read failed: boom`);
+  });
+});
+
+/** The door for bouts that are gone: they cannot be named, their Pools can. */
+describe('the locked duties of some Pools', () => {
+  async function poolDutiesOf(poolIds: string[], overrides: Record<string, TableSeed> = {}) {
+    const db = mockSupabase(tables(overrides));
+    const duties = await lockedDutiesOfPools(db as never, poolIds);
+    return { db, duties: duties.map((duty) => duty.id).sort() };
+  }
+
+  it('finds the locked duty on a Pool that is named, and no duty on one of its bouts', async () => {
+    // Marc's duty is on bout-a2 alone: a bout that goes takes it along (0179).
+    expect((await poolDutiesOf(['pool-a'])).duties).toEqual(['anna-pool-a']);
+  });
+
+  it('asks for the columns both alert families read, by the Pools, and reads no bout', async () => {
+    const { db } = await poolDutiesOf(['pool-a', 'pool-b']);
+
+    expect(queriedTables(db.from)).toEqual(['referee_assignments']);
+    expect(selectsFor(db.from, 'referee_assignments')).toEqual([DUTY_COLUMNS]);
+    expect(filtersFor(db.from, 'referee_assignments', 'eq')).toEqual([['status', 'confirmed']]);
+    expect(filtersFor(db.from, 'referee_assignments', 'in')).toEqual([
+      ['pool_id', ['pool-a', 'pool-b']],
+    ]);
+  });
+
+  it('reads nothing when no Pool is named', async () => {
+    const { db, duties } = await poolDutiesOf([]);
+
+    expect(duties).toEqual([]);
+    expect(queriedTables(db.from)).toEqual([]);
+  });
+
+  it('a failed read is a plain Error, not "no duty"', async () => {
+    const failure = await poolDutiesOf(['pool-a'], { referee_assignments: BOOM }).catch(
+      (error: unknown) => error,
+    );
+
+    expect((failure as Error).constructor).toBe(Error);
+    expect((failure as Error).message).toBe('duties on the Pools read failed: boom');
   });
 });

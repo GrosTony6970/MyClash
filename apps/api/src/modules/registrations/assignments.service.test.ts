@@ -37,7 +37,7 @@ describe('AssignmentsService.getEventAssignments', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AssignmentsService(mockSupabase as never);
+    service = new AssignmentsService(mockSupabase as never, { refreshPools: vi.fn() } as never);
   });
 
   it('flags hasBlockingMatch when the person has a completed match as a fighter', async () => {
@@ -310,7 +310,7 @@ describe('AssignmentsService.forceDeleteRegistration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AssignmentsService(mockSupabase as never);
+    service = new AssignmentsService(mockSupabase as never, { refreshPools: vi.fn() } as never);
   });
 
   it('deletes scheduled matches and the registration when no blocking match exists', async () => {
@@ -373,7 +373,7 @@ describe('AssignmentsService.forceDeleteRegistration', () => {
         chain.delete = vi.fn().mockReturnValue(
           Object.assign(Promise.resolve({ data: null, error: null }), {
             in: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
+            select: vi.fn().mockReturnThis(),
           }),
         );
         return chain;
@@ -445,7 +445,7 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AssignmentsService(mockSupabase as never);
+    service = new AssignmentsService(mockSupabase as never, { refreshPools: vi.fn() } as never);
   });
 
   it('throws ConflictException when the person has any blocking match in the event', async () => {

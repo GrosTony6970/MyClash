@@ -1,6 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mockSupabase, queriedTables, type TableSeed } from '../../common/testing/supabase-chain';
+import {
+  filtersFor,
+  mockSupabase,
+  queriedTables,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { MatchAlertRefresherService } from './match-alert-refresher.service';
 
 const bout = (id: string, poolId: string | null) => ({ id, pool_id: poolId });
@@ -150,7 +155,7 @@ describe('the duty family: the alerts of the locked duties the moved bouts start
 
     expect(warn.mock.calls).toEqual([
       [
-        'The referee duties of the moved bouts are unreadable; their alerts stay as they were: duties on the moved bouts read failed: boom',
+        'The referee duties of the changed bouts are unreadable; their alerts stay as they were: duties on the moved bouts read failed: boom',
       ],
     ]);
     expect(sizes(personal.scheduleMatchStartingMany)).toEqual([1]);
@@ -171,10 +176,70 @@ describe('the duty family: the alerts of the locked duties the moved bouts start
       await expect(made.refresher.refresh(['final'])).resolves.toBeUndefined();
 
       expect(warn.mock.calls).toEqual([
-        [`The duty alerts of the moved bouts were not all set (${whose}): job is locked`],
+        [`The duty alerts of the changed bouts were not all set (${whose}): job is locked`],
       ]);
       expect(made.personal.scheduleRefereeDutiesStarting).toHaveBeenCalledTimes(1);
       expect(made.follows.scheduleRefereeDutiesStarting).toHaveBeenCalledTimes(1);
     },
   );
+});
+
+describe('the Pool door: the bouts of a Pool were deleted or made again (ruling 221)', () => {
+  it('hands both duty schedulers the locked duties of the Pools named, each Pool once', async () => {
+    const { refresher, personal, follows, db } = makeRefresher();
+
+    await refresher.refreshPools(['pool-a', 'pool-a', null, '']);
+
+    // Zoe's duty is on Pool B, Paul's on a bout: neither is asked.
+    expect(handed(personal.scheduleRefereeDutiesStarting)).toEqual([['anna-pool-a']]);
+    expect(handed(follows.scheduleRefereeDutiesStarting)).toEqual([['anna-pool-a']]);
+    expect(filtersFor(db.from, 'referee_assignments', 'in')).toEqual([['pool_id', ['pool-a']]]);
+  });
+
+  it('serves no bout family and reads no bout: the bouts may be gone', async () => {
+    const { refresher, personal, follows, db } = makeRefresher();
+
+    await refresher.refreshPools(['pool-a']);
+
+    expect(personal.scheduleMatchStartingMany).not.toHaveBeenCalled();
+    expect(follows.scheduleMatchStartingMany).not.toHaveBeenCalled();
+    expect(queriedTables(db.from)).toEqual(['referee_assignments']);
+  });
+
+  it('asks nothing when no Pool is named', async () => {
+    const { refresher, personal, follows, db } = makeRefresher();
+
+    await refresher.refreshPools([null, '']);
+
+    expect(queriedTables(db.from)).toEqual([]);
+    expect(personal.scheduleRefereeDutiesStarting).not.toHaveBeenCalled();
+    expect(follows.scheduleRefereeDutiesStarting).not.toHaveBeenCalled();
+  });
+
+  it('says so, and fails no write, when the duties cannot be read', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { refresher, personal } = makeRefresher({ ...TABLES, referee_assignments: BOOM });
+
+    await expect(refresher.refreshPools(['pool-a'])).resolves.toBeUndefined();
+
+    expect(warn.mock.calls).toEqual([
+      [
+        'The referee duties of the changed bouts are unreadable; their alerts stay as they were: duties on the Pools read failed: boom',
+      ],
+    ]);
+    expect(personal.scheduleRefereeDutiesStarting).not.toHaveBeenCalled();
+  });
+
+  it('a duty scheduler that throws fails no write', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { refresher, personal, follows } = makeRefresher();
+    personal.scheduleRefereeDutiesStarting.mockRejectedValue(new Error('job is locked'));
+
+    await expect(refresher.refreshPools(['pool-a'])).resolves.toBeUndefined();
+
+    expect(warn.mock.calls).toEqual([
+      ["The duty alerts of the changed bouts were not all set (the referees' own): job is locked"],
+    ]);
+    expect(follows.scheduleRefereeDutiesStarting).toHaveBeenCalledTimes(1);
+  });
 });

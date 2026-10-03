@@ -28,7 +28,8 @@ function makeService(options: {
     matches: { data: null, error: null },
     persons: { data: null, error: null },
   });
-  const service = new AssignmentsService(supabase as never);
+  // The alerts of the Pools whose bouts go: `assignments.force-delete-alerts.test.ts`.
+  const service = new AssignmentsService(supabase as never, { refreshPools: vi.fn() } as never);
   vi.spyOn(service, 'getEventAssignments').mockResolvedValue({
     hasBlockingMatch: false,
     blockingMatches: [],

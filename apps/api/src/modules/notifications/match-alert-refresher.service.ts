@@ -3,7 +3,10 @@ import { inListChunks } from '../../common/postgrest-in-list';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
-import { lockedDutiesOfBouts, type LockedDuty } from './duties-of-bouts';
+import { lockedDutiesOfBouts, lockedDutiesOfPools, type LockedDuty } from './duties-of-bouts';
+
+/** A read of locked duties, by bouts or by Pools: `IN_LIST_MAX` ids at a time. */
+type DutyRead = (db: SupabaseService['service'], ids: readonly string[]) => Promise<LockedDuty[]>;
 
 /**
  * The one thing to call after writing `matches.scheduled_at` or
@@ -26,7 +29,9 @@ import { lockedDutiesOfBouts, type LockedDuty } from './duties-of-bouts';
  * more wrote its piste and none did. That is not twelve oversights, it is a
  * missing seam: nothing connected writing either field to the alerts built from
  * them, so every new write path started life broken. This is that seam, and
- * `match-alert-coverage.test.ts` reds when a new write appears without it.
+ * `match-alert-coverage.test.ts` reds when a new UPDATE or UPSERT of them appears without it.
+ * It sees no insert and no delete: the bout made with a time and the bouts deleted from a Pool
+ * that stays (`refreshPools`) were found by hand.
  *
  * TWO FAMILIES FOR A BOUT, both always. The fighter's own alert and their followers' are
  * separate queues built by separate services, and a caller that remembers one
@@ -83,20 +88,40 @@ export class MatchAlertRefresherService {
       await this.personal.scheduleMatchStartingMany(chunk);
       await this.follows.scheduleMatchStartingMany(chunk);
     }
-    await this.refreshDuties(ids);
+    await this.refreshDuties(ids, lockedDutiesOfBouts);
   }
 
   /**
-   * The duty family: the alerts of the locked duties these bouts start, each duty once.
+   * The one thing to call after DELETING bouts of a Pool that stays, whether new ones are made
+   * or not: the duty family alone, by Pool.
    *
-   * Nothing here fails the write that moved the bouts. A failed read of the duties is warned,
+   * A duty on a Pool starts at the Pool's earliest placed bout. A member added or removed makes
+   * the Pool's bouts again with no time, and a force-deleted Fighter takes their bouts along: the
+   * duty then starts later, or has no start, and its alert would still ring at the old minute.
+   * The bouts that went cannot be named to `refresh`, so their Pools are. Their own bout alerts
+   * need nothing: one about a bout that is gone rings for nobody (`alert-visibility.ts`), and a
+   * duty on such a bout went with it (0179).
+   *
+   * The race, not closed: nothing puts two refreshes of one Pool in order. This one can read
+   * "no bout placed" while a planner's write places the new bouts and sets the alert, and then
+   * remove it. The same holds between two calls of `refresh`.
+   */
+  async refreshPools(poolIds: ReadonlyArray<string | null>): Promise<void> {
+    const ids = Array.from(new Set(poolIds.filter((id): id is string => Boolean(id))));
+    await this.refreshDuties(ids, lockedDutiesOfPools);
+  }
+
+  /**
+   * The duty family: the alerts of the locked duties these bouts or Pools start, each duty once.
+   *
+   * Nothing here fails the write that changed the bouts. A failed read of the duties is warned,
    * and their alerts stay as they were. A scheduler that throws (the queue down, or a job being
    * sent at that instant, which cannot be removed) is warned too: some alerts of that piece were
    * not set, the others were. An unlocked duty is not asked: it rings for nobody, and the next
    * lock sets its alerts.
    */
-  private async refreshDuties(matchIds: readonly string[]): Promise<void> {
-    const duties = await this.dutiesOf(matchIds);
+  private async refreshDuties(ids: readonly string[], read: DutyRead): Promise<void> {
+    const duties = await this.dutiesOf(ids, read);
     const now = new Date();
     for (const piece of inListChunks(duties)) {
       await Promise.all([
@@ -110,18 +135,18 @@ export class MatchAlertRefresherService {
     }
   }
 
-  /** The locked duties of these bouts, each once; none (warned) when they cannot be read. */
-  private async dutiesOf(matchIds: readonly string[]): Promise<LockedDuty[]> {
+  /** The locked duties `read` finds, each once; none (warned) when they cannot be read. */
+  private async dutiesOf(ids: readonly string[], read: DutyRead): Promise<LockedDuty[]> {
     const duties = new Map<string, LockedDuty>();
     try {
-      for (const chunk of inListChunks(matchIds)) {
-        for (const duty of await lockedDutiesOfBouts(this.supabase.service, chunk)) {
+      for (const chunk of inListChunks(ids)) {
+        for (const duty of await read(this.supabase.service, chunk)) {
           duties.set(duty.id, duty);
         }
       }
     } catch (err) {
       this.warn(
-        'The referee duties of the moved bouts are unreadable; their alerts stay as they were',
+        'The referee duties of the changed bouts are unreadable; their alerts stay as they were',
         err,
       );
       return [];
@@ -133,7 +158,7 @@ export class MatchAlertRefresherService {
     try {
       await set();
     } catch (err) {
-      this.warn(`The duty alerts of the moved bouts were not all set (${whose})`, err);
+      this.warn(`The duty alerts of the changed bouts were not all set (${whose})`, err);
     }
   }
 
