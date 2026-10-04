@@ -3,12 +3,13 @@ import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabas
 import { FrozenResultsGuard } from './frozen-results.guard';
 
 /**
- * A bout put back on the schedule ends the requests that wait on its hits, and
- * tells who asked (ruling 257).
+ * A bout whose hits a reset voided ends the requests that wait on them, writes
+ * each close in the audit trail, and tells who asked (rulings 257, 260).
  *
  * Léa asks to void a hit of an over Event. The Event is set back to running,
- * and an organiser resets the bout: every hit of it is voided. Her request was
- * closed as rejected with an English reason, and she was told nothing.
+ * and an organiser resets the bout: every hit of it is voided. Her request is
+ * closed as rejected with one fixed reason, and she is told once the reset has
+ * done its last step.
  */
 const LEA = 'a0000000-0000-4000-8000-000000000002';
 const PAUL = 'a0000000-0000-4000-8000-000000000003';
@@ -27,20 +28,35 @@ const request = (id: string, matchId: string, asker: string, status = 'pending')
   status,
 });
 
-function setup(requests: 'seeded' | 'failing' = 'seeded') {
+const R_LEA = request('r-lea', 'm1', LEA);
+const R_PAUL = request('r-paul', 'm2', PAUL);
+
+function setup(
+  requests: 'seeded' | 'failing' = 'seeded',
+  audit: 'kept' | 'failing' | 'throwing' = 'kept',
+) {
   const db = mockSupabase({
     exchange_edit_requests:
       requests === 'failing'
         ? { data: null, error: { message: 'the database is away' } }
         : {
             rows: [
-              request('r-lea', 'm1', LEA),
-              request('r-paul', 'm2', PAUL),
+              R_LEA,
+              R_PAUL,
               // Decoys: another bout, and a request of this bout that is reviewed.
               request('r-other-bout', 'm9', LEA),
               request('r-reviewed', 'm1', LEA, 'approved'),
             ],
           },
+    // The double throws on a table nobody seeded, as a client whose call rejects.
+    ...(audit === 'throwing'
+      ? {}
+      : {
+          audit_log:
+            audit === 'failing'
+              ? { data: null, error: { message: 'the audit trail is away' } }
+              : { rows: [] },
+        }),
   });
   const notifications = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
   const guard = new FrozenResultsGuard(db as never, notifications as never);
@@ -57,7 +73,7 @@ const rejectedNotice = (requestId: string, userId: string) => ({
   preference: 'schedule_changes',
 });
 
-describe('a bout put back on the schedule ends its waiting requests (ruling 257)', () => {
+describe('a reset ends the requests that wait on its hits (rulings 257, 260)', () => {
   it('each request that waits is rejected with the fixed reason, in both languages', async () => {
     const s = setup();
 
@@ -84,10 +100,51 @@ describe('a bout put back on the schedule ends its waiting requests (ruling 257)
     expect(selectsFor(s.db.from, 'exchange_edit_requests')).toEqual(['*']);
   });
 
-  it('who asked is told why, once per request this call closed', async () => {
+  it('hands back the requests this call closed, and no other', async () => {
+    const s = setup();
+
+    const closed = await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER);
+
+    expect(closed.map((row) => row.id)).toEqual(['r-lea', 'r-paul']);
+  });
+
+  it('each close is one line of the audit trail, as a direct correction writes', async () => {
     const s = setup();
 
     await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER);
+
+    expect(writesTo(s.db, 'audit_log').map((write) => write.row)).toEqual([
+      {
+        actor_user_id: ORGANISER,
+        action: 'exchange_edit_request.reject',
+        entity_type: 'exchange_edit_request',
+        entity_id: 'r-lea',
+        payload_json: { request: R_LEA, reason: BOUT_RESET, answeredBy: 'bout_reset' },
+      },
+      {
+        actor_user_id: ORGANISER,
+        action: 'exchange_edit_request.reject',
+        entity_type: 'exchange_edit_request',
+        entity_id: 'r-paul',
+        payload_json: { request: R_PAUL, reason: BOUT_RESET, answeredBy: 'bout_reset' },
+      },
+    ]);
+  });
+
+  it('the close tells nobody: the reset has steps left', async () => {
+    const s = setup();
+
+    await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER);
+
+    expect(s.notifications.sendImmediate).not.toHaveBeenCalled();
+  });
+
+  it('who asked is told why, once per request the reset closed', async () => {
+    const s = setup();
+
+    await s.guard.tellClosedByReset(
+      await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER),
+    );
 
     expect(s.notifications.sendImmediate.mock.calls).toEqual([
       [rejectedNotice('r-lea', LEA)],
@@ -103,24 +160,24 @@ describe('a bout put back on the schedule ends its waiting requests (ruling 257)
     expect(writesTo(s.db, 'exchange_edit_requests')[0]?.row).toMatchObject({
       reviewed_by_user_id: null,
     });
-    expect(s.notifications.sendImmediate.mock.calls).toEqual([[rejectedNotice('r-lea', LEA)]]);
+    expect(writesTo(s.db, 'audit_log')[0]?.row).toMatchObject({ actor_user_id: null });
   });
 
   it('no bout: nothing is read, written or told', async () => {
     const s = setup();
 
-    await s.guard.rejectPendingEditsForMatch([], ORGANISER);
+    await s.guard.tellClosedByReset(await s.guard.rejectPendingEditsForMatch([], ORGANISER));
 
     expect(s.db.from).not.toHaveBeenCalled();
     expect(s.notifications.sendImmediate).not.toHaveBeenCalled();
   });
 
-  it('a close that fails does not fail the reset, which has landed, and tells nobody', async () => {
+  it('a close that fails does not fail the reset, which has landed, and closes nothing', async () => {
     const s = setup('failing');
 
-    await expect(s.guard.rejectPendingEditsForMatch(['m1'], ORGANISER)).resolves.toBeUndefined();
+    await expect(s.guard.rejectPendingEditsForMatch(['m1'], ORGANISER)).resolves.toEqual([]);
 
-    expect(s.notifications.sendImmediate).not.toHaveBeenCalled();
+    expect(writesTo(s.db, 'audit_log')).toEqual([]);
   });
 
   // The double throws on a table nobody seeded, as a client whose call rejects.
@@ -128,18 +185,28 @@ describe('a bout put back on the schedule ends its waiting requests (ruling 257)
     const notifications = { sendImmediate: vi.fn() };
     const guard = new FrozenResultsGuard(mockSupabase({}) as never, notifications as never);
 
-    await expect(guard.rejectPendingEditsForMatch(['m1'], ORGANISER)).resolves.toBeUndefined();
-
-    expect(notifications.sendImmediate).not.toHaveBeenCalled();
+    await expect(guard.rejectPendingEditsForMatch(['m1'], ORGANISER)).resolves.toEqual([]);
   });
+
+  // The requests are closed in the database by then: handing back none would tell nobody.
+  it.each<'failing' | 'throwing'>(['failing', 'throwing'])(
+    'an audit line that is %s keeps the close, and the next line is still tried',
+    async (audit) => {
+      const s = setup('seeded', audit);
+
+      const closed = await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER);
+
+      expect(closed.map((row) => row.id)).toEqual(['r-lea', 'r-paul']);
+      expect(s.db.from.mock.calls.filter(([table]) => table === 'audit_log')).toHaveLength(2);
+    },
+  );
 
   it('a notice that fails does not fail the reset, and the next asker is still told', async () => {
     const s = setup();
     s.notifications.sendImmediate.mockRejectedValueOnce(new Error('the queue is away'));
+    const closed = await s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER);
 
-    await expect(
-      s.guard.rejectPendingEditsForMatch(['m1', 'm2'], ORGANISER),
-    ).resolves.toBeUndefined();
+    await expect(s.guard.tellClosedByReset(closed)).resolves.toBeUndefined();
 
     expect(s.notifications.sendImmediate).toHaveBeenCalledTimes(2);
   });

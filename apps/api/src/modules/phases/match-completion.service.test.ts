@@ -38,8 +38,11 @@ function supabaseFor(phase: { type: string; tournament_id: string }) {
 /** The freeze is non-optional now, so every construction has to supply it. */
 const openEvent = () => ({
   assertResultMutationAllowed: vi.fn().mockResolvedValue(undefined),
-  rejectPendingEditsForMatch: vi.fn().mockResolvedValue(undefined),
+  rejectPendingEditsForMatch: vi.fn().mockResolvedValue(CLOSED),
+  tellClosedByReset: vi.fn().mockResolvedValue(undefined),
 });
+/** What the guard says it closed: the telling must be handed exactly this. */
+const CLOSED = [{ id: 'request-of-the-final' }];
 
 const POOL = { type: 'pool', tournament_id: 't1' };
 const BRACKET = { type: 'single_elim', tournament_id: 't1' };
@@ -481,7 +484,7 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     expect(supabase.writes.some((w) => w.table === 'bracket_slots')).toBe(false);
   });
 
-  it('closes pending exchange edits on every bout it put back', async () => {
+  it('closes the pending exchange edits of every bout it REVERTED, and of no other', async () => {
     // A request names an EXCHANGE, and the revert voids every exchange on the
     // bout. `void_exchange` then can never be approved and holds its unique
     // pending slot forever; `revert_void_exchange` still works, and would put a
@@ -495,12 +498,74 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
       { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
     ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
 
-    // The root AND the dependent that was reverted — the cascade voided that
-    // bout's exchanges too, so its requests rot in exactly the same way.
-    expect(frozen.rejectPendingEditsForMatch).toHaveBeenCalledWith(
-      ['match-r1p1', 'match-final'],
-      'organiser-1',
+    // Ruling 260: the root keeps its hits here (a clock reopen, a status
+    // change), so its requests still wait. A reset voids them and closes its
+    // own (`MatchesService.resetMatch`).
+    expect(frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
+      [['match-final'], 'organiser-1'],
+    ]);
+  });
+
+  it('a reopen that reverts no bout closes no request', async () => {
+    const frozen = openEvent();
+
+    await new MatchCompletionService(
+      uncompleteSupabase(bracketFixture(false)) as never,
+      frozen as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { actor: ORGANISER });
+
+    expect(frozen.rejectPendingEditsForMatch.mock.calls).toEqual([[[], 'organiser-1']]);
+  });
+
+  it('tells who asked LAST: after the forfeit is voided and the Swiss round is open again', async () => {
+    const supabase = uncompleteSupabase({ ...bracketFixture(true), ...matchOnlyForfeit() });
+    const frozen = openEvent();
+    const swiss = {
+      assertUncompletable: vi.fn().mockResolvedValue(undefined),
+      onMatchUncompleted: vi.fn().mockResolvedValue(undefined),
+    };
+    // What had been written when the telling ran.
+    let forfeitWritesAtTelling = -1;
+    frozen.tellClosedByReset.mockImplementation(() => {
+      forfeitWritesAtTelling = supabase.writes.filter((w) => w.table === 'match_forfeits').length;
+      return Promise.resolve();
+    });
+
+    await new MatchCompletionService(
+      supabase as never,
+      frozen as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+      undefined,
+      swiss as never,
+    ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
+
+    expect(frozen.tellClosedByReset.mock.calls).toEqual([[CLOSED]]);
+    expect(forfeitWritesAtTelling).toBe(1);
+    expect(swiss.onMatchUncompleted.mock.invocationCallOrder[0]).toBeLessThan(
+      frozen.tellClosedByReset.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+
+  // The close is saved by then, and a retry finds no later bout left to revert.
+  it('a last step that fails still tells who asked: their requests are closed', async () => {
+    const frozen = openEvent();
+    const swiss = {
+      assertUncompletable: vi.fn().mockResolvedValue(undefined),
+      onMatchUncompleted: vi.fn().mockRejectedValue(new Error('the round stayed closed')),
+    };
+
+    await expect(
+      new MatchCompletionService(
+        uncompleteSupabase(bracketFixture(true)) as never,
+        frozen as never,
+        { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+        undefined,
+        swiss as never,
+      ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER }),
+    ).rejects.toThrow('the round stayed closed');
+
+    expect(frozen.tellClosedByReset.mock.calls).toEqual([[CLOSED]]);
   });
 
   // Ruling 259: every undo is refused on an over Event, to a super admin too.

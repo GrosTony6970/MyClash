@@ -1211,21 +1211,32 @@ export class MatchesService {
       .eq('match_id', matchId)
       .eq('voided', false);
     if (voidedExchanges.error) throw new BadRequestException(voidedExchanges.error.message);
-    const voidedPenalties = await this.supabase.service
-      .from('match_penalties')
-      .update({ voided: true, voided_reason: reason })
-      .eq('match_id', matchId)
-      .eq('voided', false);
-    if (voidedPenalties.error) throw new BadRequestException(voidedPenalties.error.message);
-    await this.insertMatchEvent(matchId, 'reset_match', reason, context);
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .update(unplayedMatchColumns())
-      .eq('id', matchId)
-      .select('*')
-      .single();
-    if (error) throw new BadRequestException(error.message);
-    return data;
+    // The hits are gone, so the requests that waited on them end here: for a
+    // bout that was finished and for one still running alike (ruling 260).
+    // `uncomplete` above runs for a finished bout only, and closes the requests
+    // of the LATER bouts it reverted.
+    const closed = await this.frozenResults?.rejectPendingEditsForMatch([matchId], context?.userId);
+    try {
+      const voidedPenalties = await this.supabase.service
+        .from('match_penalties')
+        .update({ voided: true, voided_reason: reason })
+        .eq('match_id', matchId)
+        .eq('voided', false);
+      if (voidedPenalties.error) throw new BadRequestException(voidedPenalties.error.message);
+      await this.insertMatchEvent(matchId, 'reset_match', reason, context);
+      const { data, error } = await this.supabase.service
+        .from('matches')
+        .update(unplayedMatchColumns())
+        .eq('id', matchId)
+        .select('*')
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      return data;
+    } finally {
+      // Who asked is told after the last write, so the reset waits on no notice;
+      // and told when a write fails too: the close is saved, a retry closes nothing.
+      if (closed) await this.frozenResults?.tellClosedByReset(closed);
+    }
   }
 
   /**

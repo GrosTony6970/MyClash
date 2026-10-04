@@ -13,8 +13,9 @@
  *   the hit is then closed as rejected: the hit it named is gone, and a hit
  *   nobody asked about counts.
  *
- * Two callers can close one request: this, and a review (a click on Approve or
- * on Reject, `FrozenResultsGuard.closeReviewed`). Each update names
+ * Three callers can close one request: this, a review (a click on Approve or
+ * on Reject, `FrozenResultsGuard.closeReviewed`) and a reset of the bout
+ * (`closeResetRequests`, below). Each update names
  * `status = pending` and reads back what it changed, so only the call that
  * closed a request logs it and tells who asked.
  *
@@ -26,6 +27,7 @@ import { insertAuditLog } from '../../common/audit-log';
 import type { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import {
   correctionApproved,
+  correctionBoutReset,
   correctionHitChanged,
   correctionRejectedTitle,
 } from '../notifications/notice-texts/notice-texts';
@@ -55,7 +57,7 @@ export async function tellApproved(deps: RequestClosureDeps, request: Asker): Pr
   });
 }
 
-/** The body is the reason as the reviewer wrote it, or the fixed reason of ruling 254. */
+/** The body is the reason as the reviewer wrote it, or a fixed reason (rulings 254, 257). */
 export async function tellRejected(
   deps: RequestClosureDeps,
   request: Asker,
@@ -77,7 +79,7 @@ export async function tellRejected(
  * landed, and a failed close must not answer its author with an error.
  *
  * `actorUserId` is absent for a pad: a staff account is not an account, and the
- * request then names no reviewer (as `rejectPendingEditsForMatch` does).
+ * request then names no reviewer (as `closeResetRequests` does).
  */
 export async function closeAnsweredRequests(
   deps: RequestClosureDeps,
@@ -120,5 +122,90 @@ export async function closeAnsweredRequests(
     deps.logger.warn(
       `Could not close the requests on exchange ${hit.exchangeId}: ${(cause as Error).message}`,
     );
+  }
+}
+
+/**
+ * Close the pending requests of bouts whose hits a reset has just voided
+ * (rulings 257, 260), and hand back the ones this call closed.
+ *
+ * A request names an EXCHANGE. Once a reset voids every exchange of its bout,
+ * both pending shapes rot, in opposite directions:
+ *
+ *   - `void_exchange` can never be approved again. `voidExchange` refuses an
+ *     already-voided exchange, so the row sits in the review queue forever and
+ *     holds the one pending slot of its hit.
+ *   - `revert_void_exchange` is worse, because it still WORKS. Approving one
+ *     un-voids a hit the reset threw away and recomputes the score of a bout
+ *     nobody has fought yet.
+ *
+ * A reopen that KEEPS the hits (a clock reopen, a status change) closes nothing:
+ * the request still names a hit that counts, and it waits (ruling 260).
+ *
+ * Rejected rather than deleted: somebody asked, and is told why. The update
+ * names `status = pending` and reads back what it changed, so only the call
+ * that closed a request logs it and tells who asked. `reviewed_by_user_id` is
+ * the actor or NULL: a pad's staff account is not an account.
+ *
+ * Never throws: the reset has landed, and a failed close must not fail it. It
+ * tells nobody: the reset has steps left, and none of them waits on the notice
+ * queue (`tellResetRequests`, called last).
+ */
+export async function closeResetRequests(
+  deps: RequestClosureDeps,
+  matchIds: readonly string[],
+  actorUserId?: string,
+): Promise<ExchangeEditRequestRow[]> {
+  if (matchIds.length === 0) return [];
+  const reason = correctionBoutReset();
+  let closed: ExchangeEditRequestRow[];
+  try {
+    const now = new Date().toISOString();
+    const { data, error } = await deps.supabase.service
+      .from('exchange_edit_requests')
+      .update({
+        status: 'rejected',
+        reviewed_by_user_id: actorUserId ?? null,
+        reviewed_at: now,
+        rejection_reason: reason,
+        updated_at: now,
+      })
+      .in('match_id', [...matchIds])
+      .eq('status', 'pending')
+      .select('*');
+    if (error) throw new Error(error.message);
+    closed = (data ?? []) as ExchangeEditRequestRow[];
+  } catch (cause) {
+    deps.logger.warn(
+      `Could not close pending exchange edits for ${matchIds.join(', ')}: ${(cause as Error).message}`,
+    );
+    return [];
+  }
+
+  // The requests are closed by now: a lost audit line must not hide them from the telling.
+  for (const request of closed) {
+    const audit = await insertAuditLog(deps.supabase.service, {
+      actorUserId: actorUserId ?? null,
+      action: 'exchange_edit_request.reject',
+      entityType: 'exchange_edit_request',
+      entityId: request.id,
+      payload: { request, reason, answeredBy: 'bout_reset' },
+    }).catch((cause: Error) => ({ error: cause }));
+    if (audit.error) {
+      deps.logger.warn(`No audit row for request ${request.id}: ${audit.error.message}`);
+    }
+  }
+  return closed;
+}
+
+/** Tell who asked for each request a reset closed. Never throws; one failed notice stops no other. */
+export async function tellResetRequests(
+  deps: RequestClosureDeps,
+  closed: readonly Asker[],
+): Promise<void> {
+  for (const request of closed) {
+    await tellRejected(deps, request, correctionBoutReset()).catch((cause: Error) => {
+      deps.logger.warn(`Could not tell who asked for request ${request.id}: ${cause.message}`);
+    });
   }
 }

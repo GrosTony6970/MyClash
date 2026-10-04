@@ -136,7 +136,8 @@ export class MatchCompletionService {
 
     const dependents = await dependentClosure(this.supabase.service, matchId);
     const fought = dependents.filter((bout) => bout.hasBeenFought);
-    const touched = [matchId, ...fought.flatMap((bout) => (bout.matchId ? [bout.matchId] : []))];
+    const reverted = fought.flatMap((bout) => (bout.matchId ? [bout.matchId] : []));
+    const touched = [matchId, ...reverted];
 
     const forfeits = await this.assertUncompletionAllowed(matchId, touched, fought, opts);
 
@@ -153,22 +154,28 @@ export class MatchCompletionService {
 
     await this.clearFedSides(matchId, fought, dependents);
 
-    // A pending request names an exchange this revert has just voided. Left
-    // standing, `void_exchange` can never be approved and holds its unique
-    // pending slot forever, while `revert_void_exchange` still WORKS — it would
-    // put a hit back into a bout nobody has fought and recompute the score.
-    await this.frozenResults.rejectPendingEditsForMatch(touched, opts.actor?.userId);
+    // The revert voided every hit of the later bouts: the requests that wait on
+    // them rot (`closeResetRequests`). NOT the root: its hits stay here, so its
+    // requests still wait (ruling 260); `resetMatch` voids them and closes its own.
+    const closed = await this.frozenResults.rejectPendingEditsForMatch(
+      reverted,
+      opts.actor?.userId,
+    );
 
     // LAST. Not-yet-done is exactly today's behaviour — the F stands and the row
     // still says completed — so a crash before this leaves the safest partial
     // state there is, and a re-run converges because `MatchesService.uncomplete`
     // still sees `status === 'completed'`. Voiding earlier would strand a bout
     // whose result nobody fought with no forfeit explaining it.
-    await voidForfeitRecords(this.supabase.service, forfeits, opts.actor ?? {});
-
-    // The Swiss mirror of clearing the fed sides: the round this bout closed is
-    // open again. A no-op for every non-Swiss match.
-    await this.swissAdvance?.onMatchUncompleted(matchId);
+    // Then the Swiss mirror of clearing the fed sides: the round this bout
+    // closed is open again. A no-op for every non-Swiss match.
+    try {
+      await voidForfeitRecords(this.supabase.service, forfeits, opts.actor ?? {});
+      await this.swissAdvance?.onMatchUncompleted(matchId);
+    } finally {
+      // Last: no step waits on a notice. Told on a failure too: the close is saved.
+      await this.frozenResults.tellClosedByReset(closed);
+    }
   }
 
   /**

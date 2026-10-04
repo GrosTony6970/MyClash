@@ -1960,10 +1960,12 @@ refusal alone. The undo preview then says `frozen` to everybody, a super admin i
 every undo is refused there. A waiting correction request that a direct correction answers is
 closed by that correction (`matches/answered-requests.ts`): the same void or restore closes it as
 approved (253), an edit of the hit closes a void request as rejected with a fixed reason (254), and
-every approval tells who asked, as a rejection does (253a). A bout that is reopened (a reset, a
-clock reopen, a status change) closes the requests on its hits as rejected with a fixed reason,
-and tells who asked (257); only a reset voids the hits, so the reason says "ask again" and not
-that the hits are gone. These notices
+every approval tells who asked, as a rejection does (253a). A reset voids the hits of its bout, a
+finished bout or a running one, and of every later bout it reverts: it closes the requests on
+those hits as rejected with a fixed reason, writes each close in the audit trail, and tells who
+asked after its last step (257, 260). A reopen that keeps the hits (a clock reopen, a status
+change) closes no request of that bout: the request still names a hit that counts, and it waits
+(260). These notices
 ring a phone only: they carry no email (256). A request's saved reason is read by a reviewer of
 either language, so the pad's "clear last" reason and the reason of a request that came with none
 are one sentence in French and English (258). The guard's refusal

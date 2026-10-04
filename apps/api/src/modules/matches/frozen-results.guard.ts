@@ -10,14 +10,13 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isOver } from '../../common/live-status';
-import {
-  correctionBoutReset,
-  correctionWithNoReason,
-} from '../notifications/notice-texts/notice-texts';
+import { correctionWithNoReason } from '../notifications/notice-texts/notice-texts';
 import {
   closeAnsweredRequests,
+  closeResetRequests,
   tellApproved,
   tellRejected,
+  tellResetRequests,
   type DirectCorrection,
   type RequestClosureDeps,
 } from './answered-requests';
@@ -243,70 +242,19 @@ export class FrozenResultsGuard {
   }
 
   /**
-   * Close the pending edit requests on bouts that have just been un-completed.
-   *
-   * A request names an EXCHANGE, and a reset voids every exchange of its bout.
-   * (A clock reopen or a status change keeps them and closes the requests all
-   * the same: the bout is fought on, so the fixed reason says "ask again" and
-   * never that the exchanges are gone.) After a reset both pending shapes rot,
-   * in opposite directions:
-   *
-   *   - `void_exchange` can never be approved again. `voidExchange` refuses an
-   *     already-voided exchange, so the row sits in the review queue forever,
-   *     inflating the super-admin badge and — because
-   *     `exchange_edit_requests_one_pending_idx` is UNIQUE on
-   *     `(exchange_id, request_type) WHERE status = 'pending'` — holding the slot
-   *     so no fresh request on that exchange can ever be filed.
-   *   - `revert_void_exchange` is worse, because it still WORKS. Approving one
-   *     un-voids a hit the revert deliberately threw away and recomputes the
-   *     score of a bout nobody has fought yet.
-   *
-   * Rejected rather than deleted: the request was a real thing somebody asked
-   * for, and the requester gets told why, with one fixed reason in both
-   * languages (ruling 257). The update reads back what it closed, so only the
-   * call that closed a request tells who asked. `reviewed_by_user_id` is the
-   * actor or NULL — the clock and the pad reach this with a staff account and
-   * no user id, and inventing a sentinel uuid there would put a fictional
-   * reviewer in the audit trail.
-   *
-   * Best-effort ON PURPOSE, as `closeAnswered` is. It runs
-   * inside the un-completion owner AFTER the bout has been put back; throwing
-   * here would fail a reset that has already happened, to tidy a queue.
+   * Close the pending requests of bouts whose hits a reset voided, and hand
+   * back the ones this call closed. Never throws (`closeResetRequests`).
    */
   async rejectPendingEditsForMatch(
     matchIds: readonly string[],
     actorUserId?: string,
-  ): Promise<void> {
-    if (matchIds.length === 0) return;
-    const reason = correctionBoutReset();
-    const now = new Date().toISOString();
-    // A failed close leaves `closed` empty: nobody is told of a request that still waits.
-    let closed: ExchangeEditRequestRow[] = [];
-    try {
-      const { data, error } = await this.supabase.service
-        .from('exchange_edit_requests')
-        .update({
-          status: 'rejected',
-          reviewed_by_user_id: actorUserId ?? null,
-          reviewed_at: now,
-          rejection_reason: reason,
-          updated_at: now,
-        })
-        .in('match_id', [...matchIds])
-        .eq('status', 'pending')
-        .select('*');
-      if (error) throw new Error(error.message);
-      closed = (data ?? []) as ExchangeEditRequestRow[];
-    } catch (cause) {
-      this.logger.warn(
-        `Could not close pending exchange edits for ${matchIds.join(', ')}: ${(cause as Error).message}`,
-      );
-    }
-    for (const request of closed) {
-      await tellRejected(this.closure, request, reason).catch((cause: Error) => {
-        this.logger.warn(`Could not tell who asked for request ${request.id}: ${cause.message}`);
-      });
-    }
+  ): Promise<ExchangeEditRequestRow[]> {
+    return closeResetRequests(this.closure, matchIds, actorUserId);
+  }
+
+  /** Tell who asked, once the reset has done its last step. Never throws. */
+  async tellClosedByReset(closed: readonly ExchangeEditRequestRow[]): Promise<void> {
+    await tellResetRequests(this.closure, closed);
   }
 
   private async getEventStateForMatch(matchId: string): Promise<EventFreezeState> {
