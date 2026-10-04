@@ -104,6 +104,8 @@ export const admin = {
     filterRejected: 'Rejected',
     filterAll: 'All',
     emptyState: 'No exchange edit requests match this status.',
+    loading: 'Loading…',
+    requestCount: 'Requests: {count}',
     colCreated: 'Created',
     colRequest: 'Request',
     colRequester: 'Requester',

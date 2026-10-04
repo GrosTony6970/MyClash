@@ -9,12 +9,14 @@ import {
   RowActionButton,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { requestStatusKey, requestTypeKey } from './request-copy';
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -36,6 +38,8 @@ interface ExchangeEditRequest {
   eventLabel: string | null;
   matchLabel: string | null;
   exchangeLabel: string | null;
+  /** The bout's page in the organiser app, or null when its Event no longer resolves. */
+  boutHref: string | null;
   reviewed_by_user_id: string | null;
   reviewedByName: string | null;
   reviewedByEmail: string | null;
@@ -44,12 +48,30 @@ interface ExchangeEditRequest {
   created_at: string;
 }
 
-function typeLabel(type: ExchangeEditRequest['request_type']) {
-  return type === 'void_exchange' ? 'Void exchange' : 'Restore exchange';
-}
-
-/** Human label when the record resolved, raw id (in mono) only as a fallback. */
-function IdentifiedRow({ label, id }: { label: string | null; id: string }) {
+/**
+ * Human label when the record resolved, raw id (in mono) only as a fallback.
+ * With `href`, the label opens that page.
+ */
+function IdentifiedRow({
+  label,
+  id,
+  href,
+}: {
+  label: string | null;
+  id: string;
+  href?: string | null;
+}) {
+  if (label && href) {
+    return (
+      <Link
+        href={href}
+        className="block truncate text-accent underline hover:text-accent-hover"
+        title={id}
+      >
+        {label}
+      </Link>
+    );
+  }
   if (label) {
     return (
       <p className="truncate text-foreground-secondary" title={id}>
@@ -58,6 +80,21 @@ function IdentifiedRow({ label, id }: { label: string | null; id: string }) {
     );
   }
   return <p className="truncate font-mono text-muted">{id}</p>;
+}
+
+/**
+ * The Event, the bout and the hit a request names. Label first, raw id only in
+ * the tooltip — this cell used to stack three bare UUIDs, which reads as broken
+ * UI. The bout's line opens the bout's page.
+ */
+function RequestTarget({ request }: { request: ExchangeEditRequest }) {
+  return (
+    <>
+      <IdentifiedRow label={request.eventLabel} id={request.event_id} />
+      <IdentifiedRow label={request.matchLabel} id={request.match_id} href={request.boutHref} />
+      <IdentifiedRow label={request.exchangeLabel} id={request.exchange_id} />
+    </>
+  );
 }
 
 export default function ExchangeEditRequestsPage() {
@@ -190,7 +227,9 @@ export default function ExchangeEditRequestsPage() {
       )}
 
       <div className="mb-3 text-sm text-muted">
-        {loading ? 'Loading...' : `${items.length} requests`}
+        {loading
+          ? t('admin.adminDesignReq.loading')
+          : t('admin.adminDesignReq.requestCount', { count: items.length })}
       </div>
 
       {items.length === 0 && !loading ? (
@@ -213,9 +252,11 @@ export default function ExchangeEditRequestsPage() {
                   {new Date(request.created_at).toLocaleString(localeToBcp47(locale))}
                 </DataTableCell>
                 <DataTableCell>
-                  <p className="font-semibold text-foreground">{typeLabel(request.request_type)}</p>
+                  <p className="font-semibold text-foreground">
+                    {t(requestTypeKey(request.request_type))}
+                  </p>
                   <span className="mt-1 inline-block rounded bg-background px-2 py-1 font-mono text-xs">
-                    {request.status}
+                    {t(requestStatusKey(request.status))}
                   </span>
                 </DataTableCell>
                 <DataTableCell className="text-xs text-foreground-secondary">
@@ -229,11 +270,7 @@ export default function ExchangeEditRequestsPage() {
                   )}
                 </DataTableCell>
                 <DataTableCell className="text-xs">
-                  {/* Label first, raw id only in the tooltip — this cell used to
-                      stack three bare UUIDs, which reads as broken UI. */}
-                  <IdentifiedRow label={request.eventLabel} id={request.event_id} />
-                  <IdentifiedRow label={request.matchLabel} id={request.match_id} />
-                  <IdentifiedRow label={request.exchangeLabel} id={request.exchange_id} />
+                  <RequestTarget request={request} />
                 </DataTableCell>
                 <DataTableCell className="max-w-xs text-foreground-secondary">
                   {request.reason}
@@ -296,7 +333,7 @@ export default function ExchangeEditRequestsPage() {
           busy={busyId === rejectTarget.id}
           size="md"
           title={t('admin.adminDesignReq.rejectModalTitle')}
-          description={typeLabel(rejectTarget.request_type)}
+          description={t(requestTypeKey(rejectTarget.request_type))}
           footer={
             <>
               <button

@@ -109,6 +109,8 @@ export const admin = {
     filterRejected: 'Rejetée',
     filterAll: 'Toutes',
     emptyState: "Aucune demande de modification d'assaut ne correspond à ce statut.",
+    loading: 'Chargement…',
+    requestCount: 'Demandes : {count}',
     colCreated: 'Créée le',
     colRequest: 'Demande',
     colRequester: 'Demandeur',
