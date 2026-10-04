@@ -187,6 +187,13 @@ export const scoring = {
     hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
     sessionEnded:
       "SESSION TERMINÉE - TOUCHES NON ENVOYÉES. RECONNECTEZ-VOUS. SI L'ÉVÉNEMENT EST TERMINÉ, PRÉVENEZ UN ORGANISATEUR",
+    accountCannotScore:
+      "LE COMPTE CONNECTÉ SUR CETTE TABLETTE N'A PAS DE RÔLE POUR SCORER CET ÉVÉNEMENT - TOUCHES NON ENVOYÉES. DÉCONNECTEZ-LE, OU PRÉVENEZ UN ORGANISATEUR",
+    pinDisabled:
+      'LE COMPTE STAFF DE CETTE TABLETTE EST DÉSACTIVÉ - TOUCHES NON ENVOYÉES. PRÉVENEZ UN ORGANISATEUR',
+    pinRoleCannotScore:
+      'LE COMPTE STAFF DE CETTE TABLETTE A UN RÔLE QUI NE PEUT PAS SCORER - TOUCHES NON ENVOYÉES. PRÉVENEZ UN ORGANISATEUR',
+    signAccountOut: 'Déconnecter ce compte',
     reviewRefused: 'Examiner',
     backToMatchList: 'Retour à la liste des assauts',
     red: 'Combattant 1',
@@ -299,6 +306,12 @@ export const scoring = {
       "Cette correction laisserait l'assaut à égalité, et ses règles n'autorisent pas le match nul. Elle n'a pas été appliquée.",
     eventOver:
       'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
+    accountCannotScore:
+      "Le compte connecté sur cette tablette n'a pas de rôle pour scorer cet événement : rien ne sera enregistré. Déconnectez ce compte, ou adressez-vous à un organisateur.",
+    pinDisabled:
+      'Le compte staff de cette tablette est désactivé : rien ne sera enregistré. Adressez-vous à un organisateur.',
+    pinRoleCannotScore:
+      'Le compte staff de cette tablette a un rôle qui ne peut pas scorer : rien ne sera enregistré. Adressez-vous à un organisateur.',
   },
   clock: {
     loading: 'Chargement du chrono...',

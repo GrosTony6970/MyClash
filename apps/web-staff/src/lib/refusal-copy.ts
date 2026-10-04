@@ -50,6 +50,9 @@ const OFFLINE = 'scoring.corrections.offlineRefusal';
 const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
 const EVENT_OVER = 'scoring.corrections.eventOver';
+const ACCOUNT_CANNOT_SCORE = 'scoring.corrections.accountCannotScore';
+const PIN_DISABLED = 'scoring.corrections.pinDisabled';
+const PIN_ROLE_CANNOT_SCORE = 'scoring.corrections.pinRoleCannotScore';
 const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
 const HELD_NOT_ALLOWED = 'scoring.quarantine.notAllowed';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
@@ -133,6 +136,14 @@ function codedRefusal(
       // reset, a forfeit). A 403, so without this case it read as "only an
       // organiser can do this": no organiser can, the Event is over.
       return t(EVENT_OVER);
+    case 'account_cannot_score':
+      // The three refusals about the PERSON (rulings 244, 245). A 403, so
+      // without these cases each read as "only an organiser can do this".
+      return t(ACCOUNT_CANNOT_SCORE);
+    case 'staff_account_disabled':
+      return t(PIN_DISABLED);
+    case 'staff_role_not_allowed':
+      return t(PIN_ROLE_CANNOT_SCORE);
     case 'level_at_time_unresolved':
       // The bout is level and the phase says play it out. `remedy` carries which
       // one; the server's own message names it in English, which is exactly what

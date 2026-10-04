@@ -184,6 +184,13 @@ export const scoring = {
     // The server answered 401: nothing is refused, the queue waits (ruling 241).
     sessionEnded:
       'SESSION ENDED - HITS NOT SENT. SIGN IN AGAIN. IF THE EVENT IS OVER, TELL AN ORGANISER',
+    // The server refused a queued hit for WHO sends it: the queue waits (rulings 244, 245).
+    accountCannotScore:
+      'THE ACCOUNT SIGNED IN ON THIS TABLET HAS NO SCORING ROLE FOR THIS EVENT - HITS NOT SENT. SIGN IT OUT, OR TELL AN ORGANISER',
+    pinDisabled: "THIS TABLET'S STAFF ACCOUNT IS DISABLED - HITS NOT SENT. TELL AN ORGANISER",
+    pinRoleCannotScore:
+      "THIS TABLET'S STAFF ACCOUNT HAS A ROLE THAT CANNOT SCORE - HITS NOT SENT. TELL AN ORGANISER",
+    signAccountOut: 'Sign that account out',
     reviewRefused: 'Review',
     backToMatchList: 'Back to match list',
     red: 'Fighter 1',
@@ -310,6 +317,11 @@ export const scoring = {
     leavesBoutLevel:
       'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
     eventOver: 'This event is over and its results are closed. Ask an organiser.',
+    accountCannotScore:
+      'The account signed in on this tablet has no scoring role for this event, so nothing will save. Sign that account out, or ask an organiser.',
+    pinDisabled: "This tablet's staff account is disabled, so nothing will save. Ask an organiser.",
+    pinRoleCannotScore:
+      "This tablet's staff account has a role that cannot score, so nothing will save. Ask an organiser.",
   },
   clock: {
     loading: 'Loading clock...',

@@ -139,6 +139,7 @@ describe('the bout screen', () => {
     join(__dirname, '..', '..', 'app', 'matches', '[matchId]', 'page.tsx'),
     'utf8',
   );
+  const bar = readFileSync(join(__dirname, '..', 'components', 'SyncBar.tsx'), 'utf8');
 
   const t = (key: string) => key;
 
@@ -166,15 +167,15 @@ describe('the bout screen', () => {
   });
 
   it('draws the bar from those decisions', () => {
-    expect(page).toContain('syncPhaseOf(networkStatus, syncState?.status)');
-    expect(page).toContain('{syncBarLabel(syncPhase, rejected, t)}');
-    expect(page).toContain('${syncBarTone(syncPhase)}');
-    expect(page).toContain('{needsOperator(syncPhase) && (');
+    expect(bar).toContain('syncPhaseOf(networkStatus, syncState?.status)');
+    expect(bar).toContain('{syncBarLabel(phase, rejected, t)}');
+    expect(bar).toContain('${syncBarTone(phase)}');
+    expect(bar).toContain('{needsOperator(phase) && (');
   });
 
   it('Retry leaves a held hit held while signed out', () => {
-    expect(page).toMatch(
-      /rejected > 0 && syncPhase === 'error'\s+\? syncEngine\.retryRejected\(\)/,
+    expect(bar).toMatch(
+      /rejected > 0 && phase === 'error' \? syncEngine\.retryRejected\(\) : syncEngine\.drain\(\)/,
     );
   });
 

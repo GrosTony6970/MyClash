@@ -5,9 +5,10 @@
  * lives inside a component is one nothing can assert.
  */
 
+import type { CallerRefusal } from '../offline/caller-refusal';
 import type { SyncStatus } from '../offline/sync';
 
-export type SyncPhase = 'online' | 'syncing' | 'offline' | 'error' | 'signed-out';
+export type SyncPhase = 'online' | 'syncing' | 'offline' | 'error' | 'signed-out' | CallerRefusal;
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -17,16 +18,26 @@ export function syncPhaseOf(
   status: SyncStatus | undefined,
 ): SyncPhase {
   if (networkStatus === 'offline' || status === 'offline') return 'offline';
-  if (status === 'syncing' || status === 'signed-out' || status === 'error') return status;
-  return 'online';
+  if (status === undefined || status === 'idle') return 'online';
+  return status;
 }
 
 /**
- * A state the operator must act on: a failed sync, or a session that has ended
- * (ruling 241). Both are red and both offer Retry.
+ * A state the operator must act on: a failed sync, a session that has ended
+ * (ruling 241), or a person the server will not let score (rulings 244, 245).
+ * All are red and all offer Retry.
  */
 export function needsOperator(phase: SyncPhase): boolean {
-  return phase === 'error' || phase === 'signed-out';
+  return phase !== 'online' && phase !== 'syncing' && phase !== 'offline';
+}
+
+/**
+ * Ruling 244a: an account with no scoring role is signed in on this tablet,
+ * and its login outranks the PIN. Signing it out is the way out, and the bout
+ * screen has no other sign-out.
+ */
+export function offersAccountSignOut(phase: SyncPhase): boolean {
+  return phase === 'account-refused';
 }
 
 /**
@@ -54,6 +65,12 @@ export function syncBarLabel(phase: SyncPhase, rejected: number, t: Translate): 
       return `⟳ ${t('scoring.lice.syncing')}`;
     case 'signed-out':
       return `⚠ ${t('scoring.lice.sessionEnded')}`;
+    case 'account-refused':
+      return `⚠ ${t('scoring.lice.accountCannotScore')}`;
+    case 'pin-disabled':
+      return `⚠ ${t('scoring.lice.pinDisabled')}`;
+    case 'pin-role-refused':
+      return `⚠ ${t('scoring.lice.pinRoleCannotScore')}`;
     case 'offline':
       return `● ${t('scoring.lice.offlineQueued')}`;
     case 'error':

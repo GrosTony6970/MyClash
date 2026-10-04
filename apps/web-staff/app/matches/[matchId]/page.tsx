@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
+import { SyncBar } from '../../../src/components/SyncBar';
 import { useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
-import { needsOperator, syncBarLabel, syncBarTone, syncPhaseOf } from '../../../src/lib/sync-bar';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -234,55 +234,14 @@ export default function MatchScoringPage({ params }: Props) {
     );
   }
 
-  const pending = syncState?.pendingCount ?? 0;
-  const rejected = syncState?.rejectedCount ?? 0;
-  const syncPhase = syncPhaseOf(networkStatus, syncState?.status);
-
   return (
     <main id="main-content" className="min-h-screen flex flex-col">
-      <div
-        data-testid="network-bar"
-        data-network={networkStatus}
-        data-sync={syncPhase}
-        data-pending={pending}
-        data-rejected={rejected}
-        className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(syncPhase)}`}
-      >
-        <span>
-          {syncBarLabel(syncPhase, rejected, t)}
-          {pending > 0 ? ` (${pending})` : ''}
-        </span>
-        {needsOperator(syncPhase) && (
-          <button
-            type="button"
-            // Refused exchanges are no longer in the outbox, so a plain drain
-            // would not touch them — `retryRejected` re-queues them first (with
-            // fresh sequences) and then drains.
-            // Signed out, a held hit stays held: it would only meet the 401 too.
-            onClick={() =>
-              void (rejected > 0 && syncPhase === 'error'
-                ? syncEngine.retryRejected()
-                : syncEngine.drain())
-            }
-            className="rounded bg-danger px-2 py-0.5 text-danger-foreground transition-colors hover:bg-danger-hover"
-          >
-            {t('scoring.lice.retry')}
-          </button>
-        )}
-        {/* Retry-everything is a guess; this is the way to find out WHAT was
-            refused and why before deciding. Only offered when something is
-            actually held — an empty inbox would be a dead end. */}
-        {rejected > 0 && (
-          <button
-            type="button"
-            data-testid="review-refused"
-            onClick={() => setQuarantineOpen(true)}
-            className="rounded border border-danger px-2 py-0.5 text-danger transition-colors hover:bg-danger/10"
-          >
-            {t('scoring.lice.reviewRefused')}
-          </button>
-        )}
-      </div>
+      <SyncBar
+        networkStatus={networkStatus}
+        syncState={syncState}
+        syncEngine={syncEngine}
+        onReview={() => setQuarantineOpen(true)}
+      />
 
       {match ? (
         <MatchView

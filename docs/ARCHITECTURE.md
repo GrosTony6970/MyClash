@@ -1118,8 +1118,8 @@ sequenceDiagram
     else 400 refused
       A-->>E: rejected (stale sequence, round awaiting advance, …)
       E->>O: one re-send under a fresh sequence, else quarantine() — held, never deleted
-    else 401 nobody signed in
-      A-->>E: no session
+    else 401 nobody signed in, or 403 with a code about the person
+      A-->>E: no session, or this person may not score at all
       E->>O: nothing — stays queued, and the drain ends here
     else 5xx / network
       A-->>E: failure
@@ -1142,9 +1142,11 @@ stateDiagram-v2
   syncing --> error: consecutive SERVER failures hit the cap
   syncing --> error: drain finished with entries still pending
   syncing --> signed_out: the server answers 401
+  syncing --> caller_refused: the server refuses the person
   offline --> syncing: connectivity returns
   error --> syncing: retry
   signed_out --> syncing: retry, or the bout screen opens
+  caller_refused --> syncing: retry, or the account is signed out
 ```
 
 The split between `offline` and `error` is deliberate: a network failure means "keep waiting, this will
@@ -1162,9 +1164,7 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > back. A 403 with no code is the edge's (a blocked network) and is about no hit: it stays queued as
 > a failed attempt. The bar's Retry puts every held hit back in the order the hits were scored
 > (`createdAt`), not the order they were held: a hit refused again after a Retry of it alone is held
-> last. Known limit: an account login outranks a
-> PIN, so a tablet whose personal login has no role in the organisation has its hits held though
-> its PIN could score them. A hit or a
+> last. A hit or a
 > card is queued with its bout in words (`OutboxEntry.bout`: the label and the two Fighters' names,
 > and for a card `cardedColor` and `cardName`, the short name of the penalty-list entry the referee
 > tapped), so a held row names its bout, who scored, and which card against whom
@@ -1181,6 +1181,21 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > an hour is not told to sign in again; a PIN session cannot be renewed. An action in the refused-hits
 > inbox that sends nothing (a Discard, a Retry that finds nothing) says again what the engine last
 > said while a hit still waits (`emitResting`): it does not turn the bar green over a waiting queue.
+>
+> A **403 about the person is not a refusal of the hit** either (`caller_refused` above is three
+> statuses, `CallerRefusal` in `src/offline/caller-refusal.ts`). "Who may score" gives three of its
+> refusals their own `code` (`staff/scoring-refusals.ts` in the API): `staff_account_disabled`,
+> `staff_role_not_allowed` and `account_cannot_score`. Each meets every hit the tablet holds, so the
+> drain ends at the first one, every hit waits in order, and the bar names the cause; a write outside
+> the queue (the clock, a reset) says the same cause (`refusal-copy.ts`). A 403 with any other code
+> is about the bout (another piste, another Event, no piste) and is held as above. The server asks an
+> account before a PIN, and an account's login is one login for every MyClash site of a browser: a
+> tablet where somebody's own account is signed in has every write refused when that account has no
+> scoring role, though its PIN could score. The server still refuses; the bar says so and offers
+> "Sign that account out" (`src/lib/account-sign-out.ts`), the bout screen's only sign-out. The PIN
+> session stays, and the next drain is answered for it. Known limit: the button is on the bar, which
+> turns red at the first queued hit; a clock press refused before any hit says why and shows no
+> button.
 
 ### 10.3 Conflict resolution
 

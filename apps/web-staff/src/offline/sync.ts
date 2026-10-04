@@ -23,6 +23,7 @@ import {
   totalPendingCount,
 } from './outbox';
 import { fetchRenewingLogin } from '@myclash/api-client';
+import { callerRefusalOf, type CallerRefusal } from './caller-refusal';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
@@ -32,8 +33,10 @@ import { classifySyncFailure, offlineResponse, type FailureBody } from './failur
 /**
  * `signed-out`: the server answered a queued hit with 401. Nothing is refused
  * and nothing is lost; the queue waits until somebody signs in (ruling 241).
+ * A `CallerRefusal`: the server refused it for who sends it, and the queue
+ * waits the same way (rulings 244, 245).
  */
-export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'signed-out';
+export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'signed-out' | CallerRefusal;
 
 export interface SyncState {
   status: SyncStatus;
@@ -91,7 +94,7 @@ export class SyncEngine {
     // A held rejection outranks a clean phase. Emitting 'idle' with refused
     // exchanges on disk is what made the bar go green over a hit that was
     // thrown away — the operator has to be told, and told until they act.
-    // Not over `signed-out`: "refused" there would hide why nothing goes.
+    // Not over `signed-out` or a refused caller: "refused" would hide why nothing goes.
     const outranked = status === 'idle' || status === 'syncing';
     const effectiveStatus = rejected > 0 && outranked ? 'error' : status;
     const state: SyncState = {
@@ -238,29 +241,39 @@ export class SyncEngine {
    * a repeated client_uuid with the saved row and a 2xx. A 409 here is an Event
    * that is over. A 403 the API words is "may not score this" (ruling 242: a
    * pad moved off its piste, a disabled account). Held with its code, and not
-   * re-sent: no other sequence makes the server take it. False for a 403 with
+   * re-sent: no other sequence makes the server take it. `failed` for a 403 with
    * no code: the edge wrote it (a blocked network), about no hit, so it waits.
+   * `stopped` for an answer about the CALLER: a 401, and a 403 whose code is a
+   * `CallerRefusal` (rulings 244, 245).
    */
-  private async holdRefusal(entry: OutboxEntry, res: Response): Promise<boolean> {
+  private async answerRefusal(
+    entry: OutboxEntry,
+    res: Response,
+  ): Promise<'held' | 'failed' | 'stopped'> {
+    if (res.status === 401) return this.waitForCaller('signed-out');
     const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
+    const caller = res.status === 403 ? callerRefusalOf(body.code) : undefined;
+    if (caller) return this.waitForCaller(caller);
     if (res.status === 403 && !body.code) {
       await markFailed(entry.id!, `HTTP ${res.status}`);
-      return false;
+      return 'failed';
     }
     await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
-    return true;
+    return 'held';
   }
 
   /**
-   * A 401: nobody is signed in (ruling 241). The hit is not refused and its
-   * attempt is not counted as failed: it waits, in order. The drain ends here:
-   * a 401 is about the caller, so every hit behind it meets the same answer.
-   * An account's login was asked to renew before this answer (`postExchange`
-   * sends through `fetchRenewingLogin`); a PIN session cannot be renewed.
+   * An answer about the caller: nobody is signed in (a 401, ruling 241), or the
+   * person may not score at all. The hit is not refused and its attempt is not
+   * counted as failed: it waits, in order. The drain ends here: every hit
+   * behind it meets the same answer. An account's login was asked to renew
+   * before a 401 (`postExchange` sends through `fetchRenewingLogin`); a PIN
+   * session cannot be renewed.
    */
-  private async waitForSignIn(): Promise<void> {
-    await this.emit('signed-out');
+  private async waitForCaller(status: 'signed-out' | CallerRefusal): Promise<'stopped'> {
+    await this.emit(status);
     this.running = false;
+    return 'stopped';
   }
 
   // ── Drain ───────────────────────────────────────────────────────────────────
@@ -298,12 +311,11 @@ export class SyncEngine {
           await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
           consecutiveFailures = 0;
           await this.emit('syncing');
-        } else if (res.status === 409 || res.status === 403) {
-          const held = await this.holdRefusal(entry, res);
-          consecutiveFailures = held ? 0 : consecutiveFailures + 1;
+        } else if ([409, 403, 401].includes(res.status)) {
+          const outcome = await this.answerRefusal(entry, res);
+          if (outcome === 'stopped') return;
+          consecutiveFailures = outcome === 'held' ? 0 : consecutiveFailures + 1;
           await this.emit('syncing');
-        } else if (res.status === 401) {
-          return await this.waitForSignIn();
         } else if (res.status === 400) {
           // A refusal, NOT proof that a retry can never succeed. The single
           // most likely cause is a sequence this match has already used (two
