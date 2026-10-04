@@ -341,6 +341,7 @@ export class PenaltiesController {
   }
 
   @Post('matches/:id/penalties')
+  @AllowOnArchivedEvent() // ruling 240: as on a completed Event, a saved card is answered
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record a match penalty card' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -349,7 +350,7 @@ export class PenaltiesController {
     @Body() dto: CreatePenaltyDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    const actor = await this.staff.authorizeMatchScoring(req, id, 'leave-to-handler');
     return this.penalties.createPenalty(id, dto, actor);
   }
 

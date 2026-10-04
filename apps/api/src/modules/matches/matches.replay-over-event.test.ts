@@ -65,16 +65,24 @@ describe('MatchesService.createExchange — a repeated hit on an over Event', ()
     expect(db.writes).toEqual([]);
   });
 
-  it('still refuses a hit the server does not hold', async () => {
-    const { db, service } = setup('completed');
+  // Archived too: the route passes the archived lock (ruling 240), so this
+  // refusal is the one a new hit meets there.
+  it.each<'completed' | 'archived'>(['completed', 'archived'])(
+    'still refuses a hit the server does not hold, on a %s Event',
+    async (status) => {
+      const { db, service } = setup(status);
 
-    await expect(
-      service.createExchange('m1', { ...HIT, clientUuid: 'uuid-new' } as never, {
-        userId: ORGANISER,
-      }),
-    ).rejects.toEqual(
-      new ConflictException({ message: 'Event results are frozen', code: 'event_results_frozen' }),
-    );
-    expect(db.writes).toEqual([]);
-  });
+      await expect(
+        service.createExchange('m1', { ...HIT, clientUuid: 'uuid-new' } as never, {
+          userId: ORGANISER,
+        }),
+      ).rejects.toEqual(
+        new ConflictException({
+          message: 'Event results are frozen',
+          code: 'event_results_frozen',
+        }),
+      );
+      expect(db.writes).toEqual([]);
+    },
+  );
 });

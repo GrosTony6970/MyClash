@@ -123,6 +123,9 @@ type StaffAccountRow = {
  */
 const SCORING_ROLES: readonly StaffRole[] = ['scoring'];
 
+/** What "who may score" answers once the Event is completed or archived. */
+export type WhenEventOver = 'refuse' | 'leave-to-handler';
+
 /**
  * The ONLY fields the unauthenticated staff event picker exposes.
  *
@@ -811,10 +814,23 @@ export class StaffService {
     return { ok: true };
   }
 
-  async authorizeMatchScoring(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
+  /**
+   * `whenOver` is `'leave-to-handler'` for a hit and a card alone (rulings 233,
+   * 240, 240a). A pad queues them offline and may send them after its Event is
+   * completed or archived; their handler answers one the server already holds
+   * and refuses a new one with a code the pad holds. Refused here, the pad
+   * cannot tell the two apart and retries both for ever. WHO may score is asked
+   * all the same: an account's role in the organisation; a PIN session's
+   * token, account, role, Event and piste.
+   */
+  async authorizeMatchScoring(
+    req: FastifyRequest,
+    matchId: string,
+    whenOver: WhenEventOver = 'refuse',
+  ): Promise<ScoringActor> {
     const userId = await this.getSupabaseUserId(req);
     if (userId) {
-      const match = await this.getMatchContext(matchId);
+      const match = await this.getMatchContext(matchId, whenOver);
       await this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper');
       return {
         userId,
@@ -827,8 +843,8 @@ export class StaffService {
     // here. Gating the role at this one call covers all of them; a desk or gear
     // account is refused before the piste-assignment check it could never pass
     // anyway, with a reason that names the real cause.
-    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
-    const match = await this.getMatchContext(matchId);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES, whenOver);
+    const match = await this.getMatchContext(matchId, whenOver);
     if (match.eventId !== staff.event_id) throw new ForbiddenException('Wrong staff event');
     if (!match.liceId) throw new ForbiddenException('Match has no assigned Lice');
     const assigned = await this.isLiceAssigned(staff.id, match.liceId);
@@ -1374,7 +1390,7 @@ export class StaffService {
     };
   }
 
-  private async getMatchContext(matchId: string) {
+  private async getMatchContext(matchId: string, whenOver: WhenEventOver = 'refuse') {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
@@ -1416,7 +1432,7 @@ export class StaffService {
       ? phase.tournaments[0]
       : phase?.tournaments;
     if (!tournament) throw new NotFoundException('Match tournament not found');
-    if (['completed', 'archived'].includes(tournament.events.status)) {
+    if (whenOver === 'refuse' && ['completed', 'archived'].includes(tournament.events.status)) {
       throw new ForbiddenException('Event is not open for staff scoring');
     }
     return {
@@ -1438,10 +1454,14 @@ export class StaffService {
    *
    * Omit it for the surfaces every role shares — `/staff-auth/me` and the
    * heartbeat, which a desk tablet sends exactly like a scoring tablet.
+   *
+   * `whenOver` skips the over-Event refusal alone, for a queued hit or card
+   * (see `authorizeMatchScoring`). Every check of the person runs before it.
    */
   private async requireStaffFromRequest(
     req: FastifyRequest,
     allowedRoles?: readonly StaffRole[],
+    whenOver: WhenEventOver = 'refuse',
   ): Promise<StaffAccountRow> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     const token = cookies?.[STAFF_COOKIE_NAME];
@@ -1452,8 +1472,9 @@ export class StaffService {
     if (allowedRoles && !allowedRoles.includes(parseStaffRole(account.role))) {
       throw new ForbiddenException('Staff account role cannot use this surface');
     }
-    const event = await this.getEventById(account.event_id);
-    this.assertEventScorable(event);
+    if (whenOver === 'refuse') {
+      this.assertEventScorable(await this.getEventById(account.event_id));
+    }
     return account;
   }
 

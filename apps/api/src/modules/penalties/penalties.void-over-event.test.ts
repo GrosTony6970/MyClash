@@ -130,18 +130,23 @@ describe('PenaltiesService.createPenalty — a repeated card on an over Event', 
     },
   );
 
-  it('still refuses a card the server does not hold', async () => {
-    const { db, service } = setup('completed');
+  // Archived too: the route passes the archived lock (ruling 240), so this
+  // refusal is the one a new card meets there.
+  it.each<'completed' | 'archived'>(['completed', 'archived'])(
+    'still refuses a card the server does not hold, on a %s Event',
+    async (status) => {
+      const { db, service } = setup(status);
 
-    await expect(
-      service.createPenalty(
-        'm1',
-        { ...CARD, clientUuid: 'new-uuid', directCard: 'yellow', reason: 'late hit' } as never,
-        { userId: ORGANISER },
-      ),
-    ).rejects.toEqual(FROZEN);
-    expect(db.writes).toEqual([]);
-  });
+      await expect(
+        service.createPenalty(
+          'm1',
+          { ...CARD, clientUuid: 'new-uuid', directCard: 'yellow', reason: 'late hit' } as never,
+          { userId: ORGANISER },
+        ),
+      ).rejects.toEqual(FROZEN);
+      expect(db.writes).toEqual([]);
+    },
+  );
 });
 
 describe('PenaltiesService.createPenalty — a repeated card on a locked bout', () => {

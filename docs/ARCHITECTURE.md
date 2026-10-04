@@ -1883,7 +1883,15 @@ corrections, which follow the rules of a completed Event (222a): `FrozenResultsG
 completed and archived alike, so an Exchange's void goes through a super admin's review and a
 forfeit's void is a super admin's; an Exchange edit and a penalty void have no review, so on an
 over Event they are a super admin's too (231); a penalty review asks no review, on a completed
-Event as on an archived one. The guard's refusal carries the code `event_results_frozen`, which
+Event as on an archived one. A hit or a card from a pad's queue passes the lock too (240): the
+handler answers one the server already holds with the saved row, and `FrozenResultsGuard` refuses
+a new one, so a pad that reconnects after its Event archived drains as it does on a completed
+Event. For the same two routes `StaffService.authorizeMatchScoring` is asked with
+`'leave-to-handler'` (240a): it still asks who may score (an account's role; a PIN session's token, account, Event and piste) and
+no longer refuses because the Event is over, which it does for every other pad write. Refused by
+the lock or by that check, a saved hit and a new one look alike to the pad, which keeps both
+pending for ever. A PIN session that has ended still answers 401. The guard's refusal
+carries the code `event_results_frozen`, which
 the pad (its refused-hits inbox included) and web-admin say in the reader's language. The lock's
 own refusal carries the code `event_archived`; `failureMessage` of `@myclash/api-client` says it in
 the reader's language on every screen of web-admin and web-public that shows a failed call through

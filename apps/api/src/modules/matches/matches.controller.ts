@@ -371,6 +371,7 @@ export class MatchesController {
    * Idempotent on client_uuid — safe to call multiple times from offline queue.
    */
   @Post('matches/:id/exchanges')
+  @AllowOnArchivedEvent() // ruling 240: as on a completed Event, a saved hit is answered
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record an exchange (scorekeeper+, idempotent on client_uuid)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -379,7 +380,7 @@ export class MatchesController {
     @Body() dto: CreateExchangeDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    const actor = await this.staff.authorizeMatchScoring(req, id, 'leave-to-handler');
     return this.matches.createExchange(id, dto, actor);
   }
 

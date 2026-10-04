@@ -33,9 +33,9 @@ class ProbeController {
     return { ok: true };
   }
 
-  @Post('matches/:id/exchanges')
+  @Post('matches/:id/clock')
   @HttpCode(HttpStatus.OK)
-  exchange(): { ok: true } {
+  clock(): { ok: true } {
     return { ok: true };
   }
 
@@ -135,13 +135,13 @@ describe('the archived-Event lock, over HTTP', () => {
   });
 
   it('refuses an address with one letter percent-encoded', async () => {
-    expect((await send('POST', `m%61tches/${OLD_BOUT}/exchanges`)).status).toBe(403);
+    expect((await send('POST', `m%61tches/${OLD_BOUT}/clock`)).status).toBe(403);
     expect((await send('PATCH', `tourn%61ments/${OLD_TOURNAMENT}`)).status).toBe(403);
   });
 
   it('refuses an address with a character of the id percent-encoded', async () => {
     const encoded = OLD_BOUT.replace('b1', '%621');
-    expect((await send('POST', `matches/${encoded}/exchanges`)).status).toBe(403);
+    expect((await send('POST', `matches/${encoded}/clock`)).status).toBe(403);
   });
 
   it('keeps a Workshop rating open on an archived Event (ruling 223)', async () => {
