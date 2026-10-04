@@ -499,7 +499,6 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     // bout's exchanges too, so its requests rot in exactly the same way.
     expect(frozen.rejectPendingEditsForMatch).toHaveBeenCalledWith(
       ['match-r1p1', 'match-final'],
-      expect.any(String),
       'organiser-1',
     );
   });

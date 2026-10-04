@@ -210,6 +210,15 @@ export const correctionRejectedTitle = (): string => bilingual('notices.correcti
 export const correctionHitChanged = (): string =>
   bilingual('notices.correctionRejected.hitChanged');
 
+/** The reason a request ends with when its bout was put back on the schedule (ruling 257). */
+export const correctionBoutReset = (): string => bilingual('notices.correctionRejected.boutReset');
+
+/**
+ * The reason saved on a request for review that came with none: a restore never
+ * carries one. Not a notice, but its reviewer may read either language (ruling 258).
+ */
+export const correctionWithNoReason = (): string => bilingual('notices.correctionRequest.noReason');
+
 export function correctionApproved(): NoticeText {
   return {
     title: bilingual('notices.correctionApproved.title'),

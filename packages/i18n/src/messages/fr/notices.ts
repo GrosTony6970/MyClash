@@ -78,6 +78,11 @@ export const notices = {
     title: 'Demande de correction refusée',
     hitChanged:
       'Un administrateur a modifié cet échange. Refaites une demande si le nouvel échange est faux lui aussi.',
+    boutReset:
+      'Ce combat a été rouvert : votre demande est close. Refaites-la si un échange est toujours faux.',
+  },
+  correctionRequest: {
+    noReason: 'Aucune raison donnée',
   },
   correctionApproved: {
     title: 'Demande de correction approuvée',

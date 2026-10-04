@@ -92,6 +92,16 @@ describe('the notices of the Tournament day', () => {
       'Un administrateur a modifié cet échange. Refaites une demande si le nouvel échange est faux lui aussi. / An administrator changed this exchange. Ask again if the new exchange is wrong too.',
     );
   });
+
+  it('the reason saved on a request for review that came with none', () => {
+    expect(texts.correctionWithNoReason()).toBe('Aucune raison donnée / No reason given');
+  });
+
+  it('the reason a request ends with when its bout was put back on the schedule', () => {
+    expect(texts.correctionBoutReset()).toBe(
+      'Ce combat a été rouvert : votre demande est close. Refaites-la si un échange est toujours faux. / This bout was reopened, so your request was closed. Ask again if an exchange is still wrong.',
+    );
+  });
 });
 
 describe('the notices of a Workshop', () => {

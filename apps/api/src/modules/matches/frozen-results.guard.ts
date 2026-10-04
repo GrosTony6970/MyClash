@@ -11,6 +11,10 @@ import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isOver } from '../../common/live-status';
 import {
+  correctionBoutReset,
+  correctionWithNoReason,
+} from '../notifications/notice-texts/notice-texts';
+import {
   closeAnsweredRequests,
   tellApproved,
   tellRejected,
@@ -121,7 +125,7 @@ export class FrozenResultsGuard {
     if (await this.isSuperAdmin(input.userId)) return null;
     if (!input.userId) throw new UnauthorizedException('Authentication required');
 
-    const reason = input.reason?.trim() || 'Frozen results correction requested';
+    const reason = input.reason?.trim() || correctionWithNoReason();
     const existing = await this.findPendingRequest(input.exchange.id, input.requestType);
     if (existing) return { pendingReview: true, requestId: existing.id, status: 'pending' };
 
@@ -241,8 +245,11 @@ export class FrozenResultsGuard {
   /**
    * Close the pending edit requests on bouts that have just been un-completed.
    *
-   * A request names an EXCHANGE, and un-completing a bout voids every exchange
-   * on it. Both pending shapes then rot, in opposite directions:
+   * A request names an EXCHANGE, and a reset voids every exchange of its bout.
+   * (A clock reopen or a status change keeps them and closes the requests all
+   * the same: the bout is fought on, so the fixed reason says "ask again" and
+   * never that the exchanges are gone.) After a reset both pending shapes rot,
+   * in opposite directions:
    *
    *   - `void_exchange` can never be approved again. `voidExchange` refuses an
    *     already-voided exchange, so the row sits in the review queue forever,
@@ -255,10 +262,12 @@ export class FrozenResultsGuard {
    *     score of a bout nobody has fought yet.
    *
    * Rejected rather than deleted: the request was a real thing somebody asked
-   * for, and the requester gets told why. `reviewed_by_user_id` is the actor or
-   * NULL — the clock and the pad reach this with a staff account and no user id,
-   * and inventing a sentinel uuid there would put a fictional reviewer in the
-   * audit trail.
+   * for, and the requester gets told why, with one fixed reason in both
+   * languages (ruling 257). The update reads back what it closed, so only the
+   * call that closed a request tells who asked. `reviewed_by_user_id` is the
+   * actor or NULL — the clock and the pad reach this with a staff account and
+   * no user id, and inventing a sentinel uuid there would put a fictional
+   * reviewer in the audit trail.
    *
    * Best-effort ON PURPOSE, as `closeAnswered` is. It runs
    * inside the un-completion owner AFTER the bout has been put back; throwing
@@ -266,26 +275,37 @@ export class FrozenResultsGuard {
    */
   async rejectPendingEditsForMatch(
     matchIds: readonly string[],
-    reason: string,
     actorUserId?: string,
   ): Promise<void> {
     if (matchIds.length === 0) return;
+    const reason = correctionBoutReset();
     const now = new Date().toISOString();
-    const { error } = await this.supabase.service
-      .from('exchange_edit_requests')
-      .update({
-        status: 'rejected',
-        reviewed_by_user_id: actorUserId ?? null,
-        reviewed_at: now,
-        rejection_reason: reason,
-        updated_at: now,
-      })
-      .in('match_id', [...matchIds])
-      .eq('status', 'pending');
-    if (error) {
+    // A failed close leaves `closed` empty: nobody is told of a request that still waits.
+    let closed: ExchangeEditRequestRow[] = [];
+    try {
+      const { data, error } = await this.supabase.service
+        .from('exchange_edit_requests')
+        .update({
+          status: 'rejected',
+          reviewed_by_user_id: actorUserId ?? null,
+          reviewed_at: now,
+          rejection_reason: reason,
+          updated_at: now,
+        })
+        .in('match_id', [...matchIds])
+        .eq('status', 'pending')
+        .select('*');
+      if (error) throw new Error(error.message);
+      closed = (data ?? []) as ExchangeEditRequestRow[];
+    } catch (cause) {
       this.logger.warn(
-        `Could not close pending exchange edits for ${matchIds.join(', ')}: ${error.message}`,
+        `Could not close pending exchange edits for ${matchIds.join(', ')}: ${(cause as Error).message}`,
       );
+    }
+    for (const request of closed) {
+      await tellRejected(this.closure, request, reason).catch((cause: Error) => {
+        this.logger.warn(`Could not tell who asked for request ${request.id}: ${cause.message}`);
+      });
     }
   }
 

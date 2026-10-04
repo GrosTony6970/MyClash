@@ -90,6 +90,28 @@ describe('FrozenResultsGuard', () => {
     });
   });
 
+  // Ruling 258: a restore carries no reason, and a reviewer of either language reads the request.
+  it.each<[string, string | null, string]>([
+    ['the reason given, trimmed', '  wrong side ', 'wrong side'],
+    ['no reason', null, 'Aucune raison donnée / No reason given'],
+    ['a blank reason', '   ', 'Aucune raison donnée / No reason given'],
+  ])('a request is saved with %s', async (_name, given, saved) => {
+    const { db, guard } = setup('completed');
+
+    await guard.guardExchangeMutation({
+      exchange: EXCHANGE,
+      requestType: 'revert_void_exchange',
+      reason: given,
+      userId: ORGANISER,
+    });
+
+    const [request] = writesTo(db, 'exchange_edit_requests');
+    expect(request?.row).toMatchObject({
+      reason: saved,
+      requested_payload: { requestedReason: saved },
+    });
+  });
+
   it('lets the void through on a running Event, with no request', async () => {
     const { db, guard } = setup('running');
     expect(await askToVoid(guard, ORGANISER)).toBeNull();

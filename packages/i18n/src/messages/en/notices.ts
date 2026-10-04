@@ -81,6 +81,11 @@ export const notices = {
     title: 'Exchange correction rejected',
     hitChanged:
       'An administrator changed this exchange. Ask again if the new exchange is wrong too.',
+    boutReset:
+      'This bout was reopened, so your request was closed. Ask again if an exchange is still wrong.',
+  },
+  correctionRequest: {
+    noReason: 'No reason given',
   },
   correctionApproved: {
     title: 'Exchange correction approved',

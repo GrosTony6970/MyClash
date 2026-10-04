@@ -157,11 +157,7 @@ export class MatchCompletionService {
     // standing, `void_exchange` can never be approved and holds its unique
     // pending slot forever, while `revert_void_exchange` still WORKS — it would
     // put a hit back into a bout nobody has fought and recompute the score.
-    await this.frozenResults.rejectPendingEditsForMatch(
-      touched,
-      opts.reason ?? 'the bout was put back on the schedule',
-      opts.actor?.userId,
-    );
+    await this.frozenResults.rejectPendingEditsForMatch(touched, opts.actor?.userId);
 
     // LAST. Not-yet-done is exactly today's behaviour — the F stands and the row
     // still says completed — so a crash before this leaves the safest partial
