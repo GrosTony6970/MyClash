@@ -1285,6 +1285,7 @@ export const publicApp = {
     sessions: 'Séances',
     enrolledCount: '{confirmed}/{capacity} inscrits',
     instructorCannotEnroll: 'Vous ne pouvez pas vous inscrire à un atelier que vous animez.',
+    sessionCancelled: 'Cette séance a été annulée.',
   },
   live: {
     badge: 'EN DIRECT',

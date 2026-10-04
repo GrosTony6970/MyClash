@@ -21,6 +21,7 @@
 
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -56,23 +57,44 @@ export class EnrollmentService {
    * `again` is the person's own "Register again" on a refusal (ruling 236).
    */
   async enroll(sessionId: string, personId: string, again = false): Promise<EnrollmentResult> {
+    const session = await this.bookableSession(sessionId);
     if (again) await this.removeRefusal(sessionId, personId);
-    const booking = await this.book(sessionId, personId);
+    const booking = await this.book(session, sessionId, personId);
     await this.bookingAlert(sessionId, personId);
     return booking;
   }
 
-  private async book(sessionId: string, personId: string): Promise<EnrollmentResult> {
-    // Session first: it carries both the parent workshop (for the instructor
-    // guard below) and the effective capacity (sessions have no own column).
+  /**
+   * The session a booking is for: it exists, and it was not cancelled. Asked before any write,
+   * so "Register again" removes no refusal for a booking that is then refused.
+   *
+   * The row carries both the parent workshop (for the instructor guard) and the effective
+   * capacity (sessions have no own column).
+   */
+  private async bookableSession(sessionId: string): Promise<unknown> {
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
-      .select('workshop_id, workshops ( capacity )')
+      .select('status, workshop_id, workshops ( capacity )')
       .eq('id', sessionId)
       .maybeSingle();
 
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
+    // A page opened before the organiser cancelled the session still offers it. Named, so
+    // the page says it in the reader's language.
+    if ((session as { status?: string }).status === 'cancelled') {
+      throw new ConflictException({
+        error: 'WorkshopSessionCancelled',
+        message: 'This workshop session was cancelled.',
+      });
+    }
+    return session;
+  }
 
+  private async book(
+    session: unknown,
+    sessionId: string,
+    personId: string,
+  ): Promise<EnrollmentResult> {
     // An instructor takes no participant seat in a workshop they teach.
     // Checked BEFORE the idempotency read below, so a row that predates this
     // rule can't short-circuit into a success.

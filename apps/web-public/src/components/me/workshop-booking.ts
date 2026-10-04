@@ -55,7 +55,7 @@ export async function readBookings(
 }
 
 /** Why the server refused a tap, as far as a page has its own words for it. */
-export type BookingRefusal = 'nobody' | 'teaches' | 'removed' | 'other';
+export type BookingRefusal = 'nobody' | 'teaches' | 'removed' | 'cancelled' | 'other';
 
 export type BookingChange =
   | { ok: true; status: 'confirmed' | 'waitlisted' | 'cancelled' }
@@ -64,6 +64,7 @@ export type BookingChange =
 const REFUSAL_CODES = new Map<string, BookingRefusal>([
   ['INSTRUCTOR_SELF_ENROLLMENT', 'teaches'],
   ['WORKSHOP_BOOKING_REFUSED', 'removed'],
+  ['WORKSHOP_SESSION_CANCELLED', 'cancelled'],
 ]);
 
 /** One tap on a session, as one call: book (or book again), or give the booking up. */

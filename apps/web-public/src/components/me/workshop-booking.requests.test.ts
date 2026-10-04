@@ -125,6 +125,7 @@ describe('one tap on a session', () => {
     ['nobody', 401, { code: 'UNAUTHORIZED', detail: 'Authentication required' }],
     ['teaches', 403, { code: 'INSTRUCTOR_SELF_ENROLLMENT', detail: 'You cannot register' }],
     ['removed', 403, { code: 'WORKSHOP_BOOKING_REFUSED', detail: 'You were removed' }],
+    ['cancelled', 409, { code: 'WORKSHOP_SESSION_CANCELLED', detail: 'This workshop session' }],
     ['other', 403, { code: 'event_archived', detail: 'This event is archived' }],
     ['other', 404, { code: 'NOT_FOUND', detail: 'Session s-1 not found' }],
   ])('sorts a refusal as "%s" (%s)', async (why, status, body) => {
@@ -186,6 +187,8 @@ describe('the public Workshop page', () => {
     expect(page).toMatch(/nobody: t\('publicApp\.workshopDetail\.signInToEnroll'\)/);
     expect(page).toMatch(/teaches: t\('publicApp\.workshopDetail\.instructorCannotEnroll'\)/);
     expect(page).toMatch(/removed: t\('publicApp\.me\.workshops\.refused'\)/);
+    // A page opened before the organiser cancelled the session still offers it.
+    expect(page).toMatch(/cancelled: t\('publicApp\.workshopDetail\.sessionCancelled'\)/);
   });
 });
 

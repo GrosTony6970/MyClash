@@ -81,6 +81,7 @@ function changeNotice(change: BookingChange, t: (key: string) => string): string
     nobody: t('publicApp.workshopDetail.signInToEnroll'),
     teaches: t('publicApp.workshopDetail.instructorCannotEnroll'),
     removed: t('publicApp.me.workshops.refused'),
+    cancelled: t('publicApp.workshopDetail.sessionCancelled'),
     other: failureMessage(change.failure, t),
   };
   return refusals[change.why];

@@ -1274,6 +1274,7 @@ export const publicApp = {
     sessions: 'Sessions',
     enrolledCount: '{confirmed}/{capacity} enrolled',
     instructorCannotEnroll: 'You cannot register for a workshop you teach.',
+    sessionCancelled: 'This session was cancelled.',
   },
   live: {
     badge: 'LIVE',

@@ -1343,8 +1343,9 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   `/e/[eventSlug]/w/[workshopSlug]` (an account or a guest session, ruling 261). Both read the
   caller's bookings from `GET /events/:event/my-schedule` and draw them with one set of controls
   (`WorkshopRegisterControls`). The public page does not decide who the caller is: the login cookies
-  are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session. The
-  refusal of a removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
+  are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session, and the
+  booking door refuses one before any write (`WORKSHOP_SESSION_CANCELLED`, a 409). The refusal of a
+  removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
 
 ### 11bis.5 Public discovery
 
