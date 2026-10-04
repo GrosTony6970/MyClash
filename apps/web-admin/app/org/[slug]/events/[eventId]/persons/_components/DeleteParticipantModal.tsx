@@ -26,7 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureDetail, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 
 interface BlockingMatch {
   matchId: string;
@@ -196,7 +196,7 @@ export function DeleteParticipantModal({
               `/api/v1/registrations/${reg.registrationId}/force-delete`,
               { method: 'POST' },
             );
-            if (!r.ok) throw new Error(backendReason(r));
+            if (!r.ok) throw new Error(backendReason(r, t));
           }
         } else {
           const r = await apiRequest(
@@ -204,7 +204,7 @@ export function DeleteParticipantModal({
             `/api/v1/persons/${row.personId}?force=true&eventId=${eventId}`,
             { method: 'DELETE' },
           );
-          if (!r.ok) throw new Error(backendReason(r));
+          if (!r.ok) throw new Error(backendReason(r, t));
         }
         succeeded.push(row.displayName);
       } catch (err) {
@@ -283,18 +283,15 @@ export function DeleteParticipantModal({
 }
 
 /**
- * Pull the BE's human-readable error reason out of a non-ok response.
- * MyClash's ApiExceptionFilter serialises NestJS exceptions to
- * `{ statusCode, code, message, details, … }`, so reading `message`
- * surfaces the original `throw new BadRequestException('…')` /
- * `ConflictException('…')` string. Falls back to `HTTP <status>` if
- * the body isn't JSON or the message is missing.
+ * Why the server refused a deletion, through `failureMessage`: the server's
+ * own reason for a 4xx, and the archived-Event refusal in the reader's
+ * language. The page greys its delete buttons from a status read when it
+ * opened, and an Event archives itself, so this modal can meet that refusal.
  */
-function backendReason(failure: ApiFailure): string {
-  // The empty string on purpose: the caller already falls back to its own
-  // localized sentence when the message is blank, and the old `HTTP <status>`
-  // fallback put a status line in front of an operator as if it were a reason.
-  return failureDetail(failure)?.trim() ?? '';
+function backendReason(failure: ApiFailure, t: (key: string) => string): string {
+  // The empty string for an aborted request, which has no message: the caller
+  // falls back to its own localized sentence when the message is blank.
+  return failureMessage(failure, t, t('admin.common.serverRejectedDeletion')) ?? '';
 }
 
 function PersonAssignmentCard({ row }: { row: Row }) {

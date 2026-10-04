@@ -13,7 +13,8 @@
  */
 
 import { useRef, useState } from 'react';
-import { apiRequest, failureDetail } from '@myclash/api-client';
+import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
 import { LogoCropperModal } from '../../../_components/LogoCropperModal';
 
@@ -53,6 +54,7 @@ export function EventLogoCard({
   onUploaded,
   disabled = false,
 }: Props) {
+  const { t } = useI18n();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,10 +91,9 @@ export function EventLogoCard({
         body: fd,
       });
       if (!r.ok) {
-        // `failureDetail` and not `failureMessage`: this card takes its copy as
-        // props and has no translator of its own, so it renders the server's
-        // sentence or the localized label the parent handed it.
-        setError(failureDetail(r) ?? failedLabel);
+        // `disabled` is a status read when the page opened, and an Event archives
+        // itself: this card can meet the archived refusal, English from the server.
+        setError(failureMessage(r, t, failedLabel));
         return;
       }
       await onUploaded();

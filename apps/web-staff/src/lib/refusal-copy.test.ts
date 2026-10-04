@@ -161,6 +161,18 @@ describe('refusalMessage', () => {
     ).toBe('scoring.corrections.eventOver');
   });
 
+  it('says the Event is over when the archived lock refuses, not ask-an-organiser', () => {
+    // A 403, so without its own case it reads as "only an organiser can do
+    // this": false, an organiser is refused the same way.
+    expect(
+      refusalMessage(
+        refusal(403, { code: 'event_archived', detail: 'This event is archived and read-only.' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.eventOver');
+  });
+
   it('explains the Swiss refusal', () => {
     expect(
       refusalMessage(refusal(409, { code: 'swiss_later_round_already_drawn' }), t, FALLBACK),

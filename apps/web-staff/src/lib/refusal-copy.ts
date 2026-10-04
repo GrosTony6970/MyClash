@@ -124,6 +124,11 @@ function codedRefusal(
     case 'event_results_frozen':
       // The Event is completed or archived: a result is a super admin's now.
       return t(EVENT_OVER);
+    case 'event_archived':
+      // The archived lock, on a pad write no ruling keeps open (the clock, a
+      // reset, a forfeit). A 403, so without this case it read as "only an
+      // organiser can do this": no organiser can, the Event is over.
+      return t(EVENT_OVER);
     case 'level_at_time_unresolved':
       // The bout is level and the phase says play it out. `remedy` carries which
       // one; the server's own message names it in English, which is exactly what
