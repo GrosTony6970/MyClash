@@ -316,6 +316,8 @@ export const scoring = {
       'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
     leavesBoutLevel:
       'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
+    closedRoundResult:
+      'This correction would change who won a round that is closed. Later rounds were fought from that result, so it was not applied.',
     eventOver: 'This event is over and its results are closed. Ask an organiser.',
     accountCannotScore:
       'The account signed in on this tablet has no scoring role for this event, so nothing will save. Sign that account out, or ask an organiser.',

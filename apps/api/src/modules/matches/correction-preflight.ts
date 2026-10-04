@@ -53,6 +53,8 @@ const MESSAGES: Record<CorrectionRefusalCode, string> = {
     'A later bout was already fought from this result. The correction would change who won, so it was not applied.',
   correction_leaves_bout_level:
     'The correction would leave this bout level, and its rules do not let it end as a draw. It was not applied.',
+  correction_changes_closed_round:
+    'The correction would change the result of a round that is closed. Later rounds were fought from it, so it was not applied.',
 };
 
 export function correctionRefused(code: CorrectionRefusalCode): ConflictException {

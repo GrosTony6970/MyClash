@@ -33,7 +33,6 @@ import type {
   MatchEndDecision,
   MatchFormatConfig,
   MatchScore,
-  MaxDoubleHitEndReason,
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
@@ -42,6 +41,7 @@ import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
+import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
   type CorrectionInput,
@@ -54,24 +54,7 @@ import {
   type ScoreRows,
 } from './correction-preflight';
 
-/**
- * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.
- * A time-ended round's outcome cannot be re-derived from exchanges alone, so the
- * closure (winner + score + reason) is recorded here. The OPEN round's score is
- * still derived live from its round-scoped exchanges; closed rounds are stable
- * until the match is reopened.
- */
-export interface ClosedRound {
-  round: number;
-  redScore: number;
-  blueScore: number;
-  winnerColor: 'red' | 'blue' | null;
-  /**
-   * The three max-doubles values are one per `maxDoubleHitOutcome`. Only
-   * `'max_doubles'` means loss for both; see `maxDoubleHitEndReason`.
-   */
-  endReason: 'first_to_points' | MaxDoubleHitEndReason | 'time_limit' | null;
-}
+export type { ClosedRound };
 
 /**
  * The match format a ruleset actually plays under.
@@ -278,19 +261,96 @@ export class ScoringService {
    * that a later fought bout or a level board forbids is refused here, with
    * nothing written. The recompute after the write asks the same owner.
    *
-   * A bout that is not completed has no result to protect. A best-of series
-   * keeps its closed rounds as snapshots, so a correction moves nothing there.
+   * A single fight that is not completed has no result to protect. A best-of
+   * series has one per CLOSED round, finished or not (ruling 247): a change
+   * that takes a closed round from its winner is refused. Only a change that
+   * does so is: a round already out of step with its sheet refuses nothing.
    */
   async assertCorrectionLands(matchId: string, change: ScoreChange): Promise<void> {
     const m = await this.loadMatchRow(matchId);
-    if (!m || m['status'] !== 'completed') return;
+    const closed = this.parseRoundsJson(m?.['rounds_json']);
+    if (!m || (m['status'] !== 'completed' && closed.length === 0)) return;
     const bout = await this.loadBout(m);
-    if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) return;
-
     const restored = await this.voidedExchanges(change.restoreExchangeIds ?? []);
-    const scored = this.scoreSingleFight(bout, applyScoreChange(bout, change, restored));
+    const after = applyScoreChange(bout, change, restored);
+
+    if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) {
+      const current = (m['current_round'] as number) ?? 1;
+      const before = this.closedRoundsCorrected(bout, bout, closed, current).refused;
+      const taken = this.closedRoundsCorrected(bout, after, closed, current).refused;
+      if (taken.some((round) => !before.includes(round))) {
+        throw correctionRefused('correction_changes_closed_round');
+      }
+      return;
+    }
+    if (m['status'] !== 'completed') return;
+
+    const scored = this.scoreSingleFight(bout, after);
     const { outcome } = await this.correctionFor(bout, scored);
     if (outcome.kind === 'refuse') throw correctionRefused(outcome.code);
+  }
+
+  /**
+   * Each closed round, counted again from its own exchanges and cards (ruling
+   * 247): the snapshots as they should read, and the rounds whose sheet no
+   * longer gives them the result they closed with (their snapshot is kept).
+   *
+   * The current round is left alone when it is about to REOPEN: a round the
+   * engine closed that its sheet no longer ends goes back to the referee.
+   */
+  private closedRoundsCorrected(
+    bout: Pick<LoadedBout, 'match' | 'ruleset' | 'config' | 'afterblowMode' | 'matchFormat'>,
+    rows: ScoreRows,
+    closed: ClosedRound[],
+    currentRound: number,
+  ): { rounds: ClosedRound[]; refused: number[]; changed: boolean } {
+    const refused: number[] = [];
+    let changed = false;
+    const rounds = closed.map((snapshot) => {
+      const ev = this.evaluateOpenRound(
+        bout.ruleset,
+        bout.match,
+        rows.rawRows
+          .filter((r) => ((r['round_number'] as number | null) ?? 1) === snapshot.round)
+          .map((r) => this.mapExchange(r)),
+        bout.afterblowMode,
+        bout.config,
+        bout.matchFormat,
+        this.penaltiesInRound(rows.penaltyRows, snapshot.round),
+      );
+      if (snapshot.round === currentRound && this.roundShouldReopen(snapshot, ev)) return snapshot;
+      const corrected = correctedClosedRound(snapshot, ev);
+      if (corrected.kind === 'refuse') refused.push(snapshot.round);
+      if (corrected.kind !== 'score') return snapshot;
+      changed = true;
+      return corrected.round;
+    });
+    return { rounds, refused, changed };
+  }
+
+  /**
+   * The snapshots the recompute works from. A round that is refused here kept
+   * its snapshot: the correction is already in (a door that did not ask, a late
+   * hit of the pad's queue, a colour swap), so only the log can say it.
+   */
+  private correctedSnapshots(
+    args: Parameters<ScoringService['closedRoundsCorrected']>[0] &
+      ScoreRows & { matchId: string; matchRow: Record<string, unknown> },
+    currentRound: number,
+  ): { rounds: ClosedRound[]; changed: boolean } {
+    const closed = this.parseRoundsJson(args.matchRow['rounds_json']);
+    const { rounds, refused, changed } = this.closedRoundsCorrected(
+      args,
+      args,
+      closed,
+      currentRound,
+    );
+    for (const round of refused) {
+      this.logger.warn(
+        `Match ${args.matchId} kept the result of round ${round} beside a sheet that no longer gives it`,
+      );
+    }
+    return { rounds, changed };
   }
 
   /** The rows of exchanges about to be restored. A failed read is not "none". */
@@ -769,20 +829,12 @@ export class ScoringService {
     penaltyRows: Record<string, unknown>[];
     matchRow: Record<string, unknown>;
   }): Promise<{ redScore: number; blueScore: number }> {
-    const {
-      matchId,
-      match,
-      ruleset,
-      config,
-      afterblowMode,
-      matchFormat,
-      rawRows,
-      penaltyRows,
-      matchRow,
-    } = args;
+    const { matchId, match, ruleset, config, afterblowMode, matchFormat, rawRows, penaltyRows } =
+      args;
     const bestOf = getEffectiveBestOf(match, matchFormat);
-    const closedRounds = this.parseRoundsJson(matchRow['rounds_json']);
-    const currentRound = (matchRow['current_round'] as number) ?? 1;
+    const currentRound = (args.matchRow['current_round'] as number) ?? 1;
+    const { rounds: closedRounds, changed } = this.correctedSnapshots(args, currentRound);
+    const matchRow = { ...args.matchRow, rounds_json: closedRounds };
 
     const openExchanges = rawRows
       .filter((r) => ((r['round_number'] as number | null) ?? 1) === currentRound)
@@ -797,8 +849,7 @@ export class ScoringService {
       this.penaltiesInRound(penaltyRows, currentRound),
     );
 
-    const openRed = ev.score.redScore;
-    const openBlue = ev.score.blueScore;
+    const { redScore: openRed, blueScore: openBlue } = ev.score;
 
     const closedCurrent = closedRounds.find((r) => r.round === currentRound);
     const currentAlreadyClosed = closedCurrent !== undefined;
@@ -806,6 +857,7 @@ export class ScoringService {
       red_score: openRed,
       blue_score: openBlue,
       current_round: currentRound,
+      ...(changed ? { rounds_json: closedRounds } : {}),
       updated_at: new Date().toISOString(),
     };
     let justCompleted = false;

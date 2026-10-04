@@ -485,6 +485,8 @@ export const admin = {
       'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
     correctionLeavesBoutLevel:
       'This correction would leave the bout level, and its rules do not allow a draw. It was not applied.',
+    correctionChangesClosedRound:
+      'This correction would change who won a round that is closed. Later rounds were fought from that result, so it was not applied.',
     eventResultsFrozen:
       'This event is over and its results are frozen. The change was not applied.',
     reseedFailed: 'Reseed failed',

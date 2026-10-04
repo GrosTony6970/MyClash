@@ -1971,6 +1971,18 @@ would read (`matches/correction-preflight.ts`). A Swiss round or a bracket seede
 is not fed by one result, so neither refuses (228). A new Exchange and a new card do not ask:
 that path is the pad's offline outbox.
 
+A best-of series holds one result per CLOSED round, in `matches.rounds_json` (ruling 247;
+`matches/closed-round-correction.ts` is the one owner). A closed round's score follows its own
+sheet: the recompute counts each closed round again from the Exchanges and cards that carry its
+`round_number`, and writes the snapshots when one changed. Its winner never moves, because later
+rounds were fought from it: the same four doors refuse, with nothing written, a change that would
+give a closed round to the other Fighter, leave it level, or take a round off the doubles ceiling
+that closed it (`correction_changes_closed_round`), whether the series is finished or not. So the
+round wins and the series winner cannot move. Only a change that DOES this is refused: a round
+already out of step with its sheet refuses nothing, and the recompute keeps its snapshot and logs
+it. The one exception is older and kept: the last closed round, when the engine closed it and its
+sheet no longer ends it, is reopened (and a clinched series un-completed, best effort).
+
 ### 12.6 Roles (unchanged from earlier draft)
 
 ```

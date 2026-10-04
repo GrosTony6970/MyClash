@@ -15,7 +15,11 @@
  */
 import { boutOutcomes, leadingColor } from '@myclash/rulesets';
 
-export type CorrectionRefusalCode = 'correction_later_bout_fought' | 'correction_leaves_bout_level';
+export type CorrectionRefusalCode =
+  | 'correction_later_bout_fought'
+  | 'correction_leaves_bout_level'
+  /** A best-of series: the change takes a closed round from its winner (ruling 247). */
+  | 'correction_changes_closed_round';
 
 export type CorrectionOutcome =
   /** Not completed, or the result stands: only the score moves. */

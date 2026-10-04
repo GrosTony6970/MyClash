@@ -49,6 +49,7 @@ const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
 const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
+const CLOSED_ROUND_RESULT = 'scoring.corrections.closedRoundResult';
 const EVENT_OVER = 'scoring.corrections.eventOver';
 const ACCOUNT_CANNOT_SCORE = 'scoring.corrections.accountCannotScore';
 const PIN_DISABLED = 'scoring.corrections.pinDisabled';
@@ -87,13 +88,15 @@ function levelAtTime(t: Translate, details: Record<string, unknown> | null): str
   return t(LEVEL_SUDDEN_DEATH);
 }
 
-/** A correction on a finished bout lands whole or not at all (ruling 226). */
-function correctionRefusedWhole(
-  t: Translate,
-  code: 'correction_later_bout_fought' | 'correction_leaves_bout_level',
-): string {
-  return t(code === 'correction_later_bout_fought' ? LATER_BOUT_FOUGHT : LEAVES_BOUT_LEVEL);
-}
+/**
+ * A correction on a finished bout lands whole or not at all (ruling 226), and
+ * so does one on a closed round of a best-of series (ruling 247).
+ */
+const REFUSED_WHOLE = {
+  correction_later_bout_fought: LATER_BOUT_FOUGHT,
+  correction_leaves_bout_level: LEAVES_BOUT_LEVEL,
+  correction_changes_closed_round: CLOSED_ROUND_RESULT,
+} as const;
 
 /**
  * Why a queued hit is held, for the refused-hits inbox. A refusal the pad knows
@@ -127,7 +130,8 @@ function codedRefusal(
       return t(ORGANISER_ONLY);
     case 'correction_later_bout_fought':
     case 'correction_leaves_bout_level':
-      return correctionRefusedWhole(t, code);
+    case 'correction_changes_closed_round':
+      return t(REFUSED_WHOLE[code]);
     case 'event_results_frozen':
       // The Event is completed or archived: a result is a super admin's now.
       return t(EVENT_OVER);

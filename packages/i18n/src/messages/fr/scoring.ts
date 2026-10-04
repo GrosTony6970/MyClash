@@ -304,6 +304,8 @@ export const scoring = {
       "Un assaut suivant a déjà été combattu à partir de ce résultat. Cette correction changerait le vainqueur : elle n'a pas été appliquée.",
     leavesBoutLevel:
       "Cette correction laisserait l'assaut à égalité, et ses règles n'autorisent pas le match nul. Elle n'a pas été appliquée.",
+    closedRoundResult:
+      "Cette correction changerait le vainqueur d'une manche close. Les manches suivantes ont été disputées à partir de ce résultat : elle n'a pas été appliquée.",
     eventOver:
       'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
     accountCannotScore:

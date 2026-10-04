@@ -144,6 +144,7 @@ describe('refusalMessage', () => {
   it.each<[string, string]>([
     ['correction_later_bout_fought', 'scoring.corrections.laterBoutFought'],
     ['correction_leaves_bout_level', 'scoring.corrections.leavesBoutLevel'],
+    ['correction_changes_closed_round', 'scoring.corrections.closedRoundResult'],
   ])('explains a correction refused whole: %s', (code, key) => {
     // The API's own sentence rides along, in English: the code must win.
     expect(refusalMessage(refusal(409, { code, detail: 'It was not applied.' }), t, FALLBACK)).toBe(

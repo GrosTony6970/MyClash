@@ -19,6 +19,9 @@ export function correctionRefusal(failure: ApiFailure, t: (key: string) => strin
       return t('admin.common.correctionLaterBoutFought');
     case 'correction_leaves_bout_level':
       return t('admin.common.correctionLeavesBoutLevel');
+    case 'correction_changes_closed_round':
+      // A best-of series: the change takes a closed round from its winner (ruling 247).
+      return t('admin.common.correctionChangesClosedRound');
     case 'event_results_frozen':
       return t('admin.common.eventResultsFrozen');
     default:

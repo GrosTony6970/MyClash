@@ -131,7 +131,7 @@ describe('ScoringService.assertCorrectionLands', () => {
     expect(matchCompletion.resultChangeContext).not.toHaveBeenCalled();
   });
 
-  it('a best-of series keeps its closed rounds: nothing to refuse', async () => {
+  it('a best-of series with no closed round has nothing to refuse', async () => {
     const series = storedBout({
       phases: {
         type: 'single_elim',
