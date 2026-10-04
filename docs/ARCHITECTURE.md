@@ -1160,8 +1160,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > its piste while offline, a disabled account): it is held, the drain goes on, and the inbox says it
 > in the reader's language (`heldReason`). Retry sends it again once an organiser has put the pad
 > back. A 403 with no code is the edge's (a blocked network) and is about no hit: it stays queued as
-> a failed attempt. Known limits: a Retry that is refused again puts that hit last among the held
-> ones, so a later Retry of all sends a bout's hits in another order; an account login outranks a
+> a failed attempt. The bar's Retry puts every held hit back in the order the hits were scored
+> (`createdAt`), not the order they were held: a hit refused again after a Retry of it alone is held
+> last. Known limit: an account login outranks a
 > PIN, so a tablet whose personal login has no role in the organisation has its hits held though
 > its PIN could score them. A hit or a
 > card is queued with its bout in words (`OutboxEntry.bout`: the label and the two Fighters' names,

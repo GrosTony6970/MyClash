@@ -163,9 +163,13 @@ export async function rejectedCount(): Promise<number> {
  * Sequences are re-derived per match, because the most common reason a retry
  * would fail again is the sequence the entry was rejected with. `attempts` and
  * `lastError` reset — this is a fresh attempt, initiated by the operator.
+ *
+ * In the order the hits were SCORED, not the order they were held: a Retry of
+ * one hit that is refused again holds it last, and a bout's hits would go to
+ * the server in another order. `createdAt` rides through every move.
  */
 export async function requeueRejected(): Promise<number> {
-  const entries = await getRejected();
+  const entries = (await getRejected()).sort((a, b) => a.createdAt - b.createdAt);
   if (entries.length === 0) return 0;
 
   const nextByMatch = new Map<string, number>();

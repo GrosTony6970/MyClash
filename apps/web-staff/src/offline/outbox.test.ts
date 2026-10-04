@@ -7,7 +7,7 @@
  *   ✓ 1000 exchanges insert in <500ms locally
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
 import {
@@ -24,6 +24,7 @@ import {
   nextSequence,
   pendingCount,
   quarantine,
+  requeueRejected,
   requeueRejectedEntry,
   totalPendingCount,
 } from './outbox';
@@ -33,6 +34,7 @@ beforeEach(async () => {
   await db.outbox.clear();
   await db.synced.clear();
   await db.rejected.clear();
+  vi.restoreAllMocks();
 });
 
 // ── Enqueue ───────────────────────────────────────────────────────────────────
@@ -237,6 +239,38 @@ describe('requeueRejectedEntry', () => {
 
     expect(await requeueRejectedEntry(held.id as number)).toBe(false);
     expect(await pendingCount('match-gone')).toBe(0);
+  });
+});
+
+describe('requeueRejected', () => {
+  it('puts the hits back in the order they were scored, not the order they were held', async () => {
+    // A Retry of ONE held hit that the server refuses again holds it last. A
+    // later Retry of all then sent a bout's hits in another order.
+    let clock = 1_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1_000));
+    for (const sequence of [1, 2, 3]) {
+      const id = await enqueue({
+        clientUuid: `uuid-${sequence}`,
+        matchId: 'match-o',
+        sequence,
+        type: 'clean',
+        occurredAt: new Date().toISOString(),
+      });
+      await quarantine(id, 'not allowed');
+    }
+    await requeueRejectedEntry((await getRejected())[0]?.id as number);
+    await quarantine((await getAllPending())[0]?.id as number, 'not allowed');
+    expect((await getRejected()).map((row) => row.clientUuid)).toEqual([
+      'uuid-2',
+      'uuid-3',
+      'uuid-1',
+    ]);
+
+    await requeueRejected();
+
+    const queued = await getAllPending();
+    expect(queued.map((row) => row.clientUuid)).toEqual(['uuid-1', 'uuid-2', 'uuid-3']);
+    expect(queued.map((row) => row.sequence)).toEqual([1, 2, 3]);
   });
 });
 
