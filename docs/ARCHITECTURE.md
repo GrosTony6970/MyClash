@@ -1167,8 +1167,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > (`app/login/UnsentHitsNotice.tsx`). The bout screen drains when it opens, so a tablet opened again
 > while online does not show a green bar over waiting hits. An account's login is renewed once before a
 > 401 stands: the drain posts through `fetchRenewingLogin`, so an organiser who scores for more than
-> an hour is not told to sign in again; a PIN session cannot be renewed. Known limit: a Discard in the refused-hits inbox while
-> signed out turns the bar green over the waiting hits until the next drain.
+> an hour is not told to sign in again; a PIN session cannot be renewed. An action in the refused-hits
+> inbox that sends nothing (a Discard, a Retry that finds nothing) keeps what the last drain ended
+> in while a hit still waits (`emitResting`): it does not turn the bar green over a waiting queue.
 
 ### 10.3 Conflict resolution
 

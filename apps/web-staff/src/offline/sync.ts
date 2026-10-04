@@ -68,6 +68,8 @@ export class SyncEngine {
   private listeners: Set<SyncStateListener> = new Set();
   private running = false;
   private aborted = false;
+  /** What the last drain ended in: what an inbox action says while a hit still waits. */
+  private resting: SyncStatus = 'idle';
 
   /** Max consecutive failures before engine stops and reports error. */
   private readonly maxConsecutiveFailures = 3;
@@ -84,6 +86,7 @@ export class SyncEngine {
   }
 
   private async emit(status: SyncStatus, lastError?: string): Promise<void> {
+    if (status !== 'syncing') this.resting = status;
     const [pendingCount, rejected] = await Promise.all([totalPendingCount(), rejectedCount()]);
     // A held rejection outranks a clean phase. Emitting 'idle' with refused
     // exchanges on disk is what made the bar go green over a hit that was
@@ -100,6 +103,16 @@ export class SyncEngine {
     for (const listener of this.listeners) {
       listener(state);
     }
+  }
+
+  /**
+   * The state after an inbox action that sent nothing. `idle` there turned the
+   * bar green over hits a signed-out or failing pad still holds: while one
+   * waits, the last drain's answer stands. A drain that runs meanwhile emits
+   * after this and wins.
+   */
+  private async emitResting(): Promise<void> {
+    await this.emit((await totalPendingCount()) > 0 ? this.resting : 'idle');
   }
 
   // ── Posting ─────────────────────────────────────────────────────────────────
@@ -371,7 +384,7 @@ export class SyncEngine {
   async retryRejected(): Promise<number> {
     const requeued = await requeueRejected();
     if (requeued > 0) await this.drain();
-    else await this.emit('idle');
+    else await this.emitResting();
     return requeued;
   }
 
@@ -385,7 +398,7 @@ export class SyncEngine {
   async retryRejectedEntry(id: number): Promise<boolean> {
     const requeued = await requeueRejectedEntry(id);
     if (requeued) await this.drain();
-    else await this.emit('idle');
+    else await this.emitResting();
     return requeued;
   }
 
@@ -395,7 +408,7 @@ export class SyncEngine {
    */
   async discardRejectedEntry(id: number): Promise<void> {
     await discardRejected(id);
-    await this.emit('idle');
+    await this.emitResting();
   }
 
   /** Abort an in-progress drain (e.g. user navigates away). */
