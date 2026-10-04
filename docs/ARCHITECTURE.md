@@ -1950,7 +1950,10 @@ were unreachable over HTTP. On an over Event a super admin passes the check with
 club (251), at these four routes and at the two queue routes; on a running Event the role is asked
 as before. Every other result write (a status, the clock, a round, a colour swap, a reset, a
 bout's void, a forfeit and its void, an unlock) stays refused to everybody on an over Event (250);
-`result-writes.over-event.test.ts` holds each from its controller. A waiting correction request that a direct correction answers is closed by
+`result-writes.over-event.test.ts` holds each from its controller. The READS of a bout's record
+(its audit trail, its live forfeit) are not result writes: `StaffService.authorizeMatchRecordRead`
+lets an editor of the club read them whatever the Event's status, and a super admin with no role
+on an over Event (255). A waiting correction request that a direct correction answers is closed by
 that correction (`matches/answered-requests.ts`): the same void or restore closes it as approved
 (253), an edit of the hit closes a void request as rejected with a fixed reason (254), and every
 approval tells who asked, as a rejection does (253a). The guard's refusal

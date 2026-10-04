@@ -921,6 +921,20 @@ export class StaffService {
   }
 
   /**
+   * Who may READ a bout's record, its audit trail and its live forfeit: an
+   * editor of the organisation. An over Event is no bar to a read. There a
+   * super admin reads it too, with no role in the organisation: the corrections
+   * of an over Event are a super admin's (rulings 251, 255).
+   */
+  async authorizeMatchRecordRead(req: FastifyRequest, matchId: string): Promise<void> {
+    const userId = await this.getSupabaseUserId(req);
+    if (!userId) throw new UnauthorizedException('Organizer session required');
+    const match = await this.getMatchContext(matchId, 'read');
+    if (isOver(match.eventStatus) && (await this.isSuperAdmin(userId))) return;
+    await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
+  }
+
+  /**
    * Reopen (unlock) a locked match. The required role depends on the
    * tournament's auto-lock setting: a tournament organiser (editor+) may
    * always reopen, but when auto-lock is DISABLED the event staff running
@@ -1429,7 +1443,7 @@ export class StaffService {
     };
   }
 
-  private async getMatchContext(matchId: string, whenOver: WhenEventOver = 'refuse') {
+  private async getMatchContext(matchId: string, whenOver: WhenEventOver | 'read' = 'refuse') {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(

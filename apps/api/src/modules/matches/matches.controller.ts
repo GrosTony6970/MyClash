@@ -310,7 +310,7 @@ export class MatchesController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getActiveForfeit(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.staff.authorizeMatchOrganizer(req, id);
+    await this.staff.authorizeMatchRecordRead(req, id);
     return this.forfeits.getActiveForfeit(id);
   }
 
@@ -349,7 +349,7 @@ export class MatchesController {
     @Query('limit') limit: string | undefined,
     @Req() req: FastifyRequest,
   ) {
-    await this.staff.authorizeMatchOrganizer(req, id);
+    await this.staff.authorizeMatchRecordRead(req, id);
     const parsed = limit ? Number.parseInt(limit, 10) : undefined;
     return this.matchAudit.listForMatch(id, Number.isFinite(parsed) ? parsed : undefined);
   }

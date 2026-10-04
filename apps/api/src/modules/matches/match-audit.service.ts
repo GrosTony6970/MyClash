@@ -114,7 +114,7 @@ export class MatchAuditService {
         .eq('match_id', matchId),
     ]);
 
-    // The caller already went through authorizeMatchOrganizer, which loads the
+    // The caller already went through authorizeMatchRecordRead, which loads the
     // match and throws when it is missing — no need to prove it exists again.
     addRefs(ids, 'match', [matchId]);
     addRefs(
