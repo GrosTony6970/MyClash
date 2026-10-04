@@ -33,6 +33,8 @@ import {
   type PublicReader,
 } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
+import { hasPlatformTier } from '../../common/auth/platform-role';
+import { isOver } from '../../common/live-status';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -79,6 +81,12 @@ export interface ScoringActor {
   staffAccountId?: string;
   canOverrideLocked?: boolean;
   /**
+   * A super admin on an over Event (ruling 251): the one who corrects it, with
+   * or without a role in the club. A handler that asks the club's role again
+   * skips that for this actor; the over-Event guard still asks the tier.
+   */
+  correctsOverEvent?: boolean;
+  /**
    * May undo a result even though a later bout has already been fought, which
    * discards that bout's score and puts it back on the schedule.
    *
@@ -91,6 +99,14 @@ export interface ScoringActor {
    */
   canDiscardDependentResults?: boolean;
 }
+
+/** The Tournament a bout's `phases` embed hands to `getMatchContext`, with its Event. */
+type MatchTournamentRow = {
+  id: string;
+  event_id: string;
+  lock_config_json: unknown;
+  events: { organization_id: string; status: string };
+};
 
 type EventRow = {
   id: string;
@@ -124,8 +140,12 @@ type StaffAccountRow = {
  */
 const SCORING_ROLES: readonly StaffRole[] = ['scoring'];
 
-/** What "who may score" answers once the Event is completed or archived. */
-export type WhenEventOver = 'refuse' | 'leave-to-handler';
+/**
+ * What "who may score" answers once the Event is completed or archived.
+ * `'leave-account-to-handler'` is for a correction (ruling 249): an account
+ * reaches the handler, a pad's PIN session is refused as before.
+ */
+export type WhenEventOver = 'refuse' | 'leave-to-handler' | 'leave-account-to-handler';
 
 /**
  * The ONLY fields the unauthenticated staff event picker exposes.
@@ -822,7 +842,10 @@ export class StaffService {
    * and refuses a new one with a code the pad holds. Refused here, the pad
    * cannot tell the two apart and retries both for ever. WHO may score is asked
    * all the same: an account's role in the organisation; a PIN session's
-   * token, account, role, Event and piste.
+   * token, account, role, Event and piste. `'leave-account-to-handler'` is for
+   * the four corrections (ruling 249): an account alone reaches the handler.
+   * On an over Event a super admin passes both with no role in the
+   * organisation (ruling 251).
    */
   async authorizeMatchScoring(
     req: FastifyRequest,
@@ -832,20 +855,27 @@ export class StaffService {
     const userId = await this.getSupabaseUserId(req);
     if (userId) {
       const match = await this.getMatchContext(matchId, whenOver);
+      // Over here means the door leaves it to its handler: any other door was
+      // refused by the read above. A bout of a finished Event may be locked,
+      // and the correction is this caller's to make.
+      if (isOver(match.eventStatus) && (await this.isSuperAdmin(userId))) {
+        return { userId, canOverrideLocked: true, correctsOverEvent: true };
+      }
       await mayScore(this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper'));
       return {
         userId,
         canOverrideLocked: await this.canOverrideLockedMatch(match.organizationId, userId),
       };
     }
+    const padWhenOver: WhenEventOver = whenOver === 'leave-to-handler' ? whenOver : 'refuse';
 
     // The single choke point for every staff-token write to a bout — exchanges,
     // penalties, the clock and the match itself all resolve their actor through
     // here. Gating the role at this one call covers all of them; a desk or gear
     // account is refused before the piste-assignment check it could never pass
     // anyway, with a reason that names the real cause.
-    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES, whenOver);
-    const match = await this.getMatchContext(matchId, whenOver);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES, padWhenOver);
+    const match = await this.getMatchContext(matchId, padWhenOver);
     if (match.eventId !== staff.event_id) throw new ForbiddenException('Wrong staff event');
     if (!match.liceId) throw new ForbiddenException('Match has no assigned Lice');
     const assigned = await this.isLiceAssigned(staff.id, match.liceId);
@@ -914,7 +944,11 @@ export class StaffService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Exchange not found');
-    return this.authorizeMatchScoring(req, (data as { match_id: string }).match_id);
+    return this.authorizeMatchScoring(
+      req,
+      (data as { match_id: string }).match_id,
+      'leave-account-to-handler',
+    );
   }
 
   async authorizePenaltyScoring(req: FastifyRequest, penaltyId: string): Promise<ScoringActor> {
@@ -925,7 +959,11 @@ export class StaffService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Penalty not found');
-    return this.authorizeMatchScoring(req, (data as { match_id: string }).match_id);
+    return this.authorizeMatchScoring(
+      req,
+      (data as { match_id: string }).match_id,
+      'leave-account-to-handler',
+    );
   }
 
   async authorizeForfeitOrganizer(req: FastifyRequest, forfeitId: string): Promise<ScoringActor> {
@@ -1404,29 +1442,8 @@ export class StaffService {
     const row = data as unknown as {
       lice_id: string | null;
       phases:
-        | {
-            tournaments: {
-              id: string;
-              event_id: string;
-              lock_config_json: unknown;
-              events: { organization_id: string; status: string };
-            };
-          }
-        | Array<{
-            tournaments:
-              | {
-                  id: string;
-                  event_id: string;
-                  lock_config_json: unknown;
-                  events: { organization_id: string; status: string };
-                }
-              | Array<{
-                  id: string;
-                  event_id: string;
-                  lock_config_json: unknown;
-                  events: { organization_id: string; status: string };
-                }>;
-          }>;
+        | { tournaments: MatchTournamentRow }
+        | Array<{ tournaments: MatchTournamentRow | MatchTournamentRow[] }>;
     };
     const phase = Array.isArray(row.phases) ? row.phases[0] : row.phases;
     const tournament = Array.isArray(phase?.tournaments)
@@ -1440,6 +1457,7 @@ export class StaffService {
       liceId: row.lice_id,
       eventId: tournament.event_id,
       organizationId: tournament.events.organization_id,
+      eventStatus: tournament.events.status,
       tournamentId: tournament.id,
       lockConfigJson: tournament.lock_config_json,
     };
@@ -1495,6 +1513,11 @@ export class StaffService {
   private async assertCanManageEventStaff(eventId: string, userId: string) {
     const event = await this.getEventById(eventId);
     await this.orgs.assertOrgRole(event.organization_id, userId, 'editor');
+  }
+
+  /** `super_admin` exactly, as the over-Event guard of the handlers asks. */
+  private isSuperAdmin(userId: string): Promise<boolean> {
+    return hasPlatformTier(this.supabase, userId, 'super_admin');
   }
 
   private async canOverrideLockedMatch(organizationId: string, userId: string): Promise<boolean> {

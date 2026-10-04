@@ -50,6 +50,15 @@ import {
 
 type Row = Record<string, unknown>;
 
+/** Who sends a card or its void, as "who may score" answered (`ScoringActor`). */
+interface PenaltyActor {
+  userId?: string;
+  staffAccountId?: string;
+  canOverrideLocked?: boolean;
+  /** A super admin on an over Event: the club's role is not asked again (ruling 251). */
+  correctsOverEvent?: boolean;
+}
+
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
 
 /**
@@ -878,13 +887,9 @@ export class PenaltiesService {
     return data ?? [];
   }
 
-  async createPenalty(
-    matchId: string,
-    dto: CreatePenaltyDto,
-    context?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
-  ) {
+  async createPenalty(matchId: string, dto: CreatePenaltyDto, context?: PenaltyActor) {
     const match = await this.getMatchContext(matchId);
-    if (!context?.staffAccountId) {
+    if (!context?.staffAccountId && !context?.correctsOverEvent) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
     if (!dto.rulesetEntryId && !dto.directCard) {
@@ -1119,11 +1124,7 @@ export class PenaltiesService {
     return count ?? 0;
   }
 
-  async voidPenalty(
-    penaltyId: string,
-    dto: VoidPenaltyDto,
-    context?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
-  ) {
+  async voidPenalty(penaltyId: string, dto: VoidPenaltyDto, context?: PenaltyActor) {
     const { data: penalty, error: fetchError } = await this.supabase.service
       .from('match_penalties')
       .select('*')
@@ -1134,7 +1135,7 @@ export class PenaltiesService {
     const row = penalty as Row;
     const match = await this.getMatchContext(row['match_id'] as string);
     this.assertMatchNotLocked(match, context);
-    if (!context?.staffAccountId) {
+    if (!context?.staffAccountId && !context?.correctsOverEvent) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
     if (row['voided']) throw new BadRequestException('Penalty is already voided');

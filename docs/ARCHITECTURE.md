@@ -1932,7 +1932,8 @@ review, a Workshop or Event rating (223, 223a), a roster row's edit but not its 
 a League link, its request, its detach and the League recompute (224, 224a), and the score
 corrections, which follow the rules of a completed Event (222a): `FrozenResultsGuard` reads
 completed and archived alike, so an Exchange's void goes through a super admin's review and a
-forfeit's void is a super admin's; an Exchange edit and a penalty void have no review, so on an
+forfeit's void is a super admin's in its handler (no caller reaches it over HTTP, see 250 below);
+an Exchange edit and a penalty void have no review, so on an
 over Event they are a super admin's too (231); a penalty review asks no review, on a completed
 Event as on an archived one. A hit or a card from a pad's queue passes the lock too (240): the
 handler answers one the server already holds with the saved row, and `FrozenResultsGuard` refuses
@@ -1941,7 +1942,15 @@ Event. For the same two routes `StaffService.authorizeMatchScoring` is asked wit
 `'leave-to-handler'` (240a): it still asks who may score (an account's role; a PIN session's token, account, Event and piste) and
 no longer refuses because the Event is over, which it does for every other pad write. Refused by
 the lock or by that check, a saved hit and a new one look alike to the pad, which keeps both
-pending for ever. A PIN session that has ended still answers 401. The guard's refusal
+pending for ever. A PIN session that has ended still answers 401. The four corrections (an
+Exchange's void, restore and edit, a penalty's void) are asked with `'leave-account-to-handler'`
+(249): an account reaches the handler on an over Event, a pad's PIN session is refused as on every
+other pad write. Until then that check refused everybody, a super admin included, so 222a and 231
+were unreachable over HTTP. On an over Event a super admin passes the check with no role in the
+club (251), at these four routes and at the two queue routes; on a running Event the role is asked
+as before. Every other result write (a status, the clock, a round, a colour swap, a reset, a
+bout's void, a forfeit and its void, an unlock) stays refused to everybody on an over Event (250);
+`result-writes.over-event.test.ts` holds each from its controller. The guard's refusal
 carries the code `event_results_frozen`, which
 the pad (its refused-hits inbox included) and web-admin say in the reader's language. The lock's
 own refusal carries the code `event_archived`; `failureMessage` of `@myclash/api-client` says it in
