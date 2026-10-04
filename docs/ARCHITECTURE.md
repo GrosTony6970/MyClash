@@ -1112,8 +1112,8 @@ sequenceDiagram
     alt 2xx
       A-->>E: created, or the saved row for a repeated clientUuid
       E->>O: markSynced() → moves to `synced` table
-    else 409 refused
-      A-->>E: the Event is over
+    else 409 or 403 refused
+      A-->>E: the Event is over, or this caller may not score this bout
       E->>O: quarantine() — held in `rejected` with its code, never marked synced
     else 400 refused
       A-->>E: rejected (stale sequence, round awaiting advance, …)
@@ -1151,19 +1151,21 @@ The split between `offline` and `error` is deliberate: a network failure means "
 resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
 
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
-> saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409, the
-> entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining. The bar
-> stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on the two
-> create routes is an Event that is over: the server answers a repeated `clientUuid` with the saved
-> row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds.
+> saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409 and
+> 403, the entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining.
+> The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
+> the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
+> saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
+> 403 is a caller who may not score that bout (a pad moved off its piste while offline, a disabled
+> account): it is about the row, so the drain goes on, and the inbox says it in the reader's
+> language (`heldReason`). Retry sends it again once an organiser has put the pad back.
 >
 > A **401 is not a refusal of the hit** (status `signed-out`): nobody is signed in. A PIN session ends with its Event's last day, and no PIN signs in on an Event that is over. The
 > drain ends at the first 401 and every hit waits, in order. The pad sends nothing and says so: the
 > bout screen's bar names the ended session (`src/lib/sync-bar.ts`), and the sign-in screen, where
 > such a tablet lands and which has no bar, counts the hits the tablet holds
 > (`app/login/UnsentHitsNotice.tsx`). The bout screen drains when it opens, so a tablet opened again
-> while online does not show a green bar over waiting hits. Known limits: a 403 is still read as a
-> sync error; an organiser's lapsed account login answers 401 too and reads "session ended", though
+> while online does not show a green bar over waiting hits. Known limits: an organiser's lapsed account login answers 401 too and reads "session ended", though
 > a renewal would do (the drain does not renew a login); a Discard in the refused-hits inbox while
 > signed out turns the bar green over the waiting hits until the next drain.
 

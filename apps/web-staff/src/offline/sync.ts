@@ -220,13 +220,13 @@ export class SyncEngine {
   }
 
   /**
-   * A 409 is a refusal, NEVER "already on the server": the API answers a
-   * repeated client_uuid with the saved row and a 2xx. Its 409 here is an Event
-   * that is over. `drain` used to mark the hit synced, a green bar over a hit
-   * the server never took. Held with its code, and not re-sent: no other
-   * sequence makes an over Event take it.
+   * A 409 and a 403 are refusals, NEVER "already on the server": the API answers
+   * a repeated client_uuid with the saved row and a 2xx. A 409 here is an Event
+   * that is over. A 403 is a caller who may not score THIS bout (ruling 242: a
+   * pad moved off its piste), so the hits behind it still go. Held with its
+   * code, and not re-sent: no other sequence makes the server take it.
    */
-  private async holdConflict(entry: OutboxEntry, res: Response): Promise<void> {
+  private async holdRefusal(entry: OutboxEntry, res: Response): Promise<void> {
     const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
     await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
   }
@@ -276,8 +276,8 @@ export class SyncEngine {
           await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
           consecutiveFailures = 0;
           await this.emit('syncing');
-        } else if (res.status === 409) {
-          await this.holdConflict(entry, res);
+        } else if (res.status === 409 || res.status === 403) {
+          await this.holdRefusal(entry, res);
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else if (res.status === 401) {

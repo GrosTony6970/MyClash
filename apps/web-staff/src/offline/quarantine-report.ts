@@ -26,8 +26,8 @@ export type QuarantineReasonCode =
  * Map a server refusal to a code.
  *
  * Substring matching against the API's real messages rather than a status code,
- * because the status says little: the drain holds a 400 and a 409 (an Event
- * that is over, which buckets to 'other'). Unrecognised text buckets to 'other' instead of
+ * because the status says little: the drain holds a 400, a 409 (an Event that
+ * is over) and a 403 (both bucket to 'other'). Unrecognised text buckets to 'other' instead of
  * being guessed at; a wrong code is worse than an honest unknown.
  */
 export function classifyQuarantineReason(reason: string): QuarantineReasonCode {

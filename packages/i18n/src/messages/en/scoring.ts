@@ -155,6 +155,8 @@ export const scoring = {
     typeUnknown: 'Queued entry',
     eventOver:
       'This event is over, so the server did not accept this entry. It is held here, not lost. Ask an organiser.',
+    notAllowed:
+      'This tablet is not allowed to score this bout, so the server did not accept this entry. It is held here, not lost. Ask an organiser, then retry.',
   },
   lice: {
     loadingMatch: 'Loading match...',

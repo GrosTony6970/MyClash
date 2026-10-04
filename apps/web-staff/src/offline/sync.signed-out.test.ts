@@ -131,23 +131,6 @@ describe('drain — nobody is signed in (401)', () => {
 
     expect(last).toMatchObject({ status: 'signed-out', pendingCount: 1, rejectedCount: 1 });
   });
-
-  it('a 403 keeps its older answer: a sync error, and the drain goes on', async () => {
-    // Named, not fixed: a pad moved off its piste, a disabled account. A hit of
-    // another bout behind it may still pass, so the drain must not stop.
-    await addHit(1, 'uuid-1');
-    await addHit(2, 'uuid-2');
-    const { posted } = mockApi((sequence) =>
-      sequence === 1
-        ? { status: 403, body: { message: 'Staff account is not assigned to this Lice' } }
-        : { status: 201, body: { id: 'srv-2' } },
-    );
-
-    const last = await drainWatched(new SyncEngine(API_URL));
-
-    expect(posted).toEqual([1, 2]);
-    expect(last).toMatchObject({ status: 'error', pendingCount: 1 });
-  });
 });
 
 describe('the bout screen', () => {

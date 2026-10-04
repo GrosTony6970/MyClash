@@ -163,6 +163,8 @@ export const scoring = {
     typeUnknown: 'Entrée en attente',
     eventOver:
       "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
+    notAllowed:
+      "Cette tablette n'est pas autorisée à arbitrer cet assaut : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur, puis réessayez.",
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",

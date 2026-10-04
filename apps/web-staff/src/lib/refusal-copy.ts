@@ -51,6 +51,7 @@ const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
 const EVENT_OVER = 'scoring.corrections.eventOver';
 const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
+const HELD_NOT_ALLOWED = 'scoring.quarantine.notAllowed';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
@@ -100,7 +101,10 @@ export function heldReason(
   held: { rejectedReason: string; rejectedCode?: string },
   t: Translate,
 ): string {
-  return held.rejectedCode === 'event_results_frozen' ? t(HELD_EVENT_OVER) : held.rejectedReason;
+  if (held.rejectedCode === 'event_results_frozen') return t(HELD_EVENT_OVER);
+  // Ruling 242: the API's own code of a 403 that carries no other one.
+  if (held.rejectedCode === 'FORBIDDEN') return t(HELD_NOT_ALLOWED);
+  return held.rejectedReason;
 }
 
 /** A refusal the pad knows by its `code`, or null. */
