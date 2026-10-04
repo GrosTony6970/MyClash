@@ -12,16 +12,7 @@ import { localeToBcp47 } from '@myclash/time';
 
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import type { ReviewQueueItem } from '../_types';
-
-// ── Type badge config ─────────────────────────────────────────────────────────
-
-const TYPE_BADGE: Record<ReviewQueueItem['type'], { color: string; label: string }> = {
-  deletion: { color: 'blue', label: 'Deletion' },
-  exchange_edit: { color: 'purple', label: 'Exchange edit' },
-  club_review: { color: 'green', label: 'Club review' },
-  league_tournament_request: { color: 'red', label: 'League request' },
-  league_membership_request: { color: 'red', label: 'League join request' },
-};
+import { ageOf, typeBadge } from './queue-row-copy';
 
 // ── Status pill ───────────────────────────────────────────────────────────────
 
@@ -42,20 +33,6 @@ function statusLabel(t: Translator, status: string): string {
   }
 }
 
-// ── Relative time ─────────────────────────────────────────────────────────────
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days !== 1 ? 's' : ''} ago`;
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface QueueRowProps {
@@ -69,7 +46,7 @@ export interface QueueRowProps {
 
 export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
   const { locale, t } = useI18n();
-  const badge = TYPE_BADGE[item.type];
+  const badge = typeBadge(item);
   const truncatedReason =
     item.reason && item.reason.length > 80 ? item.reason.slice(0, 80) + '…' : item.reason;
   const isBusy = busyId === item.id;
@@ -78,7 +55,7 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
     <DataTableRow>
       {/* Type badge */}
       <DataTableCell className="whitespace-nowrap">
-        <SkillBadge color={badge.color} label={badge.label} />
+        <SkillBadge color={badge.color} label={t(badge.labelKey)} />
       </DataTableCell>
 
       {/* Target */}
@@ -107,7 +84,7 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
 
       {/* Age */}
       <DataTableCell className="whitespace-nowrap text-sm text-muted">
-        {relativeTime(item.createdAt)}
+        {ageOf(item.createdAt, localeToBcp47(locale))}
       </DataTableCell>
 
       {/* Reason */}

@@ -21,6 +21,7 @@ describe('ExchangeEditRequestsAdminService', () => {
       frozenResults as never,
       matches as never,
       { resolveUsers: vi.fn() } as never,
+      {} as never,
     );
 
     const result = await service.approve('request-1', 'super-1');
@@ -51,6 +52,7 @@ describe('ExchangeEditRequestsAdminService', () => {
       frozenResults as never,
       matches as never,
       { resolveUsers: vi.fn() } as never,
+      {} as never,
     );
 
     const result = await service.reject('request-1', 'super-1', 'Not enough evidence');

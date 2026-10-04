@@ -113,6 +113,7 @@ function makeListedExchangeEdit(overrides: Record<string, unknown> = {}): Record
     eventLabel: 'FAL 2026',
     matchLabel: 'Longsword · pool · L1-P1-M03',
     exchangeLabel: '#7 · clean',
+    boutHref: '/org/les-lames/events/event-1/matches/match-1',
     ...overrides,
   };
 }
@@ -228,7 +229,9 @@ describe('ReviewQueueService', () => {
         id: 'req-1',
         status: 'rejected',
         targetLabel: 'FAL 2026 · Longsword · pool · L1-P1-M03 · #7 · clean',
-        targetHref: null,
+        // The bout's page, and what is asked of the hit: void it, or restore it.
+        targetHref: '/org/les-lames/events/event-1/matches/match-1',
+        exchangeAction: 'void_exchange',
         requesterUserId: 'user-1',
         requesterName: 'Léa Martin',
         requesterEmail: 'lea@example.test',
@@ -253,6 +256,16 @@ describe('ReviewQueueService', () => {
     const [item] = await queue.listAll('exchange_edit', null);
 
     expect(item!.targetLabel).toBe('FAL 2026 · match-1 · #7 · clean');
+  });
+
+  it('a request to restore a hit says so, and one with no bout page has no link', async () => {
+    const { queue } = exchangeEditsOf([
+      makeListedExchangeEdit({ request_type: 'revert_void_exchange', boutHref: null }),
+    ]);
+
+    const [item] = await queue.listAll('exchange_edit', null);
+
+    expect(item).toMatchObject({ exchangeAction: 'revert_void_exchange', targetHref: null });
   });
 
   // ── 2. listAll with typeFilter='deletion' only queries deletion_requests ─────

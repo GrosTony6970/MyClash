@@ -9,6 +9,8 @@ export interface ReviewQueueItem {
   status: 'pending' | 'approved' | 'rejected' | 'linked' | 'cancelled';
   targetLabel: string;
   targetHref: string | null;
+  /** An exchange correction alone: what it asks of the hit. */
+  exchangeAction?: 'void_exchange' | 'revert_void_exchange';
   requesterUserId: string;
   requesterName: string | null;
   requesterEmail: string | null;

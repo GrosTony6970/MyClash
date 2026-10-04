@@ -30,6 +30,8 @@ export interface ReviewQueueItem {
   status: 'pending' | 'approved' | 'rejected' | 'linked' | 'cancelled';
   targetLabel: string;
   targetHref: string | null;
+  /** An exchange correction alone: what it asks of the hit. */
+  exchangeAction?: 'void_exchange' | 'revert_void_exchange';
   requesterUserId: string;
   requesterName: string | null;
   requesterEmail: string | null;
@@ -335,7 +337,8 @@ export class ReviewQueueService {
         r.matchLabel ?? r.match_id,
         r.exchangeLabel ?? r.exchange_id,
       ].join(' · '),
-      targetHref: null,
+      targetHref: r.boutHref,
+      exchangeAction: r.request_type,
       requesterUserId: r.requested_by_user_id,
       requesterName: r.requesterName,
       requesterEmail: r.requesterEmail,

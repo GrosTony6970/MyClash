@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { collectPayloadRefs } from '../entity-label/audit-payload-refs';
 import { type EntityKind, labelKey } from '../entity-label/entity-label-specs';
 import {
@@ -8,7 +8,9 @@ import {
 } from '../entity-label/entity-label.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { MatchesService } from '../matches/matches.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import type { ListExchangeEditRequestsDto } from './dto/exchange-edit-requests.dto';
+import { boutLinks } from './exchange-edit-bout-links';
 
 /** The request rows carry an event/match/exchange triple that must never render raw. */
 const COLUMN_REFS = [
@@ -19,10 +21,13 @@ const COLUMN_REFS = [
 
 @Injectable()
 export class ExchangeEditRequestsAdminService {
+  private readonly logger = new Logger(ExchangeEditRequestsAdminService.name);
+
   constructor(
     private readonly frozenResults: FrozenResultsGuard,
     private readonly matches: MatchesService,
     private readonly entityLabels: EntityLabelService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   async list(query: ListExchangeEditRequestsDto) {
@@ -48,6 +53,7 @@ export class ExchangeEditRequestsAdminService {
       for (const ref of list) addRefs(refs, ref.kind, [ref.id]);
     }
     const { labels, users } = await this.entityLabels.resolve(refs);
+    const links = await boutLinks({ supabase: this.supabase, logger: this.logger }, rows);
 
     return rows.map((r, index) => {
       const requester = users.get(r.requested_by_user_id);
@@ -66,6 +72,8 @@ export class ExchangeEditRequestsAdminService {
         eventLabel: labels.get(labelKey('event', r.event_id)) ?? null,
         matchLabel: labels.get(labelKey('match', r.match_id)) ?? null,
         exchangeLabel: labels.get(labelKey('exchange', r.exchange_id)) ?? null,
+        /** The bout's page in the organiser app, or null when its Event no longer resolves. */
+        boutHref: links.get(r.id) ?? null,
         payloadLabels,
       };
     });
