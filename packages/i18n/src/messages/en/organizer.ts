@@ -2237,7 +2237,7 @@ export const organizer = {
       'Round {round} has already been drawn from these standings and some of its bouts have been fought. It cannot be redrawn.',
     uncompleteBlockedTitle: 'Undoing this result would invalidate a later bout',
     uncompleteAffectedTitle: 'Bouts affected',
-    correctionSubmitted: 'Correction request {id} submitted for review.',
+    correctionSubmitted: 'Correction request submitted for review.',
     red: 'Fighter 1',
     blue: 'Fighter 2',
     canContinue: 'Can continue',

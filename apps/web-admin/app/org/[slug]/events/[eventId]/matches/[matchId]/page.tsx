@@ -153,7 +153,6 @@ interface AuditEntry {
 
 interface PendingReviewResponse {
   pendingReview?: boolean;
-  requestId?: string;
   status?: string;
 }
 
@@ -324,9 +323,7 @@ export default function MatchDetailPage() {
         return;
       }
       if (r.data.pendingReview) {
-        setPendingNotice(
-          t('organizer.matchDetail.correctionSubmitted', { id: r.data.requestId ?? '' }),
-        );
+        setPendingNotice(t('organizer.matchDetail.correctionSubmitted'));
       } else {
         setPendingNotice(null);
       }
@@ -360,9 +357,7 @@ export default function MatchDetailPage() {
       return;
     }
     if (r.data.pendingReview) {
-      setPendingNotice(
-        t('organizer.matchDetail.correctionSubmitted', { id: r.data.requestId ?? '' }),
-      );
+      setPendingNotice(t('organizer.matchDetail.correctionSubmitted'));
     } else {
       setPendingNotice(null);
     }

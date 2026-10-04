@@ -2197,7 +2197,7 @@ export const organizer = {
       'La ronde {round} a déjà été tirée à partir de ce classement et certains de ses assauts ont été combattus. Elle ne peut pas être retirée.',
     uncompleteBlockedTitle: 'Annuler ce résultat invaliderait un assaut suivant',
     uncompleteAffectedTitle: 'Assauts concernés',
-    correctionSubmitted: 'Demande de correction {id} soumise pour validation.',
+    correctionSubmitted: 'Demande de correction soumise pour validation.',
     red: 'Combattant 1',
     blue: 'Combattant 2',
     canContinue: 'Peut continuer',
