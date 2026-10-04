@@ -58,6 +58,9 @@ interface Odd {
   sessionOver?: true;
   /** The account holds no scorekeeper role in the organisation. */
   noRole?: true;
+  accountRole?: string;
+  /** What the role check throws that is not a refusal. */
+  roleCheckFails?: Error;
 }
 
 /** One bout of one Event, with a saved hit, a saved card and one scoring account. */
@@ -92,7 +95,12 @@ function database(status: string, odd: Odd) {
     platform_roles: { rows: [] },
     event_staff_accounts: {
       rows: [
-        { id: 'staff-1', event_id: EVENT, status: odd.accountStatus ?? 'active', role: 'scoring' },
+        {
+          id: 'staff-1',
+          event_id: EVENT,
+          status: odd.accountStatus ?? 'active',
+          role: odd.accountRole ?? 'scoring',
+        },
         { id: 'staff-1', event_id: 'event-2', status: 'active', role: 'scoring' },
       ],
     },
@@ -102,11 +110,15 @@ function database(status: string, odd: Odd) {
   });
 }
 
+/** The organisation's role check: it passes, refuses, or fails. */
+function roleCheck(odd: Odd) {
+  const refused = odd.roleCheckFails ?? (odd.noRole ? new ForbiddenException('no role') : null);
+  return refused ? vi.fn().mockRejectedValue(refused) : vi.fn().mockResolvedValue(undefined);
+}
+
 function setup(status: string, caller: Caller, odd: Odd = {}) {
   const db = database(status, odd);
-  const assertOrgRole = odd.noRole
-    ? vi.fn().mockRejectedValue(new ForbiddenException('no role'))
-    : vi.fn().mockResolvedValue(undefined);
+  const assertOrgRole = roleCheck(odd);
   const verify = () => {
     if (odd.sessionOver) throw new UnauthorizedException('Staff session expired');
     return { sub: 'staff-1', event_id: odd.sessionEvent ?? EVENT, type: 'staff' };
@@ -217,6 +229,66 @@ describe('a card from a pad’s queue, sent to an over Event', () => {
       penalties.createPenalty(MATCH, { ...CARD, clientUuid: 'card-new' } as never, req),
     ).rejects.toEqual(FROZEN);
     expect(db.writes).toEqual([]);
+  });
+});
+
+/**
+ * Rulings 244, 245, 245a. A refusal about the PERSON meets every hit of the
+ * queue: the pad stops at it and says why, so it carries its own code. A refusal
+ * about the BOUT carries none: the pad holds that hit and the queue goes on.
+ */
+describe('a queued hit refused for who sends it', () => {
+  const refusalOf = (attempt: Promise<unknown>) =>
+    attempt.then(
+      () => null,
+      (error: ForbiddenException) => error.getResponse() as { code?: string; message: string },
+    );
+  const sendBoth = ({ matches, penalties, req }: ReturnType<typeof setup>) => [
+    matches.createExchange(MATCH, { ...HIT, clientUuid: 'hit-new' } as never, req),
+    penalties.createPenalty(MATCH, { ...CARD, clientUuid: 'card-new' } as never, req),
+  ];
+
+  it.each<[string, Caller, Odd, string, string]>([
+    ['an account with no role', 'user', { noRole: true }, 'account_cannot_score', 'no role'],
+    [
+      'a disabled PIN account',
+      'pin',
+      { accountStatus: 'disabled' },
+      'staff_account_disabled',
+      'Staff account is disabled',
+    ],
+    [
+      'a PIN account whose role cannot score',
+      'pin',
+      { accountRole: 'checkin' },
+      'staff_role_not_allowed',
+      'Staff account role cannot use this surface',
+    ],
+  ])('%s is refused with its own code', async (_who, caller, odd, code, message) => {
+    for (const attempt of sendBoth(setup('running', caller, odd))) {
+      await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+      expect(await refusalOf(attempt)).toEqual({ message, code });
+    }
+  });
+
+  it.each<[string, Odd]>([
+    ['another piste’s pad', { piste: 'lice-2' }],
+    ['a pad signed into another Event', { sessionEvent: 'event-2' }],
+  ])('%s is refused about the bout, with no code', async (_who, odd) => {
+    for (const attempt of sendBoth(setup('running', 'pin', odd))) {
+      expect(await refusalOf(attempt)).not.toHaveProperty('code');
+    }
+  });
+
+  it('a role check that fails, or finds no valid login, is not "no role"', async () => {
+    const failed = new Error('membership read failed: timeout');
+    for (const attempt of sendBoth(setup('running', 'user', { roleCheckFails: failed }))) {
+      await expect(attempt).rejects.toBe(failed);
+    }
+    const noLogin = new UnauthorizedException('Authentication required');
+    for (const attempt of sendBoth(setup('running', 'user', { roleCheckFails: noLogin }))) {
+      await expect(attempt).rejects.toBe(noLogin);
+    }
   });
 });
 

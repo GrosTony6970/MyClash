@@ -62,6 +62,7 @@ import type {
 } from './dto';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 import { normalizeStaffUsername } from './normalize-username';
+import { mayScore, staffAccountDisabled, staffRoleNotAllowed } from './scoring-refusals';
 
 const scrypt = promisify(scryptCallback);
 export const STAFF_COOKIE_NAME = 'mc_staff';
@@ -831,7 +832,7 @@ export class StaffService {
     const userId = await this.getSupabaseUserId(req);
     if (userId) {
       const match = await this.getMatchContext(matchId, whenOver);
-      await this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper');
+      await mayScore(this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper'));
       return {
         userId,
         canOverrideLocked: await this.canOverrideLockedMatch(match.organizationId, userId),
@@ -1468,9 +1469,9 @@ export class StaffService {
     if (!token) throw new UnauthorizedException('Staff session required');
     const payload = this.jwt.verify(token);
     const account = await this.getAccountForEvent(payload.event_id, payload.sub);
-    if (account.status !== 'active') throw new ForbiddenException('Staff account is disabled');
+    if (account.status !== 'active') throw staffAccountDisabled();
     if (allowedRoles && !allowedRoles.includes(parseStaffRole(account.role))) {
-      throw new ForbiddenException('Staff account role cannot use this surface');
+      throw staffRoleNotAllowed();
     }
     if (whenOver === 'refuse') {
       this.assertEventScorable(await this.getEventById(account.event_id));
