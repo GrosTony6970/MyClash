@@ -82,6 +82,16 @@ describe('the notices of the Tournament day', () => {
       'Demande de correction refusée / Exchange correction rejected',
     );
   });
+
+  it('an approved correction, and the reason a request ends with when its hit was edited', () => {
+    expect(texts.correctionApproved()).toEqual({
+      title: 'Demande de correction approuvée / Exchange correction approved',
+      body: 'La correction demandée a été faite. / The correction you asked for was made.',
+    });
+    expect(texts.correctionHitChanged()).toBe(
+      'Un administrateur a modifié cet échange. Refaites une demande si le nouvel échange est faux lui aussi. / An administrator changed this exchange. Ask again if the new exchange is wrong too.',
+    );
+  });
 });
 
 describe('the notices of a Workshop', () => {

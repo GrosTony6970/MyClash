@@ -207,7 +207,8 @@ describe('a correction on an over Event (rulings 249, 251)', () => {
     const c = chain(status, 'super admin');
     await voidHit(c);
     expect(c.changed('exchanges')).toEqual([{ voided: true, voided_reason: REASON.reason }]);
-    expect(c.changed('exchange_edit_requests')).toEqual([]);
+    // No request is filed: the one write closes the requests the void answers (ruling 253).
+    expect(c.changed('exchange_edit_requests')).toMatchObject([{ status: 'approved' }]);
     expect(c.scoring.assertCorrectionLands).toHaveBeenCalledWith(MATCH, {
       dropExchangeIds: ['hit-live'],
     });

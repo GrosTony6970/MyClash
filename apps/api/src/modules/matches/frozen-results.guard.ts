@@ -6,11 +6,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
-import { correctionRejectedTitle } from '../notifications/notice-texts/notice-texts';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isOver } from '../../common/live-status';
+import {
+  closeAnsweredRequests,
+  tellApproved,
+  tellRejected,
+  type DirectCorrection,
+  type RequestClosureDeps,
+} from './answered-requests';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
 export type ExchangeEditRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -57,6 +63,10 @@ export class FrozenResultsGuard {
     private readonly supabase: SupabaseService,
     private readonly notifications: NotificationSchedulerService,
   ) {}
+
+  private get closure(): RequestClosureDeps {
+    return { supabase: this.supabase, notifications: this.notifications, logger: this.logger };
+  }
 
   async assertExchangeCreationAllowed(matchId: string, userId?: string): Promise<void> {
     return this.assertResultMutationAllowed(matchId, userId);
@@ -166,21 +176,47 @@ export class FrozenResultsGuard {
     return request;
   }
 
-  async markApproved(request: ExchangeEditRequestRow, actorUserId: string): Promise<void> {
+  /**
+   * A review closes its request only while it still waits. A direct correction
+   * may have closed it since the review read it (`closeAnswered`); that call
+   * told who asked, and a second, opposite notice would follow this one.
+   */
+  private async closeReviewed(
+    id: string,
+    verdict: { status: 'approved' } | { status: 'rejected'; rejection_reason: string },
+    actorUserId: string,
+  ): Promise<void> {
     const now = new Date().toISOString();
-    const { error } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('exchange_edit_requests')
-      .update({
-        status: 'approved',
-        reviewed_by_user_id: actorUserId,
-        reviewed_at: now,
-        updated_at: now,
-      })
-      .eq('id', request.id);
+      .update({ ...verdict, reviewed_by_user_id: actorUserId, reviewed_at: now, updated_at: now })
+      .eq('id', id)
+      .eq('status', 'pending')
+      .select('id');
     if (error) throw new BadRequestException(error.message);
+    if (!data?.length) throw new BadRequestException('Request is already reviewed');
+  }
+
+  async markApproved(request: ExchangeEditRequestRow, actorUserId: string): Promise<void> {
+    await this.closeReviewed(request.id, { status: 'approved' }, actorUserId);
     await this.writeAudit(actorUserId, 'exchange_edit_request.approve', request.id, {
       request,
     });
+    await tellApproved(this.closure, request);
+  }
+
+  /**
+   * A correction that asked no review has landed on this hit: close the
+   * requests it answers (rulings 253, 254). An approval closes its own request
+   * (`markApproved`), so it is not asked here. Never throws.
+   */
+  async closeAnswered(
+    exchangeId: string,
+    did: DirectCorrection,
+    actor?: { userId?: string; bypassFrozenReview?: boolean },
+  ): Promise<void> {
+    if (actor?.bypassFrozenReview) return;
+    await closeAnsweredRequests(this.closure, { exchangeId, did, actorUserId: actor?.userId });
   }
 
   async markRejected(
@@ -190,31 +226,16 @@ export class FrozenResultsGuard {
   ): Promise<void> {
     const trimmed = reason.trim();
     if (!trimmed) throw new BadRequestException('Rejection reason is required');
-    const now = new Date().toISOString();
-    const { error } = await this.supabase.service
-      .from('exchange_edit_requests')
-      .update({
-        status: 'rejected',
-        reviewed_by_user_id: actorUserId,
-        reviewed_at: now,
-        rejection_reason: trimmed,
-        updated_at: now,
-      })
-      .eq('id', request.id);
-    if (error) throw new BadRequestException(error.message);
+    await this.closeReviewed(
+      request.id,
+      { status: 'rejected', rejection_reason: trimmed },
+      actorUserId,
+    );
     await this.writeAudit(actorUserId, 'exchange_edit_request.reject', request.id, {
       request,
       reason: trimmed,
     });
-    await this.notifications.sendImmediate({
-      kind: 'exchange_edit_rejected',
-      entityId: request.id,
-      userId: request.requested_by_user_id,
-      title: correctionRejectedTitle(),
-      body: trimmed,
-      url: '/notifications',
-      preference: 'schedule_changes',
-    });
+    await tellRejected(this.closure, request, trimmed);
   }
 
   /**
@@ -239,7 +260,7 @@ export class FrozenResultsGuard {
    * and inventing a sentinel uuid there would put a fictional reviewer in the
    * audit trail.
    *
-   * Best-effort ON PURPOSE, the one place in this class that swallows. It runs
+   * Best-effort ON PURPOSE, as `closeAnswered` is. It runs
    * inside the un-completion owner AFTER the bout has been put back; throwing
    * here would fail a reset that has already happened, to tidy a queue.
    */

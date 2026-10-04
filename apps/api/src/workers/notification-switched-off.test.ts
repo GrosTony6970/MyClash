@@ -107,6 +107,7 @@ const SWITCHED: Array<[string, NotificationKind, NotificationPreferenceToggle]> 
   ['the new Event of an organiser she follows', 'organizer_published_event', 'organizer_updates'],
   ["the referee's lock message", 'assignment_changed', 'schedule_changes'],
   ['a refused exchange correction', 'exchange_edit_rejected', 'schedule_changes'],
+  ['an approved exchange correction', 'exchange_edit_approved', 'schedule_changes'],
 ];
 
 /** The notices with no switch of their own: only the main switch stops them. */

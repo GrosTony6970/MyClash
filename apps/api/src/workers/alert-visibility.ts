@@ -102,6 +102,7 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   workshop_cancelled: null,
   waitlist_promoted: null,
   exchange_edit_rejected: null,
+  exchange_edit_approved: null,
   organizer_broadcast: null,
   organizer_published_event: null,
   // Checked when queued: a public Tournament of a public Event (`resultsPublished`, rulings 196,

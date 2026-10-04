@@ -79,5 +79,11 @@ export const notices = {
   },
   correctionRejected: {
     title: 'Exchange correction rejected',
+    hitChanged:
+      'An administrator changed this exchange. Ask again if the new exchange is wrong too.',
+  },
+  correctionApproved: {
+    title: 'Exchange correction approved',
+    body: 'The correction you asked for was made.',
   },
 } as const satisfies MessageTree;

@@ -28,6 +28,7 @@ const mockMatchAlerts = {
 const mockFrozenResults = {
   assertExchangeCreationAllowed: vi.fn().mockResolvedValue(undefined),
   guardExchangeMutation: vi.fn().mockResolvedValue(null),
+  closeAnswered: vi.fn().mockResolvedValue(undefined),
 };
 
 /**

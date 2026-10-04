@@ -45,6 +45,7 @@ const KINDS: NotificationKind[] = [
   'waitlist_promoted',
   'results_published',
   'exchange_edit_rejected',
+  'exchange_edit_approved',
   'organizer_broadcast',
   'follow_match_starting',
   'follow_referee_starting',

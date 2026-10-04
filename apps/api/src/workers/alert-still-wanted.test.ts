@@ -306,6 +306,7 @@ describe('what the check reads', () => {
     ['waitlist_promoted'],
     ['results_published'],
     ['exchange_edit_rejected'],
+    ['exchange_edit_approved'],
     ['organizer_broadcast'],
     ['organizer_published_event'],
     ['swiss_round_published'],

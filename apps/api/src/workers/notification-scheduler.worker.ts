@@ -36,6 +36,7 @@ export type ImmediateNotificationKind =
   | 'waitlist_promoted'
   | 'results_published'
   | 'exchange_edit_rejected'
+  | 'exchange_edit_approved'
   | 'organizer_broadcast'
   // Immediate, NOT a FollowNotificationKind: those three are all scheduled
   // reminders about a followed PERSON, built exclusively by

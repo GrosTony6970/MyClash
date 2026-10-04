@@ -12,7 +12,7 @@ const REQUEST = { id: 'r-1', requested_by_user_id: 'u-marc' } as ExchangeEditReq
 describe('a refused exchange correction', () => {
   it('tells the scorer who asked, with the reason as the organiser wrote it', async () => {
     const db = mockSupabase({
-      exchange_edit_requests: { rows: [{ id: 'r-1' }] },
+      exchange_edit_requests: { rows: [{ id: 'r-1', status: 'pending' }] },
       audit_log: { data: null, error: null },
     });
     const notifications = { sendImmediate: vi.fn() };

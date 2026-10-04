@@ -912,6 +912,7 @@ export class MatchesService {
 
     // Recompute authoritative match score
     await this.scoring.recomputeMatchScore(ex.match_id);
+    await this.frozenResults?.closeAnswered(exchangeId, 'void_exchange', context);
 
     return data;
   }
@@ -965,6 +966,7 @@ export class MatchesService {
 
     // Recompute authoritative match score
     await this.scoring.recomputeMatchScore(ex.match_id);
+    await this.frozenResults?.closeAnswered(exchangeId, 'revert_void_exchange', context);
 
     return data;
   }
@@ -1075,10 +1077,7 @@ export class MatchesService {
 
     await this.supabase.service
       .from('exchanges')
-      .update({
-        voided: true,
-        voided_reason: dto.reason ?? 'edited',
-      })
+      .update({ voided: true, voided_reason: dto.reason ?? 'edited' })
       .eq('id', exchangeId);
 
     const { data, error } = await this.supabase.service
@@ -1088,6 +1087,8 @@ export class MatchesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     await this.scoring.recomputeMatchScore(matchId);
+    // The hit a waiting request asked to void is gone, and another counts (ruling 254).
+    await this.frozenResults?.closeAnswered(exchangeId, 'edit', context);
     return data;
   }
 

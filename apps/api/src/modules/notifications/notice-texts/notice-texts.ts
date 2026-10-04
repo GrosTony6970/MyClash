@@ -205,3 +205,14 @@ export function followWorkshop(
 
 /** The body of this notice is the organiser's own reason: it is not translated. */
 export const correctionRejectedTitle = (): string => bilingual('notices.correctionRejected.title');
+
+/** The reason a request ends with when somebody edited the hit it asked to void (ruling 254). */
+export const correctionHitChanged = (): string =>
+  bilingual('notices.correctionRejected.hitChanged');
+
+export function correctionApproved(): NoticeText {
+  return {
+    title: bilingual('notices.correctionApproved.title'),
+    body: bilingual('notices.correctionApproved.body'),
+  };
+}

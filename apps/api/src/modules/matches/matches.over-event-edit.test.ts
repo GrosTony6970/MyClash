@@ -29,6 +29,8 @@ function setup(eventStatus: string) {
     tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
     events: { rows: [{ id: 'event-1', status: eventStatus }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
+    // An edit closes the requests that wait on its hit (ruling 254): none here.
+    exchange_edit_requests: { rows: [] },
   });
   const scoring = {
     recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),

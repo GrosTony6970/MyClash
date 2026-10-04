@@ -224,6 +224,7 @@ const WANTED: Record<NotificationKind, Wanted | null> = {
   waitlist_promoted: null,
   results_published: null,
   exchange_edit_rejected: null,
+  exchange_edit_approved: null,
   organizer_broadcast: null,
   organizer_published_event: null,
   swiss_round_published: null,

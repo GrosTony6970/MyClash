@@ -76,5 +76,11 @@ export const notices = {
   },
   correctionRejected: {
     title: 'Demande de correction refusée',
+    hitChanged:
+      'Un administrateur a modifié cet échange. Refaites une demande si le nouvel échange est faux lui aussi.',
+  },
+  correctionApproved: {
+    title: 'Demande de correction approuvée',
+    body: 'La correction demandée a été faite.',
   },
 } as const satisfies DeepString<typeof enNotices>;
