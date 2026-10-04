@@ -29,6 +29,10 @@ export const scoring = {
     signInWithPin: 'Connexion PIN',
     signingIn: 'Connexion...',
     localLoginError: 'Connexion impossible avec cet événement, cet identifiant et ce PIN.',
+    unsentOne:
+      "Cette tablette contient 1 touche non envoyée. Elle sera envoyée dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
+    unsentMany:
+      "Cette tablette contient {count} touches non envoyées. Elles seront envoyées dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
     picker: {
       label: 'Événement',
       tabsLabel: 'Quels événements afficher',
@@ -176,6 +180,8 @@ export const scoring = {
     syncing: 'SYNCHRONISATION',
     syncError: 'ERREUR DE SYNCHRO',
     hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
+    sessionEnded:
+      "SESSION TERMINÉE - TOUCHES NON ENVOYÉES. RECONNECTEZ-VOUS. SI L'ÉVÉNEMENT EST TERMINÉ, PRÉVENEZ UN ORGANISATEUR",
     reviewRefused: 'Examiner',
     backToMatchList: 'Retour à la liste des assauts',
     red: 'Combattant 1',

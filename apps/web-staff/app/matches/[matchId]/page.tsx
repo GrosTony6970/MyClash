@@ -9,6 +9,7 @@ import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
+import { needsOperator, syncBarLabel, syncBarTone, syncPhaseOf } from '../../../src/lib/sync-bar';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -89,6 +90,9 @@ export default function MatchScoringPage({ params }: Props) {
     };
     const handleOffline = () => setNetworkStatus('offline');
     window.addEventListener('online', handleOnline);
+    // A tablet opened again while online gets no `online` event: send what it
+    // holds now, or the bar is green over hits that wait.
+    void syncEngine.drain();
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -230,22 +234,9 @@ export default function MatchScoringPage({ params }: Props) {
     );
   }
 
-  // 4-state durable-sync indicator. Browser-offline always wins; otherwise the
-  // bar reflects the SyncEngine's own phase (syncing / error / idle→online).
   const pending = syncState?.pendingCount ?? 0;
-  // Exchanges the server REFUSED. The engine forces `status: 'error'` while any
-  // are held, so this only changes the WORDING — but the wording is the point:
-  // "sync error" reads as a connection problem the operator waits out, and this
-  // is a hit that will never arrive unless they act.
   const rejected = syncState?.rejectedCount ?? 0;
-  const syncPhase: 'online' | 'syncing' | 'offline' | 'error' =
-    networkStatus === 'offline' || syncState?.status === 'offline'
-      ? 'offline'
-      : syncState?.status === 'syncing'
-        ? 'syncing'
-        : syncState?.status === 'error'
-          ? 'error'
-          : 'online';
+  const syncPhase = syncPhaseOf(networkStatus, syncState?.status);
 
   return (
     <main id="main-content" className="min-h-screen flex flex-col">
@@ -255,42 +246,24 @@ export default function MatchScoringPage({ params }: Props) {
         data-sync={syncPhase}
         data-pending={pending}
         data-rejected={rejected}
-        // Offline is neutral, not red: in a sports hall it is the expected
-        // state and the outbox is doing its job. That frees danger for the one
-        // state that actually needs the operator — a failed sync — and drops
-        // the 4th hue the palette never had a token for.
-        className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${
-          syncPhase === 'online'
-            ? 'bg-success/25 text-success'
-            : syncPhase === 'syncing'
-              ? 'bg-warning/25 text-warning animate-pulse'
-              : syncPhase === 'error'
-                ? 'bg-danger/25 text-danger'
-                : 'bg-muted/25 text-muted animate-pulse'
-        }`}
+        className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(syncPhase)}`}
       >
         <span>
-          {syncPhase === 'online'
-            ? `● ${t('scoring.lice.online')}`
-            : syncPhase === 'syncing'
-              ? `⟳ ${t('scoring.lice.syncing')}`
-              : syncPhase === 'error'
-                ? rejected > 0
-                  ? `⚠ ${t('scoring.lice.hitsRefused', {
-                      count: String(rejected),
-                      plural: rejected === 1 ? '' : 'S',
-                    })}`
-                  : `⚠ ${t('scoring.lice.syncError')}`
-                : `● ${t('scoring.lice.offlineQueued')}`}
+          {syncBarLabel(syncPhase, rejected, t)}
           {pending > 0 ? ` (${pending})` : ''}
         </span>
-        {syncPhase === 'error' && (
+        {needsOperator(syncPhase) && (
           <button
             type="button"
             // Refused exchanges are no longer in the outbox, so a plain drain
             // would not touch them — `retryRejected` re-queues them first (with
             // fresh sequences) and then drains.
-            onClick={() => void (rejected > 0 ? syncEngine.retryRejected() : syncEngine.drain())}
+            // Signed out, a held hit stays held: it would only meet the 401 too.
+            onClick={() =>
+              void (rejected > 0 && syncPhase === 'error'
+                ? syncEngine.retryRejected()
+                : syncEngine.drain())
+            }
             className="rounded bg-danger px-2 py-0.5 text-danger-foreground transition-colors hover:bg-danger-hover"
           >
             {t('scoring.lice.retry')}

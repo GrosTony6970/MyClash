@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import { MagicLinkForm } from './MagicLinkForm';
 import { StaffPinForm } from './StaffPinForm';
+import { UnsentHitsNotice } from './UnsentHitsNotice';
 
 /**
  * The organizer hands a referee a link carrying the event (and their username):
@@ -59,6 +60,7 @@ export default function StaffLoginPage() {
           <p className="text-muted text-sm mt-1">{t('scoring.login.staffAccess')}</p>
         </div>
 
+        <UnsentHitsNotice />
         <StaffPinForm linkedEvent={linkedEvent} linkedUsername={linkedUsername} />
         <MagicLinkForm />
       </div>

@@ -1118,6 +1118,9 @@ sequenceDiagram
     else 400 refused
       A-->>E: rejected (stale sequence, round awaiting advance, …)
       E->>O: one re-send under a fresh sequence, else quarantine() — held, never deleted
+    else 401 nobody signed in
+      A-->>E: no session
+      E->>O: nothing — stays queued, and the drain ends here
     else 5xx / network
       A-->>E: failure
       E->>O: markFailed() — stays queued, retried later
@@ -1138,8 +1141,10 @@ stateDiagram-v2
   syncing --> offline: consecutive NETWORK failures hit the cap
   syncing --> error: consecutive SERVER failures hit the cap
   syncing --> error: drain finished with entries still pending
+  syncing --> signed_out: the server answers 401
   offline --> syncing: connectivity returns
   error --> syncing: retry
+  signed_out --> syncing: retry, or the bout screen opens
 ```
 
 The split between `offline` and `error` is deliberate: a network failure means "keep waiting, this will
@@ -1151,6 +1156,16 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on the two
 > create routes is an Event that is over: the server answers a repeated `clientUuid` with the saved
 > row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds.
+>
+> A **401 is not a refusal of the hit** (status `signed-out`): nobody is signed in. A PIN session ends with its Event's last day, and no PIN signs in on an Event that is over. The
+> drain ends at the first 401 and every hit waits, in order. The pad sends nothing and says so: the
+> bout screen's bar names the ended session (`src/lib/sync-bar.ts`), and the sign-in screen, where
+> such a tablet lands and which has no bar, counts the hits the tablet holds
+> (`app/login/UnsentHitsNotice.tsx`). The bout screen drains when it opens, so a tablet opened again
+> while online does not show a green bar over waiting hits. Known limits: a 403 is still read as a
+> sync error; an organiser's lapsed account login answers 401 too and reads "session ended", though
+> a renewal would do (the drain does not renew a login); a Discard in the refused-hits inbox while
+> signed out turns the bar green over the waiting hits until the next drain.
 
 ### 10.3 Conflict resolution
 

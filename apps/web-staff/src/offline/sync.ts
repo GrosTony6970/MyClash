@@ -28,15 +28,19 @@ import { classifySyncFailure, offlineResponse, type FailureBody } from './failur
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
+/**
+ * `signed-out`: the server answered a queued hit with 401. Nothing is refused
+ * and nothing is lost; the queue waits until somebody signs in (ruling 241).
+ */
+export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'signed-out';
 
 export interface SyncState {
   status: SyncStatus;
   pendingCount: number;
   /**
    * Exchanges the server REFUSED, held in `rejected` rather than destroyed.
-   * Non-zero forces `status: 'error'` — a refused hit must never be reported to
-   * a referee as a clean sync.
+   * Non-zero turns `idle` and `syncing` into `error` — a refused hit must never
+   * be reported to a referee as a clean sync.
    */
   rejectedCount: number;
   /** Last error message, if status === 'error' */
@@ -80,10 +84,12 @@ export class SyncEngine {
 
   private async emit(status: SyncStatus, lastError?: string): Promise<void> {
     const [pendingCount, rejected] = await Promise.all([totalPendingCount(), rejectedCount()]);
-    // A held rejection outranks every other phase. Emitting 'idle' with refused
+    // A held rejection outranks a clean phase. Emitting 'idle' with refused
     // exchanges on disk is what made the bar go green over a hit that was
     // thrown away — the operator has to be told, and told until they act.
-    const effectiveStatus = rejected > 0 && status !== 'offline' ? 'error' : status;
+    // Not over `signed-out`: "refused" there would hide why nothing goes.
+    const outranked = status === 'idle' || status === 'syncing';
+    const effectiveStatus = rejected > 0 && outranked ? 'error' : status;
     const state: SyncState = {
       status: effectiveStatus,
       pendingCount,
@@ -213,6 +219,28 @@ export class SyncEngine {
     }
   }
 
+  /**
+   * A 409 is a refusal, NEVER "already on the server": the API answers a
+   * repeated client_uuid with the saved row and a 2xx. Its 409 here is an Event
+   * that is over. `drain` used to mark the hit synced, a green bar over a hit
+   * the server never took. Held with its code, and not re-sent: no other
+   * sequence makes an over Event take it.
+   */
+  private async holdConflict(entry: OutboxEntry, res: Response): Promise<void> {
+    const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
+    await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
+  }
+
+  /**
+   * A 401: nobody is signed in (ruling 241). The hit is not refused and its
+   * attempt is not counted as failed: it waits, in order. The drain ends here:
+   * a 401 is about the caller, so every hit behind it meets the same answer.
+   */
+  private async waitForSignIn(): Promise<void> {
+    await this.emit('signed-out');
+    this.running = false;
+  }
+
   // ── Drain ───────────────────────────────────────────────────────────────────
 
   /**
@@ -249,15 +277,11 @@ export class SyncEngine {
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else if (res.status === 409) {
-          // A refusal, NEVER "already on the server": the API answers a repeated
-          // client_uuid with the saved row and a 2xx. Its 409 here is an Event
-          // that is over. This branch used to mark the hit synced, a green bar
-          // over a hit the server never took. Held with its code, and not
-          // re-sent: no other sequence makes an over Event take it.
-          const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
-          await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
+          await this.holdConflict(entry, res);
           consecutiveFailures = 0;
           await this.emit('syncing');
+        } else if (res.status === 401) {
+          return await this.waitForSignIn();
         } else if (res.status === 400) {
           // A refusal, NOT proof that a retry can never succeed. The single
           // most likely cause is a sequence this match has already used (two

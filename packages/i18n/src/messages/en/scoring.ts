@@ -26,6 +26,11 @@ export const scoring = {
     signInWithPin: 'Sign in with PIN',
     signingIn: 'Signing in...',
     localLoginError: 'Could not sign in with this event, username, and PIN.',
+    // Hits the tablet still holds, said where a session that ended lands.
+    unsentOne:
+      'This tablet holds 1 hit that was not sent. It is sent once you sign in and open a match. If the event is over, tell an organiser.',
+    unsentMany:
+      'This tablet holds {count} hits that were not sent. They are sent once you sign in and open a match. If the event is over, tell an organiser.',
     picker: {
       label: 'Event',
       tabsLabel: 'Which events to show',
@@ -170,6 +175,9 @@ export const scoring = {
     // problem that will clear itself, and this one never will until the
     // operator retries. `{plural}` is filled by the caller (see voidedHidden).
     hitsRefused: '{count} HIT{plural} NOT RECORDED',
+    // The server answered 401: nothing is refused, the queue waits (ruling 241).
+    sessionEnded:
+      'SESSION ENDED - HITS NOT SENT. SIGN IN AGAIN. IF THE EVENT IS OVER, TELL AN ORGANISER',
     reviewRefused: 'Review',
     backToMatchList: 'Back to match list',
     red: 'Fighter 1',
