@@ -279,6 +279,8 @@ export const scoring = {
     defaultReason: 'Correction arbitre de table',
     clearLastExchange: 'Effacer le dernier échange',
     clearLastFailed: 'Impossible d’effacer le dernier échange.',
+    clearLastSentForReview:
+      'L’événement est terminé : votre correction est envoyée pour validation. L’échange reste affiché tant qu’elle n’est pas approuvée.',
     swapColor: 'Inverser les couleurs',
     swapSide: 'Inverser les cotes',
     resetMatch: 'Réinitialiser le match',

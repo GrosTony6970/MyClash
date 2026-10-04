@@ -43,13 +43,11 @@ import {
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { dequeueLastForMatch } from '../offline/outbox';
-import { classifySyncFailure } from '../offline/failure-kind';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
-import { apiRequest } from '@myclash/api-client';
-import { refusalMessage } from '../lib/refusal-copy';
+import { voidOnServer } from '../lib/clear-last';
 
 interface ScoringCenterControlsProps {
   matchId: string;
@@ -178,6 +176,7 @@ export function ScoringCenterControls({
   const [noExchangeOpen, setNoExchangeOpen] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
+  const [clearNotice, setClearNotice] = useState<string | null>(null);
   /**
    * Rows queued for THIS match. Not the sync bar's count, which is
    * `totalPendingCount()` across every match — that would light this button up
@@ -322,6 +321,7 @@ export function ScoringCenterControls({
   async function clearLastExchange() {
     setClearBusy(true);
     setClearError(null);
+    setClearNotice(null);
     try {
       // Mid-drain the tail may already be POSTed and awaiting markSynced, so
       // deleting it locally would leave the hit on the server with the referee
@@ -343,24 +343,13 @@ export function ScoringCenterControls({
         return;
       }
 
-      const result = await apiRequest(apiUrl, `/api/v1/exchanges/${lastExchange.id}/void`, {
-        method: 'PATCH',
-        body: { reason: 'Clear last exchange (referee)' },
-      });
-      if (!result.ok) {
-        // Still the classifier the outbox drain uses, so the pad keeps ONE
-        // failure vocabulary: the service worker's synthetic 503 reads as
-        // offline, not as the server having an opinion. A `network` failure is
-        // the same event one layer down, which is the status 0 it already took.
-        const kind = classifySyncFailure(
-          result.kind === 'aborted' || result.kind === 'network' ? 0 : result.status,
-          null,
-        );
-        const message =
-          kind === 'offline'
-            ? t('scoring.corrections.onlineOnly')
-            : refusalMessage(result, t, 'scoring.corrections.clearLastFailed');
-        if (message) setClearError(message);
+      const outcome = await voidOnServer(apiUrl, lastExchange.id, t);
+      if (outcome.kind === 'failed') {
+        if (outcome.message) setClearError(outcome.message);
+        return;
+      }
+      if (outcome.kind === 'sent-for-review') {
+        setClearNotice(t('scoring.corrections.clearLastSentForReview'));
         return;
       }
       refreshExchanges();
@@ -628,6 +617,11 @@ export function ScoringCenterControls({
             {clearError && (
               <p className="text-center text-xs text-danger" role="alert">
                 {clearError}
+              </p>
+            )}
+            {clearNotice && (
+              <p className="text-center text-xs text-info" role="status">
+                {clearNotice}
               </p>
             )}
           </div>
