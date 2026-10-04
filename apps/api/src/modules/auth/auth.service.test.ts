@@ -778,6 +778,44 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
+    /** A guest cookie for `session-1`, on the roster person the test seeds. */
+    const guestOf = (personId: string) =>
+      ({
+        headers: {},
+        cookies: {
+          mc_guest: guestJwtService.sign(
+            { sub: 'session-1', person_id: personId, event_id: 'event-1', type: 'guest' },
+            new Date(Date.now() + 3_600_000),
+          ),
+        },
+      }) as never;
+    const rosterPerson = (id: string, holder: string | null) => ({
+      ...GUEST_PERSON,
+      id,
+      claimed_by_user_id: holder,
+    });
+
+    it('answers anonymous for a guest session on a name an account holds (ruling 265)', async () => {
+      seedMe({ person: rosterPerson('person-held', OTHER) });
+
+      const result = await service.getMe(guestOf('person-held'));
+
+      expect(result).toEqual({ type: 'anonymous' });
+    });
+
+    it('reads who holds the guest’s name, and does not hand that column to her', async () => {
+      const seeded = seedMe({ person: rosterPerson('person-free', null) });
+
+      const result = await service.getMe(guestOf('person-free'));
+
+      expect(result.type).toBe('guest');
+      expect(result.person).toEqual({ ...GUEST_PERSON, id: 'person-free' });
+      // The double ignores the projection: only this holds the column the check reads.
+      expect(selectsFor(seeded.from, 'persons')).toEqual([
+        'id, given_name, family_name, event_id, claim_status, claimed_by_user_id',
+      ]);
+    });
+
     it('claimed wins when both Supabase token and guest cookie present; clears guest cookie', async () => {
       mockAuthUser({ id: USER, email: 'organizer@example.com', user_metadata: {} });
       const clearCookieMock = vi.fn();

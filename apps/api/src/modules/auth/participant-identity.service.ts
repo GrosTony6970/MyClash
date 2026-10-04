@@ -61,21 +61,30 @@ export class ParticipantIdentityService {
    * The person lookup is scoped to THIS event on purpose: `persons` is
    * event-scoped, so a user claimed at six events has six rows and an unscoped
    * query resolves to an arbitrary one.
+   *
+   * Neither read may answer "nobody" when it failed. The login goes through
+   * `getAuthUser`, which checks the token itself when GoTrue cannot be asked; the
+   * raw GoTrue read that stood here answered a blip as "signed out". A roster
+   * read that fails throws: read as "no row", the caller got a 401 and a page
+   * drew "Register" on a seat she holds.
    */
   private async fromClaimedUser(
     accessToken: string | undefined,
     eventId: string,
   ): Promise<string | null> {
     if (!accessToken) return null;
-    const { data } = await this.supabase.anon.auth.getUser(accessToken);
-    if (!data.user) return null;
+    const user = await this.supabase.getAuthUser(accessToken);
+    if (!user) return null;
 
-    const { data: person } = await this.supabase.service
+    const { data: person, error } = await this.supabase.service
       .from('persons')
       .select('id')
-      .eq('claimed_by_user_id', data.user.id)
+      .eq('claimed_by_user_id', user.id)
       .eq('event_id', eventId)
       .maybeSingle();
+    if (error) {
+      throw new Error(`Roster row of ${user.id} at ${eventId} unreadable: ${error.message}`);
+    }
     return (person as { id: string } | null)?.id ?? null;
   }
 

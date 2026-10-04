@@ -486,53 +486,51 @@ export class AuthService {
       return this.buildClaimedResponse(user, guestToken, reply);
     }
 
-    // ── Guest path ────────────────────────────────────────────────────────
-    if (guestToken && this.guestJwt) {
-      try {
-        const payload = this.guestJwt.verify(guestToken);
+    // ── Guest path, else anonymous ────────────────────────────────────────
+    return this.buildGuestResponse(guestToken);
+  }
 
-        // Fetch session + person from DB
-        const { data: sessionData } = await this.supabase.service
-          .from('guest_sessions')
-          .select('id, device_label, expires_at, revoked_at')
-          .eq('id', payload.sub)
-          .maybeSingle();
+  /** What `/me` answers a caller with no login: her guest session, or anonymous. */
+  private async buildGuestResponse(guestToken: string | undefined): Promise<MeResponseDto> {
+    if (!guestToken || !this.guestJwt) return { type: 'anonymous' };
+    try {
+      const payload = this.guestJwt.verify(guestToken);
 
-        if (sessionData) {
-          const s = sessionData as {
-            id: string;
-            device_label: string;
-            expires_at: string;
-            revoked_at: string | null;
-          };
+      // Fetch session + person from DB
+      const { data: sessionData } = await this.supabase.service
+        .from('guest_sessions')
+        .select('id, device_label, expires_at, revoked_at')
+        .eq('id', payload.sub)
+        .maybeSingle();
+      const s = sessionData as {
+        device_label: string;
+        expires_at: string;
+        revoked_at: string | null;
+      } | null;
+      // Revoked sessions are treated as anonymous
+      if (!s || s.revoked_at) return { type: 'anonymous' };
 
-          // Revoked sessions are treated as anonymous
-          if (s.revoked_at) {
-            return { type: 'anonymous' };
-          }
+      const { data: personData } = await this.supabase.service
+        .from('persons')
+        .select('id, given_name, family_name, event_id, claim_status, claimed_by_user_id')
+        .eq('id', payload.person_id)
+        .maybeSingle();
+      // A session on a name an account holds is no identity (ruling 265), here as at
+      // the booking door (`ParticipantIdentityService`). The holder is not hers to read.
+      const { claimed_by_user_id: holder, ...person } = (personData ?? {}) as NonNullable<
+        MeResponseDto['person']
+      > & { claimed_by_user_id?: string | null };
+      if (holder) return { type: 'anonymous' };
 
-          const { data: personData } = await this.supabase.service
-            .from('persons')
-            .select('id, given_name, family_name, event_id, claim_status')
-            .eq('id', payload.person_id)
-            .maybeSingle();
-
-          return {
-            type: 'guest',
-            person: personData as MeResponseDto['person'] | undefined,
-            session: {
-              device_label: s.device_label,
-              expires_at: s.expires_at,
-            },
-          };
-        }
-      } catch {
-        // Invalid/expired guest token — fall through to anonymous
-      }
+      return {
+        type: 'guest',
+        person: personData ? person : undefined,
+        session: { device_label: s.device_label, expires_at: s.expires_at },
+      };
+    } catch {
+      // Invalid/expired guest token
+      return { type: 'anonymous' };
     }
-
-    // ── Anonymous ─────────────────────────────────────────────────────────
-    return { type: 'anonymous' };
   }
 
   /**

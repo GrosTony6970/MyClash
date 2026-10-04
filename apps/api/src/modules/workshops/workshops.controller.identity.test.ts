@@ -44,8 +44,7 @@ const TABLES = {
 };
 
 function controller(tables: Parameters<typeof mockSupabase>[0] = TABLES) {
-  const db = mockSupabase(tables);
-  const supabase = { ...db, anon: { auth: { getUser: vi.fn() } } };
+  const supabase = mockSupabase(tables);
   const guestJwt = new GuestJwtService({ getOrThrow: () => SECRET } as never);
   const identity = new ParticipantIdentityService(supabase as never, guestJwt);
   // Each takes (target, personId, …): the person is what these tests are about.

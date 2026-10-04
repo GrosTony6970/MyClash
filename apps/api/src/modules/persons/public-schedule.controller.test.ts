@@ -106,7 +106,7 @@ const TABLES = {
   },
 };
 
-/** The Event gate asks `getAuthUser`; the viewer's own person (ParticipantIdentityService) asks GoTrue. */
+/** The Event gate and the viewer's own person (ParticipantIdentityService) both ask `getAuthUser`. */
 function door(
   opts: {
     userId?: string;
@@ -117,8 +117,7 @@ function door(
 ) {
   const db = mockSupabase({ ...TABLES, workshop_enrollments: { rows: opts.bookings ?? [] } });
   const user = opts.userId ? { id: opts.userId } : null;
-  const getUser = vi.fn(async () => ({ data: { user } }));
-  const supabase = { ...db, getAuthUser: vi.fn(async () => user), anon: { auth: { getUser } } };
+  const supabase = { ...db, getAuthUser: vi.fn(async () => user) };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
       if (!opts.member) throw new ForbiddenException('not a member');

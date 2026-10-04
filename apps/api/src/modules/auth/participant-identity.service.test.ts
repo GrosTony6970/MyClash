@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { ParticipantIdentityService } from './participant-identity.service';
@@ -10,20 +11,24 @@ function req(cookies: Record<string, string>): FastifyRequest {
   return { cookies } as unknown as FastifyRequest;
 }
 
-/** A SupabaseService double whose `anon.auth.getUser` answers for a claimed user. */
-function supabaseWith(opts: { userId?: string | null; personId?: string | null }) {
+/**
+ * A SupabaseService double whose `getAuthUser` answers for a claimed user. It has
+ * no `anon` client on purpose: the raw GoTrue read must not be asked.
+ */
+function supabaseWith(opts: {
+  userId?: string | null;
+  personId?: string | null;
+  personError?: string;
+}) {
   const from = supabaseFrom({
-    persons: { data: opts.personId ? { id: opts.personId } : null, error: null },
+    persons: {
+      data: opts.personId ? { id: opts.personId } : null,
+      error: opts.personError ? { message: opts.personError } : null,
+    },
   });
   return {
     service: { from },
-    anon: {
-      auth: {
-        getUser: vi.fn(() =>
-          Promise.resolve({ data: { user: opts.userId ? { id: opts.userId } : null } }),
-        ),
-      },
-    },
+    getAuthUser: vi.fn(async (_token: string) => (opts.userId ? { id: opts.userId } : null)),
     from,
   };
 }
@@ -89,6 +94,31 @@ describe('ParticipantIdentityService — claimed accounts', () => {
     await expect(
       service.resolvePersonId(req({ 'sb-access-token': 'tok' }), EVENT),
     ).resolves.toBeNull();
+  });
+
+  it('asks the login check that outlives a GoTrue blip, with the cookie it was sent', async () => {
+    const supabase = supabaseWith({ userId: 'user-1', personId: 'person-1' });
+    const service = new ParticipantIdentityService(
+      supabase as never,
+      guestJwt(new Error()) as never,
+    );
+
+    await service.resolvePersonId(req({ 'sb-access-token': 'tok' }), EVENT);
+
+    expect(supabase.getAuthUser.mock.calls).toEqual([['tok']]);
+  });
+
+  it('fails loudly when the roster row cannot be read, rather than calling the account nobody', async () => {
+    const supabase = supabaseWith({ userId: 'user-1', personError: 'connection reset' });
+    const guest = guestJwt({ person_id: 'person-guest', event_id: EVENT });
+    const service = new ParticipantIdentityService(supabase as never, guest as never);
+
+    const read = service.resolvePersonId(req({ 'sb-access-token': 'tok', mc_guest: 'g' }), EVENT);
+
+    await expect(read).rejects.toThrow(/connection reset/);
+    // Not a 401 in disguise, and not the guest behind it: the account was never ruled out.
+    await expect(read).rejects.not.toBeInstanceOf(UnauthorizedException);
+    expect(guest.verify).not.toHaveBeenCalled();
   });
 });
 
