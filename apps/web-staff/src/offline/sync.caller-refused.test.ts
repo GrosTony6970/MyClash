@@ -135,6 +135,20 @@ describe.each(CALLERS)('drain — the server refuses the person (%s)', (code, st
     expect(last).toMatchObject({ status, pendingCount: 1, rejectedCount: 1 });
   });
 
+  it('a Discard in the inbox keeps the sentence while a hit still waits', async () => {
+    await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
+    await addHit(2, 'uuid-waiting');
+    mockApi(() => refused);
+    const engine = new SyncEngine(API_URL);
+    await engine.drain();
+    const states: SyncState[] = [];
+    engine.subscribe((state) => states.push(state));
+
+    await engine.discardRejectedEntry((await getRejected())[0]?.id as number);
+
+    expect(states.at(-1)).toMatchObject({ status, pendingCount: 1, rejectedCount: 0 });
+  });
+
   it('sends the same queue, in order, once the person may score', async () => {
     await addHit(1, 'uuid-1');
     await addHit(2, 'uuid-2');

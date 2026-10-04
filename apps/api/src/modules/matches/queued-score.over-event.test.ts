@@ -276,6 +276,7 @@ describe('a queued hit refused for who sends it', () => {
     ['a pad signed into another Event', { sessionEvent: 'event-2' }],
   ])('%s is refused about the bout, with no code', async (_who, odd) => {
     for (const attempt of sendBoth(setup('running', 'pin', odd))) {
+      await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
       expect(await refusalOf(attempt)).not.toHaveProperty('code');
     }
   });

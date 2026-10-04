@@ -1159,7 +1159,7 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
 > 403 the API words (it carries a `code`) is a caller who may not score that bout (a pad moved off
-> its piste while offline, a disabled account): it is held, the drain goes on, and the inbox says it
+> its piste while offline, a pad of another Event): it is held, the drain goes on, and the inbox says it
 > in the reader's language (`heldReason`). Retry sends it again once an organiser has put the pad
 > back. A 403 with no code is the edge's (a blocked network) and is about no hit: it stays queued as
 > a failed attempt. The bar's Retry puts every held hit back in the order the hits were scored

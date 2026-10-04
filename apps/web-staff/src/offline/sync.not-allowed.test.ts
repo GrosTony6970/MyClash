@@ -2,7 +2,7 @@
  * A queued hit the server answers with 403 is HELD, like a refused one (ruling 242).
  *
  * A 403 is a caller who may not score THIS bout: a pad moved off its piste while
- * it was offline, a disabled account. The drain used to count it as a failed
+ * it was offline, a pad of another Event. The drain used to count it as a failed
  * attempt and leave it in the queue: the bar said "sync error", the hit was sent
  * again at every drain, and three of them in a row ended the drain, so a hit of
  * another bout behind them never went.

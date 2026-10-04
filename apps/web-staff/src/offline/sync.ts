@@ -240,7 +240,7 @@ export class SyncEngine {
    * A 409 and a 403 are refusals, NEVER "already on the server": the API answers
    * a repeated client_uuid with the saved row and a 2xx. A 409 here is an Event
    * that is over. A 403 the API words is "may not score this" (ruling 242: a
-   * pad moved off its piste, a disabled account). Held with its code, and not
+   * pad moved off its piste, a pad of another Event). Held with its code, and not
    * re-sent: no other sequence makes the server take it. `failed` for a 403 with
    * no code: the edge wrote it (a blocked network), about no hit, so it waits.
    * `stopped` for an answer about the CALLER: a 401, and a 403 whose code is a
