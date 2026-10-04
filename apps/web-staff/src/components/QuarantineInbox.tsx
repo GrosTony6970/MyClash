@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { heldBoutLine, heldWhoLine } from '../lib/held-hit';
 import { heldReason } from '../lib/refusal-copy';
 import { getRejected } from '../offline/outbox';
 import type { ExchangeType, RejectedEntry } from '../offline/db';
@@ -95,6 +96,18 @@ function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
   return { entries, busyId, confirmDialog, handleRetry, handleDiscard };
 }
 
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/** Which bout, and who scored: what a held hit is read out from (ruling 243). */
+function HeldNames({ entry, t }: { entry: RejectedEntry; t: Translate }) {
+  const lines = [heldBoutLine(entry), heldWhoLine(entry, t)].filter((line) => line !== null);
+  return lines.map((line) => (
+    <p key={line} className="mt-1 text-sm">
+      {line}
+    </p>
+  ));
+}
+
 /** One held exchange: what it was, when it was refused, and the way out. */
 function QuarantineRow({
   entry,
@@ -107,7 +120,7 @@ function QuarantineRow({
   busy: boolean;
   onRetry: () => void;
   onDiscard: () => void;
-  t: (key: string) => string;
+  t: Translate;
 }) {
   return (
     <li data-testid="quarantine-row" className="rounded-lg border border-border bg-surface p-3">
@@ -117,6 +130,7 @@ function QuarantineRow({
           {new Date(entry.rejectedAt).toLocaleTimeString()}
         </span>
       </div>
+      <HeldNames entry={entry} t={t} />
       {/* The server's own words, unless the pad knows the refusal by its code.
           A 400 carries a real message; only 5xx is scrubbed, and a scrubbed
           one would say so. */}

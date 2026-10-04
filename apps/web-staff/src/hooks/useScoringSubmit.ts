@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AfterblowButton, CleanButton } from '@myclash/types';
+import type { BoutNames } from '../offline/db';
 import { enqueue } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 
@@ -17,11 +18,12 @@ interface PendingExchange {
 }
 
 export interface UseScoringSubmitArgs {
-  apiUrl: string;
   matchId: string;
   nextSequence: number;
   /** Clock active ms at submission time — recorded BE-side per exchange. */
   clockTimeMs: number | null;
+  /** The bout in words, queued with each hit and card so a held one can be named (ruling 243). */
+  bout: BoutNames;
   /** Durable-sync engine. Exchanges are written to the IndexedDB outbox and POSTed
    *  by the engine (online → immediate; offline → queued until reconnect). */
   syncEngine?: SyncEngine | null;
@@ -29,6 +31,8 @@ export interface UseScoringSubmitArgs {
 }
 
 export interface UseScoringSubmitResult {
+  /** Handed on to the card column, which queues its own rows. */
+  bout: BoutNames;
   submitting: boolean;
   error: string | null;
   setError: (value: string | null) => void;
@@ -48,6 +52,7 @@ export function useScoringSubmit({
   matchId,
   nextSequence,
   clockTimeMs,
+  bout,
   syncEngine,
   onExchangeRecorded,
 }: UseScoringSubmitArgs): UseScoringSubmitResult {
@@ -71,13 +76,10 @@ export function useScoringSubmit({
           clientUuid: crypto.randomUUID(),
           matchId,
           sequence: sequenceRef.current,
-          type: exchange.type,
           occurredAt: new Date().toISOString(),
           clockTimeMs,
-          firstStrikerColor: exchange.firstStrikerColor,
-          firstStrikeValue: exchange.firstStrikeValue,
-          afterblowValue: exchange.afterblowValue,
-          noExchangeReason: exchange.noExchangeReason,
+          bout,
+          ...exchange,
         });
         await syncEngine?.drain();
         // Re-fetch the server score/timeline (online: reflects the new exchange;
@@ -89,7 +91,7 @@ export function useScoringSubmit({
         setSubmitting(false);
       }
     },
-    [matchId, clockTimeMs, syncEngine, onExchangeRecorded],
+    [matchId, clockTimeMs, bout, syncEngine, onExchangeRecorded],
   );
 
   const submitClean = useCallback(
@@ -126,6 +128,7 @@ export function useScoringSubmit({
   );
 
   return {
+    bout,
     submitting,
     error,
     setError,

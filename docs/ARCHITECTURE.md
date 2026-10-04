@@ -1158,7 +1158,11 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
 > 403 is a caller who may not score that bout (a pad moved off its piste while offline, a disabled
 > account): it is about the row, so the drain goes on, and the inbox says it in the reader's
-> language (`heldReason`). Retry sends it again once an organiser has put the pad back.
+> language (`heldReason`). Retry sends it again once an organiser has put the pad back. A hit or a
+> card is queued with its bout in words (`OutboxEntry.bout`: the label and the two Fighters' names,
+> and `cardedColor` for a card), so a held row names its bout and who scored
+> (`src/lib/held-hit.ts`). Those names stay on the tablet: the drain posts named fields only and the
+> heartbeat sends counts.
 >
 > A **401 is not a refusal of the hit** (status `signed-out`): nobody is signed in. A PIN session ends with its Event's last day, and no PIN signs in on an Event that is over. The
 > drain ends at the first 401 and every hit waits, in order. The pad sends nothing and says so: the

@@ -161,6 +161,9 @@ export const scoring = {
     typeNoExchange: "Pas d'échange",
     typePenalty: 'Pénalité',
     typeUnknown: 'Entrée en attente',
+    scored: '{who} marque {points}',
+    scoredAfterblow: '{who} marque {points}, le coup double retardé {afterblow}',
+    cardAgainst: 'Contre {who}',
     eventOver:
       "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
     notAllowed:

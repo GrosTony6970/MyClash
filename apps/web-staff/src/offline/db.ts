@@ -32,6 +32,18 @@ export type PenaltyCardColor = PenaltyCard;
  */
 export type OutboxKind = 'exchange' | 'penalty';
 
+/**
+ * The bout a queued hit or card belongs to, in words (ruling 243): its label
+ * and the two Fighters' names, as the bout screen showed them when it was
+ * scored. A held row is read out to a super admin from these. They stay on the
+ * tablet: the drain posts named fields only, and the heartbeat sends counts.
+ */
+export interface BoutNames {
+  label: string;
+  red: string;
+  blue: string;
+}
+
 export interface OutboxEntry {
   /** Auto-incremented local PK — determines drain order. */
   id?: number;
@@ -65,6 +77,10 @@ export interface OutboxEntry {
   /** Direct card, bypassing the catalogue. Needs a reason server-side. */
   directCard?: PenaltyCardColor;
   reason?: string;
+  /** Which corner the card is against: the row's only way to say it in words. */
+  cardedColor?: StrikerColor;
+  /** Absent on rows queued before ruling 243: the inbox then names no bout. */
+  bout?: BoutNames;
   /** Match-clock position (active ms) at record time — display metadata carried
    *  through sync so an offline exchange keeps its timeline clock label. */
   clockTimeMs?: number | null;

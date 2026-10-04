@@ -100,6 +100,18 @@ const CARD_LABEL: Record<PenaltyCard, string> = {
   black: 'Black',
 };
 
+/** A card's row in the queue: what every card carries, around what this one is. */
+function queueCard(
+  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'>,
+): Promise<number> {
+  return enqueue({
+    kind: 'penalty',
+    clientUuid: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    ...card,
+  });
+}
+
 export function ScoringColumn({
   side,
   matchId,
@@ -186,14 +198,13 @@ export function ScoringColumn({
     setPenaltySubmitting(true);
     setPenaltyError(null);
     try {
-      await enqueue({
-        kind: 'penalty',
-        clientUuid: crypto.randomUUID(),
+      await queueCard({
         matchId,
         sequence: nextSequence,
         registrationId,
-        occurredAt: new Date().toISOString(),
         clockTimeMs,
+        bout: submit.bout,
+        cardedColor: side,
         ...payload,
       });
       // Online this drains immediately; offline it stays queued and goes on

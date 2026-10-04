@@ -8,6 +8,7 @@ import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
+import { boutNames } from '../lib/held-hit';
 import { refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
@@ -509,10 +510,10 @@ export function MatchView({
   }, [onRefresh]);
 
   const submit = useScoringSubmit({
-    apiUrl,
     matchId: match.id,
     nextSequence,
     clockTimeMs,
+    bout: boutNames(match),
     syncEngine,
     onExchangeRecorded: handleScoreMutation,
   });
