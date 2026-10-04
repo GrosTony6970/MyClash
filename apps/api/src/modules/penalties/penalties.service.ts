@@ -907,9 +907,9 @@ export class PenaltiesService {
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting
-    // to be advanced, `current_round` names a round whose score is already
-    // banked in `rounds_json` and never re-derived — so the card would be
-    // recorded and then count for nothing, silently and permanently. The
+    // to be advanced, `current_round` names a round whose RESULT is already
+    // banked in `rounds_json` — so the card could move that round's score and
+    // never who won it (ruling 247), where the referee meant it to count. The
     // idempotency probe above still returns an already-recorded card, so a
     // retry after the round closed is not refused.
     if (match.awaitingRoundAdvance) {

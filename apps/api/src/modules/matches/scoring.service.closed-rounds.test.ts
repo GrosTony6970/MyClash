@@ -4,6 +4,7 @@ import { queriedTables } from '../../common/testing/supabase-chain';
 import {
   BOUT,
   hit,
+  OVER_EVENT,
   RUNNING_EVENT,
   setup,
   storedBout,
@@ -164,14 +165,140 @@ describe('ScoringService.assertCorrectionLands — a closed round of a best-of s
     ).resolves.toBeUndefined();
   });
 
-  it('a finished series asks the same question, and nothing about the Event', async () => {
+  it('a finished series asks the same question of an earlier round', async () => {
     const won = series({ status: 'completed', winner_registration_id: 'red' });
-    const { service, matchCompletion } = setup(won, [...ROUND_1, ...ROUND_2]);
+    const { service } = setup(won, [...ROUND_1, ...ROUND_2]);
 
     await expect(service.assertCorrectionLands(BOUT, { dropExchangeIds: ['e1'] })).rejects.toEqual(
       refusal,
     );
-    expect(matchCompletion.resultChangeContext).not.toHaveBeenCalled();
+  });
+
+  it('counts a hit about to be restored, and one about to replace another', async () => {
+    // Round 1 without Red's e1 reads 4-6 beside its snapshot. The restored row
+    // (the fixture's e9: Red, 3 points, round 1) mends it: nothing to refuse.
+    const { service } = setup(series(), [...without(ROUND_1, 'e1'), ...ROUND_2], RUNNING_EVENT);
+    await expect(
+      service.assertCorrectionLands(BOUT, { restoreExchangeIds: ['e9'] }),
+    ).resolves.toBeUndefined();
+
+    // An edit: Red's e3 (1 point) leaves, a hit of 3 for Blue takes its place in round 1: 6-9.
+    const edited = setup(series(), [...ROUND_1, ...ROUND_2], RUNNING_EVENT);
+    await expect(
+      edited.service.assertCorrectionLands(BOUT, {
+        dropExchangeIds: ['e3'],
+        addExchanges: [hit(3, 'blue', 3)],
+      }),
+    ).rejects.toEqual(refusal);
+  });
+
+  describe('the LAST closed round, which the cap closed (ruling 247a)', () => {
+    // Round 2: Red 7, Blue 6, and the series is won 2-0.
+    const ROUND_2_WON = [
+      inRound(2, hit(6, 'red', 3)),
+      inRound(2, hit(7, 'red', 3)),
+      inRound(2, hit(8, 'red', 1)),
+      inRound(2, hit(9, 'blue', 3)),
+      inRound(2, hit(10, 'blue', 3)),
+    ];
+    const won = () =>
+      series({
+        status: 'completed',
+        winner_registration_id: 'red',
+        end_reason: 'first_to_points',
+        red_round_wins: 2,
+        rounds_json: [WON_7_6, { ...WON_7_6, round: 2 }],
+      });
+    const flip = { dropExchangeIds: ['e6'] }; // Red loses 3 points: 4-6
+    const sheet = [...ROUND_1, ...ROUND_2_WON];
+
+    it('on a running Event with nothing fought from it, it reopens: nothing is refused', async () => {
+      const { service } = setup(won(), sheet, RUNNING_EVENT);
+
+      await expect(service.assertCorrectionLands(BOUT, flip)).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ['an over Event', OVER_EVENT],
+      ['a later bout fought from the series', { ...RUNNING_EVENT, laterBoutFought: true }],
+    ])('with %s it cannot reopen: it is a closed round like any other', async (_why, context) => {
+      const { db, service } = setup(won(), sheet, context);
+
+      await expect(service.assertCorrectionLands(BOUT, flip)).rejects.toEqual(refusal);
+      // Blue loses 3 points: 7-3, still Red.
+      await expect(
+        service.assertCorrectionLands(BOUT, { dropExchangeIds: ['e9'] }),
+      ).resolves.toBeUndefined();
+      // Red loses 1 point: 6-6, level.
+      await expect(
+        service.assertCorrectionLands(BOUT, { dropExchangeIds: ['e8'] }),
+      ).rejects.toEqual(refusal);
+      expect(db.writes).toEqual([]);
+    });
+
+    it('a round that only awaits advance reopens on an over Event too: nothing to un-complete', async () => {
+      const awaiting = series({ current_round: 1, awaiting_round_advance: true });
+      const { service, matchCompletion } = setup(awaiting, ROUND_1, OVER_EVENT);
+
+      await expect(
+        service.assertCorrectionLands(BOUT, { dropExchangeIds: ['e1'] }),
+      ).resolves.toBeUndefined();
+      expect(matchCompletion.resultChangeContext).not.toHaveBeenCalled();
+    });
+
+    it('a context that cannot be read fails the question: nothing is written yet', async () => {
+      const { db, service, matchCompletion } = setup(won(), sheet);
+      matchCompletion.resultChangeContext.mockRejectedValueOnce(new Error('read failed'));
+
+      await expect(service.assertCorrectionLands(BOUT, flip)).rejects.toThrow('read failed');
+      expect(db.writes).toEqual([]);
+    });
+
+    it('the recompute moves its score on an over Event, and asks nobody to reopen it', async () => {
+      // Red's e8 (1 point) is voided and Blue's e10 (3 points): round 2 reads 6-3, below the cap.
+      const { service, written, matchCompletion, leagueRescore } = setup(
+        won(),
+        without(sheet, 'e8', 'e10'),
+      );
+
+      await service.recomputeMatchScore(BOUT);
+
+      expect(matchCompletion.onMatchUncompleted).not.toHaveBeenCalled();
+      expect(written()?.row).toMatchObject({
+        rounds_json: [WON_7_6, { ...WON_7_6, round: 2, redScore: 6, blueScore: 3 }],
+        red_round_wins: 2,
+        red_score: 6,
+        blue_score: 3,
+      });
+      expect(written()?.row).not.toHaveProperty('status');
+      expect(written()?.row).not.toHaveProperty('winner_registration_id');
+      expect(leagueRescore.afterResultWrite.mock.calls).toEqual([[BOUT]]);
+    });
+
+    it('the recompute still reopens it on a running Event', async () => {
+      const { service, written, matchCompletion } = setup(
+        won(),
+        without(sheet, 'e8', 'e10'),
+        RUNNING_EVENT,
+      );
+
+      await service.recomputeMatchScore(BOUT);
+
+      expect(matchCompletion.onMatchUncompleted).toHaveBeenCalledTimes(1);
+      expect(written()?.row).toMatchObject({ rounds_json: [WON_7_6], status: 'paused' });
+    });
+
+    it('a recompute that cannot read the context tries the reopen, as before', async () => {
+      const { service, matchCompletion } = setup(won(), without(sheet, 'e8', 'e10'));
+      matchCompletion.resultChangeContext.mockRejectedValueOnce(new Error('read failed'));
+
+      await expect(service.recomputeMatchScore(BOUT)).resolves.toEqual({
+        redScore: 6,
+        blueScore: 3,
+      });
+
+      expect(matchCompletion.onMatchUncompleted).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('a single fight still being fought reads its row and nothing more', async () => {

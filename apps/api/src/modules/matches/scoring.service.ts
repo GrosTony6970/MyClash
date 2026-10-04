@@ -275,9 +275,9 @@ export class ScoringService {
     const after = applyScoreChange(bout, change, restored);
 
     if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) {
-      const current = (m['current_round'] as number) ?? 1;
-      const before = this.closedRoundsCorrected(bout, bout, closed, current).refused;
-      const taken = this.closedRoundsCorrected(bout, after, closed, current).refused;
+      const reopenable = await this.reopenableRound(m);
+      const before = this.closedRoundsCorrected(bout, bout, closed, reopenable).refused;
+      const taken = this.closedRoundsCorrected(bout, after, closed, reopenable).refused;
       if (taken.some((round) => !before.includes(round))) {
         throw correctionRefused('correction_changes_closed_round');
       }
@@ -295,17 +295,18 @@ export class ScoringService {
    * 247): the snapshots as they should read, and the rounds whose sheet no
    * longer gives them the result they closed with (their snapshot is kept).
    *
-   * The current round is left alone when it is about to REOPEN: a round the
-   * engine closed that its sheet no longer ends goes back to the referee.
+   * `reopenable` is left alone when it is about to REOPEN: a round the engine
+   * closed that its sheet no longer ends goes back to the referee (`reopens`).
    */
   private closedRoundsCorrected(
     bout: Pick<LoadedBout, 'match' | 'ruleset' | 'config' | 'afterblowMode' | 'matchFormat'>,
     rows: ScoreRows,
     closed: ClosedRound[],
-    currentRound: number,
-  ): { rounds: ClosedRound[]; refused: number[]; changed: boolean } {
+    reopenable: number | null,
+  ): { rounds: ClosedRound[]; refused: number[]; changed: boolean; reopens: boolean } {
     const refused: number[] = [];
     let changed = false;
+    let reopens = false;
     const rounds = closed.map((snapshot) => {
       const ev = this.evaluateOpenRound(
         bout.ruleset,
@@ -318,39 +319,61 @@ export class ScoringService {
         bout.matchFormat,
         this.penaltiesInRound(rows.penaltyRows, snapshot.round),
       );
-      if (snapshot.round === currentRound && this.roundShouldReopen(snapshot, ev)) return snapshot;
+      if (snapshot.round === reopenable && this.roundShouldReopen(snapshot, ev)) {
+        reopens = true;
+        return snapshot;
+      }
       const corrected = correctedClosedRound(snapshot, ev);
       if (corrected.kind === 'refuse') refused.push(snapshot.round);
       if (corrected.kind !== 'score') return snapshot;
       changed = true;
       return corrected.round;
     });
-    return { rounds, refused, changed };
+    return { rounds, refused, changed, reopens };
+  }
+
+  /**
+   * The round today's reopen rule may still pop: the current one. Not the round
+   * that CLINCHED a series nobody can take back out of `completed` (ruling
+   * 247a): the Event is over, a later Swiss round was drawn, or a bout fed by
+   * the series was fought. That round is a closed round like any other.
+   */
+  private async reopenableRound(m: Record<string, unknown>): Promise<number | null> {
+    const current = (m['current_round'] as number) ?? 1;
+    const clinched = this.parseRoundsJson(m['rounds_json']).some((r) => r.round === current);
+    if (m['status'] !== 'completed' || !clinched) return current;
+    const context = await this.matchCompletion?.resultChangeContext(m['id'] as string);
+    return context && (context.staysFinished || context.laterBoutFought) ? null : current;
   }
 
   /**
    * The snapshots the recompute works from. A round that is refused here kept
    * its snapshot: the correction is already in (a door that did not ask, a late
    * hit of the pad's queue, a colour swap), so only the log can say it.
+   *
+   * A context that cannot be read leaves the current round reopenable, as it
+   * was before ruling 247a: the recompute runs after its door's write and must
+   * not throw.
    */
-  private correctedSnapshots(
+  private async correctedSnapshots(
     args: Parameters<ScoringService['closedRoundsCorrected']>[0] &
       ScoreRows & { matchId: string; matchRow: Record<string, unknown> },
     currentRound: number,
-  ): { rounds: ClosedRound[]; changed: boolean } {
+  ): Promise<{ rounds: ClosedRound[]; changed: boolean; reopens: boolean }> {
     const closed = this.parseRoundsJson(args.matchRow['rounds_json']);
-    const { rounds, refused, changed } = this.closedRoundsCorrected(
-      args,
-      args,
-      closed,
-      currentRound,
-    );
+    const reopenable = await this.reopenableRound(args.matchRow).catch((err: unknown) => {
+      this.logger.warn(
+        `Match ${args.matchId}: the Event and the bracket were not read: ${String(err)}`,
+      );
+      return currentRound;
+    });
+    const { refused, ...snapshots } = this.closedRoundsCorrected(args, args, closed, reopenable);
     for (const round of refused) {
       this.logger.warn(
         `Match ${args.matchId} kept the result of round ${round} beside a sheet that no longer gives it`,
       );
     }
-    return { rounds, changed };
+    return snapshots;
   }
 
   /** The rows of exchanges about to be restored. A failed read is not "none". */
@@ -815,8 +838,8 @@ export class ScoringService {
    * Round-aware recompute for best-of matches: scores the OPEN round, and when
    * that round auto-closes (cap / pool max-doubles) records the closure and
    * either completes the series (⌈bestOf/2⌉ round wins) or flags
-   * `awaiting_round_advance`. Closed rounds are stable; only the open round's
-   * score is derived live from its exchanges.
+   * `awaiting_round_advance`. A closed round keeps its winner; its score follows
+   * its own sheet (`correctedSnapshots`, rulings 247, 247a).
    */
   private async recomputeBestOfRounds(args: {
     matchId: string;
@@ -833,7 +856,8 @@ export class ScoringService {
       args;
     const bestOf = getEffectiveBestOf(match, matchFormat);
     const currentRound = (args.matchRow['current_round'] as number) ?? 1;
-    const { rounds: closedRounds, changed } = this.correctedSnapshots(args, currentRound);
+    const snapshots = await this.correctedSnapshots(args, currentRound);
+    const { rounds: closedRounds, changed } = snapshots;
     const matchRow = { ...args.matchRow, rounds_json: closedRounds };
 
     const openExchanges = rawRows
@@ -851,8 +875,7 @@ export class ScoringService {
 
     const { redScore: openRed, blueScore: openBlue } = ev.score;
 
-    const closedCurrent = closedRounds.find((r) => r.round === currentRound);
-    const currentAlreadyClosed = closedCurrent !== undefined;
+    const currentAlreadyClosed = closedRounds.some((r) => r.round === currentRound);
     const updates: Record<string, unknown> = {
       red_score: openRed,
       blue_score: openBlue,
@@ -862,7 +885,7 @@ export class ScoringService {
     };
     let justCompleted = false;
 
-    if (currentAlreadyClosed && this.roundShouldReopen(closedCurrent, ev)) {
+    if (snapshots.reopens) {
       return this.reopenClosedRound({ matchId, match, matchRow, updates, openRed, openBlue });
     }
 

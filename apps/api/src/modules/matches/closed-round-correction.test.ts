@@ -86,6 +86,12 @@ describe('correctedClosedRound', () => {
       expect(correctedClosedRound(ceiling, reads(0, 0, atCeiling))).toEqual({ kind: 'same' });
     });
 
+    it('a card on a wiped board gives nobody the round: the engine says who won, not the lead', () => {
+      // A card is added after the wipe: the round reads -1 / 0 and is still drawn.
+      const carded = { ...ceiling, redScore: -1 };
+      expect(correctedClosedRound(carded, reads(-1, 0, atCeiling))).toEqual({ kind: 'same' });
+    });
+
     it('is refused once its sheet is below the ceiling, level board or not', () => {
       // A level 3-3 would keep "no winner", under a reason that reads as a loss for both.
       expect(correctedClosedRound(ceiling, reads(3, 3))).toEqual({ kind: 'refuse' });

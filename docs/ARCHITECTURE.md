@@ -1981,7 +1981,11 @@ that closed it (`correction_changes_closed_round`), whether the series is finish
 round wins and the series winner cannot move. Only a change that DOES this is refused: a round
 already out of step with its sheet refuses nothing, and the recompute keeps its snapshot and logs
 it. The one exception is older and kept: the last closed round, when the engine closed it and its
-sheet no longer ends it, is reopened (and a clinched series un-completed, best effort).
+sheet no longer ends it, is reopened (and a clinched series un-completed, best effort). Not where
+nobody can take the series back out of completed (247a): on an over Event, with a later Swiss round
+drawn, or once a bout fed by the series was fought, the round that clinched it is a closed round
+like any other (`reopenableRound`). Known limits: a colour swap leaves the snapshots on the old
+colours; a forfeit on the series still refuses the reopen in silence.
 
 ### 12.6 Roles (unchanged from earlier draft)
 
