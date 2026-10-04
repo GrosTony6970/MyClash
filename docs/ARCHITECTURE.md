@@ -1165,8 +1165,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > bout screen's bar names the ended session (`src/lib/sync-bar.ts`), and the sign-in screen, where
 > such a tablet lands and which has no bar, counts the hits the tablet holds
 > (`app/login/UnsentHitsNotice.tsx`). The bout screen drains when it opens, so a tablet opened again
-> while online does not show a green bar over waiting hits. Known limits: an organiser's lapsed account login answers 401 too and reads "session ended", though
-> a renewal would do (the drain does not renew a login); a Discard in the refused-hits inbox while
+> while online does not show a green bar over waiting hits. An account's login is renewed once before a
+> 401 stands: the drain posts through `fetchRenewingLogin`, so an organiser who scores for more than
+> an hour is not told to sign in again; a PIN session cannot be renewed. Known limit: a Discard in the refused-hits inbox while
 > signed out turns the bar green over the waiting hits until the next drain.
 
 ### 10.3 Conflict resolution

@@ -22,6 +22,7 @@ import {
   requeueRejectedEntry,
   totalPendingCount,
 } from './outbox';
+import { fetchRenewingLogin } from '@myclash/api-client';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
@@ -128,7 +129,7 @@ export class SyncEngine {
     // Only the URL and the body differ; everything below this method is
     // kind-agnostic already.
     if ((entry.kind ?? 'exchange') === 'penalty') {
-      return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/penalties`, {
+      return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/penalties`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -145,7 +146,7 @@ export class SyncEngine {
       });
     }
 
-    return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/exchanges`, {
+    return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/exchanges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -235,6 +236,8 @@ export class SyncEngine {
    * A 401: nobody is signed in (ruling 241). The hit is not refused and its
    * attempt is not counted as failed: it waits, in order. The drain ends here:
    * a 401 is about the caller, so every hit behind it meets the same answer.
+   * An account's login was asked to renew before this answer (`postExchange`
+   * sends through `fetchRenewingLogin`); a PIN session cannot be renewed.
    */
   private async waitForSignIn(): Promise<void> {
     await this.emit('signed-out');

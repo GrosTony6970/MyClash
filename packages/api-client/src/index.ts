@@ -27,6 +27,7 @@ export {
   isArchivedEventRefusal,
 } from './failure-message';
 export { fetchMe, ME_PATH } from './me';
+export { fetchRenewingLogin } from './renew-login';
 export type { MeSession, MeSessionType, MeAdmin } from './me';
 
 /** RFC 9457 problem+json body shape emitted by the API's exception filter. */

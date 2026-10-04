@@ -8,7 +8,8 @@
  * `claimed`, sends the same request again — once. A second 401 is the answer.
  *
  * `apiRequest` (web-admin, web-public) and `createApiClient` (web-staff) both fetch through
- * `fetchRenewingLogin`, so the three apps renew the same way.
+ * `fetchRenewingLogin`, so the three apps renew the same way. The pad's queue sends its hits and
+ * cards through it too (`SyncEngine.postExchange`): an organiser who scores for more than an hour.
  *
  * It does nothing:
  *   - on a server: web-public's server pages forward the login cookie by hand and have no jar a
