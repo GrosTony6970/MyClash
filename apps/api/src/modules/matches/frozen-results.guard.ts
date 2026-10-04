@@ -94,6 +94,12 @@ export class FrozenResultsGuard {
     return isOver((await this.getEventStateForMatch(matchId)).status);
   }
 
+  /** The Event of this bout when it is over, else null: `isEventOver` with the Event's id. */
+  async overEventId(matchId: string): Promise<string | null> {
+    const state = await this.getEventStateForMatch(matchId);
+    return isOver(state.status) ? state.eventId : null;
+  }
+
   async guardExchangeMutation(input: {
     exchange: ExchangeForFrozenCheck;
     requestType: ExchangeEditRequestType;

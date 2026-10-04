@@ -54,6 +54,17 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
     valueImports('../phases/match-completion.service.ts', 'SwissAdvanceService');
   });
 
+  it('the League re-score is wired: an @Optional() that is not provided never fires', () => {
+    // Ruling 248. `ScoringService` takes it as optional, so a missing provider
+    // boots green and the League table simply stays stale.
+    valueImports('./scoring.service.ts', 'LeagueRescoreService');
+    valueImports('./league-rescore.service.ts', 'LeaguesService');
+    valueImports('./league-rescore.service.ts', 'FrozenResultsGuard');
+    const moduleSource = read('./matches.module.ts');
+    expect(moduleSource).toMatch(/providers: \[[^\]]*\bLeagueRescoreService,/);
+    expect(moduleSource).toMatch(/imports: \[[^\]]*\bLeaguesModule,/);
+  });
+
   it('swiss-advance.service value-imports its two collaborators', () => {
     valueImports('../swiss/swiss-advance.service.ts', 'SwissPairingService');
     valueImports('../swiss/swiss-advance.service.ts', 'SwissRoundStateService');

@@ -70,6 +70,23 @@ export function storedBout(over: Record<string, unknown> = {}) {
 export const OVER_EVENT = { eventOver: true, staysFinished: true, laterBoutFought: false };
 export const RUNNING_EVENT = { eventOver: false, staysFinished: false, laterBoutFought: false };
 
+/** The League re-score, recording what the bracket had been told when it was asked (ruling 248). */
+function leagueDouble(completion: {
+  onResultChanged: { mock: { calls: unknown[] } };
+  onMatchCompleted: { mock: { calls: unknown[] } };
+}) {
+  const bracketToldBeforeLeagues: number[] = [];
+  const leagueRescore = {
+    afterResultWrite: vi.fn(async (_matchId: string) => {
+      bracketToldBeforeLeagues.push(
+        completion.onResultChanged.mock.calls.length +
+          completion.onMatchCompleted.mock.calls.length,
+      );
+    }),
+  };
+  return { leagueRescore, bracketToldBeforeLeagues };
+}
+
 export function setup(
   bout: Record<string, unknown>,
   sheet: Array<Record<string, unknown>>,
@@ -91,13 +108,26 @@ export function setup(
       writesWhenToldTheBracket.push(writesTo(db, 'matches').length);
     }),
   };
-  const clock = { getClockState: vi.fn().mockResolvedValue({ levelResolutionSteps: 0 }) };
+  const clock = {
+    getClockState: vi.fn().mockResolvedValue({ levelResolutionSteps: 0, status: 'ended' }),
+  };
+  const { leagueRescore, bracketToldBeforeLeagues } = leagueDouble(matchCompletion);
   const service = new ScoringService(
     db as never,
     { resolve: vi.fn().mockResolvedValue(null) } as never,
     clock as never,
     matchCompletion as never,
+    leagueRescore as never,
   );
   const written = () => writesTo(db, 'matches')[0];
-  return { db, clock, matchCompletion, service, written, writesWhenToldTheBracket };
+  return {
+    db,
+    clock,
+    matchCompletion,
+    leagueRescore,
+    bracketToldBeforeLeagues,
+    service,
+    written,
+    writesWhenToldTheBracket,
+  };
 }

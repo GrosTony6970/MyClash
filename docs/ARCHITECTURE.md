@@ -990,8 +990,14 @@ pure core.
 
 ### 8bis.5 Freshness: a League table is stale by default
 
-**Recompute is never triggered by a Match completing.** The only callers are an
-Event status change, the status-ticker worker, and the two manual endpoints. A
+**Recompute is never triggered by a Match completing on a running Event.** The callers are an
+Event status change, the status-ticker worker, the two manual endpoints, and one automatic case: a
+hit or a card that moves a finished Match of an Event that is **over** (completed or archived)
+scores that Event's League results again, right after the write (`LeagueRescoreService` in
+`MatchesModule`, asked last by `ScoringService.recomputeMatchScore`: a placement reads the bracket,
+and the bracket reads the Match). It is best effort: a failure is logged and the correction stands.
+A forfeit, a reset, a reopen, a result set by hand, a round or a clock ended on an over Event do
+**not** trigger it; the League admin's Recompute does. A
 League table is therefore out of date by default, and fresh only for as long as
 nothing has been fought since the last recompute — the inverse of what a reader
 assumes when they open a standings page, which is why freshness is a computed

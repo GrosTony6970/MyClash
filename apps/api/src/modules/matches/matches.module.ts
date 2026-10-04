@@ -6,6 +6,8 @@ import { PhasesModule } from '../phases/phases.module';
 import { RefereesModule } from '../referees/referees.module';
 import { ClockService } from './clock.service';
 import { FrozenResultsModule } from './frozen-results.module';
+import { LeagueRescoreService } from './league-rescore.service';
+import { LeaguesModule } from '../leagues/leagues.module';
 import { MatchAuditService } from './match-audit.service';
 import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
@@ -31,12 +33,16 @@ import { ScoringService } from './scoring.service';
     // The per-bout crew door asks the referee checker (ADR-016). Exports are not
     // transitive: PhasesModule imports RefereesModule but does not re-export it.
     RefereesModule,
+    // LeagueRescoreService asks LeaguesService (ruling 248). No new edge in the
+    // graph: WorkersModule above already imports LeaguesModule.
+    LeaguesModule,
   ],
   controllers: [MatchesController],
   providers: [
     MatchesService,
     MatchAuditService,
     ScoringService,
+    LeagueRescoreService,
     ClockService,
     MatchAutoLockService,
     MatchForfeitsService,

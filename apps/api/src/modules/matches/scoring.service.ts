@@ -11,8 +11,9 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-// Value import, not `import type`: Nest needs the runtime class for DI metadata.
+// Value imports, not `import type`: Nest needs the runtime classes for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
+import { LeagueRescoreService } from './league-rescore.service';
 import {
   TF_v1,
   evaluateRound,
@@ -155,6 +156,8 @@ export class ScoringService {
      * app MatchesModule imports PhasesModule, so this always resolves.
      */
     @Optional() private readonly matchCompletion?: MatchCompletionService,
+    /** Optional for the same unit wiring; `di-wiring.regression.test.ts` holds the real one. */
+    @Optional() private readonly leagueRescore?: LeagueRescoreService,
   ) {}
 
   /**
@@ -222,6 +225,19 @@ export class ScoringService {
     // Persist derived scores back to matches row
     await this.supabase.service.from('matches').update(matchUpdates).eq('id', matchId);
 
+    const redecided = outcome.kind === 'redecide' && correction ? correction : null;
+    await this.afterFightWrite(matchId, justCompleted, redecided);
+    await this.rescoreLeagues(matchId, justCompleted || match.status === 'completed');
+
+    return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  /** What a single fight's row write is followed by. AFTER it: the bracket reads the row. */
+  private async afterFightWrite(
+    matchId: string,
+    justCompleted: boolean,
+    redecided: { eventOver: boolean } | null,
+  ): Promise<void> {
     // The ruleset closed the match (point cap or double cap). Stop the
     // clock so it freezes and the scoreboard's clock-driven endcard fires.
     if (justCompleted) {
@@ -236,12 +252,24 @@ export class ScoringService {
       // errors, so this cannot fail the exchange that triggered it.
       await this.matchCompletion?.onMatchCompleted(matchId);
     }
-    // AFTER the write: the bracket reads the winner off the row.
-    if (outcome.kind === 'redecide' && correction) {
-      await this.matchCompletion?.onResultChanged(matchId, correction.eventOver);
-    }
+    if (redecided) await this.matchCompletion?.onResultChanged(matchId, redecided.eventOver);
+  }
 
-    return { redScore: score.redScore, blueScore: score.blueScore };
+  /**
+   * Ruling 248: a hit or a card moved a bout that is finished once the row is
+   * written. On an over Event its League results are scored again; whether the
+   * Event is over is `LeagueRescoreService`'s question. Asked LAST: a League
+   * placement reads the bracket. A bout still being fought asks nothing, so a
+   * live hit pays no read for it.
+   */
+  private async rescoreLeagues(matchId: string, finished: boolean): Promise<void> {
+    if (finished) await this.leagueRescore?.afterResultWrite(matchId);
+  }
+
+  /** A series' clock after its row write: ended with the series, halted between two rounds. */
+  private async stopSeriesClock(matchId: string, ended: boolean, awaiting: boolean): Promise<void> {
+    if (ended) await this.endClockBestEffort(matchId);
+    else if (awaiting) await this.haltClockBestEffort(matchId);
   }
 
   /**
@@ -812,8 +840,8 @@ export class ScoringService {
     }
 
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);
-    if (justCompleted) await this.endClockBestEffort(matchId);
-    else if (updates['awaiting_round_advance'] === true) await this.haltClockBestEffort(matchId);
+    await this.stopSeriesClock(matchId, justCompleted, updates['awaiting_round_advance'] === true);
+    await this.rescoreLeagues(matchId, justCompleted || match.status === 'completed');
 
     return { redScore: openRed, blueScore: openBlue };
   }
