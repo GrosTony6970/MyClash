@@ -49,6 +49,7 @@ import {
   workshopSortValue,
 } from './filter-workshops';
 import { rosterRequests } from './roster-requests';
+import { RosterName } from './RosterName';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -119,6 +120,8 @@ interface RosterEntry {
   /** The booking's roster row: what the roster's requests name (`roster-requests.ts`). */
   personId: string;
   global_person_id?: string | null;
+  /** No account holds the booking's roster row (ruling 264). */
+  guest: boolean;
   persons: {
     id: string;
     givenName: string;
@@ -1444,18 +1447,15 @@ export default function WorkshopsAdminPage() {
                   className="flex items-center justify-between border border-border rounded-lg px-3 py-2 text-sm"
                 >
                   <div className="min-w-0">
-                    <p className="flex min-w-0 items-baseline gap-1.5 font-medium text-foreground">
-                      <span className="truncate">
-                        {entry.persons
+                    <RosterName
+                      name={
+                        entry.persons
                           ? `${entry.persons.givenName} ${entry.persons.familyName}`
-                          : t('organizer.workshopsPage.unknownPerson')}
-                      </span>
-                      {entry.persons?.clubs && (
-                        <span className="min-w-0 shrink-[9999] truncate text-xs font-normal text-muted">
-                          {entry.persons.clubs.name}
-                        </span>
-                      )}
-                    </p>
+                          : null
+                      }
+                      guest={entry.guest}
+                      club={entry.persons?.clubs?.name ?? null}
+                    />
                     <div className="flex items-center gap-2 mt-0.5">
                       <span
                         className={[

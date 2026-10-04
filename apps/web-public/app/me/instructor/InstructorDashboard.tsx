@@ -56,6 +56,8 @@ interface RosterEntry {
   status: string;
   waitlistPosition: number | null;
   personId: string | null;
+  /** No account holds the booking's roster row (ruling 264). */
+  guest: boolean;
   persons: {
     id: string;
     givenName: string;
@@ -725,13 +727,7 @@ function RosterLists({
     const club = clubOf(r);
     return (
       <li key={r.id} className="flex items-center justify-between gap-2 text-sm text-foreground">
-        {/* min-w-0 on every link of the chain, or the club overflows the card. */}
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate">{nameOf(r)}</span>
-          {club && (
-            <span className="min-w-0 shrink-[9999] truncate text-xs text-muted">{club}</span>
-          )}
-        </span>
+        <RosterName name={nameOf(r)} guest={r.guest} club={club} />
         {actionButton(r, action)}
       </li>
     );
@@ -768,5 +764,22 @@ function RosterLists({
         </div>
       )}
     </div>
+  );
+}
+
+/** A roster line's name, its "Guest" tag when no account holds it (ruling 264), its club. */
+function RosterName({ name, guest, club }: { name: string; guest: boolean; club: string | null }) {
+  const { t } = useI18n();
+  return (
+    // min-w-0 on every link of the chain, or the club overflows the card.
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      <span className="truncate">{name}</span>
+      {guest && (
+        <span className="shrink-0 rounded bg-border px-1.5 py-0.5 text-xs font-medium text-foreground-secondary">
+          {t('publicApp.me.instructor.guestTag')}
+        </span>
+      )}
+      {club && <span className="min-w-0 shrink-[9999] truncate text-xs text-muted">{club}</span>}
+    </span>
   );
 }

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiRequest, fetchMe } from '@myclash/api-client';
+import { apiRequest, failureCode, fetchMe } from '@myclash/api-client';
 import { useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
@@ -161,20 +161,22 @@ export default function PersonProfilePage() {
   const handleGuestAccess = useCallback(async () => {
     if (!eventId) return;
     setGuestLoading(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/guest-sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ person_id: personId }),
-      });
-      if (!res.ok) throw new Error('guest');
+    const result = await apiRequest(apiUrl, `/api/v1/events/${eventId}/guest-sessions`, {
+      method: 'POST',
+      body: { person_id: personId },
+    });
+    if (result.ok) {
       // Land on the (now guest-aware) personal event schedule.
       window.location.assign(`/e/${eventSlug}/my-schedule`);
-    } catch {
-      toast.error(t('publicApp.people.guestAccessError'));
-      setGuestLoading(false);
+      return;
     }
+    // A name an account holds is not a guest's to pick (ruling 265): its holder signs in.
+    toast.error(
+      failureCode(result) === 'PERSON_HAS_ACCOUNT'
+        ? t('publicApp.people.guestHasAccount')
+        : t('publicApp.people.guestAccessError'),
+    );
+    setGuestLoading(false);
   }, [apiUrl, eventId, eventSlug, personId, t, toast]);
 
   if (loading) {

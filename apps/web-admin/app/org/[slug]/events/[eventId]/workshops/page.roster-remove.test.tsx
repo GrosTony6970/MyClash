@@ -85,6 +85,8 @@ const booking = (name: string, status: string, profileId: string | null) => ({
   enrolledAt: '2026-05-01T08:00:00+00:00',
   personId: `${name}-row`,
   global_person_id: profileId,
+  // Tom alone has no account (ruling 264).
+  guest: name === 'Tom',
   persons: { id: profileId ?? `${name}-row`, givenName: name, familyName: 'Roux', clubs: null },
 });
 /** Tom in the MIDDLE: the first or the last row would pass a page that picks the wrong one. */
@@ -203,5 +205,13 @@ describe('the roster of a Workshop session', () => {
 
     expect(writes()).toEqual(['POST /api/v1/workshop-sessions/s-1/promote/Zoe-row']);
     expect(rosterReads()).toBe(2);
+  });
+
+  it('tags the person no account holds as a guest, beside the name, and nobody else', () => {
+    const tagged = ['Claire Roux', 'Tom Roux', 'Zoe Roux', 'Unknown'].filter((name) =>
+      [...lineOf(name).querySelectorAll('p span')].some((span) => span.textContent === 'Guest'),
+    );
+
+    expect(tagged).toEqual(['Tom Roux']);
   });
 });

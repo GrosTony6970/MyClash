@@ -21,6 +21,23 @@ export interface WorkshopRegisterLabels {
   instructorOwn: string;
 }
 
+/** The words of the register controls, in the reader's language. */
+export function registerLabels(t: (key: string) => string): WorkshopRegisterLabels {
+  return {
+    register: t('publicApp.me.workshops.register'),
+    registerAnyway: t('publicApp.me.workshops.registerAnyway'),
+    cancel: t('publicApp.me.workshops.cancel'),
+    registered: t('publicApp.me.workshops.registered'),
+    joinWaitlist: t('publicApp.me.workshops.joinWaitlist'),
+    onWaitlist: t('publicApp.me.workshops.onWaitlist'),
+    leaveWaitlist: t('publicApp.me.workshops.leaveWaitlist'),
+    refused: t('publicApp.me.workshops.refused'),
+    registerAgain: t('publicApp.me.workshops.registerAgain'),
+    full: t('publicApp.me.workshops.full'),
+    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
+  };
+}
+
 export interface WorkshopRegisterControlsProps {
   /** What the viewer's booking of this session is. */
   booking: WorkshopBooking;

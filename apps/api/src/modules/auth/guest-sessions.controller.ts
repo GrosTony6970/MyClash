@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
   Param,
@@ -41,6 +42,7 @@ interface GuestPerson {
   given_name: string;
   family_name: string;
   claim_status: string;
+  claimed_by_user_id: string | null;
 }
 
 @ApiTags('auth')
@@ -71,6 +73,7 @@ export class GuestSessionsController {
   @ApiOperation({ summary: 'Create a guest session (participant picks themselves)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 201, description: 'Guest session created, cookie set' })
+  @ApiResponse({ status: 403, description: 'The person has an account (PERSON_HAS_ACCOUNT)' })
   @ApiResponse({
     status: 404,
     description:
@@ -82,16 +85,8 @@ export class GuestSessionsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    // 0-1. The person page's own bar (`readEventPerson`): an Event the caller may see, a person
-    //      of it, not entered only in a draft Tournament. Nothing is written before it.
-    const deps = { supabase: this.supabase, orgs: this.orgs };
-    const { person } = await readEventPerson<GuestPerson>(
-      deps,
-      eventId,
-      dto.person_id,
-      publicReader(req),
-      'id, given_name, family_name, claim_status',
-    );
+    // 0-1. Who may be picked, by this caller. Nothing is written before it.
+    const person = await this.pickablePerson(eventId, dto.person_id, req);
     const endDate = await this.eventEnd(eventId);
 
     // 2. The session lasts until the Event's end + 7 days
@@ -200,6 +195,35 @@ export class GuestSessionsController {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * The person a caller may pick. First the person page's own bar (`readEventPerson`): an Event
+   * the caller may see, a person of it, not entered only in a draft Tournament.
+   *
+   * Then: no account holds the name (operator ruling 265). A guest session takes no proof. On a
+   * name an account holds it would let anybody read and act as that account's holder, so that
+   * name is not a guest's to pick.
+   */
+  private async pickablePerson(
+    eventId: string,
+    personId: string,
+    req: FastifyRequest,
+  ): Promise<GuestPerson> {
+    const { person } = await readEventPerson<GuestPerson>(
+      { supabase: this.supabase, orgs: this.orgs },
+      eventId,
+      personId,
+      publicReader(req),
+      'id, given_name, family_name, claim_status, claimed_by_user_id',
+    );
+    if (person.claimed_by_user_id !== null) {
+      throw new ForbiddenException({
+        error: 'PersonHasAccount',
+        message: 'This participant has an account. Sign in to continue.',
+      });
+    }
+    return person;
+  }
 
   /** When the session ends: the Event's end + 7 days. Read once the gate has let the caller in. */
   private async eventEnd(eventId: string): Promise<Date> {

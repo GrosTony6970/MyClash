@@ -12551,6 +12551,13 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description The person has an account (PERSON_HAS_ACCOUNT) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Event unknown or hidden from the caller; person not in it, or entered only in a draft */
       404: {
         headers: {

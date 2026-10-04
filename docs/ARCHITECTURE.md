@@ -1339,12 +1339,18 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   anybody the person's privacy lets in reads the seats; the person alone reads their waitlist places,
   marked, and the sessions whose instructor refused them (rulings 235, 236). A refusal is a removal,
   not a ban (ruling 219): the person's "Register again" removes it, then books.
+- Two pages book: the personal Workshops page (an account) and the public Workshop page
+  `/e/[eventSlug]/w/[workshopSlug]` (an account or a guest session, ruling 261). Both read the
+  caller's bookings from `GET /events/:event/my-schedule` and draw them with one set of controls
+  (`WorkshopRegisterControls`). The public page does not decide who the caller is: the login cookies
+  are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session. The
+  refusal of a removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
 
 ### 11bis.5 Public discovery
 
 - `/e/[eventSlug]/workshops` — browsable workshop catalog with filters (day, category, language, level, instructor).
-- Workshop detail page with description, instructor bio, sessions, "Add to my schedule" button.
-- Anonymous browsing allowed; enrollment requires login.
+- Workshop detail page with description, instructor bio, sessions, and the register controls of 11bis.4.
+- Anonymous browsing allowed; a booking needs an account or a guest session.
 
 ### 11bis.6 Organizer admin
 
@@ -1876,6 +1882,8 @@ This is intentional — preventing self-registration is what makes guest session
 **Name collision (two Jean Dupont)** — the lookup shows both with club names. If both are at the same club, masked emails plus a creation-date hint disambiguate. Worst case: force the magic link.
 
 **Spelling variations** — the lookup uses fuzzy matching (Postgres `pg_trgm` similarity). "jean" finds "Jean", "Jéan", "Jean-Pierre". The organizer's CSV import should normalize accents (`unaccent`) on the lookup side, but preserve the original spelling for display.
+
+**A name an account holds is not a guest's to pick** (operator ruling 265) — a guest session takes no proof, so on a claimed Person it would let anybody read and act as the account's holder (their Workshop bookings, their schedule, their pass). `POST /events/:id/guest-sessions` refuses such a Person with the code `PERSON_HAS_ACCOUNT`, and `ParticipantIdentityService` reads a guest session opened before the claim as no identity. The holder signs in.
 
 **Switching devices as a Guest** — the participant types their name again on the new device. They get a fresh guest session on Person X. Push subscriptions are per-session (per-device), so each device subscribes independently. That's fine — Guest is explicitly "this device only."
 

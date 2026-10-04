@@ -93,6 +93,12 @@ export class ParticipantIdentityService {
    * the Event ends + 7 days, so only the row can say the session is over. A
    * failed read throws rather than answering "signed out": it is not a verdict,
    * and treating it as one would sign every guest out on a database blip.
+   *
+   * A session on a name an account holds is no identity (operator ruling 265).
+   * A guest session takes no proof, so on such a name it would let anybody read
+   * and act as the account's holder. No new one is opened there
+   * (`guest-sessions.controller.ts`); this ends the ones opened before the claim.
+   * Only a person the read hands back with no holder passes.
    */
   private async fromGuestSession(
     guestToken: string | undefined,
@@ -110,11 +116,15 @@ export class ParticipantIdentityService {
 
     const { data, error } = await this.supabase.service
       .from('guest_sessions')
-      .select('revoked_at')
+      .select('revoked_at, persons ( claimed_by_user_id )')
       .eq('id', payload.sub)
       .maybeSingle();
     if (error) throw new Error(`Guest session ${payload.sub} unreadable: ${error.message}`);
-    const session = data as { revoked_at: string | null } | null;
-    return session && !session.revoked_at ? payload.person_id : null;
+    const session = data as { revoked_at: string | null; persons?: unknown } | null;
+    if (!session || session.revoked_at) return null;
+    // PostgREST embeds a to-one parent as an object; the typed client says array.
+    const person = (Array.isArray(session.persons) ? session.persons[0] : session.persons) as
+      { claimed_by_user_id: string | null } | null | undefined;
+    return person?.claimed_by_user_id === null ? payload.person_id : null;
   }
 }

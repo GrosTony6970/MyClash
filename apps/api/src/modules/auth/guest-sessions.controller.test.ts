@@ -24,6 +24,17 @@ const OPEN = '22222222-2222-4222-8222-222222222222';
 const ANNA = '33333333-3333-4333-8333-333333333333';
 const CARL = '44444444-4444-4444-8444-444444444444';
 const NOWHERE = '55555555-5555-4555-8555-555555555555';
+const TOM = '66666666-6666-4666-8666-666666666666';
+
+/** A roster row; `account` is the account that holds it, if any. */
+const person = (id: string, event: string, name: string, account: string | null = null) => ({
+  id,
+  event_id: event,
+  given_name: name,
+  family_name: name[0],
+  email: `${name.toLowerCase()}@x.test`,
+  claimed_by_user_id: account,
+});
 
 function mint(opts: { member?: boolean } = {}) {
   const db = mockSupabase({
@@ -35,8 +46,10 @@ function mint(opts: { member?: boolean } = {}) {
     },
     persons: {
       rows: [
-        { id: ANNA, event_id: DRAFT, given_name: 'Anna', family_name: 'A', email: 'a@x.test' },
-        { id: CARL, event_id: OPEN, given_name: 'Carl', family_name: 'C', email: 'c@x.test' },
+        person(ANNA, DRAFT, 'Anna'),
+        person(CARL, OPEN, 'Carl'),
+        // Tom has an account: his name is not a guest's to pick (ruling 265).
+        person(TOM, OPEN, 'Tom', 'tom-account'),
       ],
     },
     guest_sessions: {
@@ -136,6 +149,35 @@ describe('POST /events/:eventId/guest-sessions', () => {
       'end_date',
     ]);
     // What the pick answers with, and nothing more: no email.
-    expect(selectsFor(t.db.from, 'persons')).toEqual(['id, given_name, family_name, claim_status']);
+    expect(selectsFor(t.db.from, 'persons')).toEqual([
+      'id, given_name, family_name, claim_status, claimed_by_user_id',
+    ]);
+  });
+
+  it('refuses the name an account holds, by a code, and opens nothing (ruling 265)', async () => {
+    const t = mint();
+
+    const refusal = await t.controller
+      .create(OPEN, { person_id: TOM }, anonymous, t.reply as never)
+      .catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(ForbiddenException);
+    expect((refusal as ForbiddenException).getResponse()).toEqual({
+      error: 'PersonHasAccount',
+      message: 'This participant has an account. Sign in to continue.',
+    });
+    expect(writesTo(t.db, 'guest_sessions')).toEqual([]);
+    expect(t.setCookie).not.toHaveBeenCalled();
+  });
+
+  it('answers with no word about the account of the person picked', async () => {
+    const t = mint();
+    await t.controller.create(OPEN, { person_id: CARL }, anonymous, t.reply as never);
+    expect(Object.keys((t.send.mock.calls[0]?.[0] as { person: object }).person).sort()).toEqual([
+      'claim_status',
+      'family_name',
+      'given_name',
+      'id',
+    ]);
   });
 });

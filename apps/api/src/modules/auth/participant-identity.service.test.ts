@@ -32,8 +32,16 @@ function supabaseWith(opts: { userId?: string | null; personId?: string | null }
 const SESSIONS = {
   guest_sessions: {
     rows: [
-      { id: 'gs-live', revoked_at: null },
-      { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
+      { id: 'gs-live', revoked_at: null, persons: { claimed_by_user_id: null } },
+      {
+        id: 'gs-signed-out',
+        revoked_at: '2027-05-22T08:00:00+00:00',
+        persons: { claimed_by_user_id: null },
+      },
+      // Opened on a name before an account claimed it (ruling 265).
+      { id: 'gs-on-account', revoked_at: null, persons: { claimed_by_user_id: 'tom-account' } },
+      // A row whose person did not come back: nothing says "no account holds it".
+      { id: 'gs-no-person', revoked_at: null },
     ],
   },
 };
@@ -94,7 +102,20 @@ describe('ParticipantIdentityService — guest sessions', () => {
       'person-guest',
     );
     // The double ignores the projection: only this holds the column the check reads.
-    expect(selectsFor(supabase.from, 'guest_sessions')).toEqual(['revoked_at']);
+    expect(selectsFor(supabase.from, 'guest_sessions')).toEqual([
+      'revoked_at, persons ( claimed_by_user_id )',
+    ]);
+  });
+
+  it.each([
+    ['a name an account holds', 'gs-on-account'],
+    ['a person the read did not hand back', 'gs-no-person'],
+  ])('treats a session on %s as no identity (ruling 265)', async (_what, sub) => {
+    const supabase = mockSupabase(SESSIONS);
+    const guest = guestJwt({ sub, person_id: 'person-guest', event_id: EVENT });
+    const service = new ParticipantIdentityService(supabase as never, guest as never);
+
+    await expect(service.resolvePersonId(req({ mc_guest: 'tok' }), EVENT)).resolves.toBeNull();
   });
 
   it('treats a signed-out session as no identity, although its cookie still verifies', async () => {

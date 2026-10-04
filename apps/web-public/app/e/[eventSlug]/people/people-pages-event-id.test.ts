@@ -27,7 +27,10 @@ describe('the person page', () => {
   it('follows, unfollows and joins as a guest under the Event id', () => {
     expect(source).toContain('`/api/v1/events/${eventId}/follows/${personId}`');
     expect(source).toContain('`/api/v1/events/${eventId}/follows`');
-    expect(source).toContain('`${apiUrl}/api/v1/events/${eventId}/guest-sessions`');
+    expect(source).toContain(
+      'await apiRequest(apiUrl, `/api/v1/events/${eventId}/guest-sessions`, {',
+    );
+    expect(source).toContain('body: { person_id: personId },');
     expect(source).not.toMatch(/api\/v1\/events\/\$\{eventSlug\}/);
   });
 
@@ -37,6 +40,16 @@ describe('the person page', () => {
     expect(source).toContain('else setFollowing(!following);');
     expect(source).not.toContain('document.cookie');
     expect(source).not.toContain('localStorage');
+  });
+
+  it('tells a visitor who picks a name an account holds to sign in (ruling 265)', () => {
+    expect(source).toMatch(
+      /failureCode\(result\) === 'PERSON_HAS_ACCOUNT'\s+\? t\('publicApp\.people\.guestHasAccount'\)\s+: t\('publicApp\.people\.guestAccessError'\)/,
+    );
+    // Only the server's yes opens the schedule.
+    expect(source).toMatch(
+      /if \(result\.ok\) \{\s+(\/\/[^\n]*\s+)*window\.location\.assign\(`\/e\/\$\{eventSlug\}\/my-schedule`\);\s+return;/,
+    );
   });
 
   it('says "Person not found" only on a 404; any other failure says it failed', () => {

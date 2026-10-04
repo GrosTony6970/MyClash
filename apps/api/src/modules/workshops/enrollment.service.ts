@@ -95,8 +95,12 @@ export class EnrollmentService {
     if (existing) {
       const e = existing as { id: string; status: string; position: number | null };
       // While the refusal is there, the person cannot book again (he may cancel it: ruling 219).
+      // Named, so a page says it in the reader's language (ruling 261).
       if (e.status === 'refused') {
-        throw new ForbiddenException('You were removed from this workshop by the instructor.');
+        throw new ForbiddenException({
+          error: 'WorkshopBookingRefused',
+          message: 'You were removed from this workshop by the instructor.',
+        });
       }
       await this.markGlobalWorkshopParticipant(personId);
       return {

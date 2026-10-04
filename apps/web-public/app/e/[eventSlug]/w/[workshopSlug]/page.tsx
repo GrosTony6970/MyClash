@@ -5,14 +5,26 @@
  * Route: /e/[eventSlug]/w/[workshopSlug]
  *
  * AC:
- *   ✓ Sessions, capacity status, "Add to my schedule" button
- *   ✓ Anonymous can browse; enroll requires login
+ *   ✓ Sessions, capacity status, the register controls
+ *   ✓ Anonymous can browse; a booking needs an account or a guest session
+ *
+ * The one booking door a guest reaches (operator ruling 261): each session shows
+ * what the caller's booking of it is, with the controls of the personal Workshops
+ * page. The server says who the caller is. The page cannot: both login cookies
+ * are httpOnly, and the cookie check that stood here refused everybody.
  */
 
-import { useEffect, useState } from 'react';
-import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
+import { useCallback, useEffect, useState } from 'react';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
+import {
+  changeBooking,
+  readBookings,
+  type BookingChange,
+  type WorkshopBooking,
+} from '@/components/me/workshop-booking';
 import { useParams, useSearchParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
@@ -27,7 +39,8 @@ interface Session {
   locationLabel: string | null;
   capacity: number | null;
   confirmedCount: number;
-  enrollmentStatus?: 'confirmed' | 'waitlisted' | null;
+  /** 'scheduled' | 'running' | 'completed' | 'cancelled' */
+  status: string;
 }
 
 interface Workshop {
@@ -48,9 +61,29 @@ interface Workshop {
   viewerIsInstructor: boolean;
 }
 
-/** Read twice — the first load, and the refresh after an enrolment lands. */
+/** Read at the first load, and again after every tap on a session. */
 function workshopPath(workshopSlug: string, eventSlug: string): string {
   return `/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`;
+}
+
+/**
+ * What the page says after a tap: the booking as the server gave it, or why it
+ * was refused. Nothing after a booking given up: the session's row says it.
+ */
+function changeNotice(change: BookingChange, t: (key: string) => string): string | null {
+  if (change.ok) {
+    if (change.status === 'cancelled') return null;
+    return change.status === 'waitlisted'
+      ? t('publicApp.workshopDetail.addedToWaitlist')
+      : t('publicApp.workshopDetail.enrolledSuccess');
+  }
+  const refusals = {
+    nobody: t('publicApp.workshopDetail.signInToEnroll'),
+    teaches: t('publicApp.workshopDetail.instructorCannotEnroll'),
+    removed: t('publicApp.me.workshops.refused'),
+    other: failureMessage(change.failure, t),
+  };
+  return refusals[change.why];
 }
 
 export default function WorkshopDetailPage() {
@@ -63,7 +96,11 @@ export default function WorkshopDetailPage() {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [enrolling, setEnrolling] = useState<string | null>(null);
+  // Session id → what the caller's booking of it is. Empty for nobody.
+  const [bookings, setBookings] = useState<Map<string, WorkshopBooking>>(new Map());
+  const [busy, setBusy] = useState<string | null>(null);
+  const [loadKey, setLoadKey] = useState(0);
+  const load = useCallback(() => setLoadKey((key) => key + 1), []);
   const [toast, setToast] = useState<string | null>(null);
   const personId = searchParams.get('personId');
 
@@ -78,67 +115,47 @@ export default function WorkshopDetailPage() {
     };
   }, [eventSlug, apiUrl]);
 
+  // The Workshop and the caller's bookings of it, read together: at the first
+  // load, and again after every tap (`load`). Two taps close together leave two
+  // reads in flight; the cleanup aborts the older one, so the newer one wins.
   useEffect(() => {
     const controller = new AbortController();
+    const { signal } = controller;
     // The route is public, but the seam sends the session anyway: it is what
     // lets the response carry `viewerIsInstructor` for the register button.
-    void apiRequest<Workshop>(apiUrl, workshopPath(workshopSlug, eventSlug), {
-      signal: controller.signal,
-    }).then((result) => {
-      // An abort means this effect was replaced, so the state it would set
-      // belongs to a screen that is gone.
-      if (result.ok) setWorkshop(result.data);
-      else if (result.kind === 'aborted') return;
-      setLoading(false);
+    void apiRequest<Workshop>(apiUrl, workshopPath(workshopSlug, eventSlug), { signal }).then(
+      (result) => {
+        // An abort means this effect was replaced, so the state it would set
+        // belongs to a screen that is gone.
+        if (result.ok) setWorkshop(result.data);
+        else if (result.kind === 'aborted') return;
+        setLoading(false);
+      },
+    );
+    // A read that failed (or was aborted) is no verdict: the page keeps what it shows.
+    void readBookings(apiUrl, eventSlug, signal).then((read) => {
+      if (read) setBookings(read);
     });
     return () => controller.abort();
-  }, [workshopSlug, eventSlug, apiUrl]);
+  }, [workshopSlug, eventSlug, apiUrl, loadKey]);
 
-  async function handleEnroll(sessionId: string) {
-    const hasCookie =
-      document.cookie.includes('mc_guest=') || document.cookie.includes('sb-access-token=');
+  function say(text: string | null) {
+    if (!text) return;
+    setToast(text);
+    setTimeout(() => setToast(null), 3000);
+  }
 
-    if (!hasCookie) {
-      setToast(t('publicApp.workshopDetail.signInToEnroll'));
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-
-    setEnrolling(sessionId);
-    try {
-      const result = await apiRequest<{ status: string }>(
-        apiUrl,
-        `/api/v1/workshop-sessions/${sessionId}/enroll`,
-        { method: 'POST' },
-      );
-
-      if (result.ok) {
-        setToast(
-          result.data.status === 'waitlisted'
-            ? t('publicApp.workshopDetail.addedToWaitlist')
-            : t('publicApp.workshopDetail.enrolledSuccess'),
-        );
-        setTimeout(() => setToast(null), 3000);
-
-        const refreshed = await apiRequest<Workshop>(apiUrl, workshopPath(workshopSlug, eventSlug));
-        if (refreshed.ok) setWorkshop(refreshed.data);
-        return;
-      }
-
-      // The API answers in English, so the one case the button cannot pre-empt
-      // — a guest session, or a page loaded before the instructor tag was added
-      // — is translated here. Matched on the code rather than the sentence.
-      const refusal =
-        failureCode(result) === 'INSTRUCTOR_SELF_ENROLLMENT'
-          ? t('publicApp.workshopDetail.instructorCannotEnroll')
-          : failureMessage(result, t, t('publicApp.workshopDetail.enrollmentFailed'));
-      if (refusal) {
-        setToast(refusal);
-        setTimeout(() => setToast(null), 3000);
-      }
-    } finally {
-      setEnrolling(null);
-    }
+  /**
+   * One tap is one call. Whatever the server answers, the page reads again: a
+   * refusal can mean the page was stale (an instructor removed the caller after
+   * it loaded), and the row must then say so.
+   */
+  async function act(sessionId: string, action: 'book' | 'cancel', booking: WorkshopBooking) {
+    setBusy(sessionId);
+    const change = await changeBooking(apiUrl, sessionId, action, booking);
+    setBusy(null);
+    say(changeNotice(change, t));
+    load();
   }
 
   async function handleGoogleClaim() {
@@ -188,6 +205,10 @@ export default function WorkshopDetailPage() {
   const instructorNames = workshop.instructors.map((i) => i.displayName);
   const description = workshop.descriptionMd ?? workshop.shortDescription;
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
+  const labels = registerLabels(t);
+  // A cancelled session is not listed, as on the personal Workshops page: it has
+  // nothing to book, and the API does not refuse a booking of one.
+  const sessions = workshop.sessions.filter((session) => session.status !== 'cancelled');
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
@@ -288,17 +309,17 @@ export default function WorkshopDetailPage() {
             {t('publicApp.workshopDetail.sessions')}
           </h2>
           <div className="flex flex-col gap-3">
-            {workshop.sessions.map((session) => {
+            {sessions.map((session) => {
               const cap = session.capacity ?? 0;
               const isFull = cap > 0 && session.confirmedCount >= cap;
-              const enrolled = session.enrollmentStatus;
+              const booking = bookings.get(session.id) ?? 'none';
 
               return (
                 <div
                   key={session.id}
                   className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3">
                     <div>
                       {session.startsAt && (
                         <p className="font-medium text-foreground">
@@ -350,35 +371,15 @@ export default function WorkshopDetailPage() {
                       )}
                     </div>
 
-                    <div className="flex-shrink-0">
-                      {enrolled === 'confirmed' ? (
-                        <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-                          {t('publicApp.workshopDetail.enrolled')}
-                        </span>
-                      ) : enrolled === 'waitlisted' ? (
-                        <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-                          {t('publicApp.workshopDetail.waitlisted')}
-                        </span>
-                      ) : workshop.viewerIsInstructor ? (
-                        // Teaching it means no participant seat; the API rejects
-                        // the enroll too, this just says so up front.
-                        <Button type="button" variant="secondary" size="sm" disabled>
-                          {t('publicApp.workshopDetail.youTeachThis')}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant={isFull ? 'secondary' : 'primary'}
-                          size="sm"
-                          onClick={() => void handleEnroll(session.id)}
-                          loading={enrolling === session.id}
-                        >
-                          {isFull
-                            ? t('publicApp.workshopDetail.joinWaitlist')
-                            : t('publicApp.workshopDetail.addToSchedule')}
-                        </Button>
-                      )}
-                    </div>
+                    <WorkshopRegisterControls
+                      booking={booking}
+                      full={isFull}
+                      busy={busy === session.id}
+                      isInstructor={workshop.viewerIsInstructor}
+                      labels={labels}
+                      onRegister={() => void act(session.id, 'book', booking)}
+                      onCancel={() => void act(session.id, 'cancel', booking)}
+                    />
                   </div>
                 </div>
               );

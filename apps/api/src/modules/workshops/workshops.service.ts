@@ -912,17 +912,18 @@ export class WorkshopsService {
     type Club = { id: string; name: string; abbreviation: string | null };
     const personRows = new Map<
       string,
-      { givenName: string; familyName: string; club: Club | null }
+      { givenName: string; familyName: string; club: Club | null; guest: boolean }
     >();
     if (enrolleeUserIds.length > 0) {
       const { data: persons } = await this.supabase.service
         .from('persons')
-        .select('id, given_name, family_name, clubs ( id, name, abbreviation )')
+        .select('id, given_name, family_name, claimed_by_user_id, clubs ( id, name, abbreviation )')
         .in('id', enrolleeUserIds);
       for (const p of (persons ?? []) as unknown as Array<{
         id: string;
         given_name: string;
         family_name: string;
+        claimed_by_user_id: string | null;
         clubs: Club | Club[] | null;
       }>) {
         const club = Array.isArray(p.clubs) ? (p.clubs[0] ?? null) : p.clubs;
@@ -930,6 +931,8 @@ export class WorkshopsService {
           givenName: p.given_name,
           familyName: p.family_name,
           club: club ?? null,
+          // No account holds this roster row (ruling 264).
+          guest: p.claimed_by_user_id === null,
         });
       }
     }
@@ -957,6 +960,8 @@ export class WorkshopsService {
         personId: e.user_id,
         global_person_id: e.global_person_id,
         persons,
+        // False when the roster row could not be read: nothing says "guest" then.
+        guest: fallback?.guest ?? false,
       };
     });
   }

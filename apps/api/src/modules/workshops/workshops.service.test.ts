@@ -411,4 +411,56 @@ describe('WorkshopsService — session roster', () => {
       clubs: null,
     });
   });
+
+  it('marks as a guest the roster person no account holds (ruling 264)', async () => {
+    const booking = (id: string, person: string) => ({
+      id,
+      status: 'confirmed',
+      position: null,
+      enrolled_at: '2026-05-22T10:00:00.000Z',
+      user_id: person,
+      global_person_id: null,
+      global_persons: null,
+    });
+    const supabase = buildRosterSupabase({
+      workshop_sessions: { data: { workshop_id: 'w-1' }, error: null },
+      global_persons: { data: { id: 'gp-instructor' }, error: null },
+      workshop_instructors: { data: { id: 'wi-1' }, error: null },
+      workshop_enrollments: {
+        data: [booking('enr-1', 'tom-row'), booking('enr-2', 'lea-row'), booking('enr-3', 'gone')],
+        error: null,
+      },
+      persons: {
+        data: [
+          {
+            id: 'tom-row',
+            given_name: 'Tom',
+            family_name: 'Petit',
+            claimed_by_user_id: 'tom-account',
+            clubs: null,
+          },
+          {
+            id: 'lea-row',
+            given_name: 'Léa',
+            family_name: 'Martin',
+            claimed_by_user_id: null,
+            clubs: null,
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const roster = await makeService({ service: supabase }).getSessionRoster('sess-1', 'user-1');
+
+    expect(supabase.selects['persons']).toBe(
+      'id, given_name, family_name, claimed_by_user_id, clubs ( id, name, abbreviation )',
+    );
+    // A booking whose roster row is gone is not called a guest: nothing says so.
+    expect(roster.map((entry) => [entry.id, entry.guest])).toEqual([
+      ['enr-1', false],
+      ['enr-2', true],
+      ['enr-3', false],
+    ]);
+  });
 });

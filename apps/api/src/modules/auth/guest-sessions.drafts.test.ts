@@ -25,6 +25,7 @@ const person = (id: string) => ({
   family_name: 'Martin',
   email: 'lea@example.com',
   claim_status: 'unclaimed',
+  claimed_by_user_id: null,
   global_person_id: `gp-${id}`,
 });
 

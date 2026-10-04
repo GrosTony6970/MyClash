@@ -32,8 +32,13 @@ const TABLES = {
   workshops: { rows: [{ id: WORKSHOP, event_id: EVENT }] },
   guest_sessions: {
     rows: [
-      { id: 'gs-live', revoked_at: null },
-      { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
+      // No account holds the person: only then is a guest session an identity (ruling 265).
+      { id: 'gs-live', revoked_at: null, persons: { claimed_by_user_id: null } },
+      {
+        id: 'gs-signed-out',
+        revoked_at: '2027-05-22T08:00:00+00:00',
+        persons: { claimed_by_user_id: null },
+      },
     ],
   },
 };

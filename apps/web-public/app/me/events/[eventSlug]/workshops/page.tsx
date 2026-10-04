@@ -7,10 +7,7 @@ import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
-import {
-  WorkshopRegisterControls,
-  type WorkshopRegisterLabels,
-} from '@/components/me/WorkshopRegisterControls';
+import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
 import { bookingsOf, enrollPath, type WorkshopBooking } from '@/components/me/workshop-booking';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
@@ -236,23 +233,6 @@ function WorkshopsContent({
       ))}
     </div>
   );
-}
-
-/** The words of the register controls, in the reader's language. */
-function registerLabels(t: ReturnType<typeof useI18n>['t']): WorkshopRegisterLabels {
-  return {
-    register: t('publicApp.me.workshops.register'),
-    registerAnyway: t('publicApp.me.workshops.registerAnyway'),
-    cancel: t('publicApp.me.workshops.cancel'),
-    registered: t('publicApp.me.workshops.registered'),
-    joinWaitlist: t('publicApp.me.workshops.joinWaitlist'),
-    onWaitlist: t('publicApp.me.workshops.onWaitlist'),
-    leaveWaitlist: t('publicApp.me.workshops.leaveWaitlist'),
-    refused: t('publicApp.me.workshops.refused'),
-    registerAgain: t('publicApp.me.workshops.registerAgain'),
-    full: t('publicApp.me.workshops.full'),
-    instructorOwn: t('publicApp.me.workshops.instructorOwn'),
-  };
 }
 
 // Participant rating for a workshop they attended (session already started).

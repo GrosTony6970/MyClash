@@ -2114,6 +2114,7 @@ export const organizer = {
     waitlistBadge: "Liste d'attente n°{position}",
     confirmedBadge: 'Confirmé',
     linked: 'Lié',
+    guestTag: 'Invité',
     searchGlobalPersonPlaceholder: 'Rechercher une personne globale…',
     link: 'Lier',
     promote: 'Promouvoir',

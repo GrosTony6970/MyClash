@@ -96,6 +96,20 @@ describe('a refused person registers again (ruling 236)', () => {
     expect(writes()).toEqual([]);
   });
 
+  it('names that refusal, so a page says it in the reader’s language (ruling 261)', async () => {
+    const { service } = build(REFUSAL);
+
+    const refusal = await service.enroll(SESSION, 'tom-row').catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(HttpException);
+    expect((refusal as HttpException).getStatus()).toBe(403);
+    // The exception filter sends `error` as the code WORKSHOP_BOOKING_REFUSED.
+    expect((refusal as HttpException).getResponse()).toEqual({
+      error: 'WorkshopBookingRefused',
+      message: 'You were removed from this workshop by the instructor.',
+    });
+  });
+
   it('answers a refusal that could not be removed with a plain Error, and books nothing', async () => {
     const { service, writes } = build({ data: null, error: { message: 'down' } });
 
