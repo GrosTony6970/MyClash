@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { changeBooking, readBookings } from './workshop-booking';
+import type { MeSession } from '@myclash/api-client';
+import { changeBooking, guestPersonAt, readBookings, unknownCaller } from './workshop-booking';
 
 /**
  * A guest books on the public Workshop page and sees her booking there (operator ruling 261).
@@ -48,13 +49,15 @@ describe('reading the caller’s bookings at an Event', () => {
       }),
     );
 
-    const bookings = await readBookings(API, 'fal 2027');
+    const read = await readBookings(API, 'fal 2027');
 
-    expect([...(bookings ?? [])]).toEqual([
+    expect([...(read?.bookings ?? [])]).toEqual([
       ['s-seat', 'confirmed'],
       ['s-wait', 'waitlisted'],
       ['s-refused', 'refused'],
     ]);
+    // The schedule itself comes too: the clash check reads her fights and duties (ruling 270).
+    expect(read?.schedule).toMatchObject({ personId: 'lea-row', matches: [] });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${API}/api/v1/events/fal%202027/my-schedule`);
@@ -64,10 +67,9 @@ describe('reading the caller’s bookings at an Event', () => {
   it('reads a 401 as nobody: nothing is booked', async () => {
     fetchMock.mockResolvedValue(answer(401, { detail: 'Authentication required' }));
 
-    const bookings = await readBookings(API, 'fal-2027');
+    const read = await readBookings(API, 'fal-2027');
 
-    expect(bookings).not.toBeNull();
-    expect(bookings?.size).toBe(0);
+    expect(read).toEqual({ bookings: new Map(), schedule: null });
   });
 
   it.each([[404], [500]])(
@@ -147,10 +149,74 @@ describe('one tap on a session', () => {
   });
 });
 
+describe('who the booking door did not know (ruling 266)', () => {
+  const me = (body: unknown) => fetchMock.mockResolvedValue(answer(200, body));
+
+  it('asks /me, with her cookies', async () => {
+    me({ type: 'anonymous' });
+
+    await unknownCaller(API);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${API}/api/v1/me`);
+    expect(init.credentials).toBe('include');
+  });
+
+  it('calls a signed-in account with no roster row an account: "sign in" would be false', async () => {
+    me({ type: 'claimed', user: { id: 'u', email: 'marc@example.test' } });
+
+    await expect(unknownCaller(API)).resolves.toBe('account');
+  });
+
+  it.each([
+    ['nobody', { type: 'anonymous' }],
+    ['a guest session of another Event', { type: 'guest' }],
+  ])('calls %s a visitor', async (_who, body) => {
+    me(body);
+
+    await expect(unknownCaller(API)).resolves.toBe('visitor');
+  });
+
+  it('calls her a visitor when /me cannot be read: no proof of an account', async () => {
+    fetchMock.mockResolvedValue(answer(500, { detail: 'no' }));
+    await expect(unknownCaller(API)).resolves.toBe('visitor');
+
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(unknownCaller(API)).resolves.toBe('visitor');
+  });
+});
+
+describe('a guest at this Event (ruling 267)', () => {
+  const lea = {
+    id: 'lea-row',
+    given_name: 'Léa',
+    family_name: 'Martin',
+    event_id: 'event-1',
+    claim_status: 'unclaimed',
+  };
+
+  it('is the roster person of a guest session of this Event', () => {
+    expect(guestPersonAt({ type: 'guest', person: lea }, 'event-1')).toBe('lea-row');
+  });
+
+  it.each<[string, MeSession | null, string | null]>([
+    ['a guest session of another Event', { type: 'guest', person: lea }, 'event-2'],
+    ['an account', { type: 'claimed', person: lea }, 'event-1'],
+    ['nobody', { type: 'anonymous' }, 'event-1'],
+    ['a guest session with no person', { type: 'guest' }, 'event-1'],
+    ['a /me not read yet', null, 'event-1'],
+    ['an Event not read yet', { type: 'guest', person: lea }, null],
+  ])('is nobody for %s', (_who, session, eventId) => {
+    expect(guestPersonAt(session, eventId)).toBeNull();
+  });
+});
+
 const source = (path: string) => readFileSync(resolve(__dirname, '../../..', path), 'utf8');
 
 describe('the public Workshop page', () => {
   const page = source('app/e/[eventSlug]/w/[workshopSlug]/page.tsx');
+  const parts = source('app/e/[eventSlug]/w/[workshopSlug]/WorkshopPageParts.tsx');
 
   it('never looks for a login cookie: the server says who the caller is', () => {
     expect(page).not.toContain('document.cookie');
@@ -158,9 +224,9 @@ describe('the public Workshop page', () => {
   });
 
   it('draws each session from the caller’s booking, with the one set of controls', () => {
-    expect(page).toContain("const booking = bookings.get(session.id) ?? 'none';");
+    expect(page).toContain("const booking = caller.bookings.get(session.id) ?? 'none';");
     expect(page).toMatch(
-      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+busy=\{busy === session\.id\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
+      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+conflict=\{conflictFor\(session\)\}\s+busy=\{busy === session\.id\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
     );
   });
 
@@ -169,9 +235,55 @@ describe('the public Workshop page', () => {
       /const change = await changeBooking\(apiUrl, sessionId, action, booking\);\s+setBusy\(null\);\s+say\(changeNotice\(change, t\)\);\s+load\(\);/,
     );
     expect(page).toContain('}, [workshopSlug, eventSlug, apiUrl, loadKey]);');
-    // A read that failed is no verdict: the page keeps the bookings it shows.
+  });
+
+  it('keeps the bookings it shows when their read fails, and says so with a Retry (ruling 271)', () => {
+    // An aborted read belongs to a screen that is gone: it is neither a verdict nor a failure.
     expect(page).toMatch(
-      /void readBookings\(apiUrl, eventSlug, signal\)\.then\(\(read\) => \{\s+if \(read\) setBookings\(read\);\s+\}\);/,
+      /void readBookings\(apiUrl, eventSlug, signal\)\.then\(\(read\) => \{\s+if \(signal\.aborted\) return;\s+if \(read\) setCaller\(read\);\s+setReadFailed\(read === null\);\s+\}\);/,
+    );
+    expect(page).toContain('{readFailed && <BookingsUnread onRetry={load} />}');
+    expect(parts).toMatch(
+      /\{t\('publicApp\.workshopDetail\.bookingsUnread'\)\}<\/p>\s+<Button variant="secondary" size="sm" onClick=\{onRetry\}>\s+\{t\('actions\.retry'\)\}/,
+    );
+  });
+
+  it('tells a caller the door did not know the ways in, after the tap, and until a tap is accepted (ruling 266)', () => {
+    expect(page).toMatch(
+      /const stranger = !change\.ok && change\.why === 'nobody';\s+const who = stranger \? await unknownCaller\(apiUrl\) : null;/,
+    );
+    // Two taps close together: only the last tap's answer is shown.
+    expect(page).toMatch(/const tap = \+\+taps\.current;\s+setBusy\(sessionId\);/);
+    expect(page).toContain('if (taps.current === tap) setUnknown(who);');
+    expect(page).toContain(
+      '{unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} />}',
+    );
+    // No 3-second message for her: the notice stays.
+    expect(page).toContain('nobody: null,');
+    // An account reads its own sentence, and is not told to sign in.
+    const [, account, visitor] = parts.split(/if \(who === 'account'\) \{|\n {2}\}\n {2}return \(/);
+    expect(account).toContain("{t('publicApp.workshopDetail.accountNotOnRoster')}");
+    expect(account).not.toContain('/login');
+    expect(visitor).toContain("{t('publicApp.workshopDetail.findYourName')}");
+    expect(visitor).toMatch(
+      /<Link href=\{`\/e\/\$\{eventSlug\}\/participants`\} className=\{DOOR\}>\s+\{t\('publicApp\.workshopDetail\.participantsList'\)\}/,
+    );
+    expect(visitor).toMatch(
+      /<Link href="\/login" className=\{DOOR\}>\s+\{t\('publicApp\.home\.signIn'\)\}/,
+    );
+  });
+
+  it('tells a guest of this Event that a guest gets no alert, with the way to an account (ruling 267)', () => {
+    expect(page).toContain('const guestPersonId = guestPersonAt(me, eventInfo?.id ?? null);');
+    expect(page).toContain(
+      '{guestPersonId && <GuestAlertsLine eventSlug={eventSlug} personId={guestPersonId} />}',
+    );
+    // A /me that failed shows no line: it is not a guest.
+    expect(page).toMatch(
+      /void fetchMe\(apiUrl, \{ signal: controller\.signal \}\)\.then\(\(result\) => \{\s+if \(result\.ok\) setMe\(result\.data\);/,
+    );
+    expect(parts).toMatch(
+      /\{t\('publicApp\.workshopDetail\.guestNoAlerts'\)\}\{' '\}\s+<Link\s+href=\{`\/e\/\$\{eventSlug\}\/claim\?personId=\$\{personId\}&next=\$\{back\}`\}/,
     );
   });
 
@@ -184,7 +296,6 @@ describe('the public Workshop page', () => {
   });
 
   it('says each refusal in the reader’s language', () => {
-    expect(page).toMatch(/nobody: t\('publicApp\.workshopDetail\.signInToEnroll'\)/);
     expect(page).toMatch(/teaches: t\('publicApp\.workshopDetail\.instructorCannotEnroll'\)/);
     expect(page).toMatch(/removed: t\('publicApp\.me\.workshops\.refused'\)/);
     // A page opened before the organiser cancelled the session still offers it.

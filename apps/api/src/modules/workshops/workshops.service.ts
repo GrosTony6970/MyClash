@@ -15,6 +15,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
@@ -245,6 +246,8 @@ const WORKSHOP_SELECT = `
 
 @Injectable()
 export class WorkshopsService {
+  private readonly logger = new Logger(WorkshopsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notifications: NotificationSchedulerService,
@@ -306,15 +309,17 @@ export class WorkshopsService {
   /**
    * Public single workshop by (event slug, workshop slug), status-gated.
    *
-   * `userId` is the caller's auth id ('anonymous' when signed out) and only
-   * drives `viewerIsInstructor`, so the page can grey out its own register
-   * button. Nothing about the caller is exposed to anyone else.
+   * `userId` is the caller's auth id ('anonymous' when signed out) and
+   * `viewerRosterRow` her roster row at the Event, an account's or a guest
+   * session's. They only drive `viewerIsInstructor`, so the page can grey out
+   * its own register button. Nothing about the caller is exposed to anyone else.
    */
   async getPublicWorkshopBySlug(
     eventSlug: string,
     workshopSlug: string,
     reader: PublicReader,
     userId = 'anonymous',
+    viewerRosterRow: (eventId: string) => Promise<string | null> = async () => null,
   ): Promise<WorkshopView> {
     const event = await this.resolveEventBySlug(eventSlug, reader);
     if (!event) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
@@ -334,10 +339,16 @@ export class WorkshopsService {
     // Read from the RAW instructor rows, before applyInstructorPrivacy — an
     // instructor who hid themselves publicly is dropped from `instructors`
     // below and would otherwise read as false on their own workshop.
-    const viewerGlobalId = await this.resolveClaimedGlobalPersonId(userId);
-    const viewerIsInstructor =
-      viewerGlobalId !== null &&
-      (row.workshop_instructors ?? []).some((i) => i.global_person_id === viewerGlobalId);
+    // The profile the account holds, and the profile of the caller's roster row: the
+    // booking door refuses by the second (`EnrollmentService`), and a guest has only it
+    // (operator ruling 272).
+    const viewerGlobalIds = [
+      await this.resolveClaimedGlobalPersonId(userId),
+      await this.rosterProfileOfViewer(row.id, () => viewerRosterRow(event.id)),
+    ];
+    const viewerIsInstructor = (row.workshop_instructors ?? []).some(
+      (i) => i.global_person_id !== null && viewerGlobalIds.includes(i.global_person_id),
+    );
     const view = {
       ...this.mapWorkshop(row, counts),
       eventTimezone: event.timezone,
@@ -1264,6 +1275,39 @@ export class WorkshopsService {
       .eq('claimed_by_user_id', userId)
       .maybeSingle();
     return (data as { id: string } | null)?.id ?? null;
+  }
+
+  /**
+   * The profile of the caller's roster row, for the greyed button only. A read that fails here
+   * (who the caller is, or her row) must not fail a public page over a hint: the button stays
+   * live, the booking door still refuses a teacher's tap, and the failure is logged.
+   */
+  private async rosterProfileOfViewer(
+    workshopId: string,
+    viewerRosterRow: () => Promise<string | null>,
+  ): Promise<string | null> {
+    try {
+      return await this.globalPersonOfRosterRow(await viewerRosterRow());
+    } catch (cause) {
+      this.logger.warn(
+        `Workshop ${workshopId}: the caller's roster row could not be read, the register button stays live: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /** The profile a roster row is linked to. A failed read throws: it is not "no profile". */
+  private async globalPersonOfRosterRow(personId: string | null): Promise<string | null> {
+    if (!personId) return null;
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) throw new Error(`Roster row ${personId} unreadable: ${error.message}`);
+    return (data as { global_person_id: string | null } | null)?.global_person_id ?? null;
   }
 
   /** True when the claimed user is a listed instructor of this workshop. */

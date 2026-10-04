@@ -36,6 +36,8 @@ export class MePersonDto {
   @ApiProperty() family_name!: string;
   @ApiProperty() event_id!: string;
   @ApiProperty() claim_status!: string;
+  /** For a guest only: the address of her Event, where her schedule is (ruling 268). */
+  @ApiProperty({ required: false }) event_slug?: string;
 }
 
 export class MeOrganizationDto {

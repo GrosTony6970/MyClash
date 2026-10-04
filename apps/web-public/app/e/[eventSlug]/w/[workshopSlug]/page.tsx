@@ -12,63 +12,49 @@
  * what the caller's booking of it is, with the controls of the personal Workshops
  * page. The server says who the caller is. The page cannot: both login cookies
  * are httpOnly, and the cookie check that stood here refused everybody.
+ *
+ * What the page says beside the controls (operator rulings 266, 267, 270, 271):
+ * a clash with the caller's own fights and duties, as the personal Workshops
+ * page does; that her bookings could not be read; who the booking door did not
+ * know, and the ways in; and, to a guest, that a guest gets no alert.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiRequest, failureMessage, fetchMe, type MeSession } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
+import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
   changeBooking,
+  guestPersonAt,
   readBookings,
+  unknownCaller,
   type BookingChange,
+  type CallerBookings,
+  type UnknownCaller,
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
+import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
 import { useParams, useSearchParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
-
-interface Session {
-  id: string;
-  startsAt: string | null;
-  endsAt: string | null;
-  locationLabel: string | null;
-  capacity: number | null;
-  confirmedCount: number;
-  /** 'scheduled' | 'running' | 'completed' | 'cancelled' */
-  status: string;
-}
-
-interface Workshop {
-  id: string;
-  slug: string;
-  title: string;
-  shortDescription: string | null;
-  descriptionMd: string | null;
-  category: string | null;
-  level: string | null;
-  language: string | null;
-  color: string | null;
-  durationMinutes: number | null;
-  eventTimezone: string | null;
-  sessions: Session[];
-  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
-  /** The signed-in caller teaches this workshop — no participant seat for them. */
-  viewerIsInstructor: boolean;
-}
-
-/** Read at the first load, and again after every tap on a session. */
-function workshopPath(workshopSlug: string, eventSlug: string): string {
-  return `/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`;
-}
+import { workshopPath, type Session, type Workshop } from './workshop-view';
+import {
+  BookingsUnread,
+  GuestAlertsLine,
+  SessionWhen,
+  UnknownCallerNotice,
+} from './WorkshopPageParts';
 
 /**
  * What the page says after a tap: the booking as the server gave it, or why it
- * was refused. Nothing after a booking given up: the session's row says it.
+ * was refused. Nothing after a booking given up: the session's row says it. And
+ * nothing for a caller the door did not know: the notice under the sessions
+ * tells her the ways in, and stays (ruling 266).
  */
 function changeNotice(change: BookingChange, t: (key: string) => string): string | null {
   if (change.ok) {
@@ -78,7 +64,7 @@ function changeNotice(change: BookingChange, t: (key: string) => string): string
       : t('publicApp.workshopDetail.enrolledSuccess');
   }
   const refusals = {
-    nobody: t('publicApp.workshopDetail.signInToEnroll'),
+    nobody: null,
     teaches: t('publicApp.workshopDetail.instructorCannotEnroll'),
     removed: t('publicApp.me.workshops.refused'),
     cancelled: t('publicApp.workshopDetail.sessionCancelled'),
@@ -97,8 +83,14 @@ export default function WorkshopDetailPage() {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  // Session id → what the caller's booking of it is. Empty for nobody.
-  const [bookings, setBookings] = useState<Map<string, WorkshopBooking>>(new Map());
+  // What the caller has at this Event: her bookings by session id, and her schedule
+  // for the clash check. Nothing for nobody.
+  const [caller, setCaller] = useState<CallerBookings>({ bookings: new Map(), schedule: null });
+  const [readFailed, setReadFailed] = useState(false);
+  // Who the booking door did not know, at the last tap.
+  const [unknown, setUnknown] = useState<UnknownCaller | null>(null);
+  const [me, setMe] = useState<MeSession | null>(null);
+  const taps = useRef(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [loadKey, setLoadKey] = useState(0);
   const load = useCallback(() => setLoadKey((key) => key + 1), []);
@@ -115,6 +107,15 @@ export default function WorkshopDetailPage() {
       cancelled = true;
     };
   }, [eventSlug, apiUrl]);
+
+  // Who the caller is, for the guest's line only. A read that failed shows no line.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchMe(apiUrl, { signal: controller.signal }).then((result) => {
+      if (result.ok) setMe(result.data);
+    });
+    return () => controller.abort();
+  }, [apiUrl]);
 
   // The Workshop and the caller's bookings of it, read together: at the first
   // load, and again after every tap (`load`). Two taps close together leave two
@@ -133,9 +134,12 @@ export default function WorkshopDetailPage() {
         setLoading(false);
       },
     );
-    // A read that failed (or was aborted) is no verdict: the page keeps what it shows.
+    // A read that failed is no verdict: the page keeps what it shows, and says so.
+    // An aborted one belongs to a screen that is gone.
     void readBookings(apiUrl, eventSlug, signal).then((read) => {
-      if (read) setBookings(read);
+      if (signal.aborted) return;
+      if (read) setCaller(read);
+      setReadFailed(read === null);
     });
     return () => controller.abort();
   }, [workshopSlug, eventSlug, apiUrl, loadKey]);
@@ -152,29 +156,28 @@ export default function WorkshopDetailPage() {
    * it loaded), and the row must then say so.
    */
   async function act(sessionId: string, action: 'book' | 'cancel', booking: WorkshopBooking) {
+    const tap = ++taps.current;
     setBusy(sessionId);
     const change = await changeBooking(apiUrl, sessionId, action, booking);
     setBusy(null);
     say(changeNotice(change, t));
     load();
+    // The notice under the sessions follows the last tap: the door knew her, or did not.
+    // Two taps close together: the `/me` answer of the older one must not undo the newer one's.
+    const stranger = !change.ok && change.why === 'nobody';
+    const who = stranger ? await unknownCaller(apiUrl) : null;
+    if (taps.current === tap) setUnknown(who);
   }
 
   async function handleGoogleClaim() {
-    if (!personId) {
-      setToast(t('auth.oauth.errors.personMissing'));
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
+    if (!personId) return say(t('auth.oauth.errors.personMissing'));
     const next = `/e/${eventSlug}/w/${workshopSlug}`;
     const redirectTo = `${window.location.origin}/auth/oauth/callback?mode=person_claim&personId=${encodeURIComponent(personId)}&next=${encodeURIComponent(next)}`;
     const { error } = await createOAuthSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
     });
-    if (error) {
-      setToast(t('auth.oauth.errors.startFailed'));
-      setTimeout(() => setToast(null), 3000);
-    }
+    if (error) say(t('auth.oauth.errors.startFailed'));
   }
 
   if (loading) {
@@ -208,8 +211,21 @@ export default function WorkshopDetailPage() {
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
   const labels = registerLabels(t);
   // A cancelled session is not listed, as on the personal Workshops page: it has
-  // nothing to book, and the API does not refuse a booking of one.
+  // nothing to book, and the API refuses a booking of one.
   const sessions = workshop.sessions.filter((session) => session.status !== 'cancelled');
+  const bcp47 = localeToBcp47(locale);
+  const fmtTime = (iso: string) =>
+    formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, bcp47);
+  // Warn, never block: the button then reads "Register anyway" (ruling 270).
+  const { commitments, unchecked } = commitmentsOf(
+    caller.schedule,
+    t('publicApp.me.schedule.referee'),
+  );
+  const conflictFor = (session: Session): string | null => {
+    const clash = clashOf(session, commitments);
+    return clash && t('publicApp.me.workshops.conflictsWith', clashWords(clash, fmtTime));
+  };
+  const guestPersonId = guestPersonAt(me, eventInfo?.id ?? null);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
@@ -310,10 +326,12 @@ export default function WorkshopDetailPage() {
             {t('publicApp.workshopDetail.sessions')}
           </h2>
           <div className="flex flex-col gap-3">
+            {readFailed && <BookingsUnread onRetry={load} />}
+            <ClashCheckNotice count={unchecked} />
             {sessions.map((session) => {
               const cap = session.capacity ?? 0;
               const isFull = cap > 0 && session.confirmedCount >= cap;
-              const booking = bookings.get(session.id) ?? 'none';
+              const booking = caller.bookings.get(session.id) ?? 'none';
 
               return (
                 <div
@@ -321,60 +339,24 @@ export default function WorkshopDetailPage() {
                   className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                 >
                   <div className="flex flex-col gap-3">
-                    <div>
-                      {session.startsAt && (
-                        <p className="font-medium text-foreground">
-                          {formatInZone(
-                            session.startsAt,
-                            tz,
-                            {
-                              weekday: 'short',
-                              day: 'numeric',
-                              month: 'short',
-                            },
-                            localeToBcp47(locale),
-                          )}
-                        </p>
-                      )}
-                      {(session.startsAt || session.endsAt || session.locationLabel) && (
-                        <p className="text-sm text-muted">
-                          {session.startsAt &&
-                            formatInZone(
-                              session.startsAt,
-                              tz,
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                              localeToBcp47(locale),
-                            )}
-                          {session.startsAt && session.endsAt && ' – '}
-                          {session.endsAt &&
-                            formatInZone(
-                              session.endsAt,
-                              tz,
-                              {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              },
-                              localeToBcp47(locale),
-                            )}
-                          {session.locationLabel && ` · ${session.locationLabel}`}
-                        </p>
-                      )}
-                      {cap > 0 && (
-                        <p className="text-xs text-muted mt-0.5">
-                          {t('publicApp.workshopDetail.enrolledCount', {
-                            confirmed: session.confirmedCount,
-                            capacity: cap,
-                          })}
-                        </p>
-                      )}
-                    </div>
+                    <SessionWhen
+                      session={session}
+                      timezone={tz}
+                      bcp47={bcp47}
+                      enrolled={
+                        cap > 0
+                          ? t('publicApp.workshopDetail.enrolledCount', {
+                              confirmed: session.confirmedCount,
+                              capacity: cap,
+                            })
+                          : null
+                      }
+                    />
 
                     <WorkshopRegisterControls
                       booking={booking}
                       full={isFull}
+                      conflict={conflictFor(session)}
                       busy={busy === session.id}
                       isInstructor={workshop.viewerIsInstructor}
                       labels={labels}
@@ -385,6 +367,8 @@ export default function WorkshopDetailPage() {
                 </div>
               );
             })}
+            {unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} />}
+            {guestPersonId && <GuestAlertsLine eventSlug={eventSlug} personId={guestPersonId} />}
           </div>
         </section>
       </section>

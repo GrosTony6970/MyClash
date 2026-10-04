@@ -4,7 +4,13 @@
 // instructor refused the viewer apart (rulings 235, 236). Kept framework-free so
 // it can be unit-tested in isolation.
 
-import { apiRequest, failureCode, type ApiFailure } from '@myclash/api-client';
+import {
+  apiRequest,
+  failureCode,
+  fetchMe,
+  type ApiFailure,
+  type MeSession,
+} from '@myclash/api-client';
 import type { PersonSchedule } from './types';
 
 export type WorkshopBooking = 'none' | 'confirmed' | 'waitlisted' | 'refused';
@@ -31,6 +37,13 @@ export function enrollPath(sessionId: string, booking: WorkshopBooking): string 
   return booking === 'refused' ? `${path}?again=true` : path;
 }
 
+/** What a page knows of the caller at an Event: her bookings, and her schedule for the clash check. */
+export interface CallerBookings {
+  bookings: Map<string, WorkshopBooking>;
+  /** Null for nobody: nothing to clash with. */
+  schedule: PersonSchedule | null;
+}
+
 /**
  * The caller's bookings at an Event, from her own schedule: an account's, or a
  * guest session's. The server says who the caller is; a page cannot, because
@@ -38,20 +51,49 @@ export function enrollPath(sessionId: string, booking: WorkshopBooking): string 
  *
  * A 401 is read as nobody at this Event, so nothing is booked: no login and no
  * guest session, or an account with no roster row there. Any other failure is
- * `null`, no verdict: the page keeps what it shows.
+ * `null`, no verdict: the page keeps what it shows, and says the read failed
+ * (operator ruling 271).
  */
 export async function readBookings(
   apiUrl: string,
   eventSlug: string,
   signal?: AbortSignal,
-): Promise<Map<string, WorkshopBooking> | null> {
+): Promise<CallerBookings | null> {
   const result = await apiRequest<PersonSchedule>(
     apiUrl,
     `/api/v1/events/${encodeURIComponent(eventSlug)}/my-schedule`,
     { signal },
   );
-  if (result.ok) return bookingsOf(result.data);
-  return result.kind === 'unauthenticated' && result.status === 401 ? new Map() : null;
+  if (result.ok) return { bookings: bookingsOf(result.data), schedule: result.data };
+  return result.kind === 'unauthenticated' && result.status === 401
+    ? { bookings: new Map(), schedule: null }
+    : null;
+}
+
+/**
+ * Who the server did not know at the booking door (operator ruling 266). A
+ * visitor has no login: she finds her name on the roster, or signs in. An
+ * account IS signed in and has no roster row at this Event: "sign in" would be
+ * false, only the organiser can add it.
+ *
+ * Asked after a refused tap only. A `/me` that cannot be read is no proof of an
+ * account, so it reads as a visitor: her notice holds both ways out.
+ */
+export type UnknownCaller = 'visitor' | 'account';
+
+export async function unknownCaller(apiUrl: string): Promise<UnknownCaller> {
+  const me = await fetchMe(apiUrl);
+  return me.ok && me.data.type === 'claimed' ? 'account' : 'visitor';
+}
+
+/**
+ * The roster person of a guest session at THIS Event, or null (operator ruling
+ * 267): a guest gets no alert, and the page tells her so. A guest session of
+ * another Event is nobody here.
+ */
+export function guestPersonAt(me: MeSession | null, eventId: string | null): string | null {
+  if (me?.type !== 'guest' || !me.person || !eventId) return null;
+  return me.person.event_id === eventId ? me.person.id : null;
 }
 
 /** Why the server refused a tap, as far as a page has its own words for it. */

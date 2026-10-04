@@ -9744,6 +9744,7 @@ export interface components {
       family_name: string;
       event_id: string;
       claim_status: string;
+      event_slug?: string;
     };
     MeOrganizationDto: {
       id: string;

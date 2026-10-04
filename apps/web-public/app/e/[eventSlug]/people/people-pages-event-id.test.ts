@@ -52,6 +52,24 @@ describe('the person page', () => {
     );
   });
 
+  it('offers neither door on a name an account holds: the sentence and "Sign in" (ruling 269)', () => {
+    expect(source).toMatch(
+      /\{viewerType !== 'claimed' && \(\s+<ThisIsMeCard\s+eventSlug=\{eventSlug\}\s+personId=\{profile\.id\}\s+hasAccount=\{profile\.hasAccount\}\s+offerGuestAccess=\{viewerType === 'anonymous'\}/,
+    );
+    const card = read('[personId]', 'ThisIsMeCard.tsx');
+    // The account's card is drawn in place of the two doors.
+    expect(card).toContain('if (hasAccount) return <HeldNameCard />;');
+    const [, held, free] = card.split(
+      /function HeldNameCard\(\) \{|export function ThisIsMeCard\(/,
+    );
+    expect(held).toContain("{t('publicApp.people.guestHasAccount')}");
+    expect(held).toMatch(/<Link\s+href="\/login"/);
+    expect(held).not.toContain('claim?personId');
+    expect(held).not.toContain('onGuestAccess');
+    expect(free).toContain('claim?personId=${personId}');
+    expect(free).toMatch(/\{offerGuestAccess && \(\s+<button/);
+  });
+
   it('says "Person not found" only on a 404; any other failure says it failed', () => {
     // The branch must SET the failure, not only exist.
     expect(source).toMatch(

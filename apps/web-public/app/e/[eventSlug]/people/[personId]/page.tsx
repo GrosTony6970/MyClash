@@ -18,10 +18,10 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
-import { LegalNotice } from '../../../../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
 import { followRefusal } from './follow-answer';
+import { ThisIsMeCard } from './ThisIsMeCard';
 
 interface PersonProfile {
   id: string;
@@ -31,6 +31,8 @@ interface PersonProfile {
   roles: Array<'competitor' | 'referee' | 'instructor'>;
   allowBeingFollowed: boolean;
   followState: 'following' | 'not_following';
+  /** An account holds this roster name (ruling 269). */
+  hasAccount: boolean;
 }
 
 const ROLE_LABEL_KEYS = {
@@ -258,37 +260,14 @@ export default function PersonProfilePage() {
           guest-session quick access (previously unreachable server flow).
           Guests see only the claim upgrade; claimed users see nothing. */}
       {viewerType !== 'claimed' && (
-        <div className="mb-6 rounded-xl border border-dashed border-border bg-surface px-4 py-3">
-          <p className="text-sm text-foreground-secondary">
-            <span className="font-semibold text-foreground">
-              {t('publicApp.people.thisIsMeTitle')}
-            </span>{' '}
-            {t('publicApp.people.thisIsMeHint')}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              href={`/e/${eventSlug}/claim?personId=${profile.id}&next=${encodeURIComponent(`/e/${eventSlug}`)}`}
-              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--color-accent)' }}
-            >
-              {t('publicApp.people.claimButton')}
-            </Link>
-            {viewerType === 'anonymous' && (
-              <button
-                type="button"
-                onClick={() => void handleGuestAccess()}
-                disabled={guestLoading}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:border-muted disabled:opacity-50"
-              >
-                {t('publicApp.people.guestAccessButton')}
-              </button>
-            )}
-          </div>
-          {/* Notice, not a gate: continuing as a guest hands over no new
-              personal data — the roster row is already the organiser's — so a
-              competitor looking up their own pool is informed, not blocked. */}
-          <LegalNotice className="mt-3" />
-        </div>
+        <ThisIsMeCard
+          eventSlug={eventSlug}
+          personId={profile.id}
+          hasAccount={profile.hasAccount}
+          offerGuestAccess={viewerType === 'anonymous'}
+          guestLoading={guestLoading}
+          onGuestAccess={() => void handleGuestAccess()}
+        />
       )}
 
       {/* Live now */}

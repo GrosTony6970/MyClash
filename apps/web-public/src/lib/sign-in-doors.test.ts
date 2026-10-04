@@ -62,6 +62,14 @@ describe('the site header', () => {
     expect(header).toContain("{visitor.displayName ?? t('publicApp.home.signedInFallback')}");
   });
 
+  it('names a guest beside "Sign in", and her name opens her schedule (ruling 268)', () => {
+    expect(header).toMatch(
+      /\{visitor\.guest && \(\s+<NameChip href=\{visitor\.guest\.scheduleHref\}>\{visitor\.guest\.name\}<\/NameChip>\s+\)\}\s+<Link\s+href="\/login"/,
+    );
+    // An account's name still opens the personal space.
+    expect(header).toMatch(/<NameChip href="\/me">\s+\{visitor\.displayName \?\?/);
+  });
+
   it('is mounted again when the visitor leaves a sign-in door', () => {
     expect(source('app/_components/MaybeSiteHeader.tsx')).toContain(
       "return <SiteHeader key={isSignInDoor(path) ? 'door' : 'site'} />;",

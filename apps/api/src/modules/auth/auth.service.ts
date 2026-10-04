@@ -57,7 +57,8 @@ import type { OAuthSessionDto } from './dto/oauth-session.dto';
 import type { PasswordLoginDto } from './dto/password-login.dto';
 import type { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
-import { GuestJwtService } from './guest-jwt.service';
+import { guestPersonOf } from './guest-person';
+import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 
 /**
  * What the two claim doors that answer with an error throw for each refusal: the
@@ -493,44 +494,48 @@ export class AuthService {
   /** What `/me` answers a caller with no login: her guest session, or anonymous. */
   private async buildGuestResponse(guestToken: string | undefined): Promise<MeResponseDto> {
     if (!guestToken || !this.guestJwt) return { type: 'anonymous' };
+    let payload: GuestJwtPayload;
     try {
-      const payload = this.guestJwt.verify(guestToken);
-
-      // Fetch session + person from DB
-      const { data: sessionData } = await this.supabase.service
-        .from('guest_sessions')
-        .select('id, device_label, expires_at, revoked_at')
-        .eq('id', payload.sub)
-        .maybeSingle();
-      const s = sessionData as {
-        device_label: string;
-        expires_at: string;
-        revoked_at: string | null;
-      } | null;
-      // Revoked sessions are treated as anonymous
-      if (!s || s.revoked_at) return { type: 'anonymous' };
-
-      const { data: personData } = await this.supabase.service
-        .from('persons')
-        .select('id, given_name, family_name, event_id, claim_status, claimed_by_user_id')
-        .eq('id', payload.person_id)
-        .maybeSingle();
-      // A session on a name an account holds is no identity (ruling 265), here as at
-      // the booking door (`ParticipantIdentityService`). The holder is not hers to read.
-      const { claimed_by_user_id: holder, ...person } = (personData ?? {}) as NonNullable<
-        MeResponseDto['person']
-      > & { claimed_by_user_id?: string | null };
-      if (holder) return { type: 'anonymous' };
-
-      return {
-        type: 'guest',
-        person: personData ? person : undefined,
-        session: { device_label: s.device_label, expires_at: s.expires_at },
-      };
+      payload = this.guestJwt.verify(guestToken);
     } catch {
       // Invalid/expired guest token
       return { type: 'anonymous' };
     }
+
+    // A read that fails below is no verdict: it throws, and the pages keep what they show
+    // (an unreadable `/me` is not "signed out").
+    const { data: sessionData, error: sessionError } = await this.supabase.service
+      .from('guest_sessions')
+      .select('id, device_label, expires_at, revoked_at')
+      .eq('id', payload.sub)
+      .maybeSingle();
+    if (sessionError) throw new Error(`Guest session unreadable: ${sessionError.message}`);
+    const s = sessionData as {
+      device_label: string;
+      expires_at: string;
+      revoked_at: string | null;
+    } | null;
+    // Revoked sessions are treated as anonymous
+    if (!s || s.revoked_at) return { type: 'anonymous' };
+
+    const { data: personData, error: personError } = await this.supabase.service
+      .from('persons')
+      .select(
+        'id, given_name, family_name, event_id, claim_status, claimed_by_user_id, events ( slug )',
+      )
+      .eq('id', payload.person_id)
+      .maybeSingle();
+    if (personError) throw new Error(`Guest's roster row unreadable: ${personError.message}`);
+    const { holder, person } = guestPersonOf(personData);
+    // A session on a name an account holds is no identity (ruling 265), here as at
+    // the booking door (`ParticipantIdentityService`).
+    if (holder) return { type: 'anonymous' };
+
+    return {
+      type: 'guest',
+      person,
+      session: { device_label: s.device_label, expires_at: s.expires_at },
+    };
   }
 
   /**

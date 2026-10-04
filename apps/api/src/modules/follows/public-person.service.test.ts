@@ -156,9 +156,20 @@ describe('the public person header (ruling 121a)', () => {
       roles: ['competitor', 'referee'],
       allowBeingFollowed: true,
       followState: 'not_following',
+      hasAccount: false,
     });
     // Signed out, there is no follower to look up.
     expect(queriedTables(supabase.from)).not.toContain('follows');
+  });
+
+  it('says that an account holds the name, and not which one (ruling 269)', async () => {
+    const held = { ...person(MARIE, EVENT, 'gp-marie'), claimed_by_user_id: 'marie-account' };
+    const { service } = build({ persons: { rows: [held] } });
+
+    const profile = await service.getProfile(EVENT, MARIE, ANON, noFollower);
+
+    expect(profile.hasAccount).toBe(true);
+    expect(JSON.stringify(profile)).not.toContain('marie-account');
   });
 
   it('reads the columns it answers with', async () => {
@@ -167,7 +178,7 @@ describe('the public person header (ruling 121a)', () => {
     expect(selectsFor(supabase.from, 'events')).toEqual(['status, organization_id, event_kind']);
     // The gate's draft-only check reads the persons it hides; then the role's own reads.
     expect(selectsFor(supabase.from, 'persons')).toEqual([
-      'id, given_name, family_name, global_person_id, clubs(name)',
+      'id, given_name, family_name, global_person_id, claimed_by_user_id, clubs(name)',
       'id, global_person_id',
     ]);
     expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id, status', 'id, status']);

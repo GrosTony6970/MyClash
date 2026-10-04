@@ -1277,7 +1277,14 @@ export const publicApp = {
     sessionCountPlural: '{count} séances',
   },
   workshopDetail: {
-    signInToEnroll: 'Connectez-vous pour vous inscrire aux ateliers.',
+    findYourName:
+      'Pour réserver une séance, trouvez votre nom dans la liste des participants, ou connectez-vous.',
+    participantsList: 'Liste des participants',
+    accountNotOnRoster:
+      "Votre compte n'est pas dans la liste des participants de cet événement. Demandez à l'organisateur de vous ajouter.",
+    bookingsUnread: "Vos inscriptions n'ont pas pu être lues.",
+    guestNoAlerts:
+      "En tant qu'invité, vous ne recevez aucune alerte. Créez un compte pour être prévenu.",
     addedToWaitlist: "Ajouté à la liste d'attente",
     enrolledSuccess: 'Inscription réussie',
     notFound: 'Atelier introuvable',

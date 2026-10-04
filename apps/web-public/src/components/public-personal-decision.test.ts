@@ -8,11 +8,41 @@ const org = (slug: string) => ({ id: `id-${slug}`, slug, name: slug, role: 'owne
 
 describe('resolvePublicPersonal', () => {
   it.each(['guest', 'anonymous'] as const)('sends a %s session to sign in', (type) => {
-    expect(resolvePublicPersonal({ type })).toEqual({ kind: 'sign_in' });
+    expect(resolvePublicPersonal({ type })).toEqual({ kind: 'sign_in', guest: null });
   });
 
   it('sends a missing payload to sign in', () => {
-    expect(resolvePublicPersonal(null)).toEqual({ kind: 'sign_in' });
+    expect(resolvePublicPersonal(null)).toEqual({ kind: 'sign_in', guest: null });
+  });
+
+  describe('a guest is still sent to sign in, and is named (ruling 268)', () => {
+    const lea = {
+      id: 'p',
+      given_name: 'Léa',
+      family_name: 'Martin',
+      event_id: 'e',
+      claim_status: 'unclaimed',
+    };
+
+    it('names her, with the way to her schedule at her Event', () => {
+      const me: MeSession = { type: 'guest', person: { ...lea, event_slug: 'fal 2027' } };
+      expect(resolvePublicPersonal(me)).toEqual({
+        kind: 'sign_in',
+        guest: { name: 'Léa Martin', scheduleHref: '/e/fal%202027/my-schedule' },
+      });
+    });
+
+    it('names nobody when the answer has no Event address: there is no page to open', () => {
+      expect(resolvePublicPersonal({ type: 'guest', person: lea })).toEqual({
+        kind: 'sign_in',
+        guest: null,
+      });
+    });
+
+    it('names nobody for an anonymous answer that carries a person', () => {
+      const me: MeSession = { type: 'anonymous', person: { ...lea, event_slug: 'fal-2027' } };
+      expect(resolvePublicPersonal(me)).toEqual({ kind: 'sign_in', guest: null });
+    });
   });
 
   // The behaviour this module exists to change. An unreachable API is not a

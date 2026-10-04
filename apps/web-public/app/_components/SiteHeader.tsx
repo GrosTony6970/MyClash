@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { fetchMe } from '@myclash/api-client';
@@ -12,13 +12,39 @@ import {
 } from '@/components/public-personal-decision';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 
+/** The visitor's name in the header: an account's opens `/me`, a guest's her schedule. */
+function NameChip({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+      <path
+        fillRule="evenodd"
+        d="M3 4a1 1 0 0 1 1-1h7a1 1 0 1 1 0 2H5v10h6a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V4Zm10.293 3.293a1 1 0 0 1 1.414 0L17.414 10l-2.707 2.707a1 1 0 1 1-1.414-1.414L14.586 10H8a1 1 0 1 1 0-2h6.586l-1.293-1.293a1 1 0 0 1 0-1.414Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 /**
  * Shared global header for the public site.
  *
  * Who the visitor is comes from `/me` (operator ruling 262), through the resolver
  * `PublicPersonalShell` uses:
  *
- *   - `sign_in`    → MyClash logo + name + Sign in button (green).
+ *   - `sign_in`    → MyClash logo + name + Sign in button (green). A guest's
+ *                    name stands beside it and opens her schedule at her Event
+ *                    (operator ruling 268): she may have an account too.
  *   - `allow`      → MyClash logo + name + display-name chip linking to /me
  *                    + Sign out icon button, and the "Admin workspace" switch
  *                    for an account that also holds an admin grant.
@@ -87,12 +113,17 @@ export function SiteHeader() {
           <LanguageSwitcher />
 
           {visitor?.kind === 'sign_in' && (
-            <Link
-              href="/login"
-              className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              {t('publicApp.home.signIn')}
-            </Link>
+            <div className="flex items-center gap-2">
+              {visitor.guest && (
+                <NameChip href={visitor.guest.scheduleHref}>{visitor.guest.name}</NameChip>
+              )}
+              <Link
+                href="/login"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {t('publicApp.home.signIn')}
+              </Link>
+            </div>
           )}
 
           {visitor?.kind === 'allow' && (
@@ -105,12 +136,9 @@ export function SiteHeader() {
                   {t('publicApp.home.adminWorkspace')}
                 </a>
               )}
-              <Link
-                href="/me"
-                className="rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:bg-accent/10 focus:outline-none focus:ring-2 focus:ring-accent"
-              >
+              <NameChip href="/me">
                 {visitor.displayName ?? t('publicApp.home.signedInFallback')}
-              </Link>
+              </NameChip>
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
@@ -118,13 +146,7 @@ export function SiteHeader() {
                 aria-label={t('publicApp.personalShell.logout')}
                 className="rounded-md border border-border p-2 text-foreground-secondary transition hover:border-accent hover:text-accent disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent"
               >
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                  <path
-                    fillRule="evenodd"
-                    d="M3 4a1 1 0 0 1 1-1h7a1 1 0 1 1 0 2H5v10h6a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1V4Zm10.293 3.293a1 1 0 0 1 1.414 0L17.414 10l-2.707 2.707a1 1 0 1 1-1.414-1.414L14.586 10H8a1 1 0 1 1 0-2h6.586l-1.293-1.293a1 1 0 0 1 0-1.414Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
+                <SignOutIcon />
               </button>
             </div>
           )}

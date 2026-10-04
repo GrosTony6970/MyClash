@@ -111,7 +111,8 @@ function build(events: Parameters<typeof mockSupabase>[0][string]) {
     supabase as never,
     {} as never,
     {} as never,
-    {} as never,
+    // These requests carry no login or guest cookie: the caller has no roster row.
+    { resolvePersonId: async () => null } as never,
   );
 }
 

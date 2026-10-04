@@ -1266,7 +1266,12 @@ export const publicApp = {
     sessionCountPlural: '{count} sessions',
   },
   workshopDetail: {
-    signInToEnroll: 'Sign in to enroll in workshops.',
+    findYourName: 'To book a session, find your name in the participants list, or sign in.',
+    participantsList: 'Participants list',
+    accountNotOnRoster:
+      "Your account is not on this event's participants list. Ask the organiser to add you.",
+    bookingsUnread: 'Your bookings could not be read.',
+    guestNoAlerts: 'As a guest you get no alerts. Make an account to be told.',
     addedToWaitlist: 'Added to waitlist',
     enrolledSuccess: 'Enrolled successfully',
     notFound: 'Workshop not found',

@@ -33,6 +33,12 @@ export interface PublicPersonProfile {
   roles: PublicPersonRole[];
   allowBeingFollowed: boolean;
   followState: 'following' | 'not_following';
+  /**
+   * An account holds this roster name (operator ruling 269): such a name is not a guest's
+   * to pick, so the page offers "Sign in" there. Never which account. The guest door
+   * already answers the same fact to anybody who asks it (`PERSON_HAS_ACCOUNT`).
+   */
+  hasAccount: boolean;
 }
 
 interface PersonRow {
@@ -40,6 +46,7 @@ interface PersonRow {
   given_name: string;
   family_name: string;
   global_person_id: string | null;
+  claimed_by_user_id: string | null;
   clubs: { name: string } | null;
 }
 
@@ -67,7 +74,7 @@ export class PublicPersonService {
       eventId,
       personId,
       reader,
-      'id, given_name, family_name, global_person_id, clubs(name)',
+      'id, given_name, family_name, global_person_id, claimed_by_user_id, clubs(name)',
     );
 
     const [roles, privacy, following] = await Promise.all([
@@ -83,6 +90,7 @@ export class PublicPersonService {
       roles,
       allowBeingFollowed: privacy.allowBeingFollowed,
       followState: following ? 'following' : 'not_following',
+      hasAccount: Boolean(person.claimed_by_user_id),
     };
   }
 

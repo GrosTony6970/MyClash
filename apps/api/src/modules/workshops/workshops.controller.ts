@@ -248,12 +248,14 @@ export class WorkshopsController {
   ) {
     // Stays @Public() — anonymous browsing is the norm here. The guard's reader
     // decides whether a draft Event's workshop is visible; the GoTrue identity
-    // only sets `viewerIsInstructor` for the caller.
+    // and the caller's roster row (a guest has one too) only set
+    // `viewerIsInstructor` for the caller.
     return this.workshops.getPublicWorkshopBySlug(
       eventSlug,
       slug,
       publicReader(req),
       await getUserId(req, this.supabase),
+      (eventId) => this.identity.resolvePersonId(req, eventId),
     );
   }
 

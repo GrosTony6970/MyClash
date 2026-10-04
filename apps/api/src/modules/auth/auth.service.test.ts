@@ -793,6 +793,7 @@ describe('AuthService', () => {
       ...GUEST_PERSON,
       id,
       claimed_by_user_id: holder,
+      events: { slug: 'fal-2027' },
     });
 
     it('answers anonymous for a guest session on a name an account holds (ruling 265)', async () => {
@@ -809,11 +810,41 @@ describe('AuthService', () => {
       const result = await service.getMe(guestOf('person-free'));
 
       expect(result.type).toBe('guest');
-      expect(result.person).toEqual({ ...GUEST_PERSON, id: 'person-free' });
-      // The double ignores the projection: only this holds the column the check reads.
+      // Her Event's address is where the header sends her: her schedule (ruling 268).
+      expect(result.person).toEqual({
+        ...GUEST_PERSON,
+        id: 'person-free',
+        event_slug: 'fal-2027',
+      });
+      // The double ignores the projection: only this holds the columns the answer reads.
       expect(selectsFor(seeded.from, 'persons')).toEqual([
-        'id, given_name, family_name, event_id, claim_status, claimed_by_user_id',
+        'id, given_name, family_name, event_id, claim_status, claimed_by_user_id, events ( slug )',
       ]);
+    });
+
+    it.each([
+      ['her session', { guest_sessions: { data: null, error: { message: 'connection reset' } } }],
+      ['her roster row', { persons: { data: null, error: { message: 'connection reset' } } }],
+    ])('fails rather than call a guest nobody when %s cannot be read', async (_what, failed) => {
+      seedTables({
+        guest_sessions: { rows: GUEST_SESSIONS },
+        persons: { rows: [GUEST_PERSON] },
+        ...failed,
+      });
+
+      const read = service.getMe({ headers: {}, cookies: { mc_guest: guestCookie() } } as never);
+
+      await expect(read).rejects.toThrow(/connection reset/);
+    });
+
+    it('hands a guest no Event address when the read gives none', async () => {
+      // GUEST_PERSON is seeded with no Event embed.
+      const result = await service.getMe({
+        headers: {},
+        cookies: { mc_guest: guestCookie() },
+      } as never);
+
+      expect(result.person).toEqual(GUEST_PERSON);
     });
 
     it('claimed wins when both Supabase token and guest cookie present; clears guest cookie', async () => {

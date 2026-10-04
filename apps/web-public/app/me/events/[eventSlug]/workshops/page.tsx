@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { overlapsHalfOpen } from '@myclash/schedule-core';
 import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -15,16 +14,10 @@ import {
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
 import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
-import {
-  dutyTimed,
-  fightItems,
-  toTimed,
-  uncheckedCount,
-  type TimedItem,
-} from '@/components/me/conflicts';
+import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
-import type { MyEventInfo, MyEventWorkshopTeaching, PersonSchedule } from '@/components/me/types';
+import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
 
 type WorkshopSession = WorkshopListItem['sessions'][number];
 
@@ -41,34 +34,6 @@ export default function HubWorkshopsPage() {
       <WorkshopsContent event={myEvent.event} teaching={myEvent.workshopsTeaching} />
     </EventHubChrome>
   );
-}
-
-/**
- * The user's fights, the Pools they fight in, and their referee duties as timed
- * windows, for conflict checks — and how many fights and duties the check cannot
- * see. A duty's window is the one the API works out, so a Pool duty (no Match of
- * its own) takes part too; an item whose end is unknown does not. Workshops stay
- * out: every enrolled session would clash with itself.
- */
-function commitmentsOf(
-  schedule: PersonSchedule,
-  referee: string,
-): { commitments: TimedItem[]; unchecked: number } {
-  const boutKey = (m: PersonSchedule['matches'][number]) => `fight-${m.id}`;
-  const dutyKey = (r: PersonSchedule['refereeSlots'][number]) => `ref-${r.id}`;
-  const commitments = [
-    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.matchNumberLabel),
-    ...schedule.refereeSlots.flatMap((r) => {
-      const what = r.matchNumberLabel || r.poolName;
-      const ti = dutyTimed(dutyKey(r), what ? `${referee} · ${what}` : referee, r);
-      return ti ? [ti] : [];
-    }),
-  ];
-  const cards = [
-    ...schedule.matches.map((m) => ({ key: boutKey(m), time: m.scheduledAt })),
-    ...schedule.refereeSlots.map((r) => ({ key: dutyKey(r), time: r.scheduledAt ?? r.startsAt })),
-  ];
-  return { commitments, unchecked: uncheckedCount(cards, commitments) };
 }
 
 function WorkshopsContent({
@@ -130,27 +95,16 @@ function WorkshopsContent({
   }, [workshops]);
 
   const { commitments, unchecked } = useMemo(
-    () =>
-      schedule
-        ? commitmentsOf(schedule, t('publicApp.me.schedule.referee'))
-        : { commitments: [], unchecked: 0 },
+    () => commitmentsOf(schedule, t('publicApp.me.schedule.referee')),
     [schedule, t],
   );
 
   const fmtTime = (iso: string | null) =>
     iso ? formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, tag) : '';
 
-  const conflictFor = (s: WorkshopSession): string | null => {
-    const ti = toTimed(`ws-${s.id}`, '', s.startsAt, s.endsAt);
-    if (!ti) return null;
-    const clash = commitments.find((c) => overlapsHalfOpen(ti, c));
-    if (!clash) return null;
-    // The whole window, not its start: a Pool that starts at 10:00 and clashes
-    // with a 10:31 session would read as no clash at "(10:00)".
-    return t('publicApp.me.workshops.conflictsWith', {
-      item: clash.label,
-      time: `${fmtTime(new Date(clash.startMs).toISOString())}–${fmtTime(new Date(clash.endMs).toISOString())}`,
-    });
+  const conflictFor = (session: WorkshopSession): string | null => {
+    const clash = clashOf(session, commitments);
+    return clash && t('publicApp.me.workshops.conflictsWith', clashWords(clash, fmtTime));
   };
 
   const act = useCallback(

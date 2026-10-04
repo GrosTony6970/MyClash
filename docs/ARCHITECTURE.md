@@ -1346,6 +1346,14 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session, and the
   booking door refuses one before any write (`WORKSHOP_SESSION_CANCELLED`, a 409). The refusal of a
   removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
+- What the public page says beside the controls (rulings 266, 267, 270, 271, 272). A clash with the
+  caller's own fights and duties, warned and never blocked, from the one owner both pages ask
+  (`workshop-clash.ts`). A bookings read that failed, with a Retry. After a booking's 401, who the
+  door did not know: a visitor reads the two ways in (the participants list, or sign in), a
+  signed-in account with no roster row at the Event reads that it is not on the list
+  (`unknownCaller` asks `/me`). A guest of the Event reads that a guest gets no alert: an alert goes
+  to an account. `viewerIsInstructor` goes by the caller's roster row as well as the account's
+  profile, so a guest who teaches gets the greyed button the booking door's refusal implies.
 
 ### 11bis.5 Public discovery
 
