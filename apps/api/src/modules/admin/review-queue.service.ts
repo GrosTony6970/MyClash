@@ -13,6 +13,7 @@ import { insertAuditLog } from '../../common/audit-log';
 import { EventsService } from '../events/events.service';
 import { LeagueMembershipRequestsService } from '../leagues/league-membership-requests.service';
 import { LeaguesService } from '../leagues/leagues.service';
+import type { ListExchangeEditRequestsDto } from './dto/exchange-edit-requests.dto';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { UserDirectoryService } from '../user-directory/user-directory.service';
 
@@ -318,51 +319,36 @@ export class ReviewQueueService {
   }
 
   private async fetchExchangeEdits(statusFilter: string): Promise<ReviewQueueItem[]> {
-    let q = this.supabase.service
-      .from('exchange_edit_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (statusFilter !== 'all') q = q.eq('status', statusFilter) as typeof q;
-
-    const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Record<string, unknown>[];
-
-    const userIds = [
-      ...new Set([
-        ...rows.map((r) => r['requested_by_user_id'] as string),
-        ...rows
-          .map((r) => r['reviewed_by_user_id'] as string | null)
-          .filter((id): id is string => Boolean(id)),
-      ]),
-    ];
-    const userMap = await this.userDirectory.resolveUsers(userIds);
-
-    return rows.map((r) => {
-      const reqId = r['requested_by_user_id'] as string;
-      const reqUser = userMap.get(reqId);
-      const revId = (r['reviewed_by_user_id'] as string | null) ?? null;
-      const revUser = revId ? userMap.get(revId) : null;
-      return {
-        type: 'exchange_edit' as const,
-        id: r['id'] as string,
-        status: r['status'] as ReviewQueueItem['status'],
-        targetLabel: `match ${r['match_id'] as string} exchange ${r['exchange_id'] as string}`,
-        targetHref: null,
-        requesterUserId: reqId,
-        requesterName: reqUser?.name ?? null,
-        requesterEmail: reqUser?.email ?? null,
-        organizationId: null,
-        organizationName: null,
-        reason: (r['reason'] as string | null) ?? null,
-        rejectionReason: (r['rejection_reason'] as string | null) ?? null,
-        reviewedByUserId: revId,
-        reviewedByName: revUser?.name ?? null,
-        reviewedByEmail: revUser?.email ?? null,
-        reviewedAt: (r['reviewed_at'] as string | null) ?? null,
-        createdAt: r['created_at'] as string,
-      };
+    // One owner of this list and of its names: the Exchange corrections page
+    // reads the same rows. The queue named a request by its raw ids.
+    const rows = await this.exchangeEditService.list({
+      status: statusFilter as ListExchangeEditRequestsDto['status'],
     });
+
+    return rows.map((r) => ({
+      type: 'exchange_edit' as const,
+      id: r.id,
+      status: r.status,
+      // An id is the last resort, for a part that no longer resolves.
+      targetLabel: [
+        r.eventLabel ?? r.event_id,
+        r.matchLabel ?? r.match_id,
+        r.exchangeLabel ?? r.exchange_id,
+      ].join(' · '),
+      targetHref: null,
+      requesterUserId: r.requested_by_user_id,
+      requesterName: r.requesterName,
+      requesterEmail: r.requesterEmail,
+      organizationId: null,
+      organizationName: null,
+      reason: r.reason,
+      rejectionReason: r.rejection_reason,
+      reviewedByUserId: r.reviewed_by_user_id,
+      reviewedByName: r.reviewedByName,
+      reviewedByEmail: r.reviewedByEmail,
+      reviewedAt: r.reviewed_at,
+      createdAt: r.created_at,
+    }));
   }
 
   private async fetchClubReviews(statusFilter: string): Promise<ReviewQueueItem[]> {

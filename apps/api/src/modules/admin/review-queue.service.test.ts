@@ -102,8 +102,24 @@ function makeSupabaseMock(tableData: Record<string, unknown[]>) {
 
 // ── Mock services ─────────────────────────────────────────────────────────────
 
-function makeMockExchangeEditService() {
+/** A request as `ExchangeEditRequestsAdminService.list` hands it: the row and its names. */
+function makeListedExchangeEdit(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
+    ...makeExchangeRow({ created_at: '2026-01-04T00:00:00.000Z' }),
+    requesterName: 'Léa Martin',
+    requesterEmail: 'lea@example.test',
+    reviewedByName: null,
+    reviewedByEmail: null,
+    eventLabel: 'FAL 2026',
+    matchLabel: 'Longsword · pool · L1-P1-M03',
+    exchangeLabel: '#7 · clean',
+    ...overrides,
+  };
+}
+
+function makeMockExchangeEditService(listed: unknown[] = [makeListedExchangeEdit()]) {
+  return {
+    list: vi.fn().mockResolvedValue(listed),
     approve: vi.fn().mockResolvedValue({ approved: true, requestId: 'req-1', result: {} }),
     reject: vi.fn().mockResolvedValue({ rejected: true, requestId: 'req-1' }),
   };
@@ -142,7 +158,6 @@ describe('ReviewQueueService', () => {
   it('listAll returns aggregated items from all 3 sources sorted by createdAt desc, default to pending', async () => {
     const tableData: Record<string, unknown[]> = {
       deletion_requests: [makeDeletionRow({ created_at: '2026-01-03T00:00:00.000Z' })],
-      exchange_edit_requests: [makeExchangeRow({ created_at: '2026-01-04T00:00:00.000Z' })],
       club_review_requests: [makeClubReviewRow({ created_at: '2026-01-02T00:00:00.000Z' })],
       fighters: [],
       organizations: [],
@@ -173,8 +188,71 @@ describe('ReviewQueueService', () => {
 
     // The status filter 'pending' should have been applied (eq('status', 'pending') called)
     expect(supabase._fromMock).toHaveBeenCalledWith('deletion_requests');
-    expect(supabase._fromMock).toHaveBeenCalledWith('exchange_edit_requests');
+    expect(mockExchangeEditService.list).toHaveBeenCalledWith({ status: 'pending' });
     expect(supabase._fromMock).toHaveBeenCalledWith('club_review_requests');
+  });
+
+  // ── 1b. an exchange correction is named, not shown by its ids ────────────────
+
+  function exchangeEditsOf(listed: unknown[]) {
+    const supabase = makeSupabaseMock({});
+    const exchangeEdits = makeMockExchangeEditService(listed);
+    const queue = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      exchangeEdits as never,
+      makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
+      makeMockUserDirectory() as never,
+    );
+    return { supabase, exchangeEdits, queue };
+  }
+
+  it('names an exchange correction by its Event, its bout and its hit', async () => {
+    const { supabase, exchangeEdits, queue } = exchangeEditsOf([
+      makeListedExchangeEdit({
+        status: 'rejected',
+        rejection_reason: 'the video shows the hit',
+        reviewed_by_user_id: 'user-2',
+        reviewedByName: 'Marc Petit',
+        reviewed_at: '2026-01-05T00:00:00.000Z',
+      }),
+    ]);
+
+    const result = await queue.listAll('exchange_edit', 'rejected');
+
+    expect(exchangeEdits.list).toHaveBeenCalledWith({ status: 'rejected' });
+    expect(result).toEqual([
+      {
+        type: 'exchange_edit',
+        id: 'req-1',
+        status: 'rejected',
+        targetLabel: 'FAL 2026 · Longsword · pool · L1-P1-M03 · #7 · clean',
+        targetHref: null,
+        requesterUserId: 'user-1',
+        requesterName: 'Léa Martin',
+        requesterEmail: 'lea@example.test',
+        organizationId: null,
+        organizationName: null,
+        reason: 'test reason',
+        rejectionReason: 'the video shows the hit',
+        reviewedByUserId: 'user-2',
+        reviewedByName: 'Marc Petit',
+        reviewedByEmail: null,
+        reviewedAt: '2026-01-05T00:00:00.000Z',
+        createdAt: '2026-01-04T00:00:00.000Z',
+      },
+    ]);
+    // One owner of the list: the queue does not read the requests a second time.
+    expect(supabase._fromMock).not.toHaveBeenCalled();
+  });
+
+  it('an id stands in only for the part that no longer resolves', async () => {
+    const { queue } = exchangeEditsOf([makeListedExchangeEdit({ matchLabel: null })]);
+
+    const [item] = await queue.listAll('exchange_edit', null);
+
+    expect(item!.targetLabel).toBe('FAL 2026 · match-1 · #7 · clean');
   });
 
   // ── 2. listAll with typeFilter='deletion' only queries deletion_requests ─────
