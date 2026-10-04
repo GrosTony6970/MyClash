@@ -836,10 +836,12 @@ export class StaffService {
   }
 
   /**
-   * `whenOver` is `'leave-to-handler'` for a hit and a card alone (rulings 233,
-   * 240, 240a). A pad queues them offline and may send them after its Event is
-   * completed or archived; their handler answers one the server already holds
-   * and refuses a new one with a code the pad holds. Refused here, the pad
+   * `whenOver` is `'leave-to-handler'` for a hit and a card, the only WRITES
+   * that pass it (rulings 233, 240, 240a), and for the reads of
+   * `authorizeMatchScoringRead` (259). A pad queues the two writes offline and
+   * may send them after its Event is completed or archived; their handler
+   * answers one the server already holds and refuses a new one with a code the
+   * pad holds. Refused here, the pad
    * cannot tell the two apart and retries both for ever. WHO may score is asked
    * all the same: an account's role in the organisation; a PIN session's
    * token, account, role, Event and piste. `'leave-account-to-handler'` is for
@@ -884,6 +886,17 @@ export class StaffService {
   }
 
   /**
+   * Who may score this bout, asked for a READ of what the scorer needs: the
+   * undo preview, the card rules, the card history (ruling 259). An over Event
+   * is no bar to a read, so only that refusal is skipped: every check of the
+   * person runs, and on an over Event a super admin passes with no role (ruling
+   * 251). Never for a write: a write's door says what its handler does there.
+   */
+  async authorizeMatchScoringRead(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
+    return this.authorizeMatchScoring(req, matchId, 'leave-to-handler');
+  }
+
+  /**
    * Scoring for ACCESS, organizer PROBED for the discard capability.
    *
    * The un-completion paths — reset, the clock, the pre-flight — all have to be
@@ -903,8 +916,12 @@ export class StaffService {
   async authorizeMatchScoringWithDiscard(
     req: FastifyRequest,
     matchId: string,
+    door: 'write' | 'read' = 'write',
   ): Promise<ScoringActor> {
-    const actor = await this.authorizeMatchScoring(req, matchId);
+    const actor =
+      door === 'read'
+        ? await this.authorizeMatchScoringRead(req, matchId)
+        : await this.authorizeMatchScoring(req, matchId);
     const canDiscardDependentResults = await this.authorizeMatchOrganizer(req, matchId).then(
       () => true,
       () => false,
@@ -1488,8 +1505,9 @@ export class StaffService {
    * Omit it for the surfaces every role shares — `/staff-auth/me` and the
    * heartbeat, which a desk tablet sends exactly like a scoring tablet.
    *
-   * `whenOver` skips the over-Event refusal alone, for a queued hit or card
-   * (see `authorizeMatchScoring`). Every check of the person runs before it.
+   * `whenOver` skips the over-Event refusal alone, for a queued hit or card and
+   * for a read (see `authorizeMatchScoring`). Every check of the person runs
+   * before it.
    */
   private async requireStaffFromRequest(
     req: FastifyRequest,

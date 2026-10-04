@@ -503,6 +503,22 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     );
   });
 
+  // Ruling 259: every undo is refused on an over Event, to a super admin too.
+  // The preview asked the write's permission, which a super admin holds, and
+  // would have offered him an undo the reset door then refuses.
+  it.each([true, false])('the preview says frozen when the Event is over: %s', async (over) => {
+    const frozen = { isEventOver: vi.fn().mockResolvedValue(over) };
+
+    const preview = await new MatchCompletionService(
+      uncompleteSupabase(bracketFixture(false)) as never,
+      frozen as never,
+      { clearDownstreamOf: vi.fn() } as never,
+    ).previewUncompletion('match-r1p1', ORGANISER);
+
+    expect(preview.frozen).toBe(over);
+    expect(frozen.isEventOver).toHaveBeenCalledWith('match-r1p1');
+  });
+
   it('no-ops for a pool match, which feeds no slot', async () => {
     const supabase = uncompleteSupabase({
       slots: [],

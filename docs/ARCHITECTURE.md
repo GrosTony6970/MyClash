@@ -1953,10 +1953,20 @@ bout's void, a forfeit and its void, an unlock) stays refused to everybody on an
 `result-writes.over-event.test.ts` holds each from its controller. The READS of a bout's record
 (its audit trail, its live forfeit) are not result writes: `StaffService.authorizeMatchRecordRead`
 lets an editor of the club read them whatever the Event's status, and a super admin with no role
-on an over Event (255). A waiting correction request that a direct correction answers is closed by
-that correction (`matches/answered-requests.ts`): the same void or restore closes it as approved
-(253), an edit of the hit closes a void request as rejected with a fixed reason (254), and every
-approval tells who asked, as a rejection does (253a). The guard's refusal
+on an over Event (255). Three more reads answer on an over Event (259): the undo preview, a
+bout's card rules and its card history go through `StaffService.authorizeMatchScoringRead`, which
+asks who may score (the role, or the pad's session, Event and piste) and skips the over-Event
+refusal alone. The undo preview then says `frozen` to everybody, a super admin included, because
+every undo is refused there. A waiting correction request that a direct correction answers is
+closed by that correction (`matches/answered-requests.ts`): the same void or restore closes it as
+approved (253), an edit of the hit closes a void request as rejected with a fixed reason (254), and
+every approval tells who asked, as a rejection does (253a). A bout that is reopened (a reset, a
+clock reopen, a status change) closes the requests on its hits as rejected with a fixed reason,
+and tells who asked (257); only a reset voids the hits, so the reason says "ask again" and not
+that the hits are gone. These notices
+ring a phone only: they carry no email (256). A request's saved reason is read by a reviewer of
+either language, so the pad's "clear last" reason and the reason of a request that came with none
+are one sentence in French and English (258). The guard's refusal
 carries the code `event_results_frozen`, which
 the pad (its refused-hits inbox included) and web-admin say in the reader's language. The lock's
 own refusal carries the code `event_archived`; `failureMessage` of `@myclash/api-client` says it in

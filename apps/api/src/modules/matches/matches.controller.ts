@@ -263,7 +263,8 @@ export class MatchesController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uncompletePreflight(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
+    // A read: it answers on an over Event too, where it says the result is frozen (ruling 259).
+    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id, 'read');
     return this.matchCompletion.previewUncompletion(id, actor);
   }
 

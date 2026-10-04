@@ -306,7 +306,9 @@ export class MatchCompletionService {
       foughtCount: fought.length,
       blocked: fought.length > 0,
       canDiscard: actor?.canDiscardDependentResults === true,
-      frozen: await this.isFrozen(matchId, actor?.userId),
+      // A fact, not a permission: every undo is refused on an over Event, to a
+      // super admin too, so the preview promises one to nobody (ruling 259).
+      frozen: await this.frozenResults.isEventOver(matchId),
     };
   }
 
@@ -341,16 +343,6 @@ export class MatchCompletionService {
     } catch (err) {
       const body = (err as { response?: { code?: string } }).response;
       return body?.code ?? 'forfeit_withdrew_fighter';
-    }
-  }
-
-  /** `false` rather than a throw — a pre-flight reports, it does not refuse. */
-  private async isFrozen(matchId: string, userId?: string): Promise<boolean> {
-    try {
-      await this.frozenResults.assertResultMutationAllowed(matchId, userId);
-      return false;
-    } catch {
-      return true;
     }
   }
 

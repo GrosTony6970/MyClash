@@ -307,7 +307,7 @@ export class PenaltiesController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getMatchPenaltyRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     // The scoring pad reads it beside `penalty-scope`, so the same check.
-    await this.staff.authorizeMatchScoring(req, id);
+    await this.staff.authorizeMatchScoringRead(req, id);
     return this.penalties.getEffectiveRulesetForMatch(id);
   }
 
@@ -325,7 +325,7 @@ export class PenaltiesController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getMatchPenaltyScope(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await this.staff.authorizeMatchScoring(req, id);
+    await this.staff.authorizeMatchScoringRead(req, id);
     return this.penalties.getPenaltyScopeForMatch(id);
   }
 

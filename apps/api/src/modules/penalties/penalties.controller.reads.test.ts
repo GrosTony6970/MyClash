@@ -57,7 +57,7 @@ function ruleset(id: string, fields: Record<string, unknown>) {
 
 let db: ReturnType<typeof mockSupabase>;
 let service: PenaltiesService;
-let authorizeMatchScoring: Mock;
+let authorizeMatchScoringRead: Mock;
 let controller: PenaltiesController;
 
 beforeEach(() => {
@@ -122,13 +122,13 @@ beforeEach(() => {
   };
   const orgs = new OrganizationsService(db as never);
   service = new PenaltiesService(supabase as never, undefined, undefined, orgs);
-  authorizeMatchScoring = vi.fn(async () => {
+  authorizeMatchScoringRead = vi.fn(async () => {
     throw new ForbiddenException('Staff account is not assigned to this Lice');
   });
   controller = new PenaltiesController(
     service,
     supabase as never,
-    { authorizeMatchScoring } as never,
+    { authorizeMatchScoringRead } as never,
     orgs,
   );
 });
@@ -275,10 +275,10 @@ describe('PenaltiesController reads', () => {
     await expect(controller.getMatchPenaltyRuleset(MATCH_A, request)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    expect(authorizeMatchScoring).toHaveBeenCalledWith(request, MATCH_A);
+    expect(authorizeMatchScoringRead).toHaveBeenCalledWith(request, MATCH_A);
     expect(queriedTables(db.from)).toEqual([]);
 
-    authorizeMatchScoring.mockResolvedValue({ userId: 'u-scorer' });
+    authorizeMatchScoringRead.mockResolvedValue({ userId: 'u-scorer' });
     const effective = vi
       .spyOn(service, 'getEffectiveRulesetForMatch')
       .mockResolvedValue({ id: BUILT_IN } as never);
