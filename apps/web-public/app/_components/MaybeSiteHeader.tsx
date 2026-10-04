@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { isDisplayRoute } from '../../src/lib/display-routes';
+import { isSignInDoor } from '../../src/lib/sign-in-doors';
 import { SiteHeader } from './SiteHeader';
 
 /**
@@ -19,5 +20,6 @@ import { SiteHeader } from './SiteHeader';
 export function MaybeSiteHeader(): React.ReactElement | null {
   const path = usePathname();
   if (isDisplayRoute(path)) return null;
-  return <SiteHeader />;
+  // Mounted again on leaving a sign-in door, so it asks who the visitor is again.
+  return <SiteHeader key={isSignInDoor(path) ? 'door' : 'site'} />;
 }

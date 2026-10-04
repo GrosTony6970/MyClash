@@ -706,7 +706,7 @@
     "apps/web-public/app/_components/FollowOrganizerButton.tsx:31",
     "apps/web-public/app/_components/LegalUpdateBanner.tsx:21",
     "apps/web-public/app/_components/PublicLeaguesSections.tsx:167",
-    "apps/web-public/app/_components/SiteHeader.tsx:41",
+    "apps/web-public/app/_components/SiteHeader.tsx:36",
     "apps/web-public/app/auth/oauth/callback/page.tsx:82",
     "apps/web-public/app/auth/oauth/callback/page.tsx:91",
     "apps/web-public/app/clubs/[slug]/page.tsx:63",
