@@ -39,11 +39,13 @@ export function heldBoutLine(held: Held): string | null {
   return [bout.label, fighters].filter(Boolean).join(' · ') || null;
 }
 
-/** A Fighter by name and corner, or by the corner alone on a row with no name. */
+/**
+ * A Fighter by name; on a row with no name, by the pad's own word for that side
+ * ("Fighter 1": the two sides' colours are the Tournament's to choose).
+ */
 function fighterOf(held: Held, color: 'red' | 'blue', t: Translate): string {
-  const corner = color === 'red' ? t('scoring.lice.red') : t('scoring.lice.blue');
-  const name = held.bout?.[color];
-  return name ? `${name} (${corner})` : corner;
+  const side = color === 'red' ? t('scoring.lice.red') : t('scoring.lice.blue');
+  return held.bout?.[color] || side;
 }
 
 /**

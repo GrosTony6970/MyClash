@@ -103,7 +103,7 @@ export interface SyncedEntry {
 }
 
 /**
- * An exchange the server REFUSED (HTTP 400), held rather than destroyed.
+ * An exchange the server REFUSED (a 400, a 409, a 403), held rather than destroyed.
  *
  * This table is the whole reason the outbox no longer deletes on rejection: a
  * refused exchange is a hit a referee actually scored, and the only thing the

@@ -120,7 +120,7 @@ export async function dequeueLastForMatch(matchId: string): Promise<OutboxEntry 
 }
 
 /**
- * Move an entry the server REFUSED (HTTP 400) out of the outbox and into
+ * Move an entry the server REFUSED (a 400, a 409, a 403) out of the outbox and into
  * `rejected`, keeping the payload and recording why.
  *
  * This replaces a hard delete. The delete existed to stop a permanently-failing

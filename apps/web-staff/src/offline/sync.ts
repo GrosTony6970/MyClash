@@ -68,7 +68,7 @@ export class SyncEngine {
   private listeners: Set<SyncStateListener> = new Set();
   private running = false;
   private aborted = false;
-  /** What the last drain ended in: what an inbox action says while a hit still waits. */
+  /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
 
   /** Max consecutive failures before engine stops and reports error. */
@@ -86,7 +86,7 @@ export class SyncEngine {
   }
 
   private async emit(status: SyncStatus, lastError?: string): Promise<void> {
-    if (status !== 'syncing') this.resting = status;
+    this.resting = status;
     const [pendingCount, rejected] = await Promise.all([totalPendingCount(), rejectedCount()]);
     // A held rejection outranks a clean phase. Emitting 'idle' with refused
     // exchanges on disk is what made the bar go green over a hit that was
@@ -108,8 +108,8 @@ export class SyncEngine {
   /**
    * The state after an inbox action that sent nothing. `idle` there turned the
    * bar green over hits a signed-out or failing pad still holds: while one
-   * waits, the last drain's answer stands. A drain that runs meanwhile emits
-   * after this and wins.
+   * waits, what the engine last said stands. With none left (an undo removes
+   * a waiting hit and emits nothing), `idle` is true again.
    */
   private async emitResting(): Promise<void> {
     await this.emit((await totalPendingCount()) > 0 ? this.resting : 'idle');
@@ -236,13 +236,19 @@ export class SyncEngine {
   /**
    * A 409 and a 403 are refusals, NEVER "already on the server": the API answers
    * a repeated client_uuid with the saved row and a 2xx. A 409 here is an Event
-   * that is over. A 403 is a caller who may not score THIS bout (ruling 242: a
-   * pad moved off its piste), so the hits behind it still go. Held with its
-   * code, and not re-sent: no other sequence makes the server take it.
+   * that is over. A 403 the API words is "may not score this" (ruling 242: a
+   * pad moved off its piste, a disabled account). Held with its code, and not
+   * re-sent: no other sequence makes the server take it. False for a 403 with
+   * no code: the edge wrote it (a blocked network), about no hit, so it waits.
    */
-  private async holdRefusal(entry: OutboxEntry, res: Response): Promise<void> {
+  private async holdRefusal(entry: OutboxEntry, res: Response): Promise<boolean> {
     const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
+    if (res.status === 403 && !body.code) {
+      await markFailed(entry.id!, `HTTP ${res.status}`);
+      return false;
+    }
     await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
+    return true;
   }
 
   /**
@@ -293,8 +299,8 @@ export class SyncEngine {
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else if (res.status === 409 || res.status === 403) {
-          await this.holdRefusal(entry, res);
-          consecutiveFailures = 0;
+          const held = await this.holdRefusal(entry, res);
+          consecutiveFailures = held ? 0 : consecutiveFailures + 1;
           await this.emit('syncing');
         } else if (res.status === 401) {
           return await this.waitForSignIn();

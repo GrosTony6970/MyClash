@@ -1156,9 +1156,14 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
-> 403 is a caller who may not score that bout (a pad moved off its piste while offline, a disabled
-> account): it is about the row, so the drain goes on, and the inbox says it in the reader's
-> language (`heldReason`). Retry sends it again once an organiser has put the pad back. A hit or a
+> 403 the API words (it carries a `code`) is a caller who may not score that bout (a pad moved off
+> its piste while offline, a disabled account): it is held, the drain goes on, and the inbox says it
+> in the reader's language (`heldReason`). Retry sends it again once an organiser has put the pad
+> back. A 403 with no code is the edge's (a blocked network) and is about no hit: it stays queued as
+> a failed attempt. Known limits: a Retry that is refused again puts that hit last among the held
+> ones, so a later Retry of all sends a bout's hits in another order; an account login outranks a
+> PIN, so a tablet whose personal login has no role in the organisation has its hits held though
+> its PIN could score them. A hit or a
 > card is queued with its bout in words (`OutboxEntry.bout`: the label and the two Fighters' names,
 > and `cardedColor` for a card), so a held row names its bout and who scored
 > (`src/lib/held-hit.ts`). Those names stay on the tablet: the drain posts named fields only and the
@@ -1172,8 +1177,8 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > while online does not show a green bar over waiting hits. An account's login is renewed once before a
 > 401 stands: the drain posts through `fetchRenewingLogin`, so an organiser who scores for more than
 > an hour is not told to sign in again; a PIN session cannot be renewed. An action in the refused-hits
-> inbox that sends nothing (a Discard, a Retry that finds nothing) keeps what the last drain ended
-> in while a hit still waits (`emitResting`): it does not turn the bar green over a waiting queue.
+> inbox that sends nothing (a Discard, a Retry that finds nothing) says again what the engine last
+> said while a hit still waits (`emitResting`): it does not turn the bar green over a waiting queue.
 
 ### 10.3 Conflict resolution
 

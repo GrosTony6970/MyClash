@@ -3,14 +3,14 @@
  *
  * Discard and the two "nothing to retry" paths used to say `idle`. With no held
  * hit left, the bar went green ("ONLINE (2)") over a queue that a signed-out or
- * failing pad still holds, until the next drain. They now say what the last
- * drain ended in while a hit still waits, and `idle` only when none does.
+ * failing pad still holds, until the next drain. They now say again what the
+ * engine last said while a hit still waits, and `idle` only when none does.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
-import { enqueue, getRejected, quarantine } from './outbox';
+import { dequeueLastForMatch, enqueue, getRejected, quarantine } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
 
 const API_URL = 'http://localhost:4000';
@@ -91,6 +91,35 @@ describe('Discard in the refused-hits inbox', () => {
     await engine.discardRejectedEntry(heldId);
 
     expect(last()).toMatchObject({ status: 'idle', pendingCount: 0, rejectedCount: 0 });
+  });
+
+  it('goes green once the last waiting hit was undone', async () => {
+    // The pad's undo removes a waiting hit from the queue and emits nothing.
+    const { engine, heldId, last } = await drained(401, 1);
+    await dequeueLastForMatch('m1');
+
+    await engine.discardRejectedEntry(heldId);
+
+    expect(last()).toMatchObject({ status: 'idle', pendingCount: 0, rejectedCount: 0 });
+  });
+
+  it('says "syncing" while a drain runs, not what the drain before it ended in', async () => {
+    // The race: an inbox action lands while a drain waits on the server.
+    const { engine, heldId, last } = await drained(401, 1);
+    let answer: (res: unknown) => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => new Promise((resolve) => (answer = resolve))),
+    );
+    const running = engine.drain();
+    await vi.waitFor(() => expect(last()?.status).toBe('error'));
+
+    await engine.discardRejectedEntry(heldId);
+
+    expect(last()).toMatchObject({ status: 'syncing', pendingCount: 1, rejectedCount: 0 });
+    answer({ ok: true, status: 201, json: () => Promise.resolve({ id: 'srv' }) });
+    await running;
+    expect(last()).toMatchObject({ status: 'idle', pendingCount: 0 });
   });
 
   it('stays red while another hit is held', async () => {

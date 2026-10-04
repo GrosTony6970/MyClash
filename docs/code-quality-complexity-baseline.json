@@ -850,7 +850,7 @@
     "apps/web-staff/src/hooks/useScoringSubmit.ts:51",
     "apps/web-staff/src/offline/pending-events.ts:114",
     "apps/web-staff/src/offline/sync.ts:128",
-    "apps/web-staff/src/offline/sync.ts:267",
+    "apps/web-staff/src/offline/sync.ts:273",
     "eslint-rules/no-literal-string.mjs:69",
     "eslint-rules/no-server-api-url-leak.mjs:105",
     "infra/ops-runner/backup-core.mjs:154",

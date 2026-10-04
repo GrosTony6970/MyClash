@@ -72,9 +72,9 @@ describe('the bout line of a held row', () => {
 });
 
 describe('who a held row is about', () => {
-  it('names who scored a clean hit, the corner and the points', () => {
+  it('names who scored a clean hit, and the points', () => {
     expect(heldWhoLine({ bout: BOUT, firstStrikerColor: 'blue', firstStrikeValue: 3 }, t)).toBe(
-      'scoring.quarantine.scored {"who":"Martin (scoring.lice.blue)","points":3}',
+      'scoring.quarantine.scored {"who":"Martin","points":3}',
     );
   });
 
@@ -84,20 +84,23 @@ describe('who a held row is about', () => {
         { bout: BOUT, firstStrikerColor: 'red', firstStrikeValue: 3, afterblowValue: 1 },
         t,
       ),
-    ).toBe(
-      'scoring.quarantine.scoredAfterblow {"who":"Dupont (scoring.lice.red)","points":3,"afterblow":1}',
-    );
+    ).toBe('scoring.quarantine.scoredAfterblow {"who":"Dupont","points":3,"afterblow":1}');
   });
 
-  it('names the corner alone on a row with no name', () => {
+  it('names the side by the pad’s own word on a row with no name', () => {
     expect(heldWhoLine({ firstStrikerColor: 'red', firstStrikeValue: 2 }, t)).toBe(
       'scoring.quarantine.scored {"who":"scoring.lice.red","points":2}',
+    );
+    // The summary read failed: the row has a bout, and no name in it.
+    const unnamed = { label: 'L1-P1-M03', red: '', blue: '' };
+    expect(heldWhoLine({ bout: unnamed, firstStrikerColor: 'blue', firstStrikeValue: 2 }, t)).toBe(
+      'scoring.quarantine.scored {"who":"scoring.lice.blue","points":2}',
     );
   });
 
   it('names who a card is against', () => {
     expect(heldWhoLine({ kind: 'penalty', bout: BOUT, cardedColor: 'blue' }, t)).toBe(
-      'scoring.quarantine.cardAgainst {"who":"Martin (scoring.lice.blue)"}',
+      'scoring.quarantine.cardAgainst {"who":"Martin"}',
     );
   });
 
@@ -192,7 +195,7 @@ describe('the screens', () => {
 
   it('the inbox row shows both lines', () => {
     const inbox = read('components', 'QuarantineInbox.tsx');
-    expect(inbox).toContain('heldBoutLine(entry)');
-    expect(inbox).toContain('heldWhoLine(entry, t)');
+    expect(inbox).toContain('[heldBoutLine(entry), heldWhoLine(entry, t)]');
+    expect(inbox).toContain('<HeldNames entry={entry} t={t} />');
   });
 });

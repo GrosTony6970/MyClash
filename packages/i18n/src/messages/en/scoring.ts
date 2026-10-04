@@ -153,7 +153,7 @@ export const scoring = {
     typeNoExchange: 'No exchange',
     typePenalty: 'Penalty',
     typeUnknown: 'Queued entry',
-    // `{who}` is "Name (Red)", or the corner alone on a row saved with no name.
+    // `{who}` is the Fighter's name, or "Fighter 1" on a row saved with no name.
     scored: '{who} scored {points}',
     scoredAfterblow: '{who} scored {points}, the afterblow {afterblow}',
     cardAgainst: 'Against {who}',

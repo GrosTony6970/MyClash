@@ -121,16 +121,23 @@ describe('drain — a hit the caller may not score (403)', () => {
     expect(last).toMatchObject({ status: 'error', pendingCount: 0, rejectedCount: 3 });
   });
 
-  it('holds a 403 that carries no body, under its status', async () => {
-    // An edge proxy can answer for the API: there is no sentence and no code.
-    await addHit(1, 'uuid-edge');
-    mockApi(() => ({ status: 403, body: {} }));
+  it('a 403 with no code is the edge’s, about no hit: the queue waits', async () => {
+    // The edge blocks a network (a roaming hotspot) with a bare 403. Held, a
+    // whole queue would fill the inbox with a reason in no language.
+    await addHit(1, 'uuid-1');
+    await addHit(2, 'uuid-2');
+    await addHit(3, 'uuid-3');
+    await addHit(4, 'uuid-4');
+    const { posted } = mockApi(() => ({ status: 403, body: {} }));
 
-    await new SyncEngine(API_URL).drain();
+    const last = await drainWatched(new SyncEngine(API_URL));
 
-    const [held] = await getRejected();
-    expect(held?.rejectedReason).toBe('HTTP 403');
-    expect(held).not.toHaveProperty('rejectedCode');
+    expect(await db.rejected.count()).toBe(0);
+    expect(posted, 'three failed attempts in a row end the drain').toEqual([1, 2, 3]);
+    expect((await db.outbox.orderBy('id').toArray()).map((row) => row.attempts)).toEqual([
+      1, 1, 1, 0,
+    ]);
+    expect(last).toMatchObject({ status: 'error', pendingCount: 4, rejectedCount: 0 });
   });
 
   it('goes once the organiser has put the pad back and the operator retries', async () => {
@@ -159,8 +166,8 @@ describe('what the pad says of it', () => {
     );
   });
 
-  it('a 403 with no code keeps what the pad stored', () => {
-    expect(heldReason({ rejectedReason: 'HTTP 403' }, t)).toBe('HTTP 403');
+  it('a held row with no code keeps the server’s words', () => {
+    expect(heldReason({ rejectedReason: 'Match is locked' }, t)).toBe('Match is locked');
   });
 
   it('the bar counts it as a hit not recorded, not as a sync error', () => {
