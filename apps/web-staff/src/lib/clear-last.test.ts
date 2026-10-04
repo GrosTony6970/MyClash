@@ -30,7 +30,9 @@ function answer(status: number, body: unknown) {
 }
 
 describe('voidOnServer', () => {
-  it('asks the void of that one hit, with the referee’s reason', async () => {
+  // Ruling 258: the reason is saved on the hit and on a request for review. A
+  // reviewer of either language reads it, so it is one sentence in both.
+  it('asks the void of that one hit, with one fixed reason in French and English', async () => {
     const fetchMock = answer(200, { id: 'ex-7', voided: true });
 
     await expect(voidOnServer(API_URL, 'ex-7', t)).resolves.toEqual({ kind: 'voided' });
@@ -38,7 +40,10 @@ describe('voidOnServer', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, { method: string; body: string }];
     expect(url).toBe(`${API_URL}/api/v1/exchanges/ex-7/void`);
     expect(init.method).toBe('PATCH');
-    expect(JSON.parse(init.body)).toEqual({ reason: 'Clear last exchange (referee)' });
+    expect(JSON.parse(init.body)).toEqual({
+      reason:
+        'Dernier échange effacé sur la tablette de score / Last exchange cleared on the scoring pad',
+    });
   });
 
   it('a 202 is a request sent for review: the hit is NOT voided', async () => {

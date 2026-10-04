@@ -292,6 +292,7 @@ export const scoring = {
     defaultReason: 'Scorekeeper correction',
     clearLastExchange: 'Clear last exchange',
     clearLastFailed: 'Could not clear the last exchange.',
+    clearLastReason: 'Last exchange cleared on the scoring pad',
     clearLastSentForReview:
       'The Event is over: your correction was sent for review. The exchange stays until it is approved.',
     swapColor: 'Swap fighter color',
