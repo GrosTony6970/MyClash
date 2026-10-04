@@ -104,6 +104,15 @@ describe('who a held row is about', () => {
     );
   });
 
+  it('names the card the referee tapped, then who it is against (ruling 246)', () => {
+    expect(
+      heldWhoLine(
+        { kind: 'penalty', bout: BOUT, cardedColor: 'blue', cardName: 'Leaving the ring' },
+        t,
+      ),
+    ).toBe('Leaving the ring · scoring.quarantine.cardAgainst {"who":"Martin"}');
+  });
+
   it('says nothing for a double, a no-exchange and an older card', () => {
     expect(heldWhoLine({ bout: BOUT }, t)).toBeNull();
     expect(heldWhoLine({ kind: 'penalty', bout: BOUT }, t)).toBeNull();
@@ -142,11 +151,19 @@ describe('the names stay on the tablet', () => {
       sequence: 2,
       registrationId: 'reg-blue',
       occurredAt: new Date().toISOString(),
-      directCard: 'yellow',
-      reason: 'late',
+      rulesetEntryId: 'entry-7',
       cardedColor: 'blue',
+      cardName: 'Leaving the ring',
       bout: BOUT,
     });
+    await quarantine(
+      (await getAllPending()).find((row) => row.kind === 'penalty')?.id as number,
+      'Match is locked',
+    );
+    expect((await getRejected())[0]?.cardName, 'a held card keeps its name').toBe(
+      'Leaving the ring',
+    );
+    await requeueRejected();
     const bodies: string[] = [];
     vi.stubGlobal(
       'fetch',
@@ -160,8 +177,9 @@ describe('the names stay on the tablet', () => {
 
     expect(bodies).toHaveLength(2);
     for (const body of bodies) {
-      expect(body).not.toMatch(/Dupont|Martin|LSW-P1-M3|cardedColor|bout/);
+      expect(body).not.toMatch(/Dupont|Martin|LSW-P1-M3|cardedColor|cardName|Leaving|bout/);
     }
+    expect(bodies[1], 'the card still names its list entry to the server').toContain('entry-7');
   });
 
   it('the heartbeat sends none', async () => {
@@ -191,6 +209,13 @@ describe('the screens', () => {
     const column = read('components', 'ScoringColumn.tsx');
     expect(column).toMatch(/await queueCard\(\{[^}]*bout: submit\.bout,[^}]*\}\);/);
     expect(column).toMatch(/await queueCard\(\{[^}]*cardedColor: side,[^}]*\}\);/);
+  });
+
+  it('a card is queued with the name of the list entry the referee tapped', () => {
+    const column = read('components', 'ScoringColumn.tsx');
+    expect(column).toMatch(/rulesetEntryId: entry\.id,\s+cardName: entry\.short_name,/);
+    expect(column.match(/void submitPenalty\(listedCard\(entry\)\)/g)).toHaveLength(2);
+    expect(column).toMatch(/await queueCard\(\{[^}]*\.\.\.payload,[^}]*\}\);/);
   });
 
   it('the inbox row shows both lines', () => {

@@ -14,7 +14,13 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 
 type Held = Pick<
   RejectedEntry,
-  'kind' | 'bout' | 'firstStrikerColor' | 'firstStrikeValue' | 'afterblowValue' | 'cardedColor'
+  | 'kind'
+  | 'bout'
+  | 'firstStrikerColor'
+  | 'firstStrikeValue'
+  | 'afterblowValue'
+  | 'cardedColor'
+  | 'cardName'
 >;
 
 /** The names the bout screen shows, for the row a hit of that bout is queued with. */
@@ -49,14 +55,18 @@ function fighterOf(held: Held, color: 'red' | 'blue', t: Translate): string {
 }
 
 /**
- * Who scored, or who the card is against. Null for a double, a no-exchange and
- * a card queued before the row knew its corner: there is nobody to name.
+ * Who scored, or which card and who it is against (ruling 246: the card is the
+ * penalty-list entry the referee tapped; a row queued before that names only
+ * the Fighter). Null for a double, a no-exchange and a card queued before the
+ * row knew its corner: there is nobody to name.
  */
 export function heldWhoLine(held: Held, t: Translate): string | null {
   if ((held.kind ?? 'exchange') === 'penalty') {
-    return held.cardedColor
-      ? t('scoring.quarantine.cardAgainst', { who: fighterOf(held, held.cardedColor, t) })
-      : null;
+    if (!held.cardedColor) return null;
+    const against = t('scoring.quarantine.cardAgainst', {
+      who: fighterOf(held, held.cardedColor, t),
+    });
+    return held.cardName ? `${held.cardName} · ${against}` : against;
   }
   if (!held.firstStrikerColor || held.firstStrikeValue === undefined) return null;
   const who = fighterOf(held, held.firstStrikerColor, t);

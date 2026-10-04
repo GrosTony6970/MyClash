@@ -79,6 +79,11 @@ export interface OutboxEntry {
   reason?: string;
   /** Which corner the card is against: the row's only way to say it in words. */
   cardedColor?: StrikerColor;
+  /**
+   * The short name of the penalty-list entry the referee tapped (ruling 246): a
+   * held card's row says which card it is. Never posted, like `bout`.
+   */
+  cardName?: string;
   /** Absent on rows queued before ruling 243: the inbox then names no bout. */
   bout?: BoutNames;
   /** Match-clock position (active ms) at record time — display metadata carried

@@ -112,6 +112,12 @@ function queueCard(
   });
 }
 
+/** A penalty-list entry as a card carries it: its id for the server, its name for a held row. */
+const listedCard = (entry: { id: string; short_name: string }) => ({
+  rulesetEntryId: entry.id,
+  cardName: entry.short_name,
+});
+
 export function ScoringColumn({
   side,
   matchId,
@@ -190,11 +196,7 @@ export function ScoringColumn({
    * minutes later still records the moment the referee raised it. Only the
    * outbox path was missing.
    */
-  async function submitPenalty(payload: {
-    rulesetEntryId?: string;
-    directCard?: PenaltyCard;
-    reason?: string;
-  }) {
+  async function submitPenalty(payload: ReturnType<typeof listedCard>) {
     setPenaltySubmitting(true);
     setPenaltyError(null);
     try {
@@ -450,7 +452,7 @@ export function ScoringColumn({
                     data-testid="quick-penalty-button"
                     data-entry-id={entry.id}
                     disabled={penaltyDisabled}
-                    onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
+                    onClick={() => void submitPenalty(listedCard(entry))}
                     className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs font-semibold text-foreground hover:border-warning disabled:opacity-40"
                   >
                     {card && (
@@ -485,7 +487,7 @@ export function ScoringColumn({
                 groupLabel={t('scoring.penalties.group')}
                 disabled={penaltyDisabled}
                 card={resolveCard(entry, registrationId)}
-                onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
+                onClick={() => void submitPenalty(listedCard(entry))}
               />
             ))}
           </div>

@@ -1166,7 +1166,8 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > PIN, so a tablet whose personal login has no role in the organisation has its hits held though
 > its PIN could score them. A hit or a
 > card is queued with its bout in words (`OutboxEntry.bout`: the label and the two Fighters' names,
-> and `cardedColor` for a card), so a held row names its bout and who scored
+> and for a card `cardedColor` and `cardName`, the short name of the penalty-list entry the referee
+> tapped), so a held row names its bout, who scored, and which card against whom
 > (`src/lib/held-hit.ts`). Those names stay on the tablet: the drain posts named fields only and the
 > heartbeat sends counts.
 >
