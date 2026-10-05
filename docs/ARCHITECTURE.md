@@ -2015,7 +2015,9 @@ carries the code `event_results_frozen`, which
 the pad (its refused-hits inbox included) and web-admin say in the reader's language. The lock's
 own refusal carries the code `event_archived`; `failureMessage` of `@myclash/api-client` says it in
 the reader's language on every screen of web-admin and web-public that shows a failed call through
-it, the one coded refusal that function maps (ruling 234). A Tournament restored from an archive is
+it (ruling 234). On a COMPLETED Event the same lock refuses the routes marked
+`@BlockOnCompletedEvent()` with the code `event_completed`, said the same way (289): these two are
+the only coded refusals that function maps. A Tournament restored from an archive is
 refused into an archived Event by the restore itself. web-admin offers the roster edit
 and the League panel on an archived Event (222d).
 

@@ -146,8 +146,10 @@ describe('EventReadOnlyGuard', () => {
 
     it('refuses a marked route on a completed event', async () => {
       const { guard } = harness('completed');
+      // A code beside the sentence: fifteen routes answer it, and the admin
+      // screens say it in the reader's language (ruling 289).
       await expect(guard.canActivate(context({ ...generate, block: true }))).rejects.toEqual(
-        new ForbiddenException(COMPLETED_WORDING),
+        new ForbiddenException({ message: COMPLETED_WORDING, code: 'event_completed' }),
       );
     });
 

@@ -25,6 +25,8 @@ export const common = {
     // The archived-Event lock's refusal, by its code `event_archived`: nearly
     // every screen of an archived Event can receive it (ruling 234).
     eventArchived: 'This event is archived and read-only.',
+    eventCompleted:
+      'This event is completed. Re-open it before you regenerate or delete what was planned.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',

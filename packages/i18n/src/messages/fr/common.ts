@@ -11,6 +11,8 @@ export const common = {
     blocked: 'La connexion au serveur a été bloquée. Attendez une minute, puis réessayez.',
     tooManyRequests: 'Trop de requêtes. Attendez un instant puis réessayez.',
     eventArchived: 'Cet événement est archivé et en lecture seule.',
+    eventCompleted:
+      'Cet événement est terminé. Rouvrez-le avant de régénérer ou de supprimer ce qui a été planifié.',
   },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',

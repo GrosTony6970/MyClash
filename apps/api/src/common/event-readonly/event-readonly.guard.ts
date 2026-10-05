@@ -93,10 +93,13 @@ export class EventReadOnlyGuard implements CanActivate {
     // (7b) Block destructive plan changes once the event is completed. Re-timing
     // a finished event to tidy the record stays allowed; regenerating or
     // deleting its structure does not.
+    // Coded, as the archived refusal: `failureMessage` says it in the reader's
+    // language on every admin screen that meets it (ruling 289).
     if (blockOnCompleted && status === 'completed') {
-      throw new ForbiddenException(
-        'This event is completed. Re-open it before regenerating or deleting its plan.',
-      );
+      throw new ForbiddenException({
+        message: 'This event is completed. Re-open it before regenerating or deleting its plan.',
+        code: 'event_completed',
+      });
     }
 
     // (8) Allow

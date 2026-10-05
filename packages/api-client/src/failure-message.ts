@@ -144,9 +144,14 @@ function refusedMessage(
   if (failure.detail === null && failure.code === null) {
     return t('common.apiFailure.blocked');
   }
-  // The archived-Event lock: the one coded refusal said here — see the header.
+  // The Event lock's two refusals: the only coded ones said here — see the header.
   if (isArchivedEventRefusal(failure)) {
     return t('common.apiFailure.eventArchived');
+  }
+  // The same lock, on a COMPLETED Event (ruling 289): fifteen routes that
+  // regenerate or delete the plan, behind buttons that stay live.
+  if (failure.code === 'event_completed') {
+    return t('common.apiFailure.eventCompleted');
   }
   // A 403 usually names the thing you may not do, and that beats our
   // sentence. A 401 does not: the server's word for it is "Unauthorized",

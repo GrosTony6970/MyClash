@@ -34,6 +34,18 @@ describe('the archived-Event refusal (ruling 234)', () => {
     expect(failureMessage(refused403('FORBIDDEN'), fr)).toBe(LOCK_WORDS);
   });
 
+  // Ruling 289. The same lock refuses fifteen plan-destroying routes on a
+  // COMPLETED Event, whose buttons stay live: the sentence was English only.
+  it('says the completed-Event refusal in the reader’s language, by its code', () => {
+    expect(failureMessage(refused403('event_completed'), fr)).toBe(
+      'Cet événement est terminé. Rouvrez-le avant de régénérer ou de supprimer ce qui a été planifié.',
+    );
+    expect(failureMessage(refused403('event_completed'), en)).toBe(
+      'This event is completed. Re-open it before you regenerate or delete what was planned.',
+    );
+    expect(isArchivedEventRefusal(refused403('event_completed'))).toBe(false);
+  });
+
   it('is told apart by a screen that gives a 403 its own meaning', () => {
     expect(isArchivedEventRefusal(refused403('event_archived'))).toBe(true);
     expect(isArchivedEventRefusal(refused403('FORBIDDEN'))).toBe(false);
