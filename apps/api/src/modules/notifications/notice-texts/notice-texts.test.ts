@@ -99,7 +99,7 @@ describe('the notices of the Tournament day', () => {
 
   it('the reason a request ends with when its bout was put back on the schedule', () => {
     expect(texts.correctionBoutReset()).toBe(
-      'Ce combat a été rouvert : votre demande est close. Refaites-la si un échange est toujours faux. / This bout was reopened, so your request was closed. Ask again if an exchange is still wrong.',
+      'Ce combat a été remis à zéro et sera rejoué : votre demande est close. / This bout was reset and will be fought again, so your request was closed.',
     );
   });
 });

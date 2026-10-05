@@ -4,7 +4,7 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 
 /**
  * A bout whose hits a reset voided ends the requests that wait on them, writes
- * each close in the audit trail, and tells who asked (rulings 257, 260).
+ * each close in the audit trail, and tells who asked (rulings 257, 260, 274).
  *
  * Léa asks to void a hit of an over Event. The Event is set back to running,
  * and an organiser resets the bout: every hit of it is voided. Her request is
@@ -15,7 +15,7 @@ const LEA = 'a0000000-0000-4000-8000-000000000002';
 const PAUL = 'a0000000-0000-4000-8000-000000000003';
 const ORGANISER = 'a0000000-0000-4000-8000-000000000004';
 const BOUT_RESET =
-  'Ce combat a été rouvert : votre demande est close. Refaites-la si un échange est toujours faux. / This bout was reopened, so your request was closed. Ask again if an exchange is still wrong.';
+  'Ce combat a été remis à zéro et sera rejoué : votre demande est close. / This bout was reset and will be fought again, so your request was closed.';
 
 const request = (id: string, matchId: string, asker: string, status = 'pending') => ({
   id,

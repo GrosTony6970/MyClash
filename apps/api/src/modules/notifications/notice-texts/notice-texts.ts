@@ -210,7 +210,7 @@ export const correctionRejectedTitle = (): string => bilingual('notices.correcti
 export const correctionHitChanged = (): string =>
   bilingual('notices.correctionRejected.hitChanged');
 
-/** The reason a request ends with when its bout was put back on the schedule (ruling 257). */
+/** The reason a request ends with when its bout was put back on the schedule (rulings 257, 274). */
 export const correctionBoutReset = (): string => bilingual('notices.correctionRejected.boutReset');
 
 /**
