@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { LEGAL_POLICIES } from '@myclash/types';
 import {
@@ -13,8 +14,8 @@ import { OnboardingService } from './onboarding.service';
  *
  * `createOrgAndMembership` caught every failure and logged "tables may not exist yet", so the
  * sign-up link and the Google sign-up redirected to a club that did not exist. For those two doors
- * (`completeSignupAfterMagicLink`) a failed write now fails the sign-up. The password door is not
- * ruled: its account exists by then, so it still answers "account created" and leaves a warning.
+ * (`completeSignupAfterMagicLink`) a failed write now fails the sign-up. The password door made
+ * its account a moment before: it removes that account and fails too (operator ruling 306).
  */
 const FAULT = { data: null, error: { message: 'connection refused' } };
 const FREE_SLUG = { data: null, error: null };
@@ -28,21 +29,26 @@ const config = {
 function build(tables: Record<string, TableSeed>) {
   const db = seededSupabase(tables);
   const createUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
-  const generateLink = vi.fn().mockResolvedValue({ data: { properties: {} }, error: null });
+  const generateLink = vi
+    .fn()
+    .mockResolvedValue({ data: { properties: { hashed_token: 'c0de' } }, error: null });
+  const deleteAuthAdminUser = vi.fn().mockResolvedValue({ ok: true, status: 200 });
   const supabase = {
     service: { from: db.service.from, auth: { admin: { createUser, generateLink } } },
+    deleteAuthAdminUser,
   };
   const legal = {
     assertCurrent: vi.fn((versions: unknown) => versions),
     recordForUser: vi.fn().mockResolvedValue(undefined),
   };
+  const mail = { sendMagicLink: vi.fn() };
   const service = new OnboardingService(
     supabase as never,
-    { sendMagicLink: vi.fn() } as never,
+    mail as never,
     config as never,
     legal as never,
   );
-  return { service, db };
+  return { service, db, legal, mail, deleteAuthAdminUser };
 }
 
 describe('the club of a sign-up by link or by Google (ruling 299)', () => {
@@ -117,24 +123,66 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
   });
 });
 
-describe('the club of a sign-up by password (not ruled)', () => {
-  it('still answers "account created" when the club cannot be written', async () => {
-    const { service } = build({
-      organizations: [FREE_SLUG, FAULT],
+/**
+ * Ann signs up with a password. Her account is made, then her club cannot be written. She read
+ * "Account created", clicked her mail and landed on a club page that did not exist. No screen
+ * lets an account with no club make one, and a second sign-up was refused as "already
+ * registered". The account is now removed and the sign-up fails, so her second try starts clean.
+ */
+describe('a sign-up by password that cannot be finished (ruling 306)', () => {
+  const ANN = {
+    email: 'ann@example.com',
+    displayName: 'Ann',
+    method: 'password' as const,
+    password: 'Securepassword123!',
+    orgName: 'Lyon AMHE',
+    orgSlug: 'lyon-amhe',
+    acceptedTerms: LEGAL_POLICIES.terms.version,
+    acceptedPrivacy: LEGAL_POLICIES.privacy.version,
+  };
+  const CLUB_FAILS = {
+    organizations: [FREE_SLUG, FAULT],
+    organization_members: { data: null, error: null },
+  };
+
+  it('removes the account, fails as a server error and sends no mail when the club fails', async () => {
+    const { service, mail, deleteAuthAdminUser } = build(CLUB_FAILS);
+
+    const failure = await service.signup(ANN).catch((thrown: unknown) => thrown);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toBe('Failed to create organization: connection refused');
+    expect(deleteAuthAdminUser.mock.calls).toEqual([['user-1']]);
+    expect(mail.sendMagicLink).not.toHaveBeenCalled();
+  });
+
+  it('removes the account when what she accepted cannot be recorded, and makes no club', async () => {
+    const { service, db, legal, deleteAuthAdminUser } = build(CLUB_FAILS);
+    legal.recordForUser.mockRejectedValue(new Error('legal_acceptances unwritable'));
+
+    await expect(service.signup(ANN)).rejects.toThrow('legal_acceptances unwritable');
+
+    expect(deleteAuthAdminUser.mock.calls).toEqual([['user-1']]);
+    expect(writesTo(db, 'organizations')).toEqual([]);
+  });
+
+  it("still fails with the club's fault when the account cannot be removed", async () => {
+    const { service, deleteAuthAdminUser } = build(CLUB_FAILS);
+    deleteAuthAdminUser.mockResolvedValue({ ok: false, status: 500 });
+
+    await expect(service.signup(ANN)).rejects.toThrow('Failed to create organization');
+  });
+
+  it('keeps the account and mails her when the club is made', async () => {
+    const { service, mail, deleteAuthAdminUser } = build({
+      organizations: [FREE_SLUG, CLUB_MADE],
       organization_members: { data: null, error: null },
     });
 
-    await expect(
-      service.signup({
-        email: 'jean@example.com',
-        displayName: 'Jean',
-        method: 'password',
-        password: 'Securepassword123!',
-        orgName: 'Lyon AMHE',
-        orgSlug: 'lyon-amhe',
-        acceptedTerms: LEGAL_POLICIES.terms.version,
-        acceptedPrivacy: LEGAL_POLICIES.privacy.version,
-      }),
-    ).resolves.toMatchObject({ type: 'password', orgSlug: 'lyon-amhe' });
+    await expect(service.signup(ANN)).resolves.toMatchObject({ type: 'password' });
+
+    expect(deleteAuthAdminUser).not.toHaveBeenCalled();
+    expect(mail.sendMagicLink).toHaveBeenCalledOnce();
   });
 });

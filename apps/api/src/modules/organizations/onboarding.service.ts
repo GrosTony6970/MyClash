@@ -204,10 +204,7 @@ export class OnboardingService {
     }
 
     const userId = authData.user.id;
-
-    await this.legal.recordForUser(userId, versions, context);
-
-    await this.createClubOrWarn(userId, orgName, orgSlug);
+    await this.finishOrUndoAccount(userId, versions, context, { orgName, orgSlug });
 
     // Send email verification link via magic link (verifies email on click):
     // the sign-in door, then her club's page (ruling 303).
@@ -272,16 +269,29 @@ export class OnboardingService {
   // ── Shared org creation ──────────────────────────────────────────────────
 
   /**
-   * The password door's club. A club that cannot be made is only logged here,
-   * as before ruling 299, which ruled the emailed link. The account exists by
-   * now: a server error would leave it with no club, and a second try would be
-   * refused as "already registered".
+   * What a password sign-up owes the account it made a moment ago: the record
+   * of what she accepted, then her club. When either cannot be written the
+   * account is removed and the sign-up fails (operator ruling 306). No screen
+   * lets an account with no club make one, and a second sign-up with her
+   * address would be refused as "already registered".
    */
-  private async createClubOrWarn(userId: string, orgName: string, orgSlug: string): Promise<void> {
+  private async finishOrUndoAccount(
+    userId: string,
+    versions: AcceptedLegalVersions,
+    context: AcceptanceContext,
+    club: { orgName: string; orgSlug: string },
+  ): Promise<void> {
     try {
-      await this.createOrgAndMembership(userId, orgName, orgSlug);
+      await this.legal.recordForUser(userId, versions, context);
+      await this.createOrgAndMembership(userId, club.orgName, club.orgSlug);
     } catch (err) {
-      this.logger.warn(`Password signup of ${userId} made no club: ${String(err)}`);
+      const undone = await this.supabase.deleteAuthAdminUser(userId);
+      if (!undone.ok) {
+        this.logger.error(
+          `Account ${userId} stays with no club: removal answered ${undone.status}`,
+        );
+      }
+      throw err;
     }
   }
 
