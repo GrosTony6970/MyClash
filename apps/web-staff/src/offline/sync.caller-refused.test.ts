@@ -212,8 +212,8 @@ describe('what the bar says of it', () => {
   it.each(CALLERS)('%s: its own sentence, in red, with Retry', (_code, status, barKey) => {
     const phase = syncPhaseOf('online', status);
     expect(phase).toBe(status);
-    expect(syncBarLabel(phase, 0, t)).toBe(`⚠ ${barKey}`);
-    expect(syncBarLabel(phase, 2, t), 'a held hit does not reword it').toBe(`⚠ ${barKey}`);
+    expect(syncBarLabel(phase, 0, t, 1)).toBe(`⚠ ${barKey}`);
+    expect(syncBarLabel(phase, 2, t, 1), 'a held hit does not reword it').toBe(`⚠ ${barKey}`);
     expect(syncBarTone(phase)).toBe(syncBarTone('error'));
     expect(needsOperator(phase)).toBe(true);
     expect(syncPhaseOf('offline', status), 'browser-offline wins').toBe('offline');

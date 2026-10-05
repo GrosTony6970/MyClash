@@ -36,6 +36,7 @@
  */
 
 import type { ApiFailure } from '@myclash/api-client';
+import { tellCallerRefusal } from '../offline/caller-refusal';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -185,6 +186,10 @@ export function refusalMessage(
   // A genuine `network` failure only happens before the worker installs.
   if (failure.kind === 'network') return t(OFFLINE);
   if (failure.status === 503) return t(OFFLINE);
+
+  // A refusal about the PERSON goes to the bar too, which holds the account's
+  // sign-out (ruling 311). Only a 403 is about the caller, as in the drain.
+  if (failure.status === 403) tellCallerRefusal(failure.code);
 
   const coded = codedRefusal(t, failure.code, failure.details);
   if (coded) return coded;

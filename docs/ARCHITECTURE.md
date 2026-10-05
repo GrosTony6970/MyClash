@@ -1204,9 +1204,11 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > "Sign that account out" (`src/lib/account-sign-out.ts`), the bout screen's only sign-out. The PIN
 > session stays, and the next drain is answered for it. A send in flight at the tap left as the
 > account: the button waits for its answer, then sends the queue again (`drainAsNewCaller`), and is
-> greyed until then. Known limit: the button is on the bar, which
-> turns red at the first queued hit; a clock press refused before any hit says why and shows no
-> button.
+> greyed until then. A press sent at once (the clock, a correction, a forfeit) and refused for the
+> person turns the bar to the same status with no hit queued (ruling 311): `refusalMessage`, where
+> every refused press is worded, tells the engine (`tellCallerRefusal`), and the bar's sentence
+> drops "hits not sent" while none waits. A drain that finds nothing to send turns it green again:
+> the next refused press says it again.
 
 ### 10.3 Conflict resolution
 

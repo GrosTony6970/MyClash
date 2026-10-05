@@ -194,6 +194,12 @@ export const scoring = {
     pinDisabled: "THIS TABLET'S STAFF ACCOUNT IS DISABLED - HITS NOT SENT. TELL AN ORGANISER",
     pinRoleCannotScore:
       "THIS TABLET'S STAFF ACCOUNT HAS A ROLE THAT CANNOT SCORE - HITS NOT SENT. TELL AN ORGANISER",
+    // The same three with no hit queued: a press sent at once was refused (ruling 311).
+    accountCannotScoreNoHits:
+      'THE ACCOUNT SIGNED IN ON THIS TABLET HAS NO SCORING ROLE FOR THIS EVENT. SIGN IT OUT, OR TELL AN ORGANISER',
+    pinDisabledNoHits: "THIS TABLET'S STAFF ACCOUNT IS DISABLED. TELL AN ORGANISER",
+    pinRoleCannotScoreNoHits:
+      "THIS TABLET'S STAFF ACCOUNT HAS A ROLE THAT CANNOT SCORE. TELL AN ORGANISER",
     signAccountOut: 'Sign that account out',
     reviewRefused: 'Review',
     backToMatchList: 'Back to match list',

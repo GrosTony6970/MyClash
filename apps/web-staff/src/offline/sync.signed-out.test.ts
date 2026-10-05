@@ -145,8 +145,8 @@ describe('the bout screen', () => {
 
   it('says the session has ended, not "sync error", in red and with Retry', () => {
     const phase = syncPhaseOf('online', 'signed-out');
-    expect(syncBarLabel(phase, 0, t)).toBe('⚠ scoring.lice.sessionEnded');
-    expect(syncBarLabel(phase, 2, t), 'a held hit does not reword it').toBe(
+    expect(syncBarLabel(phase, 0, t, 1)).toBe('⚠ scoring.lice.sessionEnded');
+    expect(syncBarLabel(phase, 2, t, 1), 'a held hit does not reword it').toBe(
       '⚠ scoring.lice.sessionEnded',
     );
     expect(syncBarTone(phase)).toBe(syncBarTone('error'));
@@ -157,18 +157,18 @@ describe('the bout screen', () => {
     expect(syncPhaseOf('offline', 'signed-out'), 'browser-offline wins').toBe('offline');
     expect(syncPhaseOf('online', undefined)).toBe('online');
     expect(syncPhaseOf('online', 'idle')).toBe('online');
-    expect(syncBarLabel('online', 0, t)).toBe('● scoring.lice.online');
-    expect(syncBarLabel('syncing', 0, t)).toBe('⟳ scoring.lice.syncing');
-    expect(syncBarLabel('offline', 0, t)).toBe('● scoring.lice.offlineQueued');
-    expect(syncBarLabel('error', 0, t)).toBe('⚠ scoring.lice.syncError');
-    expect(syncBarLabel('error', 1, t)).toBe('⚠ scoring.lice.hitsRefused');
+    expect(syncBarLabel('online', 0, t, 0)).toBe('● scoring.lice.online');
+    expect(syncBarLabel('syncing', 0, t, 1)).toBe('⟳ scoring.lice.syncing');
+    expect(syncBarLabel('offline', 0, t, 1)).toBe('● scoring.lice.offlineQueued');
+    expect(syncBarLabel('error', 0, t, 1)).toBe('⚠ scoring.lice.syncError');
+    expect(syncBarLabel('error', 1, t, 0)).toBe('⚠ scoring.lice.hitsRefused');
     expect(needsOperator('offline')).toBe(false);
     expect(syncBarTone('offline')).not.toBe(syncBarTone('error'));
   });
 
   it('draws the bar from those decisions', () => {
     expect(bar).toContain('syncPhaseOf(networkStatus, syncState?.status)');
-    expect(bar).toContain('{syncBarLabel(phase, rejected, t)}');
+    expect(bar).toContain('{syncBarLabel(phase, rejected, t, pending)}');
     expect(bar).toContain('${syncBarTone(phase)}');
     expect(bar).toContain('{offersRetry(phase, { rejected, sendable, pending }) && (');
   });

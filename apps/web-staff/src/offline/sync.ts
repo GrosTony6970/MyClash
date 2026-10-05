@@ -24,7 +24,7 @@ import {
   totalPendingCount,
 } from './outbox';
 import { fetchRenewingLogin } from '@myclash/api-client';
-import { callerRefusalOf, type CallerRefusal } from './caller-refusal';
+import { callerRefusalOf, hearCallerRefusals, type CallerRefusal } from './caller-refusal';
 import { canSendAgain } from './can-send-again';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
@@ -93,6 +93,8 @@ export class SyncEngine {
 
   constructor(apiUrl: string) {
     this.apiUrl = apiUrl;
+    // A press sent at once and refused for who sends it (ruling 311).
+    hearCallerRefusals((caller) => void this.emit(caller));
   }
 
   // ── Listeners ───────────────────────────────────────────────────────────────

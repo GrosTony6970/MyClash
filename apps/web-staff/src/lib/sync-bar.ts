@@ -70,8 +70,18 @@ export function syncBarTone(phase: SyncPhase): string {
  * `rejected` only changes the WORDING of an error, and the wording is the
  * point: "sync error" reads as a connection problem the operator waits out, and
  * a refused hit never arrives unless they act.
+ *
+ * `pending` only changes the wording of a refusal about the person: a press
+ * sent at once turns the bar to it with no hit queued (ruling 311), and "hits
+ * not sent" would be said of no hit.
  */
-export function syncBarLabel(phase: SyncPhase, rejected: number, t: Translate): string {
+export function syncBarLabel(
+  phase: SyncPhase,
+  rejected: number,
+  t: Translate,
+  pending: number,
+): string {
+  const waits = pending > 0;
   switch (phase) {
     case 'online':
       return `● ${t('scoring.lice.online')}`;
@@ -80,11 +90,11 @@ export function syncBarLabel(phase: SyncPhase, rejected: number, t: Translate): 
     case 'signed-out':
       return `⚠ ${t('scoring.lice.sessionEnded')}`;
     case 'account-refused':
-      return `⚠ ${t('scoring.lice.accountCannotScore')}`;
+      return `⚠ ${waits ? t('scoring.lice.accountCannotScore') : t('scoring.lice.accountCannotScoreNoHits')}`;
     case 'pin-disabled':
-      return `⚠ ${t('scoring.lice.pinDisabled')}`;
+      return `⚠ ${waits ? t('scoring.lice.pinDisabled') : t('scoring.lice.pinDisabledNoHits')}`;
     case 'pin-role-refused':
-      return `⚠ ${t('scoring.lice.pinRoleCannotScore')}`;
+      return `⚠ ${waits ? t('scoring.lice.pinRoleCannotScore') : t('scoring.lice.pinRoleCannotScoreNoHits')}`;
     case 'offline':
       return `● ${t('scoring.lice.offlineQueued')}`;
     case 'error':

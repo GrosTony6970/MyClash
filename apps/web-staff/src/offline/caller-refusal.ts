@@ -15,6 +15,24 @@ const BY_CODE = new Map<string, CallerRefusal>([
   ['staff_role_not_allowed', 'pin-role-refused'],
 ]);
 
-export function callerRefusalOf(code: string | undefined): CallerRefusal | undefined {
-  return code === undefined ? undefined : BY_CODE.get(code);
+export function callerRefusalOf(code: string | null | undefined): CallerRefusal | undefined {
+  return code == null ? undefined : BY_CODE.get(code);
+}
+
+let listener: ((caller: CallerRefusal) => void) | undefined;
+
+/**
+ * A press sent at once (the clock, a correction, a forfeit) is refused for who
+ * sends it too, and nothing of it is queued. The sync engine listens here, so
+ * the bar says the cause with its ways out, as for a queued hit (ruling 311).
+ * One listener: the pad builds one engine, on the bout screen.
+ */
+export function hearCallerRefusals(heard: (caller: CallerRefusal) => void): void {
+  listener = heard;
+}
+
+/** Told by `refusalMessage`, where every refused press of the pad is worded. */
+export function tellCallerRefusal(code: string | null): void {
+  const caller = callerRefusalOf(code);
+  if (caller) listener?.(caller);
 }

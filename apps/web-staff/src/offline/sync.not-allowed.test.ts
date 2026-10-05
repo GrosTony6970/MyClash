@@ -171,6 +171,8 @@ describe('what the pad says of it', () => {
   });
 
   it('the bar counts it as a hit not recorded, not as a sync error', () => {
-    expect(syncBarLabel(syncPhaseOf('online', 'error'), 1, t)).toBe('⚠ scoring.lice.hitsRefused');
+    expect(syncBarLabel(syncPhaseOf('online', 'error'), 1, t, 0)).toBe(
+      '⚠ scoring.lice.hitsRefused',
+    );
   });
 });
