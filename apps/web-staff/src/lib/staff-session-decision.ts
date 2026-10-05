@@ -1,4 +1,4 @@
-import type { MeSession } from '@myclash/api-client';
+import type { ApiResult, MeSession } from '@myclash/api-client';
 
 /**
  * May this browser open the scoring pad?
@@ -25,15 +25,32 @@ export type StaffSessionDecision =
   /** Open the pad. */
   | { kind: 'allow' }
   /** No usable session of either kind. */
-  | { kind: 'sign_in' };
+  | { kind: 'sign_in' }
+  /**
+   * `/api/v1/me` ANSWERED, with a server error (operator rulings 295, 295a): a
+   * read that decides her access failed. She may be signed in, so the page says
+   * it could not check, with a Retry.
+   */
+  | { kind: 'unverified' };
+
+/**
+ * Did the server answer this read with a failure? A request that never landed
+ * is not one: offline keeps the sign-in screen, where a tablet reads the hits
+ * it still holds (ruling 241). Null is a read that was not asked.
+ */
+export const answeredFault = (read: ApiResult<unknown> | null): boolean =>
+  read !== null && !read.ok && read.kind === 'http';
 
 export function resolveStaffSession(
   /** `/api/v1/staff-auth/me` answered 2xx — a PIN session on this tablet. */
   hasStaffPinSession: boolean,
   /** The `/api/v1/me` body, or null when it could not be read. */
   me: MeSession | null,
+  /** `answeredFault` of the `/api/v1/me` read. */
+  meFault = false,
 ): StaffSessionDecision {
   if (hasStaffPinSession) return { kind: 'allow' };
+  if (meFault) return { kind: 'unverified' };
   // `claimed` and nothing else. A guest session belongs to a spectator who
   // confirmed themselves on a roster; it is not a staff credential.
   if (me?.type === 'claimed') return { kind: 'allow' };

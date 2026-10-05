@@ -1,12 +1,12 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, fetchMe } from '@myclash/api-client';
 import { getApiUrl } from '../src/lib/api-url';
-import { resolveStaffSession } from '../src/lib/staff-session-decision';
+import { answeredFault, resolveStaffSession } from '../src/lib/staff-session-decision';
 
 /**
  * Root page - checks auth and redirects:
@@ -29,6 +29,7 @@ export default function RootPage() {
   const { t } = useI18n();
   const router = useRouter();
   const apiUrl = getApiUrl();
+  const [unchecked, setUnchecked] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -36,13 +37,24 @@ export default function RootPage() {
       // Only asked when there is no PIN session — the common pad case answers
       // on the first call.
       const account = staff.ok ? null : await fetchMe(apiUrl);
-      const decision = resolveStaffSession(staff.ok, account?.ok ? account.data : null);
+      const decision = resolveStaffSession(
+        staff.ok,
+        account?.ok ? account.data : null,
+        answeredFault(account),
+      );
+      // A `/me` that answered a fault is not a signed-out session (ruling 295a).
+      if (decision.kind === 'unverified') {
+        setUnchecked(true);
+        return;
+      }
       // Offline lands here too: neither session can be verified, and /login is
       // what this page has always done about that. The running pad at
       // /matches/[matchId] is not gated by any of this.
       router.replace(decision.kind === 'allow' ? '/lices' : '/login');
     })();
   }, [apiUrl, router]);
+
+  if (unchecked) return <SessionUnchecked t={t} />;
 
   return (
     <main className="flex min-h-screen items-center justify-center">
@@ -56,6 +68,24 @@ export default function RootPage() {
           className="mx-auto mb-3 h-14 w-14"
         />
         <p className="text-muted text-sm">{t('common.loading')}</p>
+      </div>
+    </main>
+  );
+}
+
+/** `/me` answered a fault: the page could not check, and says so with the one way on. */
+function SessionUnchecked({ t }: { t: (key: string) => string }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center p-8">
+      <div role="status" className="max-w-sm text-center">
+        <p className="mb-4 text-sm text-muted">{t('common.identityUnchecked')}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-sm text-muted underline hover:text-foreground"
+        >
+          {t('common.identityRetry')}
+        </button>
       </div>
     </main>
   );

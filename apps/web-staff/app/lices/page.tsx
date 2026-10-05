@@ -8,7 +8,7 @@ import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { apiRequest, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
-import { resolveStaffSession } from '../../src/lib/staff-session-decision';
+import { answeredFault, resolveStaffSession } from '../../src/lib/staff-session-decision';
 import { EventBanner } from '../../src/components/EventBanner';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
@@ -56,7 +56,16 @@ export default function LicePickerPage() {
         // session. The decision is now a tested pure module.
         const staff = await apiRequest(getApiUrl(), '/api/v1/staff-auth/me');
         const account = staff.ok ? null : await fetchMe(getApiUrl());
-        if (resolveStaffSession(staff.ok, account?.ok ? account.data : null).kind === 'sign_in') {
+        const decision = resolveStaffSession(
+          staff.ok,
+          account?.ok ? account.data : null,
+          answeredFault(account),
+        );
+        if (decision.kind === 'unverified') {
+          setError(t('common.identityUnchecked'));
+          return;
+        }
+        if (decision.kind === 'sign_in') {
           router.replace('/login');
           return;
         }

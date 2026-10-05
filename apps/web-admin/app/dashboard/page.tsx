@@ -5,11 +5,12 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { fetchMe } from '@myclash/api-client';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
 import { resolveAdminLanding } from '@/components/admin-landing-decision';
+import { IdentityUnchecked } from '@/components/IdentityUnchecked';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
 
-type Mode = 'redirecting' | 'chooser' | 'noWorkspace';
+type Mode = 'redirecting' | 'chooser' | 'noWorkspace' | 'unverified';
 
 /**
  * /dashboard - landing page after organizer login. Resolves the user's admin
@@ -25,15 +26,14 @@ export default function DashboardPage() {
     void (async () => {
       const result = await fetchMe(apiUrl, { signal: controller.signal });
       if (result.ok === false && result.kind === 'aborted') return;
-      // A failed read hands the resolver null, which routes to /login. That is
-      // this page's honest answer either way: it has nothing of its own to show
-      // and no way to work out where else to send them.
-      const landing = resolveAdminLanding(result.ok ? result.data : null);
+      const landing = resolveAdminLanding(result.ok ? result.data : null, result.ok);
       if (landing.kind === 'redirect') {
         window.location.href = landing.href;
       } else if (landing.kind === 'chooser') {
         setOrganizerSlug(landing.organizerSlug);
         setMode('chooser');
+      } else if (landing.kind === 'unverified') {
+        setMode('unverified');
       } else {
         setMode('noWorkspace');
       }
@@ -44,6 +44,8 @@ export default function DashboardPage() {
   if (mode === 'chooser') {
     return <WorkspaceChooser t={t} organizerSlug={organizerSlug} />;
   }
+
+  if (mode === 'unverified') return <IdentityUnchecked />;
 
   if (mode === 'noWorkspace') {
     return (

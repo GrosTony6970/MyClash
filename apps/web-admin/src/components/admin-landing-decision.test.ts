@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { MeSession } from '@myclash/api-client';
 
@@ -61,5 +63,45 @@ describe('resolveAdminLanding', () => {
     expect(resolveAdminLanding(me({ platformRole: null, organizations: [] }))).toEqual({
       kind: 'noWorkspace',
     });
+  });
+
+  // Operator ruling 295a. Marie signs in during a database fault: `/me` answers a server
+  // error. She IS signed in, so the sign-in page is a false answer and a loop.
+  it('says "could not check" when /me could not be read, whoever she is', () => {
+    expect(resolveAdminLanding(null, false)).toEqual({ kind: 'unverified' });
+  });
+
+  it('still sends a visitor with no login to /login when /me answered', () => {
+    expect(resolveAdminLanding(me(undefined, 'anonymous'), true)).toEqual({
+      kind: 'redirect',
+      href: '/login',
+    });
+  });
+});
+
+describe('the /dashboard page', () => {
+  const page = readFileSync(resolve(__dirname, '../../app/dashboard/page.tsx'), 'utf8');
+
+  it('tells the decision whether /me was read', () => {
+    expect(page).toContain(
+      'const landing = resolveAdminLanding(result.ok ? result.data : null, result.ok);',
+    );
+  });
+
+  it('says so with a Retry, and sends nobody to sign-in for a fault', () => {
+    expect(page).toMatch(/landing\.kind === 'unverified'\) \{\s+setMode\('unverified'\);/);
+    expect(page).toContain("if (mode === 'unverified') return <IdentityUnchecked />;");
+  });
+});
+
+describe('the "could not check" screen', () => {
+  const screen = readFileSync(resolve(__dirname, 'IdentityUnchecked.tsx'), 'utf8');
+
+  it('says it in the reader’s language, with one button that asks again', () => {
+    expect(screen).toContain("{t('common.identityUnchecked')}");
+    expect(screen).toMatch(
+      /onClick=\{\(\) => window\.location\.reload\(\)\}\s*>\s+\{t\('common\.identityRetry'\)\}/,
+    );
+    expect(screen).not.toContain('/login');
   });
 });

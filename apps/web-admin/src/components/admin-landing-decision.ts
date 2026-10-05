@@ -20,12 +20,21 @@ import type { MeSession } from '@myclash/api-client';
 export type AdminLanding =
   | { kind: 'redirect'; href: string }
   | { kind: 'chooser'; organizerSlug: string }
-  | { kind: 'noWorkspace' };
+  | { kind: 'noWorkspace' }
+  /**
+   * `/me` could not be read. NOT a signed-out session: `/me` answers a server
+   * error when a read that decides her workspace fails (operator rulings 295,
+   * 295a). The page says so with a Retry; `/login` would be a false answer to
+   * somebody who has just signed in, and a loop.
+   */
+  | { kind: 'unverified' };
 
-export function resolveAdminLanding(me: MeSession | null): AdminLanding {
-  // Includes the unreachable case, which the page passes as null. /login is the
-  // honest answer: this page has nothing of its own to show and no way to work
-  // out where else to send them.
+export function resolveAdminLanding(
+  me: MeSession | null,
+  /** False when the read of `/me` failed for any reason. */
+  readable = true,
+): AdminLanding {
+  if (!readable) return { kind: 'unverified' };
   if (!me || me.type !== 'claimed') return { kind: 'redirect', href: '/login' };
 
   const organizations = me.admin?.organizations ?? [];
