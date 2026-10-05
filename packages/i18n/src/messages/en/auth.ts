@@ -35,7 +35,6 @@ export const auth = {
     resetSending: 'Sending reset link...',
     resetCheckEmail: 'If this email is registered, a reset link has been sent.',
     errors: {
-      passwordLoginFailed: 'Invalid email/password, or this account is not allowed in admin.',
       magicLinkFailed: 'Could not send a login link.',
     },
   },

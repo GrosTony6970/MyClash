@@ -1904,28 +1904,27 @@ export class AuthService {
    * super-admin-exact would refuse a platform_viewer with no org membership
    * outright, making the whole tier unreachable — the feature would exist and
    * be invisible.
+   *
+   * A failed read throws (operator ruling 301): read as "no access", a database
+   * fault told an organiser with the right password that the account has no
+   * rights. The guards keep the fail-closed `resolvePlatformRole`.
    */
   private async hasAdminAccess(userId: string): Promise<boolean> {
-    if (await isPlatformStaff(this.supabase, userId)) return true;
+    if ((await readPlatformRole(this.supabase, userId)) !== null) return true;
 
-    try {
-      // .limit(1), not .maybeSingle(): PostgREST nulls `data` and returns
-      // PGRST116 when more than one row matches, and this read ignores `error`.
-      // A user who belongs to two or more organizations would therefore read as
-      // having no membership at all and be denied login.
-      const { data: memberships } = await this.supabase.service
-        .from('organization_members')
-        .select('role')
-        .eq('user_id', userId)
-        .in('role', ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead'])
-        .limit(1);
+    // .limit(1), not .maybeSingle(): PostgREST answers PGRST116 when more than
+    // one row matches, so a user who belongs to two or more organizations would
+    // fail the read.
+    const { data: memberships, error } = await this.supabase.service
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead'])
+      .limit(1);
+    if (error) throw new Error(`Clubs of ${userId} unreadable: ${error.message}`);
+    if (Array.isArray(memberships) && memberships.length > 0) return true;
 
-      if (Array.isArray(memberships) && memberships.length > 0) return true;
-    } catch {
-      // Table may not exist during early bootstrap.
-    }
-
-    return this.hasLeagueGrant(userId);
+    return this.readLeagueGrant(userId);
   }
 
   /**
@@ -1936,16 +1935,10 @@ export class AuthService {
    *
    * This widens no API capability: it only issues a session cookie for access
    * the API already permits. Their workspace is /leagues in web-admin.
+   *
+   * A failed read throws: neither `/me` (ruling 295) nor the sign-in door
+   * (ruling 301) answers it as "none".
    */
-  private async hasLeagueGrant(userId: string): Promise<boolean> {
-    try {
-      return await this.readLeagueGrant(userId);
-    } catch {
-      return false;
-    }
-  }
-
-  /** As `hasLeagueGrant`, but a failed read throws: `/me` never answers it as "none" (ruling 295). */
   private async readLeagueGrant(userId: string): Promise<boolean> {
     // .limit(1), not .maybeSingle(): a user granted a role on two leagues
     // matches two rows, which PostgREST nulls — locking out exactly the users

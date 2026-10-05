@@ -69,10 +69,10 @@ export async function resolvePlatformRole(
 }
 
 /**
- * As {@link resolvePlatformRole}, but a failed read throws. For `/me` only
- * (operator ruling 295): the admin site reads "no role" there as "may not come
- * in" and sends an organiser to the sign-in page, so a database fault must not
- * answer it. Every guard keeps the fail-closed reader above.
+ * As {@link resolvePlatformRole}, but a failed read throws. For `/me` (operator
+ * ruling 295) and the admin sign-in door (ruling 301): the admin site reads "no
+ * role" there as "may not come in", so a database fault must not answer it.
+ * Every guard keeps the fail-closed reader above.
  */
 export async function readPlatformRole(
   supabase: SupabaseService,

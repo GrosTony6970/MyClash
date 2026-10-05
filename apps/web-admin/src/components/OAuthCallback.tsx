@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
 import { runOAuthCodeOnce } from '../lib/oauth-single-flight';
 import { resolvePostAuthDestination } from '../lib/post-auth-destination';
+import { oauthFailureKey } from '../lib/sign-in-failure';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
 
@@ -112,10 +113,8 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
 
           if (!r.ok) {
             // Keeps its own i18n KEY rather than the server's sentence: this
-            // screen renders `t(key)` for every outcome, and the exchange
-            // failing means one thing to the person in front of it — this
-            // Google account is not authorised here.
-            throw new OAuthCallbackFailure('auth.oauth.errors.notAuthorized');
+            // screen renders `t(key)` for every outcome.
+            throw new OAuthCallbackFailure(oauthFailureKey(r));
           }
 
           if (mode === 'organizer_signup') {

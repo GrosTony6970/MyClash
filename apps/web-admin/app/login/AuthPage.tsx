@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
+import { passwordLoginFallback } from '../../src/lib/sign-in-failure';
 import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
@@ -113,15 +114,8 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
       body: { email, password: draft.password, redirectTo: '/dashboard' },
     });
     if (!r.ok) {
-      // A 503 here is the maintenance lockdown, and the screen's own sentence
-      // names it. Expressed as the FALLBACK so an `OperationalUnavailable`
-      // 503 — the one 5xx the filter leaves unscrubbed — still wins with its
-      // own words. The throttle sentence comes from the seam.
-      const fallback =
-        r.kind === 'http' && r.status === 503
-          ? t('admin.featureFlags.lockdownBanner')
-          : t('auth.login.errors.passwordLoginFailed');
-      const message = failureMessage(r, t, fallback);
+      // The throttle sentence comes from the seam.
+      const message = failureMessage(r, t, passwordLoginFallback(r, t));
       if (message) setError(message);
       setLoadingAction(null);
       return;

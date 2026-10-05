@@ -36,8 +36,6 @@ export const auth = {
     resetSending: 'Envoi du lien...',
     resetCheckEmail: 'Si cet e-mail est enregistré, un lien de réinitialisation a été envoyé.',
     errors: {
-      passwordLoginFailed:
-        "E-mail ou mot de passe invalide, ou ce compte n'est pas autorisé dans l'admin.",
       magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
     },
   },
