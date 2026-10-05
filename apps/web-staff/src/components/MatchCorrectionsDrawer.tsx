@@ -21,6 +21,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
+import { cardWord } from '../lib/card-word';
 import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
 import type { PenaltyCard } from '../hooks/usePenalties';
@@ -32,11 +33,6 @@ const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
   yellow: '#eab308',
   red: '#dc2626',
   black: '#111827',
-};
-const DIRECT_CARD_LABEL: Record<PenaltyCard, string> = {
-  yellow: 'Yellow',
-  red: 'Red',
-  black: 'Black',
 };
 
 interface MatchCorrectionsDrawerProps {
@@ -433,7 +429,7 @@ export function MatchCorrectionsDrawer({
                     className="inline-block h-3 w-3 rounded-sm"
                     style={{ backgroundColor: DIRECT_CARD_HEX[card] }}
                   />
-                  {DIRECT_CARD_LABEL[card]}
+                  {cardWord(card, t)}
                 </button>
               ))}
             </div>

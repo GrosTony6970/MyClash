@@ -31,6 +31,7 @@ import { outlineInkOn, sideStyle } from '@myclash/ui';
 import type { PenaltyCard, PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { cardWord } from '../lib/card-word';
 import { enqueue } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 
@@ -92,12 +93,6 @@ const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   yellow: 'bg-yellow-500',
   red: 'bg-red-600',
   black: 'bg-gray-900 border border-gray-600',
-};
-
-const CARD_LABEL: Record<PenaltyCard, string> = {
-  yellow: 'Yellow',
-  red: 'Red',
-  black: 'Black',
 };
 
 /** A card's row in the queue: what every card carries, around what this one is. */
@@ -313,7 +308,7 @@ export function ScoringColumn({
               data-card={card}
               data-count={count}
               title={t('scoring.lice.cardCounterTooltip', {
-                card: CARD_LABEL[card],
+                card: cardWord(card, t),
                 fighter: fighterName,
               })}
               className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold transition-opacity ${CARD_CHIP_COLOR[card]} text-white ${
