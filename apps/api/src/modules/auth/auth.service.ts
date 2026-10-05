@@ -734,11 +734,13 @@ export class AuthService {
     let claimed = 0;
     let alreadyAtEvent = 0;
     for (const personId of personIds) {
-      const { data } = await this.supabase.service
+      const { data, error } = await this.supabase.service
         .from('persons')
         .select('id, email, claimed_by_user_id')
         .eq('id', personId)
         .maybeSingle();
+      // A failed read is not "no such row": that answered "0 claimed" and said nothing.
+      if (error) throw new Error(`Could not read person ${personId}: ${error.message}`);
       const person = data as {
         id: string;
         email: string | null;

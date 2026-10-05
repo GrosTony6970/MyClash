@@ -124,6 +124,27 @@ describe('"this is me" on the personal space, `POST /me/claim-persons` (ruling 3
     expect(failure).not.toBeInstanceOf(HttpException);
     expect((failure as Error).message).toContain('connection refused');
   });
+
+  // A row that could not be read was skipped: the answer was "0 claimed", and the page said nothing.
+  it('fails on a failed read of the row: a plain error, never "0 claimed"', async () => {
+    const { service, db } = build([FAULT]);
+
+    const failure = await service.claimPersons(signedIn, ['row-a']).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toContain('connection refused');
+    expect(writesTo(db, 'persons')).toEqual([]);
+  });
+
+  it('skips an id that names no row, and still claims the next one', async () => {
+    const { service } = build([{ data: null, error: null }, unclaimed('row-b'), OK, NO_PROFILE]);
+
+    await expect(service.claimPersons(signedIn, ['gone', 'row-b'])).resolves.toEqual({
+      claimed: 1,
+      alreadyAtEvent: 0,
+    });
+  });
 });
 
 describe('the emailed claim link (ruling 300)', () => {
