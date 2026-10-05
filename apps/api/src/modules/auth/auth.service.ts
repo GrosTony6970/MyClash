@@ -15,7 +15,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CLAIM_REFUSED_PARAM, validatePassword, type ClaimLinkRefusal } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
-import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
+import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
 import {
   knownRosterRows,
@@ -585,43 +585,16 @@ export class AuthService {
       );
     }
 
-    let person: MeResponseDto['person'] | undefined;
-    try {
-      const { data: personData } = await this.supabase.service
-        .from('persons')
-        .select('id, given_name, family_name, event_id, claim_status')
-        .eq('claimed_by_user_id', user.id)
-        .maybeSingle();
-
-      if (personData) {
-        person = personData as MeResponseDto['person'];
-      }
-    } catch {
-      // Table doesn't exist yet (pre-T-101) — ignore
-    }
-
+    // No roster row is read: an account on two Events has two, and none is "hers".
+    // Her name is her profile's (ruling 298).
+    const profile = await this.readOwnProfile(user.id);
     const admin = await this.getAdminLandingContext(user.id);
-
-    // Global profile photo (avatar in the personal-space sidebar). Best-effort:
-    // the user may not have a linked global_persons row yet.
-    let photoUrl: string | undefined;
-    try {
-      const { data: globalPerson } = await this.supabase.service
-        .from('global_persons')
-        .select('photo_url')
-        .eq('claimed_by_user_id', user.id)
-        .maybeSingle();
-      const url = (globalPerson as { photo_url?: string | null } | null)?.photo_url;
-      if (url) photoUrl = url;
-    } catch {
-      // ignore — sidebar simply falls back to initials
-    }
 
     // Gates the "My leagues" nav entry + the /dashboard league branch.
     // Deliberately a cheap existence check rather than listManageable, whose
     // count enrichment pulls every league_rankings row into memory — far too
     // heavy for /me.
-    const hasLeagueRoles = await this.hasLeagueGrant(user.id);
+    const hasLeagueRoles = await this.readLeagueGrant(user.id);
 
     // One indexed lookup; it never throws (see LegalAcceptanceService.pendingFor).
     const pendingLegal = await this.legal.pendingFor(user.id);
@@ -632,9 +605,9 @@ export class AuthService {
         id: user.id,
         email: user.email ?? '',
         display_name: user.user_metadata?.['display_name'] as string | undefined,
-        photo_url: photoUrl,
+        photo_url: profile.photoUrl,
+        profile_name: profile.name,
       },
-      person,
       admin: { ...admin, hasLeagueRoles },
       pendingLegal,
     };
@@ -1964,43 +1937,69 @@ export class AuthService {
    */
   private async hasLeagueGrant(userId: string): Promise<boolean> {
     try {
-      // .limit(1), not .maybeSingle(): a user granted a role on two leagues
-      // matches two rows, which PostgREST nulls — locking out exactly the users
-      // this check exists to admit.
-      const { data } = await this.supabase.service
-        .from('league_user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .in('role', ['admin', 'owner'])
-        .limit(1);
-
-      return Array.isArray(data) && data.length > 0;
+      return await this.readLeagueGrant(userId);
     } catch {
       return false;
     }
   }
 
+  /** As `hasLeagueGrant`, but a failed read throws: `/me` never answers it as "none" (ruling 295). */
+  private async readLeagueGrant(userId: string): Promise<boolean> {
+    // .limit(1), not .maybeSingle(): a user granted a role on two leagues
+    // matches two rows, which PostgREST nulls — locking out exactly the users
+    // this check exists to admit.
+    const { data, error } = await this.supabase.service
+      .from('league_user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ['admin', 'owner'])
+      .limit(1);
+    if (error) throw new Error(`League grant of ${userId} unreadable: ${error.message}`);
+    return Array.isArray(data) && data.length > 0;
+  }
+
+  /**
+   * What `/me` tells the admin site she may open. Both reads DECIDE: read as "no
+   * role, no club", a database fault sent an organiser to the sign-in page. A
+   * failed one throws, and the shells keep her page (operator ruling 295).
+   */
   private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
-    let organizations: AdminLandingContext['organizations'];
+    const platformRole = await readPlatformRole(this.supabase, userId);
 
-    const platformRole = await resolvePlatformRole(this.supabase, userId);
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .select('role, organizations(id, slug, name)')
+      .eq('user_id', userId);
+    if (error) throw new Error(`Clubs of ${userId} unreadable: ${error.message}`);
 
-    try {
-      const { data: membershipRows } = await this.supabase.service
-        .from('organization_members')
-        .select('role, organizations(id, slug, name)')
-        .eq('user_id', userId);
-
-      organizations = Array.isArray(membershipRows)
-        ? membershipRows
-            .map((row) => normalizeOrganizationMembership(row))
-            .filter((row): row is AdminLandingContext['organizations'][number] => Boolean(row))
-        : [];
-    } catch {
-      organizations = [];
-    }
-
+    const organizations = ((data ?? []) as unknown[])
+      .map((row) => normalizeOrganizationMembership(row))
+      .filter((row): row is AdminLandingContext['organizations'][number] => Boolean(row));
     return { platformRole, organizations };
+  }
+
+  /**
+   * The account's own profile, for the header: its photo and its name (operator
+   * ruling 298). It only decorates, so a failed read hands nothing and leaves a
+   * warning (ruling 295).
+   */
+  private async readOwnProfile(userId: string): Promise<{ photoUrl?: string; name?: string }> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('photo_url, display_name')
+      .eq('claimed_by_user_id', userId)
+      .maybeSingle();
+    if (error) {
+      this.logger.warn(
+        `/me: the profile of ${userId} is unreadable (${error.message}); no name, no photo`,
+      );
+      return {};
+    }
+    const profile = data as { photo_url?: string | null; display_name?: string | null } | null;
+    return {
+      photoUrl: profile?.photo_url || undefined,
+      name: profile?.display_name || undefined,
+    };
   }
 
   private validateRedirect(redirectTo: string | undefined): string {

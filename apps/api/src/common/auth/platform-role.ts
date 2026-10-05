@@ -59,21 +59,35 @@ export async function resolvePlatformRole(
   supabase: SupabaseService,
   userId: string | null | undefined,
 ): Promise<PlatformRole | null> {
-  if (!userId || NON_USER_IDS.has(userId)) return null;
-
   try {
-    const { data } = await supabase.service
-      .from('platform_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (!data) return null;
-    return parsePlatformRole((data as { role?: unknown }).role);
+    return await readPlatformRole(supabase, userId);
   } catch {
-    // Table absent during early bootstrap — treated as "no platform role",
-    // matching what every call site did individually before.
+    // A failed read, or the table absent during early bootstrap — treated as
+    // "no platform role", matching what every call site did individually before.
     return null;
   }
+}
+
+/**
+ * As {@link resolvePlatformRole}, but a failed read throws. For `/me` only
+ * (operator ruling 295): the admin site reads "no role" there as "may not come
+ * in" and sends an organiser to the sign-in page, so a database fault must not
+ * answer it. Every guard keeps the fail-closed reader above.
+ */
+export async function readPlatformRole(
+  supabase: SupabaseService,
+  userId: string | null | undefined,
+): Promise<PlatformRole | null> {
+  if (!userId || NON_USER_IDS.has(userId)) return null;
+
+  const { data, error } = await supabase.service
+    .from('platform_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error(`Platform role of ${userId} unreadable: ${error.message}`);
+  if (!data) return null;
+  return parsePlatformRole((data as { role?: unknown }).role);
 }
 
 /** Whether `userId` holds at least `min`. */

@@ -19,7 +19,13 @@ const USER = { id: 'user-1', email: 'member@example.com', user_metadata: {} };
 const supabase = {
   getAuthUser: vi.fn(),
   refreshSession: vi.fn(),
-  service: seededSupabase({ persons: { rows: [] } }),
+  // An account with no profile, no role, no club and no League grant.
+  service: seededSupabase({
+    global_persons: { rows: [] },
+    platform_roles: { rows: [] },
+    organization_members: { rows: [] },
+    league_user_roles: { rows: [] },
+  }),
 };
 
 const config = {

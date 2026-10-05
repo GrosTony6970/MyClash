@@ -4,6 +4,7 @@ import {
   assertPlatformTier,
   hasPlatformTier,
   isPlatformStaff,
+  readPlatformRole,
   resolvePlatformRole,
 } from './platform-role';
 
@@ -79,6 +80,37 @@ describe('resolvePlatformRole', () => {
       maybeSingle: vi.fn().mockRejectedValue(new Error('relation does not exist')),
     });
     await expect(resolvePlatformRole(supabase, 'u1')).resolves.toBeNull();
+  });
+
+  it('fails closed on a read PostgREST refused: every guard keeps "no role"', async () => {
+    fromMock.mockReturnValueOnce(chain({ data: null, error: { message: 'statement timeout' } }));
+    await expect(resolvePlatformRole(supabase, 'u1')).resolves.toBeNull();
+  });
+});
+
+describe('readPlatformRole — the reader of `/me` (ruling 295)', () => {
+  it('returns the stored tier, and null for no row', async () => {
+    fromMock.mockReturnValueOnce(rowFor('platform_admin'));
+    await expect(readPlatformRole(supabase, 'u1')).resolves.toBe('platform_admin');
+    await expect(readPlatformRole(supabase, 'u1')).resolves.toBeNull();
+  });
+
+  it('throws a plain Error on a failed read: it is not "no role"', async () => {
+    fromMock.mockReturnValueOnce(chain({ data: null, error: { message: 'statement timeout' } }));
+    const failure = await readPlatformRole(supabase, 'u1').then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(Object.getPrototypeOf(failure)).toBe(Error.prototype);
+    expect((failure as Error).message).toBe('Platform role of u1 unreadable: statement timeout');
+  });
+
+  it('never queries for the non-user sentinels', async () => {
+    for (const sentinel of ['', 'anonymous', 'unknown', null, undefined]) {
+      await expect(readPlatformRole(supabase, sentinel)).resolves.toBeNull();
+    }
+    expect(fromMock).not.toHaveBeenCalled();
   });
 });
 

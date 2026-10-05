@@ -55,20 +55,20 @@ describe('resolvePublicPersonal', () => {
     it('prefers the account display name', () => {
       const d = resolvePublicPersonal(
         claimed({
-          user: { id: 'u', email: 'a@b.c', display_name: 'Chosen' },
-          person: {
-            id: 'p',
-            given_name: 'Ros',
-            family_name: 'Tell',
-            event_id: 'e',
-            claim_status: 'claimed',
-          },
+          user: { id: 'u', email: 'a@b.c', display_name: 'Chosen', profile_name: 'Ros Tell' },
         }),
       );
       expect(d).toMatchObject({ kind: 'allow', displayName: 'Chosen' });
     });
 
-    it('falls back to the roster name when the account has none', () => {
+    it('falls back to the name of her profile when the account has none (ruling 298)', () => {
+      const d = resolvePublicPersonal(
+        claimed({ user: { id: 'u', email: 'a@b.c', profile_name: 'Ros Tell' } }),
+      );
+      expect(d).toMatchObject({ displayName: 'Ros Tell' });
+    });
+
+    it('never names an account by a roster row: it may be on many rosters', () => {
       const d = resolvePublicPersonal(
         claimed({
           user: { id: 'u', email: 'a@b.c' },
@@ -81,7 +81,7 @@ describe('resolvePublicPersonal', () => {
           },
         }),
       );
-      expect(d).toMatchObject({ displayName: 'Ros Tell' });
+      expect(d).toMatchObject({ displayName: 'a@b.c' });
     });
 
     it('falls back to the email when there is no name at all', () => {

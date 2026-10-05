@@ -61,14 +61,10 @@ export function resolvePublicPersonal(
   if (!reachable) return { kind: 'unverified' };
   if (!me || me.type !== 'claimed') return { kind: 'sign_in', guest: guestOf(me) };
 
-  const personName = [me.person?.given_name, me.person?.family_name]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-
   return {
     kind: 'allow',
-    displayName: me.user?.display_name || personName || me.user?.email || null,
+    // The name she chose, else her profile's: never a roster row's (ruling 298).
+    displayName: me.user?.display_name || me.user?.profile_name || me.user?.email || null,
     photoUrl: me.user?.photo_url ?? null,
     hasAdminAccess: Boolean(
       me.admin &&

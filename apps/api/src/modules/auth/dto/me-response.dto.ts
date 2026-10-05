@@ -28,6 +28,8 @@ export class MeUserDto {
   @ApiProperty({ required: false }) display_name?: string;
   /** The claimed user's global profile photo, when a global_persons row is linked. */
   @ApiProperty({ required: false }) photo_url?: string;
+  /** The name of that same profile: one name per account, whatever its rosters say (ruling 298). */
+  @ApiProperty({ required: false }) profile_name?: string;
 }
 
 export class MePersonDto {
@@ -97,6 +99,7 @@ export class MeResponseDto {
   @ApiProperty({ type: MeUserDto, required: false })
   user?: MeUserDto;
 
+  /** A guest's roster person. An account has none here: it may be on many rosters (ruling 298). */
   @ApiProperty({ type: MePersonDto, required: false })
   person?: MePersonDto;
 

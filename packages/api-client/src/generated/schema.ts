@@ -9737,6 +9737,7 @@ export interface components {
       email: string;
       display_name?: string;
       photo_url?: string;
+      profile_name?: string;
     };
     MePersonDto: {
       id: string;

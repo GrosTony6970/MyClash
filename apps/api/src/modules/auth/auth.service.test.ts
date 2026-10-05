@@ -596,7 +596,7 @@ describe('AuthService', () => {
       expect(result.person).toBeUndefined();
     });
 
-    it('returns the caller own roster profile, not another account one', async () => {
+    it('hands an account no roster row, though it holds one (ruling 298)', async () => {
       mockAuthUser({ id: USER, email: 'fighter@example.com', user_metadata: {} });
       seedMe({
         person: {
@@ -611,8 +611,8 @@ describe('AuthService', () => {
 
       const result = await service.getMe(claimedRequest());
 
-      expect(result.person?.id).toBe('person-mine');
-      expect(result.person?.given_name).toBe('Fighter');
+      expect(result.type).toBe('claimed');
+      expect(result.person).toBeUndefined();
     });
 
     it('includes the claimed user global profile photo when linked', async () => {
@@ -1611,6 +1611,13 @@ describe('AuthService', () => {
     }
 
     it('sets refreshed cookies scoped to the parent domain', async () => {
+      // An account with no profile, no role, no club and no League grant.
+      seedTables({
+        global_persons: { rows: [] },
+        platform_roles: { rows: [] },
+        organization_members: { rows: [] },
+        league_user_roles: { rows: [] },
+      });
       getAuthUserMock.mockImplementation(async (token: string) =>
         token === 'fresh-access' ? { id: 'u1', email: 'a@b.c', user_metadata: {} } : null,
       );
