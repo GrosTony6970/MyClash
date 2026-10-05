@@ -3182,6 +3182,8 @@ V1 is constrained draft-and-review only. AI returns strict JSON actions for tour
 
 ### 26.5 Super-admin AI Data Quality (T-1305)
 
+No draft is applied on a completed Event, whatever it does (283, 283a).
+
 Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
 
 **`platform_ai_settings`** - singleton row (`setting_key = 'super_admin'`) with provider, AES-256-GCM ciphertext, IV, updater, and updated timestamp. RLS: super-admin only; API writes through guarded super-admin routes.

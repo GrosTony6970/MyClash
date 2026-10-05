@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateOrganizerAIDraftDto,
@@ -84,6 +85,9 @@ export class OrganizerAIAssistantController {
     return this.assistant.updateDraft(eventId, draftId, userId, dto);
   }
 
+  // No draft is applied on a completed Event, whatever it does (rulings 283,
+  // 283a): stricter than re-timing a bout or naming a referee by hand there.
+  @BlockOnCompletedEvent()
   @Post(':draftId/apply')
   @ApiOperation({ summary: 'Apply a reviewed organizer AI setup draft' })
   async apply(

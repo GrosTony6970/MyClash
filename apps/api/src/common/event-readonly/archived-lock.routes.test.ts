@@ -108,6 +108,19 @@ describe('the archived-Event lock, API-wide', () => {
     ).toEqual([]);
   });
 
+  // Rulings 283, 283a: no assistant draft is applied on a completed Event,
+  // whatever it does. The two generate routes are the ones it began with.
+  it('refuses a completed Event at the assistant’s apply, as at the doors it opens', () => {
+    const marked = new Set(routes.filter((r) => r.blockedOnCompleted).map((r) => r.key));
+    for (const key of [
+      'POST tournaments/:tournamentId/generate-pools',
+      'POST tournaments/:tournamentId/generate-bracket',
+      'POST events/:eventId/ai-assistant/drafts/:draftId/apply',
+    ]) {
+      expect(marked.has(key), key).toBe(true);
+    }
+  });
+
   it('reads each segment of its table for at least one real route', () => {
     const used = new Set(placed.flatMap((route) => placements(route).map((p) => p.segment)));
     expect(PLACING_SEGMENTS.filter((segment) => !used.has(segment))).toEqual([]);
