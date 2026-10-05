@@ -37,6 +37,21 @@ export function enrollPath(sessionId: string, booking: WorkshopBooking): string 
   return booking === 'refused' ? `${path}?again=true` : path;
 }
 
+/**
+ * The sessions with a tap in flight, on a booking page. A page that held one id
+ * freed the first button at a tap on a second session, with its call still out.
+ */
+export type TapsInFlight = ReadonlySet<string>;
+
+export const tapStarted = (taps: TapsInFlight, sessionId: string): TapsInFlight =>
+  new Set(taps).add(sessionId);
+
+export function tapEnded(taps: TapsInFlight, sessionId: string): TapsInFlight {
+  const rest = new Set(taps);
+  rest.delete(sessionId);
+  return rest;
+}
+
 /** What a page knows of the caller at an Event: her bookings, and her schedule for the clash check. */
 export interface CallerBookings {
   bookings: Map<string, WorkshopBooking>;

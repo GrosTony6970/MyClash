@@ -29,9 +29,12 @@ import {
   changeBooking,
   guestPersonAt,
   readBookings,
+  tapEnded,
+  tapStarted,
   unknownCaller,
   type BookingChange,
   type CallerBookings,
+  type TapsInFlight,
   type UnknownCaller,
   type WorkshopBooking,
 } from '@/components/me/workshop-booking';
@@ -91,7 +94,7 @@ export default function WorkshopDetailPage() {
   const [unknown, setUnknown] = useState<UnknownCaller | null>(null);
   const [me, setMe] = useState<MeSession | null>(null);
   const taps = useRef(0);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<TapsInFlight>(new Set());
   const [loadKey, setLoadKey] = useState(0);
   const load = useCallback(() => setLoadKey((key) => key + 1), []);
   const [toast, setToast] = useState<string | null>(null);
@@ -157,9 +160,9 @@ export default function WorkshopDetailPage() {
    */
   async function act(sessionId: string, action: 'book' | 'cancel', booking: WorkshopBooking) {
     const tap = ++taps.current;
-    setBusy(sessionId);
+    setBusy((taps) => tapStarted(taps, sessionId));
     const change = await changeBooking(apiUrl, sessionId, action, booking);
-    setBusy(null);
+    setBusy((taps) => tapEnded(taps, sessionId));
     say(changeNotice(change, t));
     load();
     // The notice under the sessions follows the last tap: the door knew her, or did not.
@@ -357,7 +360,7 @@ export default function WorkshopDetailPage() {
                       booking={booking}
                       full={isFull}
                       conflict={conflictFor(session)}
-                      busy={busy === session.id}
+                      busy={busy.has(session.id)}
                       isInstructor={workshop.viewerIsInstructor}
                       labels={labels}
                       onRegister={() => void act(session.id, 'book', booking)}

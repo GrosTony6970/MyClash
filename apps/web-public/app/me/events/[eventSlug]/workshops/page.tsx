@@ -7,7 +7,14 @@ import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
-import { bookingsOf, enrollPath, type WorkshopBooking } from '@/components/me/workshop-booking';
+import {
+  bookingsOf,
+  enrollPath,
+  tapEnded,
+  tapStarted,
+  type TapsInFlight,
+  type WorkshopBooking,
+} from '@/components/me/workshop-booking';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
   groupWorkshopsByDay,
@@ -50,7 +57,7 @@ function WorkshopsContent({
 
   const [workshops, setWorkshops] = useState<WorkshopListItem[] | null>(null);
   const [wsKey, setWsKey] = useState(0);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<TapsInFlight>(new Set());
   const { schedule, refresh: refreshSchedule } = useMySchedule(event.id);
 
   useEffect(() => {
@@ -109,14 +116,14 @@ function WorkshopsContent({
 
   const act = useCallback(
     async (sessionId: string, method: 'POST' | 'DELETE', booking: WorkshopBooking = 'none') => {
-      setBusy(sessionId);
+      setBusy((taps) => tapStarted(taps, sessionId));
       try {
         await fetch(`${api}${enrollPath(sessionId, booking)}`, {
           method,
           credentials: 'include',
         });
       } finally {
-        setBusy(null);
+        setBusy((taps) => tapEnded(taps, sessionId));
         setWsKey((k) => k + 1);
         refreshSchedule();
       }
@@ -167,7 +174,7 @@ function WorkshopsContent({
                           booking={booking}
                           full={full}
                           conflict={conflictFor(session)}
-                          busy={busy === session.id}
+                          busy={busy.has(session.id)}
                           isInstructor={teaches}
                           labels={labels}
                           onRegister={() => void act(session.id, 'POST', booking)}

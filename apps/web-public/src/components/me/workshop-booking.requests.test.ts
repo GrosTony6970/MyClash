@@ -226,13 +226,13 @@ describe('the public Workshop page', () => {
   it('draws each session from the caller’s booking, with the one set of controls', () => {
     expect(page).toContain("const booking = caller.bookings.get(session.id) ?? 'none';");
     expect(page).toMatch(
-      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+conflict=\{conflictFor\(session\)\}\s+busy=\{busy === session\.id\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
+      /<WorkshopRegisterControls\s+booking=\{booking\}\s+full=\{isFull\}\s+conflict=\{conflictFor\(session\)\}\s+busy=\{busy\.has\(session\.id\)\}\s+isInstructor=\{workshop\.viewerIsInstructor\}\s+labels=\{labels\}\s+onRegister=\{\(\) => void act\(session\.id, 'book', booking\)\}\s+onCancel=\{\(\) => void act\(session\.id, 'cancel', booking\)\}\s+\/>/,
     );
   });
 
   it('reads the Workshop and the bookings again after every tap, refused or not', () => {
     expect(page).toMatch(
-      /const change = await changeBooking\(apiUrl, sessionId, action, booking\);\s+setBusy\(null\);\s+say\(changeNotice\(change, t\)\);\s+load\(\);/,
+      /const change = await changeBooking\(apiUrl, sessionId, action, booking\);\s+setBusy\(\(taps\) => tapEnded\(taps, sessionId\)\);\s+say\(changeNotice\(change, t\)\);\s+load\(\);/,
     );
     expect(page).toContain('}, [workshopSlug, eventSlug, apiUrl, loadKey]);');
   });
@@ -253,7 +253,9 @@ describe('the public Workshop page', () => {
       /const stranger = !change\.ok && change\.why === 'nobody';\s+const who = stranger \? await unknownCaller\(apiUrl\) : null;/,
     );
     // Two taps close together: only the last tap's answer is shown.
-    expect(page).toMatch(/const tap = \+\+taps\.current;\s+setBusy\(sessionId\);/);
+    expect(page).toMatch(
+      /const tap = \+\+taps\.current;\s+setBusy\(\(taps\) => tapStarted\(taps, sessionId\)\);/,
+    );
     expect(page).toContain('if (taps.current === tap) setUnknown(who);');
     expect(page).toContain(
       '{unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} />}',
