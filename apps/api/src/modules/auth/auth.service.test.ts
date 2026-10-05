@@ -107,6 +107,7 @@ const mockConfigService = {
 
 const mockOnboarding = {
   completeSignupAfterMagicLink: vi.fn().mockResolvedValue(undefined),
+  assertSignupsOpen: vi.fn().mockResolvedValue(undefined),
 };
 
 /**
@@ -1179,6 +1180,32 @@ describe('AuthService', () => {
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe-k3x' });
       expect(getUserMock).not.toHaveBeenCalled();
+    });
+
+    // Ruling 305: "sign-ups off" is off at the Google sign-up too. It made an
+    // account's club while the switch was on, because only the form read it.
+    it('refuses a Google sign-up while sign-ups are off: no club, no login', async () => {
+      mockAuthUser({ id: 'user-123', email: 'new@example.com' });
+      seedLogin();
+      const off = new Error('sign-ups are off');
+      mockOnboarding.assertSignupsOpen.mockRejectedValueOnce(off);
+      const reply = makeReply();
+
+      await expect(
+        service.acceptOAuthSession(
+          {
+            accessToken: 'access-token',
+            refreshToken: 'refresh-token',
+            mode: 'organizer_signup',
+            orgName: 'Lyon AMHE',
+            orgSlug: 'lyon-amhe',
+          },
+          reply as never,
+        ),
+      ).rejects.toBe(off);
+
+      expect(mockOnboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+      expect(reply.setCookie).not.toHaveBeenCalled();
     });
 
     // A neighbour is seeded FIRST on both tables, with an email the caller does

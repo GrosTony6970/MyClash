@@ -18,15 +18,10 @@ const auth = {
   signInFromSignupLink: vi.fn(),
   getMe: vi.fn(),
 };
-const onboarding = { completeSignupAfterMagicLink: vi.fn() };
+const onboarding = { completeSignupAfterMagicLink: vi.fn(), assertSignupsOpen: vi.fn() };
 const legal = { recordForUser: vi.fn() };
 
-const controller = new SignupController(
-  onboarding as never,
-  auth as never,
-  {} as never,
-  legal as never,
-);
+const controller = new SignupController(onboarding as never, auth as never, legal as never);
 
 const request = (cookies: Record<string, string> = {}) => ({ cookies, headers: {} }) as never;
 const makeReply = () => ({ redirect: vi.fn(), setCookie: vi.fn() });

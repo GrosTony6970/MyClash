@@ -22,6 +22,25 @@ export const RESERVED_SLUGS = [
   'terms',
 ] as const;
 
+/**
+ * A club's name and address, as every sign-up door takes them: the form, the
+ * mailed link's door and the Google sign-up (operator ruling 305).
+ */
+export const signupClubShape = {
+  orgName: z.string().min(2).max(100),
+  /**
+   * URL-safe slug for the organization. Auto-suggested from orgName on the
+   * frontend, editable by the user. Must be unique and not reserved.
+   * Pattern: lowercase letters, digits, hyphens only. 3–50 chars.
+   */
+  orgSlug: z
+    .string()
+    .min(3)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, digits, and hyphens'),
+};
+export const signupClubSchema = z.object(signupClubShape);
+
 const signupSchema = z
   .object({
     // ── Step 1: Account ──────────────────────────────────────────────────────
@@ -45,17 +64,7 @@ const signupSchema = z
     password: z.string().max(128).optional(),
 
     // ── Step 2: Organization ─────────────────────────────────────────────────
-    orgName: z.string().min(2).max(100),
-    /**
-     * URL-safe slug for the organization. Auto-suggested from orgName on the
-     * frontend, editable by the user. Must be unique and not reserved.
-     * Pattern: lowercase letters, digits, hyphens only. 3–50 chars.
-     */
-    orgSlug: z
-      .string()
-      .min(3)
-      .max(50)
-      .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, digits, and hyphens'),
+    ...signupClubShape,
 
     // ── Agreement ────────────────────────────────────────────────────────────
     // Required, not optional: this is the only place an organiser account comes

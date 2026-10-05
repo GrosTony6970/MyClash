@@ -323,6 +323,8 @@ export class AuthService {
     if (!this.onboarding) {
       throw new BadRequestException('Organizer signup is not available');
     }
+    // "Sign-ups off" is off here too (operator ruling 305): only the form read it.
+    await this.onboarding.assertSignupsOpen();
     // Checked before the org is created: a signup that fails the policy check
     // must not leave a half-made organisation behind.
     const versions = this.legal.assertCurrent({

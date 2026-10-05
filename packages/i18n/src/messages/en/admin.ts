@@ -1015,7 +1015,7 @@ export const admin = {
     disableSignups: {
       title: 'Disable signups',
       description:
-        'Block the public POST /auth/signup endpoint. Existing sessions, password logins, and OAuth flows are unaffected. Use this to stop abuse / bot signups without locking the whole platform down.',
+        'Refuse every new organizer account: the sign-up form, the mailed sign-up link and the Google sign-up. Existing sessions and sign-ins are unaffected. Use this to stop abuse / bot signups without locking the whole platform down.',
     },
     disablePublicSignups: {
       title: 'Disable public account signups',

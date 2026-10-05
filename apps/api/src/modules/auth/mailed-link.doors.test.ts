@@ -70,7 +70,7 @@ function build(organizations: unknown[] = []) {
     onboarding,
     reply,
     signIn: new AuthController(auth),
-    signUp: new SignupController(onboarding, auth, supabase as never, legal as never),
+    signUp: new SignupController(onboarding, auth, legal as never),
   };
 }
 

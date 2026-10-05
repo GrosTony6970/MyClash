@@ -76,6 +76,7 @@ export const auth = {
     },
   },
   signup: {
+    signupsOff: 'Les inscriptions sont fermées pour le moment. Réessayez plus tard.',
     title: 'Créez votre compte organisateur',
     step1Label: 'Étape 1 sur 2 — Votre compte',
     step2Label: 'Étape 2 sur 2 — Votre organisation',

@@ -1014,7 +1014,7 @@ export const admin = {
     disableSignups: {
       title: 'Désactiver les inscriptions',
       description:
-        'Bloquer le endpoint public POST /auth/signup. Les sessions existantes, les connexions par mot de passe et OAuth ne sont pas affectées. A utiliser pour stopper les inscriptions abusives sans verrouiller toute la plateforme.',
+        "Refuser tout nouveau compte organisateur : le formulaire d'inscription, le lien d'inscription reçu par e-mail et l'inscription avec Google. Les sessions existantes et les connexions ne sont pas affectées. A utiliser pour stopper les inscriptions abusives sans verrouiller toute la plateforme.",
     },
     disablePublicSignups: {
       title: 'Désactiver les inscriptions publiques',

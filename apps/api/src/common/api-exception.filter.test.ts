@@ -267,6 +267,20 @@ describe('ApiExceptionFilter', () => {
     expect(report).toHaveBeenCalledWith(exception, expect.objectContaining({ statusCode: 503 }));
   });
 
+  it('keeps the code an operational 503 was thrown with, for the screen that reads it', () => {
+    // "Sign-ups off" (ruling 305): three screens tell this 503 from a fault by its code.
+    const { host, send } = makeHost();
+
+    new ApiExceptionFilter(vi.fn()).catch(
+      new OperationalUnavailableException({ code: 'signups_disabled', message: 'Sign-ups off' }),
+      host,
+    );
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 503, code: 'signups_disabled', detail: 'Sign-ups off' }),
+    );
+  });
+
   it('still scrubs a plain 503, so the exemption cannot widen by accident', () => {
     // The opt-in is the marker class, NOT the 503 status: new code throwing a
     // generic ServiceUnavailableException must not start leaking its message.

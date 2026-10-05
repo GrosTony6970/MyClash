@@ -75,6 +75,7 @@ export const auth = {
     },
   },
   signup: {
+    signupsOff: 'Sign-ups are switched off for now. Try again later.',
     title: 'Create your organizer account',
     step1Label: 'Step 1 of 2 — Your account',
     step2Label: 'Step 2 of 2 — Your organization',

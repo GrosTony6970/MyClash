@@ -9,8 +9,8 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
-import { passwordLoginFallback } from '../../src/lib/sign-in-failure';
-import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
+import { passwordLoginFallback, signupFailureMessage } from '../../src/lib/sign-in-failure';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
   validateAccountStep,
@@ -62,8 +62,12 @@ const EMPTY_DRAFT: AccountDraft = {
  * which would opt the whole component out of the React Compiler, and rather
  * than a `window.location` read in a state initializer, which would not match
  * what the server rendered.
+ *
+ * `refused` is the sentence key of a mailed sign-up link the API refused (operator ruling
+ * 305): the page reads it from its address on the server, and the panel opens on it.
  */
-export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
+export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }) {
+  const { initialTab, refused } = props;
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
@@ -81,7 +85,7 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
   const [done, setDone] = useState<{ intent: SignupIntent; orgSlug: string } | null>(null);
 
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(refused ? t(refused) : null);
   const [message, setMessage] = useState<string | null>(null);
 
   const loading = loadingAction !== null;
@@ -286,17 +290,7 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
 
       const r = await apiRequest(apiUrl, '/api/v1/auth/signup', { method: 'POST', body });
       if (!r.ok) {
-        // The policy moved on while this tab was open. Say so in the user's
-        // language rather than passing through the server's English sentence.
-        //
-        // Read through `failureCode` and NOT `detail`: this one is thrown as an
-        // explicit `code:`, which `normalizeCode` passes through verbatim — the
-        // mirror image of the `email_in_use` rule on the fighters console,
-        // where the marker lives in `detail` instead.
-        const message =
-          failureCode(r) === 'legal_version_stale'
-            ? t('legal.accept.stale')
-            : failureMessage(r, t, t('admin.common.signupFailed'));
+        const message = signupFailureMessage(r, t);
         if (message) setError(message);
         return;
       }

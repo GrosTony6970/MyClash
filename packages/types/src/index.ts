@@ -4,6 +4,7 @@
 
 export * from './branding';
 export * from './claim-link';
+export * from './signup-refusal';
 export * from './compensation';
 export * from './csv';
 export * from './date';

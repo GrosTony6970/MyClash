@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,16 +9,15 @@ import {
   Query,
   Req,
   Res,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
-import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
+import { SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
-import { CheckSlugDto, SignupDto } from '../organizations/dto/signup.dto';
-import { SupabaseService } from '../supabase/supabase.service';
+import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
 import { Public } from '../../common/auth/public.decorator';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
@@ -32,7 +32,6 @@ export class SignupController {
   constructor(
     private readonly onboarding: OnboardingService,
     private readonly auth: AuthService,
-    private readonly supabase: SupabaseService,
     private readonly legal: LegalAcceptanceService,
   ) {}
 
@@ -53,9 +52,7 @@ export class SignupController {
   @ApiResponse({ status: 409, description: 'Slug already taken or reserved' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async signup(@Body() dto: SignupDto, @Req() request: FastifyRequest) {
-    if (await isFlagEnabledDirect(this.supabase, 'disable_signups')) {
-      throw new ServiceUnavailableException('Signups are temporarily disabled');
-    }
+    await this.onboarding.assertSignupsOpen();
     return this.onboarding.signup(dto, requestAcceptanceContext(request));
   }
 
@@ -99,6 +96,18 @@ export class SignupController {
     @Req() _req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
+    // Both checks run BEFORE the link is spent (operator ruling 305). A link
+    // edited by hand made a club under any name. And while sign-ups are off
+    // she goes to the sign-up page, which says so: the same mail works again
+    // once they are back on.
+    if (!signupClubSchema.safeParse({ orgName, orgSlug }).success) {
+      throw new BadRequestException('This sign-up link names no valid organization');
+    }
+    if (await this.signupsAreOff()) {
+      void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${SIGNUPS_DISABLED_CODE}`);
+      return;
+    }
+
     // The club is made for the account the LINK proved (operator ruling 299). The
     // old door asked `/me` about the cookies the browser SENT: a new person sent
     // none and got no club, and a browser signed in as somebody else got the club
@@ -116,6 +125,17 @@ export class SignupController {
     // The club that was MADE (operator ruling 304): its address is another one
     // than `orgSlug` when somebody took hers between her request and her click.
     void reply.redirect(`/org/${made}`);
+  }
+
+  /** The switch's own refusal is an answer here; any other fault still throws. */
+  private async signupsAreOff(): Promise<boolean> {
+    try {
+      await this.onboarding.assertSignupsOpen();
+      return false;
+    } catch (refusal) {
+      if (refusal instanceof OperationalUnavailableException) return true;
+      throw refusal;
+    }
   }
 
   private async recordCallbackAcceptance(

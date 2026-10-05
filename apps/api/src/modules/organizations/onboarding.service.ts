@@ -1,5 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { validatePassword } from '@myclash/types';
 import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
@@ -83,6 +86,25 @@ export class OnboardingService {
     }
 
     return { available: true };
+  }
+
+  // ── The "sign-ups off" switch ────────────────────────────────────────────
+
+  /**
+   * The ONE read of the super admin's "sign-ups off" switch, asked by every
+   * door that makes an organizer account: the form, the mailed link's door
+   * and the Google sign-up (operator ruling 305). Only the form read it.
+   *
+   * The marker class keeps the `code` through the error filter, so a screen
+   * tells this 503 from a fault.
+   */
+  async assertSignupsOpen(): Promise<void> {
+    if (await isFlagEnabledDirect(this.supabase, 'disable_signups')) {
+      throw new OperationalUnavailableException({
+        code: SIGNUPS_DISABLED_CODE,
+        message: 'Signups are temporarily disabled',
+      });
+    }
   }
 
   // ── Signup ───────────────────────────────────────────────────────────────
