@@ -84,6 +84,7 @@ function database(status: string, caller: Caller) {
     },
     exchange_edit_requests: { rows: [], returning: { id: 'request-1' } },
     audit_log: { rows: [] },
+    match_events: { rows: [] },
     event_staff_accounts: {
       rows: [{ id: 'staff-1', event_id: EVENT, status: 'active', role: 'scoring' }],
     },

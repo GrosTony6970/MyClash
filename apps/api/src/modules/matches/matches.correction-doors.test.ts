@@ -20,6 +20,7 @@ function setup(exchange: Record<string, unknown>, guard?: Record<string, unknown
     },
     matches: { rows: [{ id: 'm1', locked_at: null }] },
     audit_log: { rows: [] },
+    match_events: { rows: [] },
   });
   const askedWithWrites: number[] = [];
   const scoring = {

@@ -565,6 +565,7 @@ describe('MatchesService', () => {
         {
           exchanges: { rows: [exchange] },
           matches: { rows: [{ id: 'm1', locked_at: null }] },
+          match_events: { rows: [] },
         },
         { frozen: true },
       );

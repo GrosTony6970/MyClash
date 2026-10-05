@@ -12,9 +12,15 @@ import { en, fr } from '@myclash/i18n';
 const EVENT_ROOT = join(__dirname, '..', '..', 'app', 'org', '[slug]', 'events', '[eventId]');
 const BRACKET_PAGE = readFileSync(join(EVENT_ROOT, 'bracket', 'page.tsx'), 'utf8');
 const BOUT_PAGE = readFileSync(join(EVENT_ROOT, 'matches', '[matchId]', 'page.tsx'), 'utf8');
+const REQUESTS_PAGE = readFileSync(
+  join(__dirname, '..', '..', 'app', 'admin', 'exchange-edit-requests', 'page.tsx'),
+  'utf8',
+);
 
 describe('the doors that change a bout’s result say a refusal in the reader’s language', () => {
   it.each<[string, string, string]>([
+    // An approval makes the void or the restore itself: the same refusals reach it.
+    ['an approval of a request', REQUESTS_PAGE, "t('admin.common.approvalFailed')"],
     ['a forfeit from the bracket', BRACKET_PAGE, "t('admin.common.forfeitFailed')"],
     ['a forfeit from the bout page', BOUT_PAGE, "t('admin.common.forfeitFailed')"],
     ['a forfeit’s void', BOUT_PAGE, "t('organizer.bracketPage.voidRecordFailed')"],
@@ -40,6 +46,17 @@ describe('a correction sent for review', () => {
     );
     expect(fr.organizer.matchDetail.correctionSubmitted).toBe(
       'Demande de correction soumise pour validation.',
+    );
+  });
+});
+
+describe('a restore of a hit from before the bout’s last reset (ruling 275)', () => {
+  it('is refused in these words', () => {
+    expect(en.admin.common.exchangeFromBeforeReset).toBe(
+      'This exchange is from before the bout was reset. It cannot be restored.',
+    );
+    expect(fr.admin.common.exchangeFromBeforeReset).toBe(
+      "Cet échange date d'avant la remise à zéro du combat. Il ne peut pas être restauré.",
     );
   });
 });

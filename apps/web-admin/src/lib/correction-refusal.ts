@@ -24,6 +24,9 @@ export function correctionRefusal(failure: ApiFailure, t: (key: string) => strin
       return t('admin.common.correctionChangesClosedRound');
     case 'event_results_frozen':
       return t('admin.common.eventResultsFrozen');
+    case 'exchange_from_before_reset':
+      // A restore, or the approval of one: the hit is from before the bout's last reset (ruling 275).
+      return t('admin.common.exchangeFromBeforeReset');
     default:
       return null;
   }

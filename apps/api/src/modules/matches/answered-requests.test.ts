@@ -65,6 +65,7 @@ function setup(eventStatus = 'completed', requests: 'seeded' | 'failing' = 'seed
             ],
           },
     audit_log: { data: null, error: null },
+    match_events: { rows: [] },
   });
   const scoring = {
     recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),

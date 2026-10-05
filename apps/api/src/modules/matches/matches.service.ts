@@ -18,6 +18,7 @@ import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
@@ -928,7 +929,7 @@ export class MatchesService {
   ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
-      .select('id, match_id, voided, sequence')
+      .select('id, match_id, voided, sequence, recorded_at')
       .eq('id', exchangeId)
       .maybeSingle();
 
@@ -938,6 +939,8 @@ export class MatchesService {
     if (!ex.voided) {
       throw new BadRequestException('Exchange is not voided');
     }
+    // Before the lock and the review: nobody restores it, an approval included (ruling 275).
+    await assertSavedAfterLastReset(this.supabase.service, exchange as SavedHit);
     if (context && !context.bypassFrozenReview)
       await this.assertMatchUnlocked(ex.match_id, context);
 

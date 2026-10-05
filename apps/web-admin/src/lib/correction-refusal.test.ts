@@ -20,6 +20,7 @@ describe('correctionRefusal', () => {
     ['correction_leaves_bout_level', 'admin.common.correctionLeavesBoutLevel'],
     ['correction_changes_closed_round', 'admin.common.correctionChangesClosedRound'],
     ['event_results_frozen', 'admin.common.eventResultsFrozen'],
+    ['exchange_from_before_reset', 'admin.common.exchangeFromBeforeReset'],
   ])('says %s in the reader’s language', (code, key) => {
     expect(correctionRefusal(refused(code), t)).toBe(key);
   });

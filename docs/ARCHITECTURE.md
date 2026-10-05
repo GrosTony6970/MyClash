@@ -1981,7 +1981,11 @@ every approval tells who asked, as a rejection does (253a). A reset voids the hi
 finished bout or a running one, and of every later bout it reverts: it closes the requests on
 those hits as rejected with a fixed reason, writes each close in the audit trail, and tells who
 asked after its last step (257, 260). A later bout's requests are closed right after its own
-revert: a later step that fails then strands none. A reopen that keeps the hits (a clock reopen, a status
+revert: a later step that fails then strands none. A hit from before its bout's last reset is
+not restored (275): `matches/hit-before-reset.ts` compares the time the server saved the hit with
+the time of the bout's newest `reset_match` line, and refuses with the code
+`exchange_from_before_reset`, before the lock and before the review, so a direct restore, a
+request and an approval are refused alike. A reopen that keeps the hits (a clock reopen, a status
 change) closes no request of that bout: the request still names a hit that counts, and it waits
 (260). These notices
 ring a phone only: they carry no email (256). A request's saved reason is read by a reviewer of
