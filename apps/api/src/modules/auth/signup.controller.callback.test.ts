@@ -50,7 +50,7 @@ beforeEach(() => {
   auth.signInFromSignupLink.mockResolvedValue(ANNA);
   // What `/me` would say of the cookie the browser SENT: the trap of the old door.
   auth.getMe.mockResolvedValue({ type: 'claimed', user: BOB });
-  onboarding.completeSignupAfterMagicLink.mockResolvedValue(undefined);
+  onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe');
   legal.recordForUser.mockResolvedValue(undefined);
 });
 
@@ -65,6 +65,17 @@ describe('the sign-up link makes the club for the account the link proved (rulin
       [ANNA.id, 'Lyon AMHE', 'lyon-amhe'],
     ]);
     expect(reply.redirect.mock.calls).toEqual([['/org/lyon-amhe']]);
+  });
+
+  // Ruling 304. Bob took `lyon-amhe` between her request and her click, so her club was made
+  // under another address. The door sent her to `/org/lyon-amhe`: Bob's club.
+  it('sends her to the club that was made, not to the address she asked for', async () => {
+    onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe-k3x');
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([['/org/lyon-amhe-k3x']]);
   });
 
   it('makes it for her, not for the account the browser was signed in as', async () => {

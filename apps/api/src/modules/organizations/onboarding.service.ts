@@ -246,12 +246,16 @@ export class OnboardingService {
    * Called after the magic link is clicked, and by the Google sign-up. At this
    * point the user is authenticated. A club or an owner row that cannot be
    * written throws (operator ruling 299): both doors redirect to the club next.
+   *
+   * Hands back the address of the club it made (operator ruling 304): another
+   * one than she asked for when somebody took hers in between. Both doors send
+   * her there, never to the address she asked for.
    */
   async completeSignupAfterMagicLink(
     userId: string,
     orgName: string,
     orgSlug: string,
-  ): Promise<void> {
+  ): Promise<string> {
     // Re-check slug (race condition guard)
     const slugCheck = await this.checkSlugAvailability(orgSlug);
     if (!slugCheck.available) {
@@ -259,9 +263,10 @@ export class OnboardingService {
       const fallbackSlug = `${orgSlug}-${Date.now().toString(36)}`;
       this.logger.warn(`Slug ${orgSlug} taken at callback time, using ${fallbackSlug}`);
       await this.createOrgAndMembership(userId, orgName, fallbackSlug);
-      return;
+      return fallbackSlug;
     }
     await this.createOrgAndMembership(userId, orgName, orgSlug);
+    return orgSlug;
   }
 
   // ── Shared org creation ──────────────────────────────────────────────────
@@ -307,6 +312,14 @@ export class OnboardingService {
     });
 
     if (memberError) {
+      // A club with no owner holds its address for good and nobody can open it:
+      // remove it, so a second try finds the address free.
+      const orgId = (org as { id: string }).id;
+      const { error: undoError } = await this.supabase.service
+        .from('organizations')
+        .delete()
+        .eq('id', orgId);
+      if (undoError) this.logger.error(`Club ${orgId} stays with no owner: ${undoError.message}`);
       throw new Error(`Failed to create org membership: ${memberError.message}`);
     }
 

@@ -1153,9 +1153,12 @@ describe('AuthService', () => {
       );
     });
 
+    // Ruling 304: she goes to the club that was MADE. Its address differs from the
+    // one she asked for when somebody took that one in between.
     it('creates organizer signup membership after Google session validation', async () => {
       mockAuthUser({ id: 'user-123', email: 'new@example.com' });
       seedLogin();
+      mockOnboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe-k3x');
       const reply = makeReply();
 
       await service.acceptOAuthSession(
@@ -1174,7 +1177,7 @@ describe('AuthService', () => {
         'Lyon AMHE',
         'lyon-amhe',
       );
-      expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe' });
+      expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe-k3x' });
       expect(getUserMock).not.toHaveBeenCalled();
     });
 

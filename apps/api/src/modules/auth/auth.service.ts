@@ -284,21 +284,8 @@ export class AuthService {
     }
 
     if (dto.mode === 'organizer_signup') {
-      if (!dto.orgName?.trim() || !dto.orgSlug?.trim()) {
-        throw new BadRequestException('Organization name and slug are required');
-      }
-      if (!this.onboarding) {
-        throw new BadRequestException('Organizer signup is not available');
-      }
-      // Checked before the org is created: a signup that fails the policy check
-      // must not leave a half-made organisation behind.
-      const versions = this.legal.assertCurrent({
-        terms: dto.acceptedTerms,
-        privacy: dto.acceptedPrivacy,
-      });
-      await this.onboarding.completeSignupAfterMagicLink(user.id, dto.orgName, dto.orgSlug);
-      await this.legal.recordForUser(user.id, versions, context);
-      destination = destination === '/' ? `/org/${dto.orgSlug}` : destination;
+      const made = await this.signUpWithGoogle(user.id, dto, context);
+      destination = destination === '/' ? `/org/${made}` : destination;
     }
 
     if (dto.mode === 'person_claim') {
@@ -318,6 +305,37 @@ export class AuthService {
     this.setAuthCookies(reply, dto.accessToken, dto.refreshToken);
     await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
     void reply.send({ next: destination });
+  }
+
+  /**
+   * The Google sign-up's club. Hands back the address of the club that was
+   * made: another one than she asked for when somebody took hers in between
+   * (operator ruling 304).
+   */
+  private async signUpWithGoogle(
+    userId: string,
+    dto: OAuthSessionDto,
+    context: AcceptanceContext,
+  ): Promise<string> {
+    if (!dto.orgName?.trim() || !dto.orgSlug?.trim()) {
+      throw new BadRequestException('Organization name and slug are required');
+    }
+    if (!this.onboarding) {
+      throw new BadRequestException('Organizer signup is not available');
+    }
+    // Checked before the org is created: a signup that fails the policy check
+    // must not leave a half-made organisation behind.
+    const versions = this.legal.assertCurrent({
+      terms: dto.acceptedTerms,
+      privacy: dto.acceptedPrivacy,
+    });
+    const made = await this.onboarding.completeSignupAfterMagicLink(
+      userId,
+      dto.orgName,
+      dto.orgSlug,
+    );
+    await this.legal.recordForUser(userId, versions, context);
+    return made;
   }
 
   async passwordLogin(dto: PasswordLoginDto, reply: FastifyReply): Promise<void> {

@@ -104,7 +104,7 @@ export class SignupController {
     // none and got no club, and a browser signed in as somebody else got the club
     // made for that account.
     const user = await this.auth.signInFromSignupLink(tokenHash, reply);
-    await this.onboarding.completeSignupAfterMagicLink(user.id, orgName, orgSlug);
+    const made = await this.onboarding.completeSignupAfterMagicLink(user.id, orgName, orgSlug);
     // The account exists only now, which is why the acceptance is recorded
     // here rather than when the link was requested. Not asserted: the
     // versions were already checked at /auth/signup, and a policy revised
@@ -113,7 +113,9 @@ export class SignupController {
     // matches simply shows up in `pendingLegal` and the banner asks again.
     await this.recordCallbackAcceptance(user.id, acceptedTerms, acceptedPrivacy, _req);
 
-    void reply.redirect(`/org/${orgSlug}`);
+    // The club that was MADE (operator ruling 304): its address is another one
+    // than `orgSlug` when somebody took hers between her request and her click.
+    void reply.redirect(`/org/${made}`);
   }
 
   private async recordCallbackAcceptance(

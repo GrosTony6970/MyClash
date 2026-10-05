@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LEGAL_POLICIES } from '@myclash/types';
 import {
   mockSupabase as seededSupabase,
+  scopedTo,
   writesTo,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
@@ -74,7 +75,7 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
   });
 
   it('fails the sign-up when its owner cannot be written', async () => {
-    const { service } = build({
+    const { service, db } = build({
       organizations: [FREE_SLUG, CLUB_MADE],
       organization_members: FAULT,
     });
@@ -82,6 +83,37 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
     await expect(
       service.completeSignupAfterMagicLink('user-1', 'Lyon AMHE', 'lyon-amhe'),
     ).rejects.toThrow('Failed to create org membership: connection refused');
+    // A club with no owner would hold its address for good: her second try would
+    // find `lyon-amhe` taken by a club nobody can open.
+    const [, removal] = writesTo(db, 'organizations');
+    expect(removal?.op).toBe('delete');
+    expect(scopedTo(removal, 'id')).toBe('org-1');
+  });
+
+  it('hands back the address of the club it made', async () => {
+    const { service } = build({
+      organizations: [FREE_SLUG, CLUB_MADE],
+      organization_members: { data: null, error: null },
+    });
+
+    await expect(
+      service.completeSignupAfterMagicLink('user-1', 'Lyon AMHE', 'lyon-amhe'),
+    ).resolves.toBe('lyon-amhe');
+  });
+
+  // Ruling 304: somebody took her address between her request and her click.
+  it('makes the club under another address when hers was taken, and hands that one back', async () => {
+    const { service, db } = build({
+      organizations: [{ data: { id: 'org-bob' }, error: null }, CLUB_MADE],
+      organization_members: { data: null, error: null },
+    });
+
+    const made = await service.completeSignupAfterMagicLink('user-1', 'Lyon AMHE', 'lyon-amhe');
+
+    expect(made).toMatch(/^lyon-amhe-[a-z0-9]+$/u);
+    expect(writesTo(db, 'organizations').map((write) => write.row)).toEqual([
+      expect.objectContaining({ slug: made, created_by_user_id: 'user-1' }),
+    ]);
   });
 });
 
