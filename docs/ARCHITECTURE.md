@@ -1763,7 +1763,7 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 
 **Guest session** — created when a participant types their name, finds themselves in the roster, and confirms. Lives in `guest_sessions`, bound to one Person, stored as a signed httpOnly cookie + server row. Lasts until event end + 7 days.
 
-**Claimed account** — created when the participant clicks a magic link sent to the email the organizer registered. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Persists across events and devices.
+**Claimed account** — created when the participant clicks a magic link sent to the email the organizer registered. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Persists across events and devices. An account holds one roster row at an Event: the database refuses a second (`persons_event_id_claimed_by_user_id_key`, 0220, ruling 296), because "which roster row is the caller here" reads one row. An account is on many rosters, so `/me` hands it no roster row: its name there is its profile's (`user.profile_name`, ruling 298).
 
 The progression is opt-in at every step, and most participants stop at Guest:
 
