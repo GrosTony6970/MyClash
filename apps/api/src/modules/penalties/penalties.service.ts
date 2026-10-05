@@ -30,6 +30,7 @@ import {
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { assertBoutStarted } from '../matches/bout-not-started';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type {
@@ -905,18 +906,18 @@ export class PenaltiesService {
       .eq('client_uuid', dto.clientUuid)
       .maybeSingle();
     if (existing) return existing;
-    // Both refusals AFTER the replay answer, in a hit's order: a card the server holds is not
+    // Every refusal AFTER the replay answer, in a hit's order: a card the server holds is not
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     this.assertMatchNotLocked(match, context);
+    assertBoutStarted(match.status);
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting
     // to be advanced, `current_round` names a round whose RESULT is already
     // banked in `rounds_json` — so the card could move that round's score and
     // never who won it (ruling 247), where the referee meant it to count. The
-    // idempotency probe above still returns an already-recorded card, so a
-    // retry after the round closed is not refused.
+    // probe above still answers a card the server holds after the round closed.
     if (match.awaitingRoundAdvance) {
       throw new BadRequestException('Round ended — advance to the next round before scoring');
     }
@@ -1302,7 +1303,7 @@ export class PenaltiesService {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance',
+        'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1347,7 +1348,6 @@ export class PenaltiesService {
       // The EFFECTIVE ruleset: tournament → event → the platform built-in. The
       // last step is not optional decoration — it is what almost every match
       // resolves through, because almost nobody pins a ruleset explicitly.
-      //
       // Without it this field was null on those matches, and every consumer
       // read that as "there is no ruleset": `computeRulesetPenalty` refused the
       // card outright ("No penalty ruleset is attached…"), the per-card cost
@@ -1359,6 +1359,7 @@ export class PenaltiesService {
         (tournament['penalty_ruleset_id'] as string | null) ??
         (event['penalty_ruleset_id'] as string | null) ??
         (await this.loadBuiltInPenaltyRulesetId()),
+      status: (match['status'] as string | null) ?? null,
       currentRound: (match['current_round'] as number | null) ?? 1,
       awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
     };
@@ -1895,6 +1896,8 @@ export function bumpPenaltyVersion(version: string): string {
 
 interface MatchContext {
   id: string;
+  /** Null on a row read with no status: `assertBoutStarted` judges `scheduled` only. */
+  status: string | null;
   lockedAt: string | null;
   redRegistrationId: string;
   blueRegistrationId: string;

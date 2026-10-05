@@ -56,6 +56,8 @@ const PIN_DISABLED = 'scoring.corrections.pinDisabled';
 const PIN_ROLE_CANNOT_SCORE = 'scoring.corrections.pinRoleCannotScore';
 const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
 const HELD_NOT_ALLOWED = 'scoring.quarantine.notAllowed';
+const HELD_NOT_STARTED = 'scoring.quarantine.boutNotStarted';
+const NOT_STARTED = 'scoring.corrections.boutNotStarted';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
@@ -108,6 +110,8 @@ export function heldReason(
   t: Translate,
 ): string {
   if (held.rejectedCode === 'event_results_frozen') return t(HELD_EVENT_OVER);
+  // Ruling 286: the bout was put back to unplayed after this hit was scored.
+  if (held.rejectedCode === 'bout_not_started') return t(HELD_NOT_STARTED);
   // Ruling 242: the API's own code of a 403 that carries no other one.
   if (held.rejectedCode === 'FORBIDDEN') return t(HELD_NOT_ALLOWED);
   return held.rejectedReason;
@@ -132,6 +136,8 @@ function codedRefusal(
     case 'correction_leaves_bout_level':
     case 'correction_changes_closed_round':
       return t(REFUSED_WHOLE[code]);
+    case 'bout_not_started': // ruling 286: a call sent at once to a bout nobody started
+      return t(NOT_STARTED);
     case 'event_results_frozen':
       // The Event is completed or archived: a result is a super admin's now.
       return t(EVENT_OVER);

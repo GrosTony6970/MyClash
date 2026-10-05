@@ -379,6 +379,20 @@ function hitValues(total: number): number[] {
  * so a bout played a second time from sequence 1 collides with its own voided
  * history. Use `nextExchangeSequence` to find the safe starting point.
  */
+/**
+ * Start a bout nobody has started, as the pad's Start does.
+ *
+ * The API refuses a hit or a card for a `scheduled` bout (ruling 286): the pad
+ * cannot score one either. A bout that runs, or that is over, is left alone, so
+ * this is safe before a replay after `POST /matches/:id/reset` and on a bout a
+ * spec opened itself.
+ */
+export async function openForScoring(api: Api, matchId: string): Promise<void> {
+  const match = await api.json<{ status: string }>(await api.get(`matches/${matchId}`));
+  if (match.status !== 'scheduled') return;
+  await api.ok(await api.patch(`matches/${matchId}/status`, { data: { status: 'running' } }));
+}
+
 export async function scoreMatch(
   api: Api,
   matchId: string,
@@ -386,6 +400,7 @@ export async function scoreMatch(
   pointCap: number = POINT_CAP,
   startSequence = 1,
 ): Promise<void> {
+  await openForScoring(api, matchId);
   const loserColor = winnerColor === 'red' ? 'blue' : 'red';
   let sequence = startSequence;
   let clockMs = 4_000;

@@ -1991,7 +1991,10 @@ it: the forced "generate Pools again", "Regenerate bracket" and "Delete bracket"
 only the organisation's owner passes (279); an admin is refused with the code
 `discard_requires_owner`. The bar reads the bout's status. The status route
 (`PATCH /matches/:id/status`) refuses `scheduled` (281): it writes the status alone, so the bout
-would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. The Pools door
+would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. A new hit or
+card for a `scheduled` bout is refused with the code `bout_not_started`, after the replay probe
+(286, `matches/bout-not-started.ts`): a pad starts a bout online, so such a hit was scored before
+the bout was put back; the pad holds it, and the scorer sends it again or discards it. The Pools door
 also wants the discard said (`discardScoredResults`): without it the 409 carries the code
 `scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm
 (280). The two bracket doors want it too (285): the bracket page never says the discard on the

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
-import { createBracketTournament, ensurePersons, type Person } from './_bracket';
+import { createBracketTournament, ensurePersons, openForScoring, type Person } from './_bracket';
 
 /**
  * The scoring pad's server contract, end to end against a real database.
@@ -515,6 +515,7 @@ test.describe('scoring pad', () => {
     test.setTimeout(300_000);
     const api = apiFor(request);
     const { matchId, blueRegistrationId } = await aMatch(api, 'cards');
+    await openForScoring(api, matchId);
 
     await api.ok(
       await api.post(`matches/${matchId}/penalties`, {
@@ -628,6 +629,7 @@ async function hit(
   matchId: string,
   body: Record<string, unknown>,
 ): Promise<{ id: string }> {
+  await openForScoring(api, matchId);
   return api.json<{ id: string }>(
     await api.post(`matches/${matchId}/exchanges`, {
       data: {

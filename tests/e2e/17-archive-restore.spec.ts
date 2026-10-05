@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor } from './_api';
-import { championOf, ensureRoster, personName, readBracket, type Bracket } from './_bracket';
+import {
+  championOf,
+  ensureRoster,
+  openForScoring,
+  personName,
+  readBracket,
+  type Bracket,
+} from './_bracket';
 import { playTournamentToChampion, type FinishedTournament } from './_tournament';
 import { colorOf, createPoolTournament, readPoolMatches } from './_pool';
 
@@ -500,6 +507,7 @@ test.describe('archive restore', () => {
       .slice(0, 2);
     expect(bouts, 'the offender needs two bouts to be carded in').toHaveLength(2);
     for (const [index, bout] of bouts.entries()) {
+      await openForScoring(api, bout.id);
       await api.ok(
         await api.post(`matches/${bout.id}/penalties`, {
           data: {

@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
-import { apiFor, createBracketTournament, ensureRoster, type Api } from './_bracket';
+import {
+  apiFor,
+  createBracketTournament,
+  ensureRoster,
+  openForScoring,
+  type Api,
+} from './_bracket';
 
 /**
  * The live control room, and whether its realtime is actually alive.
@@ -64,6 +70,7 @@ async function landCleanHits(
   color: 'red' | 'blue',
   count: number,
 ): Promise<void> {
+  await openForScoring(api, matchId);
   for (let sequence = 1; sequence <= count; sequence += 1) {
     await api.ok(
       await api.post(`matches/${matchId}/exchanges`, {

@@ -168,6 +168,8 @@ export const scoring = {
       "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
     notAllowed:
       "Cette tablette n'est pas autorisée à arbitrer cet assaut : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur, puis réessayez.",
+    boutNotStarted:
+      "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",
@@ -311,6 +313,7 @@ export const scoring = {
       "Cette correction changerait le vainqueur d'une manche close. Les manches suivantes ont été disputées à partir de ce résultat : elle n'a pas été appliquée.",
     eventOver:
       'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
+    boutNotStarted: "Cet assaut n'est pas commencé. Démarrez-le, puis réessayez.",
     accountCannotScore:
       "Le compte connecté sur cette tablette n'a pas de rôle pour scorer cet événement : rien ne sera enregistré. Déconnectez ce compte, ou adressez-vous à un organisateur.",
     pinDisabled:

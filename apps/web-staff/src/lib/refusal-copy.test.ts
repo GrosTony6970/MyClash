@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
+import { en, fr } from '@myclash/i18n';
 
 import { heldReason, refusalMessage } from './refusal-copy';
 
@@ -52,6 +53,25 @@ describe('heldReason', () => {
         t,
       ),
     ).toBe('scoring.quarantine.eventOver');
+  });
+
+  // Ruling 286: a queued hit whose bout was put back to unplayed.
+  it('says a hit held because its bout is not started in the reader’s language', () => {
+    expect(
+      heldReason(
+        { rejectedReason: 'This bout is not started', rejectedCode: 'bout_not_started' },
+        t,
+      ),
+    ).toBe('scoring.quarantine.boutNotStarted');
+  });
+
+  it('is these words (ruling 286)', () => {
+    expect(en.scoring.quarantine.boutNotStarted).toBe(
+      'This bout is not started, or it was reset after this entry. It is held here, not lost. Start the bout and retry, or discard it.',
+    );
+    expect(fr.scoring.quarantine.boutNotStarted).toBe(
+      "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
+    );
   });
 
   it('keeps the server’s own words for any other refusal', () => {
@@ -150,6 +170,16 @@ describe('refusalMessage', () => {
     expect(refusalMessage(refusal(409, { code, detail: 'It was not applied.' }), t, FALLBACK)).toBe(
       key,
     );
+  });
+
+  it('says the bout is not started to a call the pad sends at once (ruling 286)', () => {
+    expect(
+      refusalMessage(
+        refusal(409, { code: 'bout_not_started', detail: 'This bout is not started' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.boutNotStarted');
   });
 
   it('says the Event is over, instead of the API sentence', () => {

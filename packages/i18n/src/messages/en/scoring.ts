@@ -161,6 +161,8 @@ export const scoring = {
       'This event is over, so the server did not accept this entry. It is held here, not lost. Ask an organiser.',
     notAllowed:
       'This tablet is not allowed to score this bout, so the server did not accept this entry. It is held here, not lost. Ask an organiser, then retry.',
+    boutNotStarted:
+      'This bout is not started, or it was reset after this entry. It is held here, not lost. Start the bout and retry, or discard it.',
   },
   lice: {
     loadingMatch: 'Loading match...',
@@ -322,6 +324,7 @@ export const scoring = {
     closedRoundResult:
       'This correction would change who won a round that is closed. Later rounds were fought from that result, so it was not applied.',
     eventOver: 'This event is over and its results are closed. Ask an organiser.',
+    boutNotStarted: 'This bout is not started. Start it, then try again.',
     accountCannotScore:
       'The account signed in on this tablet has no scoring role for this event, so nothing will save. Sign that account out, or ask an organiser.',
     pinDisabled: "This tablet's staff account is disabled, so nothing will save. Ask an organiser.",

@@ -18,6 +18,7 @@ import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+import { assertBoutStarted } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
@@ -783,23 +784,7 @@ export class MatchesService {
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     if (context) await this.assertMatchUnlocked(matchId, context);
 
-    // Best-of: a new exchange belongs to the current open round, and scoring is
-    // blocked while a round is awaiting advance (the operator must start the next
-    // round first). current_round defaults to 1 and awaiting is never set for a
-    // single-round match, so this leaves bestOf = 1 behaviour unchanged.
-    const { data: matchRoundRow } = await this.supabase.service
-      .from('matches')
-      .select('current_round, awaiting_round_advance')
-      .eq('id', matchId)
-      .maybeSingle();
-    const roundState = matchRoundRow as {
-      current_round?: number | null;
-      awaiting_round_advance?: boolean | null;
-    } | null;
-    if (roundState?.awaiting_round_advance) {
-      throw new BadRequestException('Round ended — advance to the next round before scoring');
-    }
-    const roundNumber = roundState?.current_round ?? 1;
+    const roundNumber = await this.openRoundOf(matchId);
 
     // Compute netted score deltas for materialized columns (raw afterblow
     // values are still stored below — only the deltas apply the mode).
@@ -860,6 +845,32 @@ export class MatchesService {
     await this.scoring.recomputeMatchScore(matchId);
 
     return data;
+  }
+
+  /**
+   * The round a new exchange belongs to, on a bout that takes one.
+   *
+   * Refused on a bout nobody started (ruling 286). Best-of: scoring is blocked
+   * while a round is awaiting advance (the operator must start the next round
+   * first). current_round defaults to 1 and awaiting is never set for a
+   * single-round match, so this leaves bestOf = 1 behaviour unchanged.
+   */
+  private async openRoundOf(matchId: string): Promise<number> {
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('status, current_round, awaiting_round_advance')
+      .eq('id', matchId)
+      .maybeSingle();
+    const bout = data as {
+      status?: string | null;
+      current_round?: number | null;
+      awaiting_round_advance?: boolean | null;
+    } | null;
+    assertBoutStarted(bout?.status);
+    if (bout?.awaiting_round_advance) {
+      throw new BadRequestException('Round ended — advance to the next round before scoring');
+    }
+    return bout?.current_round ?? 1;
   }
 
   /**
