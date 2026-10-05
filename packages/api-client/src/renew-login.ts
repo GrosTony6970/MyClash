@@ -5,7 +5,8 @@
  * turns the one into the other (the API's `AuthService.getMe`, the one route that takes a reply
  * to set cookies on). Paul taps Follow after lunch: his hour is up, the tap answers 401, and
  * until this he had to reload the page. Now the client asks `/me` once and, when it answers
- * `claimed`, sends the same request again — once. A second 401 is the answer.
+ * `claimed` (or a server error, see `renewLogin`), sends the same request again — once. A second
+ * 401 is the answer.
  *
  * `apiRequest` (web-admin, web-public) and `createApiClient` (web-staff) both fetch through
  * `fetchRenewingLogin`, so the three apps renew the same way. The pad's queue sends its hits and
@@ -43,10 +44,20 @@ const IDENTITY_DOORS = ['/api/v1/auth/', '/api/v1/staff-auth/'];
 
 let renewing: Promise<boolean> | null = null;
 
-/** Ask `/me` to renew the login; true when it answers that the login is back. */
+/**
+ * Ask `/me` to renew the login; true when the refused request is worth sending again.
+ *
+ * That is when `/me` answers that the login is back, and also when it answers a server
+ * error (ruling 302): it renews the login first and reads the role and the clubs after it, so a
+ * fault of those reads (a server error since ruling 295) still carries the renewed cookies. Read
+ * as "login not back", it showed a false refusal. A login that did not come back answers 401 again.
+ */
 function renewLogin(baseUrl: string): Promise<boolean> {
   renewing ??= fetch(`${baseUrl}${ME_PATH}`, { credentials: 'include', cache: 'no-store' })
-    .then(async (res) => res.ok && ((await res.json()) as MeSession).type === 'claimed')
+    .then(
+      async (res) =>
+        res.status >= 500 || (res.ok && ((await res.json()) as MeSession).type === 'claimed'),
+    )
     .catch(() => false)
     .finally(() => {
       renewing = null;

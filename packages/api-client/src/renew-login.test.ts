@@ -130,6 +130,34 @@ describe('apiRequest renews the login once on a 401, then retries once', () => {
     expect(calls).toHaveLength(2);
   });
 
+  // Ruling 302. `/me` renews the login before it reads the role and the clubs, and a fault of
+  // those reads is a server error (ruling 295) that still carries the renewed cookies
+  // (`me.renewal-rides-fault.http.test.ts` in the API).
+  it('sends the request again when /me answers a server error', async () => {
+    const calls = stubFetch(
+      EXPIRED,
+      () => json({ detail: 'Internal server error' }, 500),
+      () => json({ followed: true }, 201),
+    );
+    const result = await apiRequest(API, '/api/v1/events/e1/follows', { method: 'POST' });
+    expect(result).toEqual({ ok: true, data: { followed: true } });
+    expect(calls).toHaveLength(3);
+  });
+
+  it('still retries once only after a server error from /me: a second 401 is the answer', async () => {
+    const calls = stubFetch(EXPIRED, () => json({}, 503), EXPIRED);
+    const result = await apiRequest(API, '/api/v1/a');
+    expect(result).toMatchObject({ ok: false, kind: 'unauthenticated', status: 401 });
+    expect(calls).toHaveLength(3);
+  });
+
+  it('does not retry when /me is refused below a server error: the edge answered, not /me', async () => {
+    const calls = stubFetch(EXPIRED, () => json({}, 429));
+    const result = await apiRequest(API, '/api/v1/a');
+    expect(result).toMatchObject({ ok: false, kind: 'unauthenticated', status: 401 });
+    expect(calls).toHaveLength(2);
+  });
+
   it('never re-sends a body that can be read only once', async () => {
     const calls = stubFetch(EXPIRED);
     const body = new ReadableStream();
