@@ -9,6 +9,7 @@ import { apiRequest, failureCode } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DashboardToday } from '@/components/me/DashboardToday';
 import { ClaimRefusedNotice } from '@/components/ClaimRefusedNotice';
+import { claimTapRefusalKey, type ClaimPersonsResult } from '@/lib/claim-refusal';
 
 interface PersonalSpaceResponse {
   user: {
@@ -170,13 +171,11 @@ export function PersonalSpaceDashboard() {
 
         {data && (
           <>
-            {data.claimable.length > 0 && (
-              <ClaimableCard
-                apiUrl={apiUrl}
-                claimable={data.claimable}
-                onClaimed={() => void reload()}
-              />
-            )}
+            <ClaimSection
+              apiUrl={apiUrl}
+              claimable={data.claimable}
+              onClaimed={() => void reload()}
+            />
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <StatCard
@@ -585,7 +584,12 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
   );
 }
 
-function ClaimableCard({
+/**
+ * The claim card, and the line that outlives it (ruling 300). A row the database refused
+ * leaves the suggestions at the reload that follows the tap, and the card can leave with it:
+ * the sentence is said here, above the card.
+ */
+function ClaimSection({
   apiUrl,
   claimable,
   onClaimed,
@@ -595,18 +599,54 @@ function ClaimableCard({
   onClaimed: () => void;
 }) {
   const { t } = useI18n();
+  const [refusalKey, setRefusalKey] = useState<string | null>(null);
+
+  return (
+    <>
+      {refusalKey && (
+        <p
+          role="alert"
+          className="rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm font-semibold text-danger"
+        >
+          {t(refusalKey)}
+        </p>
+      )}
+      {claimable.length > 0 && (
+        <ClaimableCard
+          apiUrl={apiUrl}
+          claimable={claimable}
+          onClaimed={(result) => {
+            setRefusalKey(claimTapRefusalKey(result));
+            onClaimed();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function ClaimableCard({
+  apiUrl,
+  claimable,
+  onClaimed,
+}: {
+  apiUrl: string;
+  claimable: ClaimablePerson[];
+  onClaimed: (result: ClaimPersonsResult) => void;
+}) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
   async function claim(personIds: string[]): Promise<void> {
     setBusy(true);
     setError(false);
-    const result = await apiRequest(apiUrl, '/api/v1/me/claim-persons', {
+    const result = await apiRequest<ClaimPersonsResult>(apiUrl, '/api/v1/me/claim-persons', {
       method: 'POST',
       body: { personIds },
     });
     setBusy(false);
-    if (result.ok) onClaimed();
+    if (result.ok) onClaimed(result.data);
     else setError(true);
   }
 

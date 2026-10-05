@@ -6,7 +6,19 @@ const CLAIM_REFUSAL_MESSAGE_KEYS: Record<ClaimLinkRefusal, string> = {
   email_mismatch: 'publicApp.claim.refused.emailMismatch',
   not_found: 'publicApp.claim.refused.notFound',
   check_failed: 'publicApp.claim.refused.checkFailed',
+  already_at_event: 'publicApp.claim.refused.alreadyAtEvent',
 };
+
+/** What `POST /me/claim-persons` answers. */
+export type ClaimPersonsResult = { claimed: number; alreadyAtEvent: number };
+
+/**
+ * The sentence for a "this is me" tap the database refused, or null (ruling 300): the account
+ * already holds a row at that Event. The same sentence as the emailed link's.
+ */
+export function claimTapRefusalKey(result: ClaimPersonsResult): string | null {
+  return result.alreadyAtEvent > 0 ? CLAIM_REFUSAL_MESSAGE_KEYS.already_at_event : null;
+}
 
 /**
  * The message key for the refusal a query string carries, or null when it

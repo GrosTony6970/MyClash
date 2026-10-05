@@ -35,7 +35,7 @@ const repoRoot = path.resolve(import.meta.dirname, '..');
  * and would not move either when a listed file grows one.
  */
 const BASELINE_FILES = 90;
-const BASELINE_CALLS = 172;
+const BASELINE_CALLS = 171;
 
 /** A real baseline entry still carrying exactly two calls, for the tests below. */
 const TWO_CALL_FILE = [...BASELINE.entries()].find(([, allowed]) => allowed === 2)?.[0];

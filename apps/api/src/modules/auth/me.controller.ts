@@ -84,14 +84,16 @@ export class MeController {
    *
    * Confirm-to-claim roster profiles surfaced in `personal-space.claimable`.
    * Each id is guarded by the email-match rule; non-matching ids are skipped.
+   * `alreadyAtEvent` counts the rows the database refused because the account
+   * already holds a row at that Event (ruling 300).
    */
   @Post('me/claim-persons')
   @ApiOperation({ summary: 'Claim roster profiles whose registered email matches the user' })
-  @ApiResponse({ status: 200, description: '{ claimed: number }' })
+  @ApiResponse({ status: 200, description: '{ claimed: number, alreadyAtEvent: number }' })
   async claimPersons(
     @Req() req: FastifyRequest,
     @Body() dto: ClaimPersonsDto,
-  ): Promise<{ claimed: number }> {
+  ): Promise<{ claimed: number; alreadyAtEvent: number }> {
     return this.auth.claimPersons(req, dto.personIds);
   }
 

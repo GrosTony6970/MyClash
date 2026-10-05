@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { messages } from '@myclash/i18n/public';
 import { createTranslator } from '@myclash/i18n/runtime';
 import { CLAIM_LINK_REFUSALS } from '@myclash/types';
 import { describe, expect, it } from 'vitest';
 
-import { claimRefusalMessageKey } from './claim-refusal';
+import { claimRefusalMessageKey, claimTapRefusalKey } from './claim-refusal';
 
 // The real translators: `t()` answers a missing key with `[the.key]`, so an
 // unresolved string shows up here instead of on the fighter's screen.
@@ -36,4 +38,35 @@ describe('claimRefusalMessageKey', () => {
       expect(claimRefusalMessageKey(search)).toBeNull();
     },
   );
+});
+
+/**
+ * Ruling 300. Lea taps "this is me" on a row at an Event where her account already holds one.
+ * The database refuses, the server counts it, and the page says the emailed link's own sentence.
+ */
+describe('claimTapRefusalKey', () => {
+  it('is the emailed link’s sentence when the database refused a row', () => {
+    expect(claimTapRefusalKey({ claimed: 1, alreadyAtEvent: 1 })).toBe(
+      claimRefusalMessageKey('?claimRefused=already_at_event'),
+    );
+  });
+
+  it('says nothing when every row landed', () => {
+    expect(claimTapRefusalKey({ claimed: 2, alreadyAtEvent: 0 })).toBeNull();
+  });
+
+  it('is asked of the answer by both pages that claim', () => {
+    const page = (path: string) => readFileSync(join(__dirname, '../..', path), 'utf8');
+    const personalSpace = page('app/me/PersonalSpaceDashboard.tsx');
+    expect(personalSpace).toContain('if (result.ok) onClaimed(result.data);');
+    expect(personalSpace).toContain('setRefusalKey(claimTapRefusalKey(result));');
+    // Above the card: a refused row leaves the list, and the card can leave with it.
+    expect(personalSpace.indexOf('{t(refusalKey)}')).toBeLessThan(
+      personalSpace.indexOf('<ClaimableCard'),
+    );
+    const profile = page('app/profile/fighter/NoLinkedProfile.tsx');
+    expect(profile).toContain('return claimTapRefusalKey(result.data);');
+    expect(profile).toContain('{notice ?? error}');
+    expect(page('app/profile/fighter/FighterProfileClient.tsx')).not.toContain('claim-persons');
+  });
 });

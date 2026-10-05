@@ -233,7 +233,7 @@ describe('AuthService.handleCallback — claim', () => {
 
   // The page says a different sentence for each, so each must arrive as its own
   // value — and every value the page knows must be one the API can send.
-  it('tells the four refusals apart', async () => {
+  it('tells the four refusals of the check apart (the write has a fifth: ruling 300)', async () => {
     const reasons = new Set<string>();
     const refuse = async (seed: Record<string, TableSeed>) => {
       signedInAs(EMAIL);
@@ -256,7 +256,7 @@ describe('AuthService.handleCallback — claim', () => {
       global_persons: { rows: [] },
     });
 
-    expect([...reasons].sort()).toEqual([...CLAIM_LINK_REFUSALS].sort());
+    expect([...reasons, 'already_at_event'].sort()).toEqual([...CLAIM_LINK_REFUSALS].sort());
   });
 
   // The two doors that still answer with an error keep the class and message

@@ -215,7 +215,10 @@ describe('the profile behind a roster row she holds, the same check (ruling 218)
   it('claims Tom’s row, which carries her address, and does not give her his profile', async () => {
     build([TOM, LEA_NO_ADDRESS], [TOM_ROW, LEA_ROW]);
 
-    await expect(service.claimPersons(signedIn, ['p-tom'])).resolves.toEqual({ claimed: 1 });
+    await expect(service.claimPersons(signedIn, ['p-tom'])).resolves.toEqual({
+      claimed: 1,
+      alreadyAtEvent: 0,
+    });
 
     expect(writesTo(db, 'persons').map((write) => scopedTo(write, 'id'))).toEqual(['p-tom']);
     expect(profileWrites()).toEqual([]);
@@ -225,7 +228,10 @@ describe('the profile behind a roster row she holds, the same check (ruling 218)
   it('gives her own profile behind her own row when every row of her address has its name', async () => {
     build([LEA_OWN], [LEA_ROW]);
 
-    await expect(service.claimPersons(signedIn, ['p-lea'])).resolves.toEqual({ claimed: 1 });
+    await expect(service.claimPersons(signedIn, ['p-lea'])).resolves.toEqual({
+      claimed: 1,
+      alreadyAtEvent: 0,
+    });
 
     expect(linked()[0]).toEqual(['gp-lea', LEA.id, true]);
   });

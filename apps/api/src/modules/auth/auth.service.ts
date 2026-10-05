@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as jwt from 'jsonwebtoken';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   Injectable,
@@ -70,7 +71,15 @@ const CLAIM_REFUSAL_ERRORS: Record<ClaimLinkRefusal, () => HttpException> = {
   not_found: () => new NotFoundException('Person not found'),
   email_mismatch: () => new BadRequestException('Email does not match the registered person'),
   held_by_another: () => new BadRequestException('This profile has already been claimed'),
+  already_at_event: () =>
+    new ConflictException({
+      code: 'already_at_event',
+      message: 'This account already holds a profile at this Event',
+    }),
 };
+
+/** The unique index of migration 0220: one roster row per account at an Event (ruling 296). */
+const ONE_ROW_PER_ACCOUNT_AT_EVENT = 'persons_event_id_claimed_by_user_id_key';
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
@@ -299,8 +308,7 @@ export class AuthService {
       if (!user.email) {
         throw new ForbiddenException('Google account did not provide an email address');
       }
-      await this.assertClaimable(dto.personId, user.email, user.id);
-      await this.completeClaim(user.id, user.email, dto.personId);
+      await this.claimOrThrow(dto.personId, user.email, user.id);
     }
 
     if (dto.mode === 'public_login') {
@@ -386,7 +394,8 @@ export class AuthService {
    * link proved they own the address, which is all the mail tested — and then
    * sends them to the claim page with the reason instead of throwing after the
    * cookies are set, which left them signed in on a raw 400 with nothing to
-   * click (ruling 57). The sign-in autolink runs on that path too: they are
+   * click (ruling 57). A claim WRITE that fails for a reason that is no refusal
+   * still throws there (ruling 300). The sign-in autolink runs on that path too: they are
    * signed in as themselves, so the profile carrying their address is theirs as
    * on any sign-in (ruling 47), and its sweep claims only rows nobody holds
    * (`claimed_by_user_id IS NULL`) carrying that address — never the row
@@ -482,11 +491,11 @@ export class AuthService {
     userEmail: string | undefined,
     personId: string,
   ): Promise<string | null> {
-    const { refusal, eventSlug } = await this.claimRefusal(personId, userEmail, userId);
-    if (!refusal) {
-      await this.completeClaim(userId, userEmail, personId);
-      return null;
-    }
+    const checked = await this.claimRefusal(personId, userEmail, userId);
+    const { eventSlug } = checked;
+    // The check, then the write: the database refuses a second row at an Event (ruling 300).
+    const refusal = checked.refusal ?? (await this.completeClaim(userId, userEmail, personId));
+    if (!refusal) return null;
     this.logger.warn(`claim link for person ${personId} refused: ${refusal}`);
     const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
     return eventSlug
@@ -687,15 +696,21 @@ export class AuthService {
    * Confirm-to-claim: claim the given roster `persons` rows for the logged-in
    * user. Each id is guarded by the same email-match rule the per-event claim
    * uses (`personEmailMatchesUser`) — non-matching / foreign-owned ids are
-   * skipped. Idempotent. Returns how many were claimed/owned.
+   * skipped. Idempotent. Returns how many were claimed/owned, and how many the
+   * database refused because the account already holds a row at that Event
+   * (ruling 300): the page says so.
    */
-  async claimPersons(request: FastifyRequest, personIds: string[]): Promise<{ claimed: number }> {
+  async claimPersons(
+    request: FastifyRequest,
+    personIds: string[],
+  ): Promise<{ claimed: number; alreadyAtEvent: number }> {
     const accessToken = this.extractToken(request);
     if (!accessToken) throw new UnauthorizedException('Authentication required');
     const user = await this.requestAuthUser(accessToken);
     if (!user || !user.email) throw new UnauthorizedException('Invalid session');
 
     let claimed = 0;
+    let alreadyAtEvent = 0;
     for (const personId of personIds) {
       const { data } = await this.supabase.service
         .from('persons')
@@ -711,10 +726,10 @@ export class AuthService {
       // Already owned by someone else → never reassign.
       if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) continue;
       if (!personEmailMatchesUser(person.email, user.email)) continue;
-      await this.completeClaim(user.id, user.email, personId);
-      claimed += 1;
+      if (await this.completeClaim(user.id, user.email, personId)) alreadyAtEvent += 1;
+      else claimed += 1;
     }
-    return { claimed };
+    return { claimed, alreadyAtEvent };
   }
 
   /**
@@ -722,7 +737,8 @@ export class AuthService {
    * the confirm-step suggestions for the /me dashboard. Only rows the draft bar
    * lets her know of (ruling 171a, `knownRosterRows`); like the dashboard's
    * other reads, a failed one offers nothing, so never a hidden row. The reader is
-   * her login and the request's staff cookie.
+   * her login and the request's staff cookie. No row at an Event where her
+   * account already holds one (ruling 300).
    */
   private async fetchClaimablePersons(
     user: SupabaseAuthUser,
@@ -741,7 +757,18 @@ export class AuthService {
         .ilike('email', normalized)
         .is('claimed_by_user_id', null);
       if (error) return [];
+      // The database refuses a second row of one account at an Event (0220): a row
+      // at an Event where she holds one is not offered (ruling 300). A failed read
+      // hides nothing: the row is offered, and the claim says the refusal.
+      const held = await this.supabase.service
+        .from('persons')
+        .select('event_id')
+        .eq('claimed_by_user_id', user.id);
+      const heldEvents = new Set(
+        (held.data ?? []).map((r) => (r as { event_id: string }).event_id),
+      );
       const rows = (Array.isArray(data) ? (data as Record<string, unknown>[]) : [])
+        .filter((r) => !heldEvents.has(r['event_id'] as string))
         .filter((r) => personEmailMatchesUser(r['email'] as string | null, normalized))
         .map((r) => ({
           id: r['id'] as string,
@@ -933,28 +960,38 @@ export class AuthService {
     return { refusal: heldByAnother ? 'held_by_another' : null, eventSlug };
   }
 
+  /**
+   * Writes the claim. Answers null when it landed, else why it did not
+   * (operator ruling 300).
+   *
+   * The database refuses a second roster row of one account at an Event (0220).
+   * That refusal is an answer, `already_at_event`, and each door hands it on:
+   * a count, a redirect with the reason, a coded 409 (the Google claim's page
+   * says only "the server rejected the sign-in", as for its other refusals). It
+   * used to be caught and logged with every other failure, so "this is me"
+   * answered "1 claimed" and a claim link landed as a success. Any other failed
+   * write throws. The profile link behind the row stays best effort.
+   */
   private async completeClaim(
     userId: string,
     userEmail: string | undefined,
     personId: string,
-  ): Promise<void> {
-    try {
-      const { error } = await this.supabase.service
-        .from('persons')
-        .update({
-          claim_status: 'claimed',
-          claimed_by_user_id: userId,
-        })
-        .eq('id', personId);
-      if (error) throw error;
+  ): Promise<'already_at_event' | null> {
+    const { error } = await this.supabase.service
+      .from('persons')
+      .update({
+        claim_status: 'claimed',
+        claimed_by_user_id: userId,
+      })
+      .eq('id', personId);
+    if (error?.message.includes(ONE_ROW_PER_ACCOUNT_AT_EVENT)) return 'already_at_event';
+    if (error) throw new Error(`Could not claim person ${personId}: ${error.message}`);
 
+    try {
       await this.linkClaimedPersonGlobalProfile(userId, userEmail, personId);
     } catch (err) {
-      // The database's own reason: a second roster row of one account at an Event
-      // is refused by `persons_event_id_claimed_by_user_id_key` (0220), and the old
-      // line here blamed a missing table for every failure.
-      const reason = (err as { message?: string } | null)?.message ?? String(err);
-      this.logger.warn(`Could not claim person ${personId} for ${userId}: ${reason}`);
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Profile of person ${personId} not linked to ${userId}: ${reason}`);
     }
 
     // Post-0063: no referee-identity back-fill is needed. Referee tables
@@ -962,6 +999,14 @@ export class AuthService {
     // unclaimed → claimed transition. Notification dispatch + "my schedule"
     // resolve the JWT user_id → person_id at request time via
     // global_persons.claimed_by_user_id.
+    return null;
+  }
+
+  /** The Google claim: check, then write, and throw the refusal either step answers. */
+  private async claimOrThrow(personId: string, email: string, userId: string): Promise<void> {
+    await this.assertClaimable(personId, email, userId);
+    const refusal = await this.completeClaim(userId, email, personId);
+    if (refusal) throw CLAIM_REFUSAL_ERRORS[refusal]();
   }
 
   /**

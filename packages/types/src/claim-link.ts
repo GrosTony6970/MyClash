@@ -10,12 +10,15 @@
  * - `email_mismatch` — the row now carries a different address.
  * - `not_found` — no such row, for example deleted after the mail went out.
  * - `check_failed` — the row could not be read, so nothing was decided (ruling 60).
+ * - `already_at_event` — the account already holds another row at that Event, and the
+ *   database refuses a second (ruling 300).
  */
 export const CLAIM_LINK_REFUSALS = [
   'held_by_another',
   'email_mismatch',
   'not_found',
   'check_failed',
+  'already_at_event',
 ] as const;
 
 export type ClaimLinkRefusal = (typeof CLAIM_LINK_REFUSALS)[number];

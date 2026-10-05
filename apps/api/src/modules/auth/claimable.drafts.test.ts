@@ -231,6 +231,18 @@ describe('the "is this you?" suggestions hide what the draft bar hides from her 
     expect((await claimable()).map((c) => c.id)).toEqual(['p-both', 'p-referee']);
   });
 
+  // Ruling 300. The database refuses a second row of one account at an Event (0220), so a row
+  // at an Event where she already holds one was offered, refused, and offered again.
+  it('offers no row at an Event where her account already holds a row', async () => {
+    const held = { ...row('p-held', 'e-spring', 'Held'), claimed_by_user_id: 'u-lea' };
+    const strangers = { ...row('p-other', 'e-summer', 'Other'), claimed_by_user_id: 'u-other' };
+    db = mockSupabase({ ...baseTables(), persons: { rows: [...ROSTER, held, strangers] } });
+
+    expect((await claimable()).map((c) => c.id)).toEqual(['p-summer']);
+    expect(selectsFor(db.from, 'persons')).toContain('event_id');
+    expect(filtersFor(db.from, 'persons', 'eq')).toContainEqual(['claimed_by_user_id', 'u-lea']);
+  });
+
   it('offers nothing when the Events cannot be read: never a hidden row', async () => {
     db = mockSupabase({ ...baseTables(), events: { data: null, error: { message: 'boom' } } });
     expect(await claimable()).toEqual([]);

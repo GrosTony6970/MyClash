@@ -1037,6 +1037,8 @@ export const publicApp = {
         "Vous êtes connecté, mais nous n'avons pas trouvé le profil de combattant de votre lien. L'organisateur l'a peut-être supprimé.",
       checkFailed:
         "Vous êtes connecté, mais nous n'avons pas pu vérifier votre profil de combattant pour l'instant. S'il apparaît sous « Revendiquez vos profils », revendiquez-le là ; sinon, réessayez le lien dans un instant.",
+      alreadyAtEvent:
+        "Vous êtes connecté, mais votre compte est déjà lié à un autre profil de combattant du même événement : celui-ci n'a pas été lié. Demandez à l'organisateur de vérifier votre inscription.",
     },
   },
   tournament: {

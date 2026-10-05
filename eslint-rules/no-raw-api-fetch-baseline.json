@@ -73,7 +73,7 @@
     "apps/web-public/app/notifications/NotificationSettingsClient.tsx": 3,
     "apps/web-public/app/o/[slug]/page.tsx": 2,
     "apps/web-public/app/organisers/page.tsx": 1,
-    "apps/web-public/app/profile/fighter/FighterProfileClient.tsx": 8,
+    "apps/web-public/app/profile/fighter/FighterProfileClient.tsx": 7,
     "apps/web-public/app/profile/fighter/InsightCard.tsx": 3,
     "apps/web-public/app/profile/referee/RefereeProfileClient.tsx": 1,
     "apps/web-public/app/reset-password/page.tsx": 1,

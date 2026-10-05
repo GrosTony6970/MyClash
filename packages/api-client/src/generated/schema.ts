@@ -12639,7 +12639,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description { claimed: number } */
+      /** @description { claimed: number, alreadyAtEvent: number } */
       200: {
         headers: {
           [name: string]: unknown;

@@ -1027,6 +1027,8 @@ export const publicApp = {
         'You are signed in, but we could not find the fighter profile in your link. The organizer may have removed it.',
       checkFailed:
         'You are signed in, but we could not check your fighter profile just now. If it appears under "Claim your profiles", claim it there; otherwise try the claim link again in a moment.',
+      alreadyAtEvent:
+        'You are signed in, but your account is already linked to another fighter profile at the same event, so this one was not linked. Ask the organizer to check your registration.',
     },
   },
   tournament: {

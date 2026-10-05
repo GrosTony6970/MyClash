@@ -222,7 +222,10 @@ describe('sign-in profile link (ruling 106)', () => {
       ],
       fighter_clubs: [],
     });
-    await expect(service.claimPersons(signedIn, ['mine'])).resolves.toEqual({ claimed: 1 });
+    await expect(service.claimPersons(signedIn, ['mine'])).resolves.toEqual({
+      claimed: 1,
+      alreadyAtEvent: 0,
+    });
     expect(writesTo(db, 'global_persons')).toEqual([]);
   });
 

@@ -1857,7 +1857,7 @@ describe('AuthService', () => {
       });
 
       // Email match is case-insensitive; a different address is skipped.
-      await expect(claim(['ok', 'bad'])).resolves.toEqual({ claimed: 1 });
+      await expect(claim(['ok', 'bad'])).resolves.toEqual({ claimed: 1, alreadyAtEvent: 0 });
 
       const [flip] = writesTo(seeded, 'persons');
       expect(flip?.row).toMatchObject({ claim_status: 'claimed', claimed_by_user_id: USER });
@@ -1901,7 +1901,7 @@ describe('AuthService', () => {
       const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
       try {
-        await expect(claim(['row'])).resolves.toEqual({ claimed: 1 });
+        await expect(claim(['row'])).resolves.toEqual({ claimed: 1, alreadyAtEvent: 0 });
 
         expect(scopedTo(writesTo(seeded, 'persons')[0], 'id')).toBe('row');
         expect(writesTo(seeded, 'global_persons')).toEqual([]);
@@ -1926,7 +1926,7 @@ describe('AuthService', () => {
         },
       });
 
-      await expect(claim(['p'])).resolves.toEqual({ claimed: 0 });
+      await expect(claim(['p'])).resolves.toEqual({ claimed: 0, alreadyAtEvent: 0 });
       expect(writesTo(seeded, 'persons')).toEqual([]);
     });
   });

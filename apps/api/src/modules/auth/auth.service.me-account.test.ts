@@ -154,23 +154,6 @@ describe('the name `/me` hands an account (ruling 298)', () => {
   });
 });
 
-describe('a claim the database refuses (ruling 296)', () => {
-  it('leaves the database’s own reason in the log, not a guess about a missing table', async () => {
-    const refusal =
-      'duplicate key value violates unique constraint "persons_event_id_claimed_by_user_id_key"';
-    const { service } = build({
-      persons: [
-        { data: { id: 'row-b', email: PAUL.email, claimed_by_user_id: null }, error: null },
-        { data: null, error: { message: refusal } },
-      ],
-    });
-
-    await service.claimPersons(request, ['row-b']);
-
-    expect(warn).toHaveBeenCalledWith(`Could not claim person row-b for ${PAUL.id}: ${refusal}`);
-  });
-});
-
 describe('a read of `/me` that decides what she may open (ruling 295)', () => {
   it.each([
     ['her platform role', 'platform_roles', `Platform role of ${PAUL.id} unreadable`],

@@ -16,6 +16,7 @@ import { Avatar, Button, Card, ClubCombobox, type ClubOption, type ClubValue } f
 import { useI18n } from '@myclash/next-i18n/client';
 import { AvatarCropper } from './AvatarCropper';
 import { InsightCard } from './InsightCard';
+import { NoLinkedProfile } from './NoLinkedProfile';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
 import { matchHemaRating, medalGlyph, placeHeadline, weaponKey } from '@/lib/weapon-stats';
 
@@ -372,7 +373,6 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   const [claimable, setClaimable] = useState<
     Array<{ id: string; name: string; eventName: string }>
   >([]);
-  const [claiming, setClaiming] = useState(false);
 
   // Async fuzzy club search powering every ClubCombobox (main + secondary +
   // previous). The combobox stays API-agnostic; the URL lives here.
@@ -450,29 +450,6 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         setLoading(false);
       });
   }, [apiUrl, t, dateFormat, loadClaimable]);
-
-  const claim = (personId: string) => {
-    setClaiming(true);
-    fetch(`${apiUrl}/api/v1/me/claim-persons`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personIds: [personId] }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('claim');
-        // Claiming links the global profile → the dashboard now resolves.
-        setClaimable([]);
-        setLoading(true);
-        load();
-      })
-      .catch(() => {
-        setError(t('publicApp.personalSpace.claimable.error'));
-      })
-      .finally(() => {
-        setClaiming(false);
-      });
-  };
 
   useEffect(() => {
     load();
@@ -740,50 +717,19 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   }
 
   if (error && !dashboard) {
-    // No Fighter profile linked yet. If the user has roster registrations on
-    // their email, offer to claim one (which links the profile and unlocks the
-    // dashboard); otherwise point them to their personal space.
-    if (claimable.length > 0) {
-      return (
-        <Card>
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-            {t('publicApp.personalSpace.claimable.title')}
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            {t('publicApp.personalSpace.claimable.description')}
-          </p>
-          <ul className="mt-3 space-y-2">
-            {claimable.map((person) => (
-              <li
-                key={person.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
-              >
-                <span className="min-w-0 text-sm text-foreground">
-                  <span className="font-semibold">{person.name}</span>
-                  {person.eventName && <span className="text-muted"> — {person.eventName}</span>}
-                </span>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={claiming}
-                  onClick={() => claim(person.id)}
-                >
-                  {t('publicApp.personalSpace.claimable.claim')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      );
-    }
     return (
-      <div className="rounded-xl border border-danger/40 bg-danger/5 p-4">
-        <p className="text-sm text-danger">{error}</p>
-        <p className="mt-2 text-xs text-muted">{t('publicApp.fighterProfile.accessRequired')}</p>
-        <Button asChild variant="secondary" size="sm" className="mt-3">
-          <a href="/me">{t('publicApp.fighterProfile.goToPersonalSpace')}</a>
-        </Button>
-      </div>
+      <NoLinkedProfile
+        apiUrl={apiUrl}
+        claimable={claimable}
+        error={error}
+        onClaimed={() => {
+          // Claiming links the global profile → the dashboard now resolves.
+          setClaimable([]);
+          setLoading(true);
+          load();
+        }}
+        onRefused={() => void loadClaimable()}
+      />
     );
   }
 
