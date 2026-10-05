@@ -26,8 +26,13 @@ const updateMatchStatusSchema = z
      * assigned pad staff token could walk through it, and after the
      * un-completion owner landed that door led to discarding later bouts.
      * One door, one gate: void goes through its own route.
+     *
+     * No 'scheduled' (ruling 281). This route writes the status alone: the
+     * hits, the score and `started_at` stay, so the bout read unplayed with all
+     * it was fought for, and the doors that delete a phase took it without
+     * asking the owner. A bout goes back to unplayed by a reset only.
      */
-    status: z.enum(['scheduled', 'running', 'paused', 'completed']),
+    status: z.enum(['running', 'paused', 'completed']),
     winnerRegistrationId: z.uuid().optional(),
     /** See `ResetMatchDto` — same acknowledgement, same 403 without the capability. */
     discardDependentResults: z.boolean().optional(),

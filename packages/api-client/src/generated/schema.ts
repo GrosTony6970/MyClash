@@ -10193,7 +10193,7 @@ export interface components {
     };
     UpdateMatchStatusDto: {
       /** @enum {string} */
-      status: 'scheduled' | 'running' | 'paused' | 'completed';
+      status: 'running' | 'paused' | 'completed';
       /** Format: uuid */
       winnerRegistrationId?: string;
       discardDependentResults?: boolean;

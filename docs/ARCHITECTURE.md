@@ -1989,8 +1989,9 @@ request and an approval are refused alike. Three doors delete a whole phase and 
 it: the forced "generate Pools again", "Regenerate bracket" and "Delete bracket"
 (`phases/discard-fought-bouts.ts`). When a bout of the phase reads running, paused or completed,
 only the organisation's owner passes (279); an admin is refused with the code
-`discard_requires_owner`. The bar reads the bout's status: a bout set back to scheduled by a
-status change keeps its hits and does not count. The Pools door
+`discard_requires_owner`. The bar reads the bout's status. The status route
+(`PATCH /matches/:id/status`) refuses `scheduled` (281): it writes the status alone, so the bout
+would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. The Pools door
 also wants the discard said (`discardScoredResults`): without it the 409 carries the code
 `scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm
 (280). A request goes with its bout by the cascade, so each of these doors first closes the
