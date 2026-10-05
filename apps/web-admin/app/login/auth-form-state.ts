@@ -27,7 +27,12 @@ export type SignupIntent = 'password' | 'magic_link' | 'google';
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// The bounds the API takes for a club's name and address (`signupClubShape`). A value
+// outside them passed this form and was refused after Google had made the account.
 export const SLUG_MIN_LENGTH = 3;
+export const SLUG_MAX_LENGTH = 50;
+export const ORG_NAME_MIN_LENGTH = 2;
+export const ORG_NAME_MAX_LENGTH = 100;
 
 export function slugify(name: string): string {
   return name
@@ -36,12 +41,15 @@ export function slugify(name: string): string {
     .replace(/[\u0300-\u036f]/g, '') // strip accents
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 50);
+    .slice(0, SLUG_MAX_LENGTH);
 }
 
 /** Everything a slug input may contain, filtered as it is typed. */
 export function normalizeSlugInput(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .slice(0, SLUG_MAX_LENGTH);
 }
 
 export interface AccountStepInput {
@@ -79,7 +87,7 @@ export interface OrgStepInput {
 }
 
 export function validateOrgStep(input: OrgStepInput): AuthFormCode | null {
-  if (!input.orgName.trim()) return 'org_name_required';
+  if (input.orgName.trim().length < ORG_NAME_MIN_LENGTH) return 'org_name_required';
   if (input.orgSlug.length < SLUG_MIN_LENGTH) return 'slug_too_short';
   // `null` is "not checked yet" — an unanswered lookup must not block the
   // submit, because the server rejects a taken slug anyway.

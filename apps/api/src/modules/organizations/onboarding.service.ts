@@ -1,9 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { SIGNUPS_DISABLED_CODE, validatePassword } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OperationalUnavailableException } from '../../common/operational-exception';
-import { validatePassword } from '@myclash/types';
 import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
 // Value import, not `import type`: Nest reads design:paramtypes to inject it.

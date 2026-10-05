@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   normalizeSlugInput,
+  ORG_NAME_MAX_LENGTH,
+  SLUG_MAX_LENGTH,
   slugify,
   validateAccountStep,
   validateOrgStep,
@@ -93,6 +97,11 @@ describe('organization step', () => {
     expect(validateOrgStep({ orgName: '  ', orgSlug: 'lyon-amhe', slugAvailable: true })).toBe(
       'org_name_required',
     );
+    // The API takes a name of 2 to 100 characters (`signupClubShape`). A one-letter name
+    // passed this form and was refused after Google had made the account.
+    expect(validateOrgStep({ orgName: ' L ', orgSlug: 'lyon-amhe', slugAvailable: true })).toBe(
+      'org_name_required',
+    );
     expect(validateOrgStep({ orgName: 'Lyon', orgSlug: 'ly', slugAvailable: true })).toBe(
       'slug_too_short',
     );
@@ -113,6 +122,17 @@ describe('slug derivation', () => {
 
   it('caps the slug at 50 characters', () => {
     expect(slugify('a'.repeat(80))).toHaveLength(50);
+  });
+
+  it('caps a typed slug at 50 characters, as the API does', () => {
+    expect(normalizeSlugInput('a'.repeat(80))).toHaveLength(SLUG_MAX_LENGTH);
+    expect(SLUG_MAX_LENGTH).toBe(50);
+  });
+
+  it('caps a typed name at 100 characters, as the API does', () => {
+    const step = readFileSync(join(__dirname, 'signup-forms.tsx'), 'utf8');
+    expect(step).toContain('maxLength={ORG_NAME_MAX_LENGTH}');
+    expect(ORG_NAME_MAX_LENGTH).toBe(100);
   });
 
   it('keeps typed input to the alphabet the URL allows', () => {

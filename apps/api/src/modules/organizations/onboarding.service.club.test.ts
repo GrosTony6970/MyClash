@@ -157,7 +157,9 @@ describe('a sign-up by password that cannot be finished (ruling 306)', () => {
     expect(mail.sendMagicLink).not.toHaveBeenCalled();
   });
 
-  it('removes the account when what she accepted cannot be recorded, and makes no club', async () => {
+  // Only a THROWN fault reaches this: `LegalAcceptanceService` logs a row the
+  // database refuses and goes on, by its own older rule (`/me` asks her again).
+  it('removes the account when the record of what she accepted throws, and makes no club', async () => {
     const { service, db, legal, deleteAuthAdminUser } = build(CLUB_FAILS);
     legal.recordForUser.mockRejectedValue(new Error('legal_acceptances unwritable'));
 

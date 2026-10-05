@@ -4,7 +4,7 @@ import { AuthField, Button, GoogleIcon, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import type { SignupIntent } from './auth-form-state';
-import { normalizeSlugInput, slugify } from './auth-form-state';
+import { normalizeSlugInput, ORG_NAME_MAX_LENGTH, slugify } from './auth-form-state';
 import type { LoadingAction, Translate } from './signin-forms';
 
 export interface SlugStatus {
@@ -129,6 +129,7 @@ export function OrgStepForm({
         id="orgName"
         type="text"
         required
+        maxLength={ORG_NAME_MAX_LENGTH}
         label={t('auth.signup.orgNameLabel')}
         placeholder={t('auth.signup.orgNamePlaceholder')}
         hint={t('auth.signup.orgNameHint')}
