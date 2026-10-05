@@ -330,13 +330,21 @@ export class PhasesController {
     summary: 'Delete a bracket phase (admin+) — cascades slots, matches, and assignments',
   })
   @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
+  @ApiQuery({
+    name: 'discardScoredResults',
+    required: false,
+    type: Boolean,
+    description: 'Accept the loss of fought bouts (owner only)',
+  })
   @ApiResponse({ status: 204, description: 'Phase deleted' })
   @ApiResponse({ status: 400, description: 'Pool phases are deleted via DELETE /pools/:poolId' })
+  @ApiResponse({ status: 409, description: 'Fought bouts would go: the body carries the count' })
   async deleteBracket(
     @Param('phaseId', ParseUUIDPipe) phaseId: string,
     @Req() req: FastifyRequest,
+    @Query('discardScoredResults') discard?: string,
   ) {
     const userId = await getUserId(req, this.supabase);
-    await this.phases.deleteBracketPhase(phaseId, userId);
+    await this.phases.deleteBracketPhase(phaseId, userId, discard === 'true');
   }
 }

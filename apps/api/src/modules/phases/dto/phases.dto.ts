@@ -70,6 +70,8 @@ const generateBracketSchema = z
      * order is actually resolved. See r1-ranking.ts.
      */
     seedingStrategy: z.enum(SEEDING_STRATEGIES).optional(),
+    /** As on `GeneratePoolsDto`: accept the loss of fought bouts with `?force=true` (ruling 285). */
+    discardScoredResults: z.boolean().optional(),
     ...doubleElimPodiumFields,
   })
   .strict()

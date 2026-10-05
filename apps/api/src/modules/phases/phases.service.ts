@@ -508,13 +508,11 @@ export class PhasesService {
     }
 
     if (existing && force) {
-      const actor = actorUserId === 'system' ? undefined : actorUserId;
-      await this.replaceBracket(
-        (existing as { id: string }).id,
-        tournamentId,
+      await this.replaceBracket((existing as { id: string }).id, tournamentId, {
         organizationId,
-        actor,
-      );
+        actorUserId: actorUserId === 'system' ? undefined : actorUserId,
+        discard: dto.discardScoredResults === true,
+      });
     }
 
     // Determine qualify count
@@ -1699,7 +1697,11 @@ export class PhasesService {
    *
    * Refuses pool-type phases — those go through DELETE /pools/:poolId.
    */
-  async deleteBracketPhase(phaseId: string, actorUserId: string): Promise<void> {
+  async deleteBracketPhase(
+    phaseId: string,
+    actorUserId: string,
+    discardScoredResults = false,
+  ): Promise<void> {
     const phase = await this.getPhaseWithOrg(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
@@ -1715,7 +1717,7 @@ export class PhasesService {
       throw new BadRequestException('Phase organization could not be resolved');
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
-    await this.assertBracketMayGo(phaseId, orgId, actorUserId);
+    await this.assertForceRegenerationAllowed(phaseId, orgId, actorUserId, discardScoredResults);
 
     // Counted for the audit payload only. This used to hand-delete the phase's
     // referee_assignments first, on the stated grounds that the ON DELETE SET
@@ -1752,10 +1754,10 @@ export class PhasesService {
   private async replaceBracket(
     phaseId: string,
     tournamentId: string,
-    organizationId: string | null,
-    actorUserId: string | undefined,
+    by: { organizationId: string | null; actorUserId: string | undefined; discard: boolean },
   ): Promise<void> {
-    await this.assertBracketMayGo(phaseId, organizationId, actorUserId);
+    const { organizationId, actorUserId, discard } = by;
+    await this.assertForceRegenerationAllowed(phaseId, organizationId, actorUserId, discard);
     const { data: doomed } = await this.supabase.service
       .from('matches')
       .select('id, status')
@@ -1775,16 +1777,6 @@ export class PhasesService {
         playedMatchCount: doomedRows.filter((m) => m.status !== 'scheduled').length,
       },
     });
-  }
-
-  /** A bracket with a fought bout is its owner's to redraw or delete (ruling 279). */
-  private async assertBracketMayGo(
-    phaseId: string,
-    organizationId: string | null,
-    userId: string | undefined,
-  ): Promise<void> {
-    if ((await this.scoredMatchesIn('phase_id', phaseId)).length === 0) return;
-    await assertOwnerDiscards(this.orgs, organizationId, userId);
   }
 
   /** The one delete of the three doors that take a phase's bouts with it. */
@@ -2304,8 +2296,8 @@ export class PhasesService {
    *                      advancement and un-completion, where the cost of a
    *                      wrong "no" is a played result silently discarded.
    *   scoredMatchesIn    is scoring under way RIGHT NOW? Guards pool layout and
-   *                      schedule edits, where the cost of a wrong "yes" is an
-   *                      organiser unable to move a bout nobody is fighting.
+   *                      schedule edits (a wrong "yes" blocks an organiser) and
+   *                      the three delete doors (a wrong "no" loses results).
    *
    * Agreeing today is not a reason to merge them. Widening this one to match
    * `hasBeenFought` if that disjunct ever starts firing is a behaviour change
@@ -2358,7 +2350,9 @@ export class PhasesService {
 
   /**
    * `generatePools(force=true)`'s twin of {@link assertPoolPhaseEditable}, with
-   * a way through.
+   * a way through. "Regenerate bracket" and "Delete bracket" ask it too: a
+   * bracket with a fought bout is its owner's to redraw or delete (ruling 279),
+   * on the count THIS read finds, not the one a page made (ruling 285).
    *
    * The force path raw-DELETEs the phase row, and the CASCADE takes pools,
    * pool_members, bracket_slots, swiss_rounds and matches — and from matches,
@@ -2390,12 +2384,12 @@ export class PhasesService {
     if (!discardScoredResults) {
       throw new ConflictException({
         message:
-          `${scored.length} ${scored.length === 1 ? 'bout' : 'bouts'} in this pool phase ` +
-          'have been scored. Regenerating deletes them permanently, together with their ' +
+          `${scored.length} ${scored.length === 1 ? 'bout' : 'bouts'} in this phase ` +
+          'have been scored. This deletes them permanently, together with their ' +
           'exchanges, penalties, match events, forfeits and referee assignments — there is ' +
           'no undo. Re-send with discardScoredResults: true to proceed.',
-        // The Pools page tells this 409 from "Pools already exist" by its code,
-        // and shows the count in its second confirm (ruling 280).
+        // A page tells this 409 from "it already exists" by its code, and shows
+        // the count in a confirm (rulings 280, 285).
         code: SCORED_BOUTS_WOULD_BE_DISCARDED,
         phaseId,
         scoredMatches: scored.length,

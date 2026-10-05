@@ -14,12 +14,12 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * each door alike.
  *
  * "Reads as fought" is `PhasesService.scoredMatchesIn`: the bout's STATUS is
- * running, paused or completed. A bout set back to `scheduled` by a status
- * change keeps its hits and does not count: the bar is as wide as that
- * predicate, no wider.
+ * running, paused or completed. The bar is as wide as that predicate, no
+ * wider: a voided bout keeps its hits and does not count. The status route
+ * no longer sets a bout back to `scheduled` (ruling 281).
  */
 
-/** The Pools door's 409: fought bouts would go, and the discard was not said. */
+/** The 409 of the three doors: fought bouts would go, and the discard was not said. */
 export const SCORED_BOUTS_WOULD_BE_DISCARDED = 'scored_bouts_would_be_discarded';
 /** An admin asked for it. The screens say this one in the reader's language. */
 export const DISCARD_REQUIRES_OWNER = 'discard_requires_owner';

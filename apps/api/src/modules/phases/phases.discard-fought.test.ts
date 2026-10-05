@@ -11,7 +11,7 @@ import {
 import { PhasesService } from './phases.service';
 
 /**
- * The doors that delete fought bouts (rulings 276, 277, 279, 280).
+ * The doors that delete fought bouts (rulings 276, 277, 279, 280, 285).
  *
  * Three doors delete a whole phase, and its bouts go with it: the forced
  * "generate Pools again", "Regenerate bracket" and "Delete bracket". When a
@@ -19,9 +19,9 @@ import { PhasesService } from './phases.service';
  *
  *   - only the organisation's OWNER passes, and an admin is told so by a code
  *     the screens say in the reader's language;
- *   - the Pools door also wants the discard said out loud
- *     (`discardScoredResults`), and its refusal carries the count the Pools
- *     page shows in its second confirm.
+ *   - every door wants the discard said out loud (`discardScoredResults`), and
+ *     its refusal carries the SERVER's count, which the page shows in a confirm:
+ *     a page's own count can be a bout late (ruling 285).
  *
  * Marie asked to void a hit of a semi-final. Her request waits on that hit. The
  * bout is deleted, and her request goes with it (ON DELETE CASCADE): so it is
@@ -234,14 +234,35 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
       audit_log: { rows: [] },
       registrations: { rows: [] },
     });
-  const regenerate = (s: ReturnType<typeof setup>, userId?: string) =>
-    s.service.generateBracket('tournament-1', { phaseType: 'single_elim' } as never, true, userId);
+  const regenerate = (s: ReturnType<typeof setup>, userId?: string, discard?: boolean) =>
+    s.service.generateBracket(
+      'tournament-1',
+      { phaseType: 'single_elim', discardScoredResults: discard } as never,
+      true,
+      userId,
+    );
 
-  it('an admin is told only the owner may, and the bracket stays', async () => {
+  it('with no discard said: the owner is refused with the count, and the bracket stays', async () => {
+    letIn(OWNER);
+    const s = bracket(true);
+
+    const { thrown, body } = await refusal(regenerate(s, OWNER));
+
+    expect(thrown).toBeInstanceOf(ConflictException);
+    expect(body).toMatchObject({
+      code: 'scored_bouts_would_be_discarded',
+      phaseId: 'bracket-phase',
+      scoredMatches: 1,
+    });
+    expect(s.supabase.writes).toEqual([]);
+    expect(s.frozen.rejectPendingEditsForMatch).not.toHaveBeenCalled();
+  });
+
+  it('an admin who says the discard is told only the owner may, and the bracket stays', async () => {
     letIn(ADMIN);
     const s = bracket(true);
 
-    const { thrown, body } = await refusal(regenerate(s, ADMIN));
+    const { thrown, body } = await refusal(regenerate(s, ADMIN, true));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(body).toEqual(ONLY_THE_OWNER);
@@ -253,7 +274,7 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
     letIn(OWNER);
     const s = bracket(true);
 
-    await regenerate(s, OWNER).catch(() => undefined);
+    await regenerate(s, OWNER, true).catch(() => undefined);
 
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', OWNER, 'owner');
     expect(s.frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
@@ -275,10 +296,10 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
   });
 
   // No route sends it: the default actor names nobody who can accept the loss.
-  it('the system actor never discards fought bouts', async () => {
+  it('the system actor never discards fought bouts, whatever it says', async () => {
     const s = bracket(true);
 
-    const { thrown } = await refusal(regenerate(s));
+    const { thrown } = await refusal(regenerate(s, undefined, true));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(s.supabase.writes).toEqual([]);
@@ -304,11 +325,25 @@ describe('"Delete bracket" over fought bouts (ruling 279)', () => {
       audit_log: { rows: [] },
     });
 
-  it('an admin is told only the owner may, and the bracket stays', async () => {
+  it('with no discard said: the owner is refused with the count, and the bracket stays', async () => {
+    letIn(OWNER);
+    const s = remove(true);
+
+    const { thrown, body } = await refusal(s.service.deleteBracketPhase('bracket-phase', OWNER));
+
+    expect(thrown).toBeInstanceOf(ConflictException);
+    expect(body).toMatchObject({ code: 'scored_bouts_would_be_discarded', scoredMatches: 1 });
+    expect(s.supabase.writes).toEqual([]);
+    expect(s.frozen.rejectPendingEditsForMatch).not.toHaveBeenCalled();
+  });
+
+  it('an admin who says the discard is told only the owner may, and the bracket stays', async () => {
     letIn(ADMIN);
     const s = remove(true);
 
-    const { thrown, body } = await refusal(s.service.deleteBracketPhase('bracket-phase', ADMIN));
+    const { thrown, body } = await refusal(
+      s.service.deleteBracketPhase('bracket-phase', ADMIN, true),
+    );
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(body).toEqual(ONLY_THE_OWNER);
@@ -319,7 +354,7 @@ describe('"Delete bracket" over fought bouts (ruling 279)', () => {
     letIn(OWNER);
     const s = remove(true);
 
-    await s.service.deleteBracketPhase('bracket-phase', OWNER);
+    await s.service.deleteBracketPhase('bracket-phase', OWNER, true);
 
     expect(s.frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
       [['bout-fought', 'bout-unplayed'], OWNER, 'bout_deleted'],

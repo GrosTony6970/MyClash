@@ -10387,6 +10387,7 @@ export interface components {
       poolPhaseId?: string;
       /** @enum {string} */
       seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank' | 'by-swiss-rank';
+      discardScoredResults?: boolean;
       /** @enum {string} */
       secondChanceTarget?: 'gold' | 'bronze';
       bronzeMatch?: boolean;
@@ -17263,7 +17264,10 @@ export interface operations {
   };
   PhasesController_deleteBracket: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Accept the loss of fought bouts (owner only) */
+        discardScoredResults?: boolean;
+      };
       header?: never;
       path: {
         phaseId: string;
@@ -17281,6 +17285,13 @@ export interface operations {
       };
       /** @description Pool phases are deleted via DELETE /pools/:poolId */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Fought bouts would go: the body carries the count */
+      409: {
         headers: {
           [name: string]: unknown;
         };

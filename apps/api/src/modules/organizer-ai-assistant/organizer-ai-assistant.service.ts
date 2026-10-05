@@ -371,10 +371,14 @@ export class OrganizerAIAssistantService {
       if (action['phaseType'] === 'double_elim' || action['phaseType'] === 'single_elim') {
         bracketDto['phaseType'] = action['phaseType'];
       }
+      // The door is told who applied. `bracketDto` never carries
+      // `discardScoredResults`, as for Pools above: a bracket with a fought
+      // bout is refused for everybody here (ruling 284).
       const result = await this.phases.generateBracket(
         String(action['tournamentId']),
         bracketDto as never,
         Boolean(action['force']),
+        actorUserId,
       );
       return { kind, result };
     }

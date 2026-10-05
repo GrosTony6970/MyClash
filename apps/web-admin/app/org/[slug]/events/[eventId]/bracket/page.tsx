@@ -40,7 +40,8 @@ import {
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
-import { discardFailureMessage } from '@/lib/discard-refusal';
+import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
+import { FoughtBoutsConfirm, RegenerateConfirm, type FoughtAsk } from './DiscardConfirms';
 import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
 import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
 import { saveRoleChanges } from './save-role-changes';
@@ -367,6 +368,7 @@ export default function BracketPage() {
   const [showSeedFallbackConfirm, setShowSeedFallbackConfirm] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [foughtAsk, setFoughtAsk] = useState<FoughtAsk | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [bracketRefreshKey, setBracketRefreshKey] = useState(0);
 
@@ -680,11 +682,13 @@ export default function BracketPage() {
 
   // ── Generate bracket ────────────────────────────────────────────────────────
 
-  async function generate(force = false) {
+  // `discard`: the confirm on the SERVER's count was answered yes (ruling 285).
+  async function generate(force = false, discard = false) {
     if (!selectedTournament) return;
     setGenerating(true);
     setError(null);
     setShowForceConfirm(false);
+    setFoughtAsk(null);
 
     try {
       const body: Record<string, unknown> = { phaseType, seedingStrategy };
@@ -694,6 +698,7 @@ export default function BracketPage() {
       // grand-final reset in bronze mode and a bronze match in gold mode
       // rather than ignoring them, so sending both would 400.
       if (phaseType === 'double_elim') Object.assign(body, podiumPayload(newPodium));
+      if (force && discard) body['discardScoredResults'] = true;
 
       const r = await apiRequest<BracketResult>(
         apiUrl,
@@ -702,14 +707,18 @@ export default function BracketPage() {
       );
 
       // NOT a message: a 409 means a bracket already exists, and the screen
-      // offers to overwrite it rather than saying anything.
-      if (!r.ok && r.kind === 'http' && r.status === 409) {
+      // offers to overwrite it rather than saying anything. Only for a call
+      // that did not force: a forced one is past that question.
+      if (!force && !r.ok && r.kind === 'http' && r.status === 409) {
         setShowForceConfirm(true);
         return;
       }
 
       if (!r.ok) {
-        setError(discardFailureMessage(r, t, t('admin.common.generationFailed')));
+        // Fought bouts would go: the server's count is asked, not this page's (ruling 285).
+        const atStake = foughtBoutsAtStake(r);
+        if (atStake !== null) setFoughtAsk({ door: 'regenerate', count: atStake });
+        else setError(discardFailureMessage(r, t, t('admin.common.generationFailed')));
         return;
       }
 
@@ -788,15 +797,23 @@ export default function BracketPage() {
     }
   }
 
-  async function deleteBracket() {
+  async function deleteBracket(discard = false) {
     if (!bracketPhaseId || deleting) return;
     setDeleting(true);
     setError(null);
+    setFoughtAsk(null);
     try {
-      const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}`, {
+      const said = discard ? '?discardScoredResults=true' : '';
+      const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}${said}`, {
         method: 'DELETE',
       });
       if (!r.ok) {
+        const atStake = foughtBoutsAtStake(r);
+        if (atStake !== null) {
+          setShowDeleteConfirm(false);
+          setFoughtAsk({ door: 'delete', count: atStake });
+          return;
+        }
         setError(discardFailureMessage(r, t, t('admin.common.deleteFailed')));
         return;
       }
@@ -1515,45 +1532,17 @@ export default function BracketPage() {
           </p>
         </Modal>
 
-        {/* Force confirm modal */}
-        <Modal
+        <RegenerateConfirm
           open={showForceConfirm}
-          onClose={() => setShowForceConfirm(false)}
-          size="sm"
-          title={t('organizer.bracketPage.regenerateConfirmTitle')}
-          footer={
-            <>
-              <button
-                onClick={() => setShowForceConfirm(false)}
-                className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-              >
-                {t('organizer.bracketPage.cancel')}
-              </button>
-              <button
-                onClick={() => void generate(true)}
-                className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
-              >
-                {t('organizer.bracketPage.regenerateConfirmYes')}
-              </button>
-            </>
-          }
-        >
-          <p className="text-4xl mb-3">⚠️</p>
-          <p className="text-muted text-sm mb-3">
-            {t('organizer.bracketPage.regenerateConfirmBody')}
-          </p>
-          {/* The number that turns an abstract warning into a decision. A
-              bracket with nothing fought in it costs nothing to redraw. */}
-          {playedMatchCount > 0 && (
-            <p className="text-danger text-sm font-medium mb-5">
-              {playedMatchCount === 1
-                ? t('organizer.bracketPage.regenerateConfirmPlayedOne')
-                : t('organizer.bracketPage.regenerateConfirmPlayedMany', {
-                    count: playedMatchCount,
-                  })}
-            </p>
-          )}
-        </Modal>
+          playedMatchCount={playedMatchCount}
+          onCancel={() => setShowForceConfirm(false)}
+          onYes={() => void generate(true)}
+        />
+        <FoughtBoutsConfirm
+          ask={foughtAsk}
+          onCancel={() => setFoughtAsk(null)}
+          onYes={(door) => void (door === 'delete' ? deleteBracket(true) : generate(true, true))}
+        />
 
         {/* Delete confirm modal — distinct from regenerate: leaves no bracket behind. */}
         {bracket && (

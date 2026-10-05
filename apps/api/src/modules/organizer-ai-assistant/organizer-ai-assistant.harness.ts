@@ -34,7 +34,7 @@ export const mockGenerateWithCap = vi.fn();
 const mockAssertOrgRole = vi.fn();
 export const mockCreateTournament = vi.fn();
 export const mockGeneratePools = vi.fn();
-const mockGenerateBracket = vi.fn();
+export const mockGenerateBracket = vi.fn();
 
 const supabase = { service: { from: mockSupabaseFrom } };
 const aiUsage = { generateWithCap: mockGenerateWithCap };

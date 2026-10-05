@@ -4,6 +4,7 @@ import {
   chain,
   placement,
   mockCreateTournament,
+  mockGenerateBracket,
   mockGeneratePools,
   mockSupabaseFrom,
   resetHarness,
@@ -141,6 +142,48 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
       true,
       'user-1',
     );
+  });
+
+  // Ruling 284. The bracket door asks an admin of whoever it is told, and lets
+  // fought bouts go only on a discard said out loud. The assistant names who
+  // applied and never says the discard, so a draft over a fought bracket is
+  // refused for everybody, the owner too.
+  it('tells the bracket door who applied, and never says the discard', async () => {
+    mockGenerateBracket.mockResolvedValue({ phaseId: 'phase-1' });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'tournaments') return idRead([{ id: '11111111-1111-4111-8111-111111111111' }]);
+      if (table !== 'organizer_ai_assistant_drafts') return chain();
+      return chain({
+        data: {
+          id: 'draft-1',
+          event_id: 'event-1',
+          actor_user_id: 'user-1',
+          draft_type: 'bracket_plan',
+          status: 'ready',
+          proposed_actions_json: [
+            {
+              kind: 'generate_bracket',
+              tournamentId: '11111111-1111-4111-8111-111111111111',
+              qualifyCount: 8,
+              force: true,
+              discardScoredResults: true,
+            },
+          ],
+          events: { organization_id: 'org-1' },
+        },
+      });
+    });
+
+    await service().applyDraft('event-1', 'draft-1', 'user-1');
+
+    expect(mockGenerateBracket.mock.calls).toEqual([
+      [
+        '11111111-1111-4111-8111-111111111111',
+        { qualifyCount: 8, bracketSize: undefined, poolPhaseId: undefined },
+        true,
+        'user-1',
+      ],
+    ]);
   });
 
   it("refuses to generate pools for another Event's Tournament", async () => {

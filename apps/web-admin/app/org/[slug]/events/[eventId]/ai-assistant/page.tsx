@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { applyFailureMessage } from '@/lib/discard-refusal';
 import { BackLink } from '@/components/BackLink';
 
 type DraftType =
@@ -194,7 +195,7 @@ export default function EventAIAssistantPage() {
       if (!r.ok) {
         // Applying a draft writes real tournament configuration. When it is
         // refused, which action collided is the only thing worth saying.
-        const message = failureMessage(r, t, t('organizer.aiAssistant.applyError'));
+        const message = applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'));
         if (message) setError(message);
         return;
       }

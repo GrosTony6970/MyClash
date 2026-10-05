@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 import { en, fr } from '@myclash/i18n';
-import { discardFailureMessage, foughtBoutsAtStake } from './discard-refusal';
+import { applyFailureMessage, discardFailureMessage, foughtBoutsAtStake } from './discard-refusal';
 
 const t = (key: string) => key;
 
@@ -41,6 +41,39 @@ describe('discardFailureMessage', () => {
     expect(fr.admin.common.discardRequiresOwner).toBe(
       "Seul un propriétaire de l'organisation peut supprimer des assauts déjà disputés.",
     );
+  });
+});
+
+describe('applyFailureMessage (ruling 284)', () => {
+  it('sends the reader to the page that shows the count, whatever the count', () => {
+    const failure = refused(409, 'scored_bouts_would_be_discarded', { scoredMatches: 3 });
+    expect(applyFailureMessage(failure, t, 'fallback')).toBe(
+      'organizer.aiAssistant.applyFoughtBouts',
+    );
+    expect(applyFailureMessage(refused(409, 'scored_bouts_would_be_discarded'), t, 'x')).toBe(
+      'organizer.aiAssistant.applyFoughtBouts',
+    );
+  });
+
+  it('leaves every other refusal to the usual message', () => {
+    expect(applyFailureMessage(refused(409, 'CONFLICT'), t, 'fallback')).toBe(
+      'An English sentence from the API.',
+    );
+    expect(applyFailureMessage({ kind: 'aborted' }, t, 'fallback')).toBeNull();
+  });
+
+  it('is these words, and the assistant page says them', () => {
+    expect(en.organizer.aiAssistant.applyFoughtBouts).toBe(
+      'This draft would delete bouts that have already been fought. The assistant never does that. Regenerate on the Pools page or on the bracket page, where the count is shown.',
+    );
+    expect(fr.organizer.aiAssistant.applyFoughtBouts).toBe(
+      'Ce brouillon supprimerait des assauts déjà disputés. L’assistant ne le fait jamais. Régénérez depuis la page des poules ou celle du tableau, où leur nombre est affiché.',
+    );
+    const page = readFileSync(
+      join(__dirname, '..', '..', 'app/org/[slug]/events/[eventId]/ai-assistant/page.tsx'),
+      'utf8',
+    );
+    expect(page).toContain("applyFailureMessage(r, t, t('organizer.aiAssistant.applyError'))");
   });
 });
 

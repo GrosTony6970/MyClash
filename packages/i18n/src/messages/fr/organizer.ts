@@ -1273,6 +1273,8 @@ export const organizer = {
     saveError: "Impossible d'enregistrer le brouillon.",
     applySuccess: 'Brouillon applique.',
     applyError: "Impossible d'appliquer le brouillon.",
+    applyFoughtBouts:
+      'Ce brouillon supprimerait des assauts déjà disputés. L’assistant ne le fait jamais. Régénérez depuis la page des poules ou celle du tableau, où leur nombre est affiché.',
     rejectSuccess: 'Brouillon rejete.',
     rejectError: 'Impossible de rejeter le brouillon.',
     preview: 'Aperçu du brouillon',
@@ -2393,6 +2395,7 @@ export const organizer = {
     regenerateConfirmPlayedMany:
       '{count} assauts de ce tableau ont déjà été disputés. Leurs résultats et leurs échanges disparaissent avec eux.',
     regenerateConfirmYes: 'Oui, régénérer',
+    foughtConfirmTitle: 'Supprimer des assauts disputés ?',
     deleteConfirmTitle: 'Supprimer ce tableau ?',
     deleteConfirmBody: 'Cela supprimera définitivement :',
     deleteRowSlots: 'Emplacements du tableau',

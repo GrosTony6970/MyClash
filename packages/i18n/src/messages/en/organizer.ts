@@ -1276,6 +1276,8 @@ export const organizer = {
     saveError: 'Could not save draft.',
     applySuccess: 'Draft applied.',
     applyError: 'Could not apply draft.',
+    applyFoughtBouts:
+      'This draft would delete bouts that have already been fought. The assistant never does that. Regenerate on the Pools page or on the bracket page, where the count is shown.',
     rejectSuccess: 'Draft rejected.',
     rejectError: 'Could not reject draft.',
     preview: 'Draft preview',
@@ -2434,6 +2436,7 @@ export const organizer = {
     regenerateConfirmPlayedMany:
       '{count} bouts in this bracket have already been fought. Their results and their exchanges go with them.',
     regenerateConfirmYes: 'Yes, regenerate',
+    foughtConfirmTitle: 'Delete fought bouts?',
     deleteConfirmTitle: 'Delete this bracket?',
     deleteConfirmBody: 'This will permanently remove:',
     deleteRowSlots: 'Bracket slots',

@@ -1994,7 +1994,11 @@ only the organisation's owner passes (279); an admin is refused with the code
 would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. The Pools door
 also wants the discard said (`discardScoredResults`): without it the 409 carries the code
 `scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm
-(280). A request goes with its bout by the cascade, so each of these doors first closes the
+(280). The two bracket doors want it too (285): the bracket page never says the discard on the
+count it made itself, which can be a bout late; the server refuses, and the page shows the
+server's count in a confirm whose yes sends the discard. The assistant's apply names who applied
+and never says the discard, so a draft over fought bouts is refused for everybody, the owner too
+(284). A request goes with its bout by the cascade, so each of these doors first closes the
 requests that wait on the phase's bouts, as a reset does, with `answeredBy: 'bout_deleted'` in the
 audit line, and tells who asked once the delete has run (276, 277). A reopen that keeps the hits (a clock reopen, a status
 change) closes no request of that bout: the request still names a hit that counts, and it waits
@@ -3178,11 +3182,11 @@ PATCH /api/v1/events/:eventId/ai-assistant/drafts/:draftId
 POST  /api/v1/events/:eventId/ai-assistant/drafts/:draftId/apply
 ```
 
+No draft is applied on a completed Event, whatever it does (283, 283a).
+
 V1 is constrained draft-and-review only. AI returns strict JSON actions for tournament config, pool planning, bracket generation, match-grid scheduling, and referee assignment. Organizers review or edit drafts before applying, and apply routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
 
 ### 26.5 Super-admin AI Data Quality (T-1305)
-
-No draft is applied on a completed Event, whatever it does (283, 283a).
 
 Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
 
