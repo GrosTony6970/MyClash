@@ -333,8 +333,8 @@ export class PhasesController {
   @ApiQuery({
     name: 'discardScoredResults',
     required: false,
-    type: Boolean,
-    description: 'Accept the loss of fought bouts (owner only)',
+    type: Number,
+    description: 'How many fought bouts the caller accepts to lose (owner only)',
   })
   @ApiResponse({ status: 204, description: 'Phase deleted' })
   @ApiResponse({ status: 400, description: 'Pool phases are deleted via DELETE /pools/:poolId' })
@@ -345,6 +345,8 @@ export class PhasesController {
     @Query('discardScoredResults') discard?: string,
   ) {
     const userId = await getUserId(req, this.supabase);
-    await this.phases.deleteBracketPhase(phaseId, userId, discard === 'true');
+    const confirmed = Number(discard);
+    const count = Number.isInteger(confirmed) && confirmed > 0 ? confirmed : 0;
+    await this.phases.deleteBracketPhase(phaseId, userId, count);
   }
 }

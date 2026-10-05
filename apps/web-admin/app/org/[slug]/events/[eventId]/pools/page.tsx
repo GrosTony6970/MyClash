@@ -267,7 +267,7 @@ export default function PoolsPage() {
    * A refusal the page answers with a confirm, not with a message.
    *
    * Fought bouts would go: the second confirm names how many, and its yes sends
-   * the discard (ruling 280). Else a 409 of an UNFORCED call means Pools already
+   * that count (rulings 280, 288). Else a 409 of an UNFORCED call means Pools already
    * exist, and the page offers to overwrite them. A forced call's other 409 is
    * said: asked again, it would be refused again, for ever.
    */
@@ -279,7 +279,7 @@ export default function PoolsPage() {
     return true;
   }
 
-  async function generate(force = false, discard = false) {
+  async function generate(force = false, discard = 0) {
     if (!selectedTournament) return;
     setGenerating(true);
     setError(null);
@@ -293,7 +293,7 @@ export default function PoolsPage() {
       };
       if (mode === 'poolCount') body['poolCount'] = poolCount;
       else body['targetSize'] = targetSize;
-      if (discard) body['discardScoredResults'] = true;
+      if (discard > 0) body['discardScoredResults'] = discard;
 
       // The response body is deliberately unread: the GET endpoint below is
       // the source of truth for the full Pool[] shape (members included), and
@@ -691,7 +691,7 @@ export default function PoolsPage() {
                 setFoughtAtStake(null);
               }}
               onOverwrite={() => void generate(true)}
-              onDiscard={() => void generate(true, true)}
+              onDiscard={() => void generate(true, foughtAtStake ?? 0)}
             />
 
             {/* Pool cards with drag-drop — one pool per row, full width of

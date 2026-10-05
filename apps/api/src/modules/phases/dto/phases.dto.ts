@@ -27,13 +27,14 @@ const generatePoolsSchema = z
     // panel (ruling 142). A body naming one is refused (strict).
     /**
      * Accept the permanent loss of already-scored bouts when regenerating with
-     * `?force=true`. Without it a scored phase refuses with a 409 naming the
-     * count; with it the caller must be an org OWNER or the request is a 403.
+     * `?force=true`: HOW MANY the caller's confirm named (ruling 288). Without
+     * it, or when the phase holds more, a scored phase refuses with a 409 naming
+     * the count; else the caller must be an org OWNER or the request is a 403.
      *
      * Must be declared here: this schema is `.strict()`, so an undeclared field
      * makes the global forbidNonWhitelisted pipe 400 the whole POST.
      */
-    discardScoredResults: z.boolean().optional(),
+    discardScoredResults: z.number().int().min(1).optional(),
   })
   .strict();
 export class GeneratePoolsDto extends createZodDto(generatePoolsSchema) {}
@@ -70,8 +71,8 @@ const generateBracketSchema = z
      * order is actually resolved. See r1-ranking.ts.
      */
     seedingStrategy: z.enum(SEEDING_STRATEGIES).optional(),
-    /** As on `GeneratePoolsDto`: accept the loss of fought bouts with `?force=true` (ruling 285). */
-    discardScoredResults: z.boolean().optional(),
+    /** As on `GeneratePoolsDto`: how many fought bouts go with `?force=true` (rulings 285, 288). */
+    discardScoredResults: z.number().int().min(1).optional(),
     ...doubleElimPodiumFields,
   })
   .strict()

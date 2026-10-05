@@ -21,7 +21,8 @@ import { PhasesService } from './phases.service';
  *     the screens say in the reader's language;
  *   - every door wants the discard said out loud (`discardScoredResults`), and
  *     its refusal carries the SERVER's count, which the page shows in a confirm:
- *     a page's own count can be a bout late (ruling 285).
+ *     a page's own count can be a bout late (ruling 285). The discard is the
+ *     COUNT that confirm named (ruling 288): `phases.discard-count.test.ts`.
  *
  * Marie asked to void a hit of a semi-final. Her request waits on that hit. The
  * bout is deleted, and her request goes with it (ON DELETE CASCADE): so it is
@@ -119,7 +120,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
     });
   const POOL_PHASE = { id: 'pool-phase', tournament_id: 'tournament-1', type: 'pool' };
   const ORG = { organization_id: 'org-1' };
-  const generate = (s: ReturnType<typeof setup>, userId: string, discard?: boolean) =>
+  const generate = (s: ReturnType<typeof setup>, userId: string, discard?: number) =>
     s.service.generatePools(
       'tournament-1',
       discard === undefined ? {} : { discardScoredResults: discard },
@@ -147,7 +148,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
     letIn(ADMIN);
     const s = pools(true);
 
-    const { thrown, body } = await refusal(generate(s, ADMIN, true));
+    const { thrown, body } = await refusal(generate(s, ADMIN, 1));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(body).toEqual(ONLY_THE_OWNER);
@@ -161,7 +162,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
     orgs.assertOrgRole.mockRejectedValue(new Error('membership read failed: away'));
     const s = pools(true);
 
-    const { thrown, body } = await refusal(generate(s, OWNER, true));
+    const { thrown, body } = await refusal(generate(s, OWNER, 1));
 
     expect((thrown as Error).message).toBe('membership read failed: away');
     expect(body).toBeNull();
@@ -173,7 +174,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
     const s = pools(true);
 
     // The generation that follows the delete is not this test's subject.
-    await generate(s, OWNER, true).catch(() => undefined);
+    await generate(s, OWNER, 1).catch(() => undefined);
 
     expect(s.frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
       [['bout-fought', 'bout-unplayed'], OWNER, 'bout_deleted'],
@@ -208,7 +209,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
       { data: null, error: { message: 'the phase stayed' } },
     ]);
 
-    const { thrown } = await refusal(generate(s, OWNER, true));
+    const { thrown } = await refusal(generate(s, OWNER, 1));
 
     expect((thrown as Error).message).toBe('the phase stayed');
     // Stopped AT the delete: unchecked, the generation went on over the old bouts.
@@ -234,7 +235,7 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
       audit_log: { rows: [] },
       registrations: { rows: [] },
     });
-  const regenerate = (s: ReturnType<typeof setup>, userId?: string, discard?: boolean) =>
+  const regenerate = (s: ReturnType<typeof setup>, userId?: string, discard?: number) =>
     s.service.generateBracket(
       'tournament-1',
       { phaseType: 'single_elim', discardScoredResults: discard } as never,
@@ -262,7 +263,7 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
     letIn(ADMIN);
     const s = bracket(true);
 
-    const { thrown, body } = await refusal(regenerate(s, ADMIN, true));
+    const { thrown, body } = await refusal(regenerate(s, ADMIN, 1));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(body).toEqual(ONLY_THE_OWNER);
@@ -274,7 +275,7 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
     letIn(OWNER);
     const s = bracket(true);
 
-    await regenerate(s, OWNER, true).catch(() => undefined);
+    await regenerate(s, OWNER, 1).catch(() => undefined);
 
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', OWNER, 'owner');
     expect(s.frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
@@ -299,7 +300,7 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
   it('the system actor never discards fought bouts, whatever it says', async () => {
     const s = bracket(true);
 
-    const { thrown } = await refusal(regenerate(s, undefined, true));
+    const { thrown } = await refusal(regenerate(s, undefined, 1));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(s.supabase.writes).toEqual([]);
@@ -341,9 +342,7 @@ describe('"Delete bracket" over fought bouts (ruling 279)', () => {
     letIn(ADMIN);
     const s = remove(true);
 
-    const { thrown, body } = await refusal(
-      s.service.deleteBracketPhase('bracket-phase', ADMIN, true),
-    );
+    const { thrown, body } = await refusal(s.service.deleteBracketPhase('bracket-phase', ADMIN, 1));
 
     expect(thrown).toBeInstanceOf(ForbiddenException);
     expect(body).toEqual(ONLY_THE_OWNER);
@@ -354,7 +353,7 @@ describe('"Delete bracket" over fought bouts (ruling 279)', () => {
     letIn(OWNER);
     const s = remove(true);
 
-    await s.service.deleteBracketPhase('bracket-phase', OWNER, true);
+    await s.service.deleteBracketPhase('bracket-phase', OWNER, 1);
 
     expect(s.frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
       [['bout-fought', 'bout-unplayed'], OWNER, 'bout_deleted'],

@@ -682,8 +682,8 @@ export default function BracketPage() {
 
   // ── Generate bracket ────────────────────────────────────────────────────────
 
-  // `discard`: the confirm on the SERVER's count was answered yes (ruling 285).
-  async function generate(force = false, discard = false) {
+  // `discard`: the count the confirm on the SERVER's count named (rulings 285, 288).
+  async function generate(force = false, discard = 0) {
     if (!selectedTournament) return;
     setGenerating(true);
     setError(null);
@@ -698,7 +698,7 @@ export default function BracketPage() {
       // grand-final reset in bronze mode and a bronze match in gold mode
       // rather than ignoring them, so sending both would 400.
       if (phaseType === 'double_elim') Object.assign(body, podiumPayload(newPodium));
-      if (force && discard) body['discardScoredResults'] = true;
+      if (force && discard > 0) body['discardScoredResults'] = discard;
 
       const r = await apiRequest<BracketResult>(
         apiUrl,
@@ -797,13 +797,13 @@ export default function BracketPage() {
     }
   }
 
-  async function deleteBracket(discard = false) {
+  async function deleteBracket(discard = 0) {
     if (!bracketPhaseId || deleting) return;
     setDeleting(true);
     setError(null);
     setFoughtAsk(null);
     try {
-      const said = discard ? '?discardScoredResults=true' : '';
+      const said = discard > 0 ? `?discardScoredResults=${discard}` : '';
       const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}${said}`, {
         method: 'DELETE',
       });
@@ -1541,7 +1541,7 @@ export default function BracketPage() {
         <FoughtBoutsConfirm
           ask={foughtAsk}
           onCancel={() => setFoughtAsk(null)}
-          onYes={(door) => void (door === 'delete' ? deleteBracket(true) : generate(true, true))}
+          doors={{ delete: deleteBracket, regenerate: (count) => generate(true, count) }}
         />
 
         {/* Delete confirm modal — distinct from regenerate: leaves no bracket behind. */}

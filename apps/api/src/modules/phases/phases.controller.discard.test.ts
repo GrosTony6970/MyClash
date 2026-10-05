@@ -1,10 +1,10 @@
 /**
  * What the two bracket doors hand the service about the discard (ruling 285).
  *
- * The service lets fought bouts go only when the discard is said. "Delete
- * bracket" says it in the address (`?discardScoredResults=true`), "Regenerate
- * bracket" in its body. The service is a stub here: what it does with the word
- * is `phases.discard-fought.test.ts`'s.
+ * The service lets fought bouts go only when the discard is said, with the
+ * count the confirm named (ruling 288). "Delete bracket" says it in the address
+ * (`?discardScoredResults=2`), "Regenerate bracket" in its body. The service is
+ * a stub here: what it does with the number is `phases.discard-count.test.ts`'s.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PhasesController } from './phases.controller';
@@ -28,11 +28,13 @@ beforeEach(() => {
 });
 
 describe('"Delete bracket" and the discard', () => {
-  it.each<[string | undefined, boolean]>([
-    ['true', true],
-    [undefined, false],
-    ['false', false],
-    ['1', false],
+  it.each<[string | undefined, number]>([
+    ['2', 2],
+    [undefined, 0],
+    ['true', 0],
+    ['-1', 0],
+    ['1.5', 0],
+    ['', 0],
   ])('?discardScoredResults=%s reaches the service as %s', async (said, discard) => {
     await controller.deleteBracket(PHASE, req as never, said);
 
@@ -42,7 +44,7 @@ describe('"Delete bracket" and the discard', () => {
 
 describe('"Regenerate bracket" and the discard', () => {
   it('hands the service the body as sent, with who asked', async () => {
-    const dto = { phaseType: 'single_elim', discardScoredResults: true };
+    const dto = { phaseType: 'single_elim', discardScoredResults: 2 };
 
     await controller.generateBracket(TOURNAMENT, dto as never, req as never, 'true');
 

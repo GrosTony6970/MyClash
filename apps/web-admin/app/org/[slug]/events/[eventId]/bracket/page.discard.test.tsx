@@ -17,7 +17,9 @@ import BracketPage from './page';
  * Now the server's count decides, as on the Pools page. The page never says the
  * discard on its own count: the server refuses and sends its count, a confirm
  * names it, and its yes sends the discard. The page had counted one bout and
- * two more started: the confirm names three.
+ * two more started: the confirm names three. The yes sends the count it named
+ * (ruling 288): when one more bout started while she read, the server refuses
+ * again, and the confirm comes back with the new count.
  */
 
 vi.mock('next/navigation', () => ({
@@ -182,8 +184,25 @@ describe('Bracket page: regenerate over fought bouts (ruling 285)', () => {
 
     expect(sent).toEqual([
       { path: `${GENERATE}?force=true`, discard: undefined },
-      { path: `${GENERATE}?force=true`, discard: true },
+      { path: `${GENERATE}?force=true`, discard: 1 },
     ]);
+    expect(page()).not.toContain(ASKS);
+  });
+
+  it('one more bout started while she read: the confirm comes back with the new count', async () => {
+    await openPage(bracket(false), [fought(1), fought(2), { ok: true, data: bracket(false) }]);
+
+    await tap('Regenerate bracket');
+    await tap('Yes, regenerate');
+    expect(page()).toContain(ONE_FOUGHT);
+    await tap('Yes, regenerate');
+
+    expect(page()).toContain(TWO_FOUGHT);
+    expect(page()).not.toContain(ONE_FOUGHT);
+
+    await tap('Yes, regenerate');
+
+    expect(sent.map((call) => call.discard)).toEqual([undefined, 1, 2]);
     expect(page()).not.toContain(ASKS);
   });
 
@@ -249,7 +268,7 @@ describe('Bracket page: delete over fought bouts (ruling 285)', () => {
 
     await tap('Delete bracket');
 
-    expect(sent.map((call) => call.path)).toEqual([PHASE, `${PHASE}?discardScoredResults=true`]);
+    expect(sent.map((call) => call.path)).toEqual([PHASE, `${PHASE}?discardScoredResults=2`]);
     expect(page()).not.toContain(ASKS);
   });
 

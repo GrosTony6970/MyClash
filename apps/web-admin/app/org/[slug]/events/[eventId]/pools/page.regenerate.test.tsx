@@ -148,7 +148,22 @@ describe('Pools page: regenerate over fought bouts (ruling 280)', () => {
     ]);
     expect(
       sent.map((call) => (call.body as Record<string, unknown>)['discardScoredResults']),
-    ).toEqual([undefined, undefined, true]);
+    ).toEqual([undefined, undefined, 2]);
+    expect(page()).not.toContain(FOUGHT_SENTENCE);
+  });
+
+  // Ruling 288: her yes named 2; a third bout started while she read.
+  it('one more bout started while she read: the confirm comes back with the new count', async () => {
+    serve([EXISTS, FOUGHT, refused(409, 'scored_bouts_would_be_discarded', { scoredMatches: 3 })]);
+    await openPage();
+
+    await tap('Generate empty pools');
+    await tap('Yes, regenerate');
+    await tap('Yes, regenerate');
+
+    expect(page()).toContain(
+      '3 bouts of these pools have already been fought. Their results and their exchanges go with them.',
+    );
     expect(page()).not.toContain(FOUGHT_SENTENCE);
   });
 

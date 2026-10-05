@@ -352,7 +352,7 @@ export class OrganizerAIAssistantService {
           // Hardcoded false, so a scored phase gives the assistant the same 409
           // an operator gets. Discarding fought results stays a human decision,
           // taken on a surface where the count is on screen.
-          discardScoredResults: false,
+          discardScoredResults: 0,
         },
         Boolean(action['force']),
         actorUserId,

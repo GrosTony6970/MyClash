@@ -240,8 +240,8 @@ export class PhasesService {
     // Delete existing pool phase if force=true
     if (existing && force) {
       const phaseId = (existing as { id: string }).id;
-      const discard = dto.discardScoredResults === true;
-      await this.assertForceRegenerationAllowed(phaseId, organizationId, userId, discard);
+      const confirmed = dto.discardScoredResults ?? 0;
+      await this.assertForceRegenerationAllowed(phaseId, organizationId, userId, confirmed);
       await this.deletePhaseAndBouts(phaseId, userId);
     }
 
@@ -511,7 +511,7 @@ export class PhasesService {
       await this.replaceBracket((existing as { id: string }).id, tournamentId, {
         organizationId,
         actorUserId: actorUserId === 'system' ? undefined : actorUserId,
-        discard: dto.discardScoredResults === true,
+        confirmed: dto.discardScoredResults ?? 0,
       });
     }
 
@@ -1697,11 +1697,7 @@ export class PhasesService {
    *
    * Refuses pool-type phases — those go through DELETE /pools/:poolId.
    */
-  async deleteBracketPhase(
-    phaseId: string,
-    actorUserId: string,
-    discardScoredResults = false,
-  ): Promise<void> {
+  async deleteBracketPhase(phaseId: string, actorUserId: string, confirmed = 0): Promise<void> {
     const phase = await this.getPhaseWithOrg(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
@@ -1717,7 +1713,7 @@ export class PhasesService {
       throw new BadRequestException('Phase organization could not be resolved');
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
-    await this.assertForceRegenerationAllowed(phaseId, orgId, actorUserId, discardScoredResults);
+    await this.assertForceRegenerationAllowed(phaseId, orgId, actorUserId, confirmed);
 
     // Counted for the audit payload only. This used to hand-delete the phase's
     // referee_assignments first, on the stated grounds that the ON DELETE SET
@@ -1754,10 +1750,10 @@ export class PhasesService {
   private async replaceBracket(
     phaseId: string,
     tournamentId: string,
-    by: { organizationId: string | null; actorUserId: string | undefined; discard: boolean },
+    by: { organizationId: string | null; actorUserId: string | undefined; confirmed: number },
   ): Promise<void> {
-    const { organizationId, actorUserId, discard } = by;
-    await this.assertForceRegenerationAllowed(phaseId, organizationId, actorUserId, discard);
+    const { organizationId, actorUserId, confirmed } = by;
+    await this.assertForceRegenerationAllowed(phaseId, organizationId, actorUserId, confirmed);
     const { data: doomed } = await this.supabase.service
       .from('matches')
       .select('id, status')
@@ -2353,6 +2349,8 @@ export class PhasesService {
    * a way through. "Regenerate bracket" and "Delete bracket" ask it too: a
    * bracket with a fought bout is its owner's to redraw or delete (ruling 279),
    * on the count THIS read finds, not the one a page made (ruling 285).
+   * `confirmed` is how many fought bouts the caller's confirm named: fewer than
+   * this read finds, and the refusal comes back with the new count (ruling 288).
    *
    * The force path raw-DELETEs the phase row, and the CASCADE takes pools,
    * pool_members, bracket_slots, swiss_rounds and matches — and from matches,
@@ -2376,18 +2374,18 @@ export class PhasesService {
     phaseId: string,
     organizationId: string | null,
     userId: string | undefined,
-    discardScoredResults: boolean,
+    confirmed: number,
   ) {
     const scored = await this.scoredMatchesIn('phase_id', phaseId);
     if (scored.length === 0) return;
 
-    if (!discardScoredResults) {
+    if (confirmed < scored.length) {
       throw new ConflictException({
         message:
           `${scored.length} ${scored.length === 1 ? 'bout' : 'bouts'} in this phase ` +
           'have been scored. This deletes them permanently, together with their ' +
           'exchanges, penalties, match events, forfeits and referee assignments — there is ' +
-          'no undo. Re-send with discardScoredResults: true to proceed.',
+          `no undo. Re-send with discardScoredResults: ${scored.length} to proceed.`,
         // A page tells this 409 from "it already exists" by its code, and shows
         // the count in a confirm (rulings 280, 285).
         code: SCORED_BOUTS_WOULD_BE_DISCARDED,

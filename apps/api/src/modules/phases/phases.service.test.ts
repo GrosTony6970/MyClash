@@ -321,7 +321,7 @@ describe('PhasesService', () => {
         mockOrgs.assertOrgRole.mockRejectedValueOnce(new ForbiddenException('not an owner'));
 
         await expect(
-          service.generatePools('tournament-1', { discardScoredResults: true }, true, 'user-1'),
+          service.generatePools('tournament-1', { discardScoredResults: 1 }, true, 'user-1'),
         ).rejects.toBeInstanceOf(ForbiddenException);
         // Names the org the tournament actually belongs to — the seed holds a
         // second tournament under a different one, so the read has to be scoped.
@@ -334,7 +334,7 @@ describe('PhasesService', () => {
         // Fail CLOSED. The override lets a named human accept a permanent loss;
         // "we could not work out who you are" is not that.
         await expect(
-          service.generatePools('tournament-1', { discardScoredResults: true }, true, undefined),
+          service.generatePools('tournament-1', { discardScoredResults: 1 }, true, undefined),
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
     });

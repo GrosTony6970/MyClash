@@ -48,17 +48,19 @@ export function RegenerateConfirm({
  * The page counts fought bouts from what it last read, and a bout can start
  * after that. So the page never says the discard on its own count: the server
  * refuses the regenerate or the delete and sends its count, this confirm names
- * it, and its yes sends the discard, which the server lets the organisation's
- * owner make.
+ * it, and its yes sends the discard WITH that count (ruling 288), which the
+ * server lets the organisation's owner make. A bout more by then, and the
+ * server refuses again: the confirm comes back with the new count.
  */
 export function FoughtBoutsConfirm({
   ask,
   onCancel,
-  onYes,
+  doors,
 }: {
   ask: FoughtAsk | null;
   onCancel: () => void;
-  onYes: (door: FoughtAsk['door']) => void;
+  /** What a yes does at each door, handed the count this confirm named. */
+  doors: Record<FoughtAsk['door'], (count: number) => unknown>;
 }) {
   const { t } = useI18n();
   return (
@@ -71,7 +73,7 @@ export function FoughtBoutsConfirm({
           : t('organizer.bracketPage.regenerateConfirmYes')
       }
       onCancel={onCancel}
-      onYes={() => ask && onYes(ask.door)}
+      onYes={() => ask && void doors[ask.door](ask.count)}
     >
       <FoughtSentence count={ask?.count ?? 0} />
     </Confirm>

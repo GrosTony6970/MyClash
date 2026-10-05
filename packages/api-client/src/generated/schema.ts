@@ -10369,7 +10369,7 @@ export interface components {
       seed?: number;
       /** Format: uuid */
       liceId?: string;
-      discardScoredResults?: boolean;
+      discardScoredResults?: number;
     };
     PoolRefereeRoleDto: {
       role: string;
@@ -10387,7 +10387,7 @@ export interface components {
       poolPhaseId?: string;
       /** @enum {string} */
       seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank' | 'by-swiss-rank';
-      discardScoredResults?: boolean;
+      discardScoredResults?: number;
       /** @enum {string} */
       secondChanceTarget?: 'gold' | 'bronze';
       bronzeMatch?: boolean;
@@ -17265,8 +17265,8 @@ export interface operations {
   PhasesController_deleteBracket: {
     parameters: {
       query?: {
-        /** @description Accept the loss of fought bouts (owner only) */
-        discardScoredResults?: boolean;
+        /** @description How many fought bouts the caller accepts to lose (owner only) */
+        discardScoredResults?: number;
       };
       header?: never;
       path: {

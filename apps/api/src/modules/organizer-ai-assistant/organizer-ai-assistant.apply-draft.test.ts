@@ -122,7 +122,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
                 tournamentId: '11111111-1111-4111-8111-111111111111',
                 targetSize: 8,
                 force: true,
-                discardScoredResults: true,
+                discardScoredResults: 9,
               },
             ],
             events: { organization_id: 'org-1' },
@@ -138,7 +138,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
 
     expect(mockGeneratePools).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111',
-      expect.objectContaining({ discardScoredResults: false }),
+      expect.objectContaining({ discardScoredResults: 0 }),
       true,
       'user-1',
     );
@@ -166,7 +166,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
               tournamentId: '11111111-1111-4111-8111-111111111111',
               qualifyCount: 8,
               force: true,
-              discardScoredResults: true,
+              discardScoredResults: 9,
             },
           ],
           events: { organization_id: 'org-1' },
