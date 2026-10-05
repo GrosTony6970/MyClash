@@ -1,13 +1,7 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  Logger,
-  NestInterceptor,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
+import { adminLockdownRefusal } from '../admin-lockdown';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { isPlatformStaff } from '../auth/platform-role';
@@ -66,9 +60,7 @@ export class LockdownInterceptor implements NestInterceptor {
     const isSuperAdmin = await this.isPlatformStaff(userId);
     if (isSuperAdmin) return next.handle();
 
-    throw new ServiceUnavailableException(
-      'MyClash admin is temporarily restricted to super admins. Please try again later.',
-    );
+    throw adminLockdownRefusal();
   }
 
   private extractToken(req: FastifyRequest): string | null {

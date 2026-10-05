@@ -37,6 +37,7 @@ export const auth = {
     resetCheckEmail: 'Si cet e-mail est enregistré, un lien de réinitialisation a été envoyé.',
     errors: {
       magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
+      wrongPassword: 'Adresse e-mail ou mot de passe incorrect.',
     },
   },
   resetPassword: {

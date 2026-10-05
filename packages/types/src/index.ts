@@ -2,6 +2,7 @@
  * @myclash/types — public API
  */
 
+export * from './admin-lockdown';
 export * from './branding';
 export * from './claim-link';
 export * from './signup-refusal';

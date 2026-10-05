@@ -1,7 +1,8 @@
-import { ForbiddenException, HttpException } from '@nestjs/common';
+import { ForbiddenException, HttpException, UnauthorizedException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import {
   mockSupabase as seededSupabase,
   type TableSeed,
@@ -32,9 +33,9 @@ const config = {
   get: vi.fn((key: string, def?: string) => (key === 'DOMAIN' ? 'myclash.localhost' : (def ?? ''))),
 };
 
-function build(over: Record<string, TableSeed> = {}) {
+function build(over: Record<string, TableSeed> = {}, auth: object = {}) {
   const db = seededSupabase({ ...TABLES, ...over });
-  const supabase = { getAuthUser: vi.fn().mockResolvedValue(MARC), service: db.service };
+  const supabase = { getAuthUser: vi.fn().mockResolvedValue(MARC), service: db.service, ...auth };
   const service = new AuthService(
     supabase as never,
     { sendMagicLink: vi.fn() } as never,
@@ -54,7 +55,18 @@ function build(over: Record<string, TableSeed> = {}) {
       { email: MARC.email, password: 'right-password' } as never,
       reply as never,
     );
-  return { google, password, reply };
+  return { google, password, reply, service };
+}
+
+/** The auth server takes the password. */
+function rightPassword(): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'access', refresh_token: 'refresh', user: MARC }),
+    }),
+  );
 }
 
 afterEach(() => {
@@ -78,13 +90,7 @@ describe('the admin sign-in door when a read fails (ruling 301)', () => {
   );
 
   it('fails the password sign-in the same way', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ access_token: 'access', refresh_token: 'refresh', user: MARC }),
-      }),
-    );
+    rightPassword();
     const { password, reply } = build({ organization_members: FAULT });
 
     const failure = await password().catch((err: unknown) => err);
@@ -99,5 +105,105 @@ describe('the admin sign-in door when a read fails (ruling 301)', () => {
 
     await expect(google()).rejects.toThrow(ForbiddenException);
     expect(reply.setCookie).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The maintenance lockdown at the same door (operator ruling 308).
+ *
+ * A super admin switches the lockdown on, and Marc signs in. The door answered a plain 503, and
+ * the API replaces the words of every plain 5xx: the password form said "Internal server error"
+ * and the Google callback "not authorized". The refusal now carries its own code and keeps its
+ * words, so each screen can say the lockdown and nothing else for it.
+ */
+describe('the admin sign-in door during the maintenance lockdown (ruling 308)', () => {
+  const LOCKED: Record<string, TableSeed> = {
+    feature_flags: { rows: [{ key: 'admin_lockdown', enabled: true }] },
+    organization_members: { rows: [{ user_id: MARC.id, role: 'owner' }] },
+  };
+
+  it.each<'google' | 'password'>(['google', 'password'])(
+    'refuses the %s sign-in with the coded 503 its screen reads, and no cookie',
+    async (door) => {
+      rightPassword();
+      const built = build(LOCKED);
+
+      const refusal = await built[door]().catch((err: unknown) => err);
+
+      expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+      expect((refusal as HttpException).getStatus()).toBe(503);
+      expect((refusal as HttpException).getResponse()).toMatchObject({ code: 'admin_lockdown' });
+      expect(built.reply.setCookie).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses the mailed sign-up link with the same coded 503', async () => {
+    const verifyOtp = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'access', refresh_token: 'refresh', user: MARC } },
+      error: null,
+    });
+    const { service, reply } = build(LOCKED, { anon: { auth: { verifyOtp } } });
+
+    const refusal = await service
+      .signInFromSignupLink('token-hash', reply as never)
+      .catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    expect(reply.setCookie).not.toHaveBeenCalled();
+  });
+
+  it('lets an organizer in while the lockdown is off', async () => {
+    const { google, reply } = build({
+      ...LOCKED,
+      feature_flags: { rows: [{ key: 'admin_lockdown', enabled: false }] },
+    });
+
+    await google();
+
+    expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+  });
+});
+
+/**
+ * "Wrong email or password" is said for a wrong password only (operator ruling 309).
+ *
+ * The form reads every 401 of this door as a wrong password. The door answered that 401 for
+ * every failure of its call to the auth server: Marc typed the right password while the auth
+ * server was down or throttled, and would have read "Wrong email or password".
+ */
+describe('the password sign-in when the auth server does not judge the password (ruling 309)', () => {
+  const answers = (status: number) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({ error: 'x' }) }),
+    );
+
+  it.each([429, 500, 502, 503])('fails with a plain error when it answers %s', async (status) => {
+    answers(status);
+    const { password, reply } = build();
+
+    const failure = await password().catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toContain(String(status));
+    expect(reply.setCookie).not.toHaveBeenCalled();
+  });
+
+  it('fails with a plain error when it does not answer', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED')));
+    const { password } = build();
+
+    const failure = await password().catch((err: unknown) => err);
+
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toContain('ECONNREFUSED');
+  });
+
+  it('answers a 401 when it refuses the password', async () => {
+    answers(400);
+    const { password } = build();
+
+    await expect(password()).rejects.toThrow(UnauthorizedException);
   });
 });

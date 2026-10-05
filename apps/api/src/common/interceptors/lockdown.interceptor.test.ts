@@ -1,8 +1,8 @@
-import { ServiceUnavailableException } from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of } from 'rxjs';
 import { LockdownInterceptor } from './lockdown.interceptor';
+import { OperationalUnavailableException } from '../operational-exception';
 
 interface MockRequest {
   url: string;
@@ -102,9 +102,12 @@ describe('LockdownInterceptor', () => {
       url: '/api/v1/orgs/lyon-amhe/events',
       headers: { authorization: 'Bearer t' },
     });
-    await expect(interceptor.intercept(ctx, makeNext())).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    const refusal = await interceptor.intercept(ctx, makeNext()).catch((err: unknown) => err);
+    // The sign-in door's own refusal (ruling 308): its words reach the page, and its code too.
+    expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    expect((refusal as OperationalUnavailableException).getResponse()).toMatchObject({
+      code: 'admin_lockdown',
+    });
   });
 
   it('reads the token from the sb-access-token cookie when no Authorization header is set', async () => {
@@ -116,7 +119,7 @@ describe('LockdownInterceptor', () => {
       cookies: { 'sb-access-token': 'cookie-token' },
     });
     await expect(interceptor.intercept(ctx, makeNext())).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
+      OperationalUnavailableException,
     );
     expect(getAuthUserMock).toHaveBeenCalledWith('cookie-token');
   });

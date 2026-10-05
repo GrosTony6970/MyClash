@@ -13,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CLAIM_REFUSED_PARAM, validatePassword, type ClaimLinkRefusal } from '@myclash/types';
+import { adminLockdownRefusal } from '../../common/admin-lockdown';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
@@ -372,9 +373,7 @@ export class AuthService {
     // A locked-out platform admin could not even sign in to help.
     if (await isPlatformStaff(this.supabase, userId)) return;
 
-    throw new ServiceUnavailableException(
-      'MyClash admin is temporarily restricted to super admins. Please try again later.',
-    );
+    throw adminLockdownRefusal();
   }
 
   private async isAdminLockdownEnabled(): Promise<boolean> {
@@ -2096,11 +2095,10 @@ export class AuthService {
       this.config.getOrThrow<string>('SUPABASE_URL');
     const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
 
-    let response: {
-      ok: boolean;
-      json: () => Promise<unknown>;
-    };
-
+    // The admin form reads this door's 401 as "wrong email or password" (operator
+    // ruling 309). A silent, throttled or failing auth server has not judged the
+    // password: that is a server error, never the 401.
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
     try {
       response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
         method: 'POST',
@@ -2110,8 +2108,13 @@ export class AuthService {
         },
         body: JSON.stringify({ email, password }),
       });
-    } catch {
-      throw new UnauthorizedException('Invalid email or password');
+    } catch (err) {
+      throw new Error(`The auth server did not answer the password sign-in: ${String(err)}`, {
+        cause: err,
+      });
+    }
+    if (response.status === 429 || response.status >= 500) {
+      throw new Error(`The auth server answered ${response.status} to the password sign-in`);
     }
 
     let body: unknown;

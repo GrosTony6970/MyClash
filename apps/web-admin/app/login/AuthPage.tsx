@@ -9,7 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
-import { passwordLoginFallback, signupFailureMessage } from '../../src/lib/sign-in-failure';
+import { passwordLoginMessage, signupFailureMessage } from '../../src/lib/sign-in-failure';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
@@ -119,7 +119,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
     });
     if (!r.ok) {
       // The throttle sentence comes from the seam.
-      const message = failureMessage(r, t, passwordLoginFallback(r, t));
+      const message = passwordLoginMessage(r, t);
       if (message) setError(message);
       setLoadingAction(null);
       return;

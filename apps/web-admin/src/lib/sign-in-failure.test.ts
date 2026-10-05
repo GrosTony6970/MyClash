@@ -4,7 +4,7 @@ import type { ApiFailure } from '@myclash/api-client';
 import { describe, expect, it } from 'vitest';
 import {
   oauthFailureKey,
-  passwordLoginFallback,
+  passwordLoginMessage,
   signupFailureMessage,
   signupRefusedKey,
 } from './sign-in-failure';
@@ -16,6 +16,10 @@ import {
  * error, and neither screen may turn that into "this account is not allowed": the password form
  * said "Invalid email/password, or this account is not allowed in admin" as its fallback, which
  * fires on a server error only, and the Google callback said "not authorized" for every failure.
+ *
+ * The maintenance lockdown (operator ruling 308): its 503 had no code and its words were
+ * replaced, so the password form said "Internal server error" for it, said the lockdown for a
+ * 503 of the edge, and the Google callback said "not authorized" for both.
  */
 const t = (key: string) => `[${key}]`;
 const http = (status: number, over: { code?: string; detail?: string } = {}): ApiFailure => ({
@@ -29,29 +33,52 @@ const http = (status: number, over: { code?: string; detail?: string } = {}): Ap
 });
 /** The API's answer at a sign-up door while a super admin has switched sign-ups off. */
 const signupsOff = http(503, { code: 'signups_disabled' });
-const refused = (status: 401 | 403): ApiFailure => ({
+/** The API's answer at a sign-in door while the maintenance lockdown is on. */
+const lockdown = http(503, {
+  code: 'admin_lockdown',
+  detail: 'MyClash admin is temporarily restricted to super admins. Please try again later.',
+});
+/** A 503 the API did not write: the edge answered for it, with no body to read. */
+const edge503: ApiFailure = {
+  kind: 'http',
+  status: 503,
+  detail: null,
+  code: null,
+  details: null,
+  validationErrors: null,
+};
+const refused = (status: 401 | 403, detail: string): ApiFailure => ({
   kind: 'unauthenticated',
   status,
-  detail: 'No organizer or super admin access for this account',
-  code: 'FORBIDDEN',
+  detail,
+  code: status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN',
   details: null,
 });
+const noAccess = 'No organizer or super admin access for this account';
+const wrongPassword = refused(401, 'Invalid email or password');
 
 describe('the Google callback', () => {
-  it.each([401, 403] as const)(
+  it.each<401 | 403>([401, 403])(
     'says "not authorized" for a %s: the API refused the account',
     (s) => {
-      expect(oauthFailureKey(refused(s))).toBe('auth.oauth.errors.notAuthorized');
+      expect(oauthFailureKey(refused(s, noAccess))).toBe('auth.oauth.errors.notAuthorized');
     },
   );
 
-  it('says "not authorized" for the lockdown and for a request the API refused', () => {
-    expect(oauthFailureKey(http(503))).toBe('auth.oauth.errors.notAuthorized');
+  it('says "not authorized" for a request the API refused', () => {
     expect(oauthFailureKey(http(400))).toBe('auth.oauth.errors.notAuthorized');
   });
 
-  it.each([500, 502, 504])('says the sign-in could not be completed for a %s', (status) => {
+  it('says the lockdown for the coded 503 of the lockdown', () => {
+    expect(oauthFailureKey(lockdown)).toBe('admin.featureFlags.lockdownBanner');
+  });
+
+  it.each([500, 502, 503, 504])('says the sign-in could not be completed for a %s', (status) => {
     expect(oauthFailureKey(http(status))).toBe('auth.oauth.errors.exchangeFailed');
+  });
+
+  it('says the sign-in could not be completed for a 503 of the edge', () => {
+    expect(oauthFailureKey(edge503)).toBe('auth.oauth.errors.exchangeFailed');
   });
 
   it('says the sign-in could not be completed when the API was not reached', () => {
@@ -71,20 +98,45 @@ describe('the Google callback', () => {
 });
 
 describe('the password form', () => {
-  it('names the lockdown on a 503', () => {
-    expect(passwordLoginFallback(http(503), t)).toBe('[admin.featureFlags.lockdownBanner]');
+  it('says the lockdown for the coded 503 of the lockdown, in its own language', () => {
+    expect(passwordLoginMessage(lockdown, t)).toBe('[admin.featureFlags.lockdownBanner]');
   });
 
-  it.each([http(500), http(400), refused(403), { kind: 'network' } as ApiFailure])(
-    'has no sentence of its own for %o: the shared one is said',
-    (failure) => {
-      expect(passwordLoginFallback(failure, t)).toBeUndefined();
-    },
-  );
+  it('does not say the lockdown for a 503 of the edge: the shared sentence is said', () => {
+    expect(passwordLoginMessage(edge503, t)).toBe('[common.error]');
+  });
 
-  it('is the fallback the form hands the shared sentence', () => {
+  // Ruling 309: she read "Your session has expired, or this is not yours to see".
+  it('says "wrong email or password" for the 401 the API answers', () => {
+    expect(passwordLoginMessage(wrongPassword, t)).toBe('[auth.login.errors.wrongPassword]');
+  });
+
+  it('says "the connection was blocked" for a 401 the API did not write', () => {
+    const edge401: ApiFailure = {
+      kind: 'unauthenticated',
+      status: 401,
+      detail: null,
+      code: null,
+      details: null,
+    };
+    expect(passwordLoginMessage(edge401, t)).toBe('[common.apiFailure.blocked]');
+  });
+
+  it("says the server's own sentence for an account with no admin access", () => {
+    expect(passwordLoginMessage(refused(403, noAccess), t)).toBe(noAccess);
+  });
+
+  it.each<[ApiFailure, string]>([
+    [http(500), '[common.error]'],
+    [http(429), '[common.apiFailure.tooManyRequests]'],
+    [{ kind: 'network' }, '[common.apiFailure.network]'],
+  ])('says the shared sentence for %o', (failure, sentence) => {
+    expect(passwordLoginMessage(failure, t)).toBe(sentence);
+  });
+
+  it('is what the form says for a refused sign-in', () => {
     const form = readFileSync(join(__dirname, '../../app/login/AuthPage.tsx'), 'utf8');
-    expect(form).toContain('failureMessage(r, t, passwordLoginFallback(r, t))');
+    expect(form).toContain('const message = passwordLoginMessage(r, t);');
     expect(form).not.toContain('passwordLoginFailed');
   });
 });
