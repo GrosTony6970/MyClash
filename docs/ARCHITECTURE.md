@@ -2006,8 +2006,8 @@ also wants the discard said (`discardScoredResults`): without it the 409 carries
 (280). The two bracket doors want it too (285): the bracket page never says the discard on the
 count it made itself, which can be a bout late; the server refuses, and the page shows the
 server's count in a confirm whose yes sends the discard. At the three doors the discard is the
-COUNT that confirm named (288): when the server finds more fought bouts than that, it refuses
-again with the new count, so nothing goes on a number nobody read. The assistant's apply names who applied
+COUNT that confirm named (288): when the server finds another number, it refuses
+again with its count, so nothing goes on a number nobody read. The assistant's apply names who applied
 and never says the discard, so a draft over fought bouts is refused for everybody, the owner too
 (284). A request goes with its bout by the cascade, so each of these doors first closes the
 requests that wait on the phase's bouts, as a reset does, with `answeredBy: 'bout_deleted'` in the

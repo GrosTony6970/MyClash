@@ -39,7 +39,7 @@ export function applyFailureMessage(
 /**
  * How many fought bouts one of the three doors would delete, when the API
  * refused it for that reason (rulings 280, 285); `null` for every other answer.
- * The page shows the count in a confirm, and its yes sends the discard.
+ * The page shows the count in a confirm, and its yes sends that count (288).
  */
 export function foughtBoutsAtStake(failure: ApiFailure): number | null {
   if (failureCode(failure) !== 'scored_bouts_would_be_discarded') return null;

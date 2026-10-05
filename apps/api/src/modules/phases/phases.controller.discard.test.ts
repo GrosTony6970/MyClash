@@ -34,6 +34,9 @@ describe('"Delete bracket" and the discard', () => {
     ['true', 0],
     ['-1', 0],
     ['1.5', 0],
+    ['1e3', 0],
+    ['0x2', 0],
+    [' 3 ', 0],
     ['', 0],
   ])('?discardScoredResults=%s reaches the service as %s', async (said, discard) => {
     await controller.deleteBracket(PHASE, req as never, said);

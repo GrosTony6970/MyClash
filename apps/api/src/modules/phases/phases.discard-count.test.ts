@@ -9,8 +9,8 @@ import { PhasesService } from './phases.service';
  * The owner's confirm names one fought bout. While she reads it, the pad on
  * piste 2 starts a second bout. Her yes said "I accept", not "I accept one", and
  * the server deleted both. Now the discard is the count her confirm named: when
- * the server finds more, it refuses again with the new count. The three doors
- * that delete a phase ask the same gate.
+ * the server finds another number, it refuses again with its count. The three
+ * doors that delete a phase ask the same gate.
  */
 const OWNER = 'a0000000-0000-4000-8000-000000000001';
 const orgs = { assertOrgRole: vi.fn(() => Promise.resolve()) };
@@ -118,12 +118,20 @@ describe.each(DOORS)('%s and the count of the yes (ruling 288)', (_door, type, d
     expect(writesTo(supabase, 'phases')[0]?.op).toBe('delete');
   });
 
-  // A bout was reset while she read: she accepted more than what goes.
-  it('a yes that named 2 passes when 1 is fought', async () => {
+  // A bout was reset while she read. The count is exact: were "at least" enough,
+  // one large number would be a yes to everything.
+  it('a yes that named 2 is refused when 1 is fought, with the count', async () => {
     const { service, supabase } = setup(type, 1);
 
-    await door(service, 2).catch(() => undefined);
+    const thrown = await door(service, 2).then(
+      () => null,
+      (cause: unknown) => cause,
+    );
 
-    expect(writesTo(supabase, 'phases')[0]?.op).toBe('delete');
+    expect((thrown as ConflictException).getResponse()).toMatchObject({
+      code: 'scored_bouts_would_be_discarded',
+      scoredMatches: 1,
+    });
+    expect(supabase.writes).toEqual([]);
   });
 });

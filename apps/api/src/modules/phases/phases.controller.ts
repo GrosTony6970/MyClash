@@ -345,8 +345,8 @@ export class PhasesController {
     @Query('discardScoredResults') discard?: string,
   ) {
     const userId = await getUserId(req, this.supabase);
-    const confirmed = Number(discard);
-    const count = Number.isInteger(confirmed) && confirmed > 0 ? confirmed : 0;
+    // Digits only: `Number()` also reads '1e3', '0x2' and ' 3 '.
+    const count = /^[0-9]+$/.test(discard ?? '') ? Number(discard) : 0;
     await this.phases.deleteBracketPhase(phaseId, userId, count);
   }
 }

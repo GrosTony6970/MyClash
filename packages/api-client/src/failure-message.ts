@@ -49,13 +49,15 @@ import type { ApiFailure } from './request';
  * ~1,900 coded throws plus a key pair each. Do not re-open this by adding a
  * "translate the detail" branch here; the decision is the API's to revisit.
  *
- * ONE named exception, ruled on 2026-10-03 (ruling 234): the archived-Event
+ * The named exception, ruled on 2026-10-03 (ruling 234): the archived-Event
  * lock's refusal, by its `code`. It is not one throw site's reason: a global
  * guard answers it to every write of an archived Event that no ruling keeps
  * open, so nearly every screen of that Event in web-admin and web-public can
  * receive it, and an Event archives itself. A per-screen mapper (the shape of `correction-refusal.ts`) would need
- * a call at every one of them. It is an exception, not a pattern: a second
- * coded refusal belongs in its own screens' mapper.
+ * a call at every one of them. The same guard's refusal on a COMPLETED Event
+ * (`event_completed`, ruling 289) is said here for the same reason: fifteen
+ * routes, on five screens. The guard's two are the exception, not a pattern:
+ * another coded refusal belongs in its own screens' mapper.
  *
  * ── An intermediary is not a dead session ──────────────────────────────────
  * The API fills `detail` AND `code` on every problem+json body it sends, so a

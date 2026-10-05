@@ -2349,8 +2349,9 @@ export class PhasesService {
    * a way through. "Regenerate bracket" and "Delete bracket" ask it too: a
    * bracket with a fought bout is its owner's to redraw or delete (ruling 279),
    * on the count THIS read finds, not the one a page made (ruling 285).
-   * `confirmed` is how many fought bouts the caller's confirm named: fewer than
-   * this read finds, and the refusal comes back with the new count (ruling 288).
+   * `confirmed` is how many fought bouts the caller's confirm named: another
+   * number than this read finds, and the refusal comes back with the count
+   * (ruling 288). Exact, so no large number is a yes to everything.
    *
    * The force path raw-DELETEs the phase row, and the CASCADE takes pools,
    * pool_members, bracket_slots, swiss_rounds and matches — and from matches,
@@ -2379,7 +2380,7 @@ export class PhasesService {
     const scored = await this.scoredMatchesIn('phase_id', phaseId);
     if (scored.length === 0) return;
 
-    if (confirmed < scored.length) {
+    if (confirmed !== scored.length) {
       throw new ConflictException({
         message:
           `${scored.length} ${scored.length === 1 ? 'bout' : 'bouts'} in this phase ` +

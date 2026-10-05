@@ -349,7 +349,7 @@ export class OrganizerAIAssistantService {
           // would let a confused or prompt-injected model destroy results with
           // no human in the loop, and the failure leaves nothing to recover from.
           //
-          // Hardcoded false, so a scored phase gives the assistant the same 409
+          // Hardcoded 0, so a scored phase gives the assistant the same 409
           // an operator gets. Discarding fought results stays a human decision,
           // taken on a surface where the count is on screen.
           discardScoredResults: 0,

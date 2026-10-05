@@ -19,7 +19,7 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * no longer sets a bout back to `scheduled` (ruling 281).
  */
 
-/** The 409 of the three doors: fought bouts would go, and the discard was not said. */
+/** The 409 of the three doors: fought bouts would go, and the yes did not name their count. */
 export const SCORED_BOUTS_WOULD_BE_DISCARDED = 'scored_bouts_would_be_discarded';
 /** An admin asked for it. The screens say this one in the reader's language. */
 export const DISCARD_REQUIRES_OWNER = 'discard_requires_owner';
