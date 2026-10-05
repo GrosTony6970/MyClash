@@ -213,8 +213,7 @@ export class OnboardingService {
 
     await this.legal.recordForUser(userId, versions, context);
 
-    // Atomically create org + membership
-    await this.createOrgAndMembership(userId, orgName, orgSlug);
+    await this.createClubOrWarn(userId, orgName, orgSlug);
 
     // Send email verification link via magic link (verifies email on click)
     try {
@@ -253,8 +252,9 @@ export class OnboardingService {
   // ── Signup callback (magic link path) ───────────────────────────────────
 
   /**
-   * Called after the magic link is clicked. At this point the user is
-   * authenticated. We create the org + membership atomically.
+   * Called after the magic link is clicked, and by the Google sign-up. At this
+   * point the user is authenticated. A club or an owner row that cannot be
+   * written throws (operator ruling 299): both doors redirect to the club next.
    */
   async completeSignupAfterMagicLink(
     userId: string,
@@ -275,47 +275,50 @@ export class OnboardingService {
 
   // ── Shared org creation ──────────────────────────────────────────────────
 
+  /**
+   * The password door's club. A club that cannot be made is only logged here,
+   * as before ruling 299, which ruled the emailed link. The account exists by
+   * now: a server error would leave it with no club, and a second try would be
+   * refused as "already registered".
+   */
+  private async createClubOrWarn(userId: string, orgName: string, orgSlug: string): Promise<void> {
+    try {
+      await this.createOrgAndMembership(userId, orgName, orgSlug);
+    } catch (err) {
+      this.logger.warn(`Password signup of ${userId} made no club: ${String(err)}`);
+    }
+  }
+
   private async createOrgAndMembership(
     userId: string,
     orgName: string,
     orgSlug: string,
   ): Promise<void> {
-    // NOTE: organizations + organization_members tables created in T-101.
-    // Until then, this is a no-op that logs a warning.
-    try {
-      const { data: org, error: orgError } = await this.supabase.service
-        .from('organizations')
-        .insert({
-          name: orgName,
-          slug: orgSlug,
-          status: 'active',
-          created_by_user_id: userId,
-        })
-        .select('id')
-        .single();
+    const { data: org, error: orgError } = await this.supabase.service
+      .from('organizations')
+      .insert({
+        name: orgName,
+        slug: orgSlug,
+        status: 'active',
+        created_by_user_id: userId,
+      })
+      .select('id')
+      .single();
 
-      if (orgError) {
-        throw new Error(`Failed to create organization: ${orgError.message}`);
-      }
-
-      const { error: memberError } = await this.supabase.service
-        .from('organization_members')
-        .insert({
-          organization_id: (org as { id: string }).id,
-          user_id: userId,
-          role: 'owner',
-        });
-
-      if (memberError) {
-        throw new Error(`Failed to create org membership: ${memberError.message}`);
-      }
-
-      this.logger.log(`Created org ${orgSlug} with owner ${userId}`);
-    } catch (err) {
-      // Table not yet created (pre-T-101) — log and continue
-      this.logger.warn(
-        `Could not create org/membership (tables may not exist yet): ${String(err)}`,
-      );
+    if (orgError) {
+      throw new Error(`Failed to create organization: ${orgError.message}`);
     }
+
+    const { error: memberError } = await this.supabase.service.from('organization_members').insert({
+      organization_id: (org as { id: string }).id,
+      user_id: userId,
+      role: 'owner',
+    });
+
+    if (memberError) {
+      throw new Error(`Failed to create org membership: ${memberError.message}`);
+    }
+
+    this.logger.log(`Created org ${orgSlug} with owner ${userId}`);
   }
 }

@@ -78,7 +78,8 @@ export class SignupController {
    *
    * Called after the magic-link signup flow. The magic link redirects here
    * with the org creation payload in query params. We exchange the token,
-   * create the org, and redirect to the org dashboard.
+   * create the org, and redirect to the org dashboard. A club that cannot be
+   * made fails the request: she is signed in by then, and the trace says why.
    */
   @Get('signup-callback')
   @ApiOperation({ summary: 'Magic-link signup callback — creates org and redirects' })
@@ -98,26 +99,19 @@ export class SignupController {
     @Req() _req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    // Exchange the OTP token for a session (sets cookies)
-    await this.auth.handleCallback(tokenHash, 'login', undefined, undefined, reply);
-
-    // Get the user from the newly set cookie
-    const cookies = (_req as FastifyRequest & { cookies: Record<string, string> }).cookies;
-    const accessToken = cookies?.['sb-access-token'];
-
-    if (accessToken) {
-      const me = await this.auth.getMe(_req);
-      if (me.type === 'claimed' && me.user?.id) {
-        await this.onboarding.completeSignupAfterMagicLink(me.user.id, orgName, orgSlug);
-        // The account exists only now, which is why the acceptance is recorded
-        // here rather than when the link was requested. Not asserted: the
-        // versions were already checked at /auth/signup, and a policy revised
-        // between sending the mail and clicking it must not strand a user
-        // mid-signup on a redirect they cannot answer. A version that no longer
-        // matches simply shows up in `pendingLegal` and the banner asks again.
-        await this.recordCallbackAcceptance(me.user.id, acceptedTerms, acceptedPrivacy, _req);
-      }
-    }
+    // The club is made for the account the LINK proved (operator ruling 299). The
+    // old door asked `/me` about the cookies the browser SENT: a new person sent
+    // none and got no club, and a browser signed in as somebody else got the club
+    // made for that account.
+    const user = await this.auth.signInFromSignupLink(tokenHash, reply);
+    await this.onboarding.completeSignupAfterMagicLink(user.id, orgName, orgSlug);
+    // The account exists only now, which is why the acceptance is recorded
+    // here rather than when the link was requested. Not asserted: the
+    // versions were already checked at /auth/signup, and a policy revised
+    // between sending the mail and clicking it must not strand a user
+    // mid-signup on a redirect they cannot answer. A version that no longer
+    // matches simply shows up in `pendingLegal` and the banner asks again.
+    await this.recordCallbackAcceptance(user.id, acceptedTerms, acceptedPrivacy, _req);
 
     void reply.redirect(`/org/${orgSlug}`);
   }

@@ -2117,6 +2117,8 @@ OrganizationRole grants always require a **claimed** account. They are never giv
    - The user becomes the `owner` of this Organization (`organization_members.role = 'owner'`).
 3. They land on the org dashboard at `/org/<slug>` ready to create their first event.
 
+The emailed link lands on `GET /auth/signup-callback`. The Organization is made for the account the link proved (`AuthService.signInFromSignupLink`), never for the account the browser was signed in as, and with no `/me` read (ruling 299). On that door and on the Google sign-up, an Organization or an owner row that cannot be written fails the request (`completeSignupAfterMagicLink` throws). The password door only logs that failure: its account exists by then.
+
 **What an organizer can do** without further approval:
 
 - Create one or more **Events** (the multi-day gathering, e.g. "FAL 2026") — _terminology TBD pending owner decision_.

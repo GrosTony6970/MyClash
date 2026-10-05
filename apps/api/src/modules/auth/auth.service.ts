@@ -399,7 +399,51 @@ export class AuthService {
     next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
-    // Exchange the OTP token for a session
+    const user = await this.exchangeLink(token, type, reply);
+
+    const refusedPath =
+      type === 'claim' && personId ? await this.claimFromLink(user.id, user.email, personId) : null;
+
+    // Silent autolink to a matching global profile on any login path
+    // (login / public_login / claim — all benefit).
+    await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
+
+    // Redirect to appropriate destination
+    const safeRedirect = this.validateRedirect(next);
+    const path =
+      type === 'public_login'
+        ? safeRedirect === '/'
+          ? '/me'
+          : safeRedirect
+        : type === 'login'
+          ? safeRedirect === '/'
+            ? '/dashboard'
+            : safeRedirect
+          : safeRedirect;
+    const destination = this.buildPostAuthRedirectUrl(refusedPath ?? path, type);
+    void reply.redirect(destination);
+  }
+
+  /**
+   * The emailed sign-up link's landing: signs its reader in and hands back the
+   * account the link proved (operator ruling 299). It sends no answer: the
+   * sign-up door makes the club for that account, then redirects.
+   */
+  async signInFromSignupLink(
+    token: string,
+    reply: FastifyReply,
+  ): Promise<{ id: string; email?: string }> {
+    const user = await this.exchangeLink(token, 'login', reply);
+    await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
+    return user;
+  }
+
+  /** Exchange an emailed link's code for a session and set its cookies. */
+  private async exchangeLink(
+    token: string,
+    type: string,
+    reply: FastifyReply,
+  ): Promise<{ id: string; email?: string }> {
     const { data, error } = await this.supabase.anon.auth.verifyOtp({
       token_hash: token,
       type: 'magiclink',
@@ -421,30 +465,7 @@ export class AuthService {
       session.refresh_token ?? '',
       session.expires_in,
     );
-
-    const refusedPath =
-      type === 'claim' && personId
-        ? await this.claimFromLink(session.user.id, session.user.email, personId)
-        : null;
-
-    // Silent autolink to a matching global profile on any login path
-    // (login / public_login / claim — all benefit).
-    await this.tryAutolinkGlobalPerson(session.user.id, session.user.email ?? null);
-
-    // Redirect to appropriate destination
-    const safeRedirect = this.validateRedirect(next);
-    const path =
-      type === 'public_login'
-        ? safeRedirect === '/'
-          ? '/me'
-          : safeRedirect
-        : type === 'login'
-          ? safeRedirect === '/'
-            ? '/dashboard'
-            : safeRedirect
-          : safeRedirect;
-    const destination = this.buildPostAuthRedirectUrl(refusedPath ?? path, type);
-    void reply.redirect(destination);
+    return session.user;
   }
 
   /**
