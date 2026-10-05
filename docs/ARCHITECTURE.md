@@ -1161,6 +1161,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
 > saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409 and
 > 403, the entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining.
+> The second try's answer is read as a first answer (`answerBadRequest`): a 401, at the sequence
+> read too, or a 403 about the person makes the hit wait as below, and a 409 is held with its own
+> code.
 > The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A

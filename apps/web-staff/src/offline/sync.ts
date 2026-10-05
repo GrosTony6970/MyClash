@@ -61,6 +61,14 @@ interface ExchangeResponse {
   id: string;
 }
 
+/** The statuses `answerRefusal` reads: about the caller or the bout, never the sequence. */
+const REFUSALS = [409, 403, 401];
+
+/** An answer of that kind, met on the way to a second try. */
+interface Refused {
+  refused: Response;
+}
+
 /** Highest `sequence` in a list response, or 0 when it carries none. */
 async function maxSequence(res: Response): Promise<number> {
   const rows = (await res.json().catch(() => [])) as Array<{ sequence?: number | null }>;
@@ -195,18 +203,23 @@ export class SyncEngine {
    * collision this succeeds; if it was anything else it fails the same way and
    * the caller quarantines. One attempt, never a loop.
    *
-   * Returns the sequence actually used and the server's row id, or null.
+   * Returns the sequence actually used and the server's row id, or null. An
+   * answer `answerRefusal` reads (the session ended, the person may not score,
+   * the Event is over) is handed back as it came: it is about the caller or
+   * the bout, not about the sequence.
    */
   private async retryWithFreshSequence(
     entry: OutboxEntry,
-  ): Promise<{ sequence: number; serverId: string } | null> {
+  ): Promise<{ sequence: number; serverId: string } | Refused | null> {
     const sequence = await this.freshSequence(entry.matchId);
     // Same sequence means nothing changed — a second identical POST would only
     // reproduce the same refusal.
     if (sequence === null || sequence === entry.sequence) return null;
+    if (typeof sequence !== 'number') return sequence;
 
     const res = await this.postExchange(entry, sequence);
-    // Only a 2xx is on the server. A 409 is a refusal, as in `drain`.
+    if (REFUSALS.includes(res.status)) return { refused: res };
+    // Only a 2xx is on the server.
     if (!res.ok) return null;
     const data = (await res.json().catch(() => ({}))) as Partial<ExchangeResponse>;
     return { sequence, serverId: data.id ?? entry.clientUuid };
@@ -222,12 +235,15 @@ export class SyncEngine {
    * in the first place. Reading one table would fix the collision it was
    * refused for and walk straight into its twin.
    */
-  private async freshSequence(matchId: string): Promise<number | null> {
+  private async freshSequence(matchId: string): Promise<number | Refused | null> {
     try {
       const [exchanges, penalties] = await Promise.all([
         fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
         fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
       ]);
+      // The session ended between the hit's answer and this read: nobody is
+      // signed in, and the hit waits (ruling 241).
+      if (exchanges.status === 401) return { refused: exchanges };
       // Exchanges must answer — it is the older endpoint and the one every
       // match has. A penalties read that fails degrades to "no cards", which is
       // still better than giving up on the retry entirely.
@@ -283,6 +299,38 @@ export class SyncEngine {
     return 'stopped';
   }
 
+  /**
+   * A 400 is a refusal, NOT proof that a retry can never succeed. The single
+   * most likely cause is a sequence this match has already used (two pads, or
+   * a reload that seeded from a stale max), so re-derive the sequence from the
+   * server and try exactly once more. That second try is read as a first
+   * answer: one about the caller makes the hit wait, it does not hold it.
+   */
+  private async answerBadRequest(
+    entry: OutboxEntry,
+    res: Response,
+  ): Promise<'sent' | 'held' | 'failed' | 'stopped'> {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    const retried = await this.retryWithFreshSequence(entry);
+    if (retried && 'refused' in retried) return this.answerRefusal(entry, retried.refused);
+    if (retried) {
+      await markSynced(
+        entry.id!,
+        entry.clientUuid,
+        entry.matchId,
+        retried.sequence,
+        retried.serverId,
+      );
+      return 'sent';
+    }
+    // Held, never destroyed: a refused exchange is a hit a referee actually
+    // scored. Moving it out of the outbox keeps the in-order queue draining,
+    // and `emit` forces 'error' while any are held, so the bar cannot go green
+    // over it.
+    await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`);
+    return 'held';
+  }
+
   // ── Drain ───────────────────────────────────────────────────────────────────
 
   /**
@@ -318,36 +366,13 @@ export class SyncEngine {
           await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
           consecutiveFailures = 0;
           await this.emit('syncing');
-        } else if ([409, 403, 401].includes(res.status)) {
-          const outcome = await this.answerRefusal(entry, res);
+        } else if (res.status === 400 || REFUSALS.includes(res.status)) {
+          const outcome =
+            res.status === 400
+              ? await this.answerBadRequest(entry, res)
+              : await this.answerRefusal(entry, res);
           if (outcome === 'stopped') return;
-          consecutiveFailures = outcome === 'held' ? 0 : consecutiveFailures + 1;
-          await this.emit('syncing');
-        } else if (res.status === 400) {
-          // A refusal, NOT proof that a retry can never succeed. The single
-          // most likely cause is a sequence this match has already used (two
-          // pads, or a reload that seeded from a stale max), so re-derive the
-          // sequence from the server and try exactly once more.
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          const retried = await this.retryWithFreshSequence(entry);
-
-          if (retried) {
-            await markSynced(
-              entry.id!,
-              entry.clientUuid,
-              entry.matchId,
-              retried.sequence,
-              retried.serverId,
-            );
-          } else {
-            // Held, never destroyed: a refused exchange is a hit a referee
-            // actually scored. Moving it out of the outbox keeps the in-order
-            // queue draining — the whole point of the delete this replaces —
-            // and `emit` now forces 'error' while any are held, so the bar
-            // cannot go green over it.
-            await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`);
-          }
-          consecutiveFailures = 0;
+          consecutiveFailures = outcome === 'failed' ? consecutiveFailures + 1 : 0;
           await this.emit('syncing');
         } else {
           const body = (await res.json().catch(() => null)) as FailureBody | null;
