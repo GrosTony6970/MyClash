@@ -94,6 +94,17 @@ describe('the sentence of a refused tap', () => {
   });
 });
 
+describe('a tap the server accepted with no body', () => {
+  it('is a booking, and never a throw out of the page’s tap handler', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(changeBooking(API, 's-1', 'book', 'none')).resolves.toEqual({
+      ok: true,
+      status: 'confirmed',
+    });
+  });
+});
+
 const source = (path: string) => readFileSync(resolve(__dirname, '../../..', path), 'utf8');
 
 describe('the personal Workshops page', () => {
@@ -121,7 +132,30 @@ describe('the personal Workshops page', () => {
 
   it('says it under the button of the session that was tapped', () => {
     expect(page).toMatch(
-      /onCancel=\{\(\) => void act\(session\.id, 'cancel'\)\}\s+\/>\s+\{refused\?\.sessionId === session\.id && \(\s+<p role="alert" className="text-xs font-semibold text-danger">\s+\{refused\.words\}\s+<\/p>\s+\)\}/,
+      /const refusedLine = refused && \(\s+<p role="alert" className="text-xs font-semibold text-danger">\s+\{refused\.words\}\s+<\/p>\s+\);/,
+    );
+    expect(page).toMatch(
+      /onCancel=\{\(\) => void act\(session\.id, 'cancel'\)\}\s+\/>\s+\{refused\?\.sessionId === session\.id && refusedLine\}/,
+    );
+  });
+
+  // The cancelled-session refusal: the read after the tap drops that session, and its card
+  // goes or shows another session. The line must not go with it.
+  it('says it above the list when the tapped session has left the list', () => {
+    expect(page).toContain(
+      "const shown = visible.map((w) => w.sessions.find((s) => s.status !== 'cancelled')?.id);",
+    );
+    expect(page).toContain(
+      'const cardGone = refused !== null && !shown.includes(refused.sessionId);',
+    );
+    expect(page).toMatch(
+      /<div className="flex flex-col gap-6">\s+\{cardGone && refusedLine\}\s+<ClashCheckNotice/,
+    );
+  });
+
+  it('says it above "no Workshop" when the last card left with it', () => {
+    expect(page).toMatch(
+      /if \(visible\.length === 0\) \{\s+return \(\s+<div className="flex flex-col gap-6">\s+\{refusedLine\}\s+<EmptyState title=\{t\('publicApp\.me\.workshops\.empty'\)\} \/>/,
     );
   });
 

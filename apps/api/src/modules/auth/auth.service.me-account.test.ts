@@ -21,7 +21,7 @@ import {
  * 295. Marie is an organiser. She opens the admin site during a short database fault: the
  * login check works, the read of her clubs fails. `/me` answered "signed in, no club, no
  * platform role", and the admin site sent her to the sign-in page. A read that DECIDES what
- * she may open now fails `/me`; the shells keep her page on an unreadable `/me`. A read that
+ * she may open now fails `/me`; the admin shells keep her page on an unreadable `/me`. A read that
  * only decorates the header (her photo, her name) degrades and leaves a warning.
  */
 const PAUL = { id: 'user-paul', email: 'paul@example.com', user_metadata: {} };
@@ -154,6 +154,23 @@ describe('the name `/me` hands an account (ruling 298)', () => {
   });
 });
 
+describe('a claim the database refuses (ruling 296)', () => {
+  it('leaves the database’s own reason in the log, not a guess about a missing table', async () => {
+    const refusal =
+      'duplicate key value violates unique constraint "persons_event_id_claimed_by_user_id_key"';
+    const { service } = build({
+      persons: [
+        { data: { id: 'row-b', email: PAUL.email, claimed_by_user_id: null }, error: null },
+        { data: null, error: { message: refusal } },
+      ],
+    });
+
+    await service.claimPersons(request, ['row-b']);
+
+    expect(warn).toHaveBeenCalledWith(`Could not claim person row-b for ${PAUL.id}: ${refusal}`);
+  });
+});
+
 describe('a read of `/me` that decides what she may open (ruling 295)', () => {
   it.each([
     ['her platform role', 'platform_roles', `Platform role of ${PAUL.id} unreadable`],
@@ -174,18 +191,18 @@ describe('a read of `/me` that decides what she may open (ruling 295)', () => {
   });
 
   it('answers her clubs, her role and her grant when every read lands', async () => {
+    // Beside the other account's rows: a read that lost its scope would hand them too.
+    const beside = (table: string, row: Record<string, unknown>) => ({
+      rows: [...(TABLES[table] as { rows: Record<string, unknown>[] }).rows, row],
+    });
     const { service } = build({
-      platform_roles: { rows: [{ user_id: PAUL.id, role: 'platform_admin' }] },
-      organization_members: {
-        rows: [
-          {
-            user_id: PAUL.id,
-            role: 'owner',
-            organizations: { id: 'org-1', slug: 'salle-1', name: 'Salle 1' },
-          },
-        ],
-      },
-      league_user_roles: { rows: [{ user_id: PAUL.id, role: 'owner' }] },
+      platform_roles: beside('platform_roles', { user_id: PAUL.id, role: 'platform_admin' }),
+      organization_members: beside('organization_members', {
+        user_id: PAUL.id,
+        role: 'owner',
+        organizations: { id: 'org-1', slug: 'salle-1', name: 'Salle 1' },
+      }),
+      league_user_roles: beside('league_user_roles', { user_id: PAUL.id, role: 'owner' }),
     });
 
     const me = await service.getMe(request);

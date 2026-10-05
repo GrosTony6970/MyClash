@@ -928,10 +928,12 @@ export class AuthService {
       if (error) throw error;
 
       await this.linkClaimedPersonGlobalProfile(userId, userEmail, personId);
-    } catch {
-      this.logger.warn(
-        `Could not update claim_status for person ${personId} — persons table not yet created`,
-      );
+    } catch (err) {
+      // The database's own reason: a second roster row of one account at an Event
+      // is refused by `persons_event_id_claimed_by_user_id_key` (0220), and the old
+      // line here blamed a missing table for every failure.
+      const reason = (err as { message?: string } | null)?.message ?? String(err);
+      this.logger.warn(`Could not claim person ${personId} for ${userId}: ${reason}`);
     }
 
     // Post-0063: no referee-identity back-fill is needed. Referee tables
@@ -1961,7 +1963,8 @@ export class AuthService {
   /**
    * What `/me` tells the admin site she may open. Both reads DECIDE: read as "no
    * role, no club", a database fault sent an organiser to the sign-in page. A
-   * failed one throws, and the shells keep her page (operator ruling 295).
+   * failed one throws (operator ruling 295). The admin shells keep her page on an
+   * unreadable `/me`, and the landing pages say they could not check (295a).
    */
   private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
     const platformRole = await readPlatformRole(this.supabase, userId);

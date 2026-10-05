@@ -137,13 +137,31 @@ function WorkshopsContent({
 
   // One card per workshop that still has a live (non-cancelled) session.
   const visible = workshops.filter((w) => w.sessions.some((s) => s.status !== 'cancelled'));
-  if (visible.length === 0) return <EmptyState title={t('publicApp.me.workshops.empty')} />;
+  // The refused tap's line. A session the organiser cancelled leaves the list at
+  // the read that follows the tap: its line is then said above the list.
+  const refusedLine = refused && (
+    <p role="alert" className="text-xs font-semibold text-danger">
+      {refused.words}
+    </p>
+  );
+  const shown = visible.map((w) => w.sessions.find((s) => s.status !== 'cancelled')?.id);
+  const cardGone = refused !== null && !shown.includes(refused.sessionId);
+
+  if (visible.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        {refusedLine}
+        <EmptyState title={t('publicApp.me.workshops.empty')} />
+      </div>
+    );
+  }
 
   const groups = groupWorkshopsByDay(visible, tz);
   const labels = registerLabels(t);
 
   return (
     <div className="flex flex-col gap-6">
+      {cardGone && refusedLine}
       <ClashCheckNotice count={unchecked} />
       {groups.map((group) => (
         <section key={group.key}>
@@ -182,11 +200,7 @@ function WorkshopsContent({
                           onRegister={() => void act(session.id, 'book', booking)}
                           onCancel={() => void act(session.id, 'cancel')}
                         />
-                        {refused?.sessionId === session.id && (
-                          <p role="alert" className="text-xs font-semibold text-danger">
-                            {refused.words}
-                          </p>
-                        )}
+                        {refused?.sessionId === session.id && refusedLine}
                         {booking === 'confirmed' && started && (
                           <WorkshopRatingControl workshopId={w.id} api={api} />
                         )}

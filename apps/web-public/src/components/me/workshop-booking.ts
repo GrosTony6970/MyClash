@@ -144,7 +144,8 @@ export async function changeBooking(
     return { ok: false, why, failure: result };
   }
   if (action === 'cancel') return { ok: true, status: 'cancelled' };
-  const { status } = result.data as { status: string };
+  // Read with `?.`: a 2xx with no body must not throw out of a page's tap handler.
+  const status = (result.data as { status?: string } | null)?.status;
   return { ok: true, status: status === 'waitlisted' ? 'waitlisted' : 'confirmed' };
 }
 
