@@ -491,6 +491,8 @@ export const admin = {
       'This correction would change who won a round that is closed. Later rounds were fought from that result, so it was not applied.',
     eventResultsFrozen:
       'This event is over and its results are frozen. The change was not applied.',
+    discardRequiresOwner:
+      'Only the owner of the organisation can delete bouts that have been fought.',
     exchangeFromBeforeReset:
       'This exchange is from before the bout was reset. It cannot be restored.',
     reseedFailed: 'Reseed failed',

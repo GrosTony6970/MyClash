@@ -75,6 +75,12 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
     valueImports('../phases/phases.service.ts', 'BracketAdvanceService');
   });
 
+  // Rulings 276, 277: a deleted phase closes the requests that wait on its bouts.
+  // Absent, the delete still runs and who asked is told nothing.
+  it('phases.service value-imports FrozenResultsGuard', () => {
+    valueImports('../phases/phases.service.ts', 'FrozenResultsGuard');
+  });
+
   // A result override reaches BracketAdvanceService twice: to refuse the write
   // once a dependent match has started, and to clear the downstream slot sides
   // so re-advancement is not a silent no-op. Both are `this.bracketAdvance?.`
@@ -139,6 +145,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     'PenaltiesService',
     'ExchangeEditRequestsAdminService',
     'MatchCompletionService',
+    'PhasesService',
   ];
 
   const moduleFiles = walk(apiSrc);
@@ -172,6 +179,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     ['../admin/exchange-edit-requests.service.ts', '../admin/admin.module.ts'],
     ['../admin/exchange-edit-requests.service.ts', '../admin/review-queue.module.ts'],
     ['../phases/match-completion.service.ts', '../phases/phases.module.ts'],
+    ['../phases/phases.service.ts', '../phases/phases.module.ts'],
   ];
 
   /**

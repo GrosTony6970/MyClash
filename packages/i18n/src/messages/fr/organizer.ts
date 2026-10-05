@@ -2496,6 +2496,11 @@ export const organizer = {
       regenerateConfirmBody:
         'Les poules existantes et tous leurs matchs seront supprimés. Cette action est irréversible.',
       regenerateConfirmYes: 'Oui, régénérer',
+      regenerateFoughtTitle: 'Supprimer des assauts disputés ?',
+      regenerateFoughtOne:
+        'Un assaut de ces poules a déjà été disputé. Son résultat et ses échanges disparaissent avec lui.',
+      regenerateFoughtMany:
+        '{count} assauts de ces poules ont déjà été disputés. Leurs résultats et leurs échanges disparaissent avec eux.',
       cancel: 'Annuler',
       save: 'Enregistrer',
       delete: 'Supprimer',

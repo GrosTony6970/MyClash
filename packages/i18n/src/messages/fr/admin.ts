@@ -498,6 +498,8 @@ export const admin = {
       "Cette correction changerait le vainqueur d'une manche close. Les manches suivantes ont été disputées à partir de ce résultat : elle n'a pas été appliquée.",
     eventResultsFrozen:
       "Cet événement est terminé et ses résultats sont figés. La modification n'a pas été appliquée.",
+    discardRequiresOwner:
+      "Seul un propriétaire de l'organisation peut supprimer des assauts déjà disputés.",
     exchangeFromBeforeReset:
       "Cet échange date d'avant la remise à zéro du combat. Il ne peut pas être restauré.",
     reseedFailed: 'Échec du réamorçage',

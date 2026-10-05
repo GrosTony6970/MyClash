@@ -2541,6 +2541,11 @@ export const organizer = {
       regenerateConfirmBody:
         'Existing pools and all their matches will be deleted. This cannot be undone.',
       regenerateConfirmYes: 'Yes, regenerate',
+      regenerateFoughtTitle: 'Delete fought bouts?',
+      regenerateFoughtOne:
+        'One bout of these pools has already been fought. Its result and its exchanges go with it.',
+      regenerateFoughtMany:
+        '{count} bouts of these pools have already been fought. Their results and their exchanges go with them.',
       cancel: 'Cancel',
       save: 'Save',
       delete: 'Delete',

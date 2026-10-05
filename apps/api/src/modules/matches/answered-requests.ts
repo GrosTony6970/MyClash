@@ -34,6 +34,13 @@ import {
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { ExchangeEditRequestRow, ExchangeEditRequestType } from './frozen-results.guard';
 
+/**
+ * Why every hit of a bout stopped counting: a reset voided them, or a door
+ * deleted the bout with its phase (`phases/discard-fought-bouts.ts`, rulings
+ * 276, 277). The audit line of each closed request says which.
+ */
+export type ResetCause = 'bout_reset' | 'bout_deleted';
+
 /** What was done to the hit, by somebody who needs no review. */
 export type DirectCorrection = ExchangeEditRequestType | 'edit';
 
@@ -155,6 +162,7 @@ export async function closeResetRequests(
   deps: RequestClosureDeps,
   matchIds: readonly string[],
   actorUserId?: string,
+  cause: ResetCause = 'bout_reset',
 ): Promise<ExchangeEditRequestRow[]> {
   if (matchIds.length === 0) return [];
   const reason = correctionBoutReset();
@@ -189,7 +197,7 @@ export async function closeResetRequests(
       action: 'exchange_edit_request.reject',
       entityType: 'exchange_edit_request',
       entityId: request.id,
-      payload: { request, reason, answeredBy: 'bout_reset' },
+      payload: { request, reason, answeredBy: cause },
     }).catch((cause: Error) => ({ error: cause }));
     if (audit.error) {
       deps.logger.warn(`No audit row for request ${request.id}: ${audit.error.message}`);

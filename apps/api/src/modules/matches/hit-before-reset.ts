@@ -14,7 +14,8 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * `occurred_at`) against `occurred_at` of the bout's newest `reset_match` line.
  * Both reset paths write that line (`MatchesService.resetMatch`,
  * `revertMatchToUnplayed`). A reset voids the hits and THEN writes its line, so
- * a hit saved at the same instant is from before it.
+ * a hit saved at the same instant is from before it; and a reset that fails
+ * between the two leaves its hits restorable until it is run again.
  *
  * A failed read is a plain Error: "could not read" must not pass as "never
  * reset".

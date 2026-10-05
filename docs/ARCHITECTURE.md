@@ -1985,7 +1985,17 @@ revert: a later step that fails then strands none. A hit from before its bout's 
 not restored (275): `matches/hit-before-reset.ts` compares the time the server saved the hit with
 the time of the bout's newest `reset_match` line, and refuses with the code
 `exchange_from_before_reset`, before the lock and before the review, so a direct restore, a
-request and an approval are refused alike. A reopen that keeps the hits (a clock reopen, a status
+request and an approval are refused alike. Three doors delete a whole phase and its bouts with
+it: the forced "generate Pools again", "Regenerate bracket" and "Delete bracket"
+(`phases/discard-fought-bouts.ts`). When a bout of the phase reads running, paused or completed,
+only the organisation's owner passes (279); an admin is refused with the code
+`discard_requires_owner`. The bar reads the bout's status: a bout set back to scheduled by a
+status change keeps its hits and does not count. The Pools door
+also wants the discard said (`discardScoredResults`): without it the 409 carries the code
+`scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm
+(280). A request goes with its bout by the cascade, so each of these doors first closes the
+requests that wait on the phase's bouts, as a reset does, with `answeredBy: 'bout_deleted'` in the
+audit line, and tells who asked once the delete has run (276, 277). A reopen that keeps the hits (a clock reopen, a status
 change) closes no request of that bout: the request still names a hit that counts, and it waits
 (260). These notices
 ring a phone only: they carry no email (256). A request's saved reason is read by a reviewer of

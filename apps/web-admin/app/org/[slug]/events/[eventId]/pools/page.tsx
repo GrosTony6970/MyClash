@@ -17,7 +17,6 @@ import Link from 'next/link';
 import {
   ConfirmDialog,
   HelpTooltip,
-  Modal,
   RowActionButton,
   TournamentColorDot,
   useToast,
@@ -27,11 +26,13 @@ import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
+import { RegenerateConfirms } from './RegenerateConfirms';
 import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
 import { RefereeVerdictBanner } from '@/components/RefereeVerdictBanner';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
-import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
+import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -140,6 +141,8 @@ export default function PoolsPage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
+  // How many fought bouts a forced regeneration would delete; null = not asked.
+  const [foughtAtStake, setFoughtAtStake] = useState<number | null>(null);
   const [existingPhase, setExistingPhase] = useState(false);
   // Lifecycle (delete one, delete all, add empty)
   const [pendingDeletePoolId, setPendingDeletePoolId] = useState<string | null>(null);
@@ -260,11 +263,28 @@ export default function PoolsPage() {
 
   // ── Generate pools ──────────────────────────────────────────────────────────
 
-  async function generate(force = false) {
+  /**
+   * A refusal the page answers with a confirm, not with a message.
+   *
+   * Fought bouts would go: the second confirm names how many, and its yes sends
+   * the discard (ruling 280). Else a 409 of an UNFORCED call means Pools already
+   * exist, and the page offers to overwrite them. A forced call's other 409 is
+   * said: asked again, it would be refused again, for ever.
+   */
+  function asksToConfirm(refusal: ApiFailure, force: boolean): boolean {
+    const fought = foughtBoutsAtStake(refusal);
+    if (fought !== null) setFoughtAtStake(fought);
+    else if (!force && refusal.kind === 'http' && refusal.status === 409) setShowForceConfirm(true);
+    else return false;
+    return true;
+  }
+
+  async function generate(force = false, discard = false) {
     if (!selectedTournament) return;
     setGenerating(true);
     setError(null);
     setShowForceConfirm(false);
+    setFoughtAtStake(null);
 
     try {
       const body: Record<string, unknown> = {
@@ -273,6 +293,7 @@ export default function PoolsPage() {
       };
       if (mode === 'poolCount') body['poolCount'] = poolCount;
       else body['targetSize'] = targetSize;
+      if (discard) body['discardScoredResults'] = true;
 
       // The response body is deliberately unread: the GET endpoint below is
       // the source of truth for the full Pool[] shape (members included), and
@@ -283,15 +304,9 @@ export default function PoolsPage() {
         { method: 'POST', body },
       );
 
-      // NOT a message: a 409 here means pools already exist, and the screen
-      // offers to overwrite them rather than saying anything.
-      if (!r.ok && r.kind === 'http' && r.status === 409) {
-        setShowForceConfirm(true);
-        return;
-      }
-
       if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.poolGenerationFailed'));
+        if (asksToConfirm(r, force)) return;
+        const message = discardFailureMessage(r, t, t('admin.common.poolGenerationFailed'));
         if (message) throw new Error(message);
         return;
       }
@@ -668,36 +683,16 @@ export default function PoolsPage() {
               </div>
             )}
 
-            {/* Force regenerate confirmation */}
-            <Modal
-              open={showForceConfirm}
-              onClose={() => setShowForceConfirm(false)}
-              size="sm"
-              title={t('organizer.pools.page.regenerateConfirmTitle')}
-              footer={
-                <>
-                  <button
-                    onClick={() => setShowForceConfirm(false)}
-                    className="px-4 py-2 border border-border rounded-lg text-sm text-foreground-secondary hover:bg-background"
-                  >
-                    {t('organizer.pools.page.cancel')}
-                  </button>
-                  <button
-                    onClick={() => void generate(true)}
-                    className="px-4 py-2 bg-danger hover:bg-danger-hover text-danger-foreground font-semibold rounded-lg text-sm"
-                  >
-                    {t('organizer.pools.page.regenerateConfirmYes')}
-                  </button>
-                </>
-              }
-            >
-              <div className="text-center">
-                <p className="text-4xl mb-3">⚠️</p>
-                <p className="text-muted text-sm">
-                  {t('organizer.pools.page.regenerateConfirmBody')}
-                </p>
-              </div>
-            </Modal>
+            <RegenerateConfirms
+              askOverwrite={showForceConfirm}
+              foughtAtStake={foughtAtStake}
+              onCancel={() => {
+                setShowForceConfirm(false);
+                setFoughtAtStake(null);
+              }}
+              onOverwrite={() => void generate(true)}
+              onDiscard={() => void generate(true, true)}
+            />
 
             {/* Pool cards with drag-drop — one pool per row, full width of
                 the left column. Stacks vertically so each pool's fighter

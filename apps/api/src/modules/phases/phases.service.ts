@@ -5,7 +5,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -43,6 +42,13 @@ import {
 } from './double-elim-config';
 import { MatchPlacementService } from '../matches/match-placement.service';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
+// Value import: a DI dependency (see di-wiring.regression.test.ts).
+import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import {
+  assertOwnerDiscards,
+  deletePhaseWithItsRequests,
+  SCORED_BOUTS_WOULD_BE_DISCARDED,
+} from './discard-fought-bouts';
 import { buildRoundCode } from '../matches/round-code.helper';
 import {
   fetchRefereeAssignmentIndex,
@@ -173,6 +179,10 @@ export class PhasesService {
     // Optional for the same reason; the per-Pool crew door refuses to write without it.
     @Optional()
     private readonly refereeBoard?: AssignmentBoardService,
+    // Optional and last for the same reason. Closes the correction requests of
+    // the bouts a deleted phase takes with it (`discard-fought-bouts.ts`).
+    @Optional()
+    private readonly frozenResults?: FrozenResultsGuard,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -229,16 +239,10 @@ export class PhasesService {
 
     // Delete existing pool phase if force=true
     if (existing && force) {
-      await this.assertForceRegenerationAllowed(
-        (existing as { id: string }).id,
-        organizationId,
-        userId,
-        dto.discardScoredResults === true,
-      );
-      await this.supabase.service
-        .from('phases')
-        .delete()
-        .eq('id', (existing as { id: string }).id);
+      const phaseId = (existing as { id: string }).id;
+      const discard = dto.discardScoredResults === true;
+      await this.assertForceRegenerationAllowed(phaseId, organizationId, userId, discard);
+      await this.deletePhaseAndBouts(phaseId, userId);
     }
 
     // Fetch registrations
@@ -466,6 +470,7 @@ export class PhasesService {
     // (a DELETE of the phase, cascading to every match, exchange, card,
     // forfeit and referee assignment under it) ran for anyone the global
     // AuthGuard admitted, in any organisation.
+    let organizationId: string | null = null;
     if (actorUserId !== 'system') {
       const { data: tournamentRow } = await this.supabase.service
         .from('tournaments')
@@ -479,6 +484,7 @@ export class PhasesService {
         throw new BadRequestException('Tournament organization could not be resolved');
       }
       await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+      organizationId = orgId;
     }
 
     const phaseType = dto.phaseType ?? 'single_elim';
@@ -502,31 +508,13 @@ export class PhasesService {
     }
 
     if (existing && force) {
-      const existingPhaseId = (existing as { id: string }).id;
-      // Counted before the delete, because afterwards there is nothing to
-      // count. A regenerate cascades through matches to their exchanges, cards,
-      // forfeits and referee assignments, and drops every lice_id +
-      // scheduled_at with them — and until now it was the only
-      // bracket-mutating path that recorded nothing at all.
-      const { data: doomed } = await this.supabase.service
-        .from('matches')
-        .select('id, status')
-        .eq('phase_id', existingPhaseId);
-      const doomedRows = (doomed ?? []) as Array<{ status: string }>;
-
-      await this.supabase.service.from('phases').delete().eq('id', existingPhaseId);
-
-      await insertAuditLog(this.supabase.service, {
-        actorUserId: actorUserId === 'system' ? null : actorUserId,
-        action: 'phase.bracket_regenerated',
-        entityType: 'phase',
-        entityId: existingPhaseId,
-        payload: {
-          tournamentId,
-          matchCount: doomedRows.length,
-          playedMatchCount: doomedRows.filter((m) => m.status !== 'scheduled').length,
-        },
-      });
+      const actor = actorUserId === 'system' ? undefined : actorUserId;
+      await this.replaceBracket(
+        (existing as { id: string }).id,
+        tournamentId,
+        organizationId,
+        actor,
+      );
     }
 
     // Determine qualify count
@@ -1727,6 +1715,7 @@ export class PhasesService {
       throw new BadRequestException('Phase organization could not be resolved');
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+    await this.assertBracketMayGo(phaseId, orgId, actorUserId);
 
     // Counted for the audit payload only. This used to hand-delete the phase's
     // referee_assignments first, on the stated grounds that the ON DELETE SET
@@ -1741,8 +1730,7 @@ export class PhasesService {
     const matchIds = ((matchRows ?? []) as Array<{ id: string }>).map((m) => m.id);
 
     // Drop the phase — bracket_slots, matches, and match_events cascade.
-    const { error: delErr } = await this.supabase.service.from('phases').delete().eq('id', phaseId);
-    if (delErr) throw new BadRequestException(delErr.message);
+    await this.deletePhaseAndBouts(phaseId, actorUserId);
 
     await insertAuditLog(this.supabase.service, {
       actorUserId,
@@ -1751,6 +1739,58 @@ export class PhasesService {
       entityId: phaseId,
       payload: { phaseType, matchCount: matchIds.length },
     });
+  }
+
+  /**
+   * "Regenerate bracket": the old bracket goes, with its bouts.
+   *
+   * Counted before the delete, because afterwards there is nothing to count. A
+   * regenerate cascades through matches to their exchanges, cards, forfeits and
+   * referee assignments, and drops every lice_id + scheduled_at with them, so
+   * it is written in the audit trail.
+   */
+  private async replaceBracket(
+    phaseId: string,
+    tournamentId: string,
+    organizationId: string | null,
+    actorUserId: string | undefined,
+  ): Promise<void> {
+    await this.assertBracketMayGo(phaseId, organizationId, actorUserId);
+    const { data: doomed } = await this.supabase.service
+      .from('matches')
+      .select('id, status')
+      .eq('phase_id', phaseId);
+    const doomedRows = (doomed ?? []) as Array<{ status: string }>;
+
+    await this.deletePhaseAndBouts(phaseId, actorUserId);
+
+    await insertAuditLog(this.supabase.service, {
+      actorUserId: actorUserId ?? null,
+      action: 'phase.bracket_regenerated',
+      entityType: 'phase',
+      entityId: phaseId,
+      payload: {
+        tournamentId,
+        matchCount: doomedRows.length,
+        playedMatchCount: doomedRows.filter((m) => m.status !== 'scheduled').length,
+      },
+    });
+  }
+
+  /** A bracket with a fought bout is its owner's to redraw or delete (ruling 279). */
+  private async assertBracketMayGo(
+    phaseId: string,
+    organizationId: string | null,
+    userId: string | undefined,
+  ): Promise<void> {
+    if ((await this.scoredMatchesIn('phase_id', phaseId)).length === 0) return;
+    await assertOwnerDiscards(this.orgs, organizationId, userId);
+  }
+
+  /** The one delete of the three doors that take a phase's bouts with it. */
+  private async deletePhaseAndBouts(phaseId: string, userId: string | undefined): Promise<void> {
+    const deps = { supabase: this.supabase.service, frozenResults: this.frozenResults };
+    await deletePhaseWithItsRequests(deps, phaseId, userId);
   }
 
   async getTournamentBracket(tournamentId: string) {
@@ -2354,21 +2394,15 @@ export class PhasesService {
           'have been scored. Regenerating deletes them permanently, together with their ' +
           'exchanges, penalties, match events, forfeits and referee assignments — there is ' +
           'no undo. Re-send with discardScoredResults: true to proceed.',
+        // The Pools page tells this 409 from "Pools already exist" by its code,
+        // and shows the count in its second confirm (ruling 280).
+        code: SCORED_BOUTS_WOULD_BE_DISCARDED,
         phaseId,
         scoredMatches: scored.length,
       });
     }
 
-    // Fail CLOSED on a missing actor or a missing org. The override exists to
-    // let a named human accept a permanent loss; "we could not work out who you
-    // are" is not that.
-    if (!this.orgs) throw new BadRequestException('Organizations service not wired');
-    if (!userId || !organizationId) {
-      throw new ForbiddenException(
-        'Discarding scored results requires an identified organisation owner.',
-      );
-    }
-    await this.orgs.assertOrgRole(organizationId, userId, 'owner');
+    await assertOwnerDiscards(this.orgs, organizationId, userId);
   }
 
   private async assertPoolEditAuth(poolId: string, userId: string) {

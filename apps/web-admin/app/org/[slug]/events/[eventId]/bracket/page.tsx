@@ -40,6 +40,7 @@ import {
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
+import { discardFailureMessage } from '@/lib/discard-refusal';
 import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
 import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
 import { saveRoleChanges } from './save-role-changes';
@@ -708,7 +709,7 @@ export default function BracketPage() {
       }
 
       if (!r.ok) {
-        setError(failureMessage(r, t, t('admin.common.generationFailed')));
+        setError(discardFailureMessage(r, t, t('admin.common.generationFailed')));
         return;
       }
 
@@ -796,7 +797,7 @@ export default function BracketPage() {
         method: 'DELETE',
       });
       if (!r.ok) {
-        setError(failureMessage(r, t, t('admin.common.deleteFailed')));
+        setError(discardFailureMessage(r, t, t('admin.common.deleteFailed')));
         return;
       }
       // Drop client state and fall back to the empty state.

@@ -19,6 +19,7 @@ import {
   tellResetRequests,
   type DirectCorrection,
   type RequestClosureDeps,
+  type ResetCause,
 } from './answered-requests';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
@@ -248,8 +249,9 @@ export class FrozenResultsGuard {
   async rejectPendingEditsForMatch(
     matchIds: readonly string[],
     actorUserId?: string,
+    cause: ResetCause = 'bout_reset',
   ): Promise<ExchangeEditRequestRow[]> {
-    return closeResetRequests(this.closure, matchIds, actorUserId);
+    return closeResetRequests(this.closure, matchIds, actorUserId, cause);
   }
 
   /** Tell who asked, once the reset has done its last step. Never throws. */

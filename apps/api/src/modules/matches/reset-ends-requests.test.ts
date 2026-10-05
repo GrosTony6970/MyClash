@@ -131,6 +131,20 @@ describe('a reset ends the requests that wait on its hits (rulings 257, 260)', (
     ]);
   });
 
+  // Rulings 276, 277: the bout goes with its phase, and its requests with it.
+  it('a close for a bout that is deleted says so in the audit line', async () => {
+    const s = setup();
+
+    await s.guard.rejectPendingEditsForMatch(['m1'], ORGANISER, 'bout_deleted');
+
+    expect(writesTo(s.db, 'audit_log').map((write) => write.row)).toEqual([
+      expect.objectContaining({
+        entity_id: 'r-lea',
+        payload_json: { request: R_LEA, reason: BOUT_RESET, answeredBy: 'bout_deleted' },
+      }),
+    ]);
+  });
+
   it('the close tells nobody: the reset has steps left', async () => {
     const s = setup();
 
