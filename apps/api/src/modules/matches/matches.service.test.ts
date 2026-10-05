@@ -47,7 +47,8 @@ const mockFrozenResults = {
  * quietly resolving to `{ data: null }`.
  */
 function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean }) {
-  const supabase = mockSupabase(seed);
+  // A bout never reset: `createExchange` reads its last reset (ruling 290).
+  const supabase = mockSupabase({ match_events: { rows: [] }, ...seed });
   // The placement service is doubled, not exercised. It makes reads of its own —
   // the sheet, the phases, the strip's occupants — and this file seeds a table
   // per query, so running it for real would need every one of those in every

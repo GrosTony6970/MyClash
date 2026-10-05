@@ -30,7 +30,7 @@ import {
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
-import { assertBoutStarted } from '../matches/bout-not-started';
+import { assertBoutTakes } from '../matches/bout-not-started';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type {
@@ -910,7 +910,7 @@ export class PenaltiesService {
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     this.assertMatchNotLocked(match, context);
-    assertBoutStarted(match.status);
+    await assertBoutTakes(this.supabase.service, match, dto);
 
     // Refused between rounds, exactly as `createExchange` refuses an exchange.
     // A card is stamped with the open round; while a round is closed and waiting
@@ -1896,7 +1896,7 @@ export function bumpPenaltyVersion(version: string): string {
 
 interface MatchContext {
   id: string;
-  /** Null on a row read with no status: `assertBoutStarted` judges `scheduled` only. */
+  /** Null on a row read with no status: `assertBoutTakes` judges `scheduled` only. */
   status: string | null;
   lockedAt: string | null;
   redRegistrationId: string;

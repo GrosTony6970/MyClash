@@ -380,10 +380,11 @@ function hitValues(total: number): number[] {
  * history. Use `nextExchangeSequence` to find the safe starting point.
  */
 /**
- * Start a bout nobody has started, as the pad's Start does.
+ * Set a bout nobody has started to `running`, so that it takes a hit.
  *
  * The API refuses a hit or a card for a `scheduled` bout (ruling 286): the pad
- * cannot score one either. A bout that runs, or that is over, is left alone, so
+ * cannot score one either. The pad starts the CLOCK; this writes the status
+ * alone, so the clock stays idle. A bout that runs, or that is over, is left alone, so
  * this is safe before a replay after `POST /matches/:id/reset` and on a bout a
  * spec opened itself.
  */

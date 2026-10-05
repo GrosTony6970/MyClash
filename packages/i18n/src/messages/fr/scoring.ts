@@ -168,6 +168,8 @@ export const scoring = {
       "Cet événement est terminé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur.",
     notAllowed:
       "Cette tablette n'est pas autorisée à arbitrer cet assaut : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Adressez-vous à un organisateur, puis réessayez.",
+    scoredBeforeReset:
+      "Cette saisie a été marquée avant la remise à zéro de l'assaut : le serveur ne l'a pas acceptée. Elle appartient au combat annulé. Supprimez-la ; si elle compte encore, ressaisissez-la à la main.",
     boutNotStarted:
       "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
   },

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 import { en, fr } from '@myclash/i18n';
 
-import { heldReason, refusalMessage } from './refusal-copy';
+import { canSendAgain, heldReason, refusalMessage } from './refusal-copy';
 
 /**
  * Each case pins one thing the referee must be told. The mapper's whole job is
@@ -74,6 +74,27 @@ describe('heldReason', () => {
     );
   });
 
+  // Ruling 290: the hit belongs to a fight that was cancelled. A new send
+  // meets the same refusal for ever, so the inbox offers Discard alone.
+  it('says a hit scored before a reset in the reader’s language, with no way to send it again', () => {
+    const held = { rejectedReason: 'Scored before the reset', rejectedCode: 'scored_before_reset' };
+
+    expect(heldReason(held, t)).toBe('scoring.quarantine.scoredBeforeReset');
+    expect(canSendAgain(held)).toBe(false);
+    expect(en.scoring.quarantine.scoredBeforeReset).toBe(
+      'This entry was scored before the bout was reset, so the server did not accept it. It belongs to the fight that was cancelled. Discard it; if it still counts, enter it again by hand.',
+    );
+    expect(fr.scoring.quarantine.scoredBeforeReset).toBe(
+      "Cette saisie a été marquée avant la remise à zéro de l'assaut : le serveur ne l'a pas acceptée. Elle appartient au combat annulé. Supprimez-la ; si elle compte encore, ressaisissez-la à la main.",
+    );
+  });
+
+  it('lets every other held hit be sent again', () => {
+    expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'bout_not_started' })).toBe(true);
+    expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'event_results_frozen' })).toBe(true);
+    expect(canSendAgain({ rejectedReason: 'Match is locked' })).toBe(true);
+  });
+
   it('keeps the server’s own words for any other refusal', () => {
     expect(heldReason({ rejectedReason: 'Match is locked' }, t)).toBe('Match is locked');
     expect(heldReason({ rejectedReason: 'Match is locked', rejectedCode: 'BAD_REQUEST' }, t)).toBe(
@@ -85,6 +106,8 @@ describe('heldReason', () => {
     // The pad's vitest mounts no component: the inbox is pinned as text.
     const inbox = readFileSync(join(__dirname, '..', 'components', 'QuarantineInbox.tsx'), 'utf8');
     expect(inbox).toContain('{heldReason(entry, t)}');
+    // The retry button of a row is drawn only for a hit a new send can save.
+    expect(inbox).toContain('{canSendAgain(entry) && (');
     expect(inbox).not.toContain('{entry.rejectedReason}');
   });
 });

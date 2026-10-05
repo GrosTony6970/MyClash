@@ -161,6 +161,8 @@ export const scoring = {
       'This event is over, so the server did not accept this entry. It is held here, not lost. Ask an organiser.',
     notAllowed:
       'This tablet is not allowed to score this bout, so the server did not accept this entry. It is held here, not lost. Ask an organiser, then retry.',
+    scoredBeforeReset:
+      'This entry was scored before the bout was reset, so the server did not accept it. It belongs to the fight that was cancelled. Discard it; if it still counts, enter it again by hand.',
     boutNotStarted:
       'This bout is not started, or it was reset after this entry. It is held here, not lost. Start the bout and retry, or discard it.',
   },

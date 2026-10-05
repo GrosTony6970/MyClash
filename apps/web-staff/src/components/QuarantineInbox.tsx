@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { heldBoutLine, heldWhoLine } from '../lib/held-hit';
-import { heldReason } from '../lib/refusal-copy';
+import { canSendAgain, heldReason } from '../lib/refusal-copy';
 import { getRejected } from '../offline/outbox';
 import type { ExchangeType, RejectedEntry } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
@@ -136,14 +136,16 @@ function QuarantineRow({
           one would say so. */}
       <p className="mt-1 text-sm text-danger">{heldReason(entry, t)}</p>
       <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onRetry}
-          className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
-        >
-          {t('scoring.quarantine.retry')}
-        </button>
+        {canSendAgain(entry) && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRetry}
+            className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
+          >
+            {t('scoring.quarantine.retry')}
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}

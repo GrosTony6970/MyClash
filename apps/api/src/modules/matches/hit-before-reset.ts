@@ -28,23 +28,57 @@ export interface SavedHit {
   recorded_at: string;
 }
 
-export async function assertSavedAfterLastReset(
+/** When the bout was last reset, or null for a bout never reset. A failed read throws. */
+async function lastResetAt(
   supabase: SupabaseService['service'],
-  hit: SavedHit,
-): Promise<void> {
+  matchId: string,
+): Promise<string | null> {
   const { data, error } = await supabase
     .from('match_events')
     .select('occurred_at')
-    .eq('match_id', hit.match_id)
+    .eq('match_id', matchId)
     .eq('type', 'reset_match')
     .order('sequence', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) {
-    throw new Error(`Could not read the resets of bout ${hit.match_id}: ${error.message}`);
+    throw new Error(`Could not read the resets of bout ${matchId}: ${error.message}`);
   }
+  return (data as { occurred_at: string } | null)?.occurred_at ?? null;
+}
 
-  const resetAt = (data as { occurred_at: string } | null)?.occurred_at;
+/** The code of the refusal of `assertScoredAfterLastReset`. The pad says it. */
+export const SCORED_BEFORE_RESET = 'scored_before_reset';
+
+/**
+ * A NEW hit or card scored before its bout's last reset is not taken (ruling 290).
+ *
+ * A pad keeps hits in a queue while it is offline. The bout is reset, and is
+ * started again on another tablet before the pad reconnects: the old hits went
+ * into the new fight with nobody looking. A hit the server has never seen has
+ * no `recorded_at`, so this rule reads the PAD's time, `occurredAt`: a pad
+ * whose clock is wrong can lose a good hit or keep an old one, and the operator
+ * ruled that risk. Equal is "before", as for a restore.
+ */
+export async function assertScoredAfterLastReset(
+  supabase: SupabaseService['service'],
+  matchId: string,
+  occurredAt: string,
+): Promise<void> {
+  const resetAt = await lastResetAt(supabase, matchId);
+  if (!resetAt || Date.parse(occurredAt) > Date.parse(resetAt)) return;
+  throw new ConflictException({
+    message:
+      'This was scored before the bout was reset. It belongs to the fight that was cancelled.',
+    code: SCORED_BEFORE_RESET,
+  });
+}
+
+export async function assertSavedAfterLastReset(
+  supabase: SupabaseService['service'],
+  hit: SavedHit,
+): Promise<void> {
+  const resetAt = await lastResetAt(supabase, hit.match_id);
   if (!resetAt || Date.parse(hit.recorded_at) > Date.parse(resetAt)) return;
   // The object form: web-admin says it by `code`, in the reader's language.
   throw new ConflictException({

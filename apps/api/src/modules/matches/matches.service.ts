@@ -18,7 +18,7 @@ import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
-import { assertBoutStarted } from './bout-not-started';
+import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
@@ -784,7 +784,7 @@ export class MatchesService {
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     if (context) await this.assertMatchUnlocked(matchId, context);
 
-    const roundNumber = await this.openRoundOf(matchId);
+    const roundNumber = await this.openRoundOf(matchId, dto.occurredAt);
 
     // Compute netted score deltas for materialized columns (raw afterblow
     // values are still stored below — only the deltas apply the mode).
@@ -850,23 +850,30 @@ export class MatchesService {
   /**
    * The round a new exchange belongs to, on a bout that takes one.
    *
-   * Refused on a bout nobody started (ruling 286). Best-of: scoring is blocked
-   * while a round is awaiting advance (the operator must start the next round
-   * first). current_round defaults to 1 and awaiting is never set for a
-   * single-round match, so this leaves bestOf = 1 behaviour unchanged.
+   * Refused on a bout nobody started, and for a hit scored before the bout's
+   * last reset (`assertBoutTakes`). Best-of: scoring is blocked while a round is
+   * awaiting advance (the operator must start the next round first).
+   * current_round defaults to 1 and awaiting is never set for a single-round
+   * match, so this leaves bestOf = 1 behaviour unchanged. A failed read is an
+   * error: "could not read the bout" is not "the bout takes it".
    */
-  private async openRoundOf(matchId: string): Promise<number> {
-    const { data } = await this.supabase.service
+  private async openRoundOf(matchId: string, occurredAt: string): Promise<number> {
+    const { data, error } = await this.supabase.service
       .from('matches')
       .select('status, current_round, awaiting_round_advance')
       .eq('id', matchId)
       .maybeSingle();
+    if (error) throw new Error(`Could not read bout ${matchId}: ${error.message}`);
     const bout = data as {
       status?: string | null;
       current_round?: number | null;
       awaiting_round_advance?: boolean | null;
     } | null;
-    assertBoutStarted(bout?.status);
+    await assertBoutTakes(
+      this.supabase.service,
+      { id: matchId, status: bout?.status },
+      { occurredAt },
+    );
     if (bout?.awaiting_round_advance) {
       throw new BadRequestException('Round ended — advance to the next round before scoring');
     }

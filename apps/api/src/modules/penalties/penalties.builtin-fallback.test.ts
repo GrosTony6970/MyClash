@@ -83,7 +83,10 @@ function filteringSupabase() {
         rows = rows.slice(0, n);
         return chain;
       }),
-      order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+      // Awaited for a list; `createPenalty` goes on to `.limit()` for the bout's last reset.
+      order: vi.fn(() =>
+        Object.assign(Promise.resolve({ data: rows, error: null }), { limit: () => chain }),
+      ),
       insert: vi.fn((payload: Row) => {
         inserted[table] = [...(inserted[table] ?? []), payload];
         rows = [payload];

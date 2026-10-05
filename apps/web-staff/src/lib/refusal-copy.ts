@@ -57,6 +57,7 @@ const PIN_ROLE_CANNOT_SCORE = 'scoring.corrections.pinRoleCannotScore';
 const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
 const HELD_NOT_ALLOWED = 'scoring.quarantine.notAllowed';
 const HELD_NOT_STARTED = 'scoring.quarantine.boutNotStarted';
+const HELD_BEFORE_RESET = 'scoring.quarantine.scoredBeforeReset';
 const NOT_STARTED = 'scoring.corrections.boutNotStarted';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
@@ -112,9 +113,19 @@ export function heldReason(
   if (held.rejectedCode === 'event_results_frozen') return t(HELD_EVENT_OVER);
   // Ruling 286: the bout was put back to unplayed after this hit was scored.
   if (held.rejectedCode === 'bout_not_started') return t(HELD_NOT_STARTED);
+  if (held.rejectedCode === 'scored_before_reset') return t(HELD_BEFORE_RESET);
   // Ruling 242: the API's own code of a 403 that carries no other one.
   if (held.rejectedCode === 'FORBIDDEN') return t(HELD_NOT_ALLOWED);
   return held.rejectedReason;
+}
+
+/**
+ * Can a new send save this held hit? Not one scored before its bout's last
+ * reset (ruling 290): the server refuses it every time, so its row offers
+ * Discard alone.
+ */
+export function canSendAgain(held: { rejectedReason: string; rejectedCode?: string }): boolean {
+  return held.rejectedCode !== 'scored_before_reset';
 }
 
 /** A refusal the pad knows by its `code`, or null. */

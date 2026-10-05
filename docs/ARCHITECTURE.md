@@ -1994,7 +1994,13 @@ only the organisation's owner passes (279); an admin is refused with the code
 would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. A new hit or
 card for a `scheduled` bout is refused with the code `bout_not_started`, after the replay probe
 (286, `matches/bout-not-started.ts`): a pad starts a bout online, so such a hit was scored before
-the bout was put back; the pad holds it, and the scorer sends it again or discards it. The Pools door
+the bout was put back; the pad holds it, and the scorer sends it again or discards it. A DIRECT
+card (given at once from the corrections drawer) is taken before the start, for a Fighter late on
+the piste (286a). And a new hit or card scored before the bout's last reset is refused whatever
+the bout reads now, with the code `scored_before_reset` (290): the rule reads the PAD's time
+(`occurredAt`) against the newest `reset_match` line, because the server never saw that hit; the
+pad holds it with Discard alone. `assertBoutTakes` is the one question both create doors ask.
+The Pools door
 also wants the discard said (`discardScoredResults`): without it the 409 carries the code
 `scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm
 (280). The two bracket doors want it too (285): the bracket page never says the discard on the
