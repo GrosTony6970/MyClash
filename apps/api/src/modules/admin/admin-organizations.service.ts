@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
+import { mailedLink, signInDoor } from '../mail/mailed-link';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -857,13 +858,12 @@ export class AdminOrganizationsService {
       const { data, error } = await this.supabase.service.auth.admin.generateLink({
         type: 'magiclink',
         email,
-        options: {
-          redirectTo: `https://admin.${domain}/org/${orgSlug}`,
-          data: { display_name: displayName },
-        },
+        options: { data: { display_name: displayName } },
       });
 
-      const magicLink = data.properties?.action_link;
+      // The sign-in door, then her club's page: never GoTrue's own link (ruling 303).
+      const door = signInDoor(domain, 'login', `/org/${orgSlug}`);
+      const magicLink = mailedLink(door, data.properties);
       if (error || !magicLink) {
         this.logger.warn(`Could not generate organizer magic link for ${email}: ${error?.message}`);
         return false;

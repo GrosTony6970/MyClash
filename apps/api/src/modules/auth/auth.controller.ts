@@ -194,8 +194,8 @@ export class AuthController {
   /**
    * GET /api/v1/auth/callback
    *
-   * Supabase Auth redirects here after the user clicks the magic link.
-   * Exchanges the token for a session, sets cookies, and redirects to the app.
+   * The mailed link lands here with its code (`mailedLink`, ruling 303).
+   * Exchanges the code for a session, sets cookies, and redirects to the app.
    */
   @Get('callback')
   @ApiOperation({ summary: 'Magic link callback — exchanges token for session' })

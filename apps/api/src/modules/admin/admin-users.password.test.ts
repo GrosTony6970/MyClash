@@ -154,7 +154,7 @@ describe('AdminUsersService — admin-initiated password recovery', () => {
         data: { id: 'u1', email: 'target@example.com' },
       });
       generateLink.mockResolvedValue({
-        data: { properties: { action_link: 'https://link.example/recover' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -166,7 +166,8 @@ describe('AdminUsersService — admin-initiated password recovery', () => {
       expect(sendMagicLink).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'target@example.com',
-          magicLink: 'https://link.example/recover',
+          // The participant app's reset page with the code, never GoTrue's own link (ruling 303).
+          magicLink: 'https://app.myclash.test/reset-password?token_hash=code-1',
         }),
       );
     });
@@ -179,7 +180,7 @@ describe('AdminUsersService — admin-initiated password recovery', () => {
         data: { id: 'u1', email: 'target@example.com' },
       });
       generateLink.mockResolvedValue({
-        data: { properties: { action_link: 'https://link.example/recover' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 

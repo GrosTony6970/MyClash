@@ -2096,7 +2096,7 @@ OrganizationRole grants always require a **claimed** account. They are never giv
 
 ### 12.7 Authentication mechanisms (v1)
 
-- **Magic link via SMTP** (Supabase Auth) — primary mechanism for claimed accounts. Used for organizer login, super admin, and Person claim. Email is the canonical identity.
+- **Magic link via SMTP** (Supabase Auth) — primary mechanism for claimed accounts. Used for organizer login, super admin, and Person claim. Email is the canonical identity. GoTrue only makes the one-time code. The API builds the mailed link itself (`apps/api/src/modules/mail/mailed-link.ts`, `mailedLink`): one of our own doors with the code as `?token_hash=`, which the door spends with `verifyOtp` of type `email` (a password reset: type `recovery`). GoTrue's own `action_link` is never mailed: on this stack it points at `/verify` on the public site, which nothing serves, and behind it GoTrue hands the session over after a `#` that no server door can read.
 - **Email + password** (Supabase Auth) — also enabled for organizer accounts, for users who prefer a password to magic-link emails. Available at signup and login.
 - **Guest session** (signed cookie + server row) — for participants who only want to find their schedule.
 - **Google OAuth** — **deferred**, not in v1. Magic link covers the same use case without requiring 2–4 weeks of Google verification review.

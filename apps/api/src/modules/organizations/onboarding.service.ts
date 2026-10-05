@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { validatePassword } from '@myclash/types';
 import { MailService } from '../mail/mail.service';
+import { mailedLink, signInDoor } from '../mail/mailed-link';
 // Value import, not `import type`: Nest reads design:paramtypes to inject it.
 import {
   LegalAcceptanceService,
@@ -138,8 +139,8 @@ export class OnboardingService {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = 'https';
 
-    // The magic link callback will carry the org creation payload in the
-    // redirect URL so we can create the org atomically after auth.
+    // The mailed link lands on the sign-up door and carries the org creation
+    // payload, so the door makes the org right after it signs her in.
     //
     // The accepted versions ride along for the same reason the org payload
     // does: on this path no auth.users row exists yet, so there is nothing to
@@ -147,28 +148,22 @@ export class OnboardingService {
     // checked against the registry above — carrying them keeps the record
     // faithful to what the user actually ticked, even if the policy is revised
     // between sending the mail and clicking the link.
-    const redirectTo = `${protocol}://admin.${domain}/api/v1/auth/signup-callback?orgName=${encodeURIComponent(orgName)}&orgSlug=${encodeURIComponent(orgSlug)}&displayName=${encodeURIComponent(displayName)}&acceptedTerms=${encodeURIComponent(versions.terms)}&acceptedPrivacy=${encodeURIComponent(versions.privacy)}`;
+    const door = `${protocol}://admin.${domain}/api/v1/auth/signup-callback?orgName=${encodeURIComponent(orgName)}&orgSlug=${encodeURIComponent(orgSlug)}&displayName=${encodeURIComponent(displayName)}&acceptedTerms=${encodeURIComponent(versions.terms)}&acceptedPrivacy=${encodeURIComponent(versions.privacy)}`;
 
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'magiclink',
       email,
-      options: {
-        redirectTo,
-        data: { display_name: displayName },
-      },
+      options: { data: { display_name: displayName } },
     });
+    // Our door with GoTrue's code, never GoTrue's own link (ruling 303).
+    const magicLink = mailedLink(door, data.properties);
 
-    if (error || !data.properties?.action_link) {
+    if (error || !magicLink) {
       this.logger.error(`Failed to generate signup magic link for ${email}: ${error?.message}`);
       throw new BadRequestException('Failed to send signup link. Please try again.');
     }
 
-    await this.mail.sendMagicLink({
-      to: email,
-      magicLink: data.properties.action_link,
-      type: 'login',
-      displayName,
-    });
+    await this.mail.sendMagicLink({ to: email, magicLink, type: 'login', displayName });
 
     this.logger.log(`Signup magic link sent to ${email} for org ${orgSlug}`);
 
@@ -191,7 +186,6 @@ export class OnboardingService {
     context: AcceptanceContext,
   ): Promise<SignupResult> {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-    const protocol = 'https';
 
     // Create the Supabase auth user (email_confirmed_at = NULL until verified)
     const { data: authData, error: authError } = await this.supabase.service.auth.admin.createUser({
@@ -215,23 +209,20 @@ export class OnboardingService {
 
     await this.createClubOrWarn(userId, orgName, orgSlug);
 
-    // Send email verification link via magic link (verifies email on click)
+    // Send email verification link via magic link (verifies email on click):
+    // the sign-in door, then her club's page (ruling 303).
     try {
       const { data: linkData } = await this.supabase.service.auth.admin.generateLink({
         type: 'magiclink',
         email,
-        options: {
-          redirectTo: `${protocol}://admin.${domain}/org/${orgSlug}`,
-        },
       });
+      const magicLink = mailedLink(
+        signInDoor(domain, 'login', `/org/${orgSlug}`),
+        linkData.properties,
+      );
 
-      if (linkData.properties?.action_link) {
-        await this.mail.sendMagicLink({
-          to: email,
-          magicLink: linkData.properties.action_link,
-          type: 'login',
-          displayName,
-        });
+      if (magicLink) {
+        await this.mail.sendMagicLink({ to: email, magicLink, type: 'login', displayName });
       }
     } catch (err) {
       // Non-fatal — user can request a new verification email

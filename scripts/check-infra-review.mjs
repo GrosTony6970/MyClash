@@ -988,7 +988,14 @@ for (const expected of ['SIGNUP_ACTION_THROTTLE', '@Throttle(SIGNUP_ACTION_THROT
 }
 requireContains(authServiceText, 'AuthService', 'public_login');
 requireContains(authServiceText, 'AuthService', 'getPersonalSpace');
-requireContains(authServiceText, 'AuthService', 'api.${domain}');
+// The sign-in door's host: its one owner builds every mailed link (ruling 303).
+requireContains(
+  await pinned.readPinnedFile(
+    path.join(path.dirname(authServicePath), '..', 'mail', 'mailed-link.ts'),
+  ),
+  'mailed-link.ts',
+  'api.${domain}',
+);
 requireContains(
   composeText,
   'prod GOTRUE_URI_ALLOW_LIST',

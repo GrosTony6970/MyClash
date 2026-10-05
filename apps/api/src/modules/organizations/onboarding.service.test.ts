@@ -101,7 +101,7 @@ describe('OnboardingService', () => {
     it('sends magic link and returns orgSlug', async () => {
       fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -171,7 +171,7 @@ describe('OnboardingService', () => {
         error: null,
       });
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/verify' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -296,7 +296,7 @@ describe('OnboardingService', () => {
       // acceptance is silently never recorded for every magic-link organiser.
       fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -309,9 +309,9 @@ describe('OnboardingService', () => {
         ...ACCEPTED,
       });
 
-      const redirectTo = generateLinkMock.mock.calls[0]?.[0]?.options?.redirectTo as string;
-      expect(redirectTo).toContain(`acceptedTerms=${encodeURIComponent(ACCEPTED.acceptedTerms)}`);
-      expect(redirectTo).toContain(
+      const { magicLink } = mockMail.sendMagicLink.mock.calls[0]?.[0] as { magicLink: string };
+      expect(magicLink).toContain(`acceptedTerms=${encodeURIComponent(ACCEPTED.acceptedTerms)}`);
+      expect(magicLink).toContain(
         `acceptedPrivacy=${encodeURIComponent(ACCEPTED.acceptedPrivacy)}`,
       );
     });

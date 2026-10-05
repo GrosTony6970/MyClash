@@ -61,7 +61,7 @@ describe('AuthService.signInFromSignupLink (ruling 299)', () => {
       ANNA,
     );
 
-    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'token-hash', type: 'magiclink' });
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'token-hash', type: 'email' });
     expect(reply.setCookie.mock.calls.map(([name, value]) => [name, value])).toEqual([
       ['sb-access-token', 'access'],
       ['sb-refresh-token', 'refresh'],

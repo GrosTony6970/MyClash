@@ -129,7 +129,7 @@ describe('AdminOrganizationsService', () => {
       detail: {},
     });
     authAdminMock.generateLink.mockResolvedValue({
-      data: { properties: { action_link: 'https://auth.example/magic' } },
+      data: { properties: { hashed_token: 'code-1' } },
       error: null,
     });
     mockMail.sendMagicLink.mockResolvedValue(undefined);
@@ -204,7 +204,13 @@ describe('AdminOrganizationsService', () => {
           entity_id: 'org-1',
         }),
       );
-      expect(mockMail.sendMagicLink).toHaveBeenCalledOnce();
+      // The sign-in door, then her club's page: never GoTrue's own link (ruling 303).
+      expect(mockMail.sendMagicLink).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          magicLink:
+            'https://api.myclash.localhost/api/v1/auth/callback?type=login&next=%2Forg%2Flyon-amhe&token_hash=code-1',
+        }),
+      );
       expect(result.magicLinkSent).toBe(true);
       // The welcome email carries the credential, so it has to carry the SAME
       // one the caller was handed — an owner mailed a different password than

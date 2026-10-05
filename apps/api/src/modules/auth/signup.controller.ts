@@ -76,8 +76,8 @@ export class SignupController {
   /**
    * GET /api/v1/auth/signup-callback
    *
-   * Called after the magic-link signup flow. The magic link redirects here
-   * with the org creation payload in query params. We exchange the token,
+   * Called after the magic-link signup flow. The mailed link lands here with
+   * its code and the org creation payload in query params. We exchange the code,
    * create the org, and redirect to the org dashboard. A club that cannot be
    * made fails the request: she is signed in by then, and the trace says why.
    */

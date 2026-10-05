@@ -18,6 +18,7 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
+import { mailedLink, signInDoor } from '../mail/mailed-link';
 import {
   knownRosterRows,
   publiclyKnownProfileIds,
@@ -235,16 +236,15 @@ export class AuthService {
       await this.assertClaimable(personId, email, null);
     }
 
-    // Generate magic link via Supabase Auth (GoTrue)
+    // The code comes from Supabase Auth (GoTrue); the link is ours (ruling 303).
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'magiclink',
       email,
-      options: {
-        redirectTo: this.buildRedirectUrl(safeRedirect, type, personId),
-      },
     });
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    const magicLink = mailedLink(signInDoor(domain, type, safeRedirect, personId), data.properties);
 
-    if (error || !data.properties?.action_link) {
+    if (error || !magicLink) {
       this.logger.error(`Failed to generate magic link for ${email}: ${error?.message}`);
       // Return generic message to prevent email enumeration
       return { message: 'If this email is registered, a link has been sent.' };
@@ -252,7 +252,7 @@ export class AuthService {
 
     await this.mail.sendMagicLink({
       to: email,
-      magicLink: data.properties.action_link,
+      magicLink,
       type: type === 'public_login' ? 'login' : type,
     });
 
@@ -453,9 +453,11 @@ export class AuthService {
     type: string,
     reply: FastifyReply,
   ): Promise<{ id: string; email?: string }> {
+    // 'email' takes the code of a new address and of a known one. Asked as
+    // 'magiclink', GoTrue refuses the code it made for an address with no account.
     const { data, error } = await this.supabase.anon.auth.verifyOtp({
       token_hash: token,
-      type: 'magiclink',
+      type: 'email',
     });
 
     if (error || !data.session) {
@@ -1580,22 +1582,18 @@ export class AuthService {
     // password" on admin.${DOMAIN} sets it there, not in the participant app.
     // Same helper the magic-link callbacks use, so there is one place that maps
     // an audience to a host and the host is never built from input.
-    const redirectTo = this.buildPostAuthRedirectUrl('/reset-password', audience);
+    const resetPage = this.buildPostAuthRedirectUrl('/reset-password', audience);
 
     try {
       const { data, error } = await this.supabase.service.auth.admin.generateLink({
         type: 'recovery',
         email: normalized,
-        options: { redirectTo },
       });
-      if (error || !data.properties?.action_link) {
+      const magicLink = mailedLink(resetPage, data.properties);
+      if (error || !magicLink) {
         this.logger.warn(`public-password-reset: link generation failed for ${normalized}`);
       } else {
-        await this.mail.sendMagicLink({
-          to: normalized,
-          magicLink: data.properties.action_link,
-          type: 'recovery',
-        });
+        await this.mail.sendMagicLink({ to: normalized, magicLink, type: 'recovery' });
       }
     } catch (err) {
       this.logger.warn(
@@ -1625,8 +1623,8 @@ export class AuthService {
       });
     }
 
-    // Recovery tokens come back as `?code=…` Supabase PKCE codes
-    // since the email flow goes through the new `verifyOtp` API.
+    // The reset page hands back the code of our own mailed link (`mailedLink`,
+    // ruling 303), read from its `?token_hash=`.
     const { data, error } = await this.supabase.anon.auth.verifyOtp({
       token_hash: token,
       type: 'recovery',
@@ -2153,15 +2151,6 @@ export class AuthService {
       refreshToken,
       buildSessionCookieOptions({ env, maxAge: SESSION_MAX_AGE_SECONDS, domain }),
     );
-  }
-
-  private buildRedirectUrl(path: string, type: string, personId: string | undefined): string {
-    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-    const protocol = domain.includes('localhost') ? 'https' : 'https';
-    const base = `${protocol}://api.${domain}`;
-
-    const callbackPath = `/api/v1/auth/callback?type=${type}${personId ? `&personId=${personId}` : ''}&next=${encodeURIComponent(path)}`;
-    return `${base}${callbackPath}`;
   }
 
   private buildPostAuthRedirectUrl(path: string, type: string): string {

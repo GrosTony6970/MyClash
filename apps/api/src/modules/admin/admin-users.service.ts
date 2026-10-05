@@ -17,6 +17,7 @@ import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.se
 import { addressTakenOnHerRosters, moveClaimedRowsToAddress } from '../auth/claimed-person-sync';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
+import { mailedLink } from '../mail/mailed-link';
 import { insertAuditLog } from '../../common/audit-log';
 import { generateTemporaryPassword } from '../../common/temp-password';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -852,23 +853,20 @@ export class AdminUsersService {
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'recovery',
       email,
-      // Deliberately the participant app, even though both apps now have a
-      // /reset-password page. The self-service flow returns you to the host you
-      // asked from; here nobody asked — a staff member acted on the account's
-      // behalf, and there is no requesting host to return to. Routing by whether
-      // the target holds admin access would need `hasAdminAccess`, which is
-      // private to AuthService and in a module this one does not import.
-      options: { redirectTo: `https://app.${domain}/reset-password` },
     });
-    if (error || !data?.properties?.action_link) {
+    // Deliberately the participant app, even though both apps now have a
+    // /reset-password page. The self-service flow returns you to the host you
+    // asked from; here nobody asked — a staff member acted on the account's
+    // behalf, and there is no requesting host to return to. Routing by whether
+    // the target holds admin access would need `hasAdminAccess`, which is
+    // private to AuthService and in a module this one does not import.
+    // That page with GoTrue's code, never GoTrue's own link (ruling 303).
+    const magicLink = mailedLink(`https://app.${domain}/reset-password`, data?.properties);
+    if (error || !magicLink) {
       throw new BadRequestException('Could not generate a password reset link');
     }
 
-    await this.mail.sendMagicLink({
-      to: email,
-      magicLink: data.properties.action_link,
-      type: 'recovery',
-    });
+    await this.mail.sendMagicLink({ to: email, magicLink, type: 'recovery' });
 
     // `target_email` is masked for free — maskAuditPayload keys off the suffix.
     await this.writeAuditLog(actorUserId, 'user.password_reset.send', 'user', userId, {

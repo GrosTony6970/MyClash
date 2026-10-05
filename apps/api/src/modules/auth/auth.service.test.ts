@@ -223,7 +223,7 @@ describe('AuthService', () => {
   describe('requestMagicLink — login type', () => {
     it('returns generic message on success', async () => {
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -253,7 +253,7 @@ describe('AuthService', () => {
 
     it('builds app-domain callbacks for public personal-space login', async () => {
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -263,18 +263,13 @@ describe('AuthService', () => {
         redirectTo: '/me',
       });
 
-      expect(generateLinkMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: {
-            redirectTo:
-              'https://api.myclash.localhost/api/v1/auth/callback?type=public_login&next=%2Fme',
-          },
-        }),
-      );
+      // The mail carries OUR door with the code, never GoTrue's own link (ruling 303).
       expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'fighter@example.com',
           type: 'login',
+          magicLink:
+            'https://api.myclash.localhost/api/v1/auth/callback?type=public_login&next=%2Fme&token_hash=code-1',
         }),
       );
     });
@@ -289,38 +284,38 @@ describe('AuthService', () => {
      */
     it('sends an organizer back to the admin host', async () => {
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/recover' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
       await service.publicPasswordReset('organizer@example.com', 'login');
 
-      expect(generateLinkMock).toHaveBeenCalledWith(
+      expect(generateLinkMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'recovery' }));
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'recovery',
-          options: { redirectTo: 'https://admin.myclash.localhost/reset-password' },
+          magicLink: 'https://admin.myclash.localhost/reset-password?token_hash=code-1',
         }),
       );
     });
 
     it('defaults to the participant host when no audience is given', async () => {
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/recover' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
       await service.publicPasswordReset('fighter@example.com');
 
-      expect(generateLinkMock).toHaveBeenCalledWith(
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
         expect.objectContaining({
-          options: { redirectTo: 'https://app.myclash.localhost/reset-password' },
+          magicLink: 'https://app.myclash.localhost/reset-password?token_hash=code-1',
         }),
       );
     });
 
     it('mails it as a recovery, not as a login link', async () => {
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/recover' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -362,7 +357,7 @@ describe('AuthService', () => {
         },
       });
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
@@ -373,16 +368,15 @@ describe('AuthService', () => {
       });
 
       expect(generateLinkMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          email: 'jean@example.com',
-          options: {
-            redirectTo:
-              'https://api.myclash.localhost/api/v1/auth/callback?type=claim&personId=row-1&next=%2F',
-          },
-        }),
+        expect.objectContaining({ email: 'jean@example.com' }),
       );
       expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'jean@example.com', type: 'claim' }),
+        expect.objectContaining({
+          to: 'jean@example.com',
+          type: 'claim',
+          magicLink:
+            'https://api.myclash.localhost/api/v1/auth/callback?type=claim&personId=row-1&next=%2F&token_hash=code-1',
+        }),
       );
     });
 
@@ -409,7 +403,7 @@ describe('AuthService', () => {
         },
       });
       generateLinkMock.mockResolvedValue({
-        data: { properties: { action_link: 'https://example.com/magic' } },
+        data: { properties: { hashed_token: 'code-1' } },
         error: null,
       });
 
