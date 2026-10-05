@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { ConfirmDialog } from '@myclash/ui';
 import { signAccountOut } from '../lib/account-sign-out';
 import { getApiUrl } from '../lib/api-url';
 import {
@@ -29,9 +30,14 @@ interface Actions {
   onReview: () => void;
 }
 
-/** The ways out of a red bar: Retry, the account's sign-out (ruling 244a), the inbox. */
-function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onReview }: Actions) {
+/**
+ * The account's sign-out (ruling 244a). It asks first (ruling 312): one login
+ * serves every MyClash site of the browser, so the tap signs the person out of
+ * the admin and public sites too, and the question says so.
+ */
+function AccountSignOut({ syncEngine }: { syncEngine: SyncEngine }) {
   const { t } = useI18n();
+  const [confirming, setConfirming] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const signOut = async () => {
     setSigningOut(true);
@@ -41,6 +47,37 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
       setSigningOut(false);
     }
   };
+
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="sign-account-out"
+        disabled={signingOut}
+        onClick={() => setConfirming(true)}
+        className={`${OUTLINE} disabled:opacity-50`}
+      >
+        {t('scoring.lice.signAccountOut')}
+      </button>
+      <ConfirmDialog
+        open={confirming}
+        onConfirm={() => {
+          setConfirming(false);
+          void signOut();
+        }}
+        onCancel={() => setConfirming(false)}
+        title={t('scoring.lice.signAccountOutConfirmTitle')}
+        description={t('scoring.lice.signAccountOutConfirmBody')}
+        confirmLabel={t('scoring.lice.signAccountOutConfirm')}
+        cancelLabel={t('common.cancel')}
+      />
+    </>
+  );
+}
+
+/** The ways out of a red bar: Retry, the account's sign-out, the inbox. */
+function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onReview }: Actions) {
+  const { t } = useI18n();
   // Refused exchanges are no longer in the outbox, so a plain drain would not
   // touch them: `retryRejected` re-queues the curable ones first, then drains.
   // In any other red state a held hit stays held: it would only meet the same answer.
@@ -54,17 +91,7 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
           {t('scoring.lice.retry')}
         </button>
       )}
-      {offersAccountSignOut(phase) && (
-        <button
-          type="button"
-          data-testid="sign-account-out"
-          disabled={signingOut}
-          onClick={() => void signOut()}
-          className={`${OUTLINE} disabled:opacity-50`}
-        >
-          {t('scoring.lice.signAccountOut')}
-        </button>
-      )}
+      {offersAccountSignOut(phase) && <AccountSignOut syncEngine={syncEngine} />}
       {/* Retry-everything is a guess; this is the way to find out WHAT was
           refused and why before deciding. Only offered when something is
           actually held — an empty inbox would be a dead end. */}

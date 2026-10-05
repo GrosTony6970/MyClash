@@ -346,7 +346,10 @@ describe('the bout screen', () => {
   });
 
   it('offers the sign-out from the bar’s own decision, and nowhere else', () => {
-    expect(bar).toMatch(/\{offersAccountSignOut\(phase\) && \(\s+<button/);
+    expect(bar).toContain(
+      '{offersAccountSignOut(phase) && <AccountSignOut syncEngine={syncEngine} />}',
+    );
+    expect(bar.match(/<AccountSignOut\b/g)).toHaveLength(1);
     expect(bar.match(/signAccountOut\(/g)).toHaveLength(1);
     expect(bar).toContain('await signAccountOut(getApiUrl(), syncEngine)');
     expect(bar).toContain("{t('scoring.lice.signAccountOut')}");
@@ -356,5 +359,22 @@ describe('the bout screen', () => {
     expect(bar).toMatch(/setSigningOut\(true\);\s+try \{\s+await signAccountOut\(/);
     expect(bar).toMatch(/\} finally \{\s+setSigningOut\(false\);/);
     expect(bar).toMatch(/data-testid="sign-account-out"\s+disabled=\{signingOut\}/);
+  });
+
+  it('asks first, and says how far the sign-out reaches (ruling 312)', () => {
+    // One login serves every MyClash site of the browser: the tap signs the
+    // person out of the admin and public sites too.
+    expect(bar, 'the button only opens the question').toMatch(
+      /disabled=\{signingOut\}\s+onClick=\{\(\) => setConfirming\(true\)\}/,
+    );
+    expect(bar, 'the yes signs out').toMatch(
+      /onConfirm=\{\(\) => \{\s+setConfirming\(false\);\s+void signOut\(\);\s+\}\}/,
+    );
+    expect(bar.match(/signOut\(\)/g), 'and nothing else does').toHaveLength(1);
+    expect(bar).toContain('onCancel={() => setConfirming(false)}');
+    expect(bar).toContain("title={t('scoring.lice.signAccountOutConfirmTitle')}");
+    expect(bar).toContain("description={t('scoring.lice.signAccountOutConfirmBody')}");
+    expect(bar).toContain("confirmLabel={t('scoring.lice.signAccountOutConfirm')}");
+    expect(bar).toContain("cancelLabel={t('common.cancel')}");
   });
 });

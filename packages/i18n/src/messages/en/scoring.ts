@@ -201,6 +201,11 @@ export const scoring = {
     pinRoleCannotScoreNoHits:
       "THIS TABLET'S STAFF ACCOUNT HAS A ROLE THAT CANNOT SCORE. TELL AN ORGANISER",
     signAccountOut: 'Sign that account out',
+    // One login serves every MyClash site of the browser (ruling 312).
+    signAccountOutConfirmTitle: 'Sign this account out?',
+    signAccountOutConfirmBody:
+      "This signs the account out of every MyClash site on this tablet. The tablet's own PIN stays signed in.",
+    signAccountOutConfirm: 'Sign out',
     reviewRefused: 'Review',
     backToMatchList: 'Back to match list',
     red: 'Fighter 1',

@@ -203,6 +203,10 @@ export const scoring = {
     pinRoleCannotScoreNoHits:
       'LE COMPTE STAFF DE CETTE TABLETTE A UN RÔLE QUI NE PEUT PAS SCORER. PRÉVENEZ UN ORGANISATEUR',
     signAccountOut: 'Déconnecter ce compte',
+    signAccountOutConfirmTitle: 'Déconnecter ce compte ?',
+    signAccountOutConfirmBody:
+      'Le compte sera déconnecté de tous les sites MyClash sur cette tablette. Le code PIN de la tablette reste connecté.',
+    signAccountOutConfirm: 'Déconnecter',
     reviewRefused: 'Examiner',
     backToMatchList: 'Retour à la liste des assauts',
     red: 'Combattant 1',
