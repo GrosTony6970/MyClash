@@ -119,15 +119,6 @@ export function heldReason(
   return held.rejectedReason;
 }
 
-/**
- * Can a new send save this held hit? Not one scored before its bout's last
- * reset (ruling 290): the server refuses it every time, so its row offers
- * Discard alone.
- */
-export function canSendAgain(held: { rejectedReason: string; rejectedCode?: string }): boolean {
-  return held.rejectedCode !== 'scored_before_reset';
-}
-
 /** A refusal the pad knows by its `code`, or null. */
 function codedRefusal(
   t: Translate,

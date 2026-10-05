@@ -7,6 +7,7 @@
  *   - 1000 exchanges insert in <500ms locally.
  */
 
+import { canSendAgain } from './can-send-again';
 import { db, type OutboxEntry, type RejectedEntry } from './db';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
@@ -158,7 +159,8 @@ export async function rejectedCount(): Promise<number> {
 }
 
 /**
- * Put every quarantined entry back in the outbox to be tried again.
+ * Put every quarantined entry a new send can cure back in the outbox to be
+ * tried again. One that can never pass stays held (ruling 291).
  *
  * Sequences are re-derived per match, because the most common reason a retry
  * would fail again is the sequence the entry was rejected with. `attempts` and
@@ -169,7 +171,8 @@ export async function rejectedCount(): Promise<number> {
  * the server in another order. `createdAt` rides through every move.
  */
 export async function requeueRejected(): Promise<number> {
-  const entries = (await getRejected()).sort((a, b) => a.createdAt - b.createdAt);
+  const curable = (await getRejected()).filter(canSendAgain);
+  const entries = curable.sort((a, b) => a.createdAt - b.createdAt);
   if (entries.length === 0) return 0;
 
   const nextByMatch = new Map<string, number>();

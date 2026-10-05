@@ -1999,7 +1999,9 @@ card (given at once from the corrections drawer) is taken before the start, for 
 the piste (286a). And a new hit or card scored before the bout's last reset is refused whatever
 the bout reads now, with the code `scored_before_reset` (290): the rule reads the PAD's time
 (`occurredAt`) against the newest `reset_match` line, because the server never saw that hit; the
-pad holds it with Discard alone. `assertBoutTakes` is the one question both create doors ask.
+pad holds it with Discard alone, and Retry on the pad's bar leaves it held: Retry sends only the
+held hits a new send can cure, and is not offered when such hits are all the tablet holds (291,
+`offline/can-send-again.ts`). `assertBoutTakes` is the one question both create doors ask.
 The Pools door
 also wants the discard said (`discardScoredResults`): without it the 409 carries the code
 `scored_bouts_would_be_discarded` and the count, which the Pools page shows in a second confirm

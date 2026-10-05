@@ -13,6 +13,7 @@
 import {
   discardRejected,
   getAllPending,
+  getRejected,
   markFailed,
   markSynced,
   nextSequence,
@@ -24,6 +25,7 @@ import {
 } from './outbox';
 import { fetchRenewingLogin } from '@myclash/api-client';
 import { callerRefusalOf, type CallerRefusal } from './caller-refusal';
+import { canSendAgain } from './can-send-again';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
@@ -47,6 +49,8 @@ export interface SyncState {
    * be reported to a referee as a clean sync.
    */
   rejectedCount: number;
+  /** The held ones a new send can cure: what Retry on the bar sends (ruling 291). */
+  sendableCount: number;
   /** Last error message, if status === 'error' */
   lastError?: string;
 }
@@ -90,7 +94,9 @@ export class SyncEngine {
 
   private async emit(status: SyncStatus, lastError?: string): Promise<void> {
     this.resting = status;
-    const [pendingCount, rejected] = await Promise.all([totalPendingCount(), rejectedCount()]);
+    // One read of the held hits for both counts: two reads could disagree.
+    const [pendingCount, held] = await Promise.all([totalPendingCount(), getRejected()]);
+    const rejected = held.length;
     // A held rejection outranks a clean phase. Emitting 'idle' with refused
     // exchanges on disk is what made the bar go green over a hit that was
     // thrown away — the operator has to be told, and told until they act.
@@ -101,6 +107,7 @@ export class SyncEngine {
       status: effectiveStatus,
       pendingCount,
       rejectedCount: rejected,
+      sendableCount: held.filter(canSendAgain).length,
       lastError,
     };
     for (const listener of this.listeners) {
@@ -390,14 +397,15 @@ export class SyncEngine {
   }
 
   /**
-   * Put every refused exchange back in the queue and drain again — what the
-   * operator's Retry button does.
+   * Put every refused exchange a new send can cure back in the queue and drain
+   * again — what the operator's Retry button does.
    *
    * The conditions behind a 400 are mostly transient in the operator's own
    * hands: unlock the match, advance the round, let the other pad finish. So
    * the recovery is one deliberate action, not an automatic loop that would
    * hammer the server for as long as the condition holds. `requeueRejected`
-   * re-derives sequences, so a stale one is fixed on the way through.
+   * re-derives sequences, so a stale one is fixed on the way through. A hit
+   * no new send can cure is not sent: it stays held (ruling 291).
    */
   async retryRejected(): Promise<number> {
     const requeued = await requeueRejected();
@@ -426,6 +434,15 @@ export class SyncEngine {
    */
   async discardRejectedEntry(id: number): Promise<void> {
     await discardRejected(id);
+    await this.emitResting();
+  }
+
+  /**
+   * Say the state again from what the tablet holds now. The inbox asks when it
+   * opens: another tab may have dealt with a held hit, and a bar that offers
+   * Review alone (ruling 291) has no other button that would find out.
+   */
+  async refreshState(): Promise<void> {
     await this.emitResting();
   }
 

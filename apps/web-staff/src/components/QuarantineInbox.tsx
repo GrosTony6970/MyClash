@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { heldBoutLine, heldWhoLine } from '../lib/held-hit';
-import { canSendAgain, heldReason } from '../lib/refusal-copy';
+import { heldReason } from '../lib/refusal-copy';
+import { canSendAgain } from '../offline/can-send-again';
 import { getRejected } from '../offline/outbox';
 import type { ExchangeType, RejectedEntry } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
@@ -63,7 +64,9 @@ function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
     if (!open) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async read resolves after the store responds
     void load();
-  }, [open, load]);
+    // The list above is read from the store; the bar must say the same.
+    void syncEngine.refreshState();
+  }, [open, load, syncEngine]);
 
   async function run(id: number | undefined, action: (id: number) => Promise<unknown>) {
     if (id === undefined) return;

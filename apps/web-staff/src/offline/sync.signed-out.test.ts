@@ -170,12 +170,12 @@ describe('the bout screen', () => {
     expect(bar).toContain('syncPhaseOf(networkStatus, syncState?.status)');
     expect(bar).toContain('{syncBarLabel(phase, rejected, t)}');
     expect(bar).toContain('${syncBarTone(phase)}');
-    expect(bar).toContain('{needsOperator(phase) && (');
+    expect(bar).toContain('{offersRetry(phase, { rejected, sendable, pending }) && (');
   });
 
   it('Retry leaves a held hit held while signed out', () => {
     expect(bar).toMatch(
-      /rejected > 0 && phase === 'error' \? syncEngine\.retryRejected\(\) : syncEngine\.drain\(\)/,
+      /sendable > 0 && phase === 'error' \? syncEngine\.retryRejected\(\) : syncEngine\.drain\(\)/,
     );
   });
 

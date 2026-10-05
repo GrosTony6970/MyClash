@@ -25,10 +25,24 @@ export function syncPhaseOf(
 /**
  * A state the operator must act on: a failed sync, a session that has ended
  * (ruling 241), or a person the server will not let score (rulings 244, 245).
- * All are red and all offer Retry.
+ * All are red; `offersRetry` says which offer Retry.
  */
 export function needsOperator(phase: SyncPhase): boolean {
   return phase !== 'online' && phase !== 'syncing' && phase !== 'offline';
+}
+
+/**
+ * Retry is offered while it can do something (ruling 291). When all the tablet
+ * holds are hits no new send can cure, Retry would send nothing: the inbox is
+ * the way out, and the bar offers it alone.
+ */
+export function offersRetry(
+  phase: SyncPhase,
+  held: { rejected: number; sendable: number; pending: number },
+): boolean {
+  if (!needsOperator(phase)) return false;
+  const onlyIncurable = held.rejected > 0 && held.sendable === 0 && held.pending === 0;
+  return !(phase === 'error' && onlyIncurable);
 }
 
 /**

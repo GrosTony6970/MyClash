@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 import { en, fr } from '@myclash/i18n';
 
-import { canSendAgain, heldReason, refusalMessage } from './refusal-copy';
+import { heldReason, refusalMessage } from './refusal-copy';
+import { canSendAgain } from '../offline/can-send-again';
 
 /**
  * Each case pins one thing the referee must be told. The mapper's whole job is

@@ -4,8 +4,8 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { signAccountOut } from '../lib/account-sign-out';
 import { getApiUrl } from '../lib/api-url';
 import {
-  needsOperator,
   offersAccountSignOut,
+  offersRetry,
   syncBarLabel,
   syncBarTone,
   syncPhaseOf,
@@ -21,22 +21,25 @@ const OUTLINE =
 interface Actions {
   phase: SyncPhase;
   rejected: number;
+  /** The held hits a new send can cure (ruling 291). */
+  sendable: number;
+  pending: number;
   syncEngine: SyncEngine;
   onReview: () => void;
 }
 
 /** The ways out of a red bar: Retry, the account's sign-out (ruling 244a), the inbox. */
-function SyncBarActions({ phase, rejected, syncEngine, onReview }: Actions) {
+function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onReview }: Actions) {
   const { t } = useI18n();
   // Refused exchanges are no longer in the outbox, so a plain drain would not
-  // touch them: `retryRejected` re-queues them first, then drains. In any other
-  // red state a held hit stays held: it would only meet the same answer.
+  // touch them: `retryRejected` re-queues the curable ones first, then drains.
+  // In any other red state a held hit stays held: it would only meet the same answer.
   const retry = () =>
-    void (rejected > 0 && phase === 'error' ? syncEngine.retryRejected() : syncEngine.drain());
+    void (sendable > 0 && phase === 'error' ? syncEngine.retryRejected() : syncEngine.drain());
 
   return (
     <>
-      {needsOperator(phase) && (
+      {offersRetry(phase, { rejected, sendable, pending }) && (
         <button type="button" onClick={retry} className={SOLID}>
           {t('scoring.lice.retry')}
         </button>
@@ -81,6 +84,7 @@ export function SyncBar({
   const { t } = useI18n();
   const pending = syncState?.pendingCount ?? 0;
   const rejected = syncState?.rejectedCount ?? 0;
+  const sendable = syncState?.sendableCount ?? 0;
   const phase = syncPhaseOf(networkStatus, syncState?.status);
 
   return (
@@ -99,6 +103,8 @@ export function SyncBar({
       <SyncBarActions
         phase={phase}
         rejected={rejected}
+        sendable={sendable}
+        pending={pending}
         syncEngine={syncEngine}
         onReview={onReview}
       />
