@@ -38,6 +38,29 @@ test('claim page - a refused link says the profile is held by another account', 
   await expectNoPageIssues(issues);
 });
 
+/**
+ * The Google claim (ruling 307) arrives another way: its callback page reads the API's answer
+ * and moves to the claim page inside the app, with no page load. The notice reads the address
+ * once, when it mounts, so this pins that the address is the new one by then.
+ */
+test('claim page - a refusal that arrives by a move inside the app is said too', async ({
+  page,
+}) => {
+  type AppWindow = { next?: { router?: { replace(to: string): void } } };
+  await stubPublicApi(page);
+  await page.goto('http://localhost:3001/login');
+  // A tab that answers a click means the page is live: a move asked before that is dropped.
+  await page.getByRole('tab', { name: 'Sign up' }).click();
+  await page.getByRole('tab', { name: 'Sign up', selected: true }).waitFor();
+  await page.evaluate(() =>
+    (window as AppWindow).next?.router?.replace(
+      '/e/test-event/claim?personId=row-1&claimRefused=held_by_another',
+    ),
+  );
+
+  await expect(page.getByText(HELD)).toBeVisible();
+});
+
 test('claim page - an ordinary visit shows no refusal', async ({ page }) => {
   await stubPublicApi(page);
   await page.goto('http://localhost:3001/e/test-event/claim?personId=row-1');

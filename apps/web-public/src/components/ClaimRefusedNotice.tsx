@@ -10,9 +10,9 @@ const onTheClient = () => window.location.search;
 const onTheServer = () => '';
 
 /**
- * Why the emailed claim link just used did not claim its roster row (ruling 57).
- * The API signs the reader in and sends them to the claim page, or to /me when
- * there was no row to name an Event by, with the reason in the query.
+ * Why the emailed claim link or the Google claim just used did not claim its roster
+ * row (rulings 57, 307). The API signs the reader in and sends them to the claim page,
+ * or to /me when there was no row to name an Event by, with the reason in the query.
  *
  * Reads `window.location` rather than `useSearchParams`, which the repo's React
  * Compiler setup bails out on, through `useSyncExternalStore` so the server's

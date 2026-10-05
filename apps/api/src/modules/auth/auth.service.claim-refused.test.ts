@@ -1,4 +1,4 @@
-import { ConflictException, HttpException } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
@@ -175,22 +175,37 @@ describe('the emailed claim link (ruling 300)', () => {
   });
 });
 
-describe('the Google claim (ruling 300)', () => {
+/**
+ * The Google claim is the mailed link's twin (operator ruling 307). A refusal threw: Lea read
+ * "the server rejected the sign-in (HTTP 409)" and was signed out. Google has proven her account
+ * by then, so she is signed in and sent to the claim page of the row's Event with the reason.
+ */
+describe('the Google claim (rulings 300, 307)', () => {
   const claim = (service: AuthService, reply: object) =>
     service.acceptOAuthSession(
       { accessToken: 'access', refreshToken: 'refresh', mode: 'person_claim', personId: ROW },
       reply as never,
     );
 
-  it('refuses with a coded 409, and sets no cookie', async () => {
+  it('signs her in and answers the claim page with the reason', async () => {
     const { service, reply } = build([unclaimed(ROW), SECOND_ROW_AT_EVENT, NO_ROWS]);
 
-    const failure = await claim(service, reply).catch((err: unknown) => err);
+    await claim(service, reply);
 
-    expect(failure).toBeInstanceOf(ConflictException);
-    expect((failure as ConflictException).getResponse()).toMatchObject({
-      code: 'already_at_event',
-    });
+    expect(reply.setCookie.mock.calls.map(([name]) => name)).toEqual([
+      'sb-access-token',
+      'sb-refresh-token',
+    ]);
+    expect(reply.send.mock.calls).toEqual([
+      [{ next: `/e/spring-open/claim?personId=${ROW}&claimRefused=already_at_event` }],
+    ]);
+  });
+
+  it('fails on any other failed write, with no cookie and no answer', async () => {
+    const { service, reply } = build([unclaimed(ROW), FAULT, NO_ROWS]);
+
+    await expect(claim(service, reply)).rejects.toThrow('connection refused');
     expect(reply.setCookie).not.toHaveBeenCalled();
+    expect(reply.send).not.toHaveBeenCalled();
   });
 });

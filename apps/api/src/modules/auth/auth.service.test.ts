@@ -1334,8 +1334,9 @@ describe('AuthService', () => {
       expect(reply.send).toHaveBeenCalledWith({ next: '/' });
     });
 
-    // …and a row somebody ELSE holds is still refused, on the same door.
-    it('rejects a person claim for a row another account claimed', async () => {
+    // …and a row somebody ELSE holds is still refused, on the same door: she is
+    // signed in and reads why (ruling 307). This seed has no Event to name a claim page by.
+    it('refuses a person claim for a row another account claimed, with the reason', async () => {
       mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
       const seeded = seedLogin({
         persons: [
@@ -1350,21 +1351,21 @@ describe('AuthService', () => {
         ],
       });
 
-      await expect(
-        service.acceptOAuthSession(
-          {
-            accessToken: 'access-token',
-            refreshToken: 'refresh-token',
-            mode: 'person_claim',
-            personId: CLAIMED_PERSON,
-          },
-          makeReply() as never,
-        ),
-      ).rejects.toThrow(BadRequestException);
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'person_claim',
+          personId: CLAIMED_PERSON,
+        },
+        reply as never,
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/me?claimRefused=held_by_another' });
       expect(writesTo(seeded, 'persons')).toEqual([]);
     });
 
-    it('rejects person claim when Google email does not match', async () => {
+    it('refuses a person claim when the Google email does not match, with the reason', async () => {
       mockAuthUser({ id: 'user-123', email: 'other@example.com' });
       const seeded = seedLogin({
         persons: [
@@ -1373,17 +1374,17 @@ describe('AuthService', () => {
         ],
       });
 
-      await expect(
-        service.acceptOAuthSession(
-          {
-            accessToken: 'access-token',
-            refreshToken: 'refresh-token',
-            mode: 'person_claim',
-            personId: CLAIMED_PERSON,
-          },
-          makeReply() as never,
-        ),
-      ).rejects.toThrow(BadRequestException);
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'person_claim',
+          personId: CLAIMED_PERSON,
+        },
+        reply as never,
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/me?claimRefused=email_mismatch' });
       expect(writesTo(seeded, 'persons')).toEqual([]);
       expect(getUserMock).not.toHaveBeenCalled();
     });

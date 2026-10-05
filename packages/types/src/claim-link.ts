@@ -1,5 +1,6 @@
 /**
- * Why an emailed claim link did not claim its roster row (operator ruling 57).
+ * Why an emailed claim link did not claim its roster row (operator ruling 57). The
+ * Google claim answers the same reasons the same way (ruling 307).
  *
  * The link signs its reader in either way — it proved they own the address, which
  * is all the mail tested. The API then sends them to the claim page (or to /me when

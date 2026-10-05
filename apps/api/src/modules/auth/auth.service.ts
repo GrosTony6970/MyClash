@@ -2,7 +2,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as jwt from 'jsonwebtoken';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   HttpException,
   Injectable,
@@ -62,21 +61,19 @@ import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { guestPersonOf } from './guest-person';
 import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 
+/** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
+type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
+
 /**
- * What the two claim doors that answer with an error throw for each refusal: the
- * anonymous link request and the Google claim. The emailed link's callback
- * redirects with the reason instead (ruling 57).
+ * What the one claim door that answers with an error throws for each refusal: the
+ * anonymous link request. The emailed link's callback and the Google claim
+ * hand on the reason instead (rulings 57, 307).
  */
-const CLAIM_REFUSAL_ERRORS: Record<ClaimLinkRefusal, () => HttpException> = {
+const CLAIM_REFUSAL_ERRORS: Record<ClaimCheckRefusal, () => HttpException> = {
   check_failed: () => new BadRequestException('Could not validate profile claim'),
   not_found: () => new NotFoundException('Person not found'),
   email_mismatch: () => new BadRequestException('Email does not match the registered person'),
   held_by_another: () => new BadRequestException('This profile has already been claimed'),
-  already_at_event: () =>
-    new ConflictException({
-      code: 'already_at_event',
-      message: 'This account already holds a profile at this Event',
-    }),
 };
 
 /** The unique index of migration 0220: one roster row per account at an Event (ruling 296). */
@@ -295,7 +292,9 @@ export class AuthService {
       if (!user.email) {
         throw new ForbiddenException('Google account did not provide an email address');
       }
-      await this.claimOrThrow(dto.personId, user.email, user.id);
+      // A refusal is an answer, as at the mailed link (operator ruling 307): she is
+      // signed in below and reads the reason on the claim page of the row's Event.
+      destination = (await this.claimFromLink(user.id, user.email, dto.personId)) ?? destination;
     }
 
     if (dto.mode === 'public_login') {
@@ -500,9 +499,10 @@ export class AuthService {
   }
 
   /**
-   * The emailed-link claim. The roster row comes from the link's address, not
-   * from the sign-in code, so anyone signed in with a code for their own
-   * address could name any row (ruling 46). Same check as the Google claim.
+   * The claim of the emailed link and of the Google claim (ruling 307). The
+   * roster row comes from the link's address, not from the sign-in code, so
+   * anyone signed in with a code for their own address could name any row
+   * (ruling 46).
    *
    * Answers null when the row is claimed, else the in-app path to send the
    * reader to with the reason (ruling 57): the claim page of the row's Event,
@@ -518,7 +518,7 @@ export class AuthService {
     // The check, then the write: the database refuses a second row at an Event (ruling 300).
     const refusal = checked.refusal ?? (await this.completeClaim(userId, userEmail, personId));
     if (!refusal) return null;
-    this.logger.warn(`claim link for person ${personId} refused: ${refusal}`);
+    this.logger.warn(`claim of person ${personId} refused: ${refusal}`);
     const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
     return eventSlug
       ? `/e/${encodeURIComponent(eventSlug)}/claim?personId=${encodeURIComponent(personId)}&${reason}`
@@ -959,7 +959,7 @@ export class AuthService {
     personId: string,
     email: string | undefined,
     claimingUserId: string | null,
-  ): Promise<{ refusal: ClaimLinkRefusal | null; eventSlug: string | null }> {
+  ): Promise<{ refusal: ClaimCheckRefusal | null; eventSlug: string | null }> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, email, claim_status, claimed_by_user_id, events(slug)')
@@ -990,11 +990,11 @@ export class AuthService {
    *
    * The database refuses a second roster row of one account at an Event (0220).
    * That refusal is an answer, `already_at_event`, and each door hands it on:
-   * a count, a redirect with the reason, a coded 409 (the Google claim's page
-   * says only "the server rejected the sign-in", as for its other refusals). It
-   * used to be caught and logged with every other failure, so "this is me"
-   * answered "1 claimed" and a claim link landed as a success. Any other failed
-   * write throws. The profile link behind the row stays best effort.
+   * a count ("this is me"), or the claim page with the reason (the mailed link
+   * and the Google claim, `claimFromLink`). It used to be caught and logged
+   * with every other failure, so "this is me" answered "1 claimed" and a claim
+   * link landed as a success. Any other failed write throws. The profile link
+   * behind the row stays best effort.
    */
   private async completeClaim(
     userId: string,
@@ -1024,13 +1024,6 @@ export class AuthService {
     // resolve the JWT user_id → person_id at request time via
     // global_persons.claimed_by_user_id.
     return null;
-  }
-
-  /** The Google claim: check, then write, and throw the refusal either step answers. */
-  private async claimOrThrow(personId: string, email: string, userId: string): Promise<void> {
-    await this.assertClaimable(personId, email, userId);
-    const refusal = await this.completeClaim(userId, email, personId);
-    if (refusal) throw CLAIM_REFUSAL_ERRORS[refusal]();
   }
 
   /**

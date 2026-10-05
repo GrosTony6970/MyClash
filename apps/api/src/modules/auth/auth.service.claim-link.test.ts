@@ -277,15 +277,14 @@ describe('AuthService.handleCallback — claim', () => {
     expect(await call.catch((e: { getStatus(): number }) => e.getStatus())).toBe(status);
   });
 
-  it('the Google claim answers a row another account holds with its old error', async () => {
+  it('the Google claim answers a row another account holds as the link does (307)', async () => {
     supabase.getAuthUser.mockResolvedValue({ id: USER, email: EMAIL });
     withRow({ email: EMAIL, claim_status: 'claimed', claimed_by_user_id: 'other-user' });
-    const call = service.acceptOAuthSession(
-      { accessToken: 'token', mode: 'person_claim', personId: ROW } as never,
-      makeReply() as never,
-    );
-    await expect(call).rejects.toThrow('This profile has already been claimed');
-    expect(await call.catch((e: { getStatus(): number }) => e.getStatus())).toBe(400);
+    const reply = makeReply();
+    const session = { accessToken: 'token', mode: 'person_claim', personId: ROW };
+    await service.acceptOAuthSession(session as never, reply as never);
+    const next = `/e/spring-open/claim?personId=${ROW}&claimRefused=held_by_another`;
+    expect(reply.send).toHaveBeenCalledWith({ next });
   });
 
   /**
