@@ -267,6 +267,8 @@ export const scoring = {
     directCardConfirmTitle: 'Donner ce carton ?',
     directCardConfirmBody: 'Enregistre une sanction pour {fighter}.',
     directCardConfirm: 'Donner le carton',
+    directCardOffline:
+      'Un carton donné maintenant est gardé sur cette tablette et envoyé au retour de la connexion.',
     spacebarHint: 'Appuyez sur espace pour démarrer ou pauser',
     doubleLimitTooltip: 'Maximum de doubles par match',
     cardCounterTooltip: 'Cartons {card} pour {fighter}',

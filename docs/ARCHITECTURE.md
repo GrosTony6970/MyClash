@@ -1100,7 +1100,11 @@ Implemented in [`apps/web-staff/src/offline/`](../apps/web-staff/src/offline/) â
 schema: `outbox` + `synced`), `outbox.ts`, `sync.ts` (`SyncEngine`), `reconcile.ts`.
 
 The write is **durable-first**: the exchange lands in the IndexedDB outbox before any network call, so
-closing the tab or losing wifi mid-bout cannot lose it.
+closing the tab or losing wifi mid-bout cannot lose it. A card rides the same queue, a card of the
+penalty list and a direct card alike (rulings 313, 314): the corrections drawer writes a direct card
+to the outbox, closes, and the engine sends it (`giveDirectCard` in
+[`lib/direct-card.ts`](../apps/web-staff/src/lib/direct-card.ts)). It is the one control of that
+drawer that works with no connection; a refusal is said by the bar and the refused-hits inbox.
 
 ```mermaid
 sequenceDiagram
@@ -2012,7 +2016,7 @@ would keep its hits and read unplayed. A bout goes back to unplayed by a reset o
 card for a `scheduled` bout is refused with the code `bout_not_started`, after the replay probe
 (286, `matches/bout-not-started.ts`): a pad starts a bout online, so such a hit was scored before
 the bout was put back; the pad holds it, and the scorer sends it again or discards it. A DIRECT
-card (given at once from the corrections drawer) is taken before the start, for a Fighter late on
+card (given from the corrections drawer, through the queue) is taken before the start, for a Fighter late on
 the piste (286a). And a new hit or card scored before the bout's last reset is refused whatever
 the bout reads now, with the code `scored_before_reset` (290): the rule reads the PAD's time
 (`occurredAt`) against the newest `reset_match` line, because the server never saw that hit; the

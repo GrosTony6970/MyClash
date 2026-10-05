@@ -21,19 +21,14 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
-import { cardWord } from '../lib/card-word';
 import { refusalMessage } from '../lib/refusal-copy';
-import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
-import type { PenaltyCard } from '../hooks/usePenalties';
+import { buildUnifiedTimeline, exchangeOptionLabel } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
+import type { BoutNames } from '../offline/db';
+import type { SyncEngine } from '../offline/sync';
+import { DirectCardPanel, NO_DIRECT_CARD_DRAFT } from './DirectCardPanel';
 import { ForfeitPanel } from './ForfeitPanel';
 import { apiRequest } from '@myclash/api-client';
-
-const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
-  yellow: '#eab308',
-  red: '#dc2626',
-  black: '#111827',
-};
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -70,6 +65,11 @@ interface MatchCorrectionsDrawerProps {
   /** Next penalty sequence + match-clock position — for direct cards. */
   nextSequence: number;
   clockTimeMs: number | null;
+  /** A direct card goes through the queue: the engine that sends it, the bout's
+   *  names for a held row, and the bout screen's step after a queued card. */
+  syncEngine?: SyncEngine | null | undefined;
+  bout: BoutNames;
+  onCardQueued: () => void;
 }
 
 export function MatchCorrectionsDrawer({
@@ -92,6 +92,9 @@ export function MatchCorrectionsDrawer({
   forfeitDisabled,
   nextSequence,
   clockTimeMs,
+  syncEngine,
+  bout,
+  onCardQueued,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
@@ -106,9 +109,7 @@ export function MatchCorrectionsDrawer({
   // correction endpoints can actually act on, and a queued hit has no server id
   // to void or edit.
   const { activeExchanges, activePenalties, ruleSetCards } = scoring;
-  const [dcFighter, setDcFighter] = useState<'red' | 'blue'>('red');
-  const [dcReason, setDcReason] = useState('');
-  const [dcConfirm, setDcConfirm] = useState<PenaltyCard | null>(null);
+  const [cardDraft, setCardDraft] = useState(NO_DIRECT_CARD_DRAFT);
 
   // The same numbered timeline as the centre history; the picker only offers
   // the exchange rows (its void/edit action is exchange-only), but their `#`
@@ -191,26 +192,6 @@ export function MatchCorrectionsDrawer({
     }
     const refusal = refusalMessage(result, t, 'scoring.corrections.actionFailed');
     if (refusal) setError(refusal);
-  }
-
-  async function submitDirectCard(card: PenaltyCard) {
-    const registrationId = dcFighter === 'red' ? redRegistrationId : blueRegistrationId;
-    await post(`/api/v1/matches/${matchId}/penalties`, {
-      clientUuid: crypto.randomUUID(),
-      sequence: nextSequence,
-      registrationId,
-      occurredAt: new Date().toISOString(),
-      clockTimeMs,
-      directCard: card,
-      reason: dcReason.trim(),
-    });
-    setDcReason('');
-  }
-
-  // Yellow issues directly; red/black go through the confirm dialog.
-  function requestDirectCard(card: PenaltyCard) {
-    if (card === 'yellow') void submitDirectCard('yellow');
-    else setDcConfirm(card);
   }
 
   if (!open) return null;
@@ -385,55 +366,25 @@ export function MatchCorrectionsDrawer({
             />
           </div>
 
-          {/* Direct card — manual card issuance as chips (not solid bars). */}
-          <div className="border-t border-border pt-4">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-              {t('scoring.lice.directCardSection')}
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {t('scoring.forfeits.fighter')}
-                <select
-                  value={dcFighter}
-                  onChange={(e) => setDcFighter(e.target.value as 'red' | 'blue')}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-                >
-                  <option value="red">{redName}</option>
-                  <option value="blue">{blueName}</option>
-                </select>
-              </label>
-              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-                {t('scoring.lice.directCardReason')}
-                <input
-                  value={dcReason}
-                  onChange={(e) => setDcReason(e.target.value)}
-                  placeholder={t('scoring.lice.directCardReason')}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-            <div
-              className="mt-2 grid gap-2"
-              style={{ gridTemplateColumns: `repeat(${ruleSetCards.length}, minmax(0, 1fr))` }}
-            >
-              {ruleSetCards.map((card) => (
-                <button
-                  key={card}
-                  type="button"
-                  disabled={disabled || dcReason.trim().length === 0}
-                  onClick={() => requestDirectCard(card)}
-                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border-2 bg-surface px-2 py-2 text-xs font-bold uppercase text-foreground hover:bg-background disabled:opacity-40"
-                  style={{ borderColor: DIRECT_CARD_HEX[card] }}
-                >
-                  <span
-                    className="inline-block h-3 w-3 rounded-sm"
-                    style={{ backgroundColor: DIRECT_CARD_HEX[card] }}
-                  />
-                  {cardWord(card, t)}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Direct card: through the queue, so live with no connection too. */}
+          <DirectCardPanel
+            draft={cardDraft}
+            onDraft={setCardDraft}
+            matchId={matchId}
+            redRegistrationId={redRegistrationId}
+            blueRegistrationId={blueRegistrationId}
+            redName={redName}
+            blueName={blueName}
+            ruleSetCards={ruleSetCards}
+            nextSequence={nextSequence}
+            clockTimeMs={clockTimeMs}
+            bout={bout}
+            syncEngine={syncEngine}
+            online={online}
+            disabled={busy || locked}
+            onClose={onClose}
+            onRecorded={onCardQueued}
+          />
 
           {/* Danger zone */}
           <div className="rounded-lg border border-danger/40 bg-danger/10 p-3">
@@ -462,23 +413,6 @@ export function MatchCorrectionsDrawer({
             </button>
           </div>
         </div>
-
-        <ConfirmDialog
-          open={dcConfirm !== null}
-          onConfirm={() => {
-            const card = dcConfirm;
-            setDcConfirm(null);
-            if (card) void submitDirectCard(card);
-          }}
-          onCancel={() => setDcConfirm(null)}
-          title={t('scoring.lice.directCardConfirmTitle')}
-          description={t('scoring.lice.directCardConfirmBody', {
-            fighter: dcFighter === 'red' ? redName : blueName,
-          })}
-          confirmLabel={t('scoring.lice.directCardConfirm')}
-          cancelLabel={t('common.cancel')}
-          danger
-        />
       </aside>
     </div>
   );

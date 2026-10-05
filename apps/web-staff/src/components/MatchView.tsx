@@ -715,6 +715,9 @@ export function MatchView({
         blueRegistrationId={match.blueRegistrationId}
         nextSequence={nextSequence}
         clockTimeMs={clockTimeMs}
+        syncEngine={syncEngine}
+        bout={submit.bout}
+        onCardQueued={handleScoreMutation}
         config={scoringConfig}
         scoring={scoring}
         forfeitDisabled={

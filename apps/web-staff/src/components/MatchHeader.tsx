@@ -201,6 +201,7 @@ export function MatchHeader({
           <GearLine gear={gear} redName={redName} blueName={blueName} />
           <button
             type="button"
+            data-testid="open-corrections"
             onClick={onOpenCorrections}
             className="mt-1 inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
           >

@@ -27,6 +27,18 @@ export async function enqueue(
   });
 }
 
+/** A card's row in the queue: what every card carries, around what this one is. */
+export function queueCard(
+  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'>,
+): Promise<number> {
+  return enqueue({
+    kind: 'penalty',
+    clientUuid: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    ...card,
+  });
+}
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 /** All pending entries for a match, ordered by id (insertion order). */

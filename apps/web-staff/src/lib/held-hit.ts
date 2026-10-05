@@ -9,6 +9,7 @@
  */
 
 import type { BoutNames, RejectedEntry } from '../offline/db';
+import { cardWord } from './card-word';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -21,6 +22,8 @@ type Held = Pick<
   | 'afterblowValue'
   | 'cardedColor'
   | 'cardName'
+  | 'directCard'
+  | 'reason'
 >;
 
 /** The names the bout screen shows, for the row a hit of that bout is queued with. */
@@ -55,10 +58,19 @@ function fighterOf(held: Held, color: 'red' | 'blue', t: Translate): string {
 }
 
 /**
- * Who scored, or which card and who it is against (ruling 246: the card is the
- * penalty-list entry the referee tapped; a row queued before that names only
- * the Fighter). Null for a double, a no-exchange and a card queued before the
- * row knew its corner: there is nobody to name.
+ * Which card a held row is: the penalty-list entry the referee tapped, or, for a
+ * direct card, its colour and the reason the referee typed. The colour is worded
+ * when the row is READ, so it follows the reader's language.
+ */
+function cardOf(held: Held, t: Translate): string | undefined {
+  if (!held.directCard) return held.cardName;
+  return [cardWord(held.directCard, t), held.reason].filter(Boolean).join(' · ');
+}
+
+/**
+ * Who scored, or which card and who it is against (ruling 246; a row queued
+ * before that names only the Fighter). Null for a double, a no-exchange and a
+ * card queued before the row knew its corner: there is nobody to name.
  */
 export function heldWhoLine(held: Held, t: Translate): string | null {
   if ((held.kind ?? 'exchange') === 'penalty') {
@@ -66,7 +78,8 @@ export function heldWhoLine(held: Held, t: Translate): string | null {
     const against = t('scoring.quarantine.cardAgainst', {
       who: fighterOf(held, held.cardedColor, t),
     });
-    return held.cardName ? `${held.cardName} · ${against}` : against;
+    const card = cardOf(held, t);
+    return card ? `${card} · ${against}` : against;
   }
   if (!held.firstStrikerColor || held.firstStrikeValue === undefined) return null;
   const who = fighterOf(held, held.firstStrikerColor, t);

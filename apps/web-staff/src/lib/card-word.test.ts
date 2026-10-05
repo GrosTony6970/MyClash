@@ -24,7 +24,7 @@ describe('the screens', () => {
   // web-staff has no React test setup: the screens are read as text.
   const read = (name: string) => readFileSync(join(__dirname, '..', 'components', name), 'utf8');
 
-  it.each(['ScoringColumn.tsx', 'MatchCorrectionsDrawer.tsx'])(
+  it.each(['ScoringColumn.tsx', 'MatchCorrectionsDrawer.tsx', 'DirectCardPanel.tsx'])(
     '%s holds no English colour word of its own',
     (name) => {
       expect(read(name)).not.toMatch(/'(Yellow|Red|Black)'/);
@@ -36,6 +36,6 @@ describe('the screens', () => {
   });
 
   it('a direct-card button names its colour through the owner', () => {
-    expect(read('MatchCorrectionsDrawer.tsx')).toContain('{cardWord(card, t)}');
+    expect(read('DirectCardPanel.tsx')).toContain('{cardWord(card, t)}');
   });
 });

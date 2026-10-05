@@ -113,6 +113,21 @@ describe('who a held row is about', () => {
     ).toBe('Leaving the ring · scoring.quarantine.cardAgainst {"who":"Martin"}');
   });
 
+  it('names a direct card by its colour and its reason, then who it is against', () => {
+    const direct = {
+      kind: 'penalty',
+      bout: BOUT,
+      cardedColor: 'red',
+      directCard: 'yellow',
+    } as const;
+    expect(heldWhoLine({ ...direct, reason: 'Late on the piste' }, t)).toBe(
+      'scoring.penalties.cards.yellow · Late on the piste · scoring.quarantine.cardAgainst {"who":"Dupont"}',
+    );
+    expect(heldWhoLine(direct, t), 'a row with no reason says the colour alone').toBe(
+      'scoring.penalties.cards.yellow · scoring.quarantine.cardAgainst {"who":"Dupont"}',
+    );
+  });
+
   it('says nothing for a double, a no-exchange and an older card', () => {
     expect(heldWhoLine({ bout: BOUT }, t)).toBeNull();
     expect(heldWhoLine({ kind: 'penalty', bout: BOUT }, t)).toBeNull();

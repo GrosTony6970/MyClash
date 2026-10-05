@@ -32,7 +32,7 @@ import type { PenaltyCard, PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { cardWord } from '../lib/card-word';
-import { enqueue } from '../offline/outbox';
+import { queueCard } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 
 interface ScoringColumnProps {
@@ -94,18 +94,6 @@ const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   red: 'bg-red-600',
   black: 'bg-gray-900 border border-gray-600',
 };
-
-/** A card's row in the queue: what every card carries, around what this one is. */
-function queueCard(
-  card: Omit<Parameters<typeof enqueue>[0], 'kind' | 'clientUuid' | 'occurredAt'>,
-): Promise<number> {
-  return enqueue({
-    kind: 'penalty',
-    clientUuid: crypto.randomUUID(),
-    occurredAt: new Date().toISOString(),
-    ...card,
-  });
-}
 
 /** A penalty-list entry as a card carries it: its id for the server, its name for a held row. */
 const listedCard = (entry: { id: string; short_name: string }) => ({

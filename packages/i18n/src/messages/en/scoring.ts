@@ -281,6 +281,8 @@ export const scoring = {
     directCardConfirmTitle: 'Issue this card?',
     directCardConfirmBody: 'Logs a sanction for {fighter}.',
     directCardConfirm: 'Issue card',
+    directCardOffline:
+      'A card given now is kept on this tablet and sent when the connection is back.',
     spacebarHint: 'Press space to start or pause',
     doubleLimitTooltip: 'Maximum doubles per match',
     cardCounterTooltip: '{card} cards for {fighter}',

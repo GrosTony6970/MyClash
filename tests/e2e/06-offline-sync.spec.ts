@@ -189,8 +189,8 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
    * ruleset the server is actually serving rather than hard-coded. A rulebook
    * revision must not silently turn this into an assertion about zero.
    *
-   * The column picker is the only offline path: the corrections drawer's direct
-   * card POSTs straight out instead of going through the outbox.
+   * The column picker here; the corrections drawer's direct card goes through
+   * the same outbox, and step 2c gives one.
    */
   type WireEntry = { id: string; group_number: number; ref_number: number; sanctions: string[] };
   const ruleset = await json<{ penalty_ruleset_entries?: WireEntry[] } | null>(
@@ -231,10 +231,28 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     await expect(bar).toHaveAttribute('data-pending', '2', { timeout: 15_000 });
   }
 
+  // ── 2c) OFFLINE: a direct card from the corrections drawer queues too ────────
+  // Rulings 313 + 314: the drawer writes the card to the outbox and closes.
+  const queuedBefore = await outboxCount(page);
+  await page.getByTestId('open-corrections').click();
+  const yellow = page.locator('[data-testid="direct-card-button"][data-card="yellow"]');
+  await expect(yellow, 'no reason typed yet').toBeDisabled();
+  await page.getByTestId('direct-card-reason').fill('Late on the piste');
+  await yellow.click();
+  await expect(yellow, 'the drawer closes at once').toHaveCount(0);
+  await expect.poll(() => outboxCount(page), { timeout: 15_000 }).toBe(queuedBefore + 1);
+  const serverPenaltyCount = async (): Promise<number> =>
+    (await json<unknown[]>(await request.get(api(`matches/${match.id}/penalties`)))).length;
+  const penaltiesBefore = await serverPenaltyCount();
+
   // ── 3) RECONNECT: the queue auto-drains and the server has both ──────────────
   await context.setOffline(false);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 15_000 });
   await expect.poll(() => outboxCount(page), { timeout: 20_000 }).toBe(0);
   await expect(bar).toHaveAttribute('data-pending', '0', { timeout: 15_000 });
   await expect.poll(serverExchangeCount, { timeout: 20_000 }).toBe(2);
+  // The direct card, and the list card of step 2b when it was given.
+  await expect
+    .poll(serverPenaltyCount, { timeout: 20_000 })
+    .toBe(penaltiesBefore + (redFirst ? 2 : 1));
 });

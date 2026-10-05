@@ -29,7 +29,7 @@ function assertBoutStarted(status: unknown): void {
 export interface NewScore {
   /** The pad's time of the hit or the card. */
   occurredAt: string;
-  /** A card the referee gives at once, from the corrections drawer. */
+  /** A card the referee gives by hand, from the corrections drawer. */
   directCard?: unknown;
 }
 
