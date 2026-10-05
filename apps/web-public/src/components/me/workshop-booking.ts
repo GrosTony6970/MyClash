@@ -7,6 +7,7 @@
 import {
   apiRequest,
   failureCode,
+  failureMessage,
   fetchMe,
   type ApiFailure,
   type MeSession,
@@ -145,4 +146,20 @@ export async function changeBooking(
   if (action === 'cancel') return { ok: true, status: 'cancelled' };
   const { status } = result.data as { status: string };
   return { ok: true, status: status === 'waitlisted' ? 'waitlisted' : 'confirmed' };
+}
+
+/**
+ * A refused tap, in the reader's language: the ONE owner for both booking pages
+ * (operator ruling 294). The booking door's own three refusals have a sentence
+ * here. Any other failure is worded by `failureMessage`, a lost login included;
+ * the public Workshop page says its own notice for that one (ruling 266).
+ */
+export function refusalWords(
+  change: Extract<BookingChange, { ok: false }>,
+  t: (key: string) => string,
+): string | null {
+  if (change.why === 'teaches') return t('publicApp.workshopDetail.instructorCannotEnroll');
+  if (change.why === 'removed') return t('publicApp.me.workshops.refused');
+  if (change.why === 'cancelled') return t('publicApp.workshopDetail.sessionCancelled');
+  return failureMessage(change.failure, t);
 }

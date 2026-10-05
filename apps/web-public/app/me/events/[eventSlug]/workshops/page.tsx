@@ -9,7 +9,8 @@ import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHu
 import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
 import {
   bookingsOf,
-  enrollPath,
+  changeBooking,
+  refusalWords,
   tapEnded,
   tapStarted,
   type TapsInFlight,
@@ -58,6 +59,7 @@ function WorkshopsContent({
   const [workshops, setWorkshops] = useState<WorkshopListItem[] | null>(null);
   const [wsKey, setWsKey] = useState(0);
   const [busy, setBusy] = useState<TapsInFlight>(new Set());
+  const [refused, setRefused] = useState<{ sessionId: string; words: string } | null>(null);
   const { schedule, refresh: refreshSchedule } = useMySchedule(event.id);
 
   useEffect(() => {
@@ -114,21 +116,21 @@ function WorkshopsContent({
     return clash && t('publicApp.me.workshops.conflictsWith', clashWords(clash, fmtTime));
   };
 
+  // One tap is one call, and the page reads again whatever the server answers. A
+  // refusal is said under its session's button until the next tap (ruling 294).
+  // Two taps close together: an accepted answer never takes the other's line away.
   const act = useCallback(
-    async (sessionId: string, method: 'POST' | 'DELETE', booking: WorkshopBooking = 'none') => {
+    async (sessionId: string, action: 'book' | 'cancel', booking: WorkshopBooking = 'none') => {
       setBusy((taps) => tapStarted(taps, sessionId));
-      try {
-        await fetch(`${api}${enrollPath(sessionId, booking)}`, {
-          method,
-          credentials: 'include',
-        });
-      } finally {
-        setBusy((taps) => tapEnded(taps, sessionId));
-        setWsKey((k) => k + 1);
-        refreshSchedule();
-      }
+      setRefused(null);
+      const change = await changeBooking(api, sessionId, action, booking);
+      setBusy((taps) => tapEnded(taps, sessionId));
+      const words = change.ok ? null : refusalWords(change, t);
+      if (words) setRefused({ sessionId, words });
+      setWsKey((k) => k + 1);
+      refreshSchedule();
     },
-    [api, refreshSchedule],
+    [api, refreshSchedule, t],
   );
 
   if (workshops === null) return <Skeleton className="h-40 w-full rounded-xl" />;
@@ -177,9 +179,14 @@ function WorkshopsContent({
                           busy={busy.has(session.id)}
                           isInstructor={teaches}
                           labels={labels}
-                          onRegister={() => void act(session.id, 'POST', booking)}
-                          onCancel={() => void act(session.id, 'DELETE')}
+                          onRegister={() => void act(session.id, 'book', booking)}
+                          onCancel={() => void act(session.id, 'cancel')}
                         />
+                        {refused?.sessionId === session.id && (
+                          <p role="alert" className="text-xs font-semibold text-danger">
+                            {refused.words}
+                          </p>
+                        )}
                         {booking === 'confirmed' && started && (
                           <WorkshopRatingControl workshopId={w.id} api={api} />
                         )}

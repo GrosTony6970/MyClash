@@ -1346,6 +1346,10 @@ A Match's time for conflict detection is its planned window, `[scheduled_at, sch
   are httpOnly, so the booking call's own 401 says "nobody". It lists no cancelled session, and the
   booking door refuses one before any write (`WORKSHOP_SESSION_CANCELLED`, a 409). The refusal of a
   removed person carries the code `WORKSHOP_BOOKING_REFUSED`.
+- One tap is one call on both pages (`changeBooking`), and each page holds the set of sessions with
+  a tap in flight, so a tap on a second session leaves the first button busy. A refused tap is said
+  in the reader's language by one owner (`refusalWords`): the public page in its short message, the
+  personal page in a line under that session's button until the next tap (ruling 294).
 - What the public page says beside the controls (rulings 266, 267, 270, 271, 272). A clash with the
   caller's own fights and duties, warned and never blocked, from the one owner both pages ask
   (`workshop-clash.ts`). A bookings read that failed, with a Retry. After a booking's 401, who the

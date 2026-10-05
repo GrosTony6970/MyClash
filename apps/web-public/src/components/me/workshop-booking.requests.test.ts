@@ -261,7 +261,7 @@ describe('the public Workshop page', () => {
       '{unknown && <UnknownCallerNotice who={unknown} eventSlug={eventSlug} />}',
     );
     // No 3-second message for her: the notice stays.
-    expect(page).toContain('nobody: null,');
+    expect(page).toContain("return change.why === 'nobody' ? null : refusalWords(change, t);");
     // An account reads its own sentence, and is not told to sign in.
     const [, account, visitor] = parts.split(/if \(who === 'account'\) \{|\n {2}\}\n {2}return \(/);
     expect(account).toContain("{t('publicApp.workshopDetail.accountNotOnRoster')}");
@@ -295,13 +295,6 @@ describe('the public Workshop page', () => {
     );
     expect(page).toContain('{sessions.map((session) => {');
     expect(page).not.toContain('workshop.sessions.map(');
-  });
-
-  it('says each refusal in the reader’s language', () => {
-    expect(page).toMatch(/teaches: t\('publicApp\.workshopDetail\.instructorCannotEnroll'\)/);
-    expect(page).toMatch(/removed: t\('publicApp\.me\.workshops\.refused'\)/);
-    // A page opened before the organiser cancelled the session still offers it.
-    expect(page).toMatch(/cancelled: t\('publicApp\.workshopDetail\.sessionCancelled'\)/);
   });
 });
 

@@ -53,7 +53,7 @@
     "apps/web-public/app/leagues/page.tsx": 1,
     "apps/web-public/app/login/auth-requests.ts": 4,
     "apps/web-public/app/me/events/[eventSlug]/t/[tournamentSlug]/page.tsx": 1,
-    "apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx": 4,
+    "apps/web-public/app/me/events/[eventSlug]/workshops/page.tsx": 3,
     "apps/web-public/app/me/follows/FollowsClient.tsx": 2,
     "apps/web-public/app/me/follows/OrganizersTab.tsx": 2,
     "apps/web-public/app/me/follows/SearchTab.tsx": 1,

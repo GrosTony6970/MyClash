@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiRequest, failureMessage, fetchMe, type MeSession } from '@myclash/api-client';
+import { apiRequest, fetchMe, type MeSession } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { WorkshopRegisterControls, registerLabels } from '@/components/me/WorkshopRegisterControls';
@@ -29,6 +29,7 @@ import {
   changeBooking,
   guestPersonAt,
   readBookings,
+  refusalWords,
   tapEnded,
   tapStarted,
   unknownCaller,
@@ -66,14 +67,7 @@ function changeNotice(change: BookingChange, t: (key: string) => string): string
       ? t('publicApp.workshopDetail.addedToWaitlist')
       : t('publicApp.workshopDetail.enrolledSuccess');
   }
-  const refusals = {
-    nobody: null,
-    teaches: t('publicApp.workshopDetail.instructorCannotEnroll'),
-    removed: t('publicApp.me.workshops.refused'),
-    cancelled: t('publicApp.workshopDetail.sessionCancelled'),
-    other: failureMessage(change.failure, t),
-  };
-  return refusals[change.why];
+  return change.why === 'nobody' ? null : refusalWords(change, t);
 }
 
 export default function WorkshopDetailPage() {

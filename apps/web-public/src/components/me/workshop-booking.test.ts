@@ -71,8 +71,8 @@ describe('the screens that show a booking', () => {
     const page = source('app/me/events/[eventSlug]/workshops/page.tsx');
     expect(page).toContain('const bookings = useMemo(() => bookingsOf(schedule), [schedule]);');
     expect(page).toContain("const booking = bookings.get(session.id) ?? 'none';");
-    expect(page).toContain("onRegister={() => void act(session.id, 'POST', booking)}");
-    expect(page).toContain("onCancel={() => void act(session.id, 'DELETE')}");
+    expect(page).toContain("onRegister={() => void act(session.id, 'book', booking)}");
+    expect(page).toContain("onCancel={() => void act(session.id, 'cancel')}");
     // Only a seat is highlighted and rated.
     expect(page).toContain("highlighted={booking === 'confirmed'}");
     expect(page).toContain("{booking === 'confirmed' && started && (");
@@ -81,8 +81,8 @@ describe('the screens that show a booking', () => {
 
   it('one tap is one call: the page never cancels a refusal and then books', () => {
     const page = source('app/me/events/[eventSlug]/workshops/page.tsx');
-    expect(page).toContain('await fetch(`${api}${enrollPath(sessionId, booking)}`, {');
-    expect(page.match(/await fetch\(`\$\{api\}\$\{enrollPath/g)).toHaveLength(1);
+    expect(page.match(/await changeBooking\(api, sessionId, action, booking\)/g)).toHaveLength(1);
+    expect(page).not.toContain('workshop-sessions');
   });
 
   it('the controls say each state in its own words', () => {
