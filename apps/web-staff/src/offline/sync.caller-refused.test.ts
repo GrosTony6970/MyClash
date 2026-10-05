@@ -253,7 +253,9 @@ describe('the button that signs the account out (ruling 244a)', () => {
   it('signs the ACCOUNT out, then sends the queue again: the PIN is asked now', async () => {
     const calls = stubLogout(200);
     const order: string[] = [];
-    const engine = { drain: vi.fn(async () => void order.push(`drain after ${calls.length}`)) };
+    const engine = {
+      drainAsNewCaller: vi.fn(async () => void order.push(`drain after ${calls.length}`)),
+    };
 
     await signAccountOut(API_URL, engine);
 
@@ -265,11 +267,70 @@ describe('the button that signs the account out (ruling 244a)', () => {
 
   it('sends the queue again when the sign-out did not get through: the bar says what is true', async () => {
     stubLogout(503);
-    const engine = { drain: vi.fn(async () => undefined) };
+    const engine = { drainAsNewCaller: vi.fn(async () => undefined) };
 
     await signAccountOut(API_URL, engine);
 
-    expect(engine.drain).toHaveBeenCalledTimes(1);
+    expect(engine.drainAsNewCaller).toHaveBeenCalledTimes(1);
+  });
+
+  it('tapped while a send waits on the server: the queue is sent again after that answer', async () => {
+    // The race: a Retry's send left as the account, and its answer comes after
+    // the sign-out. That answer says nothing of the PIN, so one more send follows.
+    await addHit(1, 'uuid-1');
+    await addHit(2, 'uuid-2');
+    const posted: number[] = [];
+    let signedOut = false;
+    let answerFirst: (res: unknown) => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: { body?: string }) => {
+        if (url.endsWith('/auth/logout')) {
+          signedOut = true;
+          return Promise.resolve(new Response('{"ok":true}', { status: 200 }));
+        }
+        posted.push((JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence);
+        if (posted.length === 1) return new Promise((resolve) => (answerFirst = resolve));
+        return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({ id: 's' }) });
+      }),
+    );
+    const engine = new SyncEngine(API_URL);
+    const states: SyncState[] = [];
+    engine.subscribe((state) => states.push(state));
+    const retry = engine.drain();
+    await vi.waitFor(() => expect(posted).toEqual([1]));
+
+    const tapped = signAccountOut(API_URL, engine);
+    await vi.waitFor(() => expect(signedOut).toBe(true));
+    answerFirst({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ message: 'in English', code: 'account_cannot_score' }),
+    });
+    await Promise.all([retry, tapped]);
+
+    expect(posted, 'the same hit again, for the PIN, then the one behind it').toEqual([1, 1, 2]);
+    expect((await db.synced.toArray()).map((row) => row.clientUuid)).toEqual(['uuid-1', 'uuid-2']);
+    expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 });
+  });
+
+  it('a drain asked for while one runs still returns at once', async () => {
+    await addHit(1, 'uuid-1');
+    let answer: (res: unknown) => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => new Promise((resolve) => (answer = resolve))),
+    );
+    const engine = new SyncEngine(API_URL);
+    const running = engine.drain();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+    await engine.drain();
+
+    expect(engine.isDraining(), 'the second call did not wait for the first').toBe(true);
+    answer({ ok: true, status: 201, json: () => Promise.resolve({ id: 's' }) });
+    await running;
+    expect(engine.isDraining()).toBe(false);
   });
 });
 
@@ -287,7 +348,13 @@ describe('the bout screen', () => {
   it('offers the sign-out from the bar’s own decision, and nowhere else', () => {
     expect(bar).toMatch(/\{offersAccountSignOut\(phase\) && \(\s+<button/);
     expect(bar.match(/signAccountOut\(/g)).toHaveLength(1);
-    expect(bar).toContain('void signAccountOut(getApiUrl(), syncEngine)');
+    expect(bar).toContain('await signAccountOut(getApiUrl(), syncEngine)');
     expect(bar).toContain("{t('scoring.lice.signAccountOut')}");
+  });
+
+  it('greys the sign-out while it works, and frees it whatever came back', () => {
+    expect(bar).toMatch(/setSigningOut\(true\);\s+try \{\s+await signAccountOut\(/);
+    expect(bar).toMatch(/\} finally \{\s+setSigningOut\(false\);/);
+    expect(bar).toMatch(/data-testid="sign-account-out"\s+disabled=\{signingOut\}/);
   });
 });

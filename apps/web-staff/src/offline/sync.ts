@@ -82,6 +82,8 @@ export class SyncEngine {
   private apiUrl: string;
   private listeners: Set<SyncStateListener> = new Set();
   private running = false;
+  /** The drain that runs, or the last one that ran. */
+  private inFlight: Promise<void> = Promise.resolve();
   private aborted = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
@@ -338,8 +340,24 @@ export class SyncEngine {
    * Processes in insertion order (by id).
    * Idempotent — safe to call multiple times.
    */
-  async drain(): Promise<void> {
-    if (this.running) return; // already draining
+  drain(): Promise<void> {
+    if (this.running) return Promise.resolve(); // already draining
+    this.inFlight = this.sendQueue();
+    return this.inFlight;
+  }
+
+  /**
+   * Send the queue for the caller as it is NOW: a sign-out just changed it.
+   * The race is a send in flight (a Retry, a hit just scored). It left as the
+   * old caller, so its answer says nothing of the new one: wait it out, then
+   * send again.
+   */
+  async drainAsNewCaller(): Promise<void> {
+    await this.inFlight.catch(() => undefined);
+    await this.drain();
+  }
+
+  private async sendQueue(): Promise<void> {
     this.running = true;
     this.aborted = false;
 

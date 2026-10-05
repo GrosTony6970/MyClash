@@ -10,12 +10,13 @@ import { apiRequest } from '@myclash/api-client';
  * for the PIN session, which has its own cookie and stays.
  *
  * The drain runs whatever the sign-out answered: offline or refused, the bar
- * then says what is true of the queue now.
+ * then says what is true of the queue now. It runs after a send that was in
+ * flight at the tap: that one left as the account (`drainAsNewCaller`).
  */
 export async function signAccountOut(
   apiUrl: string,
-  engine: { drain(): Promise<void> },
+  engine: { drainAsNewCaller(): Promise<void> },
 ): Promise<void> {
   await apiRequest<unknown>(apiUrl, '/api/v1/auth/logout', { method: 'POST' });
-  await engine.drain();
+  await engine.drainAsNewCaller();
 }

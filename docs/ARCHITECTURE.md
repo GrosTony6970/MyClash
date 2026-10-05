@@ -1202,7 +1202,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > tablet where somebody's own account is signed in has every write refused when that account has no
 > scoring role, though its PIN could score. The server still refuses; the bar says so and offers
 > "Sign that account out" (`src/lib/account-sign-out.ts`), the bout screen's only sign-out. The PIN
-> session stays, and the next drain is answered for it. Known limit: the button is on the bar, which
+> session stays, and the next drain is answered for it. A send in flight at the tap left as the
+> account: the button waits for its answer, then sends the queue again (`drainAsNewCaller`), and is
+> greyed until then. Known limit: the button is on the bar, which
 > turns red at the first queued hit; a clock press refused before any hit says why and shows no
 > button.
 

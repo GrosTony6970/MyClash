@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { signAccountOut } from '../lib/account-sign-out';
 import { getApiUrl } from '../lib/api-url';
@@ -31,6 +32,15 @@ interface Actions {
 /** The ways out of a red bar: Retry, the account's sign-out (ruling 244a), the inbox. */
 function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onReview }: Actions) {
   const { t } = useI18n();
+  const [signingOut, setSigningOut] = useState(false);
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      await signAccountOut(getApiUrl(), syncEngine);
+    } finally {
+      setSigningOut(false);
+    }
+  };
   // Refused exchanges are no longer in the outbox, so a plain drain would not
   // touch them: `retryRejected` re-queues the curable ones first, then drains.
   // In any other red state a held hit stays held: it would only meet the same answer.
@@ -48,8 +58,9 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
         <button
           type="button"
           data-testid="sign-account-out"
-          onClick={() => void signAccountOut(getApiUrl(), syncEngine)}
-          className={OUTLINE}
+          disabled={signingOut}
+          onClick={() => void signOut()}
+          className={`${OUTLINE} disabled:opacity-50`}
         >
           {t('scoring.lice.signAccountOut')}
         </button>
