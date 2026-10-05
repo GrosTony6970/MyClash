@@ -1149,6 +1149,8 @@ stateDiagram-v2
   syncing --> error: drain finished with entries still pending
   syncing --> signed_out: the server answers 401
   syncing --> caller_refused: the server refuses the person
+  idle --> caller_refused: a press sent at once is refused for the person
+  caller_refused --> idle: the account is signed out with no hit waiting
   offline --> syncing: connectivity returns
   error --> syncing: retry
   signed_out --> syncing: retry, or the bout screen opens
@@ -1161,9 +1163,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
 > saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409 and
 > 403, the entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining.
-> The second try's answer is read as a first answer (`answerBadRequest`): a 401, at the sequence
-> read too, or a 403 about the person makes the hit wait as below, and a 409 is held with its own
-> code.
+> A second try answered 401, or 403 about the person, makes the hit wait as below, and a 409 is
+> held with its own code (`answerBadRequest`); any other second answer holds the hit under the
+> first one.
 > The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
@@ -1209,8 +1211,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > greyed until then. A press sent at once (the clock, a correction, a forfeit) and refused for the
 > person turns the bar to the same status with no hit queued (ruling 311): `refusalMessage`, where
 > every refused press is worded, tells the engine (`tellCallerRefusal`), and the bar's sentence
-> drops "hits not sent" while none waits. A drain that finds nothing to send turns it green again:
-> the next refused press says it again.
+> drops "hits not sent" while none waits. That status stands in place of `idle` (`pressRefused`)
+> until the server takes a hit or the account is signed out: a Retry, the inbox or the `online`
+> event send nothing and prove nothing about the person, and Retry is not offered while no hit
+> waits. A press answered 401 is not told to the bar.
 
 ### 10.3 Conflict resolution
 

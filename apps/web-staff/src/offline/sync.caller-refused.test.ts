@@ -346,8 +346,12 @@ describe('the bout screen', () => {
   });
 
   it('offers the sign-out from the bar’s own decision, and nowhere else', () => {
+    // Always mounted, so the question and the greyed button outlive a phase change.
     expect(bar).toContain(
-      '{offersAccountSignOut(phase) && <AccountSignOut syncEngine={syncEngine} />}',
+      '<AccountSignOut offered={offersAccountSignOut(phase)} syncEngine={syncEngine} />',
+    );
+    expect(bar).toMatch(
+      /\{offered && \(\s+<button\s+type="button"\s+data-testid="sign-account-out"/,
     );
     expect(bar.match(/<AccountSignOut\b/g)).toHaveLength(1);
     expect(bar.match(/signAccountOut\(/g)).toHaveLength(1);

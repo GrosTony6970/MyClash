@@ -188,7 +188,8 @@ export function refusalMessage(
   if (failure.status === 503) return t(OFFLINE);
 
   // A refusal about the PERSON goes to the bar too, which holds the account's
-  // sign-out (ruling 311). Only a 403 is about the caller, as in the drain.
+  // sign-out (ruling 311): a 403 with one of three codes. A press answered 401
+  // is not told: ruling 311 is about the three, and it keeps its own sentence.
   if (failure.status === 403) tellCallerRefusal(failure.code);
 
   const coded = codedRefusal(t, failure.code, failure.details);

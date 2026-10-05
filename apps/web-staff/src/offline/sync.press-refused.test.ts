@@ -14,10 +14,10 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
-import { enqueue, quarantine } from './outbox';
+import { enqueue, getRejected, quarantine } from './outbox';
 import { SyncEngine, type SyncState, type SyncStatus } from './sync';
 import { refusalMessage } from '../lib/refusal-copy';
-import { offersAccountSignOut, syncBarLabel, syncPhaseOf } from '../lib/sync-bar';
+import { offersAccountSignOut, offersRetry, syncBarLabel, syncPhaseOf } from '../lib/sync-bar';
 
 const API_URL = 'http://localhost:4000';
 const t = (key: string) => key;
@@ -93,7 +93,22 @@ describe.each(CALLERS)('a press refused for the person (%s)', (code, status) => 
     expect(last()).toMatchObject({ status, rejectedCount: 1 });
   });
 
-  it('goes green at the next drain when nothing waits: nothing is left to refuse', async () => {
+  it('stands through every action that sends nothing: none proves the person may score', async () => {
+    await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
+    const heldId = (await getRejected())[0]?.id as number;
+    const { engine, last } = watched();
+    refusalMessage(refused(403, code), t, 'scoring.clock.actionFailed');
+    await vi.waitFor(() => expect(last()?.status).toBe(status));
+
+    await engine.drain(); // Retry, the `online` event, the screen that opens
+    expect(last(), 'a drain of nothing').toMatchObject({ status, rejectedCount: 1 });
+    await engine.refreshState(); // the inbox opens
+    expect(last(), 'the inbox opens').toMatchObject({ status, rejectedCount: 1 });
+    await engine.discardRejectedEntry(heldId);
+    expect(last(), 'a Discard').toMatchObject({ status, rejectedCount: 0 });
+  });
+
+  it('goes green once the caller changed: the sign-out', async () => {
     const { engine, last } = watched();
     refusalMessage(refused(403, code), t, 'scoring.clock.actionFailed');
     await vi.waitFor(() => expect(last()?.status).toBe(status));
@@ -101,6 +116,30 @@ describe.each(CALLERS)('a press refused for the person (%s)', (code, status) => 
     await engine.drainAsNewCaller();
 
     expect(last()).toMatchObject({ status: 'idle', pendingCount: 0 });
+  });
+
+  it('goes green once the server takes a hit: the person may score', async () => {
+    const { engine, last } = watched();
+    refusalMessage(refused(403, code), t, 'scoring.clock.actionFailed');
+    await vi.waitFor(() => expect(last()?.status).toBe(status));
+    await addHit(1, 'uuid-1');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 201, json: () => Promise.resolve({ id: 's' }) }),
+    );
+
+    await engine.drain();
+
+    expect(last()).toMatchObject({ status: 'idle', pendingCount: 0 });
+  });
+
+  it('offers no Retry while no hit waits: it would send nothing', () => {
+    const phase = syncPhaseOf('online', status);
+    expect(offersRetry(phase, { rejected: 0, sendable: 0, pending: 0 })).toBe(false);
+    expect(offersRetry(phase, { rejected: 2, sendable: 2, pending: 0 })).toBe(false);
+    expect(offersRetry(phase, { rejected: 0, sendable: 0, pending: 1 })).toBe(true);
   });
 });
 

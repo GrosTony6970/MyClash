@@ -205,7 +205,7 @@ export const scoring = {
     signAccountOut: 'Déconnecter ce compte',
     signAccountOutConfirmTitle: 'Déconnecter ce compte ?',
     signAccountOutConfirmBody:
-      'Le compte sera déconnecté de tous les sites MyClash sur cette tablette. Le code PIN de la tablette reste connecté.',
+      'Le compte sera déconnecté de tous les sites MyClash sur cette tablette. Une session PIN ouverte sur cette tablette le reste.',
     signAccountOutConfirm: 'Déconnecter',
     reviewRefused: 'Examiner',
     backToMatchList: 'Retour à la liste des assauts',

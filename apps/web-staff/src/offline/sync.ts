@@ -36,7 +36,8 @@ import { classifySyncFailure, offlineResponse, type FailureBody } from './failur
  * `signed-out`: the server answered a queued hit with 401. Nothing is refused
  * and nothing is lost; the queue waits until somebody signs in (ruling 241).
  * A `CallerRefusal`: the server refused it for who sends it, and the queue
- * waits the same way (rulings 244, 245).
+ * waits the same way (rulings 244, 245). A press sent at once and refused
+ * that way gives the same status with no hit queued (ruling 311).
  */
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'signed-out' | CallerRefusal;
 
@@ -87,14 +88,22 @@ export class SyncEngine {
   private aborted = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
+  /**
+   * A press sent at once was refused for who sends it (ruling 311). It stands
+   * in place of `idle` until a hit is taken or the caller changes: an action
+   * that sends nothing proves nothing about the person.
+   */
+  private pressRefused: CallerRefusal | null = null;
 
   /** Max consecutive failures before engine stops and reports error. */
   private readonly maxConsecutiveFailures = 3;
 
   constructor(apiUrl: string) {
     this.apiUrl = apiUrl;
-    // A press sent at once and refused for who sends it (ruling 311).
-    hearCallerRefusals((caller) => void this.emit(caller));
+    hearCallerRefusals((caller) => {
+      this.pressRefused = caller;
+      void this.emit(caller);
+    });
   }
 
   // ── Listeners ───────────────────────────────────────────────────────────────
@@ -104,7 +113,8 @@ export class SyncEngine {
     return () => this.listeners.delete(listener);
   }
 
-  private async emit(status: SyncStatus, lastError?: string): Promise<void> {
+  private async emit(calm: SyncStatus, lastError?: string): Promise<void> {
+    const status = calm === 'idle' ? (this.pressRefused ?? calm) : calm;
     this.resting = status;
     // One read of the held hits for both counts: two reads could disagree.
     const [pendingCount, held] = await Promise.all([totalPendingCount(), getRejected()]);
@@ -131,7 +141,8 @@ export class SyncEngine {
    * The state after an inbox action that sent nothing. `idle` there turned the
    * bar green over hits a signed-out or failing pad still holds: while one
    * waits, what the engine last said stands. With none left (an undo removes
-   * a waiting hit and emits nothing), `idle` is true again.
+   * a waiting hit and emits nothing), `idle` is true again, or the refusal of
+   * a press that still stands (`pressRefused`).
    */
   private async emitResting(): Promise<void> {
     await this.emit((await totalPendingCount()) > 0 ? this.resting : 'idle');
@@ -219,7 +230,6 @@ export class SyncEngine {
     // Same sequence means nothing changed — a second identical POST would only
     // reproduce the same refusal.
     if (sequence === null || sequence === entry.sequence) return null;
-    if (typeof sequence !== 'number') return sequence;
 
     const res = await this.postExchange(entry, sequence);
     if (REFUSALS.includes(res.status)) return { refused: res };
@@ -239,15 +249,12 @@ export class SyncEngine {
    * in the first place. Reading one table would fix the collision it was
    * refused for and walk straight into its twin.
    */
-  private async freshSequence(matchId: string): Promise<number | Refused | null> {
+  private async freshSequence(matchId: string): Promise<number | null> {
     try {
       const [exchanges, penalties] = await Promise.all([
         fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
         fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
       ]);
-      // The session ended between the hit's answer and this read: nobody is
-      // signed in, and the hit waits (ruling 241).
-      if (exchanges.status === 401) return { refused: exchanges };
       // Exchanges must answer — it is the older endpoint and the one every
       // match has. A penalties read that fails degrades to "no cards", which is
       // still better than giving up on the retry entirely.
@@ -307,8 +314,9 @@ export class SyncEngine {
    * A 400 is a refusal, NOT proof that a retry can never succeed. The single
    * most likely cause is a sequence this match has already used (two pads, or
    * a reload that seeded from a stale max), so re-derive the sequence from the
-   * server and try exactly once more. That second try is read as a first
-   * answer: one about the caller makes the hit wait, it does not hold it.
+   * server and try exactly once more. A second answer about the caller (a
+   * 401, a 403) makes the hit wait, and a 409 is held with its own code, as a
+   * first answer would. Any other second answer holds it under the first.
    */
   private async answerBadRequest(
     entry: OutboxEntry,
@@ -325,6 +333,7 @@ export class SyncEngine {
         retried.sequence,
         retried.serverId,
       );
+      this.pressRefused = null;
       return 'sent';
     }
     // Held, never destroyed: a refused exchange is a hit a referee actually
@@ -355,7 +364,8 @@ export class SyncEngine {
    * send again.
    */
   async drainAsNewCaller(): Promise<void> {
-    await this.inFlight.catch(() => undefined);
+    await this.inFlight;
+    this.pressRefused = null;
     await this.drain();
   }
 
@@ -384,6 +394,7 @@ export class SyncEngine {
           // Success or idempotent duplicate — remove from outbox
           const data = (await res.json()) as ExchangeResponse;
           await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
+          this.pressRefused = null;
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else if (res.status === 400 || REFUSALS.includes(res.status)) {

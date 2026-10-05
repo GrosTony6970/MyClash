@@ -41,6 +41,9 @@ export function offersRetry(
   held: { rejected: number; sendable: number; pending: number },
 ): boolean {
   if (!needsOperator(phase)) return false;
+  // A refusal about the caller with no hit waiting (a refused press, ruling
+  // 311): Retry would send nothing, and a held hit would meet the same answer.
+  if (phase !== 'error' && held.pending === 0) return false;
   const onlyIncurable = held.rejected > 0 && held.sendable === 0 && held.pending === 0;
   return !(phase === 'error' && onlyIncurable);
 }

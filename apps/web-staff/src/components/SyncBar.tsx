@@ -35,7 +35,7 @@ interface Actions {
  * serves every MyClash site of the browser, so the tap signs the person out of
  * the admin and public sites too, and the question says so.
  */
-function AccountSignOut({ syncEngine }: { syncEngine: SyncEngine }) {
+function AccountSignOut({ offered, syncEngine }: { offered: boolean; syncEngine: SyncEngine }) {
   const { t } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -48,17 +48,21 @@ function AccountSignOut({ syncEngine }: { syncEngine: SyncEngine }) {
     }
   };
 
+  // Always mounted: the bar leaves this phase while a send runs, and the
+  // question and the greyed button must outlive that.
   return (
     <>
-      <button
-        type="button"
-        data-testid="sign-account-out"
-        disabled={signingOut}
-        onClick={() => setConfirming(true)}
-        className={`${OUTLINE} disabled:opacity-50`}
-      >
-        {t('scoring.lice.signAccountOut')}
-      </button>
+      {offered && (
+        <button
+          type="button"
+          data-testid="sign-account-out"
+          disabled={signingOut}
+          onClick={() => setConfirming(true)}
+          className={`${OUTLINE} disabled:opacity-50`}
+        >
+          {t('scoring.lice.signAccountOut')}
+        </button>
+      )}
       <ConfirmDialog
         open={confirming}
         onConfirm={() => {
@@ -91,7 +95,7 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
           {t('scoring.lice.retry')}
         </button>
       )}
-      {offersAccountSignOut(phase) && <AccountSignOut syncEngine={syncEngine} />}
+      <AccountSignOut offered={offersAccountSignOut(phase)} syncEngine={syncEngine} />
       {/* Retry-everything is a guess; this is the way to find out WHAT was
           refused and why before deciding. Only offered when something is
           actually held — an empty inbox would be a dead end. */}

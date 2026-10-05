@@ -175,10 +175,11 @@ describe('the bar’s Retry', () => {
   });
 
   it('stays for a session that ended or a refused person: it asks the server again', () => {
-    expect(offersRetry('signed-out', held)).toBe(true);
-    expect(offersRetry('account-refused', held)).toBe(true);
-    expect(offersRetry('pin-disabled', held)).toBe(true);
-    expect(offersRetry('pin-role-refused', held)).toBe(true);
+    const waits = { ...held, pending: 1 };
+    expect(offersRetry('signed-out', waits)).toBe(true);
+    expect(offersRetry('account-refused', waits)).toBe(true);
+    expect(offersRetry('pin-disabled', waits)).toBe(true);
+    expect(offersRetry('pin-role-refused', waits)).toBe(true);
   });
 
   it('is never offered where the operator has nothing to do', () => {

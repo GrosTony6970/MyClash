@@ -1,7 +1,7 @@
 /**
- * The API's refusals of a queued hit that are about the PERSON who sends it,
- * not about one bout (rulings 244, 245): they meet every hit the tablet holds,
- * so the drain stops at the first one and the bar says which it is.
+ * The API's refusals of a hit or a press that are about the PERSON who sends
+ * it, not about one bout (rulings 244, 245): they meet every hit the tablet
+ * holds, so the drain stops at the first one and the bar says which it is.
  *
  * Known by the `code` of the 403 (`staff/scoring-refusals.ts` in the API). A
  * 403 with any other code is about the bout (another piste, another Event): it

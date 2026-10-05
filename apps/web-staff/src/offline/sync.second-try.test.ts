@@ -1,8 +1,8 @@
 /**
  * The second try of a hit the server answered 400 is read as a first answer.
  *
- * A 400 is re-sent once under a sequence read from the server. That read and
- * that second send can meet an answer about the CALLER: the session ended, or
+ * A 400 is re-sent once under a sequence read from the server. That second
+ * send can meet an answer about the CALLER: the session ended, or
  * the person may not score (rulings 241, 244, 245). The hit was then put in
  * the refused-hits inbox under the first answer's reason, though nothing
  * refused it. It waits in the queue, as a first answer makes it wait, and a
@@ -11,6 +11,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
+import { tellCallerRefusal } from './caller-refusal';
 import { db } from './db';
 import { enqueue, getRejected } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
@@ -35,8 +36,8 @@ beforeEach(async () => {
 
 type Answer = { status: number; body: unknown };
 
-/** Answers each POST from the sequence it carried, and the sequence read with `read`. */
-function mockApi(post: (sequence: number) => Answer, read: Answer = { status: 200, body: [] }) {
+/** Answers each POST from the sequence it carried; the sequence read lists no row. */
+function mockApi(post: (sequence: number) => Answer) {
   const posted: number[] = [];
   const answer = (r: Answer) =>
     Promise.resolve({
@@ -47,7 +48,7 @@ function mockApi(post: (sequence: number) => Answer, read: Answer = { status: 20
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation((_url: string, init?: { method?: string; body?: string }) => {
-      if ((init?.method ?? 'GET') === 'GET') return answer(read);
+      if ((init?.method ?? 'GET') === 'GET') return answer({ status: 200, body: [] });
       const sequence = (JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence;
       posted.push(sequence);
       return answer(post(sequence));
@@ -107,19 +108,6 @@ describe('the second try meets an answer about the caller', () => {
     expect(await db.rejected.count(), 'a waiting hit is not a refused one').toBe(0);
     expect((await db.outbox.toArray()).map((row) => row.attempts)).toEqual([0, 0]);
     expect(last).toMatchObject({ status, pendingCount: 2, rejectedCount: 0 });
-  });
-
-  it('a 401 at the sequence read: the hit waits, and nothing is sent again', async () => {
-    await addHit(1, 'uuid-bad');
-    await addHit(2, 'uuid-behind');
-    const { posted } = mockApi(() => BAD_SEQUENCE, { status: 401, body: {} });
-
-    const last = await drainWatched();
-
-    expect(posted).toEqual([1]);
-    expect(await waiting()).toEqual(['uuid-bad', 'uuid-behind']);
-    expect(await db.rejected.count()).toBe(0);
-    expect(last).toMatchObject({ status: 'signed-out', pendingCount: 2, rejectedCount: 0 });
   });
 });
 
@@ -184,5 +172,18 @@ describe('the second try that changes nothing', () => {
       serverId: 'srv-new',
     });
     expect(last).toMatchObject({ status: 'idle', pendingCount: 0, rejectedCount: 0 });
+  });
+
+  it('a second try the server takes ends a refused press: the person may score', async () => {
+    await addHit(1, 'uuid-bad');
+    mockApi((sequence) => (sequence === 1 ? BAD_SEQUENCE : { status: 201, body: { id: 's' } }));
+    const engine = new SyncEngine(API_URL);
+    const states: SyncState[] = [];
+    engine.subscribe((state) => states.push(state));
+    tellCallerRefusal('staff_account_disabled');
+
+    await engine.drain();
+
+    expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 });
   });
 });

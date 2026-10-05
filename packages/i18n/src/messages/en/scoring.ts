@@ -204,7 +204,7 @@ export const scoring = {
     // One login serves every MyClash site of the browser (ruling 312).
     signAccountOutConfirmTitle: 'Sign this account out?',
     signAccountOutConfirmBody:
-      "This signs the account out of every MyClash site on this tablet. The tablet's own PIN stays signed in.",
+      'This signs the account out of every MyClash site on this tablet. A PIN session on this tablet stays open.',
     signAccountOutConfirm: 'Sign out',
     reviewRefused: 'Review',
     backToMatchList: 'Back to match list',
