@@ -129,3 +129,42 @@ describe('AuthService.getMe — a login about to end is renewed early', () => {
     expect(me.type).toBe('claimed');
   });
 });
+
+/**
+ * Ruling 302 leans on this order: the browser sends a refused request again when `/me` answers
+ * a server error, because the renewed cookies are on that answer. That holds only while `/me`
+ * renews the login BEFORE the reads that can fail it (ruling 295).
+ */
+describe('AuthService.getMe — the login is renewed before the reads that can fail', () => {
+  it('has set the renewed cookies when the read of the platform role fails', async () => {
+    const faulty = {
+      getAuthUser: vi.fn().mockResolvedValue(USER),
+      refreshSession: vi.fn().mockResolvedValue({
+        access_token: 'fresh-access',
+        refresh_token: 'fresh-refresh',
+        expires_in: 3600,
+      }),
+      service: seededSupabase({
+        global_persons: { rows: [] },
+        platform_roles: { data: null, error: { message: 'statement timeout' } },
+      }),
+    };
+    const service = new AuthService(
+      faulty as never,
+      { sendMagicLink: vi.fn() } as never,
+      config as never,
+      {} as never,
+      {} as LegalAcceptanceService,
+      {} as never,
+    );
+    const reply = makeReply();
+
+    await expect(service.getMe(signedIn(tokenEndingIn(120)), reply as never)).rejects.toThrow(
+      'statement timeout',
+    );
+    expect(reply.setCookie.mock.calls.map(([name, value]) => [name, value])).toEqual([
+      ['sb-access-token', 'fresh-access'],
+      ['sb-refresh-token', 'fresh-refresh'],
+    ]);
+  });
+});
