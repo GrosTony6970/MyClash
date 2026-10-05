@@ -10,7 +10,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { PhasesService } from './phases.service';
 import { SwissAdvanceService } from '../swiss/swiss-advance.service';
-import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { FrozenResultsGuard, type ExchangeEditRequestRow } from '../matches/frozen-results.guard';
 import { clearDependentPairing, dependentClosure, type DependentBout } from './bracket-dependents';
 import { revertMatchToUnplayed } from './revert-match';
 import {
@@ -141,40 +141,54 @@ export class MatchCompletionService {
 
     const forfeits = await this.assertUncompletionAllowed(matchId, touched, fought, opts);
 
-    if (fought.length > 0) {
-      const reason = opts.reason ?? 'result of an earlier bout was undone';
-      // Deepest round first, which `dependentClosure` has already ordered. Every
-      // edge increases the round, so a bout is reverted only after everything it
-      // feeds — a crash part-way leaves a suffix reverted and converges on re-run.
-      for (const bout of fought) {
-        if (!bout.matchId) continue;
-        await revertMatchToUnplayed(this.supabase.service, bout.matchId, reason, opts.actor ?? {});
-      }
-    }
-
-    await this.clearFedSides(matchId, fought, dependents);
-
-    // The revert voided every hit of the later bouts: the requests that wait on
-    // them rot (`closeResetRequests`). NOT the root: its hits stay here, so its
-    // requests still wait (ruling 260); `resetMatch` voids them and closes its own.
-    const closed = await this.frozenResults.rejectPendingEditsForMatch(
-      reverted,
-      opts.actor?.userId,
-    );
-
-    // LAST. Not-yet-done is exactly today's behaviour — the F stands and the row
-    // still says completed — so a crash before this leaves the safest partial
-    // state there is, and a re-run converges because `MatchesService.uncomplete`
-    // still sees `status === 'completed'`. Voiding earlier would strand a bout
-    // whose result nobody fought with no forfeit explaining it.
-    // Then the Swiss mirror of clearing the fed sides: the round this bout
-    // closed is open again. A no-op for every non-Swiss match.
+    const closed: ExchangeEditRequestRow[] = [];
     try {
+      await this.revertFought(fought, opts, closed);
+      await this.clearFedSides(matchId, fought, dependents);
+
+      // LAST. Not-yet-done is exactly today's behaviour — the F stands and the row
+      // still says completed — so a crash before this leaves the safest partial
+      // state there is, and a re-run converges because `MatchesService.uncomplete`
+      // still sees `status === 'completed'`. Voiding earlier would strand a bout
+      // whose result nobody fought with no forfeit explaining it.
+      // Then the Swiss mirror of clearing the fed sides: the round this bout
+      // closed is open again. A no-op for every non-Swiss match.
       await voidForfeitRecords(this.supabase.service, forfeits, opts.actor ?? {});
       await this.swissAdvance?.onMatchUncompleted(matchId);
     } finally {
       // Last: no step waits on a notice. Told on a failure too: the close is saved.
       await this.frozenResults.tellClosedByReset(closed);
+    }
+  }
+
+  /**
+   * Put each fought later bout back to unplayed, and close the requests that
+   * waited on its hits (`closeResetRequests`) before the next step.
+   *
+   * Bout by bout, not once after the loop: a later step that throws leaves these
+   * bouts unplayed, so a retry finds no fought bout and would close nothing.
+   * NOT the root: its hits stay here, so its requests still wait (ruling 260);
+   * `resetMatch` voids them and closes its own.
+   *
+   * Deepest round first, which `dependentClosure` has already ordered. Every
+   * edge increases the round, so a bout is reverted only after everything it
+   * feeds — a crash part-way leaves a suffix reverted and converges on re-run.
+   */
+  private async revertFought(
+    fought: DependentBout[],
+    opts: UncompleteOptions,
+    closed: ExchangeEditRequestRow[],
+  ): Promise<void> {
+    const reason = opts.reason ?? 'result of an earlier bout was undone';
+    for (const bout of fought) {
+      if (!bout.matchId) continue;
+      await revertMatchToUnplayed(this.supabase.service, bout.matchId, reason, opts.actor ?? {});
+      closed.push(
+        ...(await this.frozenResults.rejectPendingEditsForMatch(
+          [bout.matchId],
+          opts.actor?.userId,
+        )),
+      );
     }
   }
 

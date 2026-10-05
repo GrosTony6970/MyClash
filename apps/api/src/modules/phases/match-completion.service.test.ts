@@ -515,7 +515,32 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
       { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
     ).onMatchUncompleted('match-r1p1', { actor: ORGANISER });
 
-    expect(frozen.rejectPendingEditsForMatch.mock.calls).toEqual([[[], 'organiser-1']]);
+    expect(frozen.rejectPendingEditsForMatch.mock.calls).toEqual([]);
+  });
+
+  // The hits of the later bout are voided by then, and a retry finds no fought
+  // bout left to revert: a close that waited for the fed sides never ran.
+  it('closes a reverted bout before the fed sides are cleared, and tells when that clear fails', async () => {
+    const frozen = openEvent();
+    const bracketAdvance = {
+      clearDownstreamOf: vi.fn().mockRejectedValue(new Error('the slots stayed filled')),
+    };
+
+    await expect(
+      new MatchCompletionService(
+        uncompleteSupabase(bracketFixture(true)) as never,
+        frozen as never,
+        bracketAdvance as never,
+      ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER }),
+    ).rejects.toThrow('the slots stayed filled');
+
+    expect(frozen.rejectPendingEditsForMatch.mock.calls).toEqual([
+      [['match-final'], 'organiser-1'],
+    ]);
+    expect(frozen.rejectPendingEditsForMatch.mock.invocationCallOrder[0]).toBeLessThan(
+      bracketAdvance.clearDownstreamOf.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(frozen.tellClosedByReset.mock.calls).toEqual([[CLOSED]]);
   });
 
   it('tells who asked LAST: after the forfeit is voided and the Swiss round is open again', async () => {
