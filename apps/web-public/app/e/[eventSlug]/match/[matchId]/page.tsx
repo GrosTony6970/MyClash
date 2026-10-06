@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { isOwnSitePath } from '@myclash/types';
 import { getServerApiUrl } from '@/lib/api-url';
 import { loginCookieHeader } from '@/lib/login-cookie';
 import { MatchLiveView } from './match-live-view';
@@ -78,16 +79,6 @@ interface Props {
   searchParams: Promise<{ return?: string }>;
 }
 
-/**
- * Validate a `?return=` value before using it as a back-link href: accept only
- * a root-relative path (`/x`, not the protocol-relative `//x`) — open-redirect
- * hygiene, mirroring web-staff's `safeReturnHref`.
- */
-function safeReturnHref(raw: string | undefined): string | null {
-  if (!raw) return null;
-  return raw.startsWith('/') && !raw.startsWith('//') ? raw : null;
-}
-
 export default async function MatchPage({ params, searchParams }: Props) {
   const { eventSlug, matchId } = await params;
   const { return: returnParam } = await searchParams;
@@ -103,8 +94,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
   if (!match) notFound();
 
   // Back leads to the pool-matches list when we arrived with a valid `return`,
-  // otherwise to the event home so the affordance always renders.
-  const validReturn = safeReturnHref(returnParam);
+  // otherwise to the event home so the affordance always renders. `return` is
+  // an address this page was GIVEN: only a path of our own site is kept.
+  const validReturn = isOwnSitePath(returnParam) ? returnParam : null;
   const backHref = validReturn ?? `/e/${eventSlug}/home`;
 
   return (

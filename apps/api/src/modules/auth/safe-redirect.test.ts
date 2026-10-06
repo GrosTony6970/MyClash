@@ -13,56 +13,23 @@ import { mockSupabase as seededSupabase } from '../../common/testing/supabase-ch
  * browser there: a browser reads two slashes as "another site". Proven in a browser on both
  * Google callback pages before this fix.
  *
- * An address the sign-in may send her to is a path of OUR site: it begins with one slash and a
- * browser that resolves it stays on the site. Anything else is the home page, as before.
+ * An address the sign-in may send her to is a path of OUR site: `isOwnSitePath` of
+ * `@myclash/types` is the rule, and holds its cases. Anything else is the home page, as before.
  */
-const OFF_SITE = [
-  '//bad-site.test/landing',
-  '///bad-site.test',
-  '/\\bad-site.test/landing',
-  '/\\/bad-site.test',
-  '/\t/bad-site.test',
-  '/\n/bad-site.test',
-  'https://bad-site.test/landing',
-  '\\\\bad-site.test',
-  'javascript:alert(1)',
-  'me',
-  '//[',
-  // On our site at the first read, as the path `//bad-site.test`: off it at the second.
-  '/.//bad-site.test',
-  '/..//bad-site.test',
-  '/e/..//bad-site.test',
-  '/%2e//bad-site.test',
-  '/%2e%2e//bad-site.test',
-  '/./\\bad-site.test',
-  '/.\t//bad-site.test',
-];
-
 describe('safeRedirectPath', () => {
-  it.each(OFF_SITE)('sends %j to the home page', (asked) => {
-    expect(safeRedirectPath(asked)).toBe('/');
-  });
+  it.each(['//bad-site.test/landing', '/\\bad-site.test', '/.//bad-site.test', undefined, ''])(
+    'sends %j to the home page',
+    (asked) => {
+      expect(safeRedirectPath(asked)).toBe('/');
+    },
+  );
 
-  it.each([undefined, ''])('sends %j to the home page', (asked) => {
-    expect(safeRedirectPath(asked)).toBe('/');
-  });
-
-  // The paths our screens send today (the pad's `/lices` was on no list), and three shapes
-  // that only look like the refused ones.
-  it.each([
-    '/',
-    '/me',
-    '/dashboard',
-    '/lices',
-    '/org/lyon-amhe',
-    '/e/spring-open/claim?personId=row-1',
-    '/e/spring-open/w/longsword-basics',
-    '/me?claimRefused=held_by_another#top',
-    '/e/a//b',
-    '/e/spring-open/../autumn-open',
-  ])('keeps %j as it was asked', (asked) => {
-    expect(safeRedirectPath(asked)).toBe(asked);
-  });
+  it.each(['/', '/lices', '/e/spring-open/claim?personId=row-1'])(
+    'keeps %j as it was asked',
+    (asked) => {
+      expect(safeRedirectPath(asked)).toBe(asked);
+    },
+  );
 });
 
 const MARIE = { id: 'user-marie', email: 'marie@example.com' };

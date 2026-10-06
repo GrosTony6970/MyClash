@@ -1,3 +1,5 @@
+import { isOwnSitePath } from '@myclash/types';
+
 /**
  * Navigation helpers for the staff app, which is mounted at two base
  * paths from one build:
@@ -13,15 +15,22 @@
 
 /**
  * Validate a `?return=` value before using it as a back-link href.
- * Accepts a root-relative path (`/x`, not the protocol-relative `//x`) or
- * a same-origin absolute URL; rejects everything else (open-redirect
- * hygiene). The admin sends `window.location.href` (same-origin absolute).
+ * Accepts a path of our own site (`isOwnSitePath`, the one rule: `/x`, never
+ * `//x` or `/\x`, which a browser reads as another site) or a same-origin
+ * absolute URL whose path passes the same rule; rejects everything else. The
+ * admin sends `window.location.href` (same-origin absolute).
+ *
+ * An absolute address is handed back as our origin plus its path, not as it
+ * was written: `HTTPS://HOST/x` and `blob:https://host/x` have our origin too,
+ * and the header picks a hard navigation by reading the href's first letters.
  */
 export function safeReturnHref(raw: string | null, currentOrigin: string): string | null {
   if (!raw) return null;
-  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  if (isOwnSitePath(raw)) return raw;
   try {
-    return new URL(raw).origin === currentOrigin ? raw : null;
+    const read = new URL(raw);
+    const path = read.pathname + read.search + read.hash;
+    return read.origin === currentOrigin && isOwnSitePath(path) ? currentOrigin + path : null;
   } catch {
     return null;
   }

@@ -28,6 +28,30 @@ describe('safeReturnHref', () => {
     expect(safeReturnHref('//evil.com/x', origin)).toBeNull();
   });
 
+  // Proven in a browser: with the older check, one click on Back left the site.
+  it.each(['/\\evil.com/x', '/\t/evil.com/x', '/.//evil.com/x'])(
+    'rejects %j, which a browser reads as another site',
+    (asked) => {
+      expect(safeReturnHref(asked, origin)).toBeNull();
+    },
+  );
+
+  // Our origin, but a path the one rule refuses, or a scheme that only wraps our origin.
+  it.each([
+    'https://admin.myclash.fr//evil.com',
+    'https://admin.myclash.fr/\\evil.com',
+    'https://admin.myclash.fr/.//evil.com',
+    'blob:https://admin.myclash.fr/x',
+  ])('rejects the same-origin absolute URL %j', (asked) => {
+    expect(safeReturnHref(asked, origin)).toBeNull();
+  });
+
+  it('hands an oddly written same-origin URL back as our origin plus its path', () => {
+    expect(safeReturnHref('HTTPS://user@ADMIN.MYCLASH.FR/org/x?tab=1#matches', origin)).toBe(
+      'https://admin.myclash.fr/org/x?tab=1#matches',
+    );
+  });
+
   it('returns null for empty/null input', () => {
     expect(safeReturnHref(null, origin)).toBeNull();
     expect(safeReturnHref('', origin)).toBeNull();
