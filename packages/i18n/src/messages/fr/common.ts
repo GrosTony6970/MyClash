@@ -13,6 +13,8 @@ export const common = {
     eventArchived: 'Cet événement est archivé et en lecture seule.',
     eventCompleted:
       'Cet événement est terminé. Rouvrez-le avant de régénérer ou de supprimer ce qui a été planifié.',
+    adminLockdown:
+      "MyClash est en maintenance. Seule l'équipe de la plateforme peut y travailler pour le moment. Réessayez plus tard.",
   },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',

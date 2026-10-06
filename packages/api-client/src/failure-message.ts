@@ -56,8 +56,13 @@ import type { ApiFailure } from './request';
  * receive it, and an Event archives itself. A per-screen mapper (the shape of `correction-refusal.ts`) would need
  * a call at every one of them. The same guard's refusal on a COMPLETED Event
  * (`event_completed`, ruling 289) is said here for the same reason: fifteen
- * routes, on five screens. The guard's two are the exception, not a pattern:
- * another coded refusal belongs in its own screens' mapper.
+ * routes, on five screens. And the maintenance lockdown's 503 (`admin_lockdown`,
+ * ruling 326): one interceptor answers it to a signed-in caller who is not
+ * platform staff, on every route under its prefixes (the admin's, and the
+ * Event and Tournament routes the other apps call too). The sign-in doors
+ * answer the same code, and their screens say their own sentence first. These
+ * three are the exception, not a pattern: each is answered by a global check to
+ * many screens. Another coded refusal belongs in its own screens' mapper.
  *
  * ── An intermediary is not a dead session ──────────────────────────────────
  * The API fills `detail` AND `code` on every problem+json body it sends, so a
@@ -192,6 +197,10 @@ export function failureMessage(
       // ≥500 the filter lets through with real words — see the header.
       if (failure.status >= 500 && failure.status !== 503) {
         return fallback ?? t('common.error');
+      }
+      // The maintenance lockdown, by its code — see the header (ruling 326).
+      if (failure.code === 'admin_lockdown') {
+        return t('common.apiFailure.adminLockdown');
       }
       // Every rejected field, ahead of `detail`, which is only the first of
       // them. Deliberately not guarded on length: with one entry the join IS

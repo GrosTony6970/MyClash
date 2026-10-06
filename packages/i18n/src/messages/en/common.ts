@@ -27,6 +27,10 @@ export const common = {
     eventArchived: 'This event is archived and read-only.',
     eventCompleted:
       'This event is completed. Re-open it before you regenerate or delete what was planned.',
+    // The maintenance lockdown's refusal, by its code `admin_lockdown`: one
+    // global check answers it on nearly every admin screen (ruling 326).
+    adminLockdown:
+      'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',
