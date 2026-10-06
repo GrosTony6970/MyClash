@@ -575,7 +575,7 @@ Implementation must reproduce these scores byte-for-byte.
 
 Forfeits are ruleset behavior, not fake exchanges. TF/FFAMHE defaults are: injury keeps current points and asks whether the fighter can continue; voluntary and first black card award a 0-6 loss and ask whether the fighter can continue; second black card and conduct/violence award a 0-6 loss and disqualify the registration. Active forfeits are stored in `match_forfeits`, drive `matches.status/winner_registration_id`, and may be voided only before downstream dependent matches start. In pools, `canContinue=false` auto-forfeits later unstarted pool matches. In brackets, play-ins and round 2+ become walkovers; main bracket round 1 can replace an unstarted forfeiting fighter with the next eligible pool-ranked non-qualifier.
 
-Taking a black card back takes back what the card did (ruling 319, `penalties/black-card-undo.ts`). The void of a black card first voids the forfeit that card made on its bout, through `MatchForfeitsService.voidForfeit`: the bout returns to what it was, a Fighter the card put out of the Tournament is back in, and the Pool bouts forfeited with it are back on. Whoever may score the bout may do it, a scoring pad included. It lands whole or not at all: where the forfeit cannot be taken back (a bout this one feeds was fought, the bout was fought again or its score recomputed since, a reserve took the Fighter's place, a later forfeit of the Fighter stands, an organiser confirmed the second black card review) the card stays and the answer is the coded refusal `black_card_undo_refused`. A pending second black card review goes with the card once fewer than two remain. The Reopen of such a bout is still refused (`forfeit_withdrew_fighter`): reopening a bout is not asking for the card back.
+Taking a black card back takes back what the card did (ruling 319, `penalties/black-card-undo.ts`). The void of a black card first voids the forfeit that card made on its bout, through `MatchForfeitsService.voidForfeit`: the bout returns to what it was, a Fighter the card put out of the Tournament is back in, and the Pool bouts forfeited with it are back on. Whoever may score the bout may do it, a scoring pad included. It lands whole or not at all: where the forfeit cannot be taken back (a bout this one feeds was fought, the bout was fought again, a reserve took the Fighter's place, a later forfeit of the Fighter stands, an organiser confirmed the second black card review) the card stays and the answer is the coded refusal `black_card_undo_refused`. A pending second black card review goes with the card once fewer than two remain. The Reopen of such a bout is still refused (`forfeit_withdrew_fighter`): reopening a bout is not asking for the card back.
 
 ---
 
@@ -2098,8 +2098,17 @@ and a draw only where the phase's level chain allows one. A Swiss bout with a la
 is treated the same way, because its reopen is refused. On a running Event a bout the engine
 no longer ends still goes back to its referee; one that is still over with another result names
 it at once and re-feeds the next bracket slot. A bout that did not end on the board (a forfeit,
-a black card, a spent series, a result with no end reason) never changes its winner. On an over
-Event a grand final that the losers' side now wins makes no second final: the final ranking
+a black card, a spent series, a result with no end reason) never changes its winner. A bout that
+holds the result of a live `match_forfeits` record (a forfeit, a black card, an organiser's
+override) is not scored from its sheet at all (ruling 322, `ScoringService.heldByLiveRecord`):
+a late card or a correction is saved on the sheet, and the bout keeps the record's score, winner
+and status. Both are asked: the row (completed, with a record's end reason) and the record
+itself, because `PATCH /status` and the clock's reopen leave the old reason on a row whose
+record they voided. The colour swap is refused on a held bout: its score would stay on the
+wrong Fighters. `MatchForfeitsService.voidForfeit` asks the recompute again once it has put
+the bout back in play. A bout it restores as completed (an override over a fought bout) is left
+as restored, and so are the Pool bouts of a cascade: what was added to their sheets meanwhile
+counts at the next correction. On an over Event a grand final that the losers' side now wins makes no second final: the final ranking
 reads the grand final while no reset was played.
 
 A correction lands whole or not at all (226). When it would change the result of a bout that
@@ -2125,7 +2134,7 @@ sheet no longer ends it, is reopened (and a clinched series un-completed, best e
 nobody can take the series back out of completed (247a): on an over Event, with a later Swiss round
 drawn, or once a bout fed by the series was fought, the round that clinched it is a closed round
 like any other (`reopenableRound`). Known limits: a colour swap leaves the snapshots on the old
-colours; a forfeit on the series still refuses the reopen in silence.
+colours; a series a forfeit record holds is not recomputed at all (ruling 322, above).
 
 ### 12.6 Roles (unchanged from earlier draft)
 

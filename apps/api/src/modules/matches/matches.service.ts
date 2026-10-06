@@ -1116,6 +1116,7 @@ export class MatchesService {
   async swapFighterColor(matchId: string, context?: MatchActor) {
     const match = await this.getLockableMatch(matchId);
     await this.assertMatchUnlocked(matchId, context, match);
+    await this.scoring.assertNoRecordHolds(matchId);
     const updates = {
       red_registration_id: match.blue_registration_id,
       blue_registration_id: match.red_registration_id,
@@ -1133,26 +1134,7 @@ export class MatchesService {
       .select('id, first_striker_color')
       .eq('match_id', matchId);
     if (exchangeError) throw new BadRequestException(exchangeError.message);
-    // Bulk-UPSERT replaces a per-row UPDATE loop: one round-trip
-    // regardless of exchange count. Each row maps to a different
-    // next colour (some red→blue, some blue→red), so a single
-    // .update().eq() won't work — UPSERT with onConflict='id' is
-    // the simplest batched form. Rows where first_striker_color is
-    // null (or anything other than red/blue) are filtered out
-    // before the upsert, matching the prior loop's `if (next)`
-    // skip behaviour.
-    type ColorRow = { id: string; first_striker_color: string | null };
-    const flipPayload = ((exchanges ?? []) as ColorRow[])
-      .map((row) => {
-        const next =
-          row.first_striker_color === 'red'
-            ? 'blue'
-            : row.first_striker_color === 'blue'
-              ? 'red'
-              : null;
-        return next ? { id: row.id, first_striker_color: next } : null;
-      })
-      .filter((row): row is { id: string; first_striker_color: string } => row !== null);
+    const flipPayload = flippedColours((exchanges ?? []) as ColorRow[]);
     if (flipPayload.length > 0) {
       const { error: flipErr } = await this.supabase.service
         .from('exchanges')
@@ -1474,4 +1456,25 @@ export class MatchesService {
     });
     if (error) throw new BadRequestException(error.message);
   }
+}
+
+type ColorRow = { id: string; first_striker_color: string | null };
+
+/**
+ * The colour swap's rows, for ONE upsert on `id`: each hit maps to its own next
+ * colour (some red to blue, some blue to red), so a single `.update().eq()`
+ * cannot do it. A hit with no striker colour is left out.
+ */
+function flippedColours(exchanges: ColorRow[]): Array<{ id: string; first_striker_color: string }> {
+  return exchanges
+    .map((row) => {
+      const next =
+        row.first_striker_color === 'red'
+          ? 'blue'
+          : row.first_striker_color === 'blue'
+            ? 'red'
+            : null;
+      return next ? { id: row.id, first_striker_color: next } : null;
+    })
+    .filter((row): row is { id: string; first_striker_color: string } => row !== null);
 }

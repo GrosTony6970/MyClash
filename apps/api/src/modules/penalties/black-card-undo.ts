@@ -6,9 +6,8 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * Taking a black card back takes back what the card did (ruling 319).
  *
  * A black card ends its bout as a forfeit, and can put its Fighter out of the
- * Tournament. A void that removed the card alone left both standing: the
- * recompute asks the un-completion owner, which refuses a forfeit that moved
- * a Fighter, and that refusal is swallowed there.
+ * Tournament. A void that removed the card alone leaves both standing: the
+ * recompute does not touch a bout a live forfeit record holds (ruling 322).
  *
  * So the void of the card goes to `MatchForfeitsService.voidForfeit` first,
  * the one remedy that restores the bout, the bracket, the Fighter's status

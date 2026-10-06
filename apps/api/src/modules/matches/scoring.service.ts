@@ -41,6 +41,7 @@ import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
+import { endedByForfeitRecord } from './forfeit-end-reason';
 import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
@@ -156,6 +157,19 @@ export class ScoringService {
       this.logger.error(`Cannot recompute score for match ${matchId}: not found`);
       return { redScore: 0, blueScore: 0 };
     }
+    // Ruling 322: a forfeit's result is not the sheet's. See `heldByLiveRecord`.
+    if (await this.heldByLiveRecord(m)) {
+      this.logger.log(`Match ${matchId} keeps the result of its forfeit record beside its sheet`);
+      return { redScore: Number(m['red_score'] ?? 0), blueScore: Number(m['blue_score'] ?? 0) };
+    }
+    return this.recomputeFromSheet(matchId, m);
+  }
+
+  /** The sheet's half of `recomputeMatchScore`: a single fight, or a series' open round. */
+  private async recomputeFromSheet(
+    matchId: string,
+    m: Record<string, unknown>,
+  ): Promise<{ redScore: number; blueScore: number }> {
     const bout = await this.loadBout(m);
     const { match, matchFormat } = bout;
 
@@ -1274,6 +1288,44 @@ export class ScoringService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+    }
+  }
+
+  /**
+   * Ruling 322: is this bout holding the result a live `match_forfeits` record
+   * gave it (a forfeit, a black card, an organiser's override)?
+   *
+   * Such a result is not the sheet's. The record wrote its own score, so a late
+   * card or a correction is saved on the sheet and the bout keeps score, winner
+   * and status until the record is voided. A recompute from the sheet made the
+   * record impossible to void: the void refuses a bout that no longer holds
+   * what the record wrote.
+   *
+   * The row first, then the record. A bout fought again to the board's own end
+   * says so on its row; one completed again by `PATCH /status` keeps the old
+   * reason, and only the voided record tells that it follows its sheet.
+   */
+  private async heldByLiveRecord(m: Record<string, unknown>): Promise<boolean> {
+    if (!endedByForfeitRecord(m)) return false;
+    const { data, error } = await this.supabase.service
+      .from('match_forfeits')
+      .select('id')
+      .eq('match_id', m['id'] as string)
+      .is('voided_at', null);
+    if (error) throw new Error(`Could not read the forfeit record of a match: ${error.message}`);
+    return (data ?? []).length > 0;
+  }
+
+  /**
+   * For a door that changes what a result is READ from, not the sheet: the
+   * colour swap moves the two Fighters and counts on the recompute to move the
+   * score with them. On a held bout the recompute writes nothing, so the
+   * record's score would sit on the wrong Fighters.
+   */
+  async assertNoRecordHolds(matchId: string): Promise<void> {
+    const m = await this.loadMatchRow(matchId);
+    if (m && (await this.heldByLiveRecord(m))) {
+      throw new BadRequestException('A forfeit holds this match: take the forfeit back first');
     }
   }
 

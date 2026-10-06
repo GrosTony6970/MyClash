@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { hasBeenFought } from './fought-match';
 import { stampForfeitVoided } from './forfeit-void';
+import { ScoringService } from './scoring.service';
 
 /**
  * `canOverrideLocked` comes from `authorizeMatchScoring` and was being dropped
@@ -56,6 +58,8 @@ export interface ForfeitCascadeContext {
 
 @Injectable()
 export class MatchForfeitsService {
+  private readonly logger = new Logger(MatchForfeitsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     @Optional() private readonly matchCompletion?: MatchCompletionService,
@@ -64,6 +68,7 @@ export class MatchForfeitsService {
     @Optional() private readonly clock?: ClockService,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
+    @Optional() private readonly scoring?: ScoringService,
   ) {}
 
   async createForfeit(matchId: string, dto: CreateMatchForfeitDto, actor: Actor = {}) {
@@ -400,13 +405,7 @@ export class MatchForfeitsService {
     await this.restoreMatchState(matchId, previousMatch);
     await this.readvanceIfDecided(matchId, previousMatch);
 
-    const previousReg = (forfeit['previous_registration_state'] as Row | null) ?? {};
-    if (previousReg['status']) {
-      await this.supabase.service
-        .from('registrations')
-        .update({ status: previousReg['status'] })
-        .eq('id', forfeit['forfeiting_registration_id'] as string);
-    }
+    await this.restoreRegistrationStatus(forfeit);
 
     // Children second-to-last, the parent LAST. A crash between them leaves the
     // parent record active, so a re-run converges: the children already voided
@@ -415,7 +414,44 @@ export class MatchForfeitsService {
     // would no longer block a fresh record on the parent match.
     const cascaded = await this.cascadeVoidChildren(forfeitId, actor);
     const updated = await this.stampVoided(forfeitId, actor);
+    await this.readSheetAgain(matchId, previousMatch);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
+  }
+
+  /** The Fighter's status as the record found it. A record that captured none restores none. */
+  private async restoreRegistrationStatus(forfeit: Row): Promise<void> {
+    const previousReg = (forfeit['previous_registration_state'] as Row | null) ?? {};
+    if (!previousReg['status']) return;
+    await this.supabase.service
+      .from('registrations')
+      .update({ status: previousReg['status'] })
+      .eq('id', forfeit['forfeiting_registration_id'] as string);
+  }
+
+  /**
+   * Ruling 322: while the record stood, the bout kept the record's result
+   * whatever was added to its sheet (`ScoringService.heldByLiveRecord`). Back
+   * in play, it reads the sheet again, or a late card would wait for the next
+   * hit.
+   *
+   * NOT a bout the restore leaves completed (an override over a bout that was
+   * fought to its end): with no correction asked, a recompute would hand a
+   * time-ended bout of a running Event back to its referee. What was added to
+   * its sheet meanwhile counts at the next correction, and the log says so.
+   * Not the bouts of a cascade either: they were not fought when forfeited.
+   *
+   * Never throws: the void is saved by now.
+   */
+  private async readSheetAgain(matchId: string, previous: Row): Promise<void> {
+    if (previous['status'] === 'completed') {
+      this.logger.log(`Match ${matchId} is completed again as it was: its sheet was not read`);
+      return;
+    }
+    try {
+      await this.scoring?.recomputeMatchScore(matchId);
+    } catch (err) {
+      this.logger.warn(`Match ${matchId} did not read its sheet again after a forfeit's void`, err);
+    }
   }
 
   /**

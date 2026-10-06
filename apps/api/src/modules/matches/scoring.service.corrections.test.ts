@@ -1,5 +1,6 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, scopedTo, selectsFor } from '../../common/testing/supabase-chain';
+import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
 import {
   BOUT,
@@ -20,6 +21,7 @@ import {
 const SHEET_3_4 = [hit(1, 'red', 3), hit(2, 'blue', 2), hit(3, 'blue', 2)];
 const SHEET_5_3 = [hit(1, 'red', 3), hit(2, 'red', 2), hit(3, 'blue', 3)];
 const SHEET_4_4 = [hit(1, 'red', 2), hit(2, 'red', 2), hit(3, 'blue', 2), hit(4, 'blue', 2)];
+const LIVE_RECORD = { id: 'f1', match_id: BOUT, voided_at: null };
 
 describe('ScoringService.recomputeMatchScore — a correction on a finished bout', () => {
   it('on an over Event the winner follows the score and the bout stays finished', async () => {
@@ -57,16 +59,84 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
     expect(matchCompletion.onMatchUncompleted).not.toHaveBeenCalled();
   });
 
-  it('a bout ended by a forfeit keeps its winner', async () => {
-    const { service, written, matchCompletion } = setup(
-      storedBout({ end_reason: 'forfeit' }),
-      SHEET_3_4,
+  // Ruling 322. The sheet reads 3-4 and the record gave 6-0: nothing of the bout moves.
+  describe.each(['forfeit', 'black_card', 'override'])('a bout a %s record ended', (end_reason) => {
+    const held = () => storedBout({ end_reason, red_score: 6, blue_score: 0 });
+
+    it.each([
+      ['an over', OVER_EVENT],
+      ['a running', RUNNING_EVENT],
+    ])('keeps its score, its winner and its status on %s Event', async (_name, context) => {
+      const { service, db, matchCompletion, leagueRescore } = setup(
+        held(),
+        SHEET_3_4,
+        context,
+        [],
+        [LIVE_RECORD],
+      );
+
+      await expect(service.recomputeMatchScore(BOUT)).resolves.toEqual({
+        redScore: 6,
+        blueScore: 0,
+      });
+
+      expect(writesTo(db, 'matches')).toEqual([]);
+      expect(matchCompletion.onMatchUncompleted).not.toHaveBeenCalled();
+      expect(matchCompletion.onResultChanged).not.toHaveBeenCalled();
+      expect(leagueRescore.afterResultWrite).not.toHaveBeenCalled();
+    });
+
+    it('keeps them in a best-of series too', async () => {
+      const series = phase('pool');
+      series.tournaments.ruleset_config.matchFormat.bestOf.pool = 3;
+      const { service, db } = setup(
+        { ...held(), phases: series },
+        SHEET_3_4,
+        RUNNING_EVENT,
+        [],
+        [LIVE_RECORD],
+      );
+
+      await service.recomputeMatchScore(BOUT);
+
+      expect(writesTo(db, 'matches')).toEqual([]);
+    });
+
+    // `PATCH /status` and the clock's reopen void the record and leave the
+    // reason on the row. Completed again, the bout is nobody's to take back.
+    it.each([
+      ['its record is voided', [{ ...LIVE_RECORD, voided_at: '2026-01-01T00:10:00Z' }]],
+      ['only another bout has a record', []],
+    ])('follows its sheet when %s', async (_name, records) => {
+      const { service, written } = setup(held(), SHEET_3_4, OVER_EVENT, [], records);
+
+      await service.recomputeMatchScore(BOUT);
+
+      expect(written()?.row).toMatchObject({ red_score: 3, blue_score: 4 });
+    });
+
+    it('refuses a door that asks whether a record holds the bout', async () => {
+      const { service } = setup(held(), SHEET_3_4, RUNNING_EVENT, [], [LIVE_RECORD]);
+
+      await expect(service.assertNoRecordHolds(BOUT)).rejects.toThrow(
+        new BadRequestException('A forfeit holds this match: take the forfeit back first'),
+      );
+    });
+  });
+
+  it('a bout fought again to the end of the board follows its sheet, live record or not', async () => {
+    const { service, written } = setup(
+      storedBout({ end_reason: 'first_to_points' }),
+      SHEET_5_3,
+      OVER_EVENT,
+      [],
+      [LIVE_RECORD],
     );
 
+    await expect(service.assertNoRecordHolds(BOUT)).resolves.toBeUndefined();
     await service.recomputeMatchScore(BOUT);
 
-    expect(written()?.row).not.toHaveProperty('winner_registration_id');
-    expect(matchCompletion.onResultChanged).not.toHaveBeenCalled();
+    expect(written()?.row).toMatchObject({ red_score: 5, blue_score: 3 });
   });
 
   it('a level board is a draw where the phase may end level (ruling 227)', async () => {

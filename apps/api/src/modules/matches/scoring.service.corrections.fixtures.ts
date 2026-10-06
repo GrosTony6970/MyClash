@@ -92,12 +92,15 @@ export function setup(
   sheet: Array<Record<string, unknown>>,
   context: Record<string, boolean> = OVER_EVENT,
   cards: Array<Record<string, unknown>> = [],
+  records: Array<Record<string, unknown>> = [],
 ) {
   const db = mockSupabase({
     // A second bout: unscoped, the reads and the write would take it too.
     matches: { rows: [bout, storedBout({ id: 'm2' })] },
     exchanges: { rows: [...sheet, { ...hit(9, 'red', 3), match_id: 'm2' }] },
     match_penalties: { rows: cards },
+    // The second bout's record is live: it holds nothing of the first (ruling 322).
+    match_forfeits: { rows: [...records, { id: 'f2', match_id: 'm2', voided_at: null }] },
   });
   const writesWhenToldTheBracket: number[] = [];
   const matchCompletion = {

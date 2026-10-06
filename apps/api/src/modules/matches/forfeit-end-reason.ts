@@ -20,3 +20,24 @@ export function forfeitEndReason(reason: string): 'black_card' | 'forfeit' | 'ov
   if (isOverrideReason(reason)) return 'override';
   return reason === 'black_card_1' || reason === 'black_card_2' ? 'black_card' : 'forfeit';
 }
+
+/** Named one by one: a value added above fails the typecheck until it is placed here. */
+const RECORD_END_REASONS: Record<ReturnType<typeof forfeitEndReason>, true> = {
+  black_card: true,
+  forfeit: true,
+  override: true,
+};
+
+/**
+ * Does this bout's ROW say a `match_forfeits` record ended it?
+ *
+ * The row's half of ruling 322 (`ScoringService.heldByLiveRecord` asks the
+ * record too). It costs no read, so a bout that ended on the board never pays
+ * for the question. It is not enough alone: `PATCH /status` and the clock's
+ * reopen take a bout back out of completed and leave `end_reason` on its row.
+ */
+export function endedByForfeitRecord(bout: { status?: unknown; end_reason?: unknown }): boolean {
+  return (
+    bout.status === 'completed' && Object.keys(RECORD_END_REASONS).includes(String(bout.end_reason))
+  );
+}

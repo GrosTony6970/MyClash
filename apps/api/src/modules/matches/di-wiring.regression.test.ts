@@ -98,6 +98,13 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
   it('match-forfeits.service value-imports FrozenResultsGuard', () => {
     valueImports('./match-forfeits.service.ts', 'FrozenResultsGuard');
   });
+
+  // Ruling 322: a voided record's bout reads its sheet again through
+  // `this.scoring?.`. With `import type` the take-back still answers, and a
+  // card given meanwhile waits for the next hit.
+  it('match-forfeits.service value-imports ScoringService', () => {
+    valueImports('./match-forfeits.service.ts', 'ScoringService');
+  });
 });
 
 /**
