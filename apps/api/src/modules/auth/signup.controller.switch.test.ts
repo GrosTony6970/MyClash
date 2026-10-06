@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { ADMIN_LOCKDOWN_CODE, SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { SignupController } from './signup.controller';
@@ -21,7 +21,7 @@ const onboarding = {
   signup: vi.fn(),
   completeSignupAfterMagicLink: vi.fn(),
 };
-const auth = { signInFromSignupLink: vi.fn() };
+const auth = { signInFromSignupLink: vi.fn(), isAdminLockdownEnabled: vi.fn() };
 const legal = { recordForUser: vi.fn() };
 const controller = new SignupController(onboarding as never, auth as never, legal as never);
 
@@ -48,6 +48,7 @@ beforeEach(() => {
   onboarding.signup.mockResolvedValue({ type: 'magic_link' });
   onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe');
   auth.signInFromSignupLink.mockResolvedValue(ANN);
+  auth.isAdminLockdownEnabled.mockResolvedValue(false);
 });
 
 describe('the sign-up form (ruling 305)', () => {
@@ -120,5 +121,48 @@ describe('the mailed sign-up link (ruling 305)', () => {
     expect(onboarding.completeSignupAfterMagicLink.mock.calls).toEqual([
       [ANN.id, 'Lyon AMHE', 'lyon-amhe-2'],
     ]);
+  });
+});
+
+/**
+ * The same link during the maintenance lockdown (operator ruling 324).
+ *
+ * Ann clicks her sign-up mail while the lockdown is on. The door spent her link, then refused
+ * her: her browser showed a raw 503, her account existed with no club, and the link was dead.
+ * Nobody who signs up is platform staff, so the door reads the lockdown BEFORE it spends the
+ * link, as it reads "sign-ups off".
+ */
+describe('the mailed sign-up link during the maintenance lockdown (ruling 324)', () => {
+  it('sends her to the sign-up page with the reason, and does not spend her link', async () => {
+    auth.isAdminLockdownEnabled.mockResolvedValue(true);
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([
+      [`/signup?${SIGNUP_REFUSED_PARAM}=${ADMIN_LOCKDOWN_CODE}`],
+    ]);
+    expect(auth.signInFromSignupLink).not.toHaveBeenCalled();
+    expect(onboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+  });
+
+  it('says "sign-ups off" first when both switches are on', async () => {
+    auth.isAdminLockdownEnabled.mockResolvedValue(true);
+    onboarding.assertSignupsOpen.mockRejectedValue(OFF);
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([
+      [`/signup?${SIGNUP_REFUSED_PARAM}=${SIGNUPS_DISABLED_CODE}`],
+    ]);
+  });
+
+  it('makes her club while the lockdown is off', async () => {
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([['/org/lyon-amhe']]);
   });
 });

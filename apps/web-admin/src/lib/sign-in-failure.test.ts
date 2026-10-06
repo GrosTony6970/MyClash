@@ -179,8 +179,21 @@ describe('the sign-up page after a refused mail link', () => {
     expect(signupRefusedKey('signups_disabled')).toBe('auth.signup.signupsOff');
   });
 
+  // Operator ruling 324: both mailed links' doors write the lockdown.
+  it('says the lockdown for the reason the door writes', () => {
+    expect(signupRefusedKey('admin_lockdown')).toBe('admin.featureFlags.lockdownBanner');
+  });
+
   it.each([undefined, '', 'something-else'])('says nothing for %o', (value) => {
     expect(signupRefusedKey(value)).toBeNull();
+  });
+
+  it('is read by the sign-in page too, for a mailed sign-in link', () => {
+    const page = readFileSync(join(__dirname, '../../app/login/page.tsx'), 'utf8');
+    expect(page).toContain('initialTab="signin"');
+    expect(page).toContain(
+      'refused={signupRefusedKey((await searchParams)[SIGNUP_REFUSED_PARAM])}',
+    );
   });
 
   it('is read by the page from its address and said by the form when it opens', () => {

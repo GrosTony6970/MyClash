@@ -13,12 +13,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
+  ADMIN_LOCKDOWN_CODE,
   CLAIM_REFUSED_PARAM,
+  SIGNUP_REFUSED_PARAM,
   SIGNUPS_DISABLED_CODE,
   validatePassword,
   type ClaimLinkRefusal,
 } from '@myclash/types';
-import { adminLockdownRefusal } from '../../common/admin-lockdown';
+import { adminLockdownRefusal, isAdminLockdownRefusal } from '../../common/admin-lockdown';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
@@ -380,7 +382,8 @@ export class AuthService {
     throw adminLockdownRefusal();
   }
 
-  private async isAdminLockdownEnabled(): Promise<boolean> {
+  /** Public for the mailed sign-up link's door, which asks before it spends the link. */
+  async isAdminLockdownEnabled(): Promise<boolean> {
     try {
       const { data } = await this.supabase.service
         .from('feature_flags')
@@ -430,7 +433,17 @@ export class AuthService {
     next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
-    const user = await this.exchangeLink(token, type, reply);
+    const user = await this.exchangeLink(token, type, reply).catch((refusal: unknown) => {
+      if (isAdminLockdownRefusal(refusal)) return null;
+      throw refusal;
+    });
+    if (!user) {
+      // A browser that followed a link cannot read a 503 (ruling 324): the
+      // sign-in page says the lockdown. The code is spent, the cookies are not set.
+      const page = `/login?${SIGNUP_REFUSED_PARAM}=${ADMIN_LOCKDOWN_CODE}`;
+      void reply.redirect(this.buildPostAuthRedirectUrl(page, type));
+      return;
+    }
 
     const refusedPath =
       type === 'claim' && personId ? await this.claimFromLink(user.id, user.email, personId) : null;

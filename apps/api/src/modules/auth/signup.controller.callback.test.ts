@@ -17,6 +17,7 @@ const BOB = { id: 'user-bob', email: 'bob@example.com' };
 const auth = {
   signInFromSignupLink: vi.fn(),
   getMe: vi.fn(),
+  isAdminLockdownEnabled: vi.fn(async () => false),
 };
 const onboarding = { completeSignupAfterMagicLink: vi.fn(), assertSignupsOpen: vi.fn() };
 const legal = { recordForUser: vi.fn() };

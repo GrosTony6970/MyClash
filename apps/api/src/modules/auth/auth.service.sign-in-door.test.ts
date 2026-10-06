@@ -152,6 +152,61 @@ describe('the admin sign-in door during the maintenance lockdown (ruling 308)', 
     expect(reply.setCookie).not.toHaveBeenCalled();
   });
 
+  // Operator ruling 324. A browser that followed a mailed link cannot read a 503: Marc saw
+  // raw English text. The code is spent by then (only the spent code names the account, and
+  // platform staff pass), so he lands on the sign-in page, which says the lockdown.
+  const landOn = (type: string, over: Record<string, TableSeed> = {}) => {
+    const verifyOtp = vi.fn().mockResolvedValue({
+      data: { session: { access_token: 'access', refresh_token: 'refresh', user: MARC } },
+      error: null,
+    });
+    const built = build({ ...LOCKED, ...over }, { anon: { auth: { verifyOtp } } });
+    vi.spyOn(built.service, 'tryAutolinkGlobalPerson').mockResolvedValue(undefined);
+    const land = () =>
+      built.service.handleCallback('token-hash', type, undefined, undefined, built.reply as never);
+    return { ...built, land };
+  };
+
+  it('sends the reader of a mailed sign-in link to the sign-in page with the reason', async () => {
+    const { land, reply } = landOn('login');
+
+    await land();
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://admin.myclash.localhost/login?refused=admin_lockdown'],
+    ]);
+    expect(reply.setCookie).not.toHaveBeenCalled();
+  });
+
+  it('still lets platform staff in by a mailed sign-in link', async () => {
+    const { land, reply } = landOn('login', {
+      platform_roles: { rows: [{ user_id: MARC.id, role: 'platform_admin' }] },
+    });
+
+    await land();
+
+    expect(reply.redirect.mock.calls).toEqual([['https://admin.myclash.localhost/dashboard']]);
+    expect(reply.setCookie).toHaveBeenCalled();
+  });
+
+  it('keeps the participant app open: its mailed link is not an admin sign-in', async () => {
+    const { land, reply } = landOn('public_login');
+
+    await land();
+
+    expect(reply.redirect.mock.calls).toEqual([['https://app.myclash.localhost/me']]);
+  });
+
+  it('still fails on a spent or unknown code, with no redirect', async () => {
+    const verifyOtp = vi.fn().mockResolvedValue({ data: {}, error: { message: 'expired' } });
+    const { service, reply } = build(LOCKED, { anon: { auth: { verifyOtp } } });
+
+    await expect(
+      service.handleCallback('token-hash', 'login', undefined, undefined, reply as never),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(reply.redirect).not.toHaveBeenCalled();
+  });
+
   it('lets an organizer in while the lockdown is off', async () => {
     const { google, reply } = build({
       ...LOCKED,

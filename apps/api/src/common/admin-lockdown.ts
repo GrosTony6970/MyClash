@@ -16,3 +16,9 @@ export function adminLockdownRefusal(): OperationalUnavailableException {
     message: 'MyClash admin is temporarily restricted to super admins. Please try again later.',
   });
 }
+
+/** Is this the lockdown's refusal? For a door that answers a browser, which cannot read a 503. */
+export function isAdminLockdownRefusal(refusal: unknown): boolean {
+  if (!(refusal instanceof OperationalUnavailableException)) return false;
+  return (refusal.getResponse() as { code?: unknown }).code === ADMIN_LOCKDOWN_CODE;
+}

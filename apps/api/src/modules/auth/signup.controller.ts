@@ -14,7 +14,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
-import { SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { ADMIN_LOCKDOWN_CODE, SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
@@ -103,8 +103,9 @@ export class SignupController {
     if (!signupClubSchema.safeParse({ orgName, orgSlug }).success) {
       throw new BadRequestException('This sign-up link names no valid organization');
     }
-    if (await this.signupsAreOff()) {
-      void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${SIGNUPS_DISABLED_CODE}`);
+    const refused = await this.refusedBeforeTheSpend();
+    if (refused) {
+      void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${refused}`);
       return;
     }
 
@@ -125,6 +126,18 @@ export class SignupController {
     // The club that was MADE (operator ruling 304): its address is another one
     // than `orgSlug` when somebody took hers between her request and her click.
     void reply.redirect(`/org/${made}`);
+  }
+
+  /**
+   * Why the mailed link is not spent now, as the sign-up page reads it, or null.
+   *
+   * The maintenance lockdown too (operator ruling 324): the sign-in would refuse
+   * her AFTER the link is spent, with a 503 her browser cannot read, and leave
+   * an account with no club. Nobody who signs up is platform staff.
+   */
+  private async refusedBeforeTheSpend(): Promise<string | null> {
+    if (await this.signupsAreOff()) return SIGNUPS_DISABLED_CODE;
+    return (await this.auth.isAdminLockdownEnabled()) ? ADMIN_LOCKDOWN_CODE : null;
   }
 
   /** The switch's own refusal is an answer here; any other fault still throws. */

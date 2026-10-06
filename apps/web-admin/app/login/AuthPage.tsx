@@ -63,8 +63,8 @@ const EMPTY_DRAFT: AccountDraft = {
  * than a `window.location` read in a state initializer, which would not match
  * what the server rendered.
  *
- * `refused` is the sentence key of a mailed sign-up link the API refused (operator ruling
- * 305): the page reads it from its address on the server, and the panel opens on it.
+ * `refused` is the sentence key of a mailed link the API refused (operator rulings 305 and
+ * 324): the page reads it from its address on the server, and the panel opens on it.
  */
 export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }) {
   const { initialTab, refused } = props;

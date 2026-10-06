@@ -30,8 +30,8 @@ export function oauthFailureKey(failure: ApiFailure): string {
 /**
  * The password form's sentence for a refused sign-in.
  *
- * Two of its own, then the shared one. The lockdown's 503 keeps its English words, and the
- * shared sentence would say them: the form says the lockdown in the reader's language. And a
+ * Two of its own, then the shared one. For the lockdown's 503 the form says the sign-in
+ * screens' own sentence, not the shared one for a page inside the admin (ruling 326). And a
  * 401 the API wrote is a wrong address or password here, where nobody is signed in yet: the
  * shared sentence for a 401 says "your session has expired" (operator ruling 309). A 401 with
  * no code is the edge's, and stays the shared "the connection was blocked".
@@ -64,9 +64,13 @@ export function signupFailureMessage(
 }
 
 /**
- * The sentence key for the reason the mailed sign-up link's door wrote in the sign-up page's
- * address (`SIGNUP_REFUSED_PARAM`), or `null`. A browser that follows a link cannot read a 503.
+ * The sentence key for the reason a mailed link's door wrote in the page's address
+ * (`SIGNUP_REFUSED_PARAM`), or `null`. A browser that follows a link cannot read a 503.
+ *
+ * The sign-up link's door writes "sign-ups off" or the lockdown to the sign-up page, and the
+ * sign-in link's door writes the lockdown to the sign-in page (operator ruling 324).
  */
 export function signupRefusedKey(value: string | string[] | undefined): string | null {
+  if (value === ADMIN_LOCKDOWN_CODE) return LOCKDOWN_KEY;
   return value === SIGNUPS_DISABLED_CODE ? SIGNUPS_OFF_KEY : null;
 }
