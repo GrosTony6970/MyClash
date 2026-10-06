@@ -99,14 +99,14 @@ export function retargetScoreboardPopupIfOpen(url: string): void {
  * Swap the match-id segment of an external-display URL (`/display/{id}` — see
  * build-scoring-href.ts) for the currently-viewed match, so the ↗ button and
  * the retarget both point at what the pad is showing. Returns null when there
- * is no external-display base; leaves a URL without a `/display/{id}` segment
- * untouched.
+ * is no external-display base.
  *
  * The base is read from `?externalDisplay=` and the result goes to
- * `window.open`, where a `javascript:` address runs on the pad's own site. So
- * the result is a path of our own site (`isOwnSitePath`, asked once the bout
- * is swapped in) or null, and the header then shows no button. Every admin
- * screen sends a path.
+ * `window.open`, where a `javascript:` address runs on the pad's own site, and
+ * the popup keeps a handle to the pad. So the result is a path of our own site
+ * (`isOwnSitePath`, asked once the bout is swapped in) that the browser reads
+ * as this bout's display page, or null, and the header then shows no button.
+ * Every admin screen sends `/display/{id}`.
  */
 export function displayUrlForMatch(
   externalDisplayUrl: string | null | undefined,
@@ -114,5 +114,9 @@ export function displayUrlForMatch(
 ): string | null {
   if (!externalDisplayUrl) return null;
   const url = externalDisplayUrl.replace(/\/display\/[^/?#]+/, `/display/${matchId}`);
-  return isOwnSitePath(url) ? url : null;
+  if (!isOwnSitePath(url)) return null;
+  // The path as the browser resolves it: `/display/x/../../api` is `/api`.
+  // Handed back as it was read, not as it was written.
+  const read = new URL(url, 'https://pad.invalid');
+  return read.pathname === `/display/${matchId}` ? read.pathname + read.search + read.hash : null;
 }

@@ -119,8 +119,32 @@ describe('displayUrlForMatch', () => {
     expect(displayUrlForMatch('', 'match-2')).toBeNull();
   });
 
-  it('leaves a URL without a /display/{id} segment untouched', () => {
-    expect(displayUrlForMatch('/staff/matches/match-1', 'match-2')).toBe('/staff/matches/match-1');
+  // Proven in a browser: one press opened `/api/v1/…` of our own site, with a
+  // handle to the pad. Only this bout's display page is opened.
+  it.each([
+    '/staff/matches/match-1',
+    '/api/v1/version',
+    '/display',
+    '/display/',
+    '/display/wall/event-1',
+    '/display/match-1/extra',
+    '/display/match-1/../../api/v1/version',
+    '/display/match-1/%2e%2e/%2E%2E/api/v1/version',
+    '/display/match-1\\..\\..\\api/v1/version',
+    '/org/display/match-1',
+  ])('gives no address for %j, which is not the display page of this bout', (asked) => {
+    expect(displayUrlForMatch(asked, 'match-2')).toBeNull();
+  });
+
+  it('hands the address back as the browser reads it, not as it was written', () => {
+    expect(displayUrlForMatch('/a/../display/match-1?foo=bar#x', 'match-2')).toBe(
+      '/display/match-2?foo=bar#x',
+    );
+  });
+
+  it('gives no address for a bout id the browser would write another way', () => {
+    expect(displayUrlForMatch('/display/match-1', 'match 2')).toBeNull();
+    expect(displayUrlForMatch('/display/match-1', '.')).toBeNull();
   });
 
   // The address comes from `?externalDisplay=` and goes to `window.open`.
