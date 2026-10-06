@@ -61,6 +61,7 @@ import type { PersonalSpaceResponseDto } from './dto/personal-space-response.dto
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { guestPersonOf } from './guest-person';
 import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
+import { safeRedirectPath } from './safe-redirect';
 
 /** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
@@ -80,8 +81,6 @@ const CLAIM_REFUSAL_ERRORS: Record<ClaimCheckRefusal, () => HttpException> = {
 /** The unique index of migration 0220: one roster row per account at an Event (ruling 296). */
 const ONE_ROW_PER_ACCOUNT_AT_EVENT = 'persons_event_id_claimed_by_user_id_key';
 
-/** Allowed redirect paths after auth — prevents open-redirect attacks. */
-const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
 // Sliding-session lifetime for the auth cookies (30 days). The access token's
 // own JWT exp (GOTRUE_JWT_EXP, ~1h) still governs validity; when it expires or
 // is about to, `getMe` mints a fresh one from the refresh-token cookie and re-sets both
@@ -224,8 +223,7 @@ export class AuthService {
   async requestMagicLink(dto: RequestMagicLinkDto): Promise<{ message: string }> {
     const { email, type, personId, redirectTo } = dto;
 
-    // Validate redirect path (prevent open redirect)
-    const safeRedirect = this.validateRedirect(redirectTo);
+    const safeRedirect = safeRedirectPath(redirectTo);
 
     if (type === 'claim') {
       if (!personId) {
@@ -270,7 +268,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid OAuth session');
     }
 
-    let destination = this.validateRedirect(dto.next);
+    let destination = safeRedirectPath(dto.next);
 
     if (dto.mode === 'admin_login') {
       const allowed = await this.hasAdminAccess(user.id);
@@ -341,7 +339,7 @@ export class AuthService {
   }
 
   async passwordLogin(dto: PasswordLoginDto, reply: FastifyReply): Promise<void> {
-    const destination = this.validateRedirect(dto.redirectTo);
+    const destination = safeRedirectPath(dto.redirectTo);
     const tokenResponse = await this.requestPasswordToken(dto.email, dto.password);
 
     if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.user?.id) {
@@ -436,7 +434,7 @@ export class AuthService {
     await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
 
     // Redirect to appropriate destination
-    const safeRedirect = this.validateRedirect(next);
+    const safeRedirect = safeRedirectPath(next);
     const path =
       type === 'public_login'
         ? safeRedirect === '/'
@@ -2074,12 +2072,6 @@ export class AuthService {
       photoUrl: profile?.photo_url || undefined,
       name: profile?.display_name || undefined,
     };
-  }
-
-  private validateRedirect(redirectTo: string | undefined): string {
-    if (!redirectTo) return '/';
-    const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => redirectTo.startsWith(prefix));
-    return isAllowed ? redirectTo : '/';
   }
 
   private async requestAuthUser(accessToken: string) {
