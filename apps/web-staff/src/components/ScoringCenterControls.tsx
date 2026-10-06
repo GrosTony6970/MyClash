@@ -307,7 +307,7 @@ export function ScoringCenterControls({
    * report success over a synthetic 503 that voided nothing.
    *
    * ORDER MATTERS: outbox first, not `online` first. Online, `submit` enqueues
-   * then drains immediately, so the tail is normally already synced — but if
+   * and the send runs behind, so the tail is synced within a round trip — but if
    * that drain failed against a live network the entry is pending WHILE online,
    * and voiding it server-side would 404 on an exchange the server never saw.
    *

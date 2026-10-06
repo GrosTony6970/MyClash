@@ -23,10 +23,10 @@ export interface DirectCardSteps {
 }
 
 /**
- * Two faults, told apart here. The store cannot keep the card: nothing was
- * sent, the drawer stays open and says so (`notKept`). Asking for the send
- * throws: the card IS kept, so the sequence still moves on and the throw is
- * left to rise. "Failed" over a kept card would ask the referee to give it twice.
+ * One fault is this module's: the store cannot keep the card. Nothing was
+ * sent, the drawer stays open and says so (`notKept`). A fault of the send
+ * is not: the card IS kept, nobody waits for the send, and "failed" over a
+ * kept card would ask the referee to give it twice.
  */
 export async function giveDirectCard(
   card: Parameters<typeof queueCard>[0],
@@ -39,9 +39,6 @@ export async function giveDirectCard(
     return;
   }
   steps.close();
-  try {
-    steps.send();
-  } finally {
-    steps.recorded();
-  }
+  steps.send();
+  steps.recorded();
 }

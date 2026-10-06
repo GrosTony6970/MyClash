@@ -117,9 +117,11 @@ export class SyncEngine {
   }
 
   /**
-   * Told after each send that had something to send, whatever ended it: its
-   * last pass, an answer that stopped it, a throw. No press waits for a send
-   * (ruling 316): the bout screen reads the server again here.
+   * Told after each pass of a send that had something to send, whatever ended
+   * it: the end of the list, an answer that stopped it, a throw. No press
+   * waits for a send (ruling 316): the bout screen reads the server again
+   * here. Per pass, not per send: presses that keep joining a send must not
+   * keep the screen on what the server had before the first of them.
    */
   onSendEnded(ended: () => void): () => void {
     this.sendEnded.add(ended);
@@ -373,9 +375,13 @@ export class SyncEngine {
     if (this.running) {
       this.askedAgain = true;
       // The queue grew under a send that runs: the count is said now, so the
-      // hit shows as provisional before the answer in flight. A listener
-      // that throws is the send's to report, at its own next emit.
-      this.emit('syncing').catch(() => undefined);
+      // hit shows as provisional before the answer in flight. The race is the
+      // send's last word (it stopped: signed out, no network): said after it,
+      // `syncing` would hide why nothing goes. So this says again what the
+      // engine last said, and chooses no status.
+      this.emit(this.resting).catch((err: unknown) => {
+        console.error('[sync] the count of a joined press could not be said', err);
+      });
       return this.inFlight;
     }
     this.inFlight = this.sendQueue();
@@ -415,23 +421,21 @@ export class SyncEngine {
   private async sendQueue(): Promise<void> {
     this.running = true;
     this.aborted = false;
-    let tried = false;
     try {
       do {
         this.askedAgain = false;
         const pass = await this.sendPass();
-        tried ||= pass !== 'empty';
+        if (pass !== 'empty') this.tellSendEnded();
         if (pass === 'stopped') return;
         // Not between two passes: "could not be synced" over a hit about to go.
         if (!this.askedAgain) await this.emitWalked();
       } while (this.askedAgain);
     } catch (err) {
       // Hits may have gone before the throw: the screen is told all the same.
-      tried = true;
+      this.tellSendEnded();
       throw err;
     } finally {
       this.running = false;
-      if (tried) this.tellSendEnded();
     }
   }
 

@@ -467,7 +467,10 @@ export function MatchView({
    * It swaps one narrow transient for another rather than removing it: the
    * score can now read one hit LOW for a tick if `/exchanges` lands before the
    * page's `/matches/:id`. Both settle on the next read, and a number that
-   * briefly lags is a smaller lie than one that briefly double-counts.
+   * briefly lags is a smaller lie than one that briefly double-counts. A hit
+   * the server took leaves the queue at once and the server is read at the
+   * end of the pass: while a long queue goes out, the score reads LOW by the
+   * hits already taken, and comes right when the pass ends.
    */
   const scoring = useMatchScoringData({
     apiUrl,

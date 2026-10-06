@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { SyncBar } from '../../../src/components/SyncBar';
@@ -91,13 +91,13 @@ export default function MatchScoringPage({ params }: Props) {
   useEffect(() => {
     const handleOnline = () => {
       setNetworkStatus('online');
-      void syncEngine.drain(); // flush any exchanges queued while offline
+      syncEngine.sendBehind(); // flush any exchanges queued while offline
     };
     const handleOffline = () => setNetworkStatus('offline');
     window.addEventListener('online', handleOnline);
     // A tablet opened again while online gets no `online` event: send what it
     // holds now, or the bar is green over hits that wait.
-    void syncEngine.drain();
+    syncEngine.sendBehind();
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -105,11 +105,20 @@ export default function MatchScoringPage({ params }: Props) {
     };
   }, [syncEngine]);
 
+  // The race: two sends end close together (two hits in a row) and each reads
+  // the bout. An answer that lands after a LATER read's answer must not win.
+  // Counted, not cancelled: until a later answer lands, an earlier one is the
+  // best the screen has (the later read may find no network).
+  const boutReads = useRef({ asked: 0, shown: 0 });
+
   useEffect(() => {
     if (!matchId) return;
-    // The race: two sends end close together (two hits in a row) and each reads
-    // the bout. An answer of the first read that lands last must not win.
-    let stale = false;
+    const read = (boutReads.current.asked += 1);
+    const isNewestAnswer = () => {
+      if (read < boutReads.current.shown) return false;
+      boutReads.current.shown = read;
+      return true;
+    };
     void (async () => {
       try {
         const [rawRes, summaryRes] = await Promise.all([
@@ -120,7 +129,7 @@ export default function MatchScoringPage({ params }: Props) {
         // match is deleted — and that is wrong the moment the tablet loses
         // wifi, because the service worker RESOLVES a synthetic 503 for every
         // /api/ call rather than throwing. So `fetch` succeeds, `ok` is false,
-        // and this cleared the match. Every scored exchange bumps `refreshKey`
+        // and this cleared the match. The end of every send bumps `refreshKey`
         // and re-runs this effect, so the FIRST hit a referee scored offline
         // replaced the whole scoring surface with "match unavailable" — with
         // the outbox holding the hit safely and the network bar cheerfully
@@ -133,11 +142,10 @@ export default function MatchScoringPage({ params }: Props) {
         // docblock explains why a 503 reads as offline — and the body carries
         // the worker's `{ error: 'offline' }` marker, the only unambiguous
         // signal of the three, so it is worth parsing before deciding.
-        if (stale) return;
         if (!rawRes.ok) {
           const body = (await rawRes.json().catch(() => null)) as FailureBody | null;
           if (classifySyncFailure(rawRes.status, body) === 'offline') return;
-          setMatch(null);
+          if (isNewestAnswer()) setMatch(null);
           return;
         }
         const raw = (await rawRes.json()) as {
@@ -185,7 +193,7 @@ export default function MatchScoringPage({ params }: Props) {
               bestOf?: number;
             })
           : null;
-        if (stale) return;
+        if (!isNewestAnswer()) return;
         setMatch({
           id: raw.id,
           matchNumberLabel: raw.match_number_label ?? '',
@@ -234,9 +242,6 @@ export default function MatchScoringPage({ params }: Props) {
         setLoading(false);
       }
     })();
-    return () => {
-      stale = true;
-    };
   }, [matchId, apiUrl, refreshKey]);
 
   if (loading) {

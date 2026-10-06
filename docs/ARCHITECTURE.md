@@ -1227,16 +1227,19 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > more pass of the queue (`drain`, `askedAgain`); a caller that does wait (`drain`: Retry in the
 > inbox, the sign-out) is answered after that pass. A pass that stopped (the caller, three
 > failures in a row) is not followed by another: the new hit waits behind the first, in order.
-> The engine tells the end of each send that had something to send, a send that stopped or threw
+> The engine tells the end of each pass that had something to send, a pass that stopped or threw
 > included (`onSendEnded`); the bout screen then reads the bout and its lists again
 > (`useSendEnded`, in the page and in `MatchView`), which is also what follows the send the
 > `online` event starts. A press itself reads nothing from the server: the engine says the new
 > count at once, which shows the hit as provisional, so a scored hit costs ONE read per
-> endpoint, at the end of its send. Two sends that end close together each read the bout: the
-> page drops the answer of a read that a later read has replaced. Each press carries the bout screen's sequence
-> counter, which moves on only once the screen has drawn again; the store gives a press the next
-> number when that counter is behind what the tablet holds (`enqueue`, one transaction), so two
-> presses never share a sequence.
+> endpoint, at the end of its pass. A press that joins a send as it stops is said under the
+> send's last word, never as `syncing`. A hit the server took leaves the queue at once, so while
+> a long queue goes out the score reads low by the hits already taken, until the pass ends. Two
+> passes that end close together each read the bout: an answer that lands after a later read's
+> answer is dropped, and no answer is dropped before that. Each press carries the bout screen's
+> sequence counter, which moves on only once the screen has drawn again; the store gives a press
+> the next number when that counter is behind what the tablet holds (`enqueue`, one
+> transaction), so two presses never share a sequence.
 
 ### 10.3 Conflict resolution
 

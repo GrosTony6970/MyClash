@@ -15,11 +15,11 @@ const NONE: OutboxEntry[] = [];
  *
  * Re-reads on two triggers, and both are needed:
  *
- *   `refreshKey` bumps on every score mutation, which covers the referee's own
- *   actions — this is the same key `ScoringCenterControls` already uses to
- *   re-derive its pending count.
+ *   `refreshKey` bumps when the server is read again: at the end of a send
+ *   and after an undo or a correction. A press does not bump it (ruling 316).
  *
- *   `pendingCount` comes from the SyncEngine. Without it a BACKGROUND drain —
+ *   `pendingCount` comes from the SyncEngine, which says it at each press and
+ *   at each answer: it is what shows a hit just scored. Without it a drain —
  *   reconnecting, or the engine retrying on its own — empties the queue with no
  *   mutation to notice it, and the provisional rows would sit on screen after
  *   the server had already accepted them.

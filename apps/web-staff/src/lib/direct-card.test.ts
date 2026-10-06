@@ -129,19 +129,6 @@ describe('a direct card given from the drawer', () => {
     expect(steps.send).not.toHaveBeenCalled();
     expect(steps.recorded).not.toHaveBeenCalled();
   });
-
-  it('moves the sequence on when asking for the send throws: the card is kept', async () => {
-    const { steps } = watchedSteps(() => {
-      throw new Error('store closed');
-    });
-
-    await expect(giveDirectCard(CARD, steps)).rejects.toThrow('store closed');
-
-    expect(steps.notKept, '"failed" over a kept card asks for it twice').not.toHaveBeenCalled();
-    expect(steps.close).toHaveBeenCalledOnce();
-    expect(steps.recorded).toHaveBeenCalledOnce();
-    expect(await getAllPending()).toHaveLength(1);
-  });
 });
 
 /** The drawer's steps over a real engine: the send runs behind, as on the pad. */

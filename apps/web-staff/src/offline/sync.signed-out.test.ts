@@ -183,7 +183,7 @@ describe('the bout screen', () => {
     // A tablet opened again while online gets no `online` event: without this
     // the bar is green over hits that wait.
     expect(page).toMatch(
-      /window\.addEventListener\('online', handleOnline\);\s+(?:\/\/[^\n]*\s+)*void syncEngine\.drain\(\);/,
+      /window\.addEventListener\('online', handleOnline\);\s+(?:\/\/[^\n]*\s+)*syncEngine\.sendBehind\(\);/,
     );
   });
 });
