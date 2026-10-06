@@ -575,6 +575,8 @@ Implementation must reproduce these scores byte-for-byte.
 
 Forfeits are ruleset behavior, not fake exchanges. TF/FFAMHE defaults are: injury keeps current points and asks whether the fighter can continue; voluntary and first black card award a 0-6 loss and ask whether the fighter can continue; second black card and conduct/violence award a 0-6 loss and disqualify the registration. Active forfeits are stored in `match_forfeits`, drive `matches.status/winner_registration_id`, and may be voided only before downstream dependent matches start. In pools, `canContinue=false` auto-forfeits later unstarted pool matches. In brackets, play-ins and round 2+ become walkovers; main bracket round 1 can replace an unstarted forfeiting fighter with the next eligible pool-ranked non-qualifier.
 
+Taking a black card back takes back what the card did (ruling 319, `penalties/black-card-undo.ts`). The void of a black card first voids the forfeit that card made on its bout, through `MatchForfeitsService.voidForfeit`: the bout returns to what it was, a Fighter the card put out of the Tournament is back in, and the Pool bouts forfeited with it are back on. Whoever may score the bout may do it, a scoring pad included. It lands whole or not at all: where the forfeit cannot be taken back (a bout this one feeds was fought, the bout was fought again, a reserve took the Fighter's place, an organiser confirmed the second black card review) the card stays and the answer is the coded refusal `black_card_undo_refused`. A pending second black card review goes with the card once fewer than two remain. The Reopen of such a bout is still refused (`forfeit_withdrew_fighter`): reopening a bout is not asking for the card back.
+
 ---
 
 ## 7. Scoring Engine & Ruleset Plugin System

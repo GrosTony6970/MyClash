@@ -33,6 +33,7 @@ import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
 import type {
   AssignPenaltyRulesetDto,
   CreatePenaltyDto,
@@ -1145,6 +1146,11 @@ export class PenaltiesService {
     await this.frozenResults?.assertResultMutationAllowed(match.id, context?.userId);
     // BEFORE the write: a refusal must leave nothing behind (ruling 226).
     await this.scoring?.assertCorrectionLands(match.id, { dropPenaltyIds: [penaltyId] });
+    // Ruling 319: a black card's forfeit goes first, or the card stays.
+    if (this.forfeits) {
+      const deps = { db: this.supabase.service, forfeits: this.forfeits };
+      await takeBackBlackCardForfeit(deps, row, context ?? {});
+    }
 
     const { data, error } = await this.supabase.service
       .from('match_penalties')
@@ -1154,6 +1160,7 @@ export class PenaltiesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     await this.scoring?.recomputeMatchScore(row['match_id'] as string);
+    await dropSpentBlackCardReview(this.supabase.service, row);
     return data;
   }
 
