@@ -61,7 +61,7 @@ async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
   if ((await otherLiveBlackCards(db, card, 'match_id')) > 0) return null;
   const forfeits = await db
     .from('match_forfeits')
-    .select('id, replacement_registration_id')
+    .select('id, replacement_registration_id, created_at')
     .eq('match_id', card['match_id'] as string)
     .eq('forfeiting_registration_id', card['registration_id'] as string)
     .in('reason', ['black_card_1', 'black_card_2'])
@@ -70,14 +70,40 @@ async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
 }
 
 /**
- * The two things `voidForfeit` does not look at. A reserve in the Fighter's
- * place is not undone by it (it never writes `bracket_slots`). A review an
+ * Has something put this Fighter out AFTER this forfeit? `voidForfeit` writes
+ * back the status the forfeit FOUND, whatever came since: taking back a first
+ * black card would put back in a Fighter a second one disqualified. The bouts
+ * this forfeit closed itself (its children) are its own and go with it.
+ */
+async function forfeitedAgainSince(db: Client, forfeit: Row, card: Row): Promise<boolean> {
+  const others = await db
+    .from('match_forfeits')
+    .select('id, parent_forfeit_id, created_at')
+    .eq('tournament_id', card['tournament_id'] as string)
+    .eq('forfeiting_registration_id', card['registration_id'] as string)
+    .is('voided_at', null)
+    .neq('id', forfeit['id'] as string);
+  const made = Date.parse(String(forfeit['created_at']));
+  return rowsOf('The other forfeits of the fighter', others).some(
+    (other) =>
+      other['parent_forfeit_id'] !== forfeit['id'] &&
+      Date.parse(String(other['created_at'])) > made,
+  );
+}
+
+/**
+ * The three things `voidForfeit` does not look at. A reserve in the Fighter's
+ * place is not undone by it (it never writes `bracket_slots`). A later forfeit
+ * of the Fighter stands on the status this one would overwrite. A review an
  * organiser CONFIRMED is his decision that the Fighter is out: restoring the
  * status the forfeit found would overturn it from a scorekeeper's tablet.
  */
 async function assertUndoable(db: Client, forfeit: Row, card: Row): Promise<void> {
   if (forfeit['replacement_registration_id']) {
     throw refused('A reserve took the place of the fighter this black card put out');
+  }
+  if (await forfeitedAgainSince(db, forfeit, card)) {
+    throw refused('A later forfeit of this fighter stands on the one this black card made');
   }
   const confirmed = await db
     .from('tournament_penalty_reviews')

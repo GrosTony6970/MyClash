@@ -1,16 +1,16 @@
 import { ConflictException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { filtersFor, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import {
-  filtersFor,
-  mockSupabase,
-  scopedTo,
-  selectsFor,
-  writesTo,
-} from '../../common/testing/supabase-chain';
-import { FrozenResultsGuard } from '../matches/frozen-results.guard';
-import { MatchForfeitsService } from '../matches/match-forfeits.service';
-import { PenaltiesController } from './penalties.controller';
-import { PenaltiesService } from './penalties.service';
+  BEFORE_THE_CARD,
+  REFUSED,
+  SCORER,
+  blackCard,
+  otherForfeit,
+  setup,
+  written,
+  type Seed,
+} from './penalties.void-black-card.fixtures';
 
 /**
  * Ruling 319: taking a black card back takes back what the card did. The bout
@@ -21,115 +21,6 @@ import { PenaltiesService } from './penalties.service';
  * The REAL `MatchForfeitsService` is under test with the service. The double
  * applies no write, so every claim here is a write and its filter.
  */
-const SCORER = 'a0000000-0000-4000-8000-000000000001';
-const REFUSED = { code: 'black_card_undo_refused' };
-
-const BEFORE_THE_CARD = {
-  status: 'running',
-  red_score: 2,
-  blue_score: 1,
-  winner_registration_id: null,
-  ended_at: null,
-  end_reason: null,
-};
-const AFTER_THE_CARD = {
-  status: 'completed',
-  red_score: 5,
-  blue_score: 0,
-  winner_registration_id: 'reg-red',
-  ended_at: '2026-10-06T10:00:00.000Z',
-  end_reason: 'black_card',
-};
-
-type Rows = Record<string, unknown>[];
-
-interface Seed {
-  cards?: Rows;
-  forfeit?: Record<string, unknown> | null;
-  bout?: Record<string, unknown>;
-  laterBout?: Record<string, unknown>;
-  reviews?: Rows;
-  /** Every call on the reviews table answers an error. */
-  reviewsFault?: boolean;
-  eventStatus?: string;
-}
-
-const blackCard = (over: Record<string, unknown> = {}) => ({
-  id: 'card-black',
-  match_id: 'm1',
-  tournament_id: 'tournament-1',
-  registration_id: 'reg-blue',
-  card: 'black',
-  voided: false,
-  ...over,
-});
-
-const FORFEIT = {
-  id: 'forfeit-1',
-  match_id: 'm1',
-  parent_forfeit_id: null,
-  forfeiting_registration_id: 'reg-blue',
-  replacement_registration_id: null,
-  reason: 'black_card_2',
-  voided_at: null,
-  downstream_match_ids: [],
-  previous_match_state: BEFORE_THE_CARD,
-  previous_registration_state: { id: 'reg-blue', status: 'confirmed' },
-  resulting_match_state: AFTER_THE_CARD,
-};
-const BOUT = {
-  id: 'm1',
-  phase_id: 'phase-1',
-  locked_at: null,
-  current_round: 1,
-  red_registration_id: 'reg-red',
-  blue_registration_id: 'reg-blue',
-  ...AFTER_THE_CARD,
-};
-const LATER_BOUT = { id: 'm2', status: 'scheduled', started_at: null };
-
-function setup(seed: Seed = {}) {
-  const db = mockSupabase({
-    match_penalties: { rows: seed.cards ?? [blackCard()] },
-    match_forfeits: { rows: seed.forfeit === null ? [] : [{ ...FORFEIT, ...seed.forfeit }] },
-    matches: {
-      rows: [
-        { ...BOUT, ...seed.bout },
-        { ...LATER_BOUT, ...seed.laterBout },
-      ],
-    },
-    registrations: { rows: [{ id: 'reg-blue', status: 'disqualified' }] },
-    tournament_penalty_reviews: seed.reviewsFault
-      ? { data: null, error: { message: 'connection lost' } }
-      : { rows: seed.reviews ?? [] },
-    phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
-    tournaments: {
-      rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'ruleset-1' }],
-    },
-    events: {
-      rows: [{ id: 'event-1', organization_id: 'org-1', status: seed.eventStatus ?? 'running' }],
-    },
-    platform_roles: { rows: [] },
-  });
-  const scoring = {
-    recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 2, blueScore: 1 }),
-    assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
-  };
-  const service = new PenaltiesService(
-    db as never,
-    scoring as never,
-    new FrozenResultsGuard(db as never, {} as never),
-    undefined,
-    new MatchForfeitsService(db as never),
-  );
-  const undo = (cardId = 'card-black', actor: object = { userId: SCORER }) =>
-    service.voidPenalty(cardId, { reason: 'wrong fighter' }, actor);
-  return { db, scoring, service, undo };
-}
-
-/** The tables written, in order. */
-const written = (db: { writes: { table: string }[] }) => db.writes.map((write) => write.table);
-
 describe('PenaltiesService.voidPenalty: a black card that ended its bout', () => {
   it('takes the forfeit back, then the card', async () => {
     const { db, scoring, undo } = setup();
@@ -192,7 +83,10 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
 
     await undo();
 
-    expect(selectsFor(db.from, 'match_forfeits')[0]).toBe('id, replacement_registration_id');
+    expect(selectsFor(db.from, 'match_forfeits').slice(0, 2)).toEqual([
+      'id, replacement_registration_id, created_at',
+      'id, parent_forfeit_id, created_at',
+    ]);
     // The first read of the table is the leaf's; the forfeit service's follow.
     expect(filtersFor(db.from, 'match_forfeits', 'eq').slice(0, 2)).toEqual([
       ['match_id', 'm1'],
@@ -239,6 +133,8 @@ describe('PenaltiesService.voidPenalty: a black card that cannot be taken back w
       },
     ],
     ['the bout was fought again since', { bout: { end_reason: 'first_to_points' } }],
+    // Its void would write back the status THIS forfeit found: back in, over the later one.
+    ['a later forfeit put the Fighter out again', { otherForfeits: [otherForfeit()] }],
   ])('refuses when %s, and writes nothing', async (_why, seed) => {
     const { db, scoring, undo } = setup(seed);
 
@@ -248,6 +144,19 @@ describe('PenaltiesService.voidPenalty: a black card that cannot be taken back w
     expect((refusal as ConflictException).getResponse()).toMatchObject(REFUSED);
     expect(db.writes).toEqual([]);
     expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['made BEFORE this one', { created_at: '2026-10-06T09:00:00.000Z' }],
+    ['of ANOTHER Fighter', { forfeiting_registration_id: 'reg-red' }],
+    ['somebody voided', { voided_at: '2026-10-06T11:30:00.000Z' }],
+    ['this one made itself (a Pool bout closed with it)', { parent_forfeit_id: 'forfeit-1' }],
+  ])('another forfeit %s refuses nothing', async (_which, over) => {
+    const { db, undo } = setup({ otherForfeits: [otherForfeit(over)] });
+
+    await undo();
+
+    expect(writesTo(db, 'match_penalties')).toHaveLength(1);
   });
 
   it('a review of ANOTHER Fighter, or one still pending, refuses nothing', async () => {
@@ -275,9 +184,10 @@ describe('PenaltiesService.voidPenalty: a black card that cannot be taken back w
 });
 
 describe('PenaltiesService.voidPenalty: a card whose void leaves the forfeit alone', () => {
+  // The black card is voided: nothing but "this card is not black" keeps the forfeit.
   it('a yellow card on a forfeited bout', async () => {
     const { db, undo } = setup({
-      cards: [blackCard(), blackCard({ id: 'card-yellow', card: 'yellow' })],
+      cards: [blackCard({ voided: true }), blackCard({ id: 'card-yellow', card: 'yellow' })],
     });
 
     await undo('card-yellow');
@@ -303,89 +213,14 @@ describe('PenaltiesService.voidPenalty: a card whose void leaves the forfeit alo
     expect(writesTo(db, 'match_forfeits')).toHaveLength(1);
   });
 
-  it('a black card with no forfeit on its bout', async () => {
-    const { db, undo } = setup({ forfeit: null });
+  it.each<[string, Seed['forfeit']]>([
+    ['no forfeit', null],
+    ['a forfeit somebody voided already', { voided_at: '2026-10-06T10:05:00.000Z' }],
+  ])('a black card with %s on its bout', async (_what, forfeit) => {
+    const { db, undo } = setup({ forfeit });
 
     await undo();
 
     expect(written(db)).toEqual(['match_penalties', 'tournament_penalty_reviews']);
-  });
-});
-
-describe('PATCH match-penalties/:id/void: the route the pad’s undo calls', () => {
-  // Who may score is the route's own bar, held by its door tests. This holds
-  // the hand-over: the caller that bar answered is the one who voids the forfeit.
-  it('hands the caller "who may score" answered to the forfeit’s void', async () => {
-    const { db, service } = setup();
-    const staff = {
-      authorizePenaltyScoring: vi.fn().mockResolvedValue({ staffAccountId: 'pad-7' }),
-    };
-    const controller = new PenaltiesController(service, db as never, staff as never, {} as never);
-    const req = { headers: {} };
-
-    await controller.voidPenalty('card-black', { reason: 'wrong fighter' }, req as never);
-
-    expect(staff.authorizePenaltyScoring).toHaveBeenCalledWith(req, 'card-black');
-    expect(writesTo(db, 'match_forfeits')[0]?.row).toMatchObject({
-      voided_by_staff_account_id: 'pad-7',
-    });
-  });
-});
-
-describe('PenaltiesService.voidPenalty: the second black card review', () => {
-  const pending = {
-    id: 'review-1',
-    tournament_id: 'tournament-1',
-    registration_id: 'reg-blue',
-    review_type: 'second_black_card',
-    status: 'pending',
-  };
-
-  it('is removed when fewer than two black cards remain, and only while pending', async () => {
-    const { db, undo } = setup({ reviews: [pending] });
-
-    await undo();
-
-    const [removed] = writesTo(db, 'tournament_penalty_reviews');
-    expect(removed?.op).toBe('delete');
-    expect(scopedTo(removed, 'tournament_id')).toBe('tournament-1');
-    expect(scopedTo(removed, 'registration_id')).toBe('reg-blue');
-    expect(scopedTo(removed, 'status')).toBe('pending');
-  });
-
-  it('stays while two black cards of that Fighter remain in the Tournament', async () => {
-    const elsewhere = { match_id: 'm7' };
-    const { db, undo } = setup({
-      cards: [
-        blackCard(),
-        blackCard({ id: 'card-a', ...elsewhere }),
-        blackCard({ id: 'card-b', ...elsewhere }),
-      ],
-      reviews: [pending],
-    });
-
-    await undo();
-
-    expect(writesTo(db, 'tournament_penalty_reviews')).toEqual([]);
-  });
-
-  it('a review that cannot be removed does not fail a void that landed', async () => {
-    const { db, scoring, undo } = setup({ forfeit: null, reviewsFault: true });
-
-    await expect(undo()).resolves.toMatchObject({ id: 'card-black' });
-    expect(writesTo(db, 'match_penalties')).toHaveLength(1);
-    expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
-  });
-
-  it('is not touched by a yellow card’s void', async () => {
-    const { db, undo } = setup({
-      cards: [blackCard({ id: 'card-yellow', card: 'yellow' })],
-      forfeit: null,
-      reviews: [pending],
-    });
-
-    await undo('card-yellow');
-
-    expect(writesTo(db, 'tournament_penalty_reviews')).toEqual([]);
   });
 });
