@@ -144,6 +144,12 @@ overrides:
   # recursion). Arrives through minimatch 9 (^2.0.2) in eslint and glob: lint
   # and build tooling.
   'brace-expansion@2': ^2.1.6
+  # >=1.2.2 clears GHSA-68fv-2mgg-jv7q (a source map with indexed sections
+  # holds the event loop). Every consumer's range (postcss's ^1.2.1, css-tree's
+  # ^1.2.1) already allowed the fix while the lockfile sat on 1.2.1. It arrives
+  # through postcss in next, vite and @tailwindcss/postcss, and through css-tree
+  # in jsdom: build and test tooling, reading our own source maps.
+  'source-map-js@1': ^1.2.2
 
 # Advisories the Dependency audit does not fail on (operator ruling,
 # 2026-10-03). Each has NO fixed release to install and reaches no running
