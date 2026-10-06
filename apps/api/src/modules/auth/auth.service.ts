@@ -12,8 +12,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { CLAIM_REFUSED_PARAM, validatePassword, type ClaimLinkRefusal } from '@myclash/types';
+import {
+  CLAIM_REFUSED_PARAM,
+  SIGNUPS_DISABLED_CODE,
+  validatePassword,
+  type ClaimLinkRefusal,
+} from '@myclash/types';
 import { adminLockdownRefusal } from '../../common/admin-lockdown';
+import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
@@ -1512,8 +1518,9 @@ export class AuthService {
     context: AcceptanceContext = {},
   ): Promise<{ message: string }> {
     if (await isFlagEnabledDirect(this.supabase, 'disable_public_signups')) {
-      throw new ServiceUnavailableException({
-        code: 'signups_disabled',
+      // Not a plain 503: the filter replaces its code, which the sign-up screen reads.
+      throw new OperationalUnavailableException({
+        code: SIGNUPS_DISABLED_CODE,
         message: 'Public signups are temporarily disabled',
       });
     }
@@ -1673,30 +1680,9 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<GoTruePasswordTokenResponse> {
-    const authUrl =
-      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
-      this.config.getOrThrow<string>('SUPABASE_URL');
-    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+    const { ok, body } = await this.askPasswordToken(email, password);
 
-    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
-    try {
-      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: anonKey },
-        body: JSON.stringify({ email, password }),
-      });
-    } catch {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-
-    if (!response.ok) {
+    if (!ok) {
       const errorCode =
         body && typeof body === 'object'
           ? ((body as Record<string, unknown>)['error_code'] ??
@@ -2082,14 +2068,30 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<GoTruePasswordTokenResponse> {
+    const { ok, body } = await this.askPasswordToken(email, password);
+    if (!ok || !body || typeof body !== 'object') {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    return body as GoTruePasswordTokenResponse;
+  }
+
+  /**
+   * The ONE call to the auth server's password door, for the admin sign-in and
+   * for the participant app (sign-in, password change, account deletion).
+   *
+   * Each screen reads its door's 401 as a wrong password (operator ruling 309).
+   * A silent, throttled or failing auth server has not judged the password: that
+   * is a server error, never the 401.
+   */
+  private async askPasswordToken(
+    email: string,
+    password: string,
+  ): Promise<{ ok: boolean; body: unknown }> {
     const authUrl =
       this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
       this.config.getOrThrow<string>('SUPABASE_URL');
     const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
 
-    // The admin form reads this door's 401 as "wrong email or password" (operator
-    // ruling 309). A silent, throttled or failing auth server has not judged the
-    // password: that is a server error, never the 401.
     let response: { ok: boolean; status: number; json: () => Promise<unknown> };
     try {
       response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
@@ -2115,12 +2117,7 @@ export class AuthService {
     } catch {
       body = null;
     }
-
-    if (!response.ok || !body || typeof body !== 'object') {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    return body as GoTruePasswordTokenResponse;
+    return { ok: response.ok, body };
   }
 
   /**

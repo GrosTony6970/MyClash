@@ -200,6 +200,7 @@ export const publicApp = {
     errors: {
       magicLinkFailed: 'Could not send a login link.',
       passwordLoginFailed: 'Wrong email or password.',
+      signInFailed: 'Could not sign you in. Try again in a moment.',
       emailNotConfirmed:
         'Confirm your email before signing in. Check your inbox for the confirmation link.',
       weakPassword: 'Password does not meet the requirements.',

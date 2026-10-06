@@ -199,6 +199,7 @@ export const publicApp = {
     errors: {
       magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
       passwordLoginFailed: 'Email ou mot de passe incorrect.',
+      signInFailed: 'Connexion impossible. Réessayez dans un instant.',
       emailNotConfirmed:
         'Confirmez votre email avant de vous connecter. Consultez votre boîte de réception.',
       weakPassword: 'Le mot de passe ne respecte pas les règles.',

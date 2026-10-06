@@ -1,3 +1,4 @@
+import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
@@ -22,7 +23,12 @@ async function errorCode(res: Response): Promise<string | undefined> {
   return body.code;
 }
 
-export type SignInCode = 'ok' | 'email_not_confirmed' | 'failed';
+/**
+ * `wrong_password` is a 401 the API wrote, and nothing else: a server fault, a
+ * lost connection and a 401 of the edge (no body) are `failed`. The API answers
+ * a server error when the auth server did not judge the password.
+ */
+export type SignInCode = 'ok' | 'email_not_confirmed' | 'wrong_password' | 'failed';
 
 export async function requestPasswordSignIn(
   apiUrl: string,
@@ -39,6 +45,7 @@ export async function requestPasswordSignIn(
     if (res.status === 403 && (await errorCode(res)) === 'email_not_confirmed') {
       return 'email_not_confirmed';
     }
+    if (res.status === 401 && (await errorCode(res))) return 'wrong_password';
     return res.ok ? 'ok' : 'failed';
   } catch {
     return 'failed';
@@ -66,9 +73,11 @@ export async function requestSignUp(
         ...currentLegalVersionFields(),
       }),
     });
-    if (res.status === 503) return 'signups_disabled';
-    if (!res.ok) return (await errorCode(res)) === 'legal_version_stale' ? 'legal_stale' : 'failed';
-    return 'ok';
+    if (res.ok) return 'ok';
+    // By its code: a 503 with none is the edge's, while the API is down.
+    const code = await errorCode(res);
+    if (code === SIGNUPS_DISABLED_CODE) return 'signups_disabled';
+    return code === 'legal_version_stale' ? 'legal_stale' : 'failed';
   } catch {
     return 'failed';
   }

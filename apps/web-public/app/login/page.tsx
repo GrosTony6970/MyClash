@@ -70,7 +70,9 @@ export default function PublicLoginPage() {
     setError(
       code === 'email_not_confirmed'
         ? t('publicApp.login.errors.emailNotConfirmed')
-        : t('publicApp.login.errors.passwordLoginFailed'),
+        : code === 'wrong_password'
+          ? t('publicApp.login.errors.passwordLoginFailed')
+          : t('publicApp.login.errors.signInFailed'),
     );
   }
 
