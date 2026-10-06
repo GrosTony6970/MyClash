@@ -96,11 +96,11 @@ describe('a card given while a hit is on its way', () => {
     expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 });
   });
 
-  it('gives its press the buttons back at once: the send goes on behind (ruling 316)', async () => {
+  it('a press waits for nothing: the send goes on behind (ruling 316)', async () => {
     const { engine, first, posted, answer } = await sending();
     await addHit(2, 'uuid-2');
 
-    await engine.drain();
+    expect(engine.sendBehind()).toBeUndefined();
 
     expect(posted, 'the first hit is still waiting for its answer').toEqual(['uuid-1']);
     expect(engine.isDraining()).toBe(true);
@@ -109,6 +109,22 @@ describe('a card given while a hit is on its way', () => {
     await first;
     expect(posted).toEqual(['uuid-1', 'uuid-2']);
     expect(engine.isDraining()).toBe(false);
+  });
+
+  it('a caller that does wait is answered once its own hit is: the inbox reads its list then', async () => {
+    const { engine, posted, answer } = await sending();
+    await addHit(2, 'uuid-2');
+    let answered = false;
+    const second = engine.drain().then(() => {
+      answered = true;
+    });
+
+    await answer(SAVED);
+    await vi.waitFor(() => expect(posted).toEqual(['uuid-1', 'uuid-2']));
+
+    expect(answered).toBe(false);
+    await answer(SAVED);
+    await second;
   });
 
   it('sends nothing twice when the send in flight already took it', async () => {
@@ -190,7 +206,7 @@ describe('the other ways a send is asked for while one runs', () => {
 describe('the end of a send is told (ruling 316)', () => {
   // No press waits for a send that runs behind: the screen reads the server again when told.
   it('once, after the last pass, when the server has every hit', async () => {
-    const { engine, first, answer } = await sending();
+    const { engine, first, posted, answer } = await sending();
     const synced: number[] = [];
     engine.onSendEnded(() => void db.synced.count().then((count) => synced.push(count)));
     let told = 0;
@@ -200,8 +216,9 @@ describe('the end of a send is told (ruling 316)', () => {
     });
 
     await addHit(2, 'uuid-2');
-    await engine.drain();
+    engine.sendBehind();
     await answer(SAVED);
+    await vi.waitFor(() => expect(posted).toHaveLength(2));
     expect(told, 'not between two passes').toBe(0);
     await answer(SAVED);
     await first;
@@ -232,6 +249,41 @@ describe('the end of a send is told (ruling 316)', () => {
     expect(ended).not.toHaveBeenCalled();
   });
 
+  it('when the send threw: hits may have gone before the throw, and the throw is logged', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const api = heldApi();
+    await addHit(1, 'uuid-1');
+    const engine = new SyncEngine(API_URL);
+    engine.subscribe(() => {
+      throw new Error('a listener broke');
+    });
+    const ended = vi.fn();
+    engine.onSendEnded(ended);
+
+    engine.sendBehind();
+
+    await vi.waitFor(() => expect(ended).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(logged).toHaveBeenCalledOnce());
+    expect(String(logged.mock.calls[0]?.[1])).toContain('a listener broke');
+    expect(api.posted, 'it threw before the first hit left').toEqual([]);
+  });
+
+  it('to every screen, and the send stands, when one of them throws', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { engine, first, answer } = await sending();
+    engine.onSendEnded(() => {
+      throw new Error('a screen broke');
+    });
+    const ended = vi.fn();
+    engine.onSendEnded(ended);
+
+    await answer(SAVED);
+    await expect(first).resolves.toBeUndefined();
+
+    expect(ended).toHaveBeenCalledOnce();
+    expect(logged).toHaveBeenCalledOnce();
+  });
+
   it('no longer to a screen that left', async () => {
     const { engine, first, answer } = await sending();
     const ended = vi.fn();
@@ -249,11 +301,42 @@ describe('the bout screen', () => {
   const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
 
   it('reads its lists and the bout again when a send has ended, and moves no sequence', () => {
-    expect(read('components', 'MatchView.tsx')).toContain(
-      'useSendEnded(syncEngine, handleExchangeVoided);',
+    const view = read('components', 'MatchView.tsx');
+    expect(view).toContain(
+      'const readListsAgain = useCallback(() => setRefreshKey((k) => k + 1), []);',
+    );
+    expect(view).toContain('useSendEnded(syncEngine, readListsAgain);');
+    const page = read('..', 'app', 'matches', '[matchId]', 'page.tsx');
+    expect(page).toContain(
+      'const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);',
+    );
+    // Above the effect that starts the first send: no send ends unheard.
+    expect(page.indexOf('useSendEnded(syncEngine, readBoutAgain);')).toBeGreaterThan(0);
+    expect(page.indexOf('useSendEnded(syncEngine, readBoutAgain);')).toBeLessThan(
+      page.indexOf('void syncEngine.drain();'),
     );
     expect(read('offline', 'use-sync-state.ts')).toContain(
       'useEffect(() => engine?.onSendEnded(ended), [engine, ended]);',
+    );
+  });
+
+  it('no press waits for the send: a hit, a list card and a direct card ask and go on', () => {
+    for (const file of [
+      ['hooks', 'useScoringSubmit.ts'],
+      ['components', 'ScoringColumn.tsx'],
+      ['components', 'DirectCardPanel.tsx'],
+    ]) {
+      const source = read(...file);
+      expect(source, file[1]).toContain('syncEngine?.sendBehind()');
+      expect(source, file[1]).not.toMatch(/\.drain\(\)/);
+    }
+  });
+
+  it('a read of the bout that lands after a later one is dropped', () => {
+    const page = read('..', 'app', 'matches', '[matchId]', 'page.tsx');
+    expect(page.match(/if \(stale\) return;/g)).toHaveLength(2);
+    expect(page).toMatch(
+      /return \(\) => \{\s+stale = true;\s+\};\s+\}, \[matchId, apiUrl, refreshKey\]\);/,
     );
   });
 });

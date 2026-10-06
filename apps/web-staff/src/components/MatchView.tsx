@@ -508,9 +508,10 @@ export function MatchView({
     setRefreshKey((k) => k + 1);
     onRefresh();
   }, [onRefresh]);
-  // The same reads, and no new hit of this screen, when the queue was sent
-  // with no press waiting on it (ruling 316).
-  useSendEnded(syncEngine, handleExchangeVoided);
+  // No press waits for the send (ruling 316): the lists are read again when it
+  // has ended. The page reads the bout itself then.
+  const readListsAgain = useCallback(() => setRefreshKey((k) => k + 1), []);
+  useSendEnded(syncEngine, readListsAgain);
 
   const submit = useScoringSubmit({
     matchId: match.id,

@@ -153,7 +153,7 @@ function useDirectCard(props: DirectCardPanelProps, t: Translate) {
           onDraft({ ...draft, reason: '' });
           props.onClose();
         },
-        drain: () => props.syncEngine?.drain(),
+        send: () => props.syncEngine?.sendBehind(),
         recorded: props.onRecorded,
       });
     } finally {

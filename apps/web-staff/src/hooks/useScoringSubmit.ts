@@ -72,6 +72,8 @@ export function useScoringSubmit({
         // Durable-first: write to the IndexedDB outbox, then let the SyncEngine POST
         // it. Online it syncs immediately; offline it stays queued and drains on
         // reconnect. clientUuid makes the POST idempotent (a re-drain answers the saved row).
+        // The press does not wait for the send (ruling 316): the buttons come back
+        // once the hit is on the tablet, whatever the queue or the wifi is doing.
         await enqueue({
           clientUuid: crypto.randomUUID(),
           matchId,
@@ -81,9 +83,9 @@ export function useScoringSubmit({
           bout,
           ...exchange,
         });
-        await syncEngine?.drain();
-        // Re-fetch the server score/timeline (online: reflects the new exchange;
-        // offline: a harmless no-op until the outbox drains).
+        syncEngine?.sendBehind();
+        // Moves the sequence on and reads the tablet's queue again: the hit shows
+        // as provisional. The server is read again when the send has ended.
         onExchangeRecorded?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to record exchange');

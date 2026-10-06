@@ -1220,17 +1220,21 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > event send nothing and prove nothing about the person, and Retry is not offered while no hit
 > waits. A press answered 401 is not told to the bar.
 >
-> **A press while the pad sends.** A send walks the list it read at its start. A hit or a card
-> queued meanwhile asks for a drain while one runs: that means one more pass of the queue
-> (`SyncEngine.drain`, `askedAgain`). The press does not wait for it (ruling 316): its buttons
-> come back at once, the hit shows as provisional, and the engine tells the end of each send that
-> had something to send (`onSendEnded`); the bout screen then reads its lists and the bout again
-> (`useSendEnded`), as it does after the `online` event's send, which no press waits for either.
-> A pass that stopped (the caller, three failures in a row) is not followed by another: the new
-> hit waits behind the first, in order. Each
-> press carries the bout screen's sequence counter, which moves on only after the send; the store
-> gives a press the next number when that counter is behind what the tablet holds (`enqueue`, one
-> transaction), so two presses inside one send never share a sequence.
+> **A press and the send (ruling 316).** No press waits for the send. A hit or a card is written
+> on the tablet, the press asks for a send that runs behind (`SyncEngine.sendBehind`), and its
+> buttons come back at once: the hit shows as provisional, whatever the queue or the wifi is
+> doing. A send walks the list it read at its start, so a send asked for while one runs means one
+> more pass of the queue (`drain`, `askedAgain`); a caller that does wait (`drain`: Retry in the
+> inbox, the sign-out) is answered after that pass. A pass that stopped (the caller, three
+> failures in a row) is not followed by another: the new hit waits behind the first, in order.
+> The engine tells the end of each send that had something to send, a send that stopped or threw
+> included (`onSendEnded`); the bout screen then reads the bout and its lists again
+> (`useSendEnded`, in the page and in `MatchView`), which is also what follows the send the
+> `online` event starts. A press reads the bout too, a moment before: the page drops the answer
+> of a read that a later read has replaced. Each press carries the bout screen's sequence
+> counter, which moves on only once the screen has drawn again; the store gives a press the next
+> number when that counter is behind what the tablet holds (`enqueue`, one transaction), so two
+> presses never share a sequence.
 
 ### 10.3 Conflict resolution
 

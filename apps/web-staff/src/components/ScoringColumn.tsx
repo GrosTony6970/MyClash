@@ -195,8 +195,8 @@ export function ScoringColumn({
       // Online this drains immediately; offline it stays queued and goes on
       // reconnect. A refusal on drain (locked match, stale sequence) lands in
       // the quarantine inbox and reddens the sync bar — the existing path for a
-      // refused scored artefact.
-      await syncEngine?.drain();
+      // refused scored artefact. The press does not wait for it (ruling 316).
+      syncEngine?.sendBehind();
       onPenaltyRecorded?.();
     } catch (err) {
       setPenaltyError(err instanceof Error ? err.message : 'Network error');

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { SyncBar } from '../../../src/components/SyncBar';
-import { useSyncState } from '../../../src/offline/use-sync-state';
+import { useSendEnded, useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
@@ -83,6 +83,11 @@ export default function MatchScoringPage({ params }: Props) {
     [routePrefix, returnParam, externalDisplayUrl],
   );
 
+  // No press waits for the send (ruling 316): the bout is read again when a
+  // send has ended. Above the effect that starts the first send.
+  const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);
+  useSendEnded(syncEngine, readBoutAgain);
+
   useEffect(() => {
     const handleOnline = () => {
       setNetworkStatus('online');
@@ -102,6 +107,9 @@ export default function MatchScoringPage({ params }: Props) {
 
   useEffect(() => {
     if (!matchId) return;
+    // The race: a press reads the bout, and the end of its send reads it again
+    // a moment later. An answer of the first read that lands last must not win.
+    let stale = false;
     void (async () => {
       try {
         const [rawRes, summaryRes] = await Promise.all([
@@ -125,6 +133,7 @@ export default function MatchScoringPage({ params }: Props) {
         // docblock explains why a 503 reads as offline — and the body carries
         // the worker's `{ error: 'offline' }` marker, the only unambiguous
         // signal of the three, so it is worth parsing before deciding.
+        if (stale) return;
         if (!rawRes.ok) {
           const body = (await rawRes.json().catch(() => null)) as FailureBody | null;
           if (classifySyncFailure(rawRes.status, body) === 'offline') return;
@@ -176,6 +185,7 @@ export default function MatchScoringPage({ params }: Props) {
               bestOf?: number;
             })
           : null;
+        if (stale) return;
         setMatch({
           id: raw.id,
           matchNumberLabel: raw.match_number_label ?? '',
@@ -224,6 +234,9 @@ export default function MatchScoringPage({ params }: Props) {
         setLoading(false);
       }
     })();
+    return () => {
+      stale = true;
+    };
   }, [matchId, apiUrl, refreshKey]);
 
   if (loading) {
@@ -249,7 +262,7 @@ export default function MatchScoringPage({ params }: Props) {
           apiUrl={apiUrl}
           networkStatus={networkStatus}
           syncEngine={syncEngine}
-          onRefresh={() => setRefreshKey((key) => key + 1)}
+          onRefresh={readBoutAgain}
           externalDisplayUrl={externalDisplayUrl}
           backHref={backHref}
           buildMatchHref={buildMatchHref}

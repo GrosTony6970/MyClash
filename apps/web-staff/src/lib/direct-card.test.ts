@@ -4,8 +4,8 @@
  * The corrections drawer posted it at once: with no connection its buttons were
  * grey, and a card for a Fighter late on the piste could not be given at all.
  * It is now written on the tablet first, the drawer closes, and the queue sends
- * it. A refusal is the inbox's to say, with the colour, the reason and the
- * Fighter (ruling 246).
+ * it with nothing waiting for the answer (ruling 316). A refusal is the inbox's
+ * to say, with the colour, the reason and the Fighter (ruling 246).
  */
 
 import { readFileSync } from 'node:fs';
@@ -57,7 +57,7 @@ function mockApi(answer: () => Response): string[] {
 }
 
 /** The three steps of the drawer, in the order they ran, and what the tablet held at the close. */
-function watchedSteps(drain: () => Promise<unknown> = () => Promise.resolve()) {
+function watchedSteps(send: () => void = () => undefined) {
   const log: string[] = [];
   const watch = { onTabletAtClose: Promise.resolve(-1) };
   const steps = {
@@ -66,9 +66,9 @@ function watchedSteps(drain: () => Promise<unknown> = () => Promise.resolve()) {
       log.push('close');
       watch.onTabletAtClose = db.outbox.count();
     }),
-    drain: vi.fn(() => {
-      log.push('drain');
-      return drain();
+    send: vi.fn(() => {
+      log.push('send');
+      send();
     }),
     recorded: vi.fn(() => {
       log.push('recorded');
@@ -89,22 +89,33 @@ describe('a direct card given from the drawer', () => {
     expect(rows[0]).not.toHaveProperty('cardName');
   });
 
-  it('is on the tablet before the drawer closes, and the drawer closes before the answer', async () => {
-    let answer: () => void = () => {};
-    const server = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
-    const { log, steps, watch } = watchedSteps(() => server);
+  it('is on the tablet before the drawer closes, then the send is asked for', async () => {
+    const { log, steps, watch } = watchedSteps();
 
-    const given = giveDirectCard(CARD, steps);
-    await vi.waitFor(() => expect(steps.drain).toHaveBeenCalled());
+    await giveDirectCard(CARD, steps);
 
-    expect(log, 'the send is still waiting for its answer').toEqual(['close', 'drain']);
+    expect(log).toEqual(['close', 'send', 'recorded']);
     expect(await watch.onTabletAtClose).toBe(1);
+  });
 
-    answer();
-    await given;
-    expect(log.at(-1)).toBe('recorded');
+  it('waits for no answer: the referee is back on the bout while the server is asked', async () => {
+    let answer: (res: Response) => void = () => undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => new Promise<Response>((resolve) => (answer = resolve))),
+    );
+    const engine = new SyncEngine(API_URL);
+    const steps = through(engine);
+
+    await giveDirectCard(CARD, steps);
+
+    expect(steps.recorded).toHaveBeenCalledOnce();
+    expect(engine.isDraining(), 'the card is still on its way').toBe(true);
+    expect(await getAllPending()).toHaveLength(1);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    answer(Response.json({ id: 'server-card' }, { status: 201 }));
+    await engine.drain();
+    expect(await getAllPending()).toHaveLength(0);
   });
 
   it('keeps the drawer open when the tablet cannot keep the card', async () => {
@@ -115,12 +126,14 @@ describe('a direct card given from the drawer', () => {
 
     expect(steps.notKept, 'the open drawer says so').toHaveBeenCalledOnce();
     expect(steps.close).not.toHaveBeenCalled();
-    expect(steps.drain).not.toHaveBeenCalled();
+    expect(steps.send).not.toHaveBeenCalled();
     expect(steps.recorded).not.toHaveBeenCalled();
   });
 
-  it('moves the sequence on when the send itself throws: the card is kept', async () => {
-    const { steps } = watchedSteps(() => Promise.reject(new Error('store closed')));
+  it('moves the sequence on when asking for the send throws: the card is kept', async () => {
+    const { steps } = watchedSteps(() => {
+      throw new Error('store closed');
+    });
 
     await expect(giveDirectCard(CARD, steps)).rejects.toThrow('store closed');
 
@@ -131,15 +144,22 @@ describe('a direct card given from the drawer', () => {
   });
 });
 
+/** The drawer's steps over a real engine: the send runs behind, as on the pad. */
+const through = (engine: SyncEngine) => watchedSteps(() => engine.sendBehind()).steps;
+
 describe('the queue sends it', () => {
-  const through = (engine: SyncEngine) => watchedSteps(() => engine.drain()).steps;
+  /** Gives the card, then waits for the send nobody waited for. */
+  async function given(engine = new SyncEngine(API_URL)) {
+    const steps = through(engine);
+    await giveDirectCard(CARD, steps);
+    await engine.drain();
+    return steps;
+  }
 
   it('waits on the tablet with no connection, and the drawer still closes', async () => {
     // What a dead hall looks like here: the service worker answers 503 itself.
     mockApi(offlineResponse);
-    const steps = through(new SyncEngine(API_URL));
-
-    await giveDirectCard(CARD, steps);
+    const steps = await given();
 
     expect(await getAllPending()).toHaveLength(1);
     expect(await getRejected()).toHaveLength(0);
@@ -150,7 +170,7 @@ describe('the queue sends it', () => {
   it('posts the colour and the reason, and no name', async () => {
     const bodies = mockApi(() => Response.json({ id: 'server-card' }, { status: 201 }));
 
-    await giveDirectCard(CARD, through(new SyncEngine(API_URL)));
+    await given();
 
     expect(await getAllPending()).toHaveLength(0);
     expect(bodies).toHaveLength(1);
@@ -171,7 +191,7 @@ describe('the queue sends it', () => {
     ];
     const bodies = mockApi(() => answers.shift() ?? Response.error());
 
-    await giveDirectCard(CARD, through(new SyncEngine(API_URL)));
+    await given();
 
     expect(await getAllPending()).toHaveLength(0);
     expect(await getRejected()).toHaveLength(0);
@@ -190,7 +210,7 @@ describe('the queue sends it', () => {
       ),
     );
 
-    await giveDirectCard(CARD, through(new SyncEngine(API_URL)));
+    await given();
 
     const held = await getRejected();
     expect(held).toHaveLength(1);
@@ -202,7 +222,7 @@ describe('the queue sends it', () => {
 
   it('a held one put back in the queue is still a direct card', async () => {
     mockApi(() => Response.json({ message: 'Match is locked', code: 'locked' }, { status: 409 }));
-    await giveDirectCard(CARD, through(new SyncEngine(API_URL)));
+    await given();
 
     await requeueRejected();
 
@@ -224,6 +244,9 @@ describe('the screens', () => {
     expect(panel).not.toContain('apiRequest');
     expect(panel).not.toContain('/penalties');
     expect(panel).toContain('await giveDirectCard(');
+    expect(panel, 'nothing waits for the send').toContain(
+      'send: () => props.syncEngine?.sendBehind(),',
+    );
   });
 
   it('the panel queues the card with its sequence, its Fighter, its colour and its reason', () => {

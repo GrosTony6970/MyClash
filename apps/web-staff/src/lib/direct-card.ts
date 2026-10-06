@@ -3,8 +3,8 @@
  *
  * A direct card is a scored artefact, so it goes where a hit goes: on the
  * tablet first, then through the queue, online or not. The drawer closes at
- * once; the server's answer, a refusal included, is the bar's and the inbox's
- * to say.
+ * once and nothing waits for the send (ruling 316); the server's answer, a
+ * refusal included, is the bar's and the inbox's to say.
  *
  * Pure, out of the component: web-staff has no React test setup.
  */
@@ -16,17 +16,17 @@ export interface DirectCardSteps {
   notKept: () => void;
   /** Shut the drawer: the card is kept, the referee goes back to the bout. */
   close: () => void;
-  /** Send the queue now; with no connection it answers and the card waits. */
-  drain: () => Promise<unknown> | undefined;
+  /** Ask for a send; nobody waits for it, and with no connection the card waits. */
+  send: () => void;
   /** The bout screen moves its sequence on and reads its lists again. */
   recorded: () => void;
 }
 
 /**
  * Two faults, told apart here. The store cannot keep the card: nothing was
- * sent, the drawer stays open and says so (`notKept`). The send itself throws:
- * the card IS kept, so the sequence still moves on and the throw is left to
- * rise. "Failed" over a kept card would ask the referee to give it twice.
+ * sent, the drawer stays open and says so (`notKept`). Asking for the send
+ * throws: the card IS kept, so the sequence still moves on and the throw is
+ * left to rise. "Failed" over a kept card would ask the referee to give it twice.
  */
 export async function giveDirectCard(
   card: Parameters<typeof queueCard>[0],
@@ -40,7 +40,7 @@ export async function giveDirectCard(
   }
   steps.close();
   try {
-    await steps.drain();
+    steps.send();
   } finally {
     steps.recorded();
   }

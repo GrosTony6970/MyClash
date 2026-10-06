@@ -117,9 +117,9 @@ export class SyncEngine {
   }
 
   /**
-   * Told after each send that had something to send, whatever ended it. A
-   * send can run with no press waiting on it (the connection is back, a
-   * press made while it ran): the bout screen reads the server again here.
+   * Told after each send that had something to send, whatever ended it: its
+   * last pass, an answer that stopped it, a throw. No press waits for a send
+   * (ruling 316): the bout screen reads the server again here.
    */
   onSendEnded(ended: () => void): () => void {
     this.sendEnded.add(ended);
@@ -366,17 +366,29 @@ export class SyncEngine {
    *
    * The race is a hit or a card queued while a send runs: that send walks the
    * list it read at its start. So a drain asked for meanwhile means one more
-   * pass. Its caller is answered at once (ruling 316): the press gets its
-   * buttons back while the send goes on, and `onSendEnded` says when the
-   * server has been asked about every hit.
+   * pass, and its caller waits for that pass: the inbox reads its list again
+   * once a Retry's hit is answered. A press never waits: `sendBehind`.
    */
   drain(): Promise<void> {
     if (this.running) {
       this.askedAgain = true;
-      return Promise.resolve();
+      return this.inFlight;
     }
     this.inFlight = this.sendQueue();
     return this.inFlight;
+  }
+
+  /**
+   * What a press asks for once its hit or card is on the tablet (ruling 316):
+   * a send nobody waits for. The buttons come back at once, and `onSendEnded`
+   * says when the screen should read the server again. A send that throws
+   * has no caller to tell, so it is logged; the hit is kept and goes with the
+   * next send.
+   */
+  sendBehind(): void {
+    this.drain().catch((err: unknown) => {
+      console.error('[sync] a send nobody waited for threw', err);
+    });
   }
 
   /**
@@ -409,9 +421,24 @@ export class SyncEngine {
         // Not between two passes: "could not be synced" over a hit about to go.
         if (!this.askedAgain) await this.emitWalked();
       } while (this.askedAgain);
+    } catch (err) {
+      // Hits may have gone before the throw: the screen is told all the same.
+      tried = true;
+      throw err;
     } finally {
       this.running = false;
-      if (tried) for (const ended of this.sendEnded) ended();
+      if (tried) this.tellSendEnded();
+    }
+  }
+
+  /** One listener that throws must not turn a send that went well into a failed one. */
+  private tellSendEnded(): void {
+    for (const ended of this.sendEnded) {
+      try {
+        ended();
+      } catch (err) {
+        console.error('[sync] a listener of the end of a send threw', err);
+      }
     }
   }
 

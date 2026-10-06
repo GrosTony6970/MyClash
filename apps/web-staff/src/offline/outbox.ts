@@ -17,10 +17,11 @@ import { db, type OutboxEntry, type RejectedEntry } from './db';
  * Returns the auto-incremented local id.
  * Must be called BEFORE any network attempt.
  *
- * `entry.sequence` is the bout screen's counter, which moves on only after the
- * send. The race is two presses inside one send (a card while a hit is on its
- * way): both carry the same number. The store holds what was queued, so the
- * later one gets the next number here, read and written in ONE transaction.
+ * `entry.sequence` is the bout screen's counter, which moves on only once the
+ * screen has drawn again after a press. The race is two presses the counter
+ * has not caught up with (a card right behind a hit): both carry the same
+ * number. The store holds what was queued, so the later one gets the next
+ * number here, read and written in ONE transaction.
  */
 export async function enqueue(
   entry: Omit<OutboxEntry, 'id' | 'createdAt' | 'attempts' | 'lastError'>,
