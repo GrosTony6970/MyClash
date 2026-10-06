@@ -101,11 +101,18 @@ export function retargetScoreboardPopupIfOpen(url: string): void {
  * the retarget both point at what the pad is showing. Returns null when there
  * is no external-display base; leaves a URL without a `/display/{id}` segment
  * untouched.
+ *
+ * The base is read from `?externalDisplay=` and the result goes to
+ * `window.open`, where a `javascript:` address runs on the pad's own site. So
+ * the result is a path of our own site (`isOwnSitePath`, asked once the bout
+ * is swapped in) or null, and the header then shows no button. Every admin
+ * screen sends a path.
  */
 export function displayUrlForMatch(
   externalDisplayUrl: string | null | undefined,
   matchId: string,
 ): string | null {
   if (!externalDisplayUrl) return null;
-  return externalDisplayUrl.replace(/\/display\/[^/?#]+/, `/display/${matchId}`);
+  const url = externalDisplayUrl.replace(/\/display\/[^/?#]+/, `/display/${matchId}`);
+  return isOwnSitePath(url) ? url : null;
 }

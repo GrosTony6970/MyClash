@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   displayUrlForMatch,
@@ -119,5 +121,50 @@ describe('displayUrlForMatch', () => {
 
   it('leaves a URL without a /display/{id} segment untouched', () => {
     expect(displayUrlForMatch('/staff/matches/match-1', 'match-2')).toBe('/staff/matches/match-1');
+  });
+
+  // The address comes from `?externalDisplay=` and goes to `window.open`.
+  it.each([
+    "javascript:opener.document.title='x'",
+    'JavaScript:alert(1)//display/match-1',
+    'data:text/html,<p>x</p>',
+    'https://example.com/display/match-1',
+    '//example.com/display/match-1',
+    '/\\example.com/display/match-1',
+    '/\t/example.com/display/match-1',
+    '/.//example.com/display/match-1',
+    'display/match-1',
+  ])('gives no address for %j, which is not a path of our own site', (asked) => {
+    expect(displayUrlForMatch(asked, 'match-2')).toBeNull();
+  });
+
+  it('gives no address for a full address, of our own site too: no screen sends one', () => {
+    expect(displayUrlForMatch('https://admin.myclash.fr/display/match-1', 'match-2')).toBeNull();
+  });
+
+  it('asks the rule of the address the browser gets, with the bout swapped in', () => {
+    // The header hands in the id the API answered, so this id is not a real one.
+    // It resolves to the path `//example.com`: the rule refuses the result, and
+    // would pass the base alone.
+    expect(displayUrlForMatch('/display/match-1', '../..//example.com')).toBeNull();
+  });
+});
+
+describe('the scoreboard popup', () => {
+  const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
+
+  it('is opened by `nav.ts` alone, with the address `displayUrlForMatch` gave', () => {
+    const header = read('components', 'MatchHeader.tsx');
+    expect(header).toContain('const displayUrl = displayUrlForMatch(externalDisplayUrl, matchId);');
+    expect(header.match(/openScoreboardPopup\(|retargetScoreboardPopupIfOpen\(/g)).toHaveLength(2);
+    expect(header).toContain('onClick={() => openScoreboardPopup(displayUrl)}');
+    expect(header).toContain('if (displayUrl) retargetScoreboardPopupIfOpen(displayUrl);');
+    for (const file of [
+      ['components', 'MatchHeader.tsx'],
+      ['components', 'MatchView.tsx'],
+      ['..', 'app', 'matches', '[matchId]', 'page.tsx'],
+    ]) {
+      expect(read(...file), file.join('/')).not.toContain('window.open(');
+    }
   });
 });
