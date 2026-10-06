@@ -1219,6 +1219,12 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > until the server takes a hit or the account is signed out: a Retry, the inbox or the `online`
 > event send nothing and prove nothing about the person, and Retry is not offered while no hit
 > waits. A press answered 401 is not told to the bar.
+>
+> **A press while the pad sends.** A send walks the list it read at its start. A hit or a card
+> queued meanwhile asks for a drain while one runs: that means one more pass of the queue
+> (`SyncEngine.drain`, `askedAgain`), and the press waits for it as for a send of its own, so the
+> screen reads its lists again only once the server has the hit. A pass that stopped (the caller,
+> a dead network) is not followed by another: the new hit waits behind the first, in order.
 
 ### 10.3 Conflict resolution
 

@@ -313,25 +313,6 @@ describe('the button that signs the account out (ruling 244a)', () => {
     expect((await db.synced.toArray()).map((row) => row.clientUuid)).toEqual(['uuid-1', 'uuid-2']);
     expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 });
   });
-
-  it('a drain asked for while one runs still returns at once', async () => {
-    await addHit(1, 'uuid-1');
-    let answer: (res: unknown) => void = () => undefined;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => new Promise((resolve) => (answer = resolve))),
-    );
-    const engine = new SyncEngine(API_URL);
-    const running = engine.drain();
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-
-    await engine.drain();
-
-    expect(engine.isDraining(), 'the second call did not wait for the first').toBe(true);
-    answer({ ok: true, status: 201, json: () => Promise.resolve({ id: 's' }) });
-    await running;
-    expect(engine.isDraining()).toBe(false);
-  });
 });
 
 describe('the bout screen', () => {

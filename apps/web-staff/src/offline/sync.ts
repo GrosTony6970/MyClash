@@ -85,6 +85,8 @@ export class SyncEngine {
   private running = false;
   /** The drain that runs, or the last one that ran. */
   private inFlight: Promise<void> = Promise.resolve();
+  /** A send was asked for while one ran: the queue is walked once more. */
+  private askedAgain = false;
   private aborted = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
@@ -306,7 +308,6 @@ export class SyncEngine {
    */
   private async waitForCaller(status: 'signed-out' | CallerRefusal): Promise<'stopped'> {
     await this.emit(status);
-    this.running = false;
     return 'stopped';
   }
 
@@ -349,10 +350,17 @@ export class SyncEngine {
   /**
    * Drain all pending outbox entries to the server.
    * Processes in insertion order (by id).
-   * Idempotent — safe to call multiple times.
+   *
+   * The race is a hit or a card queued while a send runs: that send walks the
+   * list it read at its start. So a drain asked for meanwhile means one more
+   * pass, and its caller waits for it, as for a send of its own: the screen
+   * reads its lists again only once the server has the hit.
    */
   drain(): Promise<void> {
-    if (this.running) return Promise.resolve(); // already draining
+    if (this.running) {
+      this.askedAgain = true;
+      return this.inFlight;
+    }
     this.inFlight = this.sendQueue();
     return this.inFlight;
   }
@@ -369,16 +377,30 @@ export class SyncEngine {
     await this.drain();
   }
 
+  /**
+   * One pass of the queue, and one more for each drain asked for meanwhile. A
+   * pass that stopped is not followed by another: what stopped it (the caller,
+   * the network) meets the hit behind it too, and that hit waits.
+   */
   private async sendQueue(): Promise<void> {
     this.running = true;
     this.aborted = false;
-
-    const pending = await getAllPending();
-    if (pending.length === 0) {
-      await this.emit('idle');
+    try {
+      do {
+        this.askedAgain = false;
+        if ((await this.sendPass()) === 'stopped') return;
+        // Not between two passes: "could not be synced" over a hit about to go.
+        if (!this.askedAgain) await this.emitWalked();
+      } while (this.askedAgain);
+    } finally {
       this.running = false;
-      return;
     }
+  }
+
+  /** Walks the queue as it is now. `stopped`: an answer ended the send, and the bar says which. */
+  private async sendPass(): Promise<'walked' | 'stopped'> {
+    const pending = await getAllPending();
+    if (pending.length === 0) return 'walked';
 
     await this.emit('syncing');
 
@@ -387,69 +409,67 @@ export class SyncEngine {
     for (const entry of pending) {
       if (this.aborted) break;
 
-      try {
-        const res = await this.postExchange(entry, entry.sequence);
-
-        if (res.ok || res.status === 201) {
-          // Success or idempotent duplicate — remove from outbox
-          const data = (await res.json()) as ExchangeResponse;
-          await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
-          this.pressRefused = null;
-          consecutiveFailures = 0;
-          await this.emit('syncing');
-        } else if (res.status === 400 || REFUSALS.includes(res.status)) {
-          const outcome =
-            res.status === 400
-              ? await this.answerBadRequest(entry, res)
-              : await this.answerRefusal(entry, res);
-          if (outcome === 'stopped') return;
-          consecutiveFailures = outcome === 'failed' ? consecutiveFailures + 1 : 0;
-          await this.emit('syncing');
-        } else {
-          const body = (await res.json().catch(() => null)) as FailureBody | null;
-          const kind = classifySyncFailure(res.status, body);
-          await markFailed(entry.id!, body?.message ?? kind);
-          consecutiveFailures++;
-
-          // A resolved 503 is what a real outage looks like here: the service
-          // worker turns a dead network into one rather than letting fetch
-          // reject, which is why the catch below could never report offline.
-          // See failure-kind.ts.
-          if (kind === 'offline' && consecutiveFailures >= this.maxConsecutiveFailures) {
-            await this.emit('offline');
-            this.running = false;
-            return;
-          }
-        }
-      } catch (err) {
-        // A genuine rejection. Only reachable when the service worker is not
-        // in play at all — a first load before it installs, or a dev server.
-        const error = err instanceof Error ? err.message : 'Network error';
-        await markFailed(entry.id!, error);
-        consecutiveFailures++;
-
-        if (consecutiveFailures >= this.maxConsecutiveFailures) {
-          await this.emit('offline');
-          this.running = false;
-          return;
-        }
-      }
+      const outcome = await this.sendEntry(entry);
+      if (outcome === 'stopped') return 'stopped';
+      const failed = outcome === 'failed' || outcome === 'offline';
+      consecutiveFailures = failed ? consecutiveFailures + 1 : 0;
 
       if (consecutiveFailures >= this.maxConsecutiveFailures) {
-        await this.emit('error', 'Too many consecutive failures — check connection');
-        this.running = false;
-        return;
+        if (outcome === 'offline') await this.emit('offline');
+        else await this.emit('error', 'Too many consecutive failures — check connection');
+        return 'stopped';
       }
     }
+    return 'walked';
+  }
 
-    const remaining = await totalPendingCount();
-    if (remaining === 0) {
-      await this.emit('idle');
-    } else {
-      await this.emit('error', 'Some exchanges could not be synced');
+  /** The end of a send that walked the whole queue: green, or what still waits. */
+  private async emitWalked(): Promise<void> {
+    if ((await totalPendingCount()) === 0) await this.emit('idle');
+    else await this.emit('error', 'Some exchanges could not be synced');
+  }
+
+  /**
+   * Send one entry and file its answer. `offline` is a failure that reads as a
+   * dead network; `failed` is any other the entry waits behind.
+   */
+  private async sendEntry(
+    entry: OutboxEntry,
+  ): Promise<'sent' | 'held' | 'failed' | 'offline' | 'stopped'> {
+    try {
+      const res = await this.postExchange(entry, entry.sequence);
+
+      if (res.ok || res.status === 201) {
+        // Success or idempotent duplicate — remove from outbox
+        const data = (await res.json()) as ExchangeResponse;
+        await markSynced(entry.id!, entry.clientUuid, entry.matchId, entry.sequence, data.id);
+        this.pressRefused = null;
+        await this.emit('syncing');
+        return 'sent';
+      }
+      if (res.status === 400 || REFUSALS.includes(res.status)) {
+        const outcome =
+          res.status === 400
+            ? await this.answerBadRequest(entry, res)
+            : await this.answerRefusal(entry, res);
+        if (outcome !== 'stopped') await this.emit('syncing');
+        return outcome;
+      }
+      const body = (await res.json().catch(() => null)) as FailureBody | null;
+      const kind = classifySyncFailure(res.status, body);
+      await markFailed(entry.id!, body?.message ?? kind);
+      // A resolved 503 is what a real outage looks like here: the service
+      // worker turns a dead network into one rather than letting fetch
+      // reject, which is why the catch below could never report offline.
+      // See failure-kind.ts.
+      return kind === 'offline' ? 'offline' : 'failed';
+    } catch (err) {
+      // A genuine rejection. Only reachable when the service worker is not
+      // in play at all — a first load before it installs, or a dev server.
+      const error = err instanceof Error ? err.message : 'Network error';
+      await markFailed(entry.id!, error);
+      return 'offline';
     }
-
-    this.running = false;
   }
 
   /**
