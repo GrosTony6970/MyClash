@@ -117,7 +117,9 @@ overrides:
   # Raised to the advisory floor rather than left at ^0.35.0, which ALREADY
   # allowed the fix while the lockfile sat on 0.35.3: a range that permits the
   # patched version does not reach it on its own.
-  sharp: ^0.35.4
+  #
+  # >=0.35.5 clears GHSA-wq5f-xc86-pv6w (librsvg, inherited again).
+  sharp: ^0.35.5
   # Transitive advisory floors. js-yaml is in the tree on two major lines at
   # once, so it needs a key per major — a bare `js-yaml` override would drag
   # the 5.x consumers back to 4.x.
