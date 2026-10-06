@@ -302,7 +302,7 @@ describe('the screens', () => {
   it('the bout screen hands the drawer the queue, the names and the sequence step', () => {
     const view = read('components', 'MatchView.tsx');
     expect(view).toMatch(
-      /<MatchCorrectionsDrawer[\s\S]*?syncEngine=\{syncEngine\}\s+bout=\{submit\.bout\}\s+onCardQueued=\{handleScoreMutation\}/,
+      /<MatchCorrectionsDrawer[\s\S]*?syncEngine=\{syncEngine\}\s+bout=\{submit\.bout\}\s+onCardQueued=\{moveSequenceOn\}/,
     );
   });
 

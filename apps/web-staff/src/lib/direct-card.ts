@@ -18,7 +18,7 @@ export interface DirectCardSteps {
   close: () => void;
   /** Ask for a send; nobody waits for it, and with no connection the card waits. */
   send: () => void;
-  /** The bout screen moves its sequence on and reads its lists again. */
+  /** The bout screen moves its sequence on. */
   recorded: () => void;
 }
 

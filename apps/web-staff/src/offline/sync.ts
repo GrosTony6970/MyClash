@@ -372,6 +372,10 @@ export class SyncEngine {
   drain(): Promise<void> {
     if (this.running) {
       this.askedAgain = true;
+      // The queue grew under a send that runs: the count is said now, so the
+      // hit shows as provisional before the answer in flight. A listener
+      // that throws is the send's to report, at its own next emit.
+      this.emit('syncing').catch(() => undefined);
       return this.inFlight;
     }
     this.inFlight = this.sendQueue();

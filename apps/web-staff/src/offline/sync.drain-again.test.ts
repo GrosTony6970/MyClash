@@ -341,6 +341,32 @@ describe('the bout screen', () => {
   });
 });
 
+describe('one read of the server per scored hit', () => {
+  it('a press that joins a send is counted at once: its hit shows before the answer in flight', async () => {
+    const { engine, states, first, posted, answer } = await sending();
+    await addHit(2, 'uuid-2');
+
+    engine.sendBehind();
+
+    await vi.waitFor(() => expect(states.at(-1)).toMatchObject({ pendingCount: 2 }));
+    expect(states.at(-1)?.status).toBe('syncing');
+    expect(posted, 'the first hit is still waiting for its answer').toEqual(['uuid-1']);
+    await answer(SAVED);
+    await answer(SAVED);
+    await first;
+  });
+
+  it('a press moves its sequence on and reads nothing: the end of the send reads', () => {
+    const view = readFileSync(join(__dirname, '..', 'components', 'MatchView.tsx'), 'utf8');
+    expect(view).toContain(
+      'const moveSequenceOn = useCallback(() => setNextSequence((n) => n + 1), []);',
+    );
+    expect(view).toContain('onExchangeRecorded: moveSequenceOn,');
+    expect(view.match(/onPenaltyRecorded=\{moveSequenceOn\}/g)).toHaveLength(2);
+    expect(view).toContain('onCardQueued={moveSequenceOn}');
+  });
+});
+
 describe('a send that throws', () => {
   it('leaves the pad able to send again', async () => {
     const api = heldApi();

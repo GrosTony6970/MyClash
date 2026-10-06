@@ -107,8 +107,8 @@ export default function MatchScoringPage({ params }: Props) {
 
   useEffect(() => {
     if (!matchId) return;
-    // The race: a press reads the bout, and the end of its send reads it again
-    // a moment later. An answer of the first read that lands last must not win.
+    // The race: two sends end close together (two hits in a row) and each reads
+    // the bout. An answer of the first read that lands last must not win.
     let stale = false;
     void (async () => {
       try {

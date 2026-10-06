@@ -491,16 +491,11 @@ export function MatchView({
   const capWinnerSide = pointCapWinnerColor({ redScore, blueScore }, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
-  // Score-changing actions (exchange, penalty) recompute the score
-  // server-side. Besides the internal bump (clock + exchange/penalty
-  // lists), call the parent onRefresh() so the GET /matches/:id row —
-  // which carries red_score/blue_score + status — is re-fetched at once.
-  // Without this the score only updated on the next clock action.
-  const handleScoreMutation = useCallback(() => {
-    setNextSequence((n) => n + 1);
-    setRefreshKey((k) => k + 1);
-    onRefresh();
-  }, [onRefresh]);
+  // A hit or a card was written on the tablet. The press reads nothing from
+  // the server (ruling 316): the engine says the new count, which shows the
+  // hit as provisional, and the ONE read of the server per scored hit
+  // follows the end of its send (`useSendEnded`, below and in the page).
+  const moveSequenceOn = useCallback(() => setNextSequence((n) => n + 1), []);
 
   // Clearing (voiding) the last exchange also recomputes the score, but
   // must NOT advance the local sequence counter (no new exchange).
@@ -519,7 +514,7 @@ export function MatchView({
     clockTimeMs,
     bout: boutNames(match),
     syncEngine,
-    onExchangeRecorded: handleScoreMutation,
+    onExchangeRecorded: moveSequenceOn,
   });
 
   // Spacebar shortcut: toggles the primary clock action when no input
@@ -639,7 +634,7 @@ export function MatchView({
           canScore={canScore}
           clockTimeMs={clockTimeMs}
           submit={submit}
-          onPenaltyRecorded={handleScoreMutation}
+          onPenaltyRecorded={moveSequenceOn}
           scoring={scoring}
         />
 
@@ -698,7 +693,7 @@ export function MatchView({
           canScore={canScore}
           clockTimeMs={clockTimeMs}
           submit={submit}
-          onPenaltyRecorded={handleScoreMutation}
+          onPenaltyRecorded={moveSequenceOn}
           scoring={scoring}
         />
       </div>
@@ -721,7 +716,7 @@ export function MatchView({
         clockTimeMs={clockTimeMs}
         syncEngine={syncEngine}
         bout={submit.bout}
-        onCardQueued={handleScoreMutation}
+        onCardQueued={moveSequenceOn}
         config={scoringConfig}
         scoring={scoring}
         forfeitDisabled={

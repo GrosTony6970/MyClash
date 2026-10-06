@@ -84,8 +84,8 @@ export function useScoringSubmit({
           ...exchange,
         });
         syncEngine?.sendBehind();
-        // Moves the sequence on and reads the tablet's queue again: the hit shows
-        // as provisional. The server is read again when the send has ended.
+        // Moves the sequence on. The engine says the new count, which shows the
+        // hit as provisional; the server is read once, when the send has ended.
         onExchangeRecorded?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to record exchange');
