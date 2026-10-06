@@ -70,8 +70,6 @@ export interface MatchScoringData {
    * blue was announced under red's score too.
    */
   queuedCardsFor: (registrationId: string) => { priced: number; unpriced: number };
-  /** Outbox rows for THIS match — what the clear-last-exchange button gates on. */
-  pendingHere: number;
   /** What the queue adds to each side's score. Display only, never stored. */
   provisional: { red: number; blue: number };
 
@@ -169,7 +167,6 @@ export function useMatchScoringData(args: {
     pendingPenalties: pending.penalties,
     unpricedCards: pending.unpricedCardUuids.length,
     queuedCardsFor,
-    pendingHere: pendingEntries.length,
     provisional,
     countFor,
     resolveCard,

@@ -292,9 +292,11 @@ export const scoring = {
     matchLocked: 'Ce match est verrouillé. Le scoring staff et les corrections sont desactives.',
     actionFailed: 'Correction impossible.',
     defaultReason: 'Correction arbitre de table',
-    clearLastExchange: 'Effacer le dernier échange',
-    clearLastFailed: 'Impossible d’effacer le dernier échange.',
-    clearLastReason: 'Dernier échange effacé sur la tablette de score',
+    clearLastExchange: 'Annuler la dernière saisie',
+    clearLastFailed: 'Impossible d’annuler la dernière saisie.',
+    clearLastReason: 'Dernière saisie annulée sur la tablette de score',
+    blackCardUndoRefused:
+      'Ce carton noir ne peut plus être annulé depuis la tablette. Prévenez l’organisateur.',
     clearLastSentForReview:
       'L’événement est terminé : votre correction est envoyée pour validation. L’échange reste affiché tant qu’elle n’est pas approuvée.',
     swapColor: 'Inverser les couleurs',

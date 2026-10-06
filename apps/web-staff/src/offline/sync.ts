@@ -11,6 +11,7 @@
  */
 
 import {
+  claimForSend,
   discardRejected,
   getAllPending,
   getRejected,
@@ -29,6 +30,7 @@ import { canSendAgain } from './can-send-again';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
+import { takeBackNewest, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,9 @@ interface ExchangeResponse {
 /** The statuses `answerRefusal` reads: about the caller or the bout, never the sequence. */
 const REFUSALS = [409, 403, 401];
 
+/** How one entry's send ended, once its answer is filed. */
+type Filed = 'sent' | 'held' | 'failed' | 'offline' | 'stopped';
+
 /** An answer of that kind, met on the way to a second try. */
 interface Refused {
   refused: Response;
@@ -88,6 +93,9 @@ export class SyncEngine {
   /** A send was asked for while one ran: the queue is walked once more. */
   private askedAgain = false;
   private sendEnded: Set<() => void> = new Set();
+  /** The row whose POST is out (`claimForSend`), and the filing of its answer: what the undo asks. */
+  private sendingId: number | null = null;
+  private filed: Promise<unknown> = Promise.resolve();
   private aborted = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
@@ -462,7 +470,9 @@ export class SyncEngine {
     for (const entry of pending) {
       if (this.aborted) break;
 
-      const outcome = await this.sendEntry(entry);
+      const outcome = await this.sendClaimed(entry);
+      // The undo removed it since this pass listed it: nothing was sent.
+      if (outcome === 'gone') continue;
       if (outcome === 'stopped') return 'stopped';
       const failed = outcome === 'failed' || outcome === 'offline';
       consecutiveFailures = failed ? consecutiveFailures + 1 : 0;
@@ -483,12 +493,43 @@ export class SyncEngine {
   }
 
   /**
+   * Claim one row, send it, file its answer, let it go. The race is the undo
+   * (`takeBackNewest`): it may delete a row this pass has listed and not yet
+   * sent, never the one that is out. `filed` is set before the claim is asked,
+   * so an undo that meets the claim always has this answer to wait for.
+   */
+  private sendClaimed(entry: OutboxEntry): Promise<Filed | 'gone'> {
+    const send = async (): Promise<Filed | 'gone'> => {
+      const claimed = await claimForSend(entry.id!, (id) => {
+        this.sendingId = id;
+      });
+      return claimed ? this.sendEntry(entry) : 'gone';
+    };
+    const filed = send().finally(() => {
+      this.sendingId = null;
+    });
+    this.filed = filed;
+    return filed;
+  }
+
+  /**
+   * The pad's undo of what waits on the tablet for a bout (rulings 317, 318).
+   * A removal changes the count, so the state is said again.
+   */
+  async takeBackNewest(matchId: string): Promise<TakenBack> {
+    const taken = await takeBackNewest(matchId, {
+      isOnItsWay: (id) => this.sendingId === id,
+      whenFiled: () => this.filed,
+    });
+    if (taken.kind === 'removed') await this.emitResting();
+    return taken;
+  }
+
+  /**
    * Send one entry and file its answer. `offline` is a failure that reads as a
    * dead network; `failed` is any other the entry waits behind.
    */
-  private async sendEntry(
-    entry: OutboxEntry,
-  ): Promise<'sent' | 'held' | 'failed' | 'offline' | 'stopped'> {
+  private async sendEntry(entry: OutboxEntry): Promise<Filed> {
     try {
       const res = await this.postExchange(entry, entry.sequence);
 
@@ -580,16 +621,7 @@ export class SyncEngine {
     this.aborted = true;
   }
 
-  /**
-   * Is a drain running right now?
-   *
-   * Exposed for the pad's undo, which deletes the outbox tail locally when the
-   * hit has not reached the server. Mid-drain that entry may already have been
-   * POSTed and be waiting on `markSynced`, so deleting it would leave the hit on
-   * the server with the referee believing it undone. The undo takes the server
-   * path instead while this is true — and if a drain is running, the network is
-   * up, so that path works.
-   */
+  /** Is a send running right now? The undo no longer asks (`takeBackNewest`): tests do. */
   isDraining(): boolean {
     return this.running;
   }

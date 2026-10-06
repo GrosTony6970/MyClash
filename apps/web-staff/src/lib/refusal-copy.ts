@@ -52,6 +52,7 @@ const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
 const CLOSED_ROUND_RESULT = 'scoring.corrections.closedRoundResult';
 const EVENT_OVER = 'scoring.corrections.eventOver';
+const BLACK_CARD_UNDO_REFUSED = 'scoring.corrections.blackCardUndoRefused';
 const ACCOUNT_CANNOT_SCORE = 'scoring.corrections.accountCannotScore';
 const PIN_DISABLED = 'scoring.corrections.pinDisabled';
 const PIN_ROLE_CANNOT_SCORE = 'scoring.corrections.pinRoleCannotScore';
@@ -94,13 +95,16 @@ function levelAtTime(t: Translate, details: Record<string, unknown> | null): str
 
 /**
  * A correction on a finished bout lands whole or not at all (ruling 226), and
- * so does one on a closed round of a best-of series (ruling 247).
+ * so does one on a closed round of a best-of series (ruling 247), and the undo
+ * of a black card whose forfeit cannot be taken back (ruling 319). A Map: a
+ * server's `code` looked up in an object finds `constructor`.
  */
-const REFUSED_WHOLE = {
-  correction_later_bout_fought: LATER_BOUT_FOUGHT,
-  correction_leaves_bout_level: LEAVES_BOUT_LEVEL,
-  correction_changes_closed_round: CLOSED_ROUND_RESULT,
-} as const;
+const REFUSED_WHOLE = new Map([
+  ['correction_later_bout_fought', LATER_BOUT_FOUGHT],
+  ['correction_leaves_bout_level', LEAVES_BOUT_LEVEL],
+  ['correction_changes_closed_round', CLOSED_ROUND_RESULT],
+  ['black_card_undo_refused', BLACK_CARD_UNDO_REFUSED],
+]);
 
 /**
  * Why a queued hit is held, for the refused-hits inbox. A refusal the pad knows
@@ -126,6 +130,8 @@ function codedRefusal(
   code: string | null,
   details: Record<string, unknown> | null,
 ): string | null {
+  const whole = REFUSED_WHOLE.get(code ?? '');
+  if (whole) return t(whole);
   switch (code) {
     case 'dependent_results_would_be_discarded':
       return counted(t, DEPENDENTS_ONE, DEPENDENTS_MANY, foughtCount(details));
@@ -135,10 +141,6 @@ function codedRefusal(
       return t(SWISS_AHEAD);
     case 'uncomplete_requires_organiser':
       return t(ORGANISER_ONLY);
-    case 'correction_later_bout_fought':
-    case 'correction_leaves_bout_level':
-    case 'correction_changes_closed_round':
-      return t(REFUSED_WHOLE[code]);
     case 'bout_not_started': // ruling 286: a call sent at once to a bout nobody started
       return t(NOT_STARTED);
     case 'event_results_frozen':

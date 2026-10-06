@@ -307,9 +307,11 @@ export const scoring = {
     matchLocked: 'This match is locked. Staff scoring and corrections are disabled.',
     actionFailed: 'Correction failed.',
     defaultReason: 'Scorekeeper correction',
-    clearLastExchange: 'Clear last exchange',
-    clearLastFailed: 'Could not clear the last exchange.',
-    clearLastReason: 'Last exchange cleared on the scoring pad',
+    clearLastExchange: 'Undo last entry',
+    clearLastFailed: 'Could not undo the last entry.',
+    clearLastReason: 'Last entry undone on the scoring pad',
+    blackCardUndoRefused:
+      'This black card can no longer be undone from the pad. Tell the organiser.',
     clearLastSentForReview:
       'The Event is over: your correction was sent for review. The exchange stays until it is approved.',
     swapColor: 'Swap fighter color',

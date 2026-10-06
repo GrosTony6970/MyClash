@@ -126,7 +126,7 @@ Used at each Lice by a designated scorekeeper. One device per Lice. Functions:
 - View current match assignment (red vs blue, weapon, ruleset).
 - Match clock (start/pause/halt/resume).
 - Per-exchange entry: clean hit (red/blue, 1pt/2pt), afterblow (with retaliation value), double, no-exchange.
-- Undo last exchange.
+- Undo last entry (a hit or a card).
 - Finalize match → push to backend.
 - Works fully offline; queues exchanges to IndexedDB; syncs when network returns.
 
@@ -575,7 +575,7 @@ Implementation must reproduce these scores byte-for-byte.
 
 Forfeits are ruleset behavior, not fake exchanges. TF/FFAMHE defaults are: injury keeps current points and asks whether the fighter can continue; voluntary and first black card award a 0-6 loss and ask whether the fighter can continue; second black card and conduct/violence award a 0-6 loss and disqualify the registration. Active forfeits are stored in `match_forfeits`, drive `matches.status/winner_registration_id`, and may be voided only before downstream dependent matches start. In pools, `canContinue=false` auto-forfeits later unstarted pool matches. In brackets, play-ins and round 2+ become walkovers; main bracket round 1 can replace an unstarted forfeiting fighter with the next eligible pool-ranked non-qualifier.
 
-Taking a black card back takes back what the card did (ruling 319, `penalties/black-card-undo.ts`). The void of a black card first voids the forfeit that card made on its bout, through `MatchForfeitsService.voidForfeit`: the bout returns to what it was, a Fighter the card put out of the Tournament is back in, and the Pool bouts forfeited with it are back on. Whoever may score the bout may do it, a scoring pad included. It lands whole or not at all: where the forfeit cannot be taken back (a bout this one feeds was fought, the bout was fought again, a reserve took the Fighter's place, an organiser confirmed the second black card review) the card stays and the answer is the coded refusal `black_card_undo_refused`. A pending second black card review goes with the card once fewer than two remain. The Reopen of such a bout is still refused (`forfeit_withdrew_fighter`): reopening a bout is not asking for the card back.
+Taking a black card back takes back what the card did (ruling 319, `penalties/black-card-undo.ts`). The void of a black card first voids the forfeit that card made on its bout, through `MatchForfeitsService.voidForfeit`: the bout returns to what it was, a Fighter the card put out of the Tournament is back in, and the Pool bouts forfeited with it are back on. Whoever may score the bout may do it, a scoring pad included. It lands whole or not at all: where the forfeit cannot be taken back (a bout this one feeds was fought, the bout was fought again or its score recomputed since, a reserve took the Fighter's place, a later forfeit of the Fighter stands, an organiser confirmed the second black card review) the card stays and the answer is the coded refusal `black_card_undo_refused`. A pending second black card review goes with the card once fewer than two remain. The Reopen of such a bout is still refused (`forfeit_withdrew_fighter`): reopening a bout is not asking for the card back.
 
 ---
 
@@ -1221,6 +1221,23 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > until the server takes a hit or the account is signed out: a Retry, the inbox or the `online`
 > event send nothing and prove nothing about the person, and Retry is not offered while no hit
 > waits. A press answered 401 is not told to the bar.
+>
+> **The undo (rulings 317, 318, 320).** "Undo last entry" takes back the newest hit or card of
+> the bout: the last line of its list, by the time it was scored, then its sequence
+> (`offline/newest-entry.ts`). `lib/clear-last.ts` `undoLastEntry` owns the order and the
+> faults. The tablet first: an entry that still waits there is deleted, with no call, which is
+> what works offline. The one row a send has out is never deleted: the send claims a row just
+> before its POST (`claimForSend`), the undo checks that claim (`dequeueNewestForMatch`), and
+> both are write transactions on the outbox, so the undo sees the claim or the send sees the
+> delete and skips the row. For the row that is out the undo waits for that one answer
+> (`SyncEngine.takeBackNewest`, `offline/take-back.ts`): landed, it is voided on the server by
+> its id; refused or failed, it is removed from the tablet (a failure is not proof the server
+> took nothing: a hit it did take shows at the next read, and is undone there). The tablet is
+> asked first, so an older entry that still waits there goes before a newer one the server
+> holds. With nothing on the tablet the undo
+> reads the bout's hits and cards fresh from the server, never the screen's lists, and voids the
+> newest live one by its own route. A failed read removes nothing. A black card's void takes its
+> forfeit back (ruling 319, §6).
 >
 > **A press and the send (ruling 316).** No press waits for the send. A hit or a card is written
 > on the tablet, the press asks for a send that runs behind (`SyncEngine.sendBehind`), and its
