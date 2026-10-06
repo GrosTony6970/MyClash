@@ -1224,7 +1224,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > queued meanwhile asks for a drain while one runs: that means one more pass of the queue
 > (`SyncEngine.drain`, `askedAgain`), and the press waits for it as for a send of its own, so the
 > screen reads its lists again only once the server has the hit. A pass that stopped (the caller,
-> a dead network) is not followed by another: the new hit waits behind the first, in order.
+> a dead network) is not followed by another: the new hit waits behind the first, in order. Each
+> press carries the bout screen's sequence counter, which moves on only after the send; the store
+> gives a press the next number when that counter is behind what the tablet holds (`enqueue`, one
+> transaction), so two presses inside one send never share a sequence.
 
 ### 10.3 Conflict resolution
 

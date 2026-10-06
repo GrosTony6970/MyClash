@@ -24,19 +24,15 @@ beforeEach(async () => {
   await db.synced.clear();
   await db.rejected.clear();
   vi.restoreAllMocks();
-  // The server holds sequence 4: the second try goes at 5.
-  await db.synced.add({
-    clientUuid: 'uuid-old',
-    matchId: 'm1',
-    sequence: 4,
-    serverId: 'srv-4',
-    syncedAt: 0,
-  });
 });
 
 type Answer = { status: number; body: unknown };
 
-/** Answers each POST from the sequence it carried; the sequence read lists no row. */
+/**
+ * Answers each POST from the sequence it carried. Another pad scored the bout:
+ * the server holds sequence 4, which this tablet never saw, so the second try
+ * goes at 5.
+ */
 function mockApi(post: (sequence: number) => Answer) {
   const posted: number[] = [];
   const answer = (r: Answer) =>
@@ -48,7 +44,9 @@ function mockApi(post: (sequence: number) => Answer) {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation((_url: string, init?: { method?: string; body?: string }) => {
-      if ((init?.method ?? 'GET') === 'GET') return answer({ status: 200, body: [] });
+      if ((init?.method ?? 'GET') === 'GET') {
+        return answer({ status: 200, body: [{ sequence: 4 }] });
+      }
       const sequence = (JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence;
       posted.push(sequence);
       return answer(post(sequence));
