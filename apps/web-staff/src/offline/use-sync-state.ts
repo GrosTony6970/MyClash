@@ -26,3 +26,14 @@ export function useSyncState(
 
   return state;
 }
+
+/**
+ * Call `ended` after each send of the engine (ruling 316). A send can end with
+ * no press waiting on it, and the screen then holds what the server had before.
+ */
+export function useSendEnded(
+  engine: { onSendEnded: (ended: () => void) => () => void } | null | undefined,
+  ended: () => void,
+): void {
+  useEffect(() => engine?.onSendEnded(ended), [engine, ended]);
+}

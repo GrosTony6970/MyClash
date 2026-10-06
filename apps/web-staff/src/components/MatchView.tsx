@@ -13,7 +13,7 @@ import { refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
-import { useSyncState } from '../offline/use-sync-state';
+import { useSendEnded, useSyncState } from '../offline/use-sync-state';
 import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
@@ -508,6 +508,9 @@ export function MatchView({
     setRefreshKey((k) => k + 1);
     onRefresh();
   }, [onRefresh]);
+  // The same reads, and no new hit of this screen, when the queue was sent
+  // with no press waiting on it (ruling 316).
+  useSendEnded(syncEngine, handleExchangeVoided);
 
   const submit = useScoringSubmit({
     matchId: match.id,

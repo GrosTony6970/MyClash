@@ -91,9 +91,10 @@ export function useMatchScoringData(args: {
   /**
    * The SyncEngine's pending count, NOT a per-match one.
    *
-   * This is the only trigger that notices a BACKGROUND drain. `refreshKey`
-   * bumps on the referee's own actions; a reconnect empties the queue with no
-   * mutation at all, and without this the provisional score and the queued
+   * This is what notices each hit a BACKGROUND drain sends. `refreshKey` bumps
+   * on the referee's own actions and once at the END of a send (`useSendEnded`);
+   * a reconnect empties the queue hit by hit, and without this the provisional
+   * score and the queued
    * timeline rows would sit on screen after the server had already accepted
    * them. `ScoringCenterControls` used to derive its own count on
    * `[matchId, refreshKey]`, which collapses to `refreshKey` and cannot see a

@@ -5,10 +5,13 @@
  * ran answered at once and did nothing. So a card given while a hit was on its
  * way stayed on the tablet until the next hit, Retry or connection event, and
  * the send that ran ended on "could not be synced" though nothing had failed.
- * A send asked for while one runs now means one more pass, and its press waits
- * for it, as for a send of its own.
+ * A send asked for while one runs now means one more pass. Its press does not
+ * wait for it (ruling 316): the buttons come back at once, and the bout screen
+ * reads the server again when the engine says the send has ended.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
@@ -93,21 +96,18 @@ describe('a card given while a hit is on its way', () => {
     expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 });
   });
 
-  it('keeps its press waiting until the card itself is answered', async () => {
+  it('gives its press the buttons back at once: the send goes on behind (ruling 316)', async () => {
     const { engine, first, posted, answer } = await sending();
     await addHit(2, 'uuid-2');
-    let answered = false;
-    const second = engine.drain().then(() => {
-      answered = true;
-    });
 
-    await answer(SAVED);
-    await vi.waitFor(() => expect(posted).toEqual(['uuid-1', 'uuid-2']));
+    await engine.drain();
 
-    expect(answered, 'the screen would read its lists before the server has the hit').toBe(false);
+    expect(posted, 'the first hit is still waiting for its answer').toEqual(['uuid-1']);
     expect(engine.isDraining()).toBe(true);
     await answer(SAVED);
-    await Promise.all([first, second]);
+    await answer(SAVED);
+    await first;
+    expect(posted).toEqual(['uuid-1', 'uuid-2']);
     expect(engine.isDraining()).toBe(false);
   });
 
@@ -184,6 +184,77 @@ describe('the other ways a send is asked for while one runs', () => {
 
     expect(posted).toEqual(['uuid-1', 'uuid-held']);
     expect(await getRejected()).toHaveLength(0);
+  });
+});
+
+describe('the end of a send is told (ruling 316)', () => {
+  // No press waits for a send that runs behind: the screen reads the server again when told.
+  it('once, after the last pass, when the server has every hit', async () => {
+    const { engine, first, answer } = await sending();
+    const synced: number[] = [];
+    engine.onSendEnded(() => void db.synced.count().then((count) => synced.push(count)));
+    let told = 0;
+    engine.onSendEnded(() => {
+      told += 1;
+      expect(engine.isDraining()).toBe(false);
+    });
+
+    await addHit(2, 'uuid-2');
+    await engine.drain();
+    await answer(SAVED);
+    expect(told, 'not between two passes').toBe(0);
+    await answer(SAVED);
+    await first;
+
+    expect(told).toBe(1);
+    await vi.waitFor(() => expect(synced).toEqual([2]));
+  });
+
+  it('when the send stopped: the tablet still holds the hits the screen shows', async () => {
+    const { engine, first, answer } = await sending();
+    const ended = vi.fn();
+    engine.onSendEnded(ended);
+
+    await answer({ status: 403, body: { code: 'account_cannot_score' } });
+    await first;
+
+    expect(ended).toHaveBeenCalledOnce();
+  });
+
+  it('not for a send that found nothing to send: a screen that opens reads once', async () => {
+    heldApi();
+    const engine = new SyncEngine(API_URL);
+    const ended = vi.fn();
+    engine.onSendEnded(ended);
+
+    await engine.drain();
+
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it('no longer to a screen that left', async () => {
+    const { engine, first, answer } = await sending();
+    const ended = vi.fn();
+    engine.onSendEnded(ended)();
+
+    await answer(SAVED);
+    await first;
+
+    expect(ended).not.toHaveBeenCalled();
+  });
+});
+
+describe('the bout screen', () => {
+  // web-staff has no React test setup: the screens are read as text.
+  const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
+
+  it('reads its lists and the bout again when a send has ended, and moves no sequence', () => {
+    expect(read('components', 'MatchView.tsx')).toContain(
+      'useSendEnded(syncEngine, handleExchangeVoided);',
+    );
+    expect(read('offline', 'use-sync-state.ts')).toContain(
+      'useEffect(() => engine?.onSendEnded(ended), [engine, ended]);',
+    );
   });
 });
 

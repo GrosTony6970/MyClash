@@ -87,6 +87,7 @@ export class SyncEngine {
   private inFlight: Promise<void> = Promise.resolve();
   /** A send was asked for while one ran: the queue is walked once more. */
   private askedAgain = false;
+  private sendEnded: Set<() => void> = new Set();
   private aborted = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
@@ -113,6 +114,18 @@ export class SyncEngine {
   subscribe(listener: SyncStateListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * Told after each send that had something to send, whatever ended it. A
+   * send can run with no press waiting on it (the connection is back, a
+   * press made while it ran): the bout screen reads the server again here.
+   */
+  onSendEnded(ended: () => void): () => void {
+    this.sendEnded.add(ended);
+    return () => {
+      this.sendEnded.delete(ended);
+    };
   }
 
   private async emit(calm: SyncStatus, lastError?: string): Promise<void> {
@@ -353,13 +366,14 @@ export class SyncEngine {
    *
    * The race is a hit or a card queued while a send runs: that send walks the
    * list it read at its start. So a drain asked for meanwhile means one more
-   * pass, and its caller waits for it, as for a send of its own: the screen
-   * reads its lists again only once the server has the hit.
+   * pass. Its caller is answered at once (ruling 316): the press gets its
+   * buttons back while the send goes on, and `onSendEnded` says when the
+   * server has been asked about every hit.
    */
   drain(): Promise<void> {
     if (this.running) {
       this.askedAgain = true;
-      return this.inFlight;
+      return Promise.resolve();
     }
     this.inFlight = this.sendQueue();
     return this.inFlight;
@@ -380,27 +394,31 @@ export class SyncEngine {
   /**
    * One pass of the queue, and one more for each drain asked for meanwhile. A
    * pass that stopped is not followed by another: what stopped it (the caller,
-   * the network) meets the hit behind it too, and that hit waits.
+   * three failures in a row) meets the hit behind it too, and that hit waits.
    */
   private async sendQueue(): Promise<void> {
     this.running = true;
     this.aborted = false;
+    let tried = false;
     try {
       do {
         this.askedAgain = false;
-        if ((await this.sendPass()) === 'stopped') return;
+        const pass = await this.sendPass();
+        tried ||= pass !== 'empty';
+        if (pass === 'stopped') return;
         // Not between two passes: "could not be synced" over a hit about to go.
         if (!this.askedAgain) await this.emitWalked();
       } while (this.askedAgain);
     } finally {
       this.running = false;
+      if (tried) for (const ended of this.sendEnded) ended();
     }
   }
 
   /** Walks the queue as it is now. `stopped`: an answer ended the send, and the bar says which. */
-  private async sendPass(): Promise<'walked' | 'stopped'> {
+  private async sendPass(): Promise<'empty' | 'walked' | 'stopped'> {
     const pending = await getAllPending();
-    if (pending.length === 0) return 'walked';
+    if (pending.length === 0) return 'empty';
 
     await this.emit('syncing');
 

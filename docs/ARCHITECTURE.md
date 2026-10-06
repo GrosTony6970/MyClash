@@ -1222,9 +1222,12 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 >
 > **A press while the pad sends.** A send walks the list it read at its start. A hit or a card
 > queued meanwhile asks for a drain while one runs: that means one more pass of the queue
-> (`SyncEngine.drain`, `askedAgain`), and the press waits for it as for a send of its own, so the
-> screen reads its lists again only once the server has the hit. A pass that stopped (the caller,
-> a dead network) is not followed by another: the new hit waits behind the first, in order. Each
+> (`SyncEngine.drain`, `askedAgain`). The press does not wait for it (ruling 316): its buttons
+> come back at once, the hit shows as provisional, and the engine tells the end of each send that
+> had something to send (`onSendEnded`); the bout screen then reads its lists and the bout again
+> (`useSendEnded`), as it does after the `online` event's send, which no press waits for either.
+> A pass that stopped (the caller, three failures in a row) is not followed by another: the new
+> hit waits behind the first, in order. Each
 > press carries the bout screen's sequence counter, which moves on only after the send; the store
 > gives a press the next number when that counter is behind what the tablet holds (`enqueue`, one
 > transaction), so two presses inside one send never share a sequence.
