@@ -102,7 +102,7 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
       expect(writesTo(db, 'matches')).toEqual([]);
     });
 
-    // `PATCH /status` and the clock's reopen void the record and leave the
+    // The clock's reopen voids the record and leaves the
     // reason on the row. Completed again, the bout is nobody's to take back.
     it.each([
       ['its record is voided', [{ ...LIVE_RECORD, voided_at: '2026-01-01T00:10:00Z' }]],

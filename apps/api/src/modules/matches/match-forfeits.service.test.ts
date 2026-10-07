@@ -976,8 +976,8 @@ describe('MatchForfeitsService — override regressions', () => {
    *
    * Every guard on this path asks whether the ACTOR may void. None asked whether
    * there is still the same thing to void. `liveMatchIds`' own comment names the
-   * three routes that put a forfeited bout back in play with its record active —
-   * reset, PATCH /status, the clock's reopen — but a bout taken back through one
+   * two routes that put a forfeited bout back in play with its record active —
+   * reset and the clock's reopen — but a bout taken back through one
    * of them and then fought to a finish is `completed` again, so no status-shaped
    * check sees anything wrong. The restore then writes the pre-forfeit snapshot
    * over a played result and the scores are gone.
@@ -1448,8 +1448,8 @@ describe('MatchForfeitsService — pool cascade void', () => {
   });
 
   it('does not rewrite a child match that is back in play', async () => {
-    // `POST /matches/:id/reset`, `PATCH /matches/:id/status` and the clock's
-    // `reopen` all put an auto-forfeited match back in play while its forfeit
+    // `POST /matches/:id/reset` and the clock's
+    // `reopen` both put an auto-forfeited match back in play while its forfeit
     // row is still active. Restoring the snapshot over a live bout would wipe
     // its score — but the F must not stand for a bout being fought, so the
     // record still voids.

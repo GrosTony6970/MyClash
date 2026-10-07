@@ -10197,7 +10197,6 @@ export interface components {
       status: 'running' | 'paused' | 'completed';
       /** Format: uuid */
       winnerRegistrationId?: string;
-      discardDependentResults?: boolean;
     };
     ScheduleMatchDto: {
       /** Format: uuid */

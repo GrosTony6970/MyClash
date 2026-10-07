@@ -28,4 +28,11 @@ describe('UpdateMatchStatusDto', () => {
   it('refuses voided, which has its own route', () => {
     expect(schema.safeParse({ status: 'voided' }).success).toBe(false);
   });
+
+  // Ruling 338: the route takes no bout out of completed, so it has nothing to discard.
+  it('takes no discard acknowledgement', () => {
+    const result = schema.safeParse({ status: 'running', discardDependentResults: true });
+
+    expect(result.success).toBe(false);
+  });
 });

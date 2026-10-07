@@ -526,10 +526,10 @@ export class MatchForfeitsService {
   /**
    * Which of these matches are mid-bout, so must not be rewritten.
    *
-   * An auto-forfeited match is `completed`, but three live paths put one back in
-   * play with its forfeit row still active: `POST /matches/:id/reset`,
-   * `PATCH /matches/:id/status`, and the clock's `reopen` (which validates the
-   * CLOCK state machine, never `matches.status`). Restoring
+   * An auto-forfeited match is `completed`, but two live paths put one back in
+   * play with its forfeit row still active: `POST /matches/:id/reset` and the
+   * clock's `reopen` (which validates the CLOCK state machine, never
+   * `matches.status`; `PATCH /status` no longer does, ruling 338). Restoring
    * `previous_match_state` over a running bout would wipe its score.
    *
    * MID-BOUT ONLY. A child taken back through one of those paths and then fought
@@ -680,9 +680,9 @@ export class MatchForfeitsService {
    * The bout must still be holding the result this record produced.
    *
    * `assertVoidable` asks whether the ACTOR may void. This asks whether there is
-   * still the same thing to void. Three routes put a forfeited bout back in play
-   * with its record active — reset, `PATCH /status`, and the clock's reopen —
-   * and a bout taken back through one of them and then fought to a finish is
+   * still the same thing to void. Two routes put a forfeited bout back in play
+   * with its record active, reset and the clock's reopen (`PATCH /status` no
+   * longer does, ruling 338), and one taken back so and then fought to a finish is
    * `completed` again, so no status-shaped check notices. Restoring
    * `previous_match_state` over it writes the pre-forfeit snapshot straight over
    * a real played result and the scores are gone.

@@ -178,10 +178,10 @@ export class MatchesController {
     // Resolved, not assumed. This route carried no actor at all while its
     // summary claimed scorekeeper+ — the global AuthGuard defaults to shadow
     // mode, so an anonymous caller was let through and logged. It now needs the
-    // identity the summary always described, and the actor is what decides
-    // whether a de-completion may discard later bouts.
-    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
-    return this.matches.updateStatus(id, dto, actor);
+    // identity the summary always described. It asks no discard capability:
+    // the route takes no bout out of completed (ruling 338).
+    await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.updateStatus(id, dto);
   }
 
   @Patch('matches/:id/schedule')

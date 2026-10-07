@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -437,12 +438,8 @@ export class MatchesService {
     return eventId;
   }
 
-  async updateStatus(matchId: string, dto: UpdateMatchStatusDto, context?: MatchActor) {
-    return this.setStatus(matchId, dto.status, {
-      winnerRegistrationId: dto.winnerRegistrationId,
-      discardDependents: dto.discardDependentResults === true,
-      context,
-    });
+  async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
+    return this.setStatus(matchId, dto.status, dto.winnerRegistrationId);
   }
 
   /**
@@ -454,16 +451,23 @@ export class MatchesService {
    * token could reach it. One door, one gate.
    */
   async voidMatch(matchId: string, context?: MatchActor, discardDependents = false) {
-    return this.setStatus(matchId, 'voided', { discardDependents, context });
+    // UN-COMPLETION FIRST. A void takes a bout out of the bracket it fed, and
+    // that is owned before the write so a refusal leaves the row alone. There
+    // is no transaction, so ordering is the guarantee.
+    await this.uncomplete(matchId, 'match status set to voided', context, discardDependents);
+    return this.setStatus(matchId, 'voided');
   }
 
   /**
-   * The one write that moves a match between statuses, and the two side effects
-   * that hang off the ends of it.
+   * The one write that moves a match between statuses, and the side effect
+   * that hangs off its completed end.
    *
-   * UN-COMPLETION FIRST. Any target but 'completed' takes a bout out of the
-   * bracket it fed, and that is owned before the write so a refusal leaves the
-   * row alone. There is no transaction, so ordering is the guarantee.
+   * A COMPLETED BOUT IS NOT SET RUNNING OR PAUSED HERE (ruling 338). The
+   * clock's Reopen is the one way back in play: it reads the sheet again, or
+   * puts the earlier score back (rulings 331, 332). This door did neither, and
+   * left a forfeit's or an override's score on a running bout. The refusal is
+   * in the write itself, not in a read before it: the pad's closing hit can
+   * complete the bout between the two.
    *
    * COMPLETION AWAITED. The comment this replaces justified a fire-and-forget by
    * claiming the endpoint was only reachable from the e2e specs — which
@@ -474,44 +478,35 @@ export class MatchesService {
   private async setStatus(
     matchId: string,
     status: UpdateMatchStatusDto['status'] | 'voided',
-    opts: {
-      winnerRegistrationId?: string;
-      discardDependents: boolean;
-      context?: MatchActor;
-    },
+    winnerRegistrationId?: string,
   ) {
     const updates: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
     };
+    const inPlay = status === 'running' || status === 'paused';
 
     if (status === 'running') updates['started_at'] = new Date().toISOString();
-    // Ruling 331: back in play, a bout carries no result (as after the clock's reopen).
-    if (status === 'running' || status === 'paused') Object.assign(updates, noResultColumns());
+    // Ruling 331: in play, a bout carries no result (as after the clock's reopen).
+    if (inPlay) Object.assign(updates, noResultColumns());
     if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (opts.winnerRegistrationId) {
-        updates['winner_registration_id'] = opts.winnerRegistrationId;
-      }
+      if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
     }
 
-    if (status !== 'completed') {
-      await this.uncomplete(
-        matchId,
-        `match status set to ${status}`,
-        opts.context,
-        opts.discardDependents,
-      );
-    }
-
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .update(updates)
-      .eq('id', matchId)
-      .select('*')
-      .single();
+    let write = this.supabase.service.from('matches').update(updates).eq('id', matchId);
+    if (inPlay) write = write.neq('status', 'completed');
+    const { data, error } = await write.select('*').maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
+    if (!data) {
+      // The door found the bout a moment ago, so an in-play write that reached
+      // no row met the filter above. A bout deleted since the door reads the
+      // same, in either arm: the write cannot tell the two apart.
+      throw inPlay
+        ? new ConflictException('Match is completed: reopen it from the clock')
+        : new NotFoundException(`Match ${matchId} not found`);
+    }
 
     if (status === 'completed') {
       await this.matchCompletion?.onMatchCompleted(matchId);

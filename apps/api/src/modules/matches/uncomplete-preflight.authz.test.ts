@@ -27,12 +27,7 @@ import { MatchesController } from './matches.controller';
  * owner — scoring for access, organizer probed for the capability.
  */
 
-const ROUTES_THAT_UNCOMPLETE = [
-  'uncompletePreflight',
-  'resetMatch',
-  'updateStatus',
-  'clockAction',
-] as const;
+const ROUTES_THAT_UNCOMPLETE = ['uncompletePreflight', 'resetMatch', 'clockAction'] as const;
 
 describe('every un-completion route resolves the discard capability the same way', () => {
   const source = readFileSync(join(__dirname, 'matches.controller.ts'), 'utf8');
@@ -57,6 +52,14 @@ describe('every un-completion route resolves the discard capability the same way
       expect(body).not.toMatch(/authorizeMatchScoring\(req/);
     });
   }
+
+  // Ruling 338: the status route takes no bout out of completed, so it asks who
+  // may score and hands the service no actor to discard with.
+  it('updateStatus is not one of them', () => {
+    const body = bodyOf('updateStatus');
+    expect(body).toMatch(/await this\.staff\.authorizeMatchScoring\(req, id\);/);
+    expect(body).toMatch(/this\.matches\.updateStatus\(id, dto\);/);
+  });
 });
 
 // ── The behaviour behind the helper ──────────────────────────────────────────

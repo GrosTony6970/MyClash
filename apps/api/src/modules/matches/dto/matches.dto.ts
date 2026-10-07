@@ -34,8 +34,6 @@ const updateMatchStatusSchema = z
      */
     status: z.enum(['running', 'paused', 'completed']),
     winnerRegistrationId: z.uuid().optional(),
-    /** See `ResetMatchDto` — same acknowledgement, same 403 without the capability. */
-    discardDependentResults: z.boolean().optional(),
   })
   .strict();
 export class UpdateMatchStatusDto extends createZodDto(updateMatchStatusSchema) {}

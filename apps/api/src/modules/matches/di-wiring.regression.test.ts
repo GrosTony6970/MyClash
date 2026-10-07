@@ -301,7 +301,7 @@ describe('every path that un-completes a match hands off to MatchCompletionServi
     );
   };
 
-  it('matches.service (reset, PATCH /status, void)', () =>
+  it('matches.service (reset, void)', () =>
     uncompletesAndHandsOff('./matches.service.ts', 'resetMatch / setStatus'));
   it('clock.service (reopen, and the three siblings that also write a status)', () =>
     uncompletesAndHandsOff('./clock.service.ts', 'clockAction'));

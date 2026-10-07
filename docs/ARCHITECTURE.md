@@ -2052,7 +2052,9 @@ it: the forced "generate Pools again", "Regenerate bracket" and "Delete bracket"
 only the organisation's owner passes (279); an admin is refused with the code
 `discard_requires_owner`. The bar reads the bout's status. The status route
 (`PATCH /matches/:id/status`) refuses `scheduled` (281): it writes the status alone, so the bout
-would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. A new hit or
+would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. It refuses
+`running` and `paused` for a completed bout too (338), in the write itself: the clock's reopen
+is the one way back in play. A new hit or
 card for a `scheduled` bout is refused with the code `bout_not_started`, after the replay probe
 (286, `matches/bout-not-started.ts`): a pad starts a bout online, so such a hit was scored before
 the bout was put back; the pad holds it, and the scorer sends it again or discards it. A DIRECT
@@ -2106,9 +2108,10 @@ and status. Both are asked: the row (completed, with a record's end reason) and 
 itself, so the hold ends with the record. A clock End on a bout already completed stops the
 clock and writes no result (`timeLimitResult`): a forfeit, a black card and the points cap
 complete the bout first, and the End once wrote `time_limit` over their reason. A bout put back
-in play carries no result (ruling 331, `noResultColumns`): the clock's reopen, a Start on a
-bout a forfeit ended before it began, and `PATCH /status` to running or paused clear the winner
-and the end reason, so the next End names who leads on the board. A voided bout keeps its own.
+in play carries no result (ruling 331, `noResultColumns`): the clock's reopen and a Start on a
+bout a forfeit ended before it began clear the winner and the end reason, so the next End names
+who leads on the board. `PATCH /status` takes no bout out of completed (ruling 338): it read no
+sheet and put no score back. A voided bout keeps its own.
 A clock action over HTTP goes through `ScoringService.clockAction`: a bout a live record cut
 short (the record found it not completed) reads its sheet again once the clock has put it back
 in play. A bout fought to its end does not, by the board or under an override: a sheet at the
