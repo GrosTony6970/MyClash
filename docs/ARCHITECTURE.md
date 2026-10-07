@@ -2112,7 +2112,9 @@ and the end reason, so the next End names who leads on the board. A voided bout 
 A clock action over HTTP goes through `ScoringService.clockAction`: a bout a live record cut
 short (the record found it not completed) reads its sheet again once the clock has put it back
 in play. A bout fought to its end does not, by the board or under an override: a sheet at the
-cap would complete it again at once. The colour swap is refused on a held bout: its score would stay on the
+cap would complete it again at once. An override over such a bout wrote its own score, so the
+door puts back the score the override found (ruling 332), in a write that names the score the
+row carried: a hit scored since keeps its own. The colour swap is refused on a held bout: its score would stay on the
 wrong Fighters. `MatchForfeitsService.voidForfeit` asks the recompute again once it has put
 the bout back in play, and for each Pool bout of a cascade it puts back in play (ruling 330). A
 bout it restores as completed (an override over a fought bout) is left as restored: what was

@@ -130,7 +130,7 @@ describe('ScoringService.clockAction — the sheet after the clock (ruling 331)'
 
     await scoring.clockAction(BOUT, 'reopen');
 
-    expect(selectsFor(db.from, 'matches')).toEqual(['status']);
+    expect(selectsFor(db.from, 'matches')).toEqual(['status, red_score, blue_score']);
     expect(selectsFor(db.from, 'match_forfeits')).toEqual(['previous_match_state']);
     expect(filtersFor(db.from, 'match_forfeits', 'is')).toEqual([['voided_at', null]]);
   });

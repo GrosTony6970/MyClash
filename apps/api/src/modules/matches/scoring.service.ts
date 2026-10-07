@@ -1335,46 +1335,72 @@ export class ScoringService {
    * in play (it voids the record, or refuses), the bout reads its sheet again:
    * a clock End before the next hit would read the record's score.
    *
-   * NOT a bout that was fought to its end, by the board or under an override
-   * (`cutShortByRecord`): a sheet at the cap would complete it again before the
-   * referee can correct it. Best effort: the clock action is saved by then.
+   * NOT a bout that was fought to its end, by the board or under an override:
+   * a sheet at the cap would complete it again before the referee can correct
+   * it. An override over such a bout wrote its own score, so the score the
+   * override found is put back (ruling 332). Best effort: the clock action is
+   * saved by then.
    */
   async clockAction(...asked: Parameters<ClockService['clockAction']>): Promise<ClockState> {
     const [matchId, action] = asked;
-    const cutShort =
-      action !== 'end' && action !== 'reset_clock' && (await this.cutShortByRecord(matchId));
+    const held =
+      action !== 'end' && action !== 'reset_clock' ? await this.heldResult(matchId) : null;
     const state = await this.clock.clockAction(...asked);
-    if (!cutShort) return state;
+    if (!held) return state;
     try {
-      await this.recomputeMatchScore(matchId);
+      if (held.found.status === 'completed') await this.putScoreBack(matchId, held);
+      else await this.recomputeMatchScore(matchId);
     } catch (err) {
-      this.logger.warn(`Match ${matchId} did not read its sheet again after clock ${action}`, err);
+      this.logger.warn(`Match ${matchId} kept its record's score after clock ${action}`, err);
     }
     return this.clock.getClockState(matchId);
   }
 
   /**
-   * Is this bout completed by a live record that found it NOT completed (a
-   * forfeit, a black card, an override before the end)? The record is asked,
-   * not the row's end reason. A bout being fought pays the first read only.
+   * A completed bout a live record holds (a forfeit, a black card, an
+   * override): the score on its row and what the record found, or null. The
+   * record is asked, not the row's end reason. A bout being fought pays the
+   * first read only.
    */
-  private async cutShortByRecord(matchId: string): Promise<boolean> {
+  private async heldResult(matchId: string): Promise<HeldResult | null> {
     const bout = await this.supabase.service
       .from('matches')
-      .select('status')
+      .select('status, red_score, blue_score')
       .eq('id', matchId)
       .maybeSingle();
     if (bout.error) throw new Error(`Could not read a match's status: ${bout.error.message}`);
-    if ((bout.data as { status?: string } | null)?.status !== 'completed') return false;
+    const row = bout.data as (HeldResult['row'] & { status?: string }) | null;
+    if (row?.status !== 'completed') return null;
     const { data, error } = await this.supabase.service
       .from('match_forfeits')
       .select('previous_match_state')
       .eq('match_id', matchId)
       .is('voided_at', null);
     if (error) throw new Error(`Could not read the forfeit record of a match: ${error.message}`);
-    return ((data ?? []) as Array<{ previous_match_state?: { status?: string } | null }>).some(
-      (record) => record.previous_match_state?.status !== 'completed',
-    );
+    const record = ((data ?? []) as Array<{ previous_match_state: HeldResult['found'] }>)[0];
+    return record ? { row, found: record.previous_match_state } : null;
+  }
+
+  /**
+   * Ruling 332. Two writers: this, and the recompute of a hit sent right after
+   * the clock action. The write names the score the row carried when the door
+   * read it, so it lands only while that score still stands.
+   *
+   * Not closed: a clock End that lands between the clock action and this write
+   * reads the override's score, and this write then lands on a completed bout.
+   */
+  private async putScoreBack(matchId: string, held: HeldResult): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('matches')
+      .update({
+        red_score: held.found.red_score,
+        blue_score: held.found.blue_score,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId)
+      .eq('red_score', held.row.red_score)
+      .eq('blue_score', held.row.blue_score);
+    if (error) throw new Error(`Could not put a match's score back: ${error.message}`);
   }
 
   private phaseType(value: unknown): RulesetMatch['phaseType'] {
@@ -1406,4 +1432,10 @@ export class ScoringService {
       ? 'deductive'
       : 'full';
   }
+}
+
+/** A completed bout a live record holds: its row's score, and what the record found. */
+interface HeldResult {
+  row: { red_score?: number; blue_score?: number };
+  found: { status?: string; red_score?: number; blue_score?: number };
 }
