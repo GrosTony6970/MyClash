@@ -20,6 +20,8 @@ export type ScanFailure =
   | 'forbidden'
   /** Venue wifi. The service worker turns a dead network into a 503. */
   | 'offline'
+  /** Read-only mode is on: the API's own 503, and the wifi is fine (ruling 335). */
+  | 'maintenance'
   | 'failed';
 
 /**
@@ -38,7 +40,7 @@ export type ScanFailure =
  */
 interface ScanRejection {
   status?: number;
-  body?: { detail?: string; message?: string } | null;
+  body?: { detail?: string; message?: string; code?: string } | null;
 }
 
 /**
@@ -57,6 +59,7 @@ export function classifyScanFailure(err: unknown): ScanFailure {
   const failure = err as ScanRejection | null;
   const status = failure?.status;
 
+  if (failure?.body?.code === 'read_only_mode') return 'maintenance';
   if (status === 503 || status === 0 || status === undefined) return 'offline';
   if (status === 401 || status === 403) return 'forbidden';
   if (status >= 500) return 'failed';
@@ -82,6 +85,8 @@ export function scanFailureKey(reason: ScanFailure): string {
       return 'scoring.scan.errorForbidden';
     case 'offline':
       return 'scoring.scan.errorOffline';
+    case 'maintenance':
+      return 'scoring.scan.errorMaintenance';
     case 'failed':
       return 'scoring.scan.errorFailed';
   }

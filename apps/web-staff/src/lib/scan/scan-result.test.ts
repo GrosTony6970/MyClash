@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { classifyScanFailure, scanFailureKey, type ScanFailure } from './scan-result';
 
-const FAILURES: ScanFailure[] = ['unknown', 'expired', 'forbidden', 'offline', 'failed'];
+const FAILURES: ScanFailure[] = [
+  'unknown',
+  'expired',
+  'forbidden',
+  'offline',
+  'maintenance',
+  'failed',
+];
 
 describe('classifyScanFailure', () => {
   it('separates an expired pass from an unrecognised one, though both are 404', () => {
@@ -33,6 +40,17 @@ describe('classifyScanFailure', () => {
   it('treats the service worker offline 503 as offline, not as a server fault', () => {
     // apps/web-staff/public/sw.js turns a dead network into a synthetic 503.
     expect(classifyScanFailure({ status: 503 })).toBe('offline');
+  });
+
+  // Ruling 335: read-only mode's 503 is the API's own. Any other coded 503 is still offline.
+  it('tells read-only mode from a dead network by the code of the 503', () => {
+    expect(classifyScanFailure({ status: 503, body: { code: 'read_only_mode' } })).toBe(
+      'maintenance',
+    );
+    expect(classifyScanFailure({ status: 503, body: { code: 'INTERNAL_SERVER_ERROR' } })).toBe(
+      'offline',
+    );
+    expect(scanFailureKey('maintenance')).toBe('scoring.scan.errorMaintenance');
   });
 
   it('treats a thrown network error with no status as offline', () => {

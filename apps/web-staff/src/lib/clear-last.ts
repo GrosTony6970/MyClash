@@ -1,4 +1,4 @@
-import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, failureCode, type ApiFailure } from '@myclash/api-client';
 import { createTranslator } from '@myclash/i18n/runtime';
 import { messages } from '@myclash/i18n/staff';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
@@ -50,7 +50,8 @@ const VOID_PATH: Record<ServerEntry['kind'], (id: string) => string> = {
  */
 function failed(failure: ApiFailure, t: Translate): ClearLastOutcome {
   const status = failure.kind === 'aborted' || failure.kind === 'network' ? 0 : failure.status;
-  const offline = classifySyncFailure(status, null) === 'offline';
+  // The code tells read-only mode's 503 from a dead network: `refusalMessage` says it.
+  const offline = classifySyncFailure(status, { code: failureCode(failure) }) === 'offline';
   return {
     kind: 'failed',
     message: offline

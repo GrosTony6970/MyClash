@@ -25,6 +25,11 @@
 export type SyncFailureKind =
   /** The network is gone. Queue it and say so calmly. */
   | 'offline'
+  /**
+   * Read-only mode is on (ruling 335): the server refuses every save until a
+   * super admin switches it off. Queue it like offline, and say which it is.
+   */
+  | 'maintenance'
   /** The server answered and refused. This one needs the operator eventually. */
   | 'server';
 
@@ -32,6 +37,7 @@ export type SyncFailureKind =
 export interface FailureBody {
   message?: string;
   error?: string;
+  code?: string | null;
 }
 
 /**
@@ -48,10 +54,14 @@ export interface FailureBody {
  *     situation is identical — the hit is queued and will retry — and telling
  *     them to "check connection" is exactly the right advice anyway.
  *
+ * One 503 is not the network: the API's own, coded `read_only_mode`. The
+ * wifi is fine, and "check connection" would send a referee looking for it.
+ *
  * Everything else is the server having an opinion, and is reported as such.
  */
 export function classifySyncFailure(status: number, body: FailureBody | null): SyncFailureKind {
   if (body?.error === 'offline') return 'offline';
+  if (body?.code === 'read_only_mode') return 'maintenance';
   if (status === 0 || status === 503) return 'offline';
   return 'server';
 }

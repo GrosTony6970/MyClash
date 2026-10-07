@@ -17,6 +17,12 @@ describe('classifySyncFailure', () => {
     expect(classifySyncFailure(503, null)).toBe('offline');
   });
 
+  // Ruling 335. Every 503 the API writes carries a code: only this one is maintenance.
+  it('reads the API’s read-only 503 as maintenance, and any other coded 503 as offline', () => {
+    expect(classifySyncFailure(503, { code: 'read_only_mode' })).toBe('maintenance');
+    expect(classifySyncFailure(503, { code: 'INTERNAL_SERVER_ERROR' })).toBe('offline');
+  });
+
   it('treats a status-less response as offline', () => {
     expect(classifySyncFailure(0, null)).toBe('offline');
   });

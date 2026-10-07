@@ -48,6 +48,7 @@ const FORFEIT_BLOCKED = 'scoring.corrections.forfeitBlocked';
 const SWISS_AHEAD = 'scoring.corrections.swissRoundAhead';
 const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
+const MAINTENANCE = 'scoring.corrections.maintenanceRefusal';
 const LATER_BOUT_FOUGHT = 'scoring.corrections.laterBoutFought';
 const LEAVES_BOUT_LEVEL = 'scoring.corrections.leavesBoutLevel';
 const CLOSED_ROUND_RESULT = 'scoring.corrections.closedRoundResult';
@@ -187,6 +188,8 @@ export function refusalMessage(
   // synthetic 503, so that IS the offline case rather than a server fault.
   // A genuine `network` failure only happens before the worker installs.
   if (failure.kind === 'network') return t(OFFLINE);
+  // One 503 is the API's own: read-only mode is on, and the wifi is fine (ruling 335).
+  if (failure.code === 'read_only_mode') return t(MAINTENANCE);
   if (failure.status === 503) return t(OFFLINE);
 
   // A refusal about the PERSON goes to the bar too, which holds the account's

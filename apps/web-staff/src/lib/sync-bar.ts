@@ -8,7 +8,8 @@
 import type { CallerRefusal } from '../offline/caller-refusal';
 import type { SyncStatus } from '../offline/sync';
 
-export type SyncPhase = 'online' | 'syncing' | 'offline' | 'error' | 'signed-out' | CallerRefusal;
+export type SyncPhase =
+  'online' | 'syncing' | 'offline' | 'maintenance' | 'error' | 'signed-out' | CallerRefusal;
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -25,10 +26,13 @@ export function syncPhaseOf(
 /**
  * A state the operator must act on: a failed sync, a session that has ended
  * (ruling 241), or a person the server will not let score (rulings 244, 245).
- * All are red; `offersRetry` says which offer Retry.
+ * All are red; `offersRetry` says which offer Retry. Not maintenance (ruling
+ * 335): like offline, the hits wait for something the operator cannot change.
  */
 export function needsOperator(phase: SyncPhase): boolean {
-  return phase !== 'online' && phase !== 'syncing' && phase !== 'offline';
+  return (
+    phase !== 'online' && phase !== 'syncing' && phase !== 'offline' && phase !== 'maintenance'
+  );
 }
 
 /**
@@ -40,6 +44,9 @@ export function offersRetry(
   phase: SyncPhase,
   held: { rejected: number; sendable: number; pending: number },
 ): boolean {
+  // Nothing tells the pad that read-only mode ended: Retry is how the hits go
+  // once somebody says it has.
+  if (phase === 'maintenance') return held.pending > 0;
   if (!needsOperator(phase)) return false;
   // A refusal about the caller with no hit waiting (a refused press, ruling
   // 311): Retry would send nothing, and a held hit would meet the same answer.
@@ -100,6 +107,8 @@ export function syncBarLabel(
       return `⚠ ${waits ? t('scoring.lice.pinRoleCannotScore') : t('scoring.lice.pinRoleCannotScoreNoHits')}`;
     case 'offline':
       return `● ${t('scoring.lice.offlineQueued')}`;
+    case 'maintenance':
+      return `● ${t('scoring.lice.maintenanceQueued')}`;
     case 'error':
       return rejected > 0
         ? `⚠ ${t('scoring.lice.hitsRefused', {

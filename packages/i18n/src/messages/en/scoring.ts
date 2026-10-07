@@ -111,6 +111,7 @@ export const scoring = {
     errorExpired: 'That pass has expired.',
     errorForbidden: 'This account cannot work the desk.',
     errorOffline: 'Offline — that scan was not saved.',
+    errorMaintenance: 'MyClash is in maintenance — that scan was not saved. Try again in a moment.',
     errorFailed: 'That scan failed. Try again.',
   },
   gear: {
@@ -179,6 +180,7 @@ export const scoring = {
     live: 'LIVE',
     online: 'ONLINE',
     offlineQueued: 'OFFLINE - exchanges queued locally',
+    maintenanceQueued: 'MAINTENANCE - exchanges kept on this tablet',
     syncing: 'SYNCING',
     syncError: 'SYNC ERROR',
     // Distinct from syncError on purpose: "sync error" reads as a connection
@@ -334,6 +336,8 @@ export const scoring = {
       'The next Swiss round has already been drawn from this result. Only an organiser can undo it now.',
     organiserOnly: 'Only an organiser can do this. Ask one for help.',
     offlineRefusal: 'No connection. This needs the network — try again once you are back online.',
+    maintenanceRefusal:
+      'MyClash is in maintenance. This cannot be saved for now — try again in a moment.',
     laterBoutFought:
       'A later bout was already fought from this result. This correction would change who won, so it was not applied.',
     leavesBoutLevel:

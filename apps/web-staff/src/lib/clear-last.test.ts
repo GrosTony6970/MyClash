@@ -89,6 +89,16 @@ describe('voidOnServer', () => {
     });
   });
 
+  // Ruling 335: read-only mode's 503 is the API's own, and the wifi is fine.
+  it('read-only mode’s 503 says maintenance, not "online required"', async () => {
+    answer(503, { status: 503, detail: 'the server’s English', code: 'read_only_mode' });
+
+    await expect(voidOnServer(API_URL, HIT, t)).resolves.toEqual({
+      kind: 'failed',
+      message: 'scoring.corrections.maintenanceRefusal',
+    });
+  });
+
   it('the service worker’s 503 and a dead network both read as offline', async () => {
     answer(503, { message: 'offline' });
     await expect(voidOnServer(API_URL, HIT, t)).resolves.toEqual({

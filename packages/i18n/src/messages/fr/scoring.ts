@@ -118,6 +118,8 @@ export const scoring = {
     errorExpired: 'Ce pass a expiré.',
     errorForbidden: 'Ce compte ne peut pas tenir l’accueil.',
     errorOffline: 'Hors ligne — ce scan n’a pas été enregistré.',
+    errorMaintenance:
+      'MyClash est en maintenance — ce scan n’a pas été enregistré. Réessayez dans un instant.',
     errorFailed: 'Ce scan a échoué. Réessayez.',
   },
   gear: {
@@ -186,6 +188,7 @@ export const scoring = {
     live: 'LIVE',
     online: 'EN LIGNE',
     offlineQueued: 'HORS LIGNE - échanges en attente locale',
+    maintenanceQueued: 'MAINTENANCE - échanges gardés sur cette tablette',
     syncing: 'SYNCHRONISATION',
     syncError: 'ERREUR DE SYNCHRO',
     hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
@@ -320,6 +323,8 @@ export const scoring = {
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
       'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
+    maintenanceRefusal:
+      'MyClash est en maintenance. Cette action ne peut pas être enregistrée pour le moment — réessayez dans un instant.',
     laterBoutFought:
       "Un assaut suivant a déjà été combattu à partir de ce résultat. Cette correction changerait le vainqueur : elle n'a pas été appliquée.",
     leavesBoutLevel:

@@ -40,8 +40,11 @@ import { takeBackNewest, type TakenBack } from './take-back';
  * A `CallerRefusal`: the server refused it for who sends it, and the queue
  * waits the same way (rulings 244, 245). A press sent at once and refused
  * that way gives the same status with no hit queued (ruling 311).
+ * `maintenance`: read-only mode is on, and the queue waits for its end
+ * (ruling 335).
  */
-export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'signed-out' | CallerRefusal;
+export type SyncStatus =
+  'idle' | 'syncing' | 'offline' | 'maintenance' | 'error' | 'signed-out' | CallerRefusal;
 
 export interface SyncState {
   status: SyncStatus;
@@ -424,7 +427,7 @@ export class SyncEngine {
   /**
    * One pass of the queue, and one more for each drain asked for meanwhile. A
    * pass that stopped is not followed by another: what stopped it (the caller,
-   * three failures in a row) meets the hit behind it too, and that hit waits.
+   * read-only mode, three failures in a row) meets the hit behind it too, and that hit waits.
    */
   private async sendQueue(): Promise<void> {
     this.running = true;
@@ -551,6 +554,12 @@ export class SyncEngine {
       }
       const body = (await res.json().catch(() => null)) as FailureBody | null;
       const kind = classifySyncFailure(res.status, body);
+      // Read-only mode refuses the hits behind this one too: the queue waits,
+      // in order, with no attempt counted against it (ruling 335).
+      if (kind === 'maintenance') {
+        await this.emit('maintenance');
+        return 'stopped';
+      }
       await markFailed(entry.id!, body?.message ?? kind);
       // A resolved 503 is what a real outage looks like here: the service
       // worker turns a dead network into one rather than letting fetch
