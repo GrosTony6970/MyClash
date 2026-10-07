@@ -68,3 +68,22 @@ export function popLastClosedRoundColumns(
     end_reason: null,
   };
 }
+
+/**
+ * The clock's Reopen of a best-of series: pop the round whose close ended the
+ * series, and no other.
+ *
+ * A forfeit, a black card or an override before the end completes a series and
+ * closes no round. The last closed round is then one the series had already
+ * moved past, or one it still waits to advance from. Popped, a round ended on
+ * time is lost: its sheet cannot give it back.
+ */
+export function popClinchingRoundColumns(
+  row: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const current = row['current_round'] as number;
+  const closed = Array.isArray(row['rounds_json']) ? row['rounds_json'] : [];
+  const last = closed[closed.length - 1] as { round?: number } | undefined;
+  if (row['awaiting_round_advance'] || last?.round !== current) return null;
+  return popLastClosedRoundColumns(closed, current);
+}

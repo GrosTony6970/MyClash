@@ -22,7 +22,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MatchCompletionService } from '../phases/match-completion.service';
 import {
   noResultColumns,
-  popLastClosedRoundColumns,
+  popClinchingRoundColumns,
   reopenedResultColumns,
 } from './reopen-match-columns';
 import {
@@ -149,7 +149,7 @@ export class ClockService {
         // LADDER, not the scores.
         'id, status, locked_at, started_at, rounds_json, current_round, ' +
           'red_registration_id, blue_registration_id, winner_registration_id, ' +
-          'red_score, blue_score, match_number_label, ' +
+          'red_score, blue_score, match_number_label, awaiting_round_advance, ' +
           'phases(type, tournaments(ruleset_config))',
       )
       .eq('id', matchId)
@@ -281,12 +281,9 @@ export class ClockService {
         locked_at: null,
         duration_total_ms: null,
       };
-      // Best-of: pop the last closed round so the deciding round reopens for
-      // correction.
-      const poppedRound = popLastClosedRoundColumns(
-        (match as { rounds_json?: unknown }).rounds_json,
-        (match as { current_round?: number }).current_round ?? 1,
-      );
+      // Best-of: pop the round that ended the series so it reopens for
+      // correction. A series a forfeit ended keeps its closed rounds.
+      const poppedRound = popClinchingRoundColumns(match as unknown as Record<string, unknown>);
       if (poppedRound) Object.assign(reopenUpdates, poppedRound);
       await this.supabase.service.from('matches').update(reopenUpdates).eq('id', matchId);
     }
