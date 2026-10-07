@@ -339,7 +339,7 @@
     "apps/api/src/modules/organizer-chat/organizer-chat.controller.ts:117",
     "apps/api/src/modules/organizer-chat/organizer-chat.service.ts:157",
     "apps/api/src/modules/penalties/penalties.service.test.ts:676",
-    "apps/api/src/modules/penalties/penalties.service.ts:1309",
+    "apps/api/src/modules/penalties/penalties.service.ts:1310",
     "apps/api/src/modules/penalties/penalties.service.ts:483",
     "apps/api/src/modules/penalties/penalties.service.ts:892",
     "apps/api/src/modules/people-context/people-context.service.ts:137",

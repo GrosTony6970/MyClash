@@ -1147,8 +1147,9 @@ export class PenaltiesService {
     // BEFORE the write: a refusal must leave nothing behind (ruling 226).
     await this.scoring?.assertCorrectionLands(match.id, { dropPenaltyIds: [penaltyId] });
     // Ruling 319: a black card's forfeit goes first, or the card stays.
-    if (this.forfeits) {
-      const deps = { db: this.supabase.service, forfeits: this.forfeits };
+    const { forfeits, frozenResults } = this;
+    if (forfeits) {
+      const deps = { db: this.supabase.service, forfeits, frozenResults };
       await takeBackBlackCardForfeit(deps, row, context ?? {});
     }
 

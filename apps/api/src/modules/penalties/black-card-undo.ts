@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import type { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import type { MatchForfeitsService } from '../matches/match-forfeits.service';
 import type { SupabaseService } from '../supabase/supabase.service';
 
@@ -21,6 +22,12 @@ import type { SupabaseService } from '../supabase/supabase.service';
 type Client = SupabaseService['service'];
 type Row = Record<string, unknown>;
 type Actor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
+type Deps = {
+  db: Client;
+  forfeits: MatchForfeitsService;
+  /** Optional as in `PenaltiesService`, for the same direct-construction tests. */
+  frozenResults?: Pick<FrozenResultsGuard, 'isEventOver'>;
+};
 
 export const BLACK_CARD_UNDO_REFUSED = 'black_card_undo_refused';
 
@@ -91,13 +98,22 @@ async function forfeitedAgainSince(db: Client, forfeit: Row, card: Row): Promise
 }
 
 /**
- * The three things `voidForfeit` does not look at. A reserve in the Fighter's
- * place is not undone by it (it never writes `bracket_slots`). A later forfeit
- * of the Fighter stands on the status this one would overwrite. A review an
- * organiser CONFIRMED is his decision that the Fighter is out: restoring the
- * status the forfeit found would overturn it from a scorekeeper's tablet.
+ * The four things `voidForfeit` does not look at. An Event that is over
+ * (ruling 337): the void hands the bout back as the forfeit found it, running
+ * or paused, with the Pool bouts forfeited beside it, and there the clock and
+ * the pad are refused for everybody, so nobody could end them again. A fact
+ * of the Event, with no super admin bypass: a super admin is the one caller
+ * who gets this far. A reserve in the Fighter's place is not undone by it (it
+ * never writes `bracket_slots`). A later forfeit of the Fighter stands on the
+ * status this one would overwrite. A review an organiser CONFIRMED is his
+ * decision that the Fighter is out: restoring the status the forfeit found
+ * would overturn it from a scorekeeper's tablet.
  */
-async function assertUndoable(db: Client, forfeit: Row, card: Row): Promise<void> {
+async function assertUndoable(deps: Deps, forfeit: Row, card: Row): Promise<void> {
+  const { db } = deps;
+  if (await deps.frozenResults?.isEventOver(card['match_id'] as string)) {
+    throw refused('The Event is over: nobody could end the bouts this black card closed');
+  }
   if (forfeit['replacement_registration_id']) {
     throw refused('A reserve took the place of the fighter this black card put out');
   }
@@ -120,19 +136,16 @@ async function assertUndoable(db: Client, forfeit: Row, card: Row): Promise<void
  * `voidForfeit` comes before its first write too, so a refused undo leaves
  * the forfeit and the card as they were.
  */
-export async function takeBackBlackCardForfeit(
-  deps: { db: Client; forfeits: MatchForfeitsService },
-  card: Row,
-  actor: Actor,
-): Promise<void> {
+export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Actor): Promise<void> {
   const forfeit = await blackCardForfeit(deps.db, card);
   if (!forfeit) return;
-  await assertUndoable(deps.db, forfeit, card);
+  await assertUndoable(deps, forfeit, card);
   try {
     await deps.forfeits.voidForfeit(forfeit['id'] as string, actor);
   } catch (err) {
     // Its 400s: a bout this one feeds was fought, the bout was fought again.
-    // An over Event and a lock are refused before this is asked.
+    // An over Event and a lock are refused before this is asked: by the card's
+    // own door for who may not correct there, by `assertUndoable` for who may.
     if (!(err instanceof BadRequestException)) throw err;
     throw refused(err.message, err);
   }

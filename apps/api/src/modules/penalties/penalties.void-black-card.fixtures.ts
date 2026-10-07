@@ -6,6 +6,8 @@ import { PenaltiesService } from './penalties.service';
 
 /** The seeded bout of `penalties.void-black-card*.test.ts`: a black card, its forfeit, its Fighter. */
 export const SCORER = 'a0000000-0000-4000-8000-000000000001';
+/** No role in the club: on an over Event the corrections are this account's (ruling 251). */
+export const SUPER_ADMIN = 'a0000000-0000-4000-8000-000000000002';
 export const REFUSED = { code: 'black_card_undo_refused' };
 
 export const BEFORE_THE_CARD = {
@@ -85,6 +87,11 @@ export const BOUT = {
 export const LATER_BOUT = { id: 'm2', status: 'scheduled', started_at: null };
 
 export function setup(seed: Seed = {}) {
+  const event = { organization_id: 'org-1', status: seed.eventStatus ?? 'running' };
+  // The embed "who may score" reads the bout through, beside the flat tables below.
+  const phases = {
+    tournaments: { id: 'tournament-1', event_id: 'event-1', lock_config_json: null, events: event },
+  };
   const db = mockSupabase({
     match_penalties: { rows: seed.cards ?? [blackCard()] },
     match_forfeits: {
@@ -95,7 +102,7 @@ export function setup(seed: Seed = {}) {
     },
     matches: {
       rows: [
-        { ...BOUT, ...seed.bout },
+        { ...BOUT, phases, ...seed.bout },
         { ...LATER_BOUT, ...seed.laterBout },
       ],
     },
@@ -107,10 +114,8 @@ export function setup(seed: Seed = {}) {
     tournaments: {
       rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'ruleset-1' }],
     },
-    events: {
-      rows: [{ id: 'event-1', organization_id: 'org-1', status: seed.eventStatus ?? 'running' }],
-    },
-    platform_roles: { rows: [] },
+    events: { rows: [{ id: 'event-1', ...event }] },
+    platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
   });
   const scoring = {
     recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 2, blueScore: 1 }),
