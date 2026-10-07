@@ -557,7 +557,7 @@ export class MatchesController {
     // …WithDiscard for the same reason as the reset: four clock actions
     // un-complete a bout.
     const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
-    return this.clock.clockAction(
+    return this.matches.clockAction(
       id,
       dto.action,
       dto.reason,

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { UpdateMatchStatusDto } from './matches.dto';
 
 /**
- * `PATCH /matches/:id/status` writes the status and nothing else: the hits, the
- * score and the start time stay. Sent `scheduled`, it left a fought bout that
+ * `PATCH /matches/:id/status` writes the status and keeps the fight: the hits, the
+ * score and the start time stay (the winner goes, ruling 331). Sent `scheduled`, it left a fought bout that
  * read unplayed, and the doors that ask the owner before they delete fought
  * bouts let it go. A bout goes back to unplayed by a reset only, which clears
  * what was fought (ruling 281).

@@ -20,7 +20,11 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
-import { popLastClosedRoundColumns } from './reopen-match-columns';
+import {
+  noResultColumns,
+  popLastClosedRoundColumns,
+  reopenedResultColumns,
+} from './reopen-match-columns';
 import {
   extraTimeAdjustmentMs,
   isLevelBout,
@@ -140,9 +144,9 @@ export class ClockService {
       .select(
         // The scores and the phase's match format are here so `end` can NAME
         // the winner of a bout that ran out of time — see `timeLimitResult`.
-        // `winner_registration_id` is there because that decision reads the
-        // LADDER, not the scores: a forfeit names the winner and then ends the
-        // clock, on a row a zeroing score policy has left 0-0.
+        // `status` is there because a bout already completed is not decided
+        // again, and `winner_registration_id` because the decision reads the
+        // LADDER, not the scores.
         'id, status, locked_at, started_at, rounds_json, current_round, ' +
           'red_registration_id, blue_registration_id, winner_registration_id, ' +
           'red_score, blue_score, match_number_label, ' +
@@ -193,11 +197,11 @@ export class ClockService {
     //
     // Owned once, here, before the event row is written, so a refusal leaves the
     // timeline as well as the row untouched.
-    if (
+    const uncompletes =
       (match as { status?: string }).status === 'completed' &&
       action !== 'end' &&
-      action !== 'reset_clock'
-    ) {
+      action !== 'reset_clock';
+    if (uncompletes) {
       await this.matchCompletion?.onMatchUncompleted(matchId, {
         actor,
         discardDependents,
@@ -231,14 +235,17 @@ export class ClockService {
     });
     if (insertErr) throw new BadRequestException(insertErr.message);
 
-    // Update match status if needed
+    // Ruling 331: out of `completed`, no result. An End read the old winner first.
+    const noResult = uncompletes ? noResultColumns() : {};
     if (action === 'start' || action === 'resume') {
+      const started = action === 'start' ? { started_at: now } : {};
       await this.supabase.service
         .from('matches')
-        .update({ status: 'running', started_at: action === 'start' ? now : undefined })
+        .update({ status: 'running', ...started, ...noResult })
         .eq('id', matchId);
     } else if (action === 'halt') {
-      await this.supabase.service.from('matches').update({ status: 'paused' }).eq('id', matchId);
+      const halted = { status: 'paused', ...noResult };
+      await this.supabase.service.from('matches').update(halted).eq('id', matchId);
     } else if (action === 'end') {
       let finalActiveMs = current.activeMs;
       if (current.status === 'running' && current.runningFrom) {
@@ -270,15 +277,12 @@ export class ClockService {
       // same event-sourced timeline). Clears ended_at + locked_at so
       // scoring can resume.
       const reopenUpdates: Record<string, unknown> = {
-        status: 'paused',
-        ended_at: null,
+        ...reopenedResultColumns(),
         locked_at: null,
         duration_total_ms: null,
       };
       // Best-of: pop the last closed round so the deciding round reopens for
-      // correction, and clear the series winner/end_reason set on completion.
-      // Single-round matches (no rounds_json) keep their winner so a bare
-      // reopen → end round-trip preserves the result.
+      // correction.
       const poppedRound = popLastClosedRoundColumns(
         (match as { rounds_json?: unknown }).rounds_json,
         (match as { current_round?: number }).current_round ?? 1,

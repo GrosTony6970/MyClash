@@ -42,8 +42,8 @@ describe('popLastClosedRoundColumns', () => {
   });
 
   it('returns null when there is no closed round to pop', () => {
-    // How a single-round match falls through: the clock's reopen then KEEPS its
-    // winner, so a bare reopen → end round-trip preserves the result.
+    // How a single-round match falls through: the clock's reopen then writes
+    // `reopenedResultColumns` alone.
     expect(popLastClosedRoundColumns(null, 1)).toBeNull();
     expect(popLastClosedRoundColumns([], 1)).toBeNull();
   });

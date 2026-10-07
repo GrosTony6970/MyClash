@@ -38,7 +38,7 @@ import type {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
-import { ClockService } from './clock.service';
+import { ClockService, type ClockState } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
@@ -1302,8 +1302,8 @@ export class ScoringService {
    * what the record wrote.
    *
    * The row first, then the record. A bout fought again to the board's own end
-   * says so on its row; one completed again by `PATCH /status` keeps the old
-   * reason, and only the voided record tells that it follows its sheet.
+   * says so on its row. The record is still asked: no row may hold a bout for
+   * ever, whatever wrote its end reason.
    */
   private async heldByLiveRecord(m: Record<string, unknown>): Promise<boolean> {
     if (!endedByForfeitRecord(m)) return false;
@@ -1327,6 +1327,54 @@ export class ScoringService {
     if (m && (await this.heldByLiveRecord(m))) {
       throw new BadRequestException('A forfeit holds this match: take the forfeit back first');
     }
+  }
+
+  /**
+   * The clock's door over HTTP (ruling 331). A bout a forfeit record cut short
+   * carries the record's score, not its sheet's. Once the clock has put it back
+   * in play (it voids the record, or refuses), the bout reads its sheet again:
+   * a clock End before the next hit would read the record's score.
+   *
+   * NOT a bout that was fought to its end, by the board or under an override
+   * (`cutShortByRecord`): a sheet at the cap would complete it again before the
+   * referee can correct it. Best effort: the clock action is saved by then.
+   */
+  async clockAction(...asked: Parameters<ClockService['clockAction']>): Promise<ClockState> {
+    const [matchId, action] = asked;
+    const cutShort =
+      action !== 'end' && action !== 'reset_clock' && (await this.cutShortByRecord(matchId));
+    const state = await this.clock.clockAction(...asked);
+    if (!cutShort) return state;
+    try {
+      await this.recomputeMatchScore(matchId);
+    } catch (err) {
+      this.logger.warn(`Match ${matchId} did not read its sheet again after clock ${action}`, err);
+    }
+    return this.clock.getClockState(matchId);
+  }
+
+  /**
+   * Is this bout completed by a live record that found it NOT completed (a
+   * forfeit, a black card, an override before the end)? The record is asked,
+   * not the row's end reason. A bout being fought pays the first read only.
+   */
+  private async cutShortByRecord(matchId: string): Promise<boolean> {
+    const bout = await this.supabase.service
+      .from('matches')
+      .select('status')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (bout.error) throw new Error(`Could not read a match's status: ${bout.error.message}`);
+    if ((bout.data as { status?: string } | null)?.status !== 'completed') return false;
+    const { data, error } = await this.supabase.service
+      .from('match_forfeits')
+      .select('previous_match_state')
+      .eq('match_id', matchId)
+      .is('voided_at', null);
+    if (error) throw new Error(`Could not read the forfeit record of a match: ${error.message}`);
+    return ((data ?? []) as Array<{ previous_match_state?: { status?: string } | null }>).some(
+      (record) => record.previous_match_state?.status !== 'completed',
+    );
   }
 
   private phaseType(value: unknown): RulesetMatch['phaseType'] {

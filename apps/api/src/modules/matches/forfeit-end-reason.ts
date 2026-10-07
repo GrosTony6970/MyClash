@@ -33,8 +33,8 @@ const RECORD_END_REASONS: Record<ReturnType<typeof forfeitEndReason>, true> = {
  *
  * The row's half of ruling 322 (`ScoringService.heldByLiveRecord` asks the
  * record too). It costs no read, so a bout that ended on the board never pays
- * for the question. It is not enough alone: `PATCH /status` and the clock's
- * reopen take a bout back out of completed and leave `end_reason` on its row.
+ * for the question. It is not enough alone: the hold ends with the record,
+ * whatever a row still says, so no row can hold a bout for ever.
  */
 export function endedByForfeitRecord(bout: { status?: unknown; end_reason?: unknown }): boolean {
   return (

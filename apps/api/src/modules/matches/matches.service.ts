@@ -20,6 +20,7 @@ import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
+import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
@@ -485,6 +486,8 @@ export class MatchesService {
     };
 
     if (status === 'running') updates['started_at'] = new Date().toISOString();
+    // Ruling 331: back in play, a bout carries no result (as after the clock's reopen).
+    if (status === 'running' || status === 'paused') Object.assign(updates, noResultColumns());
     if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
       if (opts.winnerRegistrationId) {
@@ -1248,6 +1251,11 @@ export class MatchesService {
    */
   async advanceRound(matchId: string, context?: MatchActor) {
     return this.scoring.advanceRound(matchId, context);
+  }
+
+  /** A clock action asked over HTTP: through the door that reads the sheet (ruling 331). */
+  async clockAction(...asked: Parameters<ScoringService['clockAction']>) {
+    return this.scoring.clockAction(...asked);
   }
 
   /** End the current round on time in a best-of match (operator-driven). */

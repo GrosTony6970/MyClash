@@ -2103,8 +2103,16 @@ holds the result of a live `match_forfeits` record (a forfeit, a black card, an 
 override) is not scored from its sheet at all (ruling 322, `ScoringService.heldByLiveRecord`):
 a late card or a correction is saved on the sheet, and the bout keeps the record's score, winner
 and status. Both are asked: the row (completed, with a record's end reason) and the record
-itself, because `PATCH /status` and the clock's reopen leave the old reason on a row whose
-record they voided. The colour swap is refused on a held bout: its score would stay on the
+itself, so the hold ends with the record. A clock End on a bout already completed stops the
+clock and writes no result (`timeLimitResult`): a forfeit, a black card and the points cap
+complete the bout first, and the End once wrote `time_limit` over their reason. A bout put back
+in play carries no result (ruling 331, `noResultColumns`): the clock's reopen, a Start on a
+bout a forfeit ended before it began, and `PATCH /status` to running or paused clear the winner
+and the end reason, so the next End names who leads on the board. A voided bout keeps its own.
+A clock action over HTTP goes through `ScoringService.clockAction`: a bout a live record cut
+short (the record found it not completed) reads its sheet again once the clock has put it back
+in play. A bout fought to its end does not, by the board or under an override: a sheet at the
+cap would complete it again at once. The colour swap is refused on a held bout: its score would stay on the
 wrong Fighters. `MatchForfeitsService.voidForfeit` asks the recompute again once it has put
 the bout back in play, and for each Pool bout of a cascade it puts back in play (ruling 330). A
 bout it restores as completed (an override over a fought bout) is left as restored: what was

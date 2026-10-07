@@ -13,27 +13,29 @@
  * round) and deliberately leaves the row to its caller — which is why it must be
  * called BEFORE the write, so a refusal leaves nothing half-done.
  *
- * Split in two because the two callers legitimately differ on a single-round
- * match: the clock's reopen KEEPS its winner, so a bare reopen → end round-trip
- * preserves the result, while a recompute that has just watched the score fall
- * back under the cap must clear it.
+ * They agree since ruling 331: no bout back in play keeps a winner. The
+ * clock's reopen kept it once, for a bare reopen → end round-trip, and a later
+ * End then named that winner whatever the board said (`winnerColorFrom` reads a
+ * recorded winner first).
  */
+
+/**
+ * The result columns of a bout put back in play, running or paused (ruling
+ * 331). A voided bout keeps its own. `started_at` is deliberately left alone —
+ * `hasBeenFought` reads it, and a bout that was played stays played.
+ */
+export function noResultColumns(): Record<string, unknown> {
+  return { winner_registration_id: null, end_reason: null, ended_at: null };
+}
 
 /**
  * The result a completed bout was holding, cleared.
  *
  * `paused` and not `running`: the bout has been fought and the clock is not
  * moving. It is the status the clock's own reopen lands on, so the two agree.
- * `started_at` is deliberately left alone — `hasBeenFought` reads it, and a
- * bout that was played stays played.
  */
 export function reopenedResultColumns(): Record<string, unknown> {
-  return {
-    status: 'paused',
-    winner_registration_id: null,
-    end_reason: null,
-    ended_at: null,
-  };
+  return { status: 'paused', ...noResultColumns() };
 }
 
 /**
