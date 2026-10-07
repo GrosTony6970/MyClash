@@ -1,26 +1,25 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  Logger,
-  NestInterceptor,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
+import { READ_ONLY_MODE_CODE } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { hasPlatformTier } from '../auth/platform-role';
+import { OperationalUnavailableException } from '../operational-exception';
 
-const ALLOWLIST = ['/api/v1/auth/', '/api/v1/health', '/api/v1/public/'];
+/**
+ * `staff-auth/`: a PIN signs in and out of a pad as an account does under `auth/`
+ * (operator ruling 336). Not `staff/`: a pad's other saves stay refused.
+ */
+const ALLOWLIST = ['/api/v1/auth/', '/api/v1/staff-auth/', '/api/v1/health', '/api/v1/public/'];
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Read-only interceptor: when the `read_only_mode` flag is enabled, every
- * non-GET request to the API is rejected with 503 — except for super-admin
- * users and the standard public/auth allowlist. Organisers can still
- * browse, they just can't write.
+ * non-GET request to the API is rejected with a 503 coded `read_only_mode` —
+ * except for super-admin users and the standard public/auth allowlist.
+ * Organisers can still browse, they just can't write.
  */
 @Injectable()
 export class ReadOnlyInterceptor implements NestInterceptor {
@@ -50,7 +49,12 @@ export class ReadOnlyInterceptor implements NestInterceptor {
       if (userId && (await this.isSuperAdmin(userId))) return next.handle();
     }
 
-    throw new ServiceUnavailableException('Platform is in read-only mode');
+    // Its words and its code reach the screen (operator ruling 334): a plain 503 is
+    // scrubbed by the exception filter, and a web page read "Internal server error".
+    throw new OperationalUnavailableException({
+      code: READ_ONLY_MODE_CODE,
+      message: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
+    });
   }
 
   private extractToken(req: FastifyRequest): string | null {

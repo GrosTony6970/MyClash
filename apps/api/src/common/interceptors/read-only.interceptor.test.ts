@@ -3,6 +3,7 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { firstValueFrom, of } from 'rxjs';
 import { ReadOnlyInterceptor } from './read-only.interceptor';
+import { OperationalUnavailableException } from '../operational-exception';
 
 interface MockRequest {
   url: string;
@@ -71,6 +72,43 @@ describe('ReadOnlyInterceptor', () => {
     const result = await interceptor.intercept(ctx, makeNext());
     expect(await firstValueFrom(result)).toBe('passthrough');
   });
+
+  // Operator ruling 334: the refusal keeps its words and carries its own code, so a screen
+  // says the maintenance in the reader's language. It was a plain 503, whose words the
+  // exception filter replaces: a web page read "Internal server error".
+  it('refuses with the read-only code and a sentence a screen may show', async () => {
+    isEnabledMock.mockResolvedValue(true);
+    const ctx = makeContext({ url: '/api/v1/pools/p-1', method: 'PATCH', headers: {} });
+    const refusal = await interceptor.intercept(ctx, makeNext()).catch((err: unknown) => err);
+    expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    expect((refusal as OperationalUnavailableException).getResponse()).toEqual({
+      code: 'read_only_mode',
+      message: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
+    });
+  });
+
+  // Operator ruling 336: a PIN signs in and out of a pad during read-only mode, as an
+  // account already does. Every other save of a pad stays refused.
+  it.each(['/api/v1/staff-auth/login', '/api/v1/staff-auth/logout'])(
+    'lets a pad’s PIN through: POST %s',
+    async (url) => {
+      isEnabledMock.mockResolvedValue(true);
+      const ctx = makeContext({ url, method: 'POST', headers: {} });
+      const result = await interceptor.intercept(ctx, makeNext());
+      expect(await firstValueFrom(result)).toBe('passthrough');
+    },
+  );
+
+  it.each(['/api/v1/staff/heartbeat', '/api/v1/staff/checkin/scan', '/api/v1/matches/m-1/clock'])(
+    'still refuses a pad’s save: POST %s',
+    async (url) => {
+      isEnabledMock.mockResolvedValue(true);
+      const ctx = makeContext({ url, method: 'POST', headers: {} });
+      await expect(interceptor.intercept(ctx, makeNext())).rejects.toBeInstanceOf(
+        OperationalUnavailableException,
+      );
+    },
+  );
 
   it.each(['/api/v1/auth/signup', '/api/v1/health', '/api/v1/public/feature-flags'])(
     'passes through allow-listed write to %s',

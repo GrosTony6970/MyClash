@@ -61,8 +61,10 @@ import type { ApiFailure } from './request';
  * platform staff, on every route of the admin's own prefixes and on a save
  * under the Event and Tournament routes the other apps call too (ruling 327).
  * The sign-in doors answer the same code, and their screens say this same
- * sentence (ruling 328). These
- * three are the exception, not a pattern: each is answered by a global check to
+ * sentence (ruling 328). And read-only mode's 503 (`read_only_mode`, ruling
+ * 334): one interceptor answers it to a save of anybody but a super admin,
+ * outside the sign-in, public and health addresses. These
+ * four are the exception, not a pattern: each is answered by a global check to
  * many screens. Another coded refusal belongs in its own screens' mapper.
  *
  * ── An intermediary is not a dead session ──────────────────────────────────
@@ -202,6 +204,10 @@ export function failureMessage(
       // The maintenance lockdown, by its code — see the header (ruling 326).
       if (failure.code === 'admin_lockdown') {
         return t('common.apiFailure.adminLockdown');
+      }
+      // Read-only mode, by its code: every save on every screen (ruling 334).
+      if (failure.code === 'read_only_mode') {
+        return t('common.apiFailure.readOnlyMode');
       }
       // Every rejected field, ahead of `detail`, which is only the first of
       // them. Deliberately not guarded on length: with one entry the join IS
