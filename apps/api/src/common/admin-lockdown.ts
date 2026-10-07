@@ -13,7 +13,8 @@ import { OperationalUnavailableException } from './operational-exception';
 export function adminLockdownRefusal(): OperationalUnavailableException {
   return new OperationalUnavailableException({
     code: ADMIN_LOCKDOWN_CODE,
-    message: 'MyClash admin is temporarily restricted to super admins. Please try again later.',
+    message:
+      'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
   });
 }
 

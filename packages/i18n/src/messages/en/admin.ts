@@ -998,10 +998,8 @@ export const admin = {
     lockdown: {
       title: 'Admin lockdown',
       description:
-        'When enabled, only super admins can sign in to admin.myclash.fr. Useful during maintenance windows or live incidents.',
+        'When enabled, only platform staff can sign in to admin.myclash.fr. Useful during maintenance windows or live incidents.',
     },
-    lockdownBanner:
-      'MyClash admin is currently in maintenance mode. Only super admins can sign in.',
     groups: {
       incident: 'Incident response',
       delivery: 'Cost & delivery',

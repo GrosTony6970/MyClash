@@ -58,9 +58,10 @@ import type { ApiFailure } from './request';
  * (`event_completed`, ruling 289) is said here for the same reason: fifteen
  * routes, on five screens. And the maintenance lockdown's 503 (`admin_lockdown`,
  * ruling 326): one interceptor answers it to a signed-in caller who is not
- * platform staff, on every route under its prefixes (the admin's, and the
- * Event and Tournament routes the other apps call too). The sign-in doors
- * answer the same code, and their screens say their own sentence first. These
+ * platform staff, on every route of the admin's own prefixes and on a save
+ * under the Event and Tournament routes the other apps call too (ruling 327).
+ * The sign-in doors answer the same code, and their screens say this same
+ * sentence (ruling 328). These
  * three are the exception, not a pattern: each is answered by a global check to
  * many screens. Another coded refusal belongs in its own screens' mapper.
  *

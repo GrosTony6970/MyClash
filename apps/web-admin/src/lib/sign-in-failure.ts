@@ -15,7 +15,8 @@ import { ADMIN_LOCKDOWN_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
  */
 
 const SIGNUPS_OFF_KEY = 'auth.signup.signupsOff';
-const LOCKDOWN_KEY = 'admin.featureFlags.lockdownBanner';
+/** The one sentence of the lockdown, the shared one (operator ruling 328). */
+const LOCKDOWN_KEY = 'common.apiFailure.adminLockdown';
 
 /** The Google callback's sentence for a refused exchange: a switch, the account, or the server. */
 export function oauthFailureKey(failure: ApiFailure): string {
@@ -30,17 +31,15 @@ export function oauthFailureKey(failure: ApiFailure): string {
 /**
  * The password form's sentence for a refused sign-in.
  *
- * Two of its own, then the shared one. For the lockdown's 503 the form says the sign-in
- * screens' own sentence, not the shared one for a page inside the admin (ruling 326). And a
- * 401 the API wrote is a wrong address or password here, where nobody is signed in yet: the
- * shared sentence for a 401 says "your session has expired" (operator ruling 309). A 401 with
- * no code is the edge's, and stays the shared "the connection was blocked".
+ * One of its own, then the shared one, which says the lockdown by its code (rulings 326,
+ * 328). A 401 the API wrote is a wrong address or password here, where nobody is signed in
+ * yet: the shared sentence for a 401 says "your session has expired" (operator ruling 309).
+ * A 401 with no code is the edge's, and stays the shared "the connection was blocked".
  */
 export function passwordLoginMessage(
   failure: ApiFailure,
   t: (key: string) => string,
 ): string | null {
-  if (failureCode(failure) === ADMIN_LOCKDOWN_CODE) return t(LOCKDOWN_KEY);
   const wrongPassword =
     failure.kind === 'unauthenticated' && failure.status === 401 && failure.code !== null;
   return wrongPassword ? t('auth.login.errors.wrongPassword') : failureMessage(failure, t);

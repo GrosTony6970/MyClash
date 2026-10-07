@@ -997,10 +997,8 @@ export const admin = {
     lockdown: {
       title: 'Verrouillage administrateur',
       description:
-        'Quand active, seuls les super-administrateurs peuvent se connecter à admin.myclash.fr. Utile pendant une maintenance ou un incident.',
+        "Quand active, seule l'équipe de la plateforme peut se connecter à admin.myclash.fr. Utile pendant une maintenance ou un incident.",
     },
-    lockdownBanner:
-      'MyClash admin est actuellement en mode maintenance. Seuls les super-administrateurs peuvent se connecter.',
     groups: {
       incident: 'Réponse aux incidents',
       delivery: 'Couts & delivery',

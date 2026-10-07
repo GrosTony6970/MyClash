@@ -36,7 +36,22 @@ const signupsOff = http(503, { code: 'signups_disabled' });
 /** The API's answer at a sign-in door while the maintenance lockdown is on. */
 const lockdown = http(503, {
   code: 'admin_lockdown',
-  detail: 'MyClash admin is temporarily restricted to super admins. Please try again later.',
+  detail: 'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
+});
+
+// Operator ruling 328: the sign-in screens said "Only super admins can sign in", which is
+// untrue for platform staff of another tier. One sentence for the lockdown, on every screen.
+it('keeps no sentence of its own for the lockdown', () => {
+  const source = readFileSync(join(__dirname, 'sign-in-failure.ts'), 'utf8');
+  expect(source).not.toContain('lockdownBanner');
+  for (const locale of ['en', 'fr']) {
+    const messages = readFileSync(
+      join(__dirname, `../../../../packages/i18n/src/messages/${locale}/admin.ts`),
+      'utf8',
+    );
+    expect(messages).not.toContain('lockdownBanner');
+    expect(messages).not.toMatch(/super admins can sign in|super-administrateurs peuvent/);
+  }
 });
 /** A 503 the API did not write: the edge answered for it, with no body to read. */
 const edge503: ApiFailure = {
@@ -70,7 +85,7 @@ describe('the Google callback', () => {
   });
 
   it('says the lockdown for the coded 503 of the lockdown', () => {
-    expect(oauthFailureKey(lockdown)).toBe('admin.featureFlags.lockdownBanner');
+    expect(oauthFailureKey(lockdown)).toBe('common.apiFailure.adminLockdown');
   });
 
   it.each([500, 502, 503, 504])('says the sign-in could not be completed for a %s', (status) => {
@@ -99,7 +114,7 @@ describe('the Google callback', () => {
 
 describe('the password form', () => {
   it('says the lockdown for the coded 503 of the lockdown, in its own language', () => {
-    expect(passwordLoginMessage(lockdown, t)).toBe('[admin.featureFlags.lockdownBanner]');
+    expect(passwordLoginMessage(lockdown, t)).toBe('[common.apiFailure.adminLockdown]');
   });
 
   it('does not say the lockdown for a 503 of the edge: the shared sentence is said', () => {
@@ -181,7 +196,7 @@ describe('the sign-up page after a refused mail link', () => {
 
   // Operator ruling 324: both mailed links' doors write the lockdown.
   it('says the lockdown for the reason the door writes', () => {
-    expect(signupRefusedKey('admin_lockdown')).toBe('admin.featureFlags.lockdownBanner');
+    expect(signupRefusedKey('admin_lockdown')).toBe('common.apiFailure.adminLockdown');
   });
 
   it.each([undefined, '', 'something-else'])('says nothing for %o', (value) => {
