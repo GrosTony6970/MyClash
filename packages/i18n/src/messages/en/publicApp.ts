@@ -970,6 +970,8 @@ export const publicApp = {
       noPasswordSet:
         "You don't have a password yet. Set one via Change password first, then come back to delete.",
       network: 'Could not reach the MyClash server. Try again.',
+      sessionEnded: 'Your session has ended.',
+      signInAgain: 'Sign in again',
     },
   },
   claim: {

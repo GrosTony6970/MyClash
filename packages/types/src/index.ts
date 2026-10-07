@@ -31,3 +31,4 @@ export * from './round-code';
 export * from './scoring-config';
 export * from './staff-role';
 export * from './venue';
+export * from './wrong-current-password';

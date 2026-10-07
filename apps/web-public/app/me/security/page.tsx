@@ -8,6 +8,13 @@ import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
+import {
+  accountDeletionRefusalKey,
+  passwordChangeRefusalKey,
+  requestAccountDeletion,
+  requestPasswordChange,
+} from './security-requests';
+import { SessionEnded } from './SessionEnded';
 
 interface SecurityStatus {
   hasPassword: boolean;
@@ -98,6 +105,7 @@ function ChangePasswordSection({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sessionEnded, setSessionEnded] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
@@ -107,30 +115,19 @@ function ChangePasswordSection({
     setBusy(true);
     setMessage(null);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/me/change-password`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      if (res.status === 401) {
-        setError(t('publicApp.security.errors.wrongCurrentPassword'));
-        return;
-      }
-      if (!res.ok) {
-        setError(t('publicApp.security.errors.changePasswordFailed'));
-        return;
-      }
-      setMessage(t('publicApp.security.changePasswordSuccess'));
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirm('');
-    } catch {
-      setError(t('publicApp.security.errors.network'));
-    } finally {
-      setBusy(false);
+    setSessionEnded(false);
+    // The request module answers a code for every failure: it never throws.
+    const answer = await requestPasswordChange(apiUrl, currentPassword, newPassword);
+    setBusy(false);
+    if (answer !== 'ok') {
+      if (answer === 'session_ended') setSessionEnded(true);
+      else setError(t(passwordChangeRefusalKey(answer)));
+      return;
     }
+    setMessage(t('publicApp.security.changePasswordSuccess'));
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirm('');
   }
 
   // Forgot-password escape hatch for accounts that already have a password:
@@ -141,6 +138,7 @@ function ChangePasswordSection({
     if (!status.email) return;
     setResetBusy(true);
     setError(null);
+    setSessionEnded(false);
     try {
       await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
         method: 'POST',
@@ -234,6 +232,7 @@ function ChangePasswordSection({
           {error}
         </p>
       )}
+      {sessionEnded && <SessionEnded t={t} />}
     </section>
   );
 }
@@ -252,6 +251,7 @@ function DeleteAccountSection({
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   // Password re-auth only for accounts that have a password; Google-only
   // accounts delete via the typed confirmation alone.
@@ -261,28 +261,12 @@ function DeleteAccountSection({
   async function submit(): Promise<void> {
     setBusy(true);
     setError(null);
+    setSessionEnded(false);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/me/account`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, confirmation }),
-      });
-      if (res.status === 401) {
-        setError(t('publicApp.security.errors.wrongCurrentPassword'));
-        return;
-      }
-      if (res.status === 400) {
-        const body = (await res.json().catch(() => ({}))) as { code?: string };
-        if (body.code === 'no_password_set') {
-          setError(t('publicApp.security.errors.noPasswordSet'));
-          return;
-        }
-        setError(t('publicApp.security.errors.confirmationMismatch'));
-        return;
-      }
-      if (!res.ok) {
-        setError(t('publicApp.security.errors.deleteFailed'));
+      const answer = await requestAccountDeletion(apiUrl, currentPassword, confirmation);
+      if (answer !== 'ok') {
+        if (answer === 'session_ended') setSessionEnded(true);
+        else setError(t(accountDeletionRefusalKey(answer)));
         return;
       }
       await leaveDeletedAccount('/?account_deleted=1');
@@ -358,6 +342,7 @@ function DeleteAccountSection({
                   setCurrentPassword('');
                   setConfirmation('');
                   setError(null);
+                  setSessionEnded(false);
                 }}
                 disabled={busy}
                 className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-background disabled:opacity-50"
@@ -374,6 +359,7 @@ function DeleteAccountSection({
               {error}
             </p>
           )}
+          {sessionEnded && <SessionEnded t={t} />}
         </div>
       )}
     </section>

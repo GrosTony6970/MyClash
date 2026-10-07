@@ -1,5 +1,5 @@
 import { HttpException, UnauthorizedException } from '@nestjs/common';
-import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { SIGNUPS_DISABLED_CODE, WRONG_CURRENT_PASSWORD_CODE } from '@myclash/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
@@ -51,7 +51,7 @@ function build(tables: Record<string, TableSeed> = {}) {
     deleteAccount: () =>
       service.deleteAccount(signedIn, 'right-password', 'DELETE', reply as never),
   };
-  return { service, doors, reply, updateUserById, deleteUser, redactSubject };
+  return { service, supabase, doors, reply, updateUserById, deleteUser, redactSubject };
 }
 
 type Door = 'login' | 'changePassword' | 'deleteAccount';
@@ -94,13 +94,70 @@ describe.each(DOORS)('the participant password door, %s', (door) => {
     expect((failure as Error).message).toContain('ECONNREFUSED');
     expect(built.redactSubject).not.toHaveBeenCalled();
   });
+});
 
+describe('the participant sign-in', () => {
   it('answers a 401 when the auth server refuses the password', async () => {
+    answers(400, { error_code: 'invalid_credentials' });
+
+    await expect(build().doors.login()).rejects.toThrow(UnauthorizedException);
+  });
+});
+
+/**
+ * The current password, asked again by a signed-in account (operator ruling 329).
+ *
+ * Marie leaves her security page open and her login runs out. She types the right current
+ * password, and the page said "Current password is incorrect": these two doors answered 401
+ * for a wrong password AND for an ended session. A wrong current password is a 403 with its
+ * own code now. The 401 is the ended session's alone, which the page renews once.
+ */
+describe.each<Door>(['changePassword', 'deleteAccount'])('the current password at %s', (door) => {
+  const wrongCurrentPassword = {
+    code: WRONG_CURRENT_PASSWORD_CODE,
+    message: 'Current password is incorrect',
+  };
+
+  it('answers the coded 403 when the auth server refuses the password', async () => {
     answers(400, { error_code: 'invalid_credentials' });
     const built = build();
 
-    await expect(built.doors[door]()).rejects.toThrow(UnauthorizedException);
+    const refusal = await built.doors[door]().catch((err: unknown) => err);
+
+    expect((refusal as HttpException).getStatus()).toBe(403);
+    expect((refusal as HttpException).getResponse()).toEqual(wrongCurrentPassword);
+    expect(built.updateUserById).not.toHaveBeenCalled();
     expect(built.redactSubject).not.toHaveBeenCalled();
+    expect(built.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('answers the coded 403 when the password opens another account', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: 'access', user: { id: 'user-other' } }),
+      }),
+    );
+    const built = build();
+
+    const refusal = await built.doors[door]().catch((err: unknown) => err);
+
+    expect((refusal as HttpException).getStatus()).toBe(403);
+    expect((refusal as HttpException).getResponse()).toEqual(wrongCurrentPassword);
+    expect(built.updateUserById).not.toHaveBeenCalled();
+    expect(built.redactSubject).not.toHaveBeenCalled();
+  });
+
+  it('answers a 401 for a session that has ended, and asks no password', async () => {
+    const fetched = vi.fn();
+    vi.stubGlobal('fetch', fetched);
+    const built = build();
+    built.supabase.getAuthUser.mockResolvedValue(null);
+
+    await expect(built.doors[door]()).rejects.toThrow(UnauthorizedException);
+    expect(fetched).not.toHaveBeenCalled();
   });
 });
 

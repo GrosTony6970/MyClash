@@ -12843,8 +12843,15 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Current password incorrect / no session */
+      /** @description No session */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Current password incorrect (wrong_current_password) */
+      403: {
         headers: {
           [name: string]: unknown;
         };
@@ -12879,8 +12886,15 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Wrong current password */
+      /** @description No session */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Wrong current password (wrong_current_password) */
+      403: {
         headers: {
           [name: string]: unknown;
         };

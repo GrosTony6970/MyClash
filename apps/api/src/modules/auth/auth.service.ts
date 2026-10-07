@@ -17,6 +17,7 @@ import {
   CLAIM_REFUSED_PARAM,
   SIGNUP_REFUSED_PARAM,
   SIGNUPS_DISABLED_CODE,
+  WRONG_CURRENT_PASSWORD_CODE,
   validatePassword,
   type ClaimLinkRefusal,
 } from '@myclash/types';
@@ -1430,10 +1431,7 @@ export class AuthService {
     }
 
     // Re-verify ownership by exchanging email + currentPassword.
-    const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
-    if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
-      throw new UnauthorizedException('Current password is incorrect');
-    }
+    await this.confirmCurrentPassword(user.id, user.email, currentPassword);
 
     const { error: updateError } = await this.supabase.service.auth.admin.updateUserById(user.id, {
       password: newPassword,
@@ -1476,10 +1474,7 @@ export class AuthService {
     // (no password) delete on the authenticated session + typed confirmation
     // alone — they sign in through Google and have no password to verify.
     if (hasPassword) {
-      const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
-      if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
-        throw new UnauthorizedException('Current password is incorrect');
-      }
+      await this.confirmCurrentPassword(user.id, user.email, currentPassword);
     }
 
     // Redact the person, keep the competitor: contact details, date of birth,
@@ -2089,10 +2084,34 @@ export class AuthService {
   }
 
   /**
+   * The current password of a signed-in account, asked again before a change of
+   * password or an account deletion (operator ruling 329).
+   *
+   * A refusal is a 403 with its own code. The caller IS signed in, so a 401 at
+   * those doors means the session ended: the client renews the login and sends
+   * the request again, which a wrong password must not do (two tries spent).
+   */
+  private async confirmCurrentPassword(
+    userId: string,
+    email: string,
+    currentPassword: string,
+  ): Promise<void> {
+    const { ok, body } = await this.askPasswordToken(email, currentPassword);
+    const holder = ok ? (body as GoTruePasswordTokenResponse | null)?.user?.id : undefined;
+    if (holder !== userId) {
+      throw new ForbiddenException({
+        code: WRONG_CURRENT_PASSWORD_CODE,
+        message: 'Current password is incorrect',
+      });
+    }
+  }
+
+  /**
    * The ONE call to the auth server's password door, for the admin sign-in and
    * for the participant app (sign-in, password change, account deletion).
    *
-   * Each screen reads its door's 401 as a wrong password (operator ruling 309).
+   * The two sign-in screens read their door's 401 as a wrong password (operator
+   * ruling 309); the security page reads the 403 of `confirmCurrentPassword`.
    * A silent, throttled or failing auth server has not judged the password: that
    * is a server error, never the 401.
    */

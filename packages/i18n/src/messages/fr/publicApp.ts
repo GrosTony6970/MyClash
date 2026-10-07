@@ -978,6 +978,8 @@ export const publicApp = {
       noPasswordSet:
         "Vous n'avez pas encore de mot de passe. Définissez-en un via « Modifier le mot de passe » puis revenez pour supprimer.",
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',
+      sessionEnded: 'Votre session a expiré.',
+      signInAgain: 'Se reconnecter',
     },
   },
   claim: {

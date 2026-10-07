@@ -229,7 +229,8 @@ export class MeController {
   @ApiOperation({ summary: 'Change the current user password' })
   @ApiResponse({ status: 200, description: 'Password updated' })
   @ApiResponse({ status: 400, description: 'Weak new password' })
-  @ApiResponse({ status: 401, description: 'Current password incorrect / no session' })
+  @ApiResponse({ status: 401, description: 'No session' })
+  @ApiResponse({ status: 403, description: 'Current password incorrect (wrong_current_password)' })
   async changePassword(
     @Req() req: FastifyRequest,
     @Body() dto: ChangePasswordDto,
@@ -254,7 +255,8 @@ export class MeController {
     status: 400,
     description: 'Confirmation typo / Google-only user (no_password_set)',
   })
-  @ApiResponse({ status: 401, description: 'Wrong current password' })
+  @ApiResponse({ status: 401, description: 'No session' })
+  @ApiResponse({ status: 403, description: 'Wrong current password (wrong_current_password)' })
   async deleteAccount(
     @Req() req: FastifyRequest,
     @Body() dto: DeleteAccountDto,
