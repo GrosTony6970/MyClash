@@ -2106,9 +2106,9 @@ and status. Both are asked: the row (completed, with a record's end reason) and 
 itself, because `PATCH /status` and the clock's reopen leave the old reason on a row whose
 record they voided. The colour swap is refused on a held bout: its score would stay on the
 wrong Fighters. `MatchForfeitsService.voidForfeit` asks the recompute again once it has put
-the bout back in play. A bout it restores as completed (an override over a fought bout) is left
-as restored, and so are the Pool bouts of a cascade: what was added to their sheets meanwhile
-counts at the next correction. On an over Event a grand final that the losers' side now wins makes no second final: the final ranking
+the bout back in play, and for each Pool bout of a cascade it puts back in play (ruling 330). A
+bout it restores as completed (an override over a fought bout) is left as restored: what was
+added to its sheet meanwhile counts at the next correction. On an over Event a grand final that the losers' side now wins makes no second final: the final ranking
 reads the grand final while no reset was played.
 
 A correction lands whole or not at all (226). When it would change the result of a bout that

@@ -438,7 +438,8 @@ export class MatchForfeitsService {
    * fought to its end): with no correction asked, a recompute would hand a
    * time-ended bout of a running Event back to its referee. What was added to
    * its sheet meanwhile counts at the next correction, and the log says so.
-   * Not the bouts of a cascade either: they were not fought when forfeited.
+   * The Pool bouts of a cascade are asked too (ruling 330): one forfeited from
+   * `paused` has a sheet.
    *
    * Never throws: the void is saved by now.
    */
@@ -512,10 +513,12 @@ export class MatchForfeitsService {
       // cannot see — a child reset and re-fought all the way to 'completed'
       // again, which is not 'running' or 'paused' and so reads as untouched.
       const diverged = await this.recordedResultDiverged(matchId, child);
-      if (!live.has(matchId) && diverged !== true) {
-        await this.restoreMatchState(matchId, (child['previous_match_state'] as Row | null) ?? {});
-      }
+      const previous = (child['previous_match_state'] as Row | null) ?? {};
+      const restored = !live.has(matchId) && diverged !== true;
+      if (restored) await this.restoreMatchState(matchId, previous);
       await this.stampVoided(child['id'] as string, actor);
+      // Ruling 330: what was saved on its sheet while it was forfeited counts now.
+      if (restored) await this.readSheetAgain(matchId, previous);
     }
     return children.length;
   }
