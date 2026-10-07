@@ -19,8 +19,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 /**
  * Read-only interceptor: when the `read_only_mode` flag is enabled, every
  * non-GET request to the API is rejected with 503 — except for super-admin
- * users and the standard public/auth allowlist. Lighter than
- * `admin_lockdown`: organisers can still browse, they just can't write.
+ * users and the standard public/auth allowlist. Organisers can still
+ * browse, they just can't write.
  */
 @Injectable()
 export class ReadOnlyInterceptor implements NestInterceptor {
