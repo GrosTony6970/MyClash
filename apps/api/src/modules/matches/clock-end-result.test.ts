@@ -202,11 +202,12 @@ describe('ClockService — what ending the clock records', () => {
     await service.clockAction('m1', 'end');
 
     for (const column of [
+      // A bout already completed is not decided again (`clock-end-completed.test.ts`).
+      'status',
       'red_score',
       'blue_score',
       'red_registration_id',
-      // The decided test is the LADDER, not the scores — a forfeit names the
-      // winner on a row a zeroing score policy left 0-0.
+      // The decided test is the LADDER, not the scores.
       'winner_registration_id',
       'phases(',
     ]) {
@@ -323,20 +324,26 @@ describe('ClockService — what ending the clock records', () => {
     expect(lastUpdate).toMatchObject({ status: 'completed' });
   });
 
-  it('ends a level bracket bout that already carries a forfeit winner', async () => {
-    // A forfeit writes the winner and THEN stops the clock, and under a zeroing
-    // score policy that row is 0-0. Reading the scores alone would call it level
-    // and refuse — inside a `catch` that swallows the refusal, so the clock
-    // would simply never stop and the endcard would never fire.
-    wireEnd(levelBracket({ red_score: 0, blue_score: 0, winner_registration_id: 'blue' }));
+  it('ends a level bracket bout a forfeit completed, and keeps the forfeit as its reason', async () => {
+    // A forfeit completes the bout and THEN stops the clock, and under a zeroing
+    // score policy that row is 0-0. A refusal for "level" would sit inside a
+    // `catch` that swallows it: the clock would never stop. And the End names no
+    // result: it wrote `time_limit` over the forfeit once
+    // (`clock-end-completed.test.ts`).
+    wireEnd(
+      levelBracket({
+        status: 'completed',
+        red_score: 0,
+        blue_score: 0,
+        winner_registration_id: 'blue',
+      }),
+    );
 
     await service.clockAction('m1', 'end');
 
-    expect(lastUpdate).toMatchObject({
-      status: 'completed',
-      winner_registration_id: 'blue',
-      end_reason: 'time_limit',
-    });
+    expect(lastUpdate).toMatchObject({ status: 'completed' });
+    expect(lastUpdate).not.toHaveProperty('end_reason');
+    expect(lastUpdate).not.toHaveProperty('winner_registration_id');
   });
 });
 

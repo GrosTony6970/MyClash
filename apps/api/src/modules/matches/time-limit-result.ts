@@ -118,12 +118,12 @@ export type EndOnClock = { complete: Record<string, unknown> } | { refuse: EndRe
  * afterwards a null winner on a completed bout means exactly one thing: the
  * bout was genuinely LEVEL. That is the case the chain below decides.
  *
- * THE DECIDED TEST IS THE LADDER, NOT THE SCORES. `winnerColorFrom` reads a
- * recorded `winner_registration_id` first, and it must: a forfeit writes the
- * winner and THEN ends the clock, and under a zeroing score policy that row is
- * 0-0. Reading the scores alone would call an already-decided bout level and
- * refuse to end its clock — inside a `catch` that swallows the refusal, so the
- * clock would simply never stop and the endcard would never fire.
+ * A BOUT ALREADY COMPLETED IS NOT DECIDED AGAIN. A forfeit, a black card and
+ * the points cap complete the bout and THEN end its clock, from inside a `catch`
+ * that swallows a refusal. The End stops that clock and writes no result: a
+ * zeroed forfeit row (0-0) is not refused as level, and no `time_limit` goes
+ * over the reason the bout ended with. Since ruling 331 no bout back
+ * in play keeps a winner, so the ladder below reads the board.
  *
  * A BEST-OF match is left alone. `ScoringService.endRoundOnTime` owns that path
  * — it closes a ROUND, not the series, and refuses a tied one so the operator
@@ -158,6 +158,12 @@ export function timeLimitResult(
   const bestOf = getEffectiveBestOf({ phaseType, matchNumberLabel } as Match, matchFormat);
   if (bestOf > 1) return { complete: {} };
 
+  // Already completed: a forfeit, a black card or the points cap ended the bout
+  // and its clock is stopped after the fact. The End decides what a LIVE bout is
+  // worth, never what a finished one was: naming "the leader" here wrote
+  // `time_limit` over the reason the bout really ended with.
+  if (match['status'] === 'completed') return { complete: {} };
+
   if (!isLevelBout(match)) {
     const leader = winnerColorFrom({
       winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
@@ -174,11 +180,6 @@ export function timeLimitResult(
       },
     };
   }
-
-  // Level, and already completed — a forfeit or a ceiling bout whose clock is
-  // being stopped after the fact. The chain decides what a LIVE bout is worth,
-  // never what a finished one was.
-  if (match['status'] === 'completed') return { complete: {} };
 
   // Level with time still to run: nothing to decide yet. Ahead of the chain, so
   // the remedies cannot be collected before the time that earns them.
