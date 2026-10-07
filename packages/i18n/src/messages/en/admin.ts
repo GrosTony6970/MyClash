@@ -998,7 +998,7 @@ export const admin = {
     lockdown: {
       title: 'Admin lockdown',
       description:
-        'When enabled, only platform staff can sign in to admin.myclash.fr. Useful during maintenance windows or live incidents.',
+        'Refuses everyone who is not platform staff at the admin sign-in and at a mailed sign-in link. An organiser who is already signed in loses the platform admin pages and every save under the Event, Tournament, club and League addresses. That organiser can still edit a participant, a Pool, a bout or a Workshop. Pads, guests and scoring are not touched. To stop every save, use Read-only mode.',
     },
     groups: {
       incident: 'Incident response',
@@ -1008,7 +1008,7 @@ export const admin = {
     readOnlyMode: {
       title: 'Read-only mode',
       description:
-        'Allow read traffic but block every write to the API. Use during DB maintenance or a deploy hiccup when you want organisers to keep browsing. Super-admins are unaffected; non-admin writes get a 503 toast.',
+        'Refuses every save on the platform, for everybody but a super admin: organisers, Fighters, guests and pads. Reading still works, and an account can still sign in. A pad says it is offline and holds its hits to send later. Use during database maintenance or a bad deploy.',
     },
     disableSignups: {
       title: 'Disable signups',

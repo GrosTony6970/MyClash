@@ -997,7 +997,7 @@ export const admin = {
     lockdown: {
       title: 'Verrouillage administrateur',
       description:
-        "Quand active, seule l'équipe de la plateforme peut se connecter à admin.myclash.fr. Utile pendant une maintenance ou un incident.",
+        "Refuse toute personne hors équipe de la plateforme à la connexion admin et sur un lien de connexion reçu par e-mail. Un organisateur déjà connecté perd les pages d'administration de la plateforme et tout enregistrement sous les adresses des Événements, des Tournois, des clubs et des Ligues. Il peut encore modifier un participant, une Poule, un combat ou un Atelier. Les tablettes, les invités et la saisie des scores ne sont pas touchés. Pour bloquer tout enregistrement, utilisez le Mode lecture seule.",
     },
     groups: {
       incident: 'Réponse aux incidents',
@@ -1007,7 +1007,7 @@ export const admin = {
     readOnlyMode: {
       title: 'Mode lecture seule',
       description:
-        "Autoriser la lecture mais bloquer toute écriture sur l'API. A utiliser pendant une maintenance DB ou un déploiement bancal pour que les organisateurs puissent continuer à consulter. Les super-administrateurs ne sont pas affectes ; les ecritures non-admin renvoient un 503.",
+        'Refuse tout enregistrement sur la plateforme, pour tout le monde sauf un super-administrateur : organisateurs, combattants, invités et tablettes. La lecture fonctionne toujours, et un compte peut toujours se connecter. Une tablette se dit hors ligne et garde ses touches pour les envoyer plus tard. À utiliser pendant une maintenance de la base de données ou après un déploiement raté.',
     },
     disableSignups: {
       title: 'Désactiver les inscriptions',
