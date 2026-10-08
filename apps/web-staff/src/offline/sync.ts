@@ -78,6 +78,14 @@ interface Refused {
   refused: Response;
 }
 
+/**
+ * No verdict, met on the way to a second try (ruling 344): no network,
+ * read-only mode, a server fault. Nobody refused the hit a second time.
+ */
+interface Unanswered {
+  unanswered: Response;
+}
+
 /** Highest `sequence` in a list response, or 0 when it carries none. */
 async function maxSequence(res: Response): Promise<number> {
   const rows = (await res.json().catch(() => [])) as Array<{ sequence?: number | null }>;
@@ -243,26 +251,28 @@ export class SyncEngine {
    *
    * Deliberately blind to WHY the server refused: matching on the message would
    * bind the client to wording it does not own. If the cause was a sequence
-   * collision this succeeds; if it was anything else it fails the same way and
-   * the caller quarantines. One attempt, never a loop.
+   * collision this succeeds; if it was anything else it is answered 400 again
+   * and the caller quarantines. One attempt, never a loop.
    *
-   * Returns the sequence actually used and the server's row id, or null. An
-   * answer `answerRefusal` reads (the session ended, the person may not score,
-   * the Event is over) is handed back as it came: it is about the caller or
-   * the bout, not about the sequence.
+   * Returns the sequence actually used and the server's row id, or null for a
+   * second 400. An answer `answerRefusal` reads (the session ended, the person
+   * may not score, the Event is over) is handed back as it came: it is about
+   * the caller or the bout, not about the sequence. So is an answer that is no
+   * verdict at all, of the read or of the second send (ruling 344).
    */
   private async retryWithFreshSequence(
     entry: OutboxEntry,
-  ): Promise<{ sequence: number; serverId: string } | Refused | null> {
+  ): Promise<{ sequence: number; serverId: string } | Refused | Unanswered | null> {
+    // Never the entry's own sequence: it is in the outbox, and `nextSequence`
+    // counts it.
     const sequence = await this.freshSequence(entry.matchId);
-    // Same sequence means nothing changed — a second identical POST would only
-    // reproduce the same refusal.
-    if (sequence === null || sequence === entry.sequence) return null;
+    if (typeof sequence !== 'number') return sequence;
 
     const res = await this.postExchange(entry, sequence);
     if (REFUSALS.includes(res.status)) return { refused: res };
+    if (res.status === 400) return null;
     // Only a 2xx is on the server.
-    if (!res.ok) return null;
+    if (!res.ok) return { unanswered: res };
     const data = (await res.json().catch(() => ({}))) as Partial<ExchangeResponse>;
     return { sequence, serverId: data.id ?? entry.clientUuid };
   }
@@ -276,26 +286,25 @@ export class SyncEngine {
    * sequence collision is the single most likely reason the entry was refused
    * in the first place. Reading one table would fix the collision it was
    * refused for and walk straight into its twin.
+   *
+   * A read that is not answered hands its answer back: there is no number to
+   * send under, and the hit waits (ruling 344). A read that throws has no
+   * network at all, and `sendEntry` files it as it files a send that throws.
    */
-  private async freshSequence(matchId: string): Promise<number | null> {
-    try {
-      const [exchanges, penalties] = await Promise.all([
-        fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
-        fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
-      ]);
-      // Exchanges must answer — it is the older endpoint and the one every
-      // match has. A penalties read that fails degrades to "no cards", which is
-      // still better than giving up on the retry entirely.
-      if (!exchanges.ok) return null;
-      const serverMax = Math.max(
-        await maxSequence(exchanges),
-        penalties.ok ? await maxSequence(penalties) : 0,
-      );
-      return Math.max(serverMax + 1, await nextSequence(matchId));
-    } catch {
-      // Offline again — nothing to re-derive from. The caller quarantines.
-      return null;
-    }
+  private async freshSequence(matchId: string): Promise<number | Unanswered> {
+    const [exchanges, penalties] = await Promise.all([
+      fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
+      fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
+    ]);
+    // Exchanges must answer — it is the older endpoint and the one every
+    // match has. A penalties read that fails degrades to "no cards", which is
+    // still better than giving up on the retry entirely.
+    if (!exchanges.ok) return { unanswered: exchanges };
+    const serverMax = Math.max(
+      await maxSequence(exchanges),
+      penalties.ok ? await maxSequence(penalties) : 0,
+    );
+    return Math.max(serverMax + 1, await nextSequence(matchId));
   }
 
   /**
@@ -343,15 +352,14 @@ export class SyncEngine {
    * a reload that seeded from a stale max), so re-derive the sequence from the
    * server and try exactly once more. A second answer about the caller (a
    * 401, a 403) makes the hit wait, and a 409 is held with its own code, as a
-   * first answer would. Any other second answer holds it under the first.
+   * first answer would. So does a second try that met no verdict (ruling 344):
+   * the hit stays in the queue. Only a second 400 holds it under the first.
    */
-  private async answerBadRequest(
-    entry: OutboxEntry,
-    res: Response,
-  ): Promise<'sent' | 'held' | 'failed' | 'stopped'> {
+  private async answerBadRequest(entry: OutboxEntry, res: Response): Promise<Filed> {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
     const retried = await this.retryWithFreshSequence(entry);
     if (retried && 'refused' in retried) return this.answerRefusal(entry, retried.refused);
+    if (retried && 'unanswered' in retried) return this.fileUnanswered(entry, retried.unanswered);
     if (retried) {
       await markSynced(
         entry.id!,
@@ -552,20 +560,7 @@ export class SyncEngine {
         if (outcome !== 'stopped') await this.emit('syncing');
         return outcome;
       }
-      const body = (await res.json().catch(() => null)) as FailureBody | null;
-      const kind = classifySyncFailure(res.status, body);
-      // Read-only mode refuses the hits behind this one too: the queue waits,
-      // in order, with no attempt counted against it (ruling 335).
-      if (kind === 'maintenance') {
-        await this.emit('maintenance');
-        return 'stopped';
-      }
-      await markFailed(entry.id!, body?.message ?? kind);
-      // A resolved 503 is what a real outage looks like here: the service
-      // worker turns a dead network into one rather than letting fetch
-      // reject, which is why the catch below could never report offline.
-      // See failure-kind.ts.
-      return kind === 'offline' ? 'offline' : 'failed';
+      return await this.fileUnanswered(entry, res);
     } catch (err) {
       // A genuine rejection. Only reachable when the service worker is not
       // in play at all — a first load before it installs, or a dev server.
@@ -573,6 +568,30 @@ export class SyncEngine {
       await markFailed(entry.id!, error);
       return 'offline';
     }
+  }
+
+  /**
+   * An answer that is no verdict on the hit: it stays in the queue. Of a first
+   * send, of a second try, or of the read before it (ruling 344).
+   */
+  private async fileUnanswered(
+    entry: OutboxEntry,
+    res: Response,
+  ): Promise<'failed' | 'offline' | 'stopped'> {
+    const body = (await res.json().catch(() => null)) as FailureBody | null;
+    const kind = classifySyncFailure(res.status, body);
+    // Read-only mode refuses the hits behind this one too: the queue waits,
+    // in order, with no attempt counted against it (ruling 335).
+    if (kind === 'maintenance') {
+      await this.emit('maintenance');
+      return 'stopped';
+    }
+    await markFailed(entry.id!, body?.message ?? kind);
+    // A resolved 503 is what a real outage looks like here: the service
+    // worker turns a dead network into one rather than letting fetch
+    // reject, which is why the catch in `sendEntry` could never report
+    // offline. See failure-kind.ts.
+    return kind === 'offline' ? 'offline' : 'failed';
   }
 
   /**

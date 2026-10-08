@@ -1167,11 +1167,13 @@ The split between `offline` and `error` is deliberate: a network failure means "
 resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
 
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
-> saved**. A 400 is re-sent once under a fresh sequence; if that fails too, and for every 409 and
+> saved**. A 400 is re-sent once under a fresh sequence; if that is answered 400 too, and for every 409 and
 > 403, the entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining.
 > A second try answered 401, or 403 about the person, makes the hit wait as below, and a 409 is
-> held with its own code (`answerBadRequest`); any other second answer holds the hit under the
-> first one.
+> held with its own code (`answerBadRequest`). A second try that met no verdict (no network,
+> read-only mode, a server fault, or a read of the next free sequence that was not answered) leaves
+> the hit in the queue, filed as a first answer of that kind (ruling 344, `fileUnanswered`): nobody
+> refused it a second time. Only a second 400 holds the hit under the first one.
 > The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A

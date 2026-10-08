@@ -7,6 +7,10 @@
  * the refused-hits inbox under the first answer's reason, though nothing
  * refused it. It waits in the queue, as a first answer makes it wait, and a
  * refusal about the bout is held with its own code.
+ *
+ * It can meet no verdict at all too (ruling 344): no network, read-only mode, a
+ * server fault, or the read of the next free number that fails. Nobody refused
+ * the hit a second time, so it waits in the queue and goes with the next send.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,7 +37,10 @@ type Answer = { status: number; body: unknown };
  * the server holds sequence 4, which this tablet never saw, so the second try
  * goes at 5.
  */
-function mockApi(post: (sequence: number) => Answer) {
+function mockApi(
+  post: (sequence: number) => Answer,
+  read: () => Answer = () => ({ status: 200, body: [{ sequence: 4 }] }),
+) {
   const posted: number[] = [];
   const answer = (r: Answer) =>
     Promise.resolve({
@@ -45,7 +52,8 @@ function mockApi(post: (sequence: number) => Answer) {
     'fetch',
     vi.fn().mockImplementation((_url: string, init?: { method?: string; body?: string }) => {
       if ((init?.method ?? 'GET') === 'GET') {
-        return answer({ status: 200, body: [{ sequence: 4 }] });
+        // `read` may throw: a fetch with no service worker rejects.
+        return Promise.resolve().then(read).then(answer);
       }
       const sequence = (JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence;
       posted.push(sequence);
@@ -138,6 +146,83 @@ describe('the second try meets a refusal about the bout', () => {
     expect((await db.outbox.toArray()).map((row) => row.attempts)).toEqual([1]);
     expect(await db.rejected.count()).toBe(0);
     expect(last).toMatchObject({ status: 'error', pendingCount: 1 });
+  });
+});
+
+describe('the second try meets no verdict (ruling 344)', () => {
+  /** What the service worker answers an API call with no network. */
+  const NO_NETWORK: Answer = { status: 503, body: { error: 'offline', status: 503 } };
+  const TAKEN: Answer = { status: 201, body: { id: 'srv' } };
+  const attempts = async () => (await db.outbox.toArray()).map((row) => row.attempts);
+
+  it.each<[string, Answer]>([
+    ['no network', NO_NETWORK],
+    ['a server fault', { status: 500, body: { message: 'Internal server error' } }],
+    ['a throttled request', { status: 429, body: { message: 'Too Many Requests' } }],
+  ])('%s: the hit waits in the queue, and the queue goes on', async (_what, second) => {
+    await addHit(1, 'uuid-bad');
+    await addHit(2, 'uuid-behind');
+    const { posted } = mockApi((sequence) =>
+      sequence === 1 ? BAD_SEQUENCE : sequence === 5 ? second : TAKEN,
+    );
+
+    const last = await drainWatched();
+
+    expect(posted).toEqual([1, 5, 2]);
+    expect(await waiting()).toEqual(['uuid-bad']);
+    expect(await db.rejected.count(), 'nobody refused it a second time').toBe(0);
+    expect(await attempts(), 'one failed try, as a first answer counts').toEqual([1]);
+    expect(last).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 0 });
+  });
+
+  it('read-only mode: the queue waits there, and no try is counted', async () => {
+    const { last, posted } = await secondTry({
+      status: 503,
+      body: { message: 'Maintenance', code: 'read_only_mode' },
+    });
+
+    expect(posted, 'the hit behind it is not sent').toEqual([1, 5]);
+    expect(await waiting()).toEqual(['uuid-bad', 'uuid-behind']);
+    expect(await db.rejected.count()).toBe(0);
+    expect(await attempts()).toEqual([0, 0]);
+    expect(last).toMatchObject({ status: 'maintenance', pendingCount: 2, rejectedCount: 0 });
+  });
+
+  it.each<[string, () => Answer]>([
+    ['finds no network', () => NO_NETWORK],
+    ['is answered a server fault', () => ({ status: 500, body: {} })],
+    [
+      'throws',
+      () => {
+        throw new TypeError('Failed to fetch');
+      },
+    ],
+  ])('the read of the next free number %s: the hit waits', async (_what, read) => {
+    await addHit(1, 'uuid-bad');
+    await addHit(2, 'uuid-behind');
+    const { posted } = mockApi((sequence) => (sequence === 1 ? BAD_SEQUENCE : TAKEN), read);
+
+    const last = await drainWatched();
+
+    expect(posted, 'no second try without a number, and the queue goes on').toEqual([1, 2]);
+    expect(await waiting()).toEqual(['uuid-bad']);
+    expect(await db.rejected.count()).toBe(0);
+    expect(await attempts()).toEqual([1]);
+    expect(last).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 0 });
+  });
+
+  it('three in a row with no network end the send as offline, not as refused', async () => {
+    await addHit(1, 'uuid-a');
+    await addHit(2, 'uuid-b');
+    await addHit(3, 'uuid-c');
+    await addHit(4, 'uuid-not-reached');
+    mockApi((sequence) => (sequence === 5 ? NO_NETWORK : BAD_SEQUENCE));
+
+    const last = await drainWatched();
+
+    expect(await waiting()).toEqual(['uuid-a', 'uuid-b', 'uuid-c', 'uuid-not-reached']);
+    expect(await attempts()).toEqual([1, 1, 1, 0]);
+    expect(last).toMatchObject({ status: 'offline', pendingCount: 4, rejectedCount: 0 });
   });
 });
 
