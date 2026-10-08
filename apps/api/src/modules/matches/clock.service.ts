@@ -32,6 +32,7 @@ import {
   timeLimitResult,
 } from './time-limit-result';
 import { endRefusal } from './level-at-time-refusal';
+import { matchLocked } from './match-locked';
 import {
   effectiveTimeLimitSeconds,
   pendingLevelStep,
@@ -157,7 +158,7 @@ export class ClockService {
 
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
     if ((match as { locked_at?: string | null }).locked_at && !actor?.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
 
     // Get current state
@@ -333,7 +334,7 @@ export class ClockService {
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
     const row = match as unknown as Record<string, unknown>;
     if ((row['locked_at'] as string | null) && !actor?.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
     if (row['status'] === 'completed') throw new BadRequestException('Match is already completed');
     // Between rounds of a best-of match the scores on the row are the CLOSED
@@ -408,7 +409,7 @@ export class ClockService {
       .maybeSingle();
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
     if ((match as { locked_at?: string | null }).locked_at && !actor?.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
     const sequence = await this.nextSequence(matchId);
     // Same silent-no-op guard as clockAction: a failed insert must surface

@@ -1173,7 +1173,11 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > held with its own code (`answerBadRequest`). A second try that met no verdict (no network,
 > read-only mode, a server fault, or a read of the next free sequence that was not answered) leaves
 > the hit in the queue, filed as a first answer of that kind (ruling 344, `fileUnanswered`): nobody
-> refused it a second time. Only a second 400 holds the hit under the first one.
+> refused it a second time. Only a second 400 holds the hit, under the words and the code of the
+> first one. A write to a locked bout by a caller who may not pass the lock is a 400 coded
+> `match_locked`, the one refusal of every door that asks the lock
+> (`apps/api/src/modules/matches/match-locked.ts`): a tap, the notice of a refused undo and the
+> inbox say it in the reader's language.
 > The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A

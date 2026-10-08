@@ -1,7 +1,8 @@
-import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { matchLocked } from '../matches/match-locked';
 import { PenaltiesService } from './penalties.service';
 
 /**
@@ -206,7 +207,7 @@ describe('PenaltiesService.createPenalty — a repeated card on a locked bout', 
       service.createPenalty('m1', { ...CARD, clientUuid: 'new-uuid' } as never, {
         userId: ORGANISER,
       }),
-    ).rejects.toEqual(new BadRequestException('Match is locked'));
+    ).rejects.toEqual(matchLocked());
     expect(db.writes).toEqual([]);
   });
 });

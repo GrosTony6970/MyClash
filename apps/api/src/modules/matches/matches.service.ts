@@ -21,6 +21,7 @@ import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
+import { matchLocked } from './match-locked';
 import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
@@ -1405,7 +1406,7 @@ export class MatchesService {
   ) {
     const match = existing ?? (await this.getLockableMatch(matchId));
     if (match['locked_at'] && !context?.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
   }
 

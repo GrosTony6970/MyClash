@@ -22,6 +22,7 @@ import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { hasBeenFought } from './fought-match';
+import { matchLocked } from './match-locked';
 import { stampForfeitVoided } from './forfeit-void';
 import { ScoringService } from './scoring.service';
 
@@ -602,7 +603,7 @@ export class MatchForfeitsService {
     }
     // `loadMatch` selects *, so locked_at is already on the row — no extra read.
     if (match.locked_at && !actor.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
     await this.frozenResults?.assertResultMutationAllowed(matchId, actor.userId);
     if (wasCompleted) await this.assertNoStartedDependents(matchId);
@@ -672,7 +673,7 @@ export class MatchForfeitsService {
       .eq('id', matchId)
       .maybeSingle();
     if ((data as Row | null)?.['locked_at'] && !actor.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
   }
 

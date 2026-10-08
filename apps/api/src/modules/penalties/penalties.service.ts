@@ -32,6 +32,7 @@ import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
+import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
 import type {
@@ -1384,7 +1385,7 @@ export class PenaltiesService {
     context?: { canOverrideLocked?: boolean },
   ) {
     if (match.lockedAt && !context?.canOverrideLocked) {
-      throw new BadRequestException('Match is locked');
+      throw matchLocked();
     }
   }
 

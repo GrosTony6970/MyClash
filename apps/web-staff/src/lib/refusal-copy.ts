@@ -61,6 +61,8 @@ const HELD_EVENT_OVER = 'scoring.quarantine.eventOver';
 const HELD_NOT_ALLOWED = 'scoring.quarantine.notAllowed';
 const HELD_NOT_STARTED = 'scoring.quarantine.boutNotStarted';
 const HELD_BEFORE_RESET = 'scoring.quarantine.scoredBeforeReset';
+const HELD_LOCKED = 'scoring.quarantine.boutLocked';
+const BOUT_LOCKED = 'scoring.corrections.boutLocked';
 const NOT_STARTED = 'scoring.corrections.boutNotStarted';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
@@ -104,10 +106,12 @@ function levelAtTime(t: Translate, details: Record<string, unknown> | null): str
 /**
  * A correction on a finished bout lands whole or not at all (ruling 226), and
  * so does one on a closed round of a best-of series (ruling 247), and the undo
- * of a black card whose forfeit cannot be taken back (ruling 319). A Map: a
+ * of a black card whose forfeit cannot be taken back (ruling 319). So is any
+ * write to a locked bout (the API's `matchLocked`). A Map: a
  * server's `code` looked up in an object finds `constructor`.
  */
 const REFUSED_WHOLE = new Map([
+  ['match_locked', BOUT_LOCKED],
   ['correction_later_bout_fought', LATER_BOUT_FOUGHT],
   ['correction_leaves_bout_level', LEAVES_BOUT_LEVEL],
   ['correction_changes_closed_round', CLOSED_ROUND_RESULT],
@@ -127,6 +131,8 @@ export function heldReason(
   // Ruling 286: the bout was put back to unplayed after this hit was scored.
   if (held.rejectedCode === 'bout_not_started') return t(HELD_NOT_STARTED);
   if (held.rejectedCode === 'scored_before_reset') return t(HELD_BEFORE_RESET);
+  // The bout was locked while the hit waited: a Reopen cures it.
+  if (held.rejectedCode === 'match_locked') return t(HELD_LOCKED);
   // Ruling 242: the API's own code of a 403 that carries no other one.
   if (held.rejectedCode === 'FORBIDDEN') return t(HELD_NOT_ALLOWED);
   return held.rejectedReason;

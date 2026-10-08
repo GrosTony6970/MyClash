@@ -90,6 +90,20 @@ describe('heldReason', () => {
     );
   });
 
+  // The organiser locked the bout while the hit waited: an unlock cures it.
+  it('says a hit held because its bout is locked in the reader’s language, with Retry', () => {
+    const held = { rejectedReason: 'Match is locked', rejectedCode: 'match_locked' };
+
+    expect(heldReason(held, t)).toBe('scoring.quarantine.boutLocked');
+    expect(canSendAgain(held)).toBe(true);
+    expect(en.scoring.quarantine.boutLocked).toBe(
+      'This bout is locked, so the server did not accept this entry. It is held here, not lost. Reopen the bout, then retry.',
+    );
+    expect(fr.scoring.quarantine.boutLocked).toBe(
+      "Cet assaut est verrouillé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Rouvrez l'assaut, puis réessayez.",
+    );
+  });
+
   it('lets every other held hit be sent again', () => {
     expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'bout_not_started' })).toBe(true);
     expect(canSendAgain({ rejectedReason: 'x', rejectedCode: 'event_results_frozen' })).toBe(true);
@@ -204,6 +218,22 @@ describe('refusalMessage', () => {
         FALLBACK,
       ),
     ).toBe('scoring.corrections.boutNotStarted');
+  });
+
+  it('says the bout is locked, instead of the API sentence', () => {
+    expect(
+      refusalMessage(
+        refusal(400, { code: 'match_locked', detail: 'Match is locked' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.boutLocked');
+    expect(en.scoring.corrections.boutLocked).toBe(
+      'This bout is locked. Reopen it, then try again.',
+    );
+    expect(fr.scoring.corrections.boutLocked).toBe(
+      'Cet assaut est verrouillé. Rouvrez-le, puis réessayez.',
+    );
   });
 
   it('says the Event is over, instead of the API sentence', () => {

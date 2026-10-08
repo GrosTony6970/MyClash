@@ -353,10 +353,10 @@ export class SyncEngine {
    * server and try exactly once more. A second answer about the caller (a
    * 401, a 403) makes the hit wait, and a 409 is held with its own code, as a
    * first answer would. So does a second try that met no verdict (ruling 344):
-   * the hit stays in the queue. Only a second 400 holds it under the first.
+   * the hit stays in the queue. Only a second 400 holds it, under the first's words and code.
    */
   private async answerBadRequest(entry: OutboxEntry, res: Response): Promise<Filed> {
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    const body = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
     const retried = await this.retryWithFreshSequence(entry);
     if (retried && 'refused' in retried) return this.answerRefusal(entry, retried.refused);
     if (retried && 'unanswered' in retried) return this.fileUnanswered(entry, retried.unanswered);
@@ -375,7 +375,7 @@ export class SyncEngine {
     // scored. Moving it out of the outbox keeps the in-order queue draining,
     // and `emit` forces 'error' while any are held, so the bar cannot go green
     // over it.
-    await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`);
+    await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
     return 'held';
   }
 

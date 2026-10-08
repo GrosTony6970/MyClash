@@ -174,6 +174,8 @@ export const scoring = {
       "Cette saisie a été marquée avant la remise à zéro de l'assaut : le serveur ne l'a pas acceptée. Elle appartient au combat annulé. Supprimez-la ; si elle compte encore, ressaisissez-la à la main.",
     boutNotStarted:
       "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
+    boutLocked:
+      "Cet assaut est verrouillé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Rouvrez l'assaut, puis réessayez.",
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",
@@ -337,6 +339,7 @@ export const scoring = {
     eventOver:
       'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
     boutNotStarted: "Cet assaut n'est pas commencé. Démarrez-le, puis réessayez.",
+    boutLocked: 'Cet assaut est verrouillé. Rouvrez-le, puis réessayez.',
     accountCannotScore:
       "Le compte connecté sur cette tablette n'a pas de rôle pour scorer cet événement : rien ne sera enregistré. Déconnectez ce compte, ou adressez-vous à un organisateur.",
     pinDisabled:

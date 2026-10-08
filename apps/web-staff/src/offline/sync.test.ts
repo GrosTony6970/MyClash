@@ -249,7 +249,7 @@ describe('drain — a refused exchange (400)', () => {
     // Refuses at any sequence, so the re-derived retry fails too.
     mockExchangeApi({
       serverRows: [{ sequence: 9 }],
-      post: () => ({ status: 400, body: { message: 'Match is locked' } }),
+      post: () => ({ status: 400, body: { message: 'Match is locked', code: 'match_locked' } }),
     });
 
     await new SyncEngine(API_URL).drain();
@@ -259,8 +259,8 @@ describe('drain — a refused exchange (400)', () => {
     const held = await db.rejected.toArray();
     expect(held).toHaveLength(1);
     expect(held[0]?.clientUuid).toBe('uuid-bad');
-    // The server's own words — a 400 carries a real message (only 5xx is masked).
-    expect(held[0]?.rejectedReason).toBe('Match is locked');
+    expect(held[0]?.rejectedReason, 'a 400 carries the server’s own words').toBe('Match is locked');
+    expect(held[0]?.rejectedCode, 'the inbox says a code it knows').toBe('match_locked');
   });
 
   it('is re-sent once under a sequence derived from the server, and that succeeds', async () => {

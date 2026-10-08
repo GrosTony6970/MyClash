@@ -40,7 +40,15 @@ describe.each([
     expect(words).toBe(`${said} ${t('scoring.corrections.eventOver')}`);
   });
 
-  // A locked bout answers 400 `BAD_REQUEST` with an English sentence of the API.
+  // The commonest case: the organiser locked the bout before the wifi came back.
+  it('says why for a locked bout, in the pad’s own words', () => {
+    const words = refusedUndoWords(refusal(400, 'match_locked'), t);
+
+    expect(words).toBe(`${said} ${t('scoring.corrections.boutLocked')}`);
+    expect(words).not.toContain(API_WORDS);
+  });
+
+  // A plain 400 answers `BAD_REQUEST` with an English sentence of the API.
   it('says the refusal alone for a code it does not know, never the words of the API', () => {
     const words = refusedUndoWords(refusal(400, 'BAD_REQUEST'), t);
 
