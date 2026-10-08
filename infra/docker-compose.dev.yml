@@ -382,7 +382,10 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
-      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
+      # The auth server's own default (GOTRUE_JWT_SECRET): the API checks a login's
+      # signature with it when the auth server gives no answer, and counts the
+      # password tries of an account by it. Another default checked nothing.
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       # SupabaseService calls getOrThrow on all three of these, so the dev api
       # container could not boot without them — they were never passed here.
       # Mirrors prod: the client goes through Traefik (which owns the /auth/v1,
@@ -605,7 +608,7 @@ services:
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://api.myclash.localhost
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
-      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       NODE_TLS_REJECT_UNAUTHORIZED: '0'
