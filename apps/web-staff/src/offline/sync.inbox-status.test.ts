@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
-import { dequeueNewestForMatch, enqueue, getRejected, quarantine } from './outbox';
+import { enqueue, getPendingForMatch, getRejected, quarantine, takeOffTablet } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
 
 const API_URL = 'http://localhost:4000';
@@ -96,7 +96,7 @@ describe('Discard in the refused-hits inbox', () => {
   it('goes green once the last waiting hit was undone', async () => {
     // The pad's undo removes a waiting hit from the queue and emits nothing.
     const { engine, heldId, last } = await drained(401, 1);
-    await dequeueNewestForMatch('m1');
+    await takeOffTablet((await getPendingForMatch('m1'))[0]!, () => false);
 
     await engine.discardRejectedEntry(heldId);
 

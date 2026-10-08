@@ -11,6 +11,7 @@ import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
+import { watchUndone } from '../../../src/lib/watch-undone';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -89,6 +90,11 @@ export default function MatchScoringPage({ params }: Props) {
   const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);
   useSendEnded(syncEngine, readBoutAgain);
   useSignInWhenSessionEnded();
+  // An undo the tablet wrote down is settled with the server (ruling 350).
+  useEffect(
+    () => watchUndone({ engine: syncEngine, apiUrl, onSettled: readBoutAgain, win: window }),
+    [syncEngine, apiUrl, readBoutAgain],
+  );
 
   useEffect(() => {
     const handleOnline = () => {

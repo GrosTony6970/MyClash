@@ -42,7 +42,7 @@ import {
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
-import { takeBackNewest } from '../offline/take-back';
+import { takeBack } from '../offline/take-back';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
@@ -272,10 +272,10 @@ export function ScoringCenterControls({
   );
 
   /**
-   * Undo the newest hit or card of the bout (rulings 317, 318). The order and
-   * every fault are `undoLastEntry`'s: the tablet first, with no fetch at all
-   * for an entry that still waits there, which is what makes this work
-   * offline; else the newest entry the server holds, read fresh.
+   * Undo the newest hit or card of the bout (rulings 317, 318, 350). The order
+   * and every fault are `undoLastEntry`'s: the server is asked first, for a
+   * short time, and with no answer the undo works on the tablet alone, which
+   * is what makes this work offline.
    *
    * No local count to decrement: `onExchangeVoided` bumps the refresh key on
    * the same tick and the lifted outbox read follows.
@@ -289,7 +289,7 @@ export function ScoringCenterControls({
         apiUrl,
         matchId,
         t,
-        takeBack: (id) => (syncEngine ? syncEngine.takeBackNewest(id) : takeBackNewest(id)),
+        takeBack: (entry) => (syncEngine ? syncEngine.takeBack(entry) : takeBack(entry)),
       });
       if (outcome.kind === 'failed') {
         // No message: the bout holds no entry, so this list is old. Read it again.

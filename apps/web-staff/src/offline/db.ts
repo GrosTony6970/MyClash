@@ -5,6 +5,7 @@
  *   outbox   — pending exchanges waiting to be synced to the server
  *   synced   — exchanges confirmed by the server (kept for reconciliation)
  *   rejected — exchanges the server refused, held for the operator to retry
+ *   undone   — entries the undo took off the tablet, until the server was asked
  */
 
 import Dexie, { type Table } from 'dexie';
@@ -126,6 +127,18 @@ export interface RejectedEntry extends Omit<OutboxEntry, 'id'> {
   rejectedAt: number; // ms
 }
 
+/**
+ * An entry the undo took off the tablet (ruling 350). The server may hold it
+ * all the same: the answer to its send can be lost. Kept until the server was
+ * asked for it by `clientUuid` (`lib/settle-undone.ts`).
+ */
+export interface UndoneEntry {
+  clientUuid: string;
+  matchId: string;
+  /** When it was taken off the tablet (ms): one nobody could ask about for a day is let go. */
+  undoneAt: number;
+}
+
 // ── Database ──────────────────────────────────────────────────────────────────
 
 /**
@@ -150,11 +163,24 @@ export interface CachedRead {
   fetchedAt: number;
 }
 
+/**
+ * The four tables of v4. v5 adds `undone` (ruling 350) and states them again,
+ * for the reason v2's comment gives: a Dexie version states the WHOLE schema,
+ * not a delta. No upgrade function: an empty `undone` is the right start.
+ */
+const V4_STORES = {
+  outbox: '++id, matchId, clientUuid, createdAt',
+  synced: 'clientUuid, matchId, serverId',
+  rejected: '++id, matchId, clientUuid, rejectedAt',
+  reads: 'path',
+};
+
 export class ScoringDb extends Dexie {
   outbox!: Table<OutboxEntry, number>;
   synced!: Table<SyncedEntry, string>;
   rejected!: Table<RejectedEntry, number>;
   reads!: Table<CachedRead, string>;
+  undone!: Table<UndoneEntry, string>;
 
   constructor() {
     super('myclash-staff');
@@ -199,12 +225,8 @@ export class ScoringDb extends Dexie {
     // No upgrade function. An empty `reads` is the correct starting state — the
     // pad simply behaves as it did before until the first successful fetch
     // fills it.
-    this.version(4).stores({
-      outbox: '++id, matchId, clientUuid, createdAt',
-      synced: 'clientUuid, matchId, serverId',
-      rejected: '++id, matchId, clientUuid, rejectedAt',
-      reads: 'path',
-    });
+    this.version(4).stores(V4_STORES);
+    this.version(5).stores({ ...V4_STORES, undone: 'clientUuid' });
   }
 }
 

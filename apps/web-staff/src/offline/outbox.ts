@@ -9,7 +9,6 @@
 
 import { canSendAgain } from './can-send-again';
 import { db, type OutboxEntry, type RejectedEntry } from './db';
-import { newestOf } from './newest-entry';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -114,43 +113,6 @@ export async function clearMatch(matchId: string): Promise<void> {
   await db.outbox.where('matchId').equals(matchId).delete();
 }
 
-/** What the undo found on the tablet for a bout. Null: nothing waits there. */
-export type Dequeued = { removed: OutboxEntry } | { onItsWay: OutboxEntry } | null;
-
-/**
- * Drop the newest QUEUED hit or card of a match: the referee's undo, when the
- * entry has not reached the server yet (rulings 317, 318).
- *
- * Pending means "not on the server", so this is a local delete rather than a
- * void: it never creates a `voided` row for an entry that never left the
- * tablet, which is also why it is the right answer online and not merely the
- * offline fallback.
- *
- * Newest is the last line of the bout's list (`newestOf`), not the last row
- * added: a held hit sent again is added last and was scored first.
- *
- * The race is the send: the row may be the one whose POST is out, and a row
- * deleted here would then be on the server with the referee believing it
- * gone. So the row the send has claimed is NOT deleted: it is handed back as
- * `onItsWay`, and the caller waits for its answer. The claim is asked inside
- * this write transaction, and `claimForSend` notes it inside another: the
- * store runs the two one after the other, so either this sees the claim or
- * the send sees the delete.
- */
-export async function dequeueNewestForMatch(
-  matchId: string,
-  isOnItsWay: (id: number) => boolean = () => false,
-): Promise<Dequeued> {
-  return db.transaction('rw', db.outbox, async () => {
-    const pending = await db.outbox.where('matchId').equals(matchId).toArray();
-    const newest = newestOf(pending, (entry) => entry);
-    if (!newest?.id) return null;
-    if (isOnItsWay(newest.id)) return { onItsWay: newest };
-    await db.outbox.delete(newest.id);
-    return { removed: newest };
-  });
-}
-
 /**
  * The send's claim of one row, just before its POST: the row is read again and
  * the claim noted in ONE write transaction. False when the undo removed the
@@ -164,29 +126,46 @@ export async function claimForSend(id: number, note: (id: number) => void): Prom
   });
 }
 
+/** What the undo found on the tablet for one entry. */
+export type OffTablet = 'removed' | 'on-its-way' | { landed: string };
+
 /**
- * Remove an entry the undo waited for, once its send was answered and the
- * tablet does not know it as taken: it still waits (the answer was a failure)
- * or it is held (the server refused it). `on-its-way` when a new send claimed
- * it meanwhile. Found by its uuid, not its row id: a Retry puts a held entry
- * back in the queue under a new one.
+ * Take one hit or card off the tablet: the tablet's half of the referee's undo
+ * (rulings 317, 318, 350). Found by its uuid, not its row id: a Retry puts a
+ * held entry back in the queue under a new one.
  *
- * A failure is not proof the server took nothing: an answer can be lost on the
- * way back. Such a hit shows again at the next read of the bout, where the
- * undo takes it back on the server. The same holds for any waiting entry.
+ * `landed`: the server took it, under that id. `on-its-way`: its POST is out,
+ * and a row deleted now would be on the server with the referee believing it
+ * gone, so the caller waits for its answer. Else it is deleted where it waits
+ * (the queue) or where it is held (the server refused it), and written down
+ * in `undone`: a failed send is not proof the server took nothing, an answer
+ * can be lost on the way back, so the server is asked for it later.
+ *
+ * The races are the send's claim (`claimForSend`) and its filing
+ * (`markSynced`, `quarantine`). All are write transactions over tables this
+ * one holds, so the store runs each wholly before or wholly after it: this
+ * sees the claim or the send sees the delete, and an entry filed as taken is
+ * never read as "still waits".
  */
-export async function removeUnsent(
-  entry: OutboxEntry,
+export async function takeOffTablet(
+  entry: Pick<OutboxEntry, 'clientUuid' | 'matchId'>,
   isOnItsWay: (id: number) => boolean,
-): Promise<'removed' | 'on-its-way'> {
-  return db.transaction('rw', db.outbox, db.rejected, async () => {
+): Promise<OffTablet> {
+  return db.transaction('rw', db.outbox, db.synced, db.rejected, db.undone, async () => {
+    const landed = await db.synced.get(entry.clientUuid);
+    if (landed) return { landed: landed.serverId };
     const waiting = await db.outbox.where('clientUuid').equals(entry.clientUuid).first();
     if (waiting?.id !== undefined) {
       if (isOnItsWay(waiting.id)) return 'on-its-way';
       await db.outbox.delete(waiting.id);
-      return 'removed';
+    } else {
+      await db.rejected.where('clientUuid').equals(entry.clientUuid).delete();
     }
-    await db.rejected.where('clientUuid').equals(entry.clientUuid).delete();
+    await db.undone.put({
+      clientUuid: entry.clientUuid,
+      matchId: entry.matchId,
+      undoneAt: Date.now(),
+    });
     return 'removed';
   });
 }
@@ -253,6 +232,8 @@ export async function requeueRejected(): Promise<number> {
 
   await db.transaction('rw', db.outbox, db.rejected, async () => {
     for (const entry of entries) {
+      // Listed outside this transaction: the undo may have removed it since.
+      if (entry.id === undefined || !(await db.rejected.get(entry.id))) continue;
       const {
         id,
         rejectedReason: _reason,

@@ -2,11 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { TakenBack } from '../offline/take-back';
-import { undoLastEntry, voidOnServer } from './clear-last';
+import { voidOnServer } from './clear-last';
 
 /**
- * "Undo last entry": the newest hit or card of a bout, wherever it is.
+ * "Undo last entry": the void of one entry the server holds, and the screen's wiring.
  *
  * On an over Event the server does not void the hit of an organiser's account:
  * it files a correction request and answers 202. The pad read that as a void
@@ -114,179 +113,13 @@ describe('voidOnServer', () => {
   });
 });
 
-/** The server's lists of one bout, and what it answers to a void. */
-function server(lists: {
-  hits?: unknown;
-  cards?: unknown;
-  hitsStatus?: number;
-  cardsStatus?: number;
-}) {
-  const fetchMock = vi.fn().mockImplementation((url: string, init?: { method?: string }) => {
-    if (init?.method === 'PATCH') return Promise.resolve(json(200, { voided: true }));
-    return Promise.resolve(
-      url.endsWith('/exchanges')
-        ? json(lists.hitsStatus ?? 200, lists.hits ?? [])
-        : json(lists.cardsStatus ?? 200, lists.cards ?? []),
-    );
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  const calls = () =>
-    (fetchMock.mock.calls as Call[]).map(([url, init]) => [
-      init?.method ?? 'GET',
-      url.replace(API_URL, ''),
-    ]);
-  return { calls };
-}
-
-const at = (minute: number) => `2026-10-06T10:${String(minute).padStart(2, '0')}:00.000Z`;
-const hit = (id: string, minute: number, over: object = {}) => ({
-  id,
-  sequence: minute,
-  voided: false,
-  occurredAt: at(minute),
-  ...over,
-});
-const card = (id: string, minute: number, over: object = {}) => ({
-  id,
-  sequence: minute,
-  voided: false,
-  occurred_at: at(minute),
-  ...over,
-});
-
-const undo = (taken: TakenBack) => {
-  const takeBack = vi.fn().mockResolvedValue(taken);
-  return { takeBack, run: () => undoLastEntry({ apiUrl: API_URL, matchId: 'm1', t, takeBack }) };
-};
-const NONE: TakenBack = { kind: 'none' };
-const landed = (entry: object, serverId: string) =>
-  ({ kind: 'landed', entry: { clientUuid: 'uuid-1', ...entry }, serverId }) as TakenBack;
-
-describe('undoLastEntry: the tablet first', () => {
-  it('an entry removed on the tablet is undone with no call at all', async () => {
-    const { calls } = server({});
-    const { takeBack, run } = undo({ kind: 'removed' });
-
-    await expect(run()).resolves.toEqual({ kind: 'voided' });
-
-    expect(takeBack).toHaveBeenCalledWith('m1');
-    expect(calls()).toEqual([]);
-  });
-
-  it('a hit that landed while the undo waited is voided by the id the server gave it', async () => {
-    const { calls } = server({ hits: [hit('ex-newer', 9)] });
-
-    await expect(undo(landed({}, 'srv-1')).run()).resolves.toEqual({ kind: 'voided' });
-
-    expect(calls()).toEqual([['PATCH', '/api/v1/exchanges/srv-1/void']]);
-  });
-
-  it('a card that landed is voided by the card’s route', async () => {
-    const { calls } = server({});
-
-    await undo(landed({ kind: 'penalty' }, 'srv-card')).run();
-
-    expect(calls()).toEqual([['PATCH', '/api/v1/match-penalties/srv-card/void']]);
-  });
-
-  // The answer carried no id: the store kept the entry's own uuid (a second try), or none.
-  it.each(['uuid-1', ''])(
-    'a landed entry with no id of the server (%j) is found by the fresh read',
-    async (serverId) => {
-      const { calls } = server({ hits: [hit('ex-2', 2)] });
-
-      await undo(landed({}, serverId)).run();
-
-      expect(calls().at(-1)).toEqual(['PATCH', '/api/v1/exchanges/ex-2/void']);
-    },
-  );
-});
-
-describe('undoLastEntry: the newest entry the server holds, read fresh', () => {
-  it('reads the bout’s hits and cards, then voids the newest hit', async () => {
-    const { calls } = server({
-      hits: [hit('ex-1', 1), hit('ex-3', 3)],
-      cards: [card('card-2', 2)],
-    });
-
-    await expect(undo(NONE).run()).resolves.toEqual({ kind: 'voided' });
-
-    expect(calls()).toEqual([
-      ['GET', '/api/v1/matches/m1/exchanges'],
-      ['GET', '/api/v1/matches/m1/penalties'],
-      ['PATCH', '/api/v1/exchanges/ex-3/void'],
-    ]);
-  });
-
-  it('voids the card when the card is the newest (ruling 318)', async () => {
-    const { calls } = server({ hits: [hit('ex-1', 1)], cards: [card('card-2', 2)] });
-
-    await undo(NONE).run();
-
-    expect(calls().at(-1)).toEqual(['PATCH', '/api/v1/match-penalties/card-2/void']);
-  });
-
-  it('newest is by the time scored, not by the order of the list', async () => {
-    const { calls } = server({ hits: [hit('ex-late', 8, { sequence: 1 }), hit('ex-early', 2)] });
-
-    await undo(NONE).run();
-
-    expect(calls().at(-1)).toEqual(['PATCH', '/api/v1/exchanges/ex-late/void']);
-  });
-
-  it('passes over a voided entry', async () => {
-    const { calls } = server({
-      hits: [hit('ex-1', 1), hit('ex-3', 3, { voided: true })],
-      cards: [card('card-4', 4, { voided: true })],
-    });
-
-    await undo(NONE).run();
-
-    expect(calls().at(-1)).toEqual(['PATCH', '/api/v1/exchanges/ex-1/void']);
-  });
-
-  it('a bout with no live entry: nothing is asked, nothing is said', async () => {
-    const { calls } = server({ hits: [hit('ex-1', 1, { voided: true })] });
-
-    await expect(undo(NONE).run()).resolves.toEqual({ kind: 'failed', message: null });
-    expect(calls().filter(([method]) => method === 'PATCH')).toEqual([]);
-  });
-
-  it.each<['hitsStatus' | 'cardsStatus']>([['hitsStatus'], ['cardsStatus']])(
-    'a failed read (%s) removes nothing: a hit is never picked on half the list',
-    async (which) => {
-      const { calls } = server({
-        hits: [hit('ex-1', 1)],
-        cards: [card('card-2', 2)],
-        [which]: 500,
-      });
-
-      // Said as a failure: "nothing to undo" (no message) would be a lie here.
-      await expect(undo(NONE).run()).resolves.toEqual({
-        kind: 'failed',
-        message: 'scoring.corrections.clearLastFailed',
-      });
-      expect(calls().filter(([method]) => method === 'PATCH')).toEqual([]);
-    },
-  );
-
-  it('offline with nothing on the tablet says "online required"', async () => {
-    server({ hitsStatus: 503, cardsStatus: 503 });
-
-    await expect(undo(NONE).run()).resolves.toEqual({
-      kind: 'failed',
-      message: 'scoring.corrections.onlineOnly',
-    });
-  });
-});
-
 describe('the bout screen', () => {
   const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
   const screen = read('components', 'ScoringCenterControls.tsx');
 
   it('hands the undo to the module, with the engine’s take-back', () => {
     expect(screen).toMatch(
-      /await undoLastEntry\(\{\s+apiUrl,\s+matchId,\s+t,\s+takeBack: \(id\) => \(syncEngine \? syncEngine\.takeBackNewest\(id\) : takeBackNewest\(id\)\),\s+\}\);/,
+      /await undoLastEntry\(\{\s+apiUrl,\s+matchId,\s+t,\s+takeBack: \(entry\) => \(syncEngine \? syncEngine\.takeBack\(entry\) : takeBack\(entry\)\),\s+\}\);/,
     );
   });
 

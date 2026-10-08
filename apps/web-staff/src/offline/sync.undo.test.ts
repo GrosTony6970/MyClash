@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
 import * as outbox from './outbox';
-import { enqueue, getAllPending, getRejected } from './outbox';
+import { enqueue, getAllPending, getPendingForMatch, getRejected } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
 
 const API_URL = 'http://localhost:4000';
@@ -22,8 +22,12 @@ beforeEach(async () => {
   await db.outbox.clear();
   await db.synced.clear();
   await db.rejected.clear();
+  await db.undone.clear();
   vi.restoreAllMocks();
 });
+
+/** The entry the referee undoes in these cases: the last one queued for the bout. */
+const newest = async () => (await getPendingForMatch('m1')).at(-1)!;
 
 type Answer = { status: number; body: unknown };
 
@@ -80,7 +84,7 @@ describe('the undo of a hit pressed while another is on its way', () => {
     await addHit(2, 'uuid-2');
     engine.sendBehind();
 
-    await expect(engine.takeBackNewest('m1')).resolves.toEqual({ kind: 'removed' });
+    await expect(engine.takeBack(await newest())).resolves.toEqual({ kind: 'removed' });
     await answer(SAVED);
     await first;
 
@@ -93,7 +97,7 @@ describe('the undo of a hit pressed while another is on its way', () => {
     // Listed at the start of the pass, behind the hit that is out.
     const { engine, first, posted, answer } = await sending(2);
 
-    await expect(engine.takeBackNewest('m1')).resolves.toEqual({ kind: 'removed' });
+    await expect(engine.takeBack(await newest())).resolves.toEqual({ kind: 'removed' });
     await answer(SAVED);
     await vi.waitFor(() => expect(posted).toHaveLength(2));
     await answer(SAVED);
@@ -106,7 +110,7 @@ describe('the undo of a hit pressed while another is on its way', () => {
   it('says the new count, and the send ends green', async () => {
     const { engine, states, first, answer } = await sending(1);
 
-    await engine.takeBackNewest('m1');
+    await engine.takeBack(await newest());
     expect(states.at(-1)).toMatchObject({ status: 'syncing', pendingCount: 1 });
     await answer(SAVED);
     await first;
@@ -129,7 +133,7 @@ describe('the undo of a hit pressed while another is on its way', () => {
     await vi.waitFor(() => expect(api.posted).toEqual(['uuid-1']));
     const failed = { status: 500, body: { message: 'boom' } };
 
-    await engine.takeBackNewest('m1');
+    await engine.takeBack(await newest());
     for (const sent of [1, 2, 3]) {
       await vi.waitFor(() => expect(api.posted).toHaveLength(sent));
       await api.answer(failed);
@@ -147,7 +151,7 @@ describe('the undo of the hit that is on its way', () => {
     const { engine, first, answer } = await sending();
     let taken: unknown = 'waiting';
 
-    const undo = engine.takeBackNewest('m1').then((result) => (taken = result));
+    const undo = engine.takeBack(await newest()).then((result) => (taken = result));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(taken, 'nothing is decided before the server answers').toBe('waiting');
     expect(await getAllPending(), 'and the row is not deleted under the send').toHaveLength(1);
@@ -155,17 +159,13 @@ describe('the undo of the hit that is on its way', () => {
     await answer(SAVED);
     await Promise.all([undo, first]);
 
-    expect(taken).toMatchObject({
-      kind: 'landed',
-      serverId: 'srv-1',
-      entry: { clientUuid: 'uuid-1' },
-    });
+    expect(taken).toEqual({ kind: 'landed', serverId: 'srv-1' });
   });
 
   it('a hit the server refused is discarded from the held ones', async () => {
     const { engine, states, first, answer } = await sending();
 
-    const undo = engine.takeBackNewest('m1');
+    const undo = engine.takeBack(await newest());
     await answer({ status: 409, body: { message: 'Event results are frozen', code: 'x' } });
 
     await expect(undo).resolves.toEqual({ kind: 'removed' });
@@ -178,7 +178,7 @@ describe('the undo of the hit that is on its way', () => {
   it('a hit whose send failed is removed from the tablet', async () => {
     const { engine, first, answer } = await sending();
 
-    const undo = engine.takeBackNewest('m1');
+    const undo = engine.takeBack(await newest());
     await answer({ status: 500, body: { message: 'boom' } });
 
     await expect(undo).resolves.toEqual({ kind: 'removed' });
@@ -189,7 +189,7 @@ describe('the undo of the hit that is on its way', () => {
   it('a hit that waits for a signed-out pad is removed from the tablet', async () => {
     const { engine, states, first, answer } = await sending();
 
-    const undo = engine.takeBackNewest('m1');
+    const undo = engine.takeBack(await newest());
     await answer({ status: 401, body: {} });
 
     await expect(undo).resolves.toEqual({ kind: 'removed' });
@@ -210,7 +210,7 @@ describe('the undo and the send’s claim of the same row', () => {
 
     const first = engine.drain();
     await vi.waitFor(() => expect(claim).toHaveBeenCalled());
-    const undo = engine.takeBackNewest('m1');
+    const undo = engine.takeBack(await newest());
     await vi.waitFor(() => expect(api.posted).toEqual(['uuid-1']));
     expect(await getAllPending()).toHaveLength(1);
     await api.answer(SAVED);
@@ -225,7 +225,7 @@ describe('the undo and the send’s claim of the same row', () => {
     const engine = new SyncEngine(API_URL);
 
     // Asked before the send starts: its delete is queued ahead of the claim.
-    const undo = engine.takeBackNewest('m1');
+    const undo = engine.takeBack(await newest());
     const first = engine.drain();
 
     await expect(undo).resolves.toEqual({ kind: 'removed' });
@@ -243,18 +243,17 @@ describe('the undo with no send running', () => {
     const states: SyncState[] = [];
     engine.subscribe((state) => states.push(state));
 
-    await expect(engine.takeBackNewest('m1')).resolves.toEqual({ kind: 'removed' });
+    await expect(engine.takeBack(await newest())).resolves.toEqual({ kind: 'removed' });
 
     expect((await getAllPending()).map((entry) => entry.clientUuid)).toEqual(['uuid-other']);
     expect(states.at(-1)).toMatchObject({ pendingCount: 1 });
   });
 
-  it('answers "none" when nothing waits for the bout, and says nothing', async () => {
-    const engine = new SyncEngine(API_URL);
-    const states: SyncState[] = [];
-    engine.subscribe((state) => states.push(state));
+  it('writes the removed hit down, for the server to be asked (ruling 350)', async () => {
+    await addHit(1, 'uuid-1');
 
-    await expect(engine.takeBackNewest('m1')).resolves.toEqual({ kind: 'none' });
-    expect(states).toEqual([]);
+    await new SyncEngine(API_URL).takeBack(await newest());
+
+    expect(await db.undone.toArray()).toMatchObject([{ clientUuid: 'uuid-1', matchId: 'm1' }]);
   });
 });

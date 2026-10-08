@@ -1233,22 +1233,31 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > the account through `SupabaseService.getAuthUser`, so an auth server that does not answer does
 > not make a signed-in organiser read as nobody.
 >
-> **The undo (rulings 317, 318, 320).** "Undo last entry" takes back the newest hit or card of
-> the bout: the last line of its list, by the time it was scored, then its sequence
+> **The undo (rulings 317, 318, 320, 350).** "Undo last entry" takes back the newest hit or card
+> of the bout: the last line of its list, by the time it was scored, then its sequence
 > (`offline/newest-entry.ts`). `lib/clear-last.ts` `undoLastEntry` owns the order and the
-> faults. The tablet first: an entry that still waits there is deleted, with no call, which is
-> what works offline. The one row a send has out is never deleted: the send claims a row just
-> before its POST (`claimForSend`), the undo checks that claim (`dequeueNewestForMatch`), and
-> both are write transactions on the outbox, so the undo sees the claim or the send sees the
-> delete and skips the row. For the row that is out the undo waits for that one answer
-> (`SyncEngine.takeBackNewest`, `offline/take-back.ts`): landed, it is voided on the server by
-> its id; refused or failed, it is removed from the tablet (a failure is not proof the server
-> took nothing: a hit it did take shows at the next read, and is undone there). The tablet is
-> asked first, so an older entry that still waits there goes before a newer one the server
-> holds. With nothing on the tablet the undo
-> reads the bout's hits and cards fresh from the server, never the screen's lists, and voids the
-> newest live one by its own route. A failed read removes nothing. A black card's void takes its
-> forfeit back (ruling 319, §6).
+> faults. The server is asked first (`lib/server-entries.ts` `readServerEntries`): a read for
+> who may score the bout, alone, then its hits and cards, the whole read held to 4 seconds. The
+> two lists are public reads that answer an empty list to a caller they do not know, so no list
+> is trusted before the first read passed. The newest entry is the last line of the server's
+> live entries and the tablet's waiting ones together (`newestToUndo`); a waiting entry the
+> server holds is one entry, the server's, since the answer to a send can be lost. A server
+> entry is voided by its own route, and its copy leaves the tablet. A tablet entry is taken off
+> the tablet (`takeOffTablet`, one write transaction over the queue, the sent, the held and the
+> `undone` tables) and written down in `undone`; the server is then asked for it by its
+> `client_uuid` and voids it if it holds it (`lib/settle-undone.ts` `settleUndone`, one run at
+> a time). With no answer of the server the undo works on the tablet alone, which is what works
+> offline, and the entry stays written down: while a bout screen is open the pad settles what
+> is written down when the network is back, at each end of a send and every 15 seconds
+> (`lib/watch-undone.ts`), one run at a time. A request the API judged and refused (a coded
+> 400, 404 or 409: the bout is locked or gone, its Event is over) forgets the entry, and the
+> screen reads the bout again: the hit is on the list. No answer, a 401 and a 403 keep it: those
+> are about who is signed in. An entry nobody could ask about for a day is let go. The one row a send has out is never deleted: the send claims a row just before its POST
+> (`claimForSend`), `takeOffTablet` checks that claim, and both are write transactions on the
+> outbox, so the undo sees the claim or the send sees the delete and skips the row. For the row
+> that is out the undo waits for that one answer (`SyncEngine.takeBack`,
+> `offline/take-back.ts`): landed, it is voided on the server by its id. A black card's void
+> takes its forfeit back (ruling 319, §6).
 >
 > **A press and the send (ruling 316).** No press waits for the send. A hit or a card is written
 > on the tablet, the press asks for a send that runs behind (`SyncEngine.sendBehind`), and its

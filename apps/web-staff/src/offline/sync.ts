@@ -30,7 +30,7 @@ import { canSendAgain } from './can-send-again';
 import type { OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
-import { takeBackNewest, type TakenBack } from './take-back';
+import { takeBack, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -505,7 +505,7 @@ export class SyncEngine {
 
   /**
    * Claim one row, send it, file its answer, let it go. The race is the undo
-   * (`takeBackNewest`): it may delete a row this pass has listed and not yet
+   * (`takeBack`): it may delete a row this pass has listed and not yet
    * sent, never the one that is out. `filed` is set before the claim is asked,
    * so an undo that meets the claim always has this answer to wait for.
    */
@@ -524,11 +524,11 @@ export class SyncEngine {
   }
 
   /**
-   * The pad's undo of what waits on the tablet for a bout (rulings 317, 318).
+   * The pad's undo of one entry that waits on the tablet (rulings 317, 350).
    * A removal changes the count, so the state is said again.
    */
-  async takeBackNewest(matchId: string): Promise<TakenBack> {
-    const taken = await takeBackNewest(matchId, {
+  async takeBack(entry: OutboxEntry): Promise<TakenBack> {
+    const taken = await takeBack(entry, {
       isOnItsWay: (id) => this.sendingId === id,
       whenFiled: () => this.filed,
     });
@@ -649,7 +649,7 @@ export class SyncEngine {
     this.aborted = true;
   }
 
-  /** Is a send running right now? The undo no longer asks (`takeBackNewest`): tests do. */
+  /** Is a send running right now? The undo no longer asks (`takeBack`): tests do. */
   isDraining(): boolean {
     return this.running;
   }

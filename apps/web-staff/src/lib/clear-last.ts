@@ -1,23 +1,16 @@
-import { apiRequest, failureCode, type ApiFailure } from '@myclash/api-client';
-import { createTranslator } from '@myclash/i18n/runtime';
-import { messages } from '@myclash/i18n/staff';
-import type { ExchangeRow, Penalty } from '@myclash/ui';
+import { failureCode, type ApiFailure } from '@myclash/api-client';
+import type { OutboxEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { newestOf } from '../offline/newest-entry';
+import { getPendingForMatch } from '../offline/outbox';
 import type { TakenBack } from '../offline/take-back';
+import { forgetUndone } from '../offline/undone';
 import { refusalMessage } from './refusal-copy';
+import { readServerEntries, type ServerRow } from './server-entries';
+import { settleUndone } from './settle-undone';
+import { askVoid, type ServerEntry } from './void-entry';
 
 type Translate = Parameters<typeof refusalMessage>[1];
-
-/**
- * Saved on the hit or the card, and on the request for review when the Event
- * is over. The reviewer may read either language, so it is one sentence in
- * both, French first, as a notice is (ruling 258). Not the referee's language:
- * `t` is.
- */
-const CLEAR_LAST_REASON = [messages.fr, messages.en]
-  .map((tree) => createTranslator(tree)('scoring.corrections.clearLastReason'))
-  .join(' / ');
 
 export type ClearLastOutcome =
   /** The entry is gone: deleted on the tablet, or voided on the server. */
@@ -30,17 +23,6 @@ export type ClearLastOutcome =
   | { kind: 'sent-for-review' }
   /** `message` is null when there is nothing to say (the bout holds no entry). */
   | { kind: 'failed'; message: string | null };
-
-/** One entry the server holds: a hit or a card, each voided by its own route. */
-export interface ServerEntry {
-  kind: 'exchange' | 'penalty';
-  id: string;
-}
-
-const VOID_PATH: Record<ServerEntry['kind'], (id: string) => string> = {
-  exchange: (id) => `/api/v1/exchanges/${id}/void`,
-  penalty: (id) => `/api/v1/match-penalties/${id}/void`,
-};
 
 /**
  * Still the classifier the outbox drain uses, so the pad keeps ONE failure
@@ -71,76 +53,117 @@ export async function voidOnServer(
   entry: ServerEntry,
   t: Translate,
 ): Promise<ClearLastOutcome> {
-  const result = await apiRequest<{ pendingReview?: boolean } | null>(
-    apiUrl,
-    VOID_PATH[entry.kind](entry.id),
-    { method: 'PATCH', body: { reason: CLEAR_LAST_REASON } },
-  );
+  const result = await askVoid(apiUrl, entry);
   if (result.ok) return { kind: result.data?.pendingReview ? 'sent-for-review' : 'voided' };
   return failed(result, t);
 }
 
+/** The entry an undo takes back: one the server holds, or one that waits on the tablet. */
+export type ToUndo = { where: 'server'; row: ServerRow } | { where: 'tablet'; entry: OutboxEntry };
+
 /**
- * The newest live entry the server holds for a bout, read NOW. Never the
- * screen's lists: they are read again only when a send has ended, so during
- * one they miss the hits it has already delivered, and the undo voided the
- * hit before the one just pressed. Both reads must answer: a card may be the
- * newest, so a hit is not picked on half the list.
+ * The last line of the bout's list, as the screen draws it: the server's live
+ * entries, then the tablet's waiting ones that no live server entry is. A
+ * waiting entry the server holds is ONE entry, the server's (its answer was
+ * lost on the way back). `rows` is null when the server could not be asked:
+ * the tablet's entries are all there is to go on.
  */
-async function newestOnServer(
-  apiUrl: string,
-  matchId: string,
-): Promise<{ entry: ServerEntry | undefined } | { failure: ApiFailure }> {
-  const [hits, cards] = await Promise.all([
-    apiRequest<ExchangeRow[]>(apiUrl, `/api/v1/matches/${matchId}/exchanges`),
-    apiRequest<Penalty[]>(apiUrl, `/api/v1/matches/${matchId}/penalties`),
-  ]);
-  if (!hits.ok) return { failure: hits };
-  if (!cards.ok) return { failure: cards };
-  const live = [
-    ...hits.data.map((hit) => ({
-      kind: 'exchange' as const,
-      id: hit.id,
-      voided: hit.voided,
-      occurredAt: hit.occurredAt,
-      sequence: hit.sequence,
-    })),
-    ...cards.data.map((card) => ({
-      kind: 'penalty' as const,
-      id: card.id,
-      voided: card.voided,
-      occurredAt: card.occurred_at ?? '',
-      sequence: card.sequence,
-    })),
-  ].filter((entry) => !entry.voided);
-  return { entry: newestOf(live, (entry) => entry) };
+export function newestToUndo(rows: ServerRow[] | null, waiting: OutboxEntry[]): ToUndo | undefined {
+  const live = (rows ?? []).filter((row) => !row.voided);
+  const held = new Set(live.map((row) => row.clientUuid));
+  const list: ToUndo[] = [
+    ...live.map((row) => ({ where: 'server' as const, row })),
+    ...waiting
+      .filter((entry) => !held.has(entry.clientUuid))
+      .map((entry) => ({ where: 'tablet' as const, entry })),
+  ];
+  return newestOf(list, (line) => (line.where === 'server' ? line.row : line.entry));
+}
+
+interface UndoDeps {
+  apiUrl: string;
+  matchId: string;
+  t: Translate;
+  takeBack: (entry: OutboxEntry) => Promise<TakenBack>;
+}
+
+/** The server holds the newest entry: it is voided there, and its copy leaves the tablet. */
+async function undoOnServer(
+  deps: UndoDeps,
+  row: ServerRow,
+  waiting: OutboxEntry[],
+): Promise<ClearLastOutcome> {
+  const outcome = await voidOnServer(deps.apiUrl, row, deps.t);
+  const copy = waiting.find((entry) => entry.clientUuid === row.clientUuid);
+  if (outcome.kind === 'voided' && copy) {
+    // The void landed whatever happens here: a copy that stays is sent again, and the
+    // server answers it with the voided entry it holds.
+    try {
+      await deps.takeBack(copy);
+      await forgetUndone(copy.clientUuid);
+    } catch (err) {
+      console.error('[undo] the copy of a voided entry stayed on the tablet', err);
+    }
+  }
+  return outcome;
+}
+
+/** The server took it while the undo waited: voided by its id, read again when it gave none. */
+async function undoLanded(
+  deps: UndoDeps,
+  entry: OutboxEntry,
+  serverId: string,
+): Promise<ClearLastOutcome> {
+  const { apiUrl, t } = deps;
+  const kind = entry.kind ?? 'exchange';
+  // No id (the store kept none, or the entry's own uuid after a second try).
+  if (serverId && serverId !== entry.clientUuid) {
+    return voidOnServer(apiUrl, { kind, id: serverId }, t);
+  }
+  const read = await readServerEntries(apiUrl, deps.matchId);
+  if ('failure' in read) return failed(read.failure, t);
+  const held = read.rows.find((row) => row.clientUuid === entry.clientUuid && !row.voided);
+  return held ? voidOnServer(apiUrl, held, t) : { kind: 'failed', message: null };
+}
+
+/**
+ * The newest entry waits on the tablet. Off the tablet it is written down
+ * (`takeOffTablet`); then the server is asked for it, by the settle. A server
+ * that could not be asked a moment ago is not asked again: the entry stays
+ * written down, and the screen's watcher settles it later.
+ */
+async function undoOnTablet(
+  deps: UndoDeps,
+  entry: OutboxEntry,
+  serverAnswered: boolean,
+): Promise<ClearLastOutcome> {
+  const taken = await deps.takeBack(entry);
+  if (taken.kind === 'landed') return undoLanded(deps, entry, taken.serverId);
+  if (!serverAnswered) return { kind: 'voided' };
+  const settled = (await settleUndone(deps.apiUrl, deps.matchId)).get(entry.clientUuid);
+  if (settled === 'review') return { kind: 'sent-for-review' };
+  if (typeof settled === 'object') return failed(settled.refused, deps.t);
+  // Also when the screen's watcher settled it first: it reads the bout again itself.
+  return { kind: 'voided' };
 }
 
 /**
  * "Undo last entry": take back the newest hit or card of a bout, wherever it
- * is (rulings 317, 318).
+ * is (rulings 317, 318, 350).
  *
- * The tablet first: an entry that waits there has not reached the server, and
- * deleting it needs no network. `takeBack` waits for the answer of an entry
- * that is on its way, and names it when the server took it: that one is voided
- * by its id. An answer can carry no id (the store then keeps none, or the
- * entry's own uuid after a second try): the fresh read finds it. With nothing
- * on the tablet the newest entry is the server's.
+ * The server is asked first, for a short time: the newest entry is the last
+ * line of the server's entries and the tablet's waiting ones together. With
+ * no answer the undo works on the tablet alone, as it does offline. The
+ * tablet's entries are read at the tap, before the server: a hit pressed
+ * during the read is not the one undone.
  */
-export async function undoLastEntry(deps: {
-  apiUrl: string;
-  matchId: string;
-  t: Translate;
-  takeBack: (matchId: string) => Promise<TakenBack>;
-}): Promise<ClearLastOutcome> {
-  const { apiUrl, matchId, t } = deps;
-  const taken = await deps.takeBack(matchId);
-  if (taken.kind === 'removed') return { kind: 'voided' };
-  if (taken.kind === 'landed' && taken.serverId && taken.serverId !== taken.entry.clientUuid) {
-    return voidOnServer(apiUrl, { kind: taken.entry.kind ?? 'exchange', id: taken.serverId }, t);
+export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
+  const waiting = await getPendingForMatch(deps.matchId);
+  const read = await readServerEntries(deps.apiUrl, deps.matchId);
+  const newest = newestToUndo('rows' in read ? read.rows : null, waiting);
+  if (!newest) {
+    return 'failure' in read ? failed(read.failure, deps.t) : { kind: 'failed', message: null };
   }
-  const newest = await newestOnServer(apiUrl, matchId);
-  if ('failure' in newest) return failed(newest.failure, t);
-  if (!newest.entry) return { kind: 'failed', message: null };
-  return voidOnServer(apiUrl, newest.entry, t);
+  if (newest.where === 'server') return undoOnServer(deps, newest.row, waiting);
+  return undoOnTablet(deps, newest.entry, 'rows' in read);
 }
