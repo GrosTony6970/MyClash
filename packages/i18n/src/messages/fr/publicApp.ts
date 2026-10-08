@@ -975,8 +975,6 @@ export const publicApp = {
       changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
       confirmationMismatch: 'Tapez DELETE (majuscules) dans le champ de confirmation.',
       deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
-      noPasswordSet:
-        "Vous n'avez pas encore de mot de passe. Définissez-en un via « Modifier le mot de passe » puis revenez pour supprimer.",
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',
       sessionEnded: 'Votre session a expiré.',
       signInAgain: 'Se reconnecter',

@@ -243,9 +243,9 @@ export class MeController {
    *
    * Irreversibly delete the current user's auth row and strip
    * claim linkages on global_persons + persons (history rows
-   * survive). Requires the current password and literal 'DELETE'
-   * confirmation. v1 refuses for users without a password
-   * identity — they should set one via change-password first.
+   * survive). Requires the literal 'DELETE' confirmation, and the
+   * current password of an account that has one: a Google-only
+   * account is deleted on the typed word alone.
    */
   @Delete('me/account')
   @HttpCode(HttpStatus.OK)
@@ -253,7 +253,7 @@ export class MeController {
   @ApiResponse({ status: 200, description: 'Account deleted; cookies cleared' })
   @ApiResponse({
     status: 400,
-    description: 'Confirmation typo / Google-only user (no_password_set)',
+    description: 'Confirmation typo (confirmation_mismatch)',
   })
   @ApiResponse({ status: 401, description: 'No session' })
   @ApiResponse({ status: 403, description: 'Wrong current password (wrong_current_password)' })

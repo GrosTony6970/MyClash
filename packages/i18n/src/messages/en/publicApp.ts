@@ -967,8 +967,6 @@ export const publicApp = {
       changePasswordFailed: 'Could not update the password. Try again.',
       confirmationMismatch: 'Type DELETE (uppercase) in the confirmation field.',
       deleteFailed: 'Could not delete the account. Try again.',
-      noPasswordSet:
-        "You don't have a password yet. Set one via Change password first, then come back to delete.",
       network: 'Could not reach the MyClash server. Try again.',
       sessionEnded: 'Your session has ended.',
       signInAgain: 'Sign in again',

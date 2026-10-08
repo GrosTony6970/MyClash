@@ -1456,9 +1456,9 @@ export class AuthService {
    * global_persons + persons (history rows survive), removes
    * pending tokens/requests by the user, then deletes the
    * auth.users row via Supabase admin. Idempotent on the row-strip
-   * step; the auth delete is the one-shot. Refuses for users
-   * without a password identity (v1) with a hint to set a password
-   * via the change-password flow first.
+   * step; the auth delete is the one-shot. An account with a
+   * password confirms it again; a Google-only account is deleted on
+   * the typed confirmation alone.
    */
   async deleteAccount(
     request: FastifyRequest,

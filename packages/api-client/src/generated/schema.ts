@@ -12878,7 +12878,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Confirmation typo / Google-only user (no_password_set) */
+      /** @description Confirmation typo (confirmation_mismatch) */
       400: {
         headers: {
           [name: string]: unknown;

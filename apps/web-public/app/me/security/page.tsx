@@ -11,15 +11,12 @@ import { DataAndPrivacySection } from './DataAndPrivacySection';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
+  readSecurityStatus,
   requestAccountDeletion,
   requestPasswordChange,
+  type SecurityStatus,
 } from './security-requests';
 import { SessionEnded } from './SessionEnded';
-
-interface SecurityStatus {
-  hasPassword: boolean;
-  email: string | null;
-}
 
 export default function SecurityPage() {
   const { t } = useI18n();
@@ -29,25 +26,12 @@ export default function SecurityPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // Inline fetch keeps setState inside Promise callbacks (vs. being
-    // called from the effect body via an awaited helper) — satisfies
-    // react-hooks/set-state-in-effect.
-    fetch(`${apiUrl}/api/v1/me/security-status`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.status === 401) {
-          window.location.replace('/login');
-          return;
-        }
-        if (!res.ok) throw new Error('status');
-        setStatus((await res.json()) as SecurityStatus);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setStatusError(true);
-      });
+    // setState stays inside the promise callback: react-hooks/set-state-in-effect.
+    void readSecurityStatus(apiUrl, controller.signal).then((read) => {
+      if (read === 'session_ended') window.location.replace('/login');
+      else if (read === 'failed') setStatusError(true);
+      else if (read !== 'aborted') setStatus(read);
+    });
     return () => controller.abort();
   }, [apiUrl]);
 
@@ -262,19 +246,16 @@ function DeleteAccountSection({
     setBusy(true);
     setError(null);
     setSessionEnded(false);
-    try {
-      const answer = await requestAccountDeletion(apiUrl, currentPassword, confirmation);
-      if (answer !== 'ok') {
-        if (answer === 'session_ended') setSessionEnded(true);
-        else setError(t(accountDeletionRefusalKey(answer)));
-        return;
-      }
-      await leaveDeletedAccount('/?account_deleted=1');
-    } catch {
-      setError(t('publicApp.security.errors.network'));
-    } finally {
+    // Neither call throws: the request module answers a code, and the way out of a
+    // deleted account catches its own faults. The button stays busy while the page leaves.
+    const answer = await requestAccountDeletion(apiUrl, currentPassword, confirmation);
+    if (answer !== 'ok') {
       setBusy(false);
+      if (answer === 'session_ended') setSessionEnded(true);
+      else setError(t(accountDeletionRefusalKey(answer)));
+      return;
     }
+    await leaveDeletedAccount('/?account_deleted=1');
   }
 
   return (

@@ -65,7 +65,7 @@
     "apps/web-public/app/me/leagues/[slug]/LeagueDetailClient.tsx": 2,
     "apps/web-public/app/me/profile/WorkshopProfileClient.tsx": 1,
     "apps/web-public/app/me/security/DataAndPrivacySection.tsx": 1,
-    "apps/web-public/app/me/security/page.tsx": 4,
+    "apps/web-public/app/me/security/page.tsx": 1,
     "apps/web-public/app/me/settings/AccountSection.tsx": 1,
     "apps/web-public/app/me/settings/LegalSection.tsx": 3,
     "apps/web-public/app/me/settings/NotificationPreferences.tsx": 2,

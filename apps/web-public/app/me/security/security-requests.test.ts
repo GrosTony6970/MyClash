@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
+  readSecurityStatus,
   requestAccountDeletion,
   requestPasswordChange,
   type SecurityRefusal,
@@ -137,14 +138,61 @@ describe('the request each door sends', () => {
 describe('the account deletion, refused for what was typed', () => {
   const ask = DOORS['the account deletion'];
 
-  it('reads the Google-only refusal by its code', async () => {
-    answers(response(400, { status: 400, code: 'no_password_set' }));
-    expect(await ask()).toBe('no_password_set');
-  });
-
-  it('reads another 400 as a refused request', async () => {
+  // The API has one 400 here. It refused a Google-only account with `no_password_set` once;
+  // it deletes that account on the typed word alone now, and the page's branch could not fire.
+  it('reads a 400 as a refused request', async () => {
     answers(response(400, { status: 400, code: 'confirmation_mismatch' }));
     expect(await ask()).toBe('bad_request');
+  });
+});
+
+/**
+ * The page's first read. It was a `fetch` of the page's own: a login that ran out while the
+ * tab was closed sent her to the sign-in page, though her refresh cookie could renew it.
+ */
+describe('the first read of the security page', () => {
+  const STATUS = { hasPassword: true, email: 'marie@example.com' };
+  const ask = () => readSecurityStatus(API, new AbortController().signal);
+
+  it('renews an ended login once and reads again', async () => {
+    vi.stubGlobal('window', globalThis);
+    const fetched = answers(noSession(), me('claimed'), response(200, STATUS));
+
+    expect(await ask()).toEqual(STATUS);
+    expect(fetched.mock.calls.map(([url]) => String(url).replace(API, ''))).toEqual([
+      '/api/v1/me/security-status',
+      '/api/v1/me',
+      '/api/v1/me/security-status',
+    ]);
+  });
+
+  it('reads a login that cannot be renewed as an ended session', async () => {
+    vi.stubGlobal('window', globalThis);
+    answers(noSession(), me('anonymous'));
+
+    expect(await ask()).toBe('session_ended');
+  });
+
+  it.each([
+    ['a 401 of the edge, with no body', response(401)],
+    ['a server error', response(500, { status: 500, code: 'INTERNAL_SERVER_ERROR' })],
+  ])('reads %s as a failed read', async (_what, answer) => {
+    answers(answer);
+
+    expect(await ask()).toBe('failed');
+  });
+
+  it('reads a lost connection as a failed read', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    expect(await ask()).toBe('failed');
+  });
+
+  it('says nothing of a read the page itself stopped', async () => {
+    const stopped = new DOMException('stopped', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(stopped));
+
+    expect(await ask()).toBe('aborted');
   });
 });
 
@@ -156,14 +204,12 @@ describe('the sentence of a refused request', () => {
     ['network', `${errors}.network`],
     ['failed', `${errors}.changePasswordFailed`],
     ['bad_request', `${errors}.changePasswordFailed`],
-    ['no_password_set', `${errors}.changePasswordFailed`],
   ])('of a password change: %s', (refusal, key) => {
     expect(passwordChangeRefusalKey(refusal)).toBe(key);
   });
 
   it.each<[SecurityRefusal, string]>([
     ['wrong_password', `${errors}.wrongCurrentPassword`],
-    ['no_password_set', `${errors}.noPasswordSet`],
     ['bad_request', `${errors}.confirmationMismatch`],
     ['network', `${errors}.network`],
     ['failed', `${errors}.deleteFailed`],
@@ -182,6 +228,19 @@ describe('the security page', () => {
     expect(page).toContain('setError(t(accountDeletionRefusalKey(answer)));');
     expect(page).not.toContain('/api/v1/me/change-password');
     expect(page).not.toContain('/api/v1/me/account');
+  });
+
+  it('reads its status through the request module, and leaves only for an ended session', () => {
+    expect(page).toContain('readSecurityStatus(apiUrl, controller.signal)');
+    expect(page).not.toContain('/api/v1/me/security-status');
+    expect(page).toContain("if (read === 'session_ended') window.location.replace('/login');");
+  });
+
+  it('leaves a deleted account with no word of a lost connection', () => {
+    const deletion = page.slice(page.indexOf('function DeleteAccountSection'));
+    expect(deletion).toContain("await leaveDeletedAccount('/?account_deleted=1');");
+    expect(deletion).not.toContain('} catch');
+    expect(deletion).not.toContain('publicApp.security.errors.network');
   });
 
   it('says the ended session in both sections, with the way back to the sign-in page', () => {
