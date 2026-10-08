@@ -189,6 +189,16 @@ Size: **S** = under about one hour, **M** = about half a day.
    on ruling 3.
 5. **`/e/[slug]/people` is orphaned** (✔ no link reaches it). Remove it, or link it from F7?
 
+### Rulings — operator, 2026-10-08
+
+| #   | Ruling    | What it means                                                                                                                                                                                                                                |
+| --- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Yes**   | "End match" asks for confirmation when neither the cap nor the time is reached. A normal end stays one tap.                                                                                                                                  |
+| 2   | **Yes**   | A bout can be started with no network. A design change: it needs its own plan before any code.                                                                                                                                               |
+| 3   | **Yes**   | A bout opened with no network shows its names from the local cache, with the score marked unconfirmed. This reverses "serve no stale scoring data" in `apps/web-staff/src/offline/cached-reads.ts`; that comment changes in the same commit. |
+| 4   | **Yes**   | "Next match" with no network reaches the next bout. Built on ruling 3.                                                                                                                                                                       |
+| 5   | **Later** | `/e/[slug]/people` stays as it is for now.                                                                                                                                                                                                   |
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
