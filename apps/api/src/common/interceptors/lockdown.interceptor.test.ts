@@ -106,8 +106,10 @@ describe('LockdownInterceptor', () => {
     const refusal = await interceptor.intercept(ctx, makeNext()).catch((err: unknown) => err);
     // The sign-in door's own refusal (ruling 308): its words reach the page, and its code too.
     expect(refusal).toBeInstanceOf(OperationalUnavailableException);
+    // The words name no audience: a Fighter's save under an Event meets them too (ruling 348).
     expect((refusal as OperationalUnavailableException).getResponse()).toMatchObject({
       code: 'admin_lockdown',
+      message: 'MyClash is in maintenance. Try again later.',
     });
   });
 

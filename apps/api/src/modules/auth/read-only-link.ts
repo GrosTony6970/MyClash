@@ -4,7 +4,10 @@ import type { SupabaseService } from '../supabase/supabase.service';
 
 const logger = new Logger('ReadOnlyLink');
 
-/** One page is enough: the filter below answers the addresses that hold the one asked. */
+/**
+ * The first page only. The filter below answers every address that CONTAINS the one asked, so
+ * an address with fifty look-alikes ahead of it reads as held by nobody, and gets no link.
+ */
 const PAGE = 50;
 
 /**
@@ -31,7 +34,10 @@ export async function holdsAccount(
  * Asked for a sign-in link, the auth server makes an account for an address it does not know.
  * Read-only mode makes none: such an address gets no link, and its door answers as it does
  * for any address. An address that holds an account signs in as before (ruling 341). A read
- * the auth server did not answer makes no link either: asking it for one would fail too.
+ * the auth server did not answer makes no link either: nobody then signs in by link.
+ *
+ * The switch itself fails open, as everywhere (ruling 109a): a failed read of it sends the link.
+ * Neither line below names the address.
  */
 export async function linkWouldMakeAccount(
   supabase: SupabaseService,
@@ -39,6 +45,8 @@ export async function linkWouldMakeAccount(
 ): Promise<boolean> {
   if (!(await isFlagEnabledDirect(supabase, 'read_only_mode'))) return false;
   const held = await holdsAccount(supabase, email);
+  if (held === true) return false;
   if (held === null) logger.warn('read-only mode: the account of an address was not read');
-  return held !== true;
+  else logger.log('read-only mode: no sign-in link for an address with no account');
+  return true;
 }

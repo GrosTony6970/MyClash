@@ -175,6 +175,7 @@ describe('the first read of the security page', () => {
 
   it.each([
     ['a 401 of the edge, with no body', response(401)],
+    ['a 403', response(403, { status: 403, code: 'FORBIDDEN' })],
     ['a server error', response(500, { status: 500, code: 'INTERNAL_SERVER_ERROR' })],
   ])('reads %s as a failed read', async (_what, answer) => {
     answers(answer);
@@ -239,6 +240,7 @@ describe('the security page', () => {
   it('leaves a deleted account with no word of a lost connection', () => {
     const deletion = page.slice(page.indexOf('function DeleteAccountSection'));
     expect(deletion).toContain("await leaveDeletedAccount('/?account_deleted=1');");
+    expect(deletion).toMatch(/if \(answer !== 'ok'\) \{\s+setBusy\(false\);/);
     expect(deletion).not.toContain('} catch');
     expect(deletion).not.toContain('publicApp.security.errors.network');
   });

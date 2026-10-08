@@ -17,8 +17,8 @@
  * `ClubsModule`, `PrivacyModule` and `OrganizationsModule` use the admin guard
  * without providing it: Nest registers a `@UseGuards(Class)` enhancer as an
  * injectable of the *host* module and resolves its constructor from that
- * module's injector, which works only because `SupabaseService` and
- * `ConfigService` are global. A resolver that were an injectable living in
+ * module's injector, which works only because `SupabaseService` is
+ * global. A resolver that were an injectable living in
  * `AdminModule` would fail to resolve in those modules at real boot — the
  * failure mode described in ENGINEERING_LESSONS as UndefinedModuleException.
  * Keeping this a free function, in the style of `insertAuditLog` and

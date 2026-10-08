@@ -310,8 +310,9 @@ describe('who is calling', () => {
   });
 
   // The other spelling of the same question (ruling 346): the staff guard had a `fetch` of its
-  // own to the auth server's `/user`. `SupabaseService` holds the one call.
-  it('one source file of the API asks the auth server for `/user`', () => {
-    expect(holding(/\/user`/u)).toEqual(['supabase.service.ts']);
+  // own to the auth server's `/user`. This holds the address as a string's last word, in any
+  // quote: an address built another way is not seen here.
+  it('one source file of the API holds an address that ends in `/user`', () => {
+    expect(holding(/\/user[`'"?]/u)).toEqual(['supabase.service.ts']);
   });
 });

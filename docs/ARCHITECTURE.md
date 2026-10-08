@@ -1917,9 +1917,11 @@ Four details that matter:
   silent auth server and refuses that call in any API source file. `PlatformRoleGuard`, on the
   platform staff routes, asked the auth server alone with a `fetch` of its own; it asks
   `getAuthUser` too (ruling 346), and the same test holds that only `SupabaseService` asks the
-  auth server for `/user`. The staff tier is read from `platform_roles` on every request, so a
-  demotion takes effect at once; a banned or deleted staff account whose row still stands keeps
-  the staff routes for at most the login's hour, only while the auth server is silent.
+  auth server for `/user`. A tier held by a `platform_roles` row is read on every request, so
+  its demotion takes effect at once. While the auth server is silent, and for at most the
+  login's hour, a login it would refuse still passes: one of a banned or deleted staff account
+  whose row still stands, one signed out or revoked by a password change, and a super admin
+  held by the login's claim alone after that claim was removed.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

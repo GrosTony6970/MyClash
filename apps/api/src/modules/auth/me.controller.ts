@@ -244,8 +244,8 @@ export class MeController {
    * Irreversibly delete the current user's auth row and strip
    * claim linkages on global_persons + persons (history rows
    * survive). Requires the literal 'DELETE' confirmation, and the
-   * current password of an account that has one: a Google-only
-   * account is deleted on the typed word alone.
+   * current password of an account the auth server lists with one:
+   * any other account is deleted on the typed word alone.
    */
   @Delete('me/account')
   @HttpCode(HttpStatus.OK)
