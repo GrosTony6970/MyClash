@@ -10,15 +10,25 @@ import { OperationalUnavailableException } from '../operational-exception';
 /**
  * `staff-auth/`: a PIN signs in and out of a pad as an account does under `auth/`
  * (operator ruling 336). Not `staff/`: a pad's other saves stay refused.
+ *
+ * `staff/heartbeat`: the pad's beat is what the Live board reads (operator ruling
+ * 339). Refused, the board kept the last numbers it had: a green dot over a pad
+ * that held hits.
  */
-const ALLOWLIST = ['/api/v1/auth/', '/api/v1/staff-auth/', '/api/v1/health', '/api/v1/public/'];
+const ALLOWLIST = [
+  '/api/v1/auth/',
+  '/api/v1/staff-auth/',
+  '/api/v1/staff/heartbeat',
+  '/api/v1/health',
+  '/api/v1/public/',
+];
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Read-only interceptor: when the `read_only_mode` flag is enabled, every
  * non-GET request to the API is rejected with a 503 coded `read_only_mode` —
- * except for super-admin users and the standard public/auth allowlist.
+ * except for super-admin users, the standard public/auth allowlist and a pad's beat.
  * Organisers can still browse, they just can't write.
  */
 @Injectable()

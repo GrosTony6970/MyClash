@@ -99,7 +99,17 @@ describe('ReadOnlyInterceptor', () => {
     },
   );
 
-  it.each(['/api/v1/staff/heartbeat', '/api/v1/staff/checkin/scan', '/api/v1/matches/m-1/clock'])(
+  // Operator ruling 339: the pad's beat tells the Live board how many hits the pad holds.
+  // Refused, the board kept the numbers of the last beat before the switch: "0 hits
+  // waiting" and a green dot over a pad that held six.
+  it('lets a pad’s beat through: POST /api/v1/staff/heartbeat', async () => {
+    isEnabledMock.mockResolvedValue(true);
+    const ctx = makeContext({ url: '/api/v1/staff/heartbeat', method: 'POST', headers: {} });
+    const result = await interceptor.intercept(ctx, makeNext());
+    expect(await firstValueFrom(result)).toBe('passthrough');
+  });
+
+  it.each(['/api/v1/staff/checkin/scan', '/api/v1/matches/m-1/clock'])(
     'still refuses a pad’s save: POST %s',
     async (url) => {
       isEnabledMock.mockResolvedValue(true);

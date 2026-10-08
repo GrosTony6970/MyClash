@@ -1008,7 +1008,7 @@ export const admin = {
     readOnlyMode: {
       title: 'Read-only mode',
       description:
-        'Refuses every save on the platform, for everybody but a super admin: organisers, Fighters, guests and pads. Reading still works, and an account or a PIN on a pad can still sign in. A pad says maintenance and keeps its hits to send later. Use during database maintenance or a bad deploy.',
+        'Refuses every save on the platform, for everybody but a super admin: organisers, Fighters, guests and pads. Reading still works, and an account or a PIN on a pad can still sign in. A pad says maintenance and keeps its hits to send later; the Live board still shows how many each pad holds. Use during database maintenance or a bad deploy.',
     },
     disableSignups: {
       title: 'Disable signups',
