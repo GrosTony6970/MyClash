@@ -45,6 +45,17 @@ export const AUTH_EMAIL_THROTTLE = {
 } as const;
 
 /**
+ * Checks of a CURRENT password per hour per signed-in account, shared by the
+ * password change and the account deletion (see ThrottleByAccount, operator
+ * ruling 359). Somebody at an open session could guess the password there at
+ * the global 120 a minute. Matched to the sign-in doors at 10 an hour.
+ */
+export const AUTH_ACCOUNT_THROTTLE = {
+  limit: 10,
+  ttl: 3_600_000,
+} as const;
+
+/**
  * Staff PIN login attempts per hour per (event, username), across every staff
  * login surface (see ThrottleByStaffAccount).
  *

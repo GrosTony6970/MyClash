@@ -45,9 +45,9 @@ type GoTrueValidation =
  * the secret is not configured. Used as a fallback when GoTrue is unreachable so
  * a still-valid token doesn't get logged out by an infra hiccup.
  */
-function verifyAccessTokenLocally(accessToken: string, secret: string): SupabaseAuthUser | null {
+export function verifyAccessTokenLocally(token: string, secret: string): SupabaseAuthUser | null {
   try {
-    const payload = jwt.verify(accessToken, secret, { algorithms: ['HS256'] });
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] });
     if (!payload || typeof payload !== 'object') return null;
     const claims = payload as jwt.JwtPayload & {
       email?: unknown;

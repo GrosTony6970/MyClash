@@ -2467,6 +2467,7 @@ all of them.
 | Default — every route, reads and writes alike                          | 120 req/min/IP                                       |
 | Login, magic link, password-reset-confirm                              | 10 req/hour/IP                                       |
 | Login **per email** — `password-login` + `public-login` share a bucket | 10 req/hour                                          |
+| Current password **per account** — password change + account deletion  | 10 req/hour                                          |
 | Signup, password-reset request                                         | 5 req/hour/IP                                        |
 | Admin reads — `/admin/users`, fighter merge audit-log                  | 600 req/min/IP                                       |
 | Catalog reads — `/clubs`, `/global-persons`                            | 300 req/min/IP                                       |
@@ -2482,7 +2483,10 @@ takes it and trusts no one, in silence.
 Two limits worth knowing about: the throttler store is in-memory, so counters are
 per API container and reset on every redeploy; and there is no edge-level
 (Traefik) rate limiting, so the Nest guard is the only limiter in front of the API.
-There are no per-user or per-org limiters, and scoring writes get the default.
+The one per-account limiter is the current-password row above (ruling 359,
+`throttle-by-account.ts`: keyed on the account of the request's login, its signature
+checked, so a whole venue on one address does not share it). There are no per-org
+limiters, and scoring writes get the default.
 
 ---
 

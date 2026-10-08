@@ -15,6 +15,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { Public } from '../../common/auth/public.decorator';
+import { ThrottleByAccount } from '../../common/throttling/throttle-by-account';
 import { acceptedLegalShape } from '../../common/legal/accepted-legal.schema';
 import { AuthService, type GlobalPersonSearchResult } from './auth.service';
 import {
@@ -226,6 +227,7 @@ export class MeController {
    */
   @Post('me/change-password')
   @HttpCode(HttpStatus.OK)
+  @ThrottleByAccount()
   @ApiOperation({ summary: 'Change the current user password' })
   @ApiResponse({ status: 200, description: 'Password updated' })
   @ApiResponse({ status: 400, description: 'Weak new password' })
@@ -250,6 +252,7 @@ export class MeController {
    */
   @Delete('me/account')
   @HttpCode(HttpStatus.OK)
+  @ThrottleByAccount()
   @ApiOperation({ summary: 'Delete the current user account' })
   @ApiResponse({ status: 200, description: 'Account deleted; cookies cleared' })
   @ApiResponse({

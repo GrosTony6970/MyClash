@@ -1,11 +1,20 @@
 import type { ThrottlerModuleOptions } from '@nestjs/throttler';
+import {
+  AUTH_ACCOUNT_THROTTLER,
+  authAccountTracker,
+  skipAuthAccountThrottle,
+} from './throttle-by-account';
 import { AUTH_EMAIL_THROTTLER, authEmailTracker, skipAuthEmailThrottle } from './throttle-by-email';
 import {
   STAFF_PIN_THROTTLER,
   skipStaffAccountThrottle,
   staffAccountTracker,
 } from './throttle-by-staff-account';
-import { AUTH_EMAIL_THROTTLE, STAFF_PIN_THROTTLE } from './throttle-profiles';
+import {
+  AUTH_ACCOUNT_THROTTLE,
+  AUTH_EMAIL_THROTTLE,
+  STAFF_PIN_THROTTLE,
+} from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
 /**
@@ -24,7 +33,11 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                A venue shares one NAT'd IP, so `req.ip` is the one thing this
  *                surface must NOT be keyed on.
  *
- * IPs in THROTTLE_IP_WHITELIST skip all three. The `global` limit keys off
+ * `auth-account` — checks of a current password per hour per signed-in account,
+ *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
+ *                account of the request's login, never on `req.ip`.
+ *
+ * IPs in THROTTLE_IP_WHITELIST skip all four. The `global` limit keys off
  * `req.ip`, which is only meaningful because the Fastify adapter trusts the
  * one local proxy (trust-proxy.ts); without it every client behind Traefik
  * shares one bucket.
@@ -60,6 +73,15 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       // name, which would hand the same account a fresh allowance on each surface.
       generateKey: (_context, tracker) => `${STAFF_PIN_THROTTLER}:${tracker}`,
       skipIf: skipStaffAccountThrottle,
+    },
+    {
+      name: AUTH_ACCOUNT_THROTTLER,
+      ttl: AUTH_ACCOUNT_THROTTLE.ttl,
+      limit: AUTH_ACCOUNT_THROTTLE.limit,
+      getTracker: authAccountTracker,
+      // One bucket per account across both doors, as for the two above.
+      generateKey: (_context, tracker) => `${AUTH_ACCOUNT_THROTTLER}:${tracker}`,
+      skipIf: skipAuthAccountThrottle,
     },
   ],
   skipIf: isThrottleWhitelisted,
