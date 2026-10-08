@@ -946,6 +946,8 @@ export const publicApp = {
     newPassword: 'Nouveau mot de passe',
     forgotPasswordLink: 'Mot de passe actuel oublié ?',
     forgotPasswordSent: 'Nous avons envoyé un lien de réinitialisation à {email}.',
+    neverSetPasswordLink:
+      'Jamais défini de mot de passe ? Recevoir par email un lien pour en créer un.',
     emailSectionTitle: 'Adresse email',
     signInMethodLabel: 'Méthode de connexion',
     signInMethodGoogle: 'Google',
@@ -975,6 +977,7 @@ export const publicApp = {
       changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
       confirmationMismatch: 'Tapez DELETE (majuscules) dans le champ de confirmation.',
       deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
+      setPasswordLinkFailed: "Impossible d'envoyer le lien. Réessayez dans un instant.",
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',
       sessionEnded: 'Votre session a expiré.',
       signInAgain: 'Se reconnecter',

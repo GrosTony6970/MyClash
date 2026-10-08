@@ -8,6 +8,7 @@ import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
+import { PasswordSetLink } from './PasswordSetLink';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
@@ -90,8 +91,6 @@ function ChangePasswordSection({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [resetBusy, setResetBusy] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
 
   const validation = useMemo(() => validatePassword(newPassword), [newPassword]);
 
@@ -112,30 +111,6 @@ function ChangePasswordSection({
     setCurrentPassword('');
     setNewPassword('');
     setConfirm('');
-  }
-
-  // Forgot-password escape hatch for accounts that already have a password:
-  // emails a Supabase recovery link via /reset-password. The endpoint always
-  // returns a generic message (anti-enumeration), so any non-throw is treated
-  // as "sent"; only a network failure surfaces an error.
-  async function requestReset(): Promise<void> {
-    if (!status.email) return;
-    setResetBusy(true);
-    setError(null);
-    setSessionEnded(false);
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: status.email }),
-      });
-      setResetSent(true);
-    } catch {
-      setError(t('publicApp.security.errors.network'));
-    } finally {
-      setResetBusy(false);
-    }
   }
 
   return (
@@ -183,20 +158,12 @@ function ChangePasswordSection({
           >
             {busy ? t('common.loading') : t('publicApp.security.changePasswordAction')}
           </Button>
-          {resetSent ? (
-            <p className="text-sm text-muted">
-              {t('publicApp.security.forgotPasswordSent', { email: status.email ?? '' })}
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void requestReset()}
-              disabled={resetBusy}
-              className="block text-sm font-semibold text-accent hover:underline disabled:opacity-50"
-            >
-              {t('publicApp.security.forgotPasswordLink')}
-            </button>
-          )}
+          <PasswordSetLink
+            apiUrl={apiUrl}
+            email={status.email}
+            label={t('publicApp.security.forgotPasswordLink')}
+            t={t}
+          />
         </div>
       )}
 
@@ -286,12 +253,20 @@ function DeleteAccountSection({
           <p className="mt-2 text-sm text-danger">{t('publicApp.security.deleteModalBody')}</p>
           <div className="mt-3 space-y-3">
             {status.hasPassword && (
-              <PasswordField
-                label={t('publicApp.security.currentPassword')}
-                value={currentPassword}
-                onChange={setCurrentPassword}
-                autoComplete="current-password"
-              />
+              <>
+                <PasswordField
+                  label={t('publicApp.security.currentPassword')}
+                  value={currentPassword}
+                  onChange={setCurrentPassword}
+                  autoComplete="current-password"
+                />
+                <PasswordSetLink
+                  apiUrl={apiUrl}
+                  email={status.email}
+                  label={t('publicApp.security.neverSetPasswordLink')}
+                  t={t}
+                />
+              </>
             )}
             <label className="block">
               <span className="text-sm font-semibold text-foreground">

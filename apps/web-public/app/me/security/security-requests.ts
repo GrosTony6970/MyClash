@@ -42,6 +42,31 @@ export function accountDeletionRefusalKey(refusal: SecurityRefusal): string {
   return 'publicApp.security.errors.deleteFailed';
 }
 
+/**
+ * A mail with a link that sets a password (operator ruling 351): for an account that forgot
+ * its password, and for one made by a mailed sign-in link, which never chose one and is still
+ * asked for it. The door answers the same for every address, so `sent` says the request was
+ * taken, and a failure is the request's own: a lost connection, a throttle, a server fault.
+ */
+export async function requestPasswordSetLink(
+  apiUrl: string,
+  email: string,
+): Promise<'sent' | 'network' | 'failed'> {
+  const result = await apiRequest(apiUrl, '/api/v1/auth/public-password-reset', {
+    method: 'POST',
+    body: { email },
+  });
+  if (result.ok) return 'sent';
+  return result.kind === 'network' ? 'network' : 'failed';
+}
+
+/** The sentence of a link that was not sent. */
+export function passwordSetLinkRefusalKey(refusal: 'network' | 'failed'): string {
+  return refusal === 'network'
+    ? 'publicApp.security.errors.network'
+    : 'publicApp.security.errors.setPasswordLinkFailed';
+}
+
 export interface SecurityStatus {
   hasPassword: boolean;
   email: string | null;

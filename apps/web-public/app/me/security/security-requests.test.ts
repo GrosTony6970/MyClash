@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
+  passwordSetLinkRefusalKey,
   readSecurityStatus,
   requestAccountDeletion,
   requestPasswordChange,
+  requestPasswordSetLink,
   type SecurityRefusal,
 } from './security-requests';
 
@@ -219,6 +221,83 @@ describe('the sentence of a refused request', () => {
   });
 });
 
+/**
+ * The mailed link that sets a password (operator ruling 351).
+ *
+ * Marie made her account by a mailed sign-in link and never chose a password. The auth server
+ * cannot tell her account from one with a password, so the account deletion asks her a current
+ * password she does not have. The delete dialog now offers the link the change-password box
+ * had. That box read every answer of the door as "sent", a throttle and a server fault too.
+ */
+describe('the mailed link that sets a password', () => {
+  const ask = () => requestPasswordSetLink(API, 'marie@example.com');
+
+  it('asks the reset door for her address, once', async () => {
+    const fetched = answers(response(202, { message: 'If this email is registered' }));
+
+    expect(await ask()).toBe('sent');
+
+    expect(fetched).toHaveBeenCalledTimes(1);
+    const [url, init] = fetched.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${API}/api/v1/auth/public-password-reset`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ email: 'marie@example.com' });
+  });
+
+  it.each([
+    ['a throttle', response(429, { status: 429, code: 'TOO_MANY_REQUESTS' })],
+    ['a server error', response(500, { status: 500, code: 'INTERNAL_SERVER_ERROR' })],
+    ['a 503 of the edge', response(503)],
+  ])('reads %s as a link that was not sent', async (_what, answer) => {
+    answers(answer);
+
+    expect(await ask()).toBe('failed');
+  });
+
+  it('reads a lost connection as its own answer', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    expect(await ask()).toBe('network');
+  });
+
+  it('says each failure with its own sentence', () => {
+    expect(passwordSetLinkRefusalKey('network')).toBe('publicApp.security.errors.network');
+    expect(passwordSetLinkRefusalKey('failed')).toBe(
+      'publicApp.security.errors.setPasswordLinkFailed',
+    );
+  });
+
+  const link = readFileSync(join(__dirname, 'PasswordSetLink.tsx'), 'utf8');
+
+  it('sends through the request module and says what it answered', () => {
+    expect(link).toContain('const answer = await requestPasswordSetLink(apiUrl, to);');
+    expect(link).toContain("if (answer === 'sent') setSent(true);");
+    expect(link).toContain('else setError(t(passwordSetLinkRefusalKey(answer)));');
+    expect(link).toContain("t('publicApp.security.forgotPasswordSent', { email })");
+    expect(link).toContain('onClick={() => void send(email)}');
+    expect(link).toContain('if (!email) return null;');
+  });
+
+  it('is offered by both sections that ask the current password, each with its own words', () => {
+    const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
+    const deletion = page.slice(page.indexOf('function DeleteAccountSection'));
+    const change = page.slice(page.indexOf('function ChangePasswordSection'), -deletion.length);
+    const offered = (label: string) =>
+      new RegExp(
+        `<PasswordSetLink\\s+apiUrl=\\{apiUrl\\}\\s+email=\\{status\\.email\\}\\s+` +
+          `label=\\{t\\('publicApp\\.security\\.${label}'\\)\\}\\s+t=\\{t\\}\\s+/>`,
+      );
+
+    expect(change).toMatch(offered('forgotPasswordLink'));
+    expect(deletion).toMatch(offered('neverSetPasswordLink'));
+    // Only an account that is asked a password is offered the link.
+    expect(deletion).toMatch(
+      /\{status\.hasPassword && \(\s+<>\s+<PasswordField[^>]+\/>\s+<PasswordSetLink/,
+    );
+    expect(page).not.toContain('/api/v1/auth/public-password-reset');
+  });
+});
+
 describe('the security page', () => {
   const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
 
@@ -249,7 +328,7 @@ describe('the security page', () => {
     expect(
       page.match(/if \(answer === 'session_ended'\) setSessionEnded\(true\);\s+else setError/g),
     ).toHaveLength(2);
-    expect(page.match(/^\s+setSessionEnded\(false\);$/gm)).toHaveLength(4);
+    expect(page.match(/^\s+setSessionEnded\(false\);$/gm)).toHaveLength(3);
     expect(page.match(/\{sessionEnded && <SessionEnded t=\{t\} \/>\}/g)).toHaveLength(2);
     const notice = readFileSync(join(__dirname, 'SessionEnded.tsx'), 'utf8');
     expect(notice).toContain("t('publicApp.security.errors.sessionEnded')");
