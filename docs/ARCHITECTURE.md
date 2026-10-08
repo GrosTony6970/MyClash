@@ -1249,7 +1249,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > a time). With no answer of the server the undo works on the tablet alone, which is what works
 > offline, and the entry stays written down: while a bout screen is open the pad settles what
 > is written down when the network is back, at each end of a send and every 15 seconds
-> (`lib/watch-undone.ts`), one run at a time. A request the API judged and refused (a coded
+> (`lib/watch-undone.ts`), one run at a time. An entry written down is no candidate of a later
+> undo, even while the server still holds it: the settle voids that one, and the tap takes back
+> the entry before it. A request the API judged and refused (a coded
 > 400, 404 or 409: the bout is locked or gone, its Event is over) forgets the entry, and the
 > screen reads the bout again: the hit is on the list. No answer, a 401 and a 403 keep it: those
 > are about who is signed in. An entry nobody could ask about for a day is let go. The one row a send has out is never deleted: the send claims a row just before its POST

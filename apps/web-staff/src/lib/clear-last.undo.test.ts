@@ -362,3 +362,31 @@ describe('newestToUndo and the screen’s list', () => {
     });
   });
 });
+
+/**
+ * He undid hit 5 with no connection: it is written down and the server still holds it. The
+ * wifi is back, and he taps Undo again before the pad settled hit 5. The tap voided hit 5,
+ * the settle voided it too, and one of the two read "already voided".
+ */
+describe('an entry an earlier undo took off the tablet', () => {
+  const tookBack = (minute: number) =>
+    db.undone.put({ clientUuid: uuid(minute), matchId: 'm1', undoneAt: Date.now() });
+
+  it('is not undone again: the tap takes back the entry before it', async () => {
+    await tookBack(5);
+    const { asked } = server({ hits: [[held('ex-4', 4), held('ex-5', 5)]] });
+
+    await expect(undo()).resolves.toEqual(VOIDED);
+
+    expect(asked('PATCH')).toEqual(['/exchanges/ex-4/void']);
+    expect(await writtenDown()).toEqual([uuid(5)]);
+  });
+
+  it('leaves nothing to undo when it was the only entry of the bout', async () => {
+    await tookBack(5);
+    const { asked } = server({ hits: [[held('ex-5', 5)]] });
+
+    await expect(undo()).resolves.toEqual({ kind: 'failed', message: null });
+    expect(asked('PATCH')).toEqual([]);
+  });
+});

@@ -4,7 +4,7 @@ import { classifySyncFailure } from '../offline/failure-kind';
 import { newestOf } from '../offline/newest-entry';
 import { getPendingForMatch } from '../offline/outbox';
 import type { TakenBack } from '../offline/take-back';
-import { forgetUndone } from '../offline/undone';
+import { forgetUndone, listUndone } from '../offline/undone';
 import { refusalMessage } from './refusal-copy';
 import { readServerEntries, type ServerRow } from './server-entries';
 import { settleUndone } from './settle-undone';
@@ -156,11 +156,17 @@ async function undoOnTablet(
  * no answer the undo works on the tablet alone, as it does offline. The
  * tablet's entries are read at the tap, before the server: a hit pressed
  * during the read is not the one undone.
+ *
+ * An entry an earlier undo took off the tablet is gone for the referee, even
+ * while the server still holds it: the settle voids that one. This tap takes
+ * back the entry before it, and the two never void the same row.
  */
 export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
   const waiting = await getPendingForMatch(deps.matchId);
   const read = await readServerEntries(deps.apiUrl, deps.matchId);
-  const newest = newestToUndo('rows' in read ? read.rows : null, waiting);
+  const takenBack = new Set((await listUndone()).map((entry) => entry.clientUuid));
+  const rows = 'rows' in read ? read.rows.filter((row) => !takenBack.has(row.clientUuid)) : null;
+  const newest = newestToUndo(rows, waiting);
   if (!newest) {
     return 'failure' in read ? failed(read.failure, deps.t) : { kind: 'failed', message: null };
   }
