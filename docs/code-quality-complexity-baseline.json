@@ -245,7 +245,7 @@
     "apps/api/src/modules/ai-providers/adapters/mistral.adapter.ts:90",
     "apps/api/src/modules/ai-providers/adapters/openai.adapter.ts:64",
     "apps/api/src/modules/ai-usage/ai-usage.service.ts:21",
-    "apps/api/src/modules/auth/auth.service.ts:1463",
+    "apps/api/src/modules/auth/auth.service.ts:1465",
     "apps/api/src/modules/auth/auth.service.ts:1780",
     "apps/api/src/modules/auth/auth.service.ts:1885",
     "apps/api/src/modules/auth/guest-sessions.controller.ts:70",

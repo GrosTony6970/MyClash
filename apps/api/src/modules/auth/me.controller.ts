@@ -234,8 +234,9 @@ export class MeController {
   async changePassword(
     @Req() req: FastifyRequest,
     @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ ok: true }> {
-    return this.auth.changePassword(req, dto.currentPassword, dto.newPassword);
+    return this.auth.changePassword(req, dto.currentPassword, dto.newPassword, reply);
   }
 
   /**

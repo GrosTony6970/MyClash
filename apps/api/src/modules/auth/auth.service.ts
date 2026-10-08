@@ -1417,14 +1417,15 @@ export class AuthService {
   /**
    * Change the current user's password. Verifies the current
    * password by re-issuing a Supabase token (grant_type=password),
-   * then updates via admin.updateUserById. Other sessions are
-   * invalidated by Supabase as a side-effect of the password
-   * update.
+   * then updates via admin.updateUserById. Supabase ends every
+   * session of the account at that write, the caller's own too, so
+   * the caller is signed in again (`signInWithNewPassword`).
    */
   async changePassword(
     request: FastifyRequest,
     currentPassword: string,
     newPassword: string,
+    reply: FastifyReply,
   ): Promise<{ ok: true }> {
     const accessToken = this.extractToken(request);
     if (!accessToken) throw new UnauthorizedException('Authentication required');
@@ -1447,6 +1448,7 @@ export class AuthService {
     }
 
     this.logger.log(`password changed for user ${user.id}`);
+    await this.signInWithNewPassword(reply, user.id, user.email, newPassword);
     return { ok: true };
   }
 
@@ -1682,12 +1684,10 @@ export class AuthService {
       throw new ServiceUnavailableException('Could not update password');
     }
 
-    this.setAuthCookies(
-      reply,
-      data.session.access_token,
-      data.session.refresh_token ?? '',
-      data.session.expires_in,
-    );
+    // The session of the code died with the password write (ruling 352).
+    if (data.user.email) {
+      await this.signInWithNewPassword(reply, data.user.id, data.user.email, password);
+    }
     await this.tryAutolinkGlobalPerson(data.user.id, data.user.email ?? null);
     void reply.send({ next: '/me' });
   }
@@ -2164,6 +2164,34 @@ export class AuthService {
       body = null;
     }
     return { ok: response.ok, body };
+  }
+
+  /**
+   * The login an account keeps after its password was written (operator ruling 352).
+   *
+   * The auth server ends EVERY session of an account whose password an admin call
+   * writes, the caller's own too (read on GoTrue v2.195.0). So the door signs the
+   * account in again with the password it just wrote. The password stands whatever
+   * this sign-in answers: with no login from it the door still answers, hands out no
+   * cookie, and the account signs in by hand.
+   */
+  private async signInWithNewPassword(
+    reply: FastifyReply,
+    userId: string,
+    email: string,
+    password: string,
+  ): Promise<void> {
+    try {
+      const { body } = await this.askPasswordToken(email, password);
+      const login = body as GoTruePasswordTokenResponse | null;
+      if (login?.access_token && login.refresh_token) {
+        this.setAuthCookies(reply, login.access_token, login.refresh_token, login.expires_in);
+        return;
+      }
+      this.logger.warn(`new password of ${userId}: the auth server gave no login for it`);
+    } catch (err) {
+      this.logger.warn(`new password of ${userId}: no login for it (${String(err)})`);
+    }
   }
 
   /**

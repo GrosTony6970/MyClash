@@ -1936,6 +1936,10 @@ Five details that matter:
   list. `modules/auth/sign-in-methods.ts` `signsInWithPassword` reads "no list" as "not known"
   and throws a plain Error: the security status answers a server error, and no account is
   deleted, until the auth server answers. `sign-in-methods.doors.test.ts` enters both doors.
+  The auth server ends every session of an account when an admin call writes its password, the
+  caller's own too. The password change and the password reset sign the account in again with
+  the new password and hand out that login (ruling 352, `signInWithNewPassword`); when that
+  sign-in gives no login the password stands and the account signs in by hand.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

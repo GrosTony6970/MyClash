@@ -52,7 +52,7 @@ function build(tables: Record<string, TableSeed> = {}) {
   const doors = {
     login: () => service.publicLogin(LEA.email, 'right-password', reply as never),
     changePassword: () =>
-      service.changePassword(signedIn, 'right-password', 'A-much-Longer-passw0rd!'),
+      service.changePassword(signedIn, 'right-password', 'A-much-Longer-passw0rd!', reply as never),
     deleteAccount: () =>
       service.deleteAccount(signedIn, 'right-password', 'DELETE', reply as never),
   };
