@@ -12363,7 +12363,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Password updated + session set */
+      /** @description Password updated; `signedIn` says a login was handed */
       200: {
         headers: {
           [name: string]: unknown;

@@ -2146,6 +2146,7 @@ export class AuthService {
       this.config.getOrThrow<string>('SUPABASE_URL');
     const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
 
+    const limit = AbortSignal.timeout(GOTRUE_TIMEOUT_MS);
     let response: { ok: boolean; status: number; json: () => Promise<unknown> };
     try {
       response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
@@ -2155,7 +2156,7 @@ export class AuthService {
           apikey: anonKey,
         },
         body: JSON.stringify({ email, password }),
-        signal: AbortSignal.timeout(GOTRUE_TIMEOUT_MS),
+        signal: limit,
       });
     } catch (err) {
       throw new Error(`The auth server did not answer the password sign-in: ${String(err)}`, {
@@ -2169,7 +2170,13 @@ export class AuthService {
     let body: unknown;
     try {
       body = await response.json();
-    } catch {
+    } catch (err) {
+      // The limit ran out while the answer was read: silent, not a verdict.
+      if (limit.aborted) {
+        throw new Error('The auth server did not finish its answer to the password sign-in', {
+          cause: err,
+        });
+      }
       body = null;
     }
     return { ok: response.ok, body };

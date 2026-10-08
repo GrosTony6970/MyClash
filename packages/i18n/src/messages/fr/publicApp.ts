@@ -976,6 +976,7 @@ export const publicApp = {
     errors: {
       wrongCurrentPassword: 'Mot de passe actuel incorrect.',
       changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
+      tooManyTries: 'Trop de tentatives. Attendez une heure, puis réessayez.',
       confirmationMismatch: 'Tapez DELETE (majuscules) dans le champ de confirmation.',
       deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
       setPasswordLinkFailed: "Impossible d'envoyer le lien. Réessayez dans un instant.",

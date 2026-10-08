@@ -27,8 +27,11 @@ const current = () => ({
   json: async () => ({ access_token: 'old-access', user: PAUL }),
 });
 
-/** An auth server that answers `answered` calls, then never answers: only its limit ends a call. */
-function build(answered: number) {
+/**
+ * An auth server that answers `answered` calls, then never answers: only its limit ends a
+ * call. With `stalls: 'body'` it sends the head of its answer and never the rest.
+ */
+function build(answered: number, stalls: 'head' | 'body' = 'head') {
   const limits: number[] = [];
   const clocks: AbortController[] = [];
   vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
@@ -40,10 +43,13 @@ function build(answered: number) {
   const fetched = vi.fn((_url: string, init: Call) => {
     calls += 1;
     if (calls <= answered) return Promise.resolve(current());
-    return new Promise((_resolve, reject) => {
-      if (!init.signal) return; // No limit: this call hangs for ever, and so does the test.
-      init.signal.addEventListener('abort', () => reject(new Error('The operation timed out')));
-    });
+    const untilTheLimit = () =>
+      new Promise((_resolve, reject) => {
+        if (!init.signal) return; // No limit: this call hangs for ever, and so does the test.
+        init.signal.addEventListener('abort', () => reject(new Error('The operation timed out')));
+      });
+    if (stalls === 'body') return Promise.resolve({ ...current(), json: untilTheLimit });
+    return untilTheLimit();
   });
   vi.stubGlobal('fetch', fetched);
   const updateUserById = vi.fn(async () => ({ error: null }));
@@ -93,6 +99,19 @@ describe('the password door of the auth server is held to five seconds (ruling 3
     // Not a verdict on the password: a plain Error, which the filter answers as a 500.
     expect(fault).not.toBeInstanceOf(HttpException);
     expect(built.limits).toEqual([5000]);
+    expect(built.updateUserById).not.toHaveBeenCalled();
+  });
+
+  // A 200 whose body never comes read as "no body": a wrong password, with the right one.
+  it('ends a check whose answer stops half way as a server error too', async () => {
+    const built = build(0, 'body');
+
+    const asked = built.change();
+    await built.timeIsUp();
+
+    const fault = await asked.catch((err: unknown) => err);
+    expect(fault).toBeInstanceOf(Error);
+    expect(fault).not.toBeInstanceOf(HttpException);
     expect(built.updateUserById).not.toHaveBeenCalled();
   });
 

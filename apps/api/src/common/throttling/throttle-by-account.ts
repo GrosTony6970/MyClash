@@ -26,7 +26,8 @@ type Carrier = { headers?: Record<string, unknown>; cookies?: Record<string, str
  * AuthGuard checks it. A login somebody made up, with a real account's id in
  * it, reaches no password check and must not spend that account's tries. An
  * expired login is no account either: the door answers 401, the client renews
- * it, and the second send is the one counted.
+ * it, and the second send is the one counted. With no SUPABASE_JWT_SECRET no
+ * login can be checked and nothing is counted: production cannot boot so.
  *
  * Never `req.ip`: a whole venue shares one address, and the person guessing a
  * password at an open session is on it too.

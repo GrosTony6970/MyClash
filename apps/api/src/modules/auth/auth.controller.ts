@@ -173,7 +173,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle(AUTH_ACTION_THROTTLE)
   @ApiOperation({ summary: 'Confirm a password reset and sign in' })
-  @ApiResponse({ status: 200, description: 'Password updated + session set' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password updated; `signedIn` says a login was handed',
+  })
   @ApiResponse({ status: 400, description: 'Weak password' })
   @ApiResponse({ status: 401, description: 'Invalid or expired token' })
   async publicPasswordResetConfirm(

@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { en, fr } from '@myclash/i18n';
-import { passwordChangedKey, requestPasswordChange } from './security-requests';
+import {
+  accountDeletionRefusalKey,
+  passwordChangeRefusalKey,
+  passwordChangedKey,
+  requestAccountDeletion,
+  requestPasswordChange,
+} from './security-requests';
 
 /**
  * A page says "you are signed in" only when the door handed a login (operator ruling 358).
@@ -61,6 +67,40 @@ describe('the sentence after a password write', () => {
     );
     expect(fr.publicApp.resetPassword.doneSignIn).toBe(
       'Mot de passe mis à jour. Connectez-vous avec votre nouveau mot de passe.',
+    );
+  });
+});
+
+// Ruling 359: ten checks of a current password an hour. The eleventh said "Try again."
+describe('a door that counted too many tries', () => {
+  const refused = () =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 'HTTP_429', detail: 'Too Many Requests' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/problem+json' },
+        }),
+      ),
+    );
+
+  it('is its own answer at both doors, with one sentence', async () => {
+    refused();
+
+    expect(await requestPasswordChange(API, 'current', 'A-much-Longer-passw0rd!')).toBe(
+      'throttled',
+    );
+    expect(await requestAccountDeletion(API, 'current', 'DELETE')).toBe('throttled');
+    expect(passwordChangeRefusalKey('throttled')).toBe('publicApp.security.errors.tooManyTries');
+    expect(accountDeletionRefusalKey('throttled')).toBe('publicApp.security.errors.tooManyTries');
+  });
+
+  it('is these words', () => {
+    expect(en.publicApp.security.errors.tooManyTries).toBe(
+      'Too many tries. Wait an hour, then try again.',
+    );
+    expect(fr.publicApp.security.errors.tooManyTries).toBe(
+      'Trop de tentatives. Attendez une heure, puis réessayez.',
     );
   });
 });

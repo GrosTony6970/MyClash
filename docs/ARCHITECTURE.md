@@ -2486,7 +2486,7 @@ takes it and trusts no one, in silence.
 Two limits worth knowing about: the throttler store is in-memory, so counters are
 per API container and reset on every redeploy; and there is no edge-level
 (Traefik) rate limiting, so the Nest guard is the only limiter in front of the API.
-The one per-account limiter is the current-password row above (ruling 359,
+The one limiter on a signed-in account is the current-password row above (ruling 359,
 `throttle-by-account.ts`: keyed on the account of the request's login, its signature
 checked, so a whole venue on one address does not share it). There are no per-org
 limiters, and scoring writes get the default.

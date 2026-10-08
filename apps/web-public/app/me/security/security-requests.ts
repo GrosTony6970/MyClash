@@ -12,7 +12,7 @@ import { WRONG_CURRENT_PASSWORD_CODE } from '@myclash/types';
  * the login and sent the request again. A 401 with no code is the edge's: a failed request.
  */
 export type SecurityAnswer =
-  'ok' | 'wrong_password' | 'session_ended' | 'bad_request' | 'network' | 'failed';
+  'ok' | 'wrong_password' | 'session_ended' | 'bad_request' | 'throttled' | 'network' | 'failed';
 
 function answerOf(result: ApiResult<unknown>): SecurityAnswer {
   if (result.ok) return 'ok';
@@ -21,6 +21,8 @@ function answerOf(result: ApiResult<unknown>): SecurityAnswer {
   const code = failureCode(result);
   if (result.status === 403 && code === WRONG_CURRENT_PASSWORD_CODE) return 'wrong_password';
   if (result.status === 401 && code !== null) return 'session_ended';
+  // Ten checks of a current password an hour, per account (ruling 359).
+  if (result.status === 429) return 'throttled';
   return result.status === 400 ? 'bad_request' : 'failed';
 }
 
@@ -43,6 +45,7 @@ export type SecurityRefusal = Exclude<SecurityAnswer, 'ok' | 'session_ended'>;
 /** The sentence of a refused password change. */
 export function passwordChangeRefusalKey(refusal: SecurityRefusal): string {
   if (refusal === 'wrong_password') return 'publicApp.security.errors.wrongCurrentPassword';
+  if (refusal === 'throttled') return 'publicApp.security.errors.tooManyTries';
   if (refusal === 'network') return 'publicApp.security.errors.network';
   return 'publicApp.security.errors.changePasswordFailed';
 }
@@ -51,6 +54,7 @@ export function passwordChangeRefusalKey(refusal: SecurityRefusal): string {
 export function accountDeletionRefusalKey(refusal: SecurityRefusal): string {
   if (refusal === 'wrong_password') return 'publicApp.security.errors.wrongCurrentPassword';
   if (refusal === 'bad_request') return 'publicApp.security.errors.confirmationMismatch';
+  if (refusal === 'throttled') return 'publicApp.security.errors.tooManyTries';
   if (refusal === 'network') return 'publicApp.security.errors.network';
   return 'publicApp.security.errors.deleteFailed';
 }

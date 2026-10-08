@@ -197,7 +197,7 @@ describe('the account of a request', () => {
     expect(skipAuthAccountThrottle(context({ ...bearer('marie'), ip: '10.0.0.1' }))).toBe(true);
     expect(skipAuthAccountThrottle(context({ ...bearer('marie'), ip: '10.0.0.9' }))).toBe(false);
 
-    // With no secret AuthGuard sees nobody either: there is no account to count.
+    // With no secret no login can be checked: there is no account to count on.
     delete process.env.SUPABASE_JWT_SECRET;
     expect(skipAuthAccountThrottle(context(bearer('marie')))).toBe(true);
   });
