@@ -300,6 +300,8 @@ export const scoring = {
     clearLastReason: 'Dernière saisie annulée sur la tablette de score',
     blackCardUndoRefused:
       'Ce carton noir ne peut plus être annulé depuis la tablette. Prévenez l’organisateur.',
+    earlierUndoRefused:
+      'Une annulation précédente a été refusée par le serveur. La saisie est de nouveau dans la liste.',
     clearLastSentForReview:
       'L’événement est terminé : votre correction est envoyée pour validation. L’échange reste affiché tant qu’elle n’est pas approuvée.',
     swapColor: 'Inverser les couleurs',

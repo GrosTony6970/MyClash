@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
+import { RememberedUndos } from '../../../src/components/RememberedUndos';
 import { SyncBar } from '../../../src/components/SyncBar';
 import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessionEnded';
 import { useSendEnded, useSyncState } from '../../../src/offline/use-sync-state';
@@ -11,7 +12,6 @@ import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
-import { watchUndone } from '../../../src/lib/watch-undone';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -90,11 +90,6 @@ export default function MatchScoringPage({ params }: Props) {
   const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);
   useSendEnded(syncEngine, readBoutAgain);
   useSignInWhenSessionEnded();
-  // An undo the tablet wrote down is settled with the server (ruling 350).
-  useEffect(
-    () => watchUndone({ engine: syncEngine, apiUrl, onSettled: readBoutAgain, win: window }),
-    [syncEngine, apiUrl, readBoutAgain],
-  );
 
   useEffect(() => {
     const handleOnline = () => {
@@ -268,6 +263,16 @@ export default function MatchScoringPage({ params }: Props) {
         syncEngine={syncEngine}
         onReview={() => setQuarantineOpen(true)}
       />
+      {/* An undo the tablet wrote down is settled with the server (rulings 350, 354). */}
+      {matchId && (
+        <RememberedUndos
+          key={matchId}
+          engine={syncEngine}
+          apiUrl={apiUrl}
+          matchId={matchId}
+          onSettled={readBoutAgain}
+        />
+      )}
 
       {match ? (
         <MatchView

@@ -145,7 +145,7 @@ describe('settleUndone', () => {
 
     const settled = await settleUndone(API_URL);
 
-    expect(settled.get('uuid-5')).toMatchObject({ refused: { status: 404 } });
+    expect(settled.get('uuid-5')).toMatchObject({ refused: { status: 404 }, matchId: 'm1' });
     expect(await stillWritten()).toEqual([]);
     expect(console.warn).toHaveBeenCalledOnce();
   });
@@ -178,7 +178,7 @@ describe('settleUndone', () => {
 
     const settled = await settleUndone(API_URL);
 
-    expect(settled.get('uuid-5')).toMatchObject({ refused: { status, code } });
+    expect(settled.get('uuid-5')).toMatchObject({ refused: { status, code }, matchId: 'm1' });
     expect(await stillWritten()).toEqual([]);
   });
 

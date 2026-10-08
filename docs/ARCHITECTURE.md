@@ -1250,10 +1250,16 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > offline, and the entry stays written down: while a bout screen is open the pad settles what
 > is written down when the network is back, at each end of a send and every 15 seconds
 > (`lib/watch-undone.ts`), one run at a time. An entry written down is no candidate of a later
-> undo, even while the server still holds it: the settle voids that one, and the tap takes back
-> the entry before it. A request the API judged and refused (a coded
+> undo, even while the server still holds it: the settle voids that one, the screen's lists
+> leave it out (`hooks/useTakenBack.ts`), and the tap takes back the entry before it. The
+> undo reads what is written down before it reads the server, so an entry the settle forgets
+> during that read is still left out. A request the API judged and refused (a coded
 > 400, 404 or 409: the bout is locked or gone, its Event is over) forgets the entry, and the
-> screen reads the bout again: the hit is on the list. No answer, a 401 and a 403 keep it: those
+> screen reads the bout again: the hit is on the list, and the screen of that bout says the
+> refusal, with the reason when the pad has its own words for the code (`knownRefusal`), until
+> the referee closes it (ruling 354,
+> `components/RememberedUndos.tsx`, `lib/refused-undo.ts`; a refusal about another bout is
+> logged only). No answer, a 401 and a 403 keep it: those
 > are about who is signed in. An entry nobody could ask about for a day is let go. The one row a send has out is never deleted: the send claims a row just before its POST
 > (`claimForSend`), `takeOffTablet` checks that claim, and both are write transactions on the
 > outbox, so the undo sees the claim or the send sees the delete and skips the row. For the row

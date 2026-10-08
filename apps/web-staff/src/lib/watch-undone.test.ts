@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ApiFailure } from '@myclash/api-client';
 import type { Settled } from './settle-undone';
 import * as settle from './settle-undone';
 import { watchUndone } from './watch-undone';
@@ -10,6 +11,10 @@ import { watchUndone } from './watch-undone';
  * While a bout screen is open, the undos written down are settled (ruling
  * 350): at once, when the network is back, at each end of a send, and every
  * 15 seconds, for a wifi that comes back with no event and nothing to send.
+ *
+ * Ruling 354. He undid hit 5 with no connection; the bout was locked before the
+ * wifi came back, so the server refused the void. Hit 5 came back on the list
+ * and the screen said nothing. The screen of THAT bout is now told the refusal.
  */
 const API_URL = 'http://localhost:4000';
 
@@ -30,9 +35,29 @@ function watching(settled: Array<[string, Settled]> = []) {
     },
   };
   const onSettled = vi.fn();
-  const stop = watchUndone({ engine, apiUrl: API_URL, onSettled, win: win as never });
-  return { runs, heard, onSettled, stop, endSend: () => sendEnded?.(), listens: () => sendEnded };
+  const onRefused = vi.fn();
+  const stop = watchUndone({
+    engine,
+    apiUrl: API_URL,
+    matchId: 'm1',
+    onSettled,
+    onRefused,
+    win: win as never,
+  });
+  const endSend = () => sendEnded?.();
+  return { runs, heard, onSettled, onRefused, stop, endSend, listens: () => sendEnded };
 }
+
+const refusal = (status: number, code: string): ApiFailure => ({
+  kind: 'http',
+  status,
+  code,
+  detail: null,
+  details: null,
+  validationErrors: null,
+});
+const LOCKED = refusal(400, 'BAD_REQUEST');
+const GONE = refusal(404, 'NOT_FOUND');
 
 /** Let the run in flight end: its answer is a resolved promise. */
 const ended = () => vi.advanceTimersByTimeAsync(0);
@@ -86,7 +111,7 @@ describe('watchUndone', () => {
   it.each<[string, Settled]>([
     ['voided an entry on the server', 'voided'],
     ['filed a request for review', 'review'],
-    ['was refused by the server', { refused: { kind: 'network' } }],
+    ['was refused by the server', { refused: LOCKED, matchId: 'm1' }],
     ['let an old undo go', 'expired'],
   ])('tells the screen when a run %s', async (_what, settled) => {
     const { onSettled } = watching([
@@ -106,6 +131,31 @@ describe('watchUndone', () => {
     await ended();
 
     expect(onSettled).not.toHaveBeenCalled();
+  });
+
+  it('tells the screen each refusal about its own bout, and no other', async () => {
+    const { onRefused } = watching([
+      ['uuid-1', { refused: GONE, matchId: 'm2' }],
+      ['uuid-2', { refused: LOCKED, matchId: 'm1' }],
+      ['uuid-3', 'voided'],
+      ['uuid-4', { refused: GONE, matchId: 'm1' }],
+    ]);
+    await ended();
+
+    expect(onRefused.mock.calls).toEqual([[LOCKED], [GONE]]);
+  });
+
+  it.each<[string, Settled]>([
+    ['voided', 'voided'],
+    ['sent for review', 'review'],
+    ['kept', 'kept'],
+    ['absent', 'absent'],
+    ['let go', 'expired'],
+  ])('tells no refusal for an entry that was %s', async (_what, settled) => {
+    const { onRefused } = watching([['uuid-1', settled]]);
+    await ended();
+
+    expect(onRefused).not.toHaveBeenCalled();
   });
 
   it('a run that throws is logged, and the next one still runs', async () => {
@@ -132,6 +182,19 @@ describe('watchUndone', () => {
     expect(listens()).toBeNull();
     expect(runs).toHaveBeenCalledOnce();
   });
+
+  // The bout screen closed while a run was out: its answer is for nobody.
+  it('a run in flight at the stop tells no screen', async () => {
+    const { onSettled, onRefused, stop } = watching([
+      ['uuid-1', { refused: LOCKED, matchId: 'm1' }],
+    ]);
+
+    stop();
+    await ended();
+
+    expect(onSettled).not.toHaveBeenCalled();
+    expect(onRefused).not.toHaveBeenCalled();
+  });
 });
 
 describe('the bout screen', () => {
@@ -140,9 +203,29 @@ describe('the bout screen', () => {
     'utf8',
   );
 
-  it('watches while it is open, reads the bout again after a settle, and stops when it closes', () => {
+  const notice = readFileSync(join(__dirname, '..', 'components', 'RememberedUndos.tsx'), 'utf8');
+
+  it('mounts the watcher of its own bout, and reads the bout again after a settle', () => {
     expect(page).toMatch(
-      /useEffect\(\s+\(\) => watchUndone\(\{ engine: syncEngine, apiUrl, onSettled: readBoutAgain, win: window \}\),\s+\[syncEngine, apiUrl, readBoutAgain\],\s+\);/,
+      /\{matchId && \(\s+<RememberedUndos\s+key=\{matchId\}\s+engine=\{syncEngine\}\s+apiUrl=\{apiUrl\}\s+matchId=\{matchId\}\s+onSettled=\{readBoutAgain\}\s+\/>\s+\)\}/,
     );
+    expect(page).not.toContain('watchUndone');
+  });
+
+  it('watches while it is open, and stops when it closes', () => {
+    expect(notice).toMatch(
+      /useEffect\(\s+\(\) => watchUndone\(\{ engine, apiUrl, matchId, onSettled, onRefused: setRefused, win: window \}\),\s+\[engine, apiUrl, matchId, onSettled\],\s+\);/,
+    );
+  });
+
+  it('says a refusal in the words of the pure module, until it is closed', () => {
+    expect(notice).toContain('{refusedUndoWords(refused, t)}');
+    expect(notice).toContain('if (!refused) return null;');
+    expect(notice).toMatch(
+      /role="alert"[^>]+>\s+<span [^>]+>\{refusedUndoWords\(refused, t\)\}<\/span>/,
+    );
+    // The pad's touch target: never under 44px (docs/design/web-staff.md).
+    expect(notice).toContain('className="min-h-[44px] shrink-0');
+    expect(notice).toContain('onClick={() => setRefused(null)}');
   });
 });

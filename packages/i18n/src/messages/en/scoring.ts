@@ -314,6 +314,7 @@ export const scoring = {
     clearLastReason: 'Last entry undone on the scoring pad',
     blackCardUndoRefused:
       'This black card can no longer be undone from the pad. Tell the organiser.',
+    earlierUndoRefused: 'An earlier undo was refused by the server. The entry is back on the list.',
     clearLastSentForReview:
       'The Event is over: your correction was sent for review. The exchange stays until it is approved.',
     swapColor: 'Swap fighter color',

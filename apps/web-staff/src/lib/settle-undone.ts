@@ -10,9 +10,11 @@ import { askVoid } from './void-entry';
  * held it and it is voided there. `review`: the Event is over, a request was
  * filed. `absent`: the server holds no live entry of that id. `kept`: the
  * server could not be asked, it is tried again. `refused`: the server judged
- * the request and said no. `expired`: nobody could ask for a day.
+ * the request and said no, about an entry of the bout `matchId` (ruling 354:
+ * that bout's screen says it). `expired`: nobody could ask for a day.
  */
-export type Settled = 'voided' | 'review' | 'absent' | 'kept' | 'expired' | { refused: ApiFailure };
+export type Settled =
+  'voided' | 'review' | 'absent' | 'kept' | 'expired' | { refused: ApiFailure; matchId: string };
 
 /**
  * The statuses the API judges the REQUEST by: the bout is gone, locked, or its
@@ -41,9 +43,12 @@ async function forget(entry: UndoneEntry, settled: Settled): Promise<Settled> {
   return settled;
 }
 
+const refuse = (entry: UndoneEntry, refused: ApiFailure) =>
+  forget(entry, { refused, matchId: entry.matchId });
+
 async function settleOne(apiUrl: string, entry: UndoneEntry, read: ServerRead): Promise<Settled> {
   if ('failure' in read) {
-    return isVerdict(read.failure) ? forget(entry, { refused: read.failure }) : 'kept';
+    return isVerdict(read.failure) ? refuse(entry, read.failure) : 'kept';
   }
   const held = read.rows.find((row) => row.clientUuid === entry.clientUuid && !row.voided);
   if (!held) return forget(entry, 'absent');
@@ -53,7 +58,7 @@ async function settleOne(apiUrl: string, entry: UndoneEntry, read: ServerRead): 
     kind: 'aborted' as const,
   });
   if (result.ok) return forget(entry, result.data?.pendingReview ? 'review' : 'voided');
-  return isVerdict(result) ? forget(entry, { refused: result }) : 'kept';
+  return isVerdict(result) ? refuse(entry, result) : 'kept';
 }
 
 async function settleAll(apiUrl: string, matchId?: string): Promise<Map<string, Settled>> {

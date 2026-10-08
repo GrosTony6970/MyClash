@@ -183,6 +183,15 @@ function codedRefusal(
   }
 }
 
+/**
+ * The pad's own words for a refusal it knows by its code, or null. Never the
+ * API's English `detail`, and no listener is told: for a sentence said later,
+ * with nobody at the door (ruling 354).
+ */
+export function knownRefusal(failure: ApiFailure, t: Translate): string | null {
+  return 'code' in failure ? codedRefusal(t, failure.code, failure.details) : null;
+}
+
 export function refusalMessage(
   failure: ApiFailure,
   t: Translate,
