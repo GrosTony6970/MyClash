@@ -7,7 +7,7 @@ import { AuthField, AuthNotice, AuthPanel, Button, PasswordChecklist } from '@my
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
-type Phase = 'idle' | 'submitting' | 'done';
+type Phase = 'idle' | 'submitting' | 'done' | 'sign-in';
 
 /**
  * Set a new password, in the organizer app.
@@ -86,7 +86,9 @@ export default function AdminResetPasswordPage() {
       // riding a query parameter into /dashboard, because /dashboard is a
       // router: it forwards most organizers straight to their org workspace,
       // and anything rendered there would be gone before it could be read.
-      setPhase('done');
+      // The door says whether it handed a login for the new password (ruling 358).
+      const body = (await res.json().catch(() => null)) as { signedIn?: unknown } | null;
+      setPhase(body?.signedIn === true ? 'done' : 'sign-in');
     } catch {
       setError(t('auth.resetPassword.errors.network'));
       setPhase('idle');
@@ -122,14 +124,22 @@ export default function AdminResetPasswordPage() {
         />
       }
       footer={
-        phase === 'done' ? undefined : (
+        phase === 'done' || phase === 'sign-in' ? undefined : (
           <a href="/login" className="text-sm font-semibold text-muted hover:text-foreground">
             {t('auth.login.backToSignIn')}
           </a>
         )
       }
     >
-      {phase === 'done' ? (
+      {phase === 'sign-in' ? (
+        <>
+          <h2 className="text-2xl font-black">{t('auth.resetPassword.doneTitle')}</h2>
+          <p className="text-sm leading-6 text-muted">{t('auth.resetPassword.doneSignIn')}</p>
+          <Button asChild variant="primary" className="w-full py-3">
+            <a href="/login">{t('auth.login.signIn')}</a>
+          </Button>
+        </>
+      ) : phase === 'done' ? (
         <>
           <h2 className="text-2xl font-black">{t('auth.resetPassword.doneTitle')}</h2>
           <p className="text-sm leading-6 text-muted">{t('auth.resetPassword.doneDescription')}</p>

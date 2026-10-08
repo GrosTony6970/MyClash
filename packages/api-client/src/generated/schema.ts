@@ -12829,7 +12829,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Password updated */
+      /** @description Password updated; `signedIn` says a login was handed */
       200: {
         headers: {
           [name: string]: unknown;

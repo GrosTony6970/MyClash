@@ -6,8 +6,9 @@ import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
+import { SignInWithNewPassword } from './SignInWithNewPassword';
 
-type Phase = 'idle' | 'submitting' | 'done';
+type Phase = 'idle' | 'submitting' | 'done' | 'sign-in';
 
 function ResetPassword() {
   const { t } = useI18n();
@@ -68,6 +69,12 @@ function ResetPassword() {
         setPhase('idle');
         return;
       }
+      // The door says whether it handed a login for the new password (ruling 358).
+      const body = (await res.json().catch(() => null)) as { signedIn?: unknown } | null;
+      if (body?.signedIn !== true) {
+        setPhase('sign-in');
+        return;
+      }
       setPhase('done');
       router.replace('/me?password_reset=1');
     } catch (err) {
@@ -76,6 +83,8 @@ function ResetPassword() {
       setPhase('idle');
     }
   }
+
+  if (phase === 'sign-in') return <SignInWithNewPassword t={t} />;
 
   return (
     <main

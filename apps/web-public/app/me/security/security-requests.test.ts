@@ -69,7 +69,11 @@ describe.each(Object.entries(DOORS))('%s', (_door, ask) => {
 
   it('renews an ended login once and sends the request again', async () => {
     inBrowser();
-    const fetched = answers(noSession(), me('claimed'), response(200, { ok: true }));
+    const fetched = answers(
+      noSession(),
+      me('claimed'),
+      response(200, { ok: true, signedIn: true }),
+    );
 
     expect(await ask()).toBe('ok');
     expect(fetched.mock.calls.map(([url]) => String(url).replace(API, ''))).toEqual([
@@ -104,7 +108,7 @@ describe.each(Object.entries(DOORS))('%s', (_door, ask) => {
   });
 
   it('sends the login and the typed values', async () => {
-    const fetched = answers(response(200, { ok: true }));
+    const fetched = answers(response(200, { ok: true, signedIn: true }));
 
     expect(await ask()).toBe('ok');
     const [, init] = fetched.mock.calls[0] as [string, RequestInit];
@@ -125,7 +129,7 @@ describe('the request each door sends', () => {
   ] as [keyof typeof DOORS, string, string, object][])(
     '%s is a %s to %s',
     async (door, method, path, typed) => {
-      const fetched = answers(response(200, { ok: true }));
+      const fetched = answers(response(200, { ok: true, signedIn: true }));
 
       await DOORS[door]();
 

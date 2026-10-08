@@ -111,7 +111,7 @@ describe('a password change keeps its caller signed in (ruling 352)', () => {
   it('signs the account in with the new password, after the write, and hands that login', async () => {
     const built = build([current(), freshLogin()]);
 
-    expect(await change(built)).toEqual({ ok: true });
+    expect(await change(built)).toEqual({ ok: true, signedIn: true });
 
     expect(built.steps).toEqual([
       'password door: old-password',
@@ -143,7 +143,7 @@ describe('a password change keeps its caller signed in (ruling 352)', () => {
     async (_w, second) => {
       const built = build([current(), second]);
 
-      expect(await change(built)).toEqual({ ok: true });
+      expect(await change(built)).toEqual({ ok: true, signedIn: false });
 
       expect(built.steps).toContain('password written');
       expect(built.reply.setCookie).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe('a password reset signs its reader in (ruling 352)', () => {
       password: NEW_PASSWORD,
     });
     expect(built.cookies()).toEqual(FRESH_COOKIES);
-    expect(built.reply.send).toHaveBeenCalledWith({ next: '/me' });
+    expect(built.reply.send).toHaveBeenCalledWith({ next: '/me', signedIn: true });
   });
 
   // Ann is signed in on this browser and opens Paul's reset link: she must not stay signed
@@ -189,6 +189,6 @@ describe('a password reset signs its reader in (ruling 352)', () => {
     expect(built.warned).toHaveBeenCalledWith(expect.stringContaining(PAUL.id));
     // The password door is asked only for an account with an address.
     expect(built.steps).toHaveLength(user.email ? 2 : 1);
-    expect(built.reply.send).toHaveBeenCalledWith({ next: '/me' });
+    expect(built.reply.send).toHaveBeenCalledWith({ next: '/me', signedIn: false });
   });
 });

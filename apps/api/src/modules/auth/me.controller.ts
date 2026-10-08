@@ -229,7 +229,7 @@ export class MeController {
   @HttpCode(HttpStatus.OK)
   @ThrottleByAccount()
   @ApiOperation({ summary: 'Change the current user password' })
-  @ApiResponse({ status: 200, description: 'Password updated' })
+  @ApiResponse({ status: 200, description: 'Password updated; `signedIn` says a login was handed' })
   @ApiResponse({ status: 400, description: 'Weak new password' })
   @ApiResponse({ status: 401, description: 'No session' })
   @ApiResponse({ status: 403, description: 'Current password incorrect (wrong_current_password)' })
@@ -237,7 +237,7 @@ export class MeController {
     @Req() req: FastifyRequest,
     @Body() dto: ChangePasswordDto,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ ok: true }> {
+  ): Promise<{ ok: true; signedIn: boolean }> {
     return this.auth.changePassword(req, dto.currentPassword, dto.newPassword, reply);
   }
 

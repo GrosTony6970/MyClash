@@ -47,6 +47,7 @@ export const auth = {
     submit: 'Enregistrer le mot de passe',
     doneTitle: 'Mot de passe mis à jour',
     doneDescription: 'Vous êtes connecté. Rejoignez votre espace de travail.',
+    doneSignIn: 'Connectez-vous avec votre nouveau mot de passe.',
     continue: 'Aller à mon tableau de bord',
     errors: {
       missingToken: 'Ce lien ne contient pas de jeton. Demandez un nouvel e-mail.',

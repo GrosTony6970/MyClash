@@ -1428,7 +1428,7 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
     reply: FastifyReply,
-  ): Promise<{ ok: true }> {
+  ): Promise<{ ok: true; signedIn: boolean }> {
     const accessToken = this.extractToken(request);
     if (!accessToken) throw new UnauthorizedException('Authentication required');
     const user = await this.requestAuthUser(accessToken);
@@ -1450,8 +1450,10 @@ export class AuthService {
     }
 
     this.logger.log(`password changed for user ${user.id}`);
-    await this.signInWithNewPassword(reply, user.id, user.email, newPassword);
-    return { ok: true };
+    return {
+      ok: true,
+      signedIn: await this.signInWithNewPassword(reply, user.id, user.email, newPassword),
+    };
   }
 
   /**
@@ -1687,9 +1689,14 @@ export class AuthService {
     }
 
     // The session of the code died with the password write (ruling 352).
-    await this.signInWithNewPassword(reply, data.user.id, data.user.email, password);
+    const signedIn = await this.signInWithNewPassword(
+      reply,
+      data.user.id,
+      data.user.email,
+      password,
+    );
     await this.tryAutolinkGlobalPerson(data.user.id, data.user.email ?? null);
-    void reply.send({ next: '/me' });
+    void reply.send({ next: '/me', signedIn });
   }
 
   /**
@@ -2177,14 +2184,15 @@ export class AuthService {
    * this sign-in answers. With no login of THIS account from it the door still answers,
    * and it clears the browser's login: that one is ended, or it is another account's
    * (a reset link opened in a browser signed in as somebody else). The account signs
-   * in by hand.
+   * in by hand. The answer says which, and each door hands it to its page
+   * (operator ruling 358): the page says "you are signed in" only when true.
    */
   private async signInWithNewPassword(
     reply: FastifyReply,
     userId: string,
     email: string | undefined,
     password: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     let why = email ? 'the auth server gave no login of this account' : 'it has no address';
     try {
       const login = email
@@ -2193,13 +2201,14 @@ export class AuthService {
         : null;
       if (login?.access_token && login.refresh_token && login.user?.id === userId) {
         this.setAuthCookies(reply, login.access_token, login.refresh_token, login.expires_in);
-        return;
+        return true;
       }
     } catch (err) {
       why = String(err);
     }
     this.logger.warn(`new password of ${userId}: no login for it (${why}); cookies cleared`);
     this.logout(reply);
+    return false;
   }
 
   /**

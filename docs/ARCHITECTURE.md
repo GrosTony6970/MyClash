@@ -1958,6 +1958,9 @@ Five details that matter:
   the new password and hand out that login (ruling 352, `signInWithNewPassword`); when that
   sign-in gives no login of that account the password stands, the door clears the browser's
   login (it is ended, or it is another account's) and the account signs in by hand.
+  Both doors hand their page `signedIn` (ruling 358): the two reset pages and the
+  change-password box say "you are signed in" only for `true`, and with any other answer they
+  say "sign in with your new password" and lead to the sign-in screen.
   Every call to the auth server's password door (`askPasswordToken`) is held to five seconds,
   the limit of the API's other calls to it (ruling 357): with no answer a sign-in is a server
   error, and a door that already wrote the password answers as above.

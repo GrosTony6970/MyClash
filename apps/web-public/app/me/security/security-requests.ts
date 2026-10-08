@@ -24,6 +24,19 @@ function answerOf(result: ApiResult<unknown>): SecurityAnswer {
   return result.status === 400 ? 'bad_request' : 'failed';
 }
 
+/** A password change that went through: with the login the door handed, or with none. */
+export type PasswordChanged = 'ok' | 'sign_in_again';
+
+/**
+ * The sentence of a password that was changed (operator ruling 358). With no login from
+ * the door the browser's login is cleared: the account signs in with the new password.
+ */
+export function passwordChangedKey(changed: PasswordChanged): string {
+  return changed === 'ok'
+    ? 'publicApp.security.changePasswordSuccess'
+    : 'publicApp.resetPassword.doneSignIn';
+}
+
 /** A refused request that the page says as one sentence: every answer but the two it acts on. */
 export type SecurityRefusal = Exclude<SecurityAnswer, 'ok' | 'session_ended'>;
 
@@ -94,13 +107,14 @@ export async function requestPasswordChange(
   apiUrl: string,
   currentPassword: string,
   newPassword: string,
-): Promise<SecurityAnswer> {
-  return answerOf(
-    await apiRequest(apiUrl, '/api/v1/me/change-password', {
-      method: 'POST',
-      body: { currentPassword, newPassword },
-    }),
-  );
+): Promise<SecurityAnswer | PasswordChanged> {
+  const result = await apiRequest<{ signedIn?: unknown }>(apiUrl, '/api/v1/me/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  });
+  // The door says whether it handed a login for the new password (ruling 358).
+  if (result.ok && result.data?.signedIn !== true) return 'sign_in_again';
+  return answerOf(result);
 }
 
 export async function requestAccountDeletion(

@@ -213,6 +213,7 @@ export const publicApp = {
     description: 'Choisissez un nouveau mot de passe pour votre compte MyClash.',
     newPassword: 'Nouveau mot de passe',
     submit: 'Mettre à jour le mot de passe',
+    doneSignIn: 'Mot de passe mis à jour. Connectez-vous avec votre nouveau mot de passe.',
     errors: {
       missingToken: 'Le lien de réinitialisation ne contient pas de jeton.',
       expired: 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau.',

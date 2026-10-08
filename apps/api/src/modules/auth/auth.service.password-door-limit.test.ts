@@ -102,7 +102,7 @@ describe('the password door of the auth server is held to five seconds (ruling 3
     const asked = built.change();
     await built.timeIsUp();
 
-    expect(await asked).toEqual({ ok: true });
+    expect(await asked).toEqual({ ok: true, signedIn: false });
     expect(built.limits).toEqual([5000, 5000]);
     expect(built.updateUserById).toHaveBeenCalledOnce();
     expect(built.reply.setCookie).not.toHaveBeenCalled();

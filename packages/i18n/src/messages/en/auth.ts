@@ -46,6 +46,8 @@ export const auth = {
     submit: 'Save the new password',
     doneTitle: 'Password updated',
     doneDescription: 'You are signed in. Continue to your workspace.',
+    // The door handed no login with the new password (ruling 358).
+    doneSignIn: 'Sign in with your new password.',
     continue: 'Go to my dashboard',
     errors: {
       missingToken: 'This link is missing its token. Request a new reset email.',

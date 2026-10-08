@@ -214,6 +214,9 @@ export const publicApp = {
     description: 'Choose a new password for your MyClash account.',
     newPassword: 'New password',
     submit: 'Update password',
+    // The door handed no login with the new password (ruling 358): the reset page
+    // and the change-password box say it.
+    doneSignIn: 'Password updated. Sign in with your new password.',
     errors: {
       missingToken: 'The reset link is missing its token.',
       expired: 'This reset link has expired. Request a new one.',

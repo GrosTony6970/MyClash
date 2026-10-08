@@ -12,6 +12,7 @@ import { PasswordSetLink } from './PasswordSetLink';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
+  passwordChangedKey,
   readSecurityStatus,
   requestAccountDeletion,
   requestPasswordChange,
@@ -101,12 +102,12 @@ function ChangePasswordSection({
     // The request module answers a code for every failure: it never throws.
     const answer = await requestPasswordChange(apiUrl, currentPassword, newPassword);
     setBusy(false);
-    if (answer !== 'ok') {
+    if (answer !== 'ok' && answer !== 'sign_in_again') {
       if (answer === 'session_ended') setSessionEnded(true);
       else setError(t(passwordChangeRefusalKey(answer)));
       return;
     }
-    setMessage(t('publicApp.security.changePasswordSuccess'));
+    setMessage(t(passwordChangedKey(answer)));
     setCurrentPassword('');
     setNewPassword('');
     setConfirm('');
