@@ -1650,8 +1650,8 @@ export class AuthService {
   }
 
   /**
-   * POST /auth/public-password-reset-confirm — exchange the recovery
-   * token for a session and update the password.
+   * POST /auth/public-password-reset-confirm — spend the recovery
+   * token, update the password, and sign the account in with it.
    */
   async publicPasswordResetConfirm(
     token: string,
@@ -1685,9 +1685,7 @@ export class AuthService {
     }
 
     // The session of the code died with the password write (ruling 352).
-    if (data.user.email) {
-      await this.signInWithNewPassword(reply, data.user.id, data.user.email, password);
-    }
+    await this.signInWithNewPassword(reply, data.user.id, data.user.email, password);
     await this.tryAutolinkGlobalPerson(data.user.id, data.user.email ?? null);
     void reply.send({ next: '/me' });
   }
@@ -2172,26 +2170,32 @@ export class AuthService {
    * The auth server ends EVERY session of an account whose password an admin call
    * writes, the caller's own too (read on GoTrue v2.195.0). So the door signs the
    * account in again with the password it just wrote. The password stands whatever
-   * this sign-in answers: with no login from it the door still answers, hands out no
-   * cookie, and the account signs in by hand.
+   * this sign-in answers. With no login of THIS account from it the door still answers,
+   * and it clears the browser's login: that one is ended, or it is another account's
+   * (a reset link opened in a browser signed in as somebody else). The account signs
+   * in by hand.
    */
   private async signInWithNewPassword(
     reply: FastifyReply,
     userId: string,
-    email: string,
+    email: string | undefined,
     password: string,
   ): Promise<void> {
+    let why = email ? 'the auth server gave no login of this account' : 'it has no address';
     try {
-      const { body } = await this.askPasswordToken(email, password);
-      const login = body as GoTruePasswordTokenResponse | null;
-      if (login?.access_token && login.refresh_token) {
+      const login = email
+        ? ((await this.askPasswordToken(email, password))
+            .body as GoTruePasswordTokenResponse | null)
+        : null;
+      if (login?.access_token && login.refresh_token && login.user?.id === userId) {
         this.setAuthCookies(reply, login.access_token, login.refresh_token, login.expires_in);
         return;
       }
-      this.logger.warn(`new password of ${userId}: the auth server gave no login for it`);
     } catch (err) {
-      this.logger.warn(`new password of ${userId}: no login for it (${String(err)})`);
+      why = String(err);
     }
+    this.logger.warn(`new password of ${userId}: no login for it (${why}); cookies cleared`);
+    this.logout(reply);
   }
 
   /**

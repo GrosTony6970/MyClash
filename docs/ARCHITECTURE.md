@@ -1939,7 +1939,8 @@ Five details that matter:
   The auth server ends every session of an account when an admin call writes its password, the
   caller's own too. The password change and the password reset sign the account in again with
   the new password and hand out that login (ruling 352, `signInWithNewPassword`); when that
-  sign-in gives no login the password stands and the account signs in by hand.
+  sign-in gives no login of that account the password stands, the door clears the browser's
+  login (it is ended, or it is another account's) and the account signs in by hand.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

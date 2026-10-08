@@ -14,7 +14,8 @@ import { MeController } from './me.controller';
  * is using too (read on GoTrue v2.195.0: `/user` answers 403 `session_not_found`, the refresh
  * 400). His next page that checks the account sent him to the sign-in screen, and the reset
  * door handed him the cookies of a session that was already gone. Both doors sign the account
- * in again with the password they just wrote.
+ * in again with the password they just wrote. With no login of that account from the
+ * sign-in, the browser's login is cleared: it is ended, or it is another account's.
  */
 const PAUL = { id: 'user-paul', email: 'paul@example.com', identities: [{ provider: 'email' }] };
 const NEW_PASSWORD = 'A-much-Longer-passw0rd!';
@@ -33,7 +34,7 @@ const answer = (status: number, body: object): Answer => ({
 const freshLogin = () =>
   answer(200, { access_token: 'fresh-access', refresh_token: 'fresh-refresh', user: PAUL });
 
-function build(passwordDoor: (Answer | Error)[]) {
+function build(passwordDoor: (Answer | Error)[], resetUser: { id: string; email?: string } = PAUL) {
   const steps: string[] = [];
   const sent: unknown[] = [];
   const fetched = vi.fn(async (_url: string, init: { body: string }) => {
@@ -51,7 +52,7 @@ function build(passwordDoor: (Answer | Error)[]) {
   });
   const verifyOtp = vi.fn().mockResolvedValue({
     data: {
-      user: PAUL,
+      user: resetUser,
       session: { access_token: 'dead-access', refresh_token: 'dead-refresh', expires_in: 3600 },
     },
     error: null,
@@ -75,9 +76,11 @@ function build(passwordDoor: (Answer | Error)[]) {
   const signedIn = { headers: { authorization: 'Bearer access' } } as never;
   const cookies = () =>
     reply.setCookie.mock.calls.map(([name, value]) => [name, value] as [string, string]);
-  return { service, reply, signedIn, steps, cookies, warned, sent };
+  const cleared = () => reply.clearCookie.mock.calls.map(([name]) => name as string);
+  return { service, reply, signedIn, steps, cookies, cleared, warned, sent };
 }
 
+const BOTH_COOKIES = ['sb-access-token', 'sb-refresh-token'];
 const FRESH_COOKIES = [
   ['sb-access-token', 'fresh-access'],
   ['sb-refresh-token', 'fresh-refresh'],
@@ -120,6 +123,7 @@ describe('a password change keeps its caller signed in (ruling 352)', () => {
       password: NEW_PASSWORD,
     });
     expect(built.cookies()).toEqual(FRESH_COOKIES);
+    expect(built.reply.clearCookie).not.toHaveBeenCalled();
     expect(built.warned).not.toHaveBeenCalled();
   });
 
@@ -130,8 +134,12 @@ describe('a password change keeps its caller signed in (ruling 352)', () => {
     ['answers with no login', answer(200, { user: PAUL })],
     ['answers with no refresh token', answer(200, { access_token: 'fresh-access', user: PAUL })],
     ['answers with no access token', answer(200, { refresh_token: 'fresh-refresh', user: PAUL })],
+    [
+      'hands the login of another account',
+      answer(200, { access_token: 'a', refresh_token: 'r', user: { id: 'user-other' } }),
+    ],
   ])(
-    'still answers ok when the auth server %s, with no login and a warning',
+    'still answers ok when the auth server %s: the login is cleared, with a warning',
     async (_w, second) => {
       const built = build([current(), second]);
 
@@ -139,6 +147,7 @@ describe('a password change keeps its caller signed in (ruling 352)', () => {
 
       expect(built.steps).toContain('password written');
       expect(built.reply.setCookie).not.toHaveBeenCalled();
+      expect(built.cleared()).toEqual(BOTH_COOKIES);
       expect(built.warned).toHaveBeenCalledOnce();
       expect(built.warned).toHaveBeenCalledWith(expect.stringContaining(PAUL.id));
     },
@@ -163,13 +172,23 @@ describe('a password reset signs its reader in (ruling 352)', () => {
     expect(built.reply.send).toHaveBeenCalledWith({ next: '/me' });
   });
 
-  it('hands no login at all when the auth server gives none, and still answers', async () => {
-    const built = build([answer(503, { error: 'x' })]);
+  // Ann is signed in on this browser and opens Paul's reset link: she must not stay signed
+  // in as herself under "password reset", and Paul's ended session must not be handed out.
+  it.each<[string, (Answer | Error)[], { id: string; email?: string }]>([
+    ['the auth server gives no login', [answer(503, { error: 'x' })], PAUL],
+    ['the account has no address', [], { id: PAUL.id }],
+  ])('clears the login of the browser when %s, and still answers', async (_w, door, user) => {
+    const built = build(door, user);
 
     await reset(built);
 
+    expect(built.steps[0]).toBe('password written');
     expect(built.reply.setCookie).not.toHaveBeenCalled();
+    expect(built.cleared()).toEqual(BOTH_COOKIES);
     expect(built.warned).toHaveBeenCalledOnce();
+    expect(built.warned).toHaveBeenCalledWith(expect.stringContaining(PAUL.id));
+    // The password door is asked only for an account with an address.
+    expect(built.steps).toHaveLength(user.email ? 2 : 1);
     expect(built.reply.send).toHaveBeenCalledWith({ next: '/me' });
   });
 });
