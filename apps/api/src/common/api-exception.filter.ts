@@ -1,5 +1,20 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import { ADMIN_LOCKDOWN_CODE, READ_ONLY_MODE_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { OperationalUnavailableException } from './operational-exception';
+
+/**
+ * The refusals a super admin's switch makes on purpose (operator ruling 340). Each is an
+ * answer, not a fault, so none is reported: with read-only mode on, every refused save of
+ * every pad and every organiser buried the real faults. Only an
+ * `OperationalUnavailableException` can carry one of these codes as far as the check: the
+ * code of a plain 5xx is replaced first. An ops-runner failure has another code, or none,
+ * and is still reported.
+ */
+const SWITCH_REFUSALS = new Set<string>([
+  READ_ONLY_MODE_CODE,
+  ADMIN_LOCKDOWN_CODE,
+  SIGNUPS_DISABLED_CODE,
+]);
 
 /**
  * RFC 9457 (Problem Details for HTTP APIs) error envelope.
@@ -61,7 +76,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const path = request.url ?? '';
     const method = request.method ?? '';
 
-    if (statusCode >= 500) {
+    if (statusCode >= 500 && !SWITCH_REFUSALS.has(normalized.code)) {
       this.reportException?.(exception, {
         statusCode,
         path,

@@ -325,3 +325,47 @@ describe('ApiExceptionFilter', () => {
     );
   });
 });
+
+/**
+ * What goes to Sentry (operator ruling 340).
+ *
+ * Read-only mode is on at an Event with ten pads. Every refused save was reported as a
+ * server error: thirty reports a minute from the pads alone, and a real fault was buried
+ * under them. A refusal that a super admin's switch made on purpose is an answer, not a
+ * fault. An ops-runner failure is thrown with the same class, and is still reported.
+ */
+describe('ApiExceptionFilter, what it reports (ruling 340)', () => {
+  const reported = (exception: unknown) => {
+    const report = vi.fn();
+    new ApiExceptionFilter(report).catch(exception, makeHost().host);
+    return report.mock.calls.length;
+  };
+
+  it.each(['read_only_mode', 'admin_lockdown', 'signups_disabled'])(
+    'does not report the refusal of a switch: %s',
+    (code) => {
+      expect(reported(new OperationalUnavailableException({ code, message: 'On purpose.' }))).toBe(
+        0,
+      );
+    },
+  );
+
+  it('still reports an operational 503 with another code, or with none', () => {
+    expect(
+      reported(new OperationalUnavailableException({ code: 'ops_runner', message: 'x' })),
+    ).toBe(1);
+    expect(reported(new OperationalUnavailableException('Could not reach the ops runner.'))).toBe(
+      1,
+    );
+  });
+
+  // The marker class decides, as it does for the words: the filter replaces the code of a
+  // plain 5xx, so new code cannot silence its own fault by borrowing a switch's code.
+  it('still reports a plain 503 that borrows the code of a switch', () => {
+    expect(reported(new ServiceUnavailableException({ code: 'read_only_mode' }))).toBe(1);
+  });
+
+  it('reports nothing below 500, as before', () => {
+    expect(reported(new ConflictException({ code: 'read_only_mode' }))).toBe(0);
+  });
+});
