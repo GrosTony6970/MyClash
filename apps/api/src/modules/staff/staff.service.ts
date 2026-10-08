@@ -33,6 +33,7 @@ import {
   type PublicReader,
 } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
+import { getStaffSession } from '../../common/auth/identity';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isOver } from '../../common/live-status';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -64,7 +65,12 @@ import type {
 } from './dto';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 import { normalizeStaffUsername } from './normalize-username';
-import { mayScore, staffAccountDisabled, staffRoleNotAllowed } from './scoring-refusals';
+import {
+  mayScore,
+  organizerSessionRequired,
+  staffAccountDisabled,
+  staffRoleNotAllowed,
+} from './scoring-refusals';
 
 const scrypt = promisify(scryptCallback);
 export const STAFF_COOKIE_NAME = 'mc_staff';
@@ -931,7 +937,7 @@ export class StaffService {
 
   async authorizeMatchOrganizer(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
     const userId = await this.getSupabaseUserId(req);
-    if (!userId) throw new UnauthorizedException('Organizer session required');
+    if (!userId) throw organizerSessionRequired(getStaffSession(req) !== null);
     const match = await this.getMatchContext(matchId);
     await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
     return { userId, canOverrideLocked: true, canDiscardDependentResults: true };
@@ -945,7 +951,7 @@ export class StaffService {
    */
   async authorizeMatchRecordRead(req: FastifyRequest, matchId: string): Promise<void> {
     const userId = await this.getSupabaseUserId(req);
-    if (!userId) throw new UnauthorizedException('Organizer session required');
+    if (!userId) throw organizerSessionRequired(getStaffSession(req) !== null);
     const match = await this.getMatchContext(matchId, 'read');
     if (isOver(match.eventStatus) && (await this.isSuperAdmin(userId))) return;
     await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
@@ -1536,10 +1542,10 @@ export class StaffService {
       ? authHeader.slice(7)
       : cookies?.['sb-access-token'];
     if (!token) return undefined;
-    const {
-      data: { user },
-    } = await this.supabase.anon.auth.getUser(token);
-    return user?.id;
+    // Not the auth server alone: when it does not answer, the token is checked
+    // here, or a signed-in organiser reads as nobody and the pad sends her to
+    // its sign-in screen (ruling 342).
+    return (await this.supabase.getAuthUser(token))?.id;
   }
 
   private async assertCanManageEventStaff(eventId: string, userId: string) {

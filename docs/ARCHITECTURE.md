@@ -1222,7 +1222,16 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > drops "hits not sent" while none waits. That status stands in place of `idle` (`pressRefused`)
 > until the server takes a hit or the account is signed out: a Retry, the inbox or the `online`
 > event send nothing and prove nothing about the person, and Retry is not offered while no hit
-> waits. A press answered 401 is not told to the bar.
+> waits. A press answered 401 (nobody is signed in) sends the pad to its sign-in screen (ruling
+> 342): `refusalMessage` tells the bout screen (`tellSessionEnded`,
+> `useSignInWhenSessionEnded`), which leaves for the sign-in screen of its own mount
+> (`signInPath`); the hits stay in the queue and that screen counts them. One 401 is not that: an
+> organiser's door (Unlock on a bout with auto-lock on, a result override) asked by a tablet whose
+> PIN session is alive. The API marks it with the code `organizer_session_required`
+> (`organizerSessionRequired`, asked of the session the guard verified), and the pad says "only an
+> organiser". It stays a 401, so an account whose login ran out is still renewed. Those doors read
+> the account through `SupabaseService.getAuthUser`, so an auth server that does not answer does
+> not make a signed-in organiser read as nobody.
 >
 > **The undo (rulings 317, 318, 320).** "Undo last entry" takes back the newest hit or card of
 > the bout: the last line of its list, by the time it was scored, then its sequence

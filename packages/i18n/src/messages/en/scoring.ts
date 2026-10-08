@@ -335,6 +335,8 @@ export const scoring = {
     swissRoundAhead:
       'The next Swiss round has already been drawn from this result. Only an organiser can undo it now.',
     organiserOnly: 'Only an organiser can do this. Ask one for help.',
+    // A tap answered 401: the pad leaves for its sign-in screen (ruling 342).
+    sessionEnded: 'Your session has ended. Sign in again.',
     offlineRefusal: 'No connection. This needs the network — try again once you are back online.',
     maintenanceRefusal:
       'MyClash is in maintenance. This cannot be saved for now — try again in a moment.',

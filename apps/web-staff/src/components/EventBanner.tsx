@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { api } from '../lib/api';
 import { useRememberedEvent } from '../lib/last-event';
-import { staffRoutePrefix } from '../lib/nav';
+import { signInPath } from '../lib/nav';
 import { eventKindTone, type EventKindTone } from '../lib/event-kind-badge';
 import { useStaffSession } from './StaffScreen';
 
@@ -168,9 +168,7 @@ function LogoutConfirm({ onCancel }: { onCancel: () => void }) {
       // The route is public and idempotent, and the cookie is server-bound.
       // A network failure still belongs at the login screen.
     }
-    // Prefix-aware: served through the admin proxy this app lives under
-    // /staff, and a bare '/login' would leave it for the admin app entirely.
-    router.replace(`${staffRoutePrefix(pathname ?? '')}/login`);
+    router.replace(signInPath(pathname ?? ''));
   }
 
   return (

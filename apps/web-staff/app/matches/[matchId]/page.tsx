@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { SyncBar } from '../../../src/components/SyncBar';
+import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessionEnded';
 import { useSendEnded, useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
@@ -87,6 +88,7 @@ export default function MatchScoringPage({ params }: Props) {
   // send has ended. Above the effect that starts the first send.
   const readBoutAgain = useCallback(() => setRefreshKey((key) => key + 1), []);
   useSendEnded(syncEngine, readBoutAgain);
+  useSignInWhenSessionEnded();
 
   useEffect(() => {
     const handleOnline = () => {

@@ -176,6 +176,8 @@ const bareRequest = () => ({ cookies: {}, headers: {} }) as unknown as FastifyRe
 interface BuildOpts {
   /** Present = organizer branch; absent = staff branch. */
   userId?: string | null;
+  /** Set = the REAL read of the account runs, and `getAuthUser` answers this. */
+  authUser?: { id: string } | null;
   /** Throws for the roles listed, resolves otherwise. */
   denyRoles?: readonly string[];
   /** `null` seeds the decoy alone, so the wanted match does not exist. */
@@ -201,7 +203,8 @@ function build(opts: BuildOpts = {}) {
   if (opts.penalty) tables['match_penalties'] = pointerSeed('penalty-1', opts.penalty);
   if (opts.forfeit) tables['match_forfeits'] = pointerSeed('forfeit-1', opts.forfeit);
 
-  const supabase = mockSupabase(tables);
+  const getAuthUser = vi.fn().mockResolvedValue(opts.authUser ?? null);
+  const supabase = { ...mockSupabase(tables), getAuthUser };
   const assertOrgRole = vi.fn((_org: string, _user: string, role: string) => {
     if (opts.denyRoles?.includes(role)) return Promise.reject(new ForbiddenException('no role'));
     return Promise.resolve(undefined);
@@ -214,12 +217,14 @@ function build(opts: BuildOpts = {}) {
     jwt as never,
     {} as never,
   );
-  vi.spyOn(
-    svc as never as { getSupabaseUserId: () => Promise<string | null> },
-    'getSupabaseUserId',
-  ).mockResolvedValue(opts.userId === undefined ? null : opts.userId);
+  if (opts.authUser === undefined) {
+    vi.spyOn(
+      svc as never as { getSupabaseUserId: () => Promise<string | null> },
+      'getSupabaseUserId',
+    ).mockResolvedValue(opts.userId === undefined ? null : opts.userId);
+  }
 
-  return { svc, assertOrgRole, from: supabase.from };
+  return { svc, assertOrgRole, getAuthUser, from: supabase.from };
 }
 
 describe('authorizeMatchScoring', () => {
@@ -363,6 +368,95 @@ describe('authorizeMatchOrganizer', () => {
     await expect(svc.authorizeMatchOrganizer(bareRequest(), MATCH)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+/**
+ * Ruling 342: the pad sends a tap answered 401 to its sign-in screen. These
+ * doors answer 401 to a tablet whose PIN session is alive too (it holds no
+ * account), and that scorekeeper must not be sent away: the code tells the two
+ * apart. Still a 401: an account whose login ran out is renewed on one.
+ */
+describe('an organiser’s door asked with no account (ruling 342)', () => {
+  type Door = (svc: StaffService, req: FastifyRequest) => Promise<unknown>;
+  const DOORS: Array<[string, Door]> = [
+    ['the organiser check', (svc, req) => svc.authorizeMatchOrganizer(req, MATCH)],
+    ['a read of the bout’s record', (svc, req) => svc.authorizeMatchRecordRead(req, MATCH)],
+    ['an unlock with auto-lock on', (svc, req) => svc.authorizeMatchUnlock(req, MATCH)],
+    ['a forfeit taken back', (svc, req) => svc.authorizeForfeitOrganizer(req, 'forfeit-1')],
+  ];
+  /** As the guard leaves a request whose PIN cookie verified. */
+  const livePinRequest = () =>
+    ({ ...staffRequest(), staffSession: { staffId: ACCOUNT, eventId: EVENT } }) as FastifyRequest;
+  const refusalOf = (asked: Promise<unknown>) =>
+    asked.then(
+      () => {
+        throw new Error('the door let the caller in');
+      },
+      (refusal: unknown) => refusal as UnauthorizedException,
+    );
+
+  it.each(DOORS)('%s: a live PIN session is told so by a code', async (_door, ask) => {
+    const refusal = await refusalOf(ask(build({ forfeit: 'found' }).svc, livePinRequest()));
+
+    expect(refusal).toBeInstanceOf(UnauthorizedException);
+    expect(refusal.getResponse()).toEqual({
+      message: 'Organizer session required',
+      code: 'organizer_session_required',
+    });
+  });
+
+  it.each(DOORS)('%s: nobody signed in gets the 401 with no code', async (_door, ask) => {
+    // A PIN cookie the guard did not verify (expired, forged) is nobody too.
+    for (const request of [bareRequest(), staffRequest()]) {
+      const refusal = await refusalOf(ask(build({ forfeit: 'found' }).svc, request));
+
+      expect(refusal).toBeInstanceOf(UnauthorizedException);
+      expect(refusal.message).toBe('Organizer session required');
+      expect(refusal.getResponse()).not.toHaveProperty('code');
+    }
+  });
+});
+
+/**
+ * The account is read through `SupabaseService.getAuthUser`, which checks the
+ * token here when the auth server does not answer. Asked of the auth server
+ * alone, a signed-in organiser read as nobody for as long as it was silent, and
+ * the pad sends a tap answered that way to its sign-in screen (ruling 342).
+ * This double has no `anon` client: a read that goes around `getAuthUser` throws.
+ */
+describe('who the account is', () => {
+  const withLogin = (headers: Record<string, string>, cookies: Record<string, string>) =>
+    ({ headers, cookies }) as unknown as FastifyRequest;
+
+  it.each<[string, FastifyRequest]>([
+    ['the login cookie', withLogin({}, { 'sb-access-token': 'login-token' })],
+    ['a bearer header', withLogin({ authorization: 'Bearer login-token' }, {})],
+  ])('is asked of the read that survives a silent auth server (%s)', async (_from, request) => {
+    const { svc, getAuthUser } = build({ authUser: { id: 'user-1' } });
+
+    await expect(svc.authorizeMatchOrganizer(request, MATCH)).resolves.toMatchObject({
+      userId: 'user-1',
+    });
+    expect(getAuthUser).toHaveBeenCalledWith('login-token');
+  });
+
+  it('is nobody for a token that read refuses', async () => {
+    const { svc } = build({ authUser: null });
+    const request = withLogin({}, { 'sb-access-token': 'dead-token' });
+
+    await expect(svc.authorizeMatchOrganizer(request, MATCH)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('is not asked at all with no token', async () => {
+    const { svc, getAuthUser } = build({ authUser: { id: 'user-1' } });
+
+    await expect(svc.authorizeMatchOrganizer(bareRequest(), MATCH)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(getAuthUser).not.toHaveBeenCalled();
   });
 });
 

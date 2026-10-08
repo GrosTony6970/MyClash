@@ -51,6 +51,14 @@ export function staffRoutePrefix(pathname: string): string {
 }
 
 /**
+ * The sign-in screen of the mount the pad is served under. Through the admin
+ * proxy a bare `/login` would leave the pad for the admin app.
+ */
+export function signInPath(pathname: string): string {
+  return `${staffRoutePrefix(pathname)}/login`;
+}
+
+/**
  * Whether a back-link href points OUT of the web-staff app (an absolute
  * http(s) URL — typically the admin `?return=` target on the same origin but
  * a different app behind the proxy). Such hrefs must be a native `<a>` hard

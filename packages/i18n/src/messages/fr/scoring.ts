@@ -321,6 +321,7 @@ export const scoring = {
     swissRoundAhead:
       'La ronde suisse suivante a déjà été tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
+    sessionEnded: 'Votre session a pris fin. Reconnectez-vous.',
     offlineRefusal:
       'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
     maintenanceRefusal:

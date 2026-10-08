@@ -36,3 +36,23 @@ export function tellCallerRefusal(code: string | null): void {
   const caller = callerRefusalOf(code);
   if (caller) listener?.(caller);
 }
+
+let sessionEnded: (() => void) | undefined;
+
+/**
+ * A press sent at once and answered "nobody is signed in" (ruling 342). The
+ * bout screen listens and leaves for the sign-in screen. One listener, the
+ * newest: the stop it hands back silences that screen alone, so an older
+ * screen that leaves late does not silence the one that replaced it.
+ */
+export function hearSessionEnded(heard: () => void): () => void {
+  sessionEnded = heard;
+  return () => {
+    if (sessionEnded === heard) sessionEnded = undefined;
+  };
+}
+
+/** Told by `refusalMessage`, as `tellCallerRefusal` is. */
+export function tellSessionEnded(): void {
+  sessionEnded?.();
+}

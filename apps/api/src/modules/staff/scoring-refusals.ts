@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 /**
  * The refusals of "who may score" that are about the PERSON, not about one
@@ -15,6 +15,20 @@ export const staffRoleNotAllowed = () =>
     message: 'Staff account role cannot use this surface',
     code: 'staff_role_not_allowed',
   });
+
+/**
+ * An organiser's door asked with no account. A pad sends a tap answered 401
+ * to its sign-in screen (ruling 342), and a tablet whose PIN session is alive
+ * meets this door too (Unlock on a bout with auto-lock on): somebody IS signed
+ * in there, so that answer carries a code and the pad says "only an
+ * organiser". Still a 401: an account whose login ran out is renewed on one.
+ */
+export const organizerSessionRequired = (pinSessionAlive: boolean) =>
+  new UnauthorizedException(
+    pinSessionAlive
+      ? { message: 'Organizer session required', code: 'organizer_session_required' }
+      : 'Organizer session required',
+  );
 
 /**
  * An account's role check, for a scoring route: "no role in this organisation"

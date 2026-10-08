@@ -36,7 +36,7 @@
  */
 
 import type { ApiFailure } from '@myclash/api-client';
-import { tellCallerRefusal } from '../offline/caller-refusal';
+import { tellCallerRefusal, tellSessionEnded } from '../offline/caller-refusal';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -65,6 +65,13 @@ const NOT_STARTED = 'scoring.corrections.boutNotStarted';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
+const SESSION_ENDED = 'scoring.corrections.sessionEnded';
+
+/**
+ * The API's code on the 401 of an organiser's door asked by a live PIN session
+ * (`organizerSessionRequired` in its `staff/scoring-refusals.ts`).
+ */
+const ORGANISER_DOOR = 'organizer_session_required';
 
 /**
  * `t()` has no plural engine, so one needs its own key rather than "the 1 later
@@ -141,6 +148,7 @@ function codedRefusal(
     case 'swiss_later_round_already_drawn':
       return t(SWISS_AHEAD);
     case 'uncomplete_requires_organiser':
+    case ORGANISER_DOOR:
       return t(ORGANISER_ONLY);
     case 'bout_not_started': // ruling 286: a call sent at once to a bout nobody started
       return t(NOT_STARTED);
@@ -192,9 +200,16 @@ export function refusalMessage(
   if (failure.code === 'read_only_mode') return t(MAINTENANCE);
   if (failure.status === 503) return t(OFFLINE);
 
+  // Nobody is signed in: the bout screen leaves for the sign-in screen (ruling
+  // 342). Not the 401 of an organiser's door asked by a tablet whose PIN
+  // session is alive: the API marks that one with a code, said below.
+  if (failure.status === 401 && failure.code !== ORGANISER_DOOR) {
+    tellSessionEnded();
+    return t(SESSION_ENDED);
+  }
+
   // A refusal about the PERSON goes to the bar too, which holds the account's
-  // sign-out (ruling 311): a 403 with one of three codes. A press answered 401
-  // is not told: ruling 311 is about the three, and it keeps its own sentence.
+  // sign-out (ruling 311): a 403 with one of three codes.
   if (failure.status === 403) tellCallerRefusal(failure.code);
 
   const coded = codedRefusal(t, failure.code, failure.details);
