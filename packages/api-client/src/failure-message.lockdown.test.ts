@@ -32,12 +32,13 @@ function answered503(code: string | null): ApiFailure {
  * English sentence.
  */
 describe('the maintenance lockdown refusal (ruling 326)', () => {
+  // Ruling 348: a Fighter whose follow is refused reads it too, so it names no audience.
   it('is said in the reader’s language, by its code', () => {
     expect(failureMessage(answered503('admin_lockdown'), fr)).toBe(
-      "MyClash est en maintenance. Seule l'équipe de la plateforme peut y travailler pour le moment. Réessayez plus tard.",
+      'MyClash est en maintenance. Réessayez plus tard.',
     );
     expect(failureMessage(answered503('admin_lockdown'), en)).toBe(
-      'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
+      'MyClash is in maintenance. Try again later.',
     );
   });
 

@@ -36,7 +36,7 @@ const signupsOff = http(503, { code: 'signups_disabled' });
 /** The API's answer at a sign-in door while the maintenance lockdown is on. */
 const lockdown = http(503, {
   code: 'admin_lockdown',
-  detail: 'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
+  detail: 'MyClash is in maintenance. Try again later.',
 });
 /** The API's answer at a sign-up door while read-only mode is on (operator ruling 341). */
 const readOnly = http(503, {

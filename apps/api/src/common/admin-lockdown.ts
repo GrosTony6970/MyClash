@@ -13,8 +13,8 @@ import { OperationalUnavailableException } from './operational-exception';
 export function adminLockdownRefusal(): OperationalUnavailableException {
   return new OperationalUnavailableException({
     code: ADMIN_LOCKDOWN_CODE,
-    message:
-      'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
+    // No audience in the words: a Fighter's save under an Event meets it too (ruling 348).
+    message: 'MyClash is in maintenance. Try again later.',
   });
 }
 

@@ -28,9 +28,10 @@ export const common = {
     eventCompleted:
       'This event is completed. Re-open it before you regenerate or delete what was planned.',
     // The maintenance lockdown's refusal, by its code `admin_lockdown`: one
-    // global check answers it on nearly every admin screen (ruling 326).
-    adminLockdown:
-      'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
+    // global check answers it on nearly every admin screen (ruling 326). It names
+    // no audience: a Fighter whose save under an Event is refused reads it too
+    // (ruling 348).
+    adminLockdown: 'MyClash is in maintenance. Try again later.',
     // Read-only mode's refusal, by its code `read_only_mode`: one global check
     // answers it to nearly every save, on any screen (ruling 334).
     readOnlyMode: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
