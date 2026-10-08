@@ -1,6 +1,6 @@
-import type { ApiFailure } from '@myclash/api-client';
-import type { UndoneEntry } from '../offline/db';
-import { forgetUndone, listUndone } from '../offline/undone';
+import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import { db, type UndoNotice, type UndoneEntry } from '../offline/db';
+import { listUndone } from '../offline/undone';
 import { readServerEntries, type ServerRead } from './server-entries';
 import { heldTo, SERVER_LIMIT_MS } from './time-limit';
 import { askVoid } from './void-entry';
@@ -10,11 +10,18 @@ import { askVoid } from './void-entry';
  * held it and it is voided there. `review`: the Event is over, a request was
  * filed. `absent`: the server holds no live entry of that id. `kept`: the
  * server could not be asked, it is tried again. `refused`: the server judged
- * the request and said no, about an entry of the bout `matchId` (ruling 354:
- * that bout's screen says it). `expired`: nobody could ask for a day.
+ * the request and said no, about an entry of the bout `matchId`. `expired`:
+ * nobody could ask for a day. `ended`: the bout was completed meanwhile, and
+ * the tablet corrects no finished bout by itself (ruling 366).
  */
 export type Settled =
-  'voided' | 'review' | 'absent' | 'kept' | 'expired' | { refused: ApiFailure; matchId: string };
+  | 'voided'
+  | 'review'
+  | 'absent'
+  | 'kept'
+  | 'expired'
+  | 'ended'
+  | { refused: ApiFailure; matchId: string };
 
 /**
  * The statuses the API judges the REQUEST by: the bout is gone, locked, or its
@@ -32,47 +39,90 @@ export function isVerdict(failure: ApiFailure): boolean {
 /** Nobody who may score the bout came back to the tablet: the undo is let go. */
 const KEPT_FOR_MS = 24 * 60 * 60 * 1000;
 
-async function forget(entry: UndoneEntry, settled: Settled): Promise<Settled> {
-  if (settled === 'expired' || typeof settled === 'object') {
+/** One run: the entry the referee is undoing now, and each bout's status, read once. */
+interface Run {
+  apiUrl: string;
+  tapped?: string;
+  ended: Map<string, Promise<boolean | null>>;
+}
+
+/** What the bout's screen says later of an undo that was not carried out (rulings 364, 365). */
+function noticeOf(entry: UndoneEntry, settled: Settled): UndoNotice | null {
+  const { clientUuid, matchId } = entry;
+  if (settled === 'expired' || settled === 'ended') return { clientUuid, matchId, why: settled };
+  if (typeof settled !== 'object') return null;
+  return { clientUuid, matchId, why: 'refused', refusal: settled.refused };
+}
+
+async function forget(run: Run, entry: UndoneEntry, settled: Settled): Promise<Settled> {
+  const notice = noticeOf(entry, settled);
+  if (notice) {
     console.warn('[undo] an undo taken on the tablet was not settled with the server', {
       entry,
       settled,
     });
   }
-  await forgetUndone(entry.clientUuid);
+  // One step: an undo forgotten with no notice written comes back with no word.
+  await db.transaction('rw', db.undone, db.undoNotices, async () => {
+    // The undo the referee is tapping now is answered at his button, at once.
+    if (notice && entry.clientUuid !== run.tapped) await db.undoNotices.put(notice);
+    await db.undone.delete(entry.clientUuid);
+  });
   return settled;
 }
 
-const refuse = (entry: UndoneEntry, refused: ApiFailure) =>
-  forget(entry, { refused, matchId: entry.matchId });
+const refuse = (run: Run, entry: UndoneEntry, refused: ApiFailure) =>
+  forget(run, entry, { refused, matchId: entry.matchId });
 
-async function settleOne(apiUrl: string, entry: UndoneEntry, read: ServerRead): Promise<Settled> {
+/** Does the server hold the bout completed? Null: it gave no answer to go on. */
+function boutEnded(run: Run, matchId: string): Promise<boolean | null> {
+  const known = run.ended.get(matchId);
+  if (known) return known;
+  const read = heldTo(
+    SERVER_LIMIT_MS,
+    (signal) =>
+      apiRequest<{ status?: string }>(run.apiUrl, `/api/v1/matches/${matchId}`, { signal }),
+    { ok: false as const, kind: 'aborted' as const },
+  ).then((bout) => (bout.ok ? bout.data?.status === 'completed' : null));
+  run.ended.set(matchId, read);
+  return read;
+}
+
+async function settleOne(run: Run, entry: UndoneEntry, read: ServerRead): Promise<Settled> {
   if ('failure' in read) {
-    return isVerdict(read.failure) ? refuse(entry, read.failure) : 'kept';
+    return isVerdict(read.failure) ? refuse(run, entry, read.failure) : 'kept';
   }
   const held = read.rows.find((row) => row.clientUuid === entry.clientUuid && !row.voided);
-  if (!held) return forget(entry, 'absent');
+  if (!held) return forget(run, entry, 'absent');
+  // A void on a finished bout is a correction: it can decide the bout again or
+  // put it back in play. Only the undo being tapped now is sent there; one the
+  // tablet remembered is let go, and the bout's screen says so (ruling 366).
+  if (entry.clientUuid !== run.tapped) {
+    const ended = await boutEnded(run, entry.matchId);
+    if (ended === null) return 'kept';
+    if (ended) return forget(run, entry, 'ended');
+  }
   // A void that passed the limit may land all the same: the next run reads it voided.
-  const result = await heldTo(SERVER_LIMIT_MS, (signal) => askVoid(apiUrl, held, signal), {
+  const result = await heldTo(SERVER_LIMIT_MS, (signal) => askVoid(run.apiUrl, held, signal), {
     ok: false as const,
     kind: 'aborted' as const,
   });
-  if (result.ok) return forget(entry, result.data?.pendingReview ? 'review' : 'voided');
-  return isVerdict(result) ? refuse(entry, result) : 'kept';
+  if (result.ok) return forget(run, entry, result.data?.pendingReview ? 'review' : 'voided');
+  return isVerdict(result) ? refuse(run, entry, result) : 'kept';
 }
 
-async function settleAll(apiUrl: string, matchId?: string): Promise<Map<string, Settled>> {
+async function settleAll(run: Run, matchId?: string): Promise<Map<string, Settled>> {
   const undone = (await listUndone()).filter((entry) => !matchId || entry.matchId === matchId);
   const settled = new Map<string, Settled>();
   const fresh: UndoneEntry[] = [];
   for (const entry of undone) {
     if (Date.now() - entry.undoneAt < KEPT_FOR_MS) fresh.push(entry);
-    else settled.set(entry.clientUuid, await forget(entry, 'expired'));
+    else settled.set(entry.clientUuid, await forget(run, entry, 'expired'));
   }
   for (const bout of new Set(fresh.map((entry) => entry.matchId))) {
-    const read = await readServerEntries(apiUrl, bout);
+    const read = await readServerEntries(run.apiUrl, bout);
     for (const entry of fresh.filter((row) => row.matchId === bout)) {
-      settled.set(entry.clientUuid, await settleOne(apiUrl, entry, read));
+      settled.set(entry.clientUuid, await settleOne(run, entry, read));
     }
   }
   return settled;
@@ -83,14 +133,19 @@ let turn: Promise<unknown> = Promise.resolve();
 /**
  * Ask the server for every entry the undo took off the tablet (ruling 350),
  * of one bout or of all: one it holds is voided there, by whoever is signed
- * in now. With nothing written down, nothing is asked.
+ * in now. With nothing written down, nothing is asked. `tapped` is the entry
+ * the referee is undoing at this moment: its answer goes to his button.
  *
  * The race is two runs over one entry (the undo's own, the watcher's): the
  * second would void a voided row. One run at a time: the later one reads what
  * the earlier one left.
  */
-export function settleUndone(apiUrl: string, matchId?: string): Promise<Map<string, Settled>> {
-  const run = turn.then(() => settleAll(apiUrl, matchId));
+export function settleUndone(
+  apiUrl: string,
+  matchId?: string,
+  tapped?: string,
+): Promise<Map<string, Settled>> {
+  const run = turn.then(() => settleAll({ apiUrl, tapped, ended: new Map() }, matchId));
   turn = run.catch(() => undefined);
   return run;
 }

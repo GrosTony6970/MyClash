@@ -6,8 +6,10 @@
  *   synced   — exchanges confirmed by the server (kept for reconciliation)
  *   rejected — exchanges the server refused, held for the operator to retry
  *   undone   — entries the undo took off the tablet, until the server was asked
+ *   undoNotices — undos the tablet did not carry out, until their bout's screen said so
  */
 
+import type { ApiFailure } from '@myclash/api-client';
 import Dexie, { type Table } from 'dexie';
 import type { PenaltyCard } from '@myclash/types';
 
@@ -139,6 +141,21 @@ export interface UndoneEntry {
   undoneAt: number;
 }
 
+/**
+ * An undo the tablet wrote down and did not carry out, kept until the screen
+ * of its bout has said so (rulings 364 to 366). `refused`: the server judged
+ * the request and said no. `expired`: nobody could ask the server for a day.
+ * `ended`: the bout was completed meanwhile, and the tablet corrects no
+ * finished bout by itself.
+ */
+export interface UndoNotice {
+  clientUuid: string;
+  matchId: string;
+  why: 'refused' | 'expired' | 'ended';
+  /** The server's refusal, for its reason in the pad's own words. */
+  refusal?: ApiFailure;
+}
+
 // ── Database ──────────────────────────────────────────────────────────────────
 
 /**
@@ -174,6 +191,11 @@ const V4_STORES = {
   rejected: '++id, matchId, clientUuid, rejectedAt',
   reads: 'path',
 };
+const V5_STORES = { ...V4_STORES, undone: 'clientUuid' };
+/** v6 adds `undoNotices` (rulings 364 to 366), read by its bout: no upgrade function. */
+const V6_STORES = { ...V5_STORES, undoNotices: 'clientUuid, matchId' };
+/** The schemas after v4, in order from v5: the constructor is at its length cap. */
+const LATER_STORES = [V5_STORES, V6_STORES];
 
 export class ScoringDb extends Dexie {
   outbox!: Table<OutboxEntry, number>;
@@ -181,6 +203,7 @@ export class ScoringDb extends Dexie {
   rejected!: Table<RejectedEntry, number>;
   reads!: Table<CachedRead, string>;
   undone!: Table<UndoneEntry, string>;
+  undoNotices!: Table<UndoNotice, string>;
 
   constructor() {
     super('myclash-staff');
@@ -226,7 +249,7 @@ export class ScoringDb extends Dexie {
     // pad simply behaves as it did before until the first successful fetch
     // fills it.
     this.version(4).stores(V4_STORES);
-    this.version(5).stores({ ...V4_STORES, undone: 'clientUuid' });
+    LATER_STORES.forEach((stores, at) => this.version(5 + at).stores(stores));
   }
 }
 

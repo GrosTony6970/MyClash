@@ -140,7 +140,8 @@ async function undoOnTablet(
   const taken = await deps.takeBack(entry);
   if (taken.kind === 'landed') return undoLanded(deps, entry, taken.serverId);
   if (!serverAnswered) return { kind: 'voided' };
-  const settled = (await settleUndone(deps.apiUrl, deps.matchId)).get(entry.clientUuid);
+  const run = await settleUndone(deps.apiUrl, deps.matchId, entry.clientUuid);
+  const settled = run.get(entry.clientUuid);
   if (settled === 'review') return { kind: 'sent-for-review' };
   if (typeof settled === 'object') return failed(settled.refused, deps.t);
   // Also when the screen's watcher settled it first: it reads the bout again itself.

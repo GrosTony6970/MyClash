@@ -1,4 +1,3 @@
-import type { ApiFailure } from '@myclash/api-client';
 import { settleUndone, type Settled } from './settle-undone';
 
 /** How often the pad looks again while a bout screen is open. */
@@ -14,17 +13,16 @@ const changesTheList = (settled: Settled) => settled !== 'absent' && settled !==
  * event and nothing to send. One run at a time: a trigger that meets a run in
  * flight is dropped, so a dead wifi piles up nothing. `onSettled` when a run
  * voided an entry, or could not: the screen reads the bout again, and a hit
- * the server kept is on the list again. `onRefused` for each entry of THIS
- * bout the server refused to void (ruling 354): the runs settle every bout,
- * and a refusal about another bout is not this screen's to say. Answers its
- * own stop: a run in flight at the stop tells nobody, its screen is closed.
+ * the server kept is on the list again. `onRan` after every run: an undo that
+ * was not carried out is written down for the screen of its bout (rulings 364
+ * to 366), and this screen reads what is written for its own. Answers its own
+ * stop: a run in flight at the stop tells nobody, its screen is closed.
  */
 export function watchUndone(deps: {
   engine: { onSendEnded(ended: () => void): () => void };
   apiUrl: string;
-  matchId: string;
   onSettled: () => void;
-  onRefused: (refusal: ApiFailure) => void;
+  onRan: () => void;
   win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'setInterval' | 'clearInterval'>;
 }): () => void {
   const { win } = deps;
@@ -37,9 +35,7 @@ export function watchUndone(deps: {
       .then((settled) => {
         if (stopped) return;
         if ([...settled.values()].some(changesTheList)) deps.onSettled();
-        for (const one of settled.values()) {
-          if (typeof one === 'object' && one.matchId === deps.matchId) deps.onRefused(one.refused);
-        }
+        deps.onRan();
       })
       .catch((err: unknown) => {
         console.error('[undo] the undos written down could not be settled', err);

@@ -304,6 +304,16 @@ export const scoring = {
       'Ce carton noir ne peut plus être annulé depuis la tablette. Prévenez l’organisateur.',
     earlierUndoRefused:
       'Une annulation précédente a été refusée par le serveur. La saisie est de nouveau dans la liste.',
+    earlierUndosRefused:
+      '{count} annulations précédentes ont été refusées par le serveur. Les saisies sont de nouveau dans la liste.',
+    earlierUndoNotSent:
+      'Une annulation précédente n’a pas pu être envoyée. La saisie est de nouveau dans la liste.',
+    earlierUndosNotSent:
+      '{count} annulations précédentes n’ont pas pu être envoyées. Les saisies sont de nouveau dans la liste.',
+    earlierUndoBoutEnded:
+      'Une annulation précédente n’a pas été envoyée : l’assaut est terminé. La saisie est de nouveau dans la liste. Corrigez-la si elle est encore fausse.',
+    earlierUndosBoutEnded:
+      '{count} annulations précédentes n’ont pas été envoyées : l’assaut est terminé. Les saisies sont de nouveau dans la liste. Corrigez-les si elles sont encore fausses.',
     clearLastSentForReview:
       'L’événement est terminé : votre correction est envoyée pour validation. L’échange reste affiché tant qu’elle n’est pas approuvée.',
     swapColor: 'Inverser les couleurs',

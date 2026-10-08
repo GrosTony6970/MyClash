@@ -317,6 +317,16 @@ export const scoring = {
     blackCardUndoRefused:
       'This black card can no longer be undone from the pad. Tell the organiser.',
     earlierUndoRefused: 'An earlier undo was refused by the server. The entry is back on the list.',
+    // The undos the tablet wrote down and did not carry out (rulings 364 to 366).
+    earlierUndosRefused:
+      '{count} earlier undos were refused by the server. The entries are back on the list.',
+    earlierUndoNotSent: 'An earlier undo could not be sent. The entry is back on the list.',
+    earlierUndosNotSent:
+      '{count} earlier undos could not be sent. The entries are back on the list.',
+    earlierUndoBoutEnded:
+      'An earlier undo was not sent: the bout has ended. The entry is back on the list. Correct it if it is still wrong.',
+    earlierUndosBoutEnded:
+      '{count} earlier undos were not sent: the bout has ended. The entries are back on the list. Correct them if they are still wrong.',
     clearLastSentForReview:
       'The Event is over: your correction was sent for review. The exchange stays until it is approved.',
     swapColor: 'Swap fighter color',

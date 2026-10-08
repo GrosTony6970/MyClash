@@ -35,17 +35,10 @@ function watching(settled: Array<[string, Settled]> = []) {
     },
   };
   const onSettled = vi.fn();
-  const onRefused = vi.fn();
-  const stop = watchUndone({
-    engine,
-    apiUrl: API_URL,
-    matchId: 'm1',
-    onSettled,
-    onRefused,
-    win: win as never,
-  });
+  const onRan = vi.fn();
+  const stop = watchUndone({ engine, apiUrl: API_URL, onSettled, onRan, win: win as never });
   const endSend = () => sendEnded?.();
-  return { runs, heard, onSettled, onRefused, stop, endSend, listens: () => sendEnded };
+  return { runs, heard, onSettled, onRan, stop, endSend, listens: () => sendEnded };
 }
 
 const refusal = (status: number, code: string): ApiFailure => ({
@@ -113,6 +106,7 @@ describe('watchUndone', () => {
     ['filed a request for review', 'review'],
     ['was refused by the server', { refused: LOCKED, matchId: 'm1' }],
     ['let an old undo go', 'expired'],
+    ['let an undo of an ended bout go', 'ended'],
   ])('tells the screen when a run %s', async (_what, settled) => {
     const { onSettled } = watching([
       ['uuid-1', 'absent'],
@@ -133,29 +127,27 @@ describe('watchUndone', () => {
     expect(onSettled).not.toHaveBeenCalled();
   });
 
-  it('tells the screen each refusal about its own bout, and no other', async () => {
-    const { onRefused } = watching([
-      ['uuid-1', { refused: GONE, matchId: 'm2' }],
-      ['uuid-2', { refused: LOCKED, matchId: 'm1' }],
-      ['uuid-3', 'voided'],
-      ['uuid-4', { refused: GONE, matchId: 'm1' }],
-    ]);
+  // Rulings 364 to 366. The settle writes down what it did not carry out, with its bout:
+  // the screen reads what is written for its own bout after every run, whatever the run did.
+  it.each<[string, Array<[string, Settled]>]>([
+    ['settled nothing', []],
+    ['kept every entry', [['uuid-1', 'kept']]],
+    ['met a refusal about another bout', [['uuid-1', { refused: GONE, matchId: 'm2' }]]],
+    ['let an undo of an ended bout go', [['uuid-1', 'ended']]],
+  ])('tells the screen a run ended when it %s', async (_what, settled) => {
+    const { onRan } = watching(settled);
     await ended();
 
-    expect(onRefused.mock.calls).toEqual([[LOCKED], [GONE]]);
+    expect(onRan).toHaveBeenCalledOnce();
   });
 
-  it.each<[string, Settled]>([
-    ['voided', 'voided'],
-    ['sent for review', 'review'],
-    ['kept', 'kept'],
-    ['absent', 'absent'],
-    ['let go', 'expired'],
-  ])('tells no refusal for an entry that was %s', async (_what, settled) => {
-    const { onRefused } = watching([['uuid-1', settled]]);
+  it('tells the screen after each run, once per run', async () => {
+    const { onRan, endSend } = watching();
+    await ended();
+    endSend();
     await ended();
 
-    expect(onRefused).not.toHaveBeenCalled();
+    expect(onRan).toHaveBeenCalledTimes(2);
   });
 
   it('a run that throws is logged, and the next one still runs', async () => {
@@ -185,15 +177,13 @@ describe('watchUndone', () => {
 
   // The bout screen closed while a run was out: its answer is for nobody.
   it('a run in flight at the stop tells no screen', async () => {
-    const { onSettled, onRefused, stop } = watching([
-      ['uuid-1', { refused: LOCKED, matchId: 'm1' }],
-    ]);
+    const { onSettled, onRan, stop } = watching([['uuid-1', { refused: LOCKED, matchId: 'm1' }]]);
 
     stop();
     await ended();
 
     expect(onSettled).not.toHaveBeenCalled();
-    expect(onRefused).not.toHaveBeenCalled();
+    expect(onRan).not.toHaveBeenCalled();
   });
 });
 
@@ -213,19 +203,36 @@ describe('the bout screen', () => {
   });
 
   it('watches while it is open, and stops when it closes', () => {
-    expect(notice).toMatch(
-      /useEffect\(\s+\(\) => watchUndone\(\{ engine, apiUrl, matchId, onSettled, onRefused: setRefused, win: window \}\),\s+\[engine, apiUrl, matchId, onSettled\],\s+\);/,
+    expect(notice).toContain(
+      'const stop = watchUndone({ engine, apiUrl, onSettled, onRan: read, win: window });',
+    );
+    expect(notice).toMatch(/return \(\) => \{\s+gone = true;\s+stop\(\);\s+\};/);
+    expect(notice).toContain('}, [engine, apiUrl, matchId, onSettled]);');
+  });
+
+  // Ruling 364: what was written while another screen was open is read when this one opens.
+  it('reads what is written for its bout when it opens, and after every run', () => {
+    expect(notice).toMatch(/\n {4}read\(\);\n {4}const stop = watchUndone\(/);
+    expect(notice).toContain('void noticesOf(matchId).then((rows) => {');
+    expect(notice).toContain(
+      'if (!gone) setNotices(rows.filter((row) => !closed.current.has(row.clientUuid)));',
     );
   });
 
-  it('says a refusal in the words of the pure module, until it is closed', () => {
-    expect(notice).toContain('{refusedUndoWords(refused, t)}');
-    expect(notice).toContain('if (!refused) return null;');
+  it('says them in the words of the pure module, until they are closed', () => {
+    expect(notice).toContain('if (notices.length === 0) return null;');
     expect(notice).toMatch(
-      /role="alert"[^>]+>\s+<span [^>]+>\{refusedUndoWords\(refused, t\)\}<\/span>/,
+      /role="alert"[\s\S]+\{undoNoticeLines\(notices, t\)\.map\(\(line\) => \(\s+<p key=\{line\}>\{line\}<\/p>\s+\)\)\}/,
     );
     // The pad's touch target: never under 44px (docs/design/web-staff.md).
     expect(notice).toContain('className="min-h-[44px] shrink-0');
-    expect(notice).toContain('onClick={() => setRefused(null)}');
+    expect(notice).toContain('onClick={close}');
+  });
+
+  // Only the rows he read are removed: one written since stays for the next read.
+  it('removes the rows it showed when he closes the notice, and shows them no more', () => {
+    expect(notice).toMatch(
+      /const close = \(\) => \{\s+for \(const notice of notices\) closed\.current\.add\(notice\.clientUuid\);\s+setNotices\(\[\]\);\s+void saidNotices\(notices\);\s+\};/,
+    );
   });
 });

@@ -1262,9 +1262,18 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > screen reads the bout again: the hit is on the list, and the screen of that bout says the
 > refusal, with the reason when the pad has its own words for the code (`knownRefusal`), until
 > the referee closes it (ruling 354,
-> `components/RememberedUndos.tsx`, `lib/refused-undo.ts`; a refusal about another bout is
-> logged only). No answer, a 401 and a 403 keep it: those
-> are about who is signed in. An entry nobody could ask about for a day is let go. The one row a send has out is never deleted: the send claims a row just before its POST
+> `components/RememberedUndos.tsx`, `lib/refused-undo.ts`). No answer, a 401 and a 403 keep
+> it: those are about who is signed in. An entry nobody could ask about for a day is let go
+> (ruling 365). An undo the tablet REMEMBERED is not sent to a bout the server holds completed
+> (ruling 366): a void there is a correction, which can decide the bout again or put it back
+> in play, and the tablet makes none by itself. The settle reads the bout's status once per
+> run for that, and only the entry the referee is undoing at that moment (`tapped`) is sent to
+> a finished bout. Each undo that was not carried out (refused, let go, of an ended bout) is
+> written down with its bout in the table `undoNotices` (store version 6,
+> `offline/undo-notices.ts`), in the transaction that forgets it. The screen of THAT bout reads
+> its rows when it opens and after every run, says one sentence per cause with its count
+> (`undoNoticeLines`), and removes the rows it showed when the referee closes the notice
+> (ruling 364). The entry being tapped writes no row: its answer is at the button. The one row a send has out is never deleted: the send claims a row just before its POST
 > (`claimForSend`), `takeOffTablet` checks that claim, and both are write transactions on the
 > outbox, so the undo sees the claim or the send sees the delete and skips the row. For the row
 > that is out the undo waits for that one answer (`SyncEngine.takeBack`,
