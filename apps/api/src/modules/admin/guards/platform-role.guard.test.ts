@@ -1,31 +1,17 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import type { PlatformRole } from '@myclash/types';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlatformRoleGuard } from './platform-role.guard';
 
 const fromMock = vi.fn();
-const fetchMock = vi.fn();
-const getUserMock = vi.fn();
+const getAuthUserMock = vi.fn();
 
+// The auth server's side, silent or not, is `SupabaseService.getAuthUser`'s (ruling 346):
+// `common/auth/silent-auth-server.doors.test.ts` enters this guard over the real one.
 const mockSupabase = {
-  anon: { auth: { getUser: getUserMock } },
+  getAuthUser: getAuthUserMock,
   service: { from: fromMock },
-};
-
-const mockConfig = {
-  get: vi.fn((key: string, fallback?: string) =>
-    key === 'SUPABASE_AUTH_INTERNAL_URL' ? 'http://supabase-auth:9999' : fallback,
-  ),
-  getOrThrow: vi.fn((key: string) => {
-    const values: Record<string, string> = {
-      SUPABASE_URL: 'https://app.myclash.fr',
-      SUPABASE_ANON_KEY: 'anon-key',
-    };
-    const value = values[key];
-    if (!value) throw new Error(`Missing config ${key}`);
-    return value;
-  }),
 };
 
 function platformRoleRow(role: PlatformRole | null) {
@@ -37,7 +23,7 @@ function platformRoleRow(role: PlatformRole | null) {
 }
 
 function mockAuthUser(user: Record<string, unknown>) {
-  fetchMock.mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue(user) });
+  getAuthUserMock.mockResolvedValue(user);
 }
 
 /** A context whose reflector lookup yields `explicit`, for `method`. */
@@ -64,19 +50,13 @@ function reflectorReturning(onHandler?: string, onClass?: string) {
 function makeGuard(onHandler?: string, onClass?: string) {
   return new PlatformRoleGuard(
     mockSupabase as never,
-    mockConfig as never,
     reflectorReturning(onHandler, onClass) as never,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal('fetch', fetchMock);
   fromMock.mockReturnValue(platformRoleRow(null));
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
 });
 
 // ── The matrix ───────────────────────────────────────────────────────────────
@@ -171,12 +151,12 @@ describe('PlatformRoleGuard — authentication', () => {
     await expect(
       makeGuard().canActivate(contextFor({ method: 'GET', headers: {} })),
     ).rejects.toThrow(UnauthorizedException);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getAuthUserMock).not.toHaveBeenCalled();
     expect(fromMock).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid token before touching the database', async () => {
-    fetchMock.mockResolvedValue({ ok: false, json: vi.fn().mockResolvedValue({}) });
+    getAuthUserMock.mockResolvedValue(null);
     await expect(
       makeGuard().canActivate(
         contextFor({ method: 'GET', headers: { authorization: 'Bearer x' } }),
@@ -193,12 +173,7 @@ describe('PlatformRoleGuard — authentication', () => {
         contextFor({ method: 'GET', headers: {}, cookies: { 'sb-access-token': 'tok' } }),
       ),
     ).resolves.toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://supabase-auth:9999/user',
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
-      }),
-    );
+    expect(getAuthUserMock).toHaveBeenCalledWith('tok');
   });
 
   it('refuses an authenticated user who holds no platform role', async () => {

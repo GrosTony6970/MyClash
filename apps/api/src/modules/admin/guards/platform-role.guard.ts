@@ -5,25 +5,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import type { PlatformRole } from '@myclash/types';
 import { atLeastPlatformRole } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import { resolvePlatformRole } from '../../../common/auth/platform-role';
-import { SupabaseService } from '../../supabase/supabase.service';
+import { SupabaseService, type SupabaseAuthUser } from '../../supabase/supabase.service';
 import { PLATFORM_ROLE_KEY } from './platform-role.decorator';
-
-type GoTrueAuthUser = {
-  id: string;
-  app_metadata?: Record<string, unknown>;
-};
-
-function isAuthUser(value: unknown): value is GoTrueAuthUser {
-  return Boolean(
-    value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string',
-  );
-}
 
 const READ_METHODS = new Set(['GET', 'HEAD']);
 
@@ -62,7 +50,7 @@ const READ_METHODS = new Set(['GET', 'HEAD']);
  * dependency `@Optional()` (undefined deps fail open), always value-import
  * injected services (`import type` erases the DI metadata Nest needs).
  *
- * Its three dependencies are all GLOBAL on purpose. `ClubsModule`,
+ * Its two dependencies are both GLOBAL on purpose. `ClubsModule`,
  * `PrivacyModule` and `OrganizationsModule` attach this guard without
  * providing it — Nest registers a `@UseGuards(Class)` enhancer as an
  * injectable of the *host* module and resolves the constructor from that
@@ -76,12 +64,16 @@ const READ_METHODS = new Set(['GET', 'HEAD']);
  * assume an identity is already attached: it extracts and verifies the token
  * itself, via a GoTrue round-trip. That is affordable here — a few dozen admin
  * routes, not all ~573.
+ *
+ * The round-trip is `SupabaseService.getAuthUser` (operator ruling 346): the
+ * auth server's word when it answers, else the login's own signature for at
+ * most its hour. This guard had a `fetch` of its own, so a silent auth server
+ * closed the incident switches to the staff who needed them.
  */
 @Injectable()
 export class PlatformRoleGuard implements CanActivate {
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly config: ConfigService,
     private readonly reflector: Reflector,
   ) {}
 
@@ -91,7 +83,7 @@ export class PlatformRoleGuard implements CanActivate {
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('Authentication required');
 
-    const user = await this.requestAuthUser(token);
+    const user = await this.supabase.getAuthUser(token);
     if (!user) throw new UnauthorizedException('Invalid or expired token');
 
     const tier = await this.resolveTier(user);
@@ -134,51 +126,14 @@ export class PlatformRoleGuard implements CanActivate {
    * relies on it to create the first account. Dropping it would make the API
    * stricter than the RLS it is supposed to mirror. There is no claim for the
    * lower tiers and there should not be — they exist only as table rows.
+   *
+   * While the auth server is silent the claim is the login's own, signed at
+   * most an hour ago (ruling 346). A stored row still decides first.
    */
-  private async resolveTier(user: GoTrueAuthUser): Promise<PlatformRole | null> {
+  private async resolveTier(user: SupabaseAuthUser): Promise<PlatformRole | null> {
     const stored = await resolvePlatformRole(this.supabase, user.id);
     if (stored) return stored;
     return user.app_metadata?.['role'] === 'super_admin' ? 'super_admin' : null;
-  }
-
-  private async requestAuthUser(accessToken: string): Promise<GoTrueAuthUser | null> {
-    const authUrl =
-      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
-      this.config.getOrThrow<string>('SUPABASE_URL');
-    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
-
-    let response: {
-      ok: boolean;
-      json: () => Promise<unknown>;
-    };
-
-    try {
-      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/user`, {
-        method: 'GET',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-    } catch {
-      return null;
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-
-    if (!response.ok || !body || typeof body !== 'object') {
-      return null;
-    }
-
-    const record = body as Record<string, unknown>;
-    if (isAuthUser(record)) return record;
-    if (isAuthUser(record['user'])) return record['user'];
-    return null;
   }
 
   private extractToken(request: FastifyRequest): string | null {

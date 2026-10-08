@@ -1444,15 +1444,12 @@ requireContains(
   'apps/api/src/modules/auth/auth.service.ts',
   'organization_members',
 );
+// Ruling 346: the guard asks through SupabaseService, which holds the internal
+// address and `/user` (pinned above) and falls back to the login's signature.
 requireContains(
   platformRoleGuardText,
   'apps/api/src/modules/admin/guards/platform-role.guard.ts',
-  'SUPABASE_AUTH_INTERNAL_URL',
-);
-requireContains(
-  platformRoleGuardText,
-  'apps/api/src/modules/admin/guards/platform-role.guard.ts',
-  '/user',
+  'this.supabase.getAuthUser(token)',
 );
 if (platformRoleGuardText.includes('supabase.anon.auth.getUser')) {
   errors.push(

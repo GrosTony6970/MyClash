@@ -1914,9 +1914,12 @@ Four details that matter:
   server alone, so a signed-in organiser reads as nobody while it gives no answer: fifteen doors
   did. A door goes through `common/auth/request-user.ts`, or asks `getAuthUser` itself;
   `apps/api/src/common/auth/silent-auth-server.doors.test.ts` enters each of the fifteen with a
-  silent auth server and refuses that call in any API source file. One reader still asks the auth
-  server alone, with a `fetch` of its own and no ruling: `PlatformRoleGuard`, on the platform
-  staff routes.
+  silent auth server and refuses that call in any API source file. `PlatformRoleGuard`, on the
+  platform staff routes, asked the auth server alone with a `fetch` of its own; it asks
+  `getAuthUser` too (ruling 346), and the same test holds that only `SupabaseService` asks the
+  auth server for `/user`. The staff tier is read from `platform_roles` on every request, so a
+  demotion takes effect at once; a banned or deleted staff account whose row still stands keeps
+  the staff routes for at most the login's hour, only while the auth server is silent.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

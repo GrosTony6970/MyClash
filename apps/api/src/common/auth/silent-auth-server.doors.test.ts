@@ -11,9 +11,10 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PlatformRoleGuard } from '../../modules/admin/guards/platform-role.guard';
 import { AIProvidersController } from '../../modules/ai-providers/ai-providers.controller';
 import { AIDashboardController } from '../../modules/ai-usage/ai-dashboard.controller';
 import { AIUsageController } from '../../modules/ai-usage/ai-usage.controller';
@@ -212,15 +213,105 @@ describe('an auth server that refuses the login', () => {
   });
 });
 
-describe('who is calling', () => {
-  // A new door that asks `anon.auth.getUser` is the sixteenth: it goes through
-  // `request-user.ts`, or asks `SupabaseService.getAuthUser` itself. This reads the call's
-  // text only: `PlatformRoleGuard` asks the auth server alone with a `fetch` of its own.
-  it('no source file of the API calls `auth.getUser`', () => {
-    const files = apiSourceFiles(path.resolve(__dirname, '../..'));
-    const alone = files.filter((file) => /auth\s*\.\s*getUser\(/u.test(readFileSync(file, 'utf8')));
+/**
+ * Ruling 346: the platform staff guard reads its caller the same way. It asked the auth server
+ * alone with a `fetch` of its own, so a silent auth server closed the incident switches to the
+ * staff who needed them. The tier still comes from the staff table on every request.
+ */
+type StaffRequest = { actorUserId?: string; platformRole?: string };
 
+function enterStaffGuard(token: string, role: string | null, method = 'GET') {
+  const supabase = new SupabaseService(config as never);
+  const answer = { data: role ? { role } : null, error: null };
+  const row = { select: () => row, eq: () => row, maybeSingle: async () => answer };
+  vi.spyOn(supabase.service, 'from').mockImplementation(() => row as never);
+  const req = { method, headers: {}, cookies: { 'sb-access-token': token } } as StaffRequest;
+  const context = {
+    switchToHttp: () => ({ getRequest: () => req }),
+    getHandler: () => enterStaffGuard,
+    getClass: () => PlatformRoleGuard,
+  };
+  const guard = new PlatformRoleGuard(supabase, { getAllAndOverride: () => undefined } as never);
+  return { req, entered: guard.canActivate(context as never) };
+}
+
+describe.each(SILENCES)('the platform staff guard, with an auth server that %s', (_s, answer) => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn(answer)));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('reads a staff member from her login, and her tier from the staff table', async () => {
+    const { req, entered } = enterStaffGuard(login(), 'platform_admin');
+
+    await expect(entered).resolves.toBe(true);
+    expect(req).toEqual(expect.objectContaining({ actorUserId: CLAIRE }));
+    expect(req.platformRole).toBe('platform_admin');
+  });
+
+  it('refuses a signed-in account with no staff row', async () => {
+    await expect(enterStaffGuard(login(), null).entered).rejects.toThrow(ForbiddenException);
+  });
+
+  it('lets a staff row decide over the claim of the login', async () => {
+    const claimed = login({ app_metadata: { role: 'super_admin' } });
+
+    await expect(enterStaffGuard(claimed, 'platform_viewer', 'POST').entered).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('reads a super admin with no staff row from the claim of her login', async () => {
+    const claimed = login({ app_metadata: { role: 'super_admin' } });
+
+    await expect(enterStaffGuard(claimed, null, 'POST').entered).resolves.toBe(true);
+  });
+
+  it('refuses a login past its hour', async () => {
+    const expired = jwt.sign({ sub: CLAIRE }, SECRET, { expiresIn: -10 });
+
+    await expect(enterStaffGuard(expired, 'super_admin').entered).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+});
+
+describe('the platform staff guard, with an auth server that refuses the login', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('refuses a staff member, whatever her login says', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"msg":"revoked"}', { status: 401 })),
+    );
+
+    await expect(enterStaffGuard(login(), 'super_admin').entered).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+});
+
+describe('who is calling', () => {
+  const files = apiSourceFiles(path.resolve(__dirname, '../..'));
+  const holding = (call: RegExp) =>
+    files
+      .filter((file) => call.test(readFileSync(file, 'utf8')))
+      .map((file) => path.basename(file));
+
+  // A new door that asks `anon.auth.getUser` is the sixteenth: it goes through
+  // `request-user.ts`, or asks `SupabaseService.getAuthUser` itself.
+  it('no source file of the API calls `auth.getUser`', () => {
     expect(files.length).toBeGreaterThan(600);
-    expect(alone).toEqual([]);
+    expect(holding(/auth\s*\.\s*getUser\(/u)).toEqual([]);
+  });
+
+  // The other spelling of the same question (ruling 346): the staff guard had a `fetch` of its
+  // own to the auth server's `/user`. `SupabaseService` holds the one call.
+  it('one source file of the API asks the auth server for `/user`', () => {
+    expect(holding(/\/user`/u)).toEqual(['supabase.service.ts']);
   });
 });
