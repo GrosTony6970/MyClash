@@ -158,13 +158,18 @@ async function undoOnTablet(
  * during the read is not the one undone.
  *
  * An entry an earlier undo took off the tablet is gone for the referee, even
- * while the server still holds it: the settle voids that one. This tap takes
- * back the entry before it, and the two never void the same row.
+ * while the server still holds it: the settle voids that one, the screen's
+ * lists leave it out (`useTakenBack`), and this tap takes back the entry
+ * before it.
+ *
+ * The race is the settle voiding and forgetting such an entry while this tap
+ * reads. So what is written down is read BEFORE the server: an entry forgotten
+ * during the read is still left out, and it is voided by then.
  */
 export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
   const waiting = await getPendingForMatch(deps.matchId);
-  const read = await readServerEntries(deps.apiUrl, deps.matchId);
   const takenBack = new Set((await listUndone()).map((entry) => entry.clientUuid));
+  const read = await readServerEntries(deps.apiUrl, deps.matchId);
   const rows = 'rows' in read ? read.rows.filter((row) => !takenBack.has(row.clientUuid)) : null;
   const newest = newestToUndo(rows, waiting);
   if (!newest) {

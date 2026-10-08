@@ -835,7 +835,7 @@
     "apps/web-staff/src/components/MatchView.tsx:98",
     "apps/web-staff/src/components/ScoringCenterControls.tsx:129",
     "apps/web-staff/src/components/ScoringColumn.tsx:104",
-    "apps/web-staff/src/hooks/useMatchScoringData.ts:82",
+    "apps/web-staff/src/hooks/useMatchScoringData.ts:86",
     "apps/web-staff/src/hooks/usePenalties.ts:102",
     "apps/web-staff/src/hooks/useScoringSubmit.ts:51",
     "apps/web-staff/src/offline/pending-events.ts:114",

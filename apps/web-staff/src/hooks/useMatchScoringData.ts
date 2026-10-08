@@ -39,6 +39,7 @@ import {
   type PenaltyRulesetEntry,
 } from './usePenalties';
 import { usePendingOutbox } from './usePendingOutbox';
+import { notTakenBack, useTakenBack } from './useTakenBack';
 import {
   cardCountFor,
   pendingRowsForMatch,
@@ -50,7 +51,10 @@ export interface MatchScoringData {
   // ── What the server has ────────────────────────────────────────────────────
   ruleset: PenaltyRuleset | null;
   ruleSetCards: PenaltyCard[];
-  /** Non-voided server rows. NOT merged with the queue — see the docblock. */
+  /**
+   * Non-voided server rows the referee has not taken back (`useTakenBack`).
+   * NOT merged with the queue — see the docblock.
+   */
   activeExchanges: ExchangeRow[];
   activePenalties: Penalty[];
 
@@ -102,7 +106,8 @@ export function useMatchScoringData(args: {
 }): MatchScoringData {
   const { apiUrl, matchId, refreshKey, config, redRegistrationId, blueRegistrationId } = args;
 
-  const { active: activeExchanges, refresh: refreshExchanges } = useExchanges(
+  const takenBack = useTakenBack(refreshKey, args.syncPendingCount);
+  const { active: serverExchanges, refresh: refreshExchanges } = useExchanges(
     apiUrl,
     matchId,
     refreshKey,
@@ -111,9 +116,11 @@ export function useMatchScoringData(args: {
     ruleset,
     priors,
     ruleSetCards,
-    active: activePenalties,
+    active: serverPenalties,
     resolveCard,
   } = usePenalties(apiUrl, matchId, refreshKey);
+  const activeExchanges = notTakenBack(serverExchanges, takenBack);
+  const activePenalties = notTakenBack(serverPenalties, takenBack);
 
   const pendingEntries = usePendingOutbox(matchId, refreshKey, args.syncPendingCount);
 
