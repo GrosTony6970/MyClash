@@ -1,38 +1,14 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateOrganizerAIDraftDto,
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
 import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
-
-async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) throw new UnauthorizedException('Authentication required');
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
-  return user.id;
-}
 
 @ApiTags('organizer-ai-assistant')
 @ApiBearerAuth()
@@ -51,14 +27,14 @@ export class OrganizerAIAssistantController {
     @Body() dto: CreateOrganizerAIDraftDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.assistant.createDraft(eventId, userId, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'List organizer AI setup drafts' })
   async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.assistant.listDrafts(eventId, userId);
   }
 
@@ -69,7 +45,7 @@ export class OrganizerAIAssistantController {
     @Param('draftId', ParseUUIDPipe) draftId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.assistant.getDraft(eventId, draftId, userId);
   }
 
@@ -81,7 +57,7 @@ export class OrganizerAIAssistantController {
     @Body() dto: UpdateOrganizerAIDraftDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.assistant.updateDraft(eventId, draftId, userId, dto);
   }
 
@@ -95,7 +71,7 @@ export class OrganizerAIAssistantController {
     @Param('draftId', ParseUUIDPipe) draftId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.assistant.applyDraft(eventId, draftId, userId);
   }
 }

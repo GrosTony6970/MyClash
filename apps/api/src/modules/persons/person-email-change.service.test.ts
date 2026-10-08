@@ -8,11 +8,7 @@ const fromMock = vi.fn();
 const sendEmailChangeConfirmationMock = vi.fn();
 
 const mockSupabase = {
-  anon: {
-    auth: {
-      getUser: getUserMock,
-    },
-  },
+  getAuthUser: getUserMock,
   service: {
     auth: {
       admin: {
@@ -86,10 +82,7 @@ describe('PersonEmailChangeService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getUserMock.mockResolvedValue({
-      data: { user: { id: 'user-1', email: 'old@example.com' } },
-      error: null,
-    });
+    getUserMock.mockResolvedValue({ id: 'user-1', email: 'old@example.com' });
     updateUserByIdMock.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 
     service = new PersonEmailChangeService(
@@ -100,11 +93,20 @@ describe('PersonEmailChangeService', () => {
   });
 
   it('rejects anonymous requests', async () => {
-    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: 'no session' } });
+    getUserMock.mockResolvedValue(null);
 
     await expect(
       service.requestEmailChange(makeRequest(), { newEmail: 'new@example.com' }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects a login that carries no address', async () => {
+    getUserMock.mockResolvedValue({ id: 'user-1' });
+
+    await expect(
+      service.requestEmailChange(makeRequest('token'), { newEmail: 'new@example.com' }),
+    ).rejects.toThrow(/^Invalid or expired session$/);
+    expect(fromMock).not.toHaveBeenCalled();
   });
 
   it('rejects users without claimed Person rows', async () => {

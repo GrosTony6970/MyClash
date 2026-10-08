@@ -8,30 +8,13 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { BroadcastNotificationsService } from './broadcast-notifications.service';
 import { SendBroadcastNotificationDto } from './dto/notifications.dto';
-
-async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-
-  if (!token) throw new UnauthorizedException('Authentication required');
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
-  return user.id;
-}
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -51,7 +34,7 @@ export class BroadcastNotificationsController {
     @Body() dto: SendBroadcastNotificationDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.broadcasts.sendBroadcast(eventId, userId, dto);
   }
 
@@ -62,7 +45,7 @@ export class BroadcastNotificationsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.broadcasts.listEventBroadcasts(eventId, userId);
   }
 }

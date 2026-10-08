@@ -38,8 +38,8 @@ let controller: ExportsController;
 function build(overrides: Record<string, TableSeed> = {}) {
   db = mockSupabase({ ...TABLES, ...overrides });
   // The access token IS the user id here: GoTrue is the only thing doubled by hand.
-  const getUser = vi.fn(async (token: string) => ({ data: { user: { id: token } } }));
-  const supabase = { service: db.service, anon: { auth: { getUser } } };
+  const getAuthUser = vi.fn(async (token: string) => ({ id: token }));
+  const supabase = { service: db.service, getAuthUser };
   previewRestore = vi.fn().mockResolvedValue({ canRestore: true });
   controller = new ExportsController(
     {} as never,

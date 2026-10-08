@@ -5,21 +5,9 @@ import { AIProvidersService } from '../ai-providers/ai-providers.service';
 import { UpdateBudgetDto } from '../ai-providers/dto/update-budget.dto';
 import { UpdateAIFlagsDto } from '../ai-providers/dto/update-ai-flags.dto';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AIUsageService } from './ai-usage.service';
-
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
 
 /** Org-level AI consumption dashboard: usage rollup + monthly budget. */
 @ApiTags('ai-usage')
@@ -43,7 +31,7 @@ export class AIDashboardController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.usage.getOrgUsageRollup(orgId, from, to);
   }
@@ -57,7 +45,7 @@ export class AIDashboardController {
     @Body() dto: UpdateBudgetDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.providers.updateBudget(orgId, dto.monthlyBudgetEur);
     return this.providers.getProviderConfig(orgId);
@@ -72,7 +60,7 @@ export class AIDashboardController {
     @Body() dto: UpdateAIFlagsDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.providers.updateFlags(orgId, dto);
     return this.providers.getProviderConfig(orgId);

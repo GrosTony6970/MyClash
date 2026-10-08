@@ -48,10 +48,7 @@ async function getOptionalUserId(
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
   if (!token) return undefined;
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id;
+  return (await supabase.getAuthUser(token))?.id;
 }
 
 @ApiTags('penalties')

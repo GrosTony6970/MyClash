@@ -11,31 +11,16 @@ import {
   Post,
   Query,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AIProvidersService } from '../ai-providers/ai-providers.service';
 import { CreateAiKeyDto, UpdateAiKeyDto } from '../ai-providers/dto/ai-key.dto';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GeneratedContentService } from './generated-content.service';
 
 const INSIGHT = 'fighter_insight';
-
-async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) throw new UnauthorizedException('Authentication required');
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
-  return user.id;
-}
 
 function normLocale(locale: string | undefined): string {
   return locale === 'fr' ? 'fr' : 'en';
@@ -103,7 +88,7 @@ export class MeAIController {
   @Get('insight')
   @ApiOperation({ summary: "Get the caller's cached performance insight" })
   async getInsight(@Req() req: FastifyRequest, @Query('locale') locale?: string) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const gpid = await this.gpidForUser(userId);
     if (!gpid) return null;
     return this.content.get(INSIGHT, gpid, normLocale(locale), userId);
@@ -112,7 +97,7 @@ export class MeAIController {
   @Post('insight/generate')
   @ApiOperation({ summary: 'Generate/regenerate the caller performance insight (own key)' })
   async generateInsight(@Req() req: FastifyRequest, @Query('locale') locale?: string) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const gpid = await this.requireGpidForUser(userId);
     return this.content.generate(INSIGHT, gpid, normLocale(locale), userId);
   }
@@ -120,7 +105,7 @@ export class MeAIController {
   @Post('insight/publish')
   @ApiOperation({ summary: 'Show the insight on the public profile' })
   async publishInsight(@Req() req: FastifyRequest, @Query('locale') locale?: string) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const gpid = await this.requireGpidForUser(userId);
     return this.content.setPublished(INSIGHT, gpid, normLocale(locale), userId, true);
   }
@@ -128,7 +113,7 @@ export class MeAIController {
   @Post('insight/unpublish')
   @ApiOperation({ summary: 'Hide the insight from the public profile' })
   async unpublishInsight(@Req() req: FastifyRequest, @Query('locale') locale?: string) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const gpid = await this.requireGpidForUser(userId);
     return this.content.setPublished(INSIGHT, gpid, normLocale(locale), userId, false);
   }
@@ -136,7 +121,7 @@ export class MeAIController {
   // ── helpers ───────────────────────────────────────────────────────────────
 
   private async resolveGlobalPersonId(req: FastifyRequest): Promise<string | null> {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.gpidForUser(userId);
   }
 

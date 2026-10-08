@@ -4,11 +4,7 @@ import { AIProvidersController } from './ai-providers.controller';
 
 function makeSupabase(userId: string | null) {
   return {
-    anon: {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: userId ? { id: userId } : null } }),
-      },
-    },
+    getAuthUser: vi.fn().mockResolvedValue(userId ? { id: userId } : null),
   };
 }
 

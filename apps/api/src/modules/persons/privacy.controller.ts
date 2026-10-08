@@ -100,10 +100,8 @@ export class PrivacyController {
       throw new UnauthorizedException('Authentication required to manage privacy preferences');
     }
 
-    const { data, error } = await this.supabase.anon.auth.getUser(accessToken);
-    if (error || !data.user) {
-      throw new UnauthorizedException('Invalid or expired session');
-    }
-    return data.user.id;
+    const user = await this.supabase.getAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid or expired session');
+    return user.id;
   }
 }

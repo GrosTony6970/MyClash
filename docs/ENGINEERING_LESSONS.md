@@ -161,9 +161,9 @@ here.
 - **Store one-time confirmation tokens as hashes only** — persist a SHA-256 hash, never the raw
   bearer token.
 - On any organizer-side route under `/organizations/:orgId/...` that does not use
-  `@UseGuards(SuperAdminGuard)`, resolve the caller with the local `async getUserId(req, supabase)`
-  helper that validates the Supabase JWT. Do **not** copy the sync `getActorId(req)` shortcut from
-  super-admin controllers: `req.actorUserId` is only populated by `SuperAdminGuard`, so on a
+  `@UseGuards(SuperAdminGuard)`, resolve the caller with `resolveRequestUserId(req, supabase)` of
+  `common/auth/request-user.ts` (no new local copy, never `anon.auth.getUser`: ruling 345). Do
+  **not** copy the sync `getActorId(req)` shortcut from super-admin controllers: `req.actorUserId` is only populated by `SuperAdminGuard`, so on a
   guard-less route it is undefined, the helper returns the literal `'unknown'`, and every
   `assertOrgRole(orgId, 'unknown', …)` refuses regardless of the caller's real role — a 401 since
   ruling 154, so the web client renews the login, retries, and is refused again. Symptom: "session

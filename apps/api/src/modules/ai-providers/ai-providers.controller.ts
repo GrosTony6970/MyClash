@@ -14,22 +14,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AIProvidersService } from './ai-providers.service';
 import { CreateAiKeyDto, UpdateAiKeyDto } from './dto/ai-key.dto';
-
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
 
 @ApiTags('ai-providers')
 @ApiBearerAuth()
@@ -46,7 +34,7 @@ export class AIProvidersController {
   @ApiOperation({ summary: 'Get AI config for org (ceiling + flags)' })
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
   async getSettings(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.service.getProviderConfig(orgId);
   }
@@ -56,7 +44,7 @@ export class AIProvidersController {
   @ApiOperation({ summary: 'List org AI keys (masked, with month-to-date spend)' })
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
   async listKeys(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.service.listKeys(orgId);
   }
@@ -70,7 +58,7 @@ export class AIProvidersController {
     @Body() dto: CreateAiKeyDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.service.createKey(orgId, dto, userId);
   }
@@ -86,7 +74,7 @@ export class AIProvidersController {
     @Body() dto: UpdateAiKeyDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.service.updateKey(orgId, id, dto);
   }
@@ -102,7 +90,7 @@ export class AIProvidersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.service.deleteKey(orgId, id);
   }
@@ -117,7 +105,7 @@ export class AIProvidersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.service.activateKey(orgId, id);
     return this.service.listKeys(orgId);

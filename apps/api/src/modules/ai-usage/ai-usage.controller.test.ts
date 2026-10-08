@@ -12,11 +12,7 @@ function makeSupabase(userId: string | null, eventResult: unknown) {
   eventChain.eq.mockReturnValue(eventChain);
 
   return {
-    anon: {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: userId ? { id: userId } : null } }),
-      },
-    },
+    getAuthUser: vi.fn().mockResolvedValue(userId ? { id: userId } : null),
     service: {
       from: vi.fn().mockReturnValue(eventChain),
     },

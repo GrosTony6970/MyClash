@@ -192,12 +192,10 @@ export class PersonEmailChangeService {
     const token = this.extractToken(req);
     if (!token) throw new UnauthorizedException('Authentication required');
 
-    const { data, error } = await this.supabase.anon.auth.getUser(token);
-    if (error || !data.user?.id || !data.user.email) {
-      throw new UnauthorizedException('Invalid or expired session');
-    }
+    const user = await this.supabase.getAuthUser(token);
+    if (!user?.email) throw new UnauthorizedException('Invalid or expired session');
 
-    return { userId: data.user.id, currentEmail: data.user.email };
+    return { userId: user.id, currentEmail: user.email };
   }
 
   private async listClaimedPersons(userId: string): Promise<ClaimedPersonRow[]> {

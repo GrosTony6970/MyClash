@@ -30,25 +30,12 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isPlatformStaff } from '../../common/auth/platform-role';
-import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
+import { ANONYMOUS_USER_ID, resolveRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ArchiveService } from './archive.service';
 import type { ArchiveInclude, RestoreOptions } from './archive.types';
 import { ExportsService } from './exports.service';
-
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
 
 @ApiTags('exports')
 @Controller()
@@ -72,7 +59,7 @@ export class ExportsController {
     @Res() reply: FastifyReply,
   ) {
     // This bundle contains event roster data, so it is organizer-only.
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
     const { filename, buffer } = await this.exports.generateHemaRatingsZip(eventId);
     void reply
@@ -89,7 +76,7 @@ export class ExportsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
     return this.exports.previewHemaRatingsSubmission(eventId);
   }
@@ -104,7 +91,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
     const csv = await this.exports.generateFullCsv(eventId);
     void reply
@@ -123,7 +110,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
     const data = await this.exports.generateEventJson(eventId);
     void reply
@@ -145,7 +132,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const archive = await this.archives.generateEventArchive(eventId, userId, {
       include: normalizeInclude(include),
     });
@@ -165,7 +152,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const archive = await this.archives.generateTournamentArchive(tournamentId, userId, {
       include: normalizeInclude(include),
     });
@@ -186,7 +173,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
     void reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -203,7 +190,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
     void reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -220,7 +207,7 @@ export class ExportsController {
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
     void reply
       .header('Content-Type', 'text/csv; charset=utf-8')
@@ -233,7 +220,7 @@ export class ExportsController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Validate an organizer archive before restore' })
   async restorePreview(@Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     // Ruling 87: signed in, and an admin of some organization or platform staff —
     // decided before the upload is read.
     if (userId === ANONYMOUS_USER_ID) throw new UnauthorizedException('Authentication required');
@@ -255,7 +242,7 @@ export class ExportsController {
     @Query('targetEventId') targetEventId?: string,
     @Query('confirmation') confirmation?: string,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     const buffer = await readUploadedArchive(req);
     return this.archives.restoreArchiveCopy(buffer, userId, {
       ...(body ?? {}),

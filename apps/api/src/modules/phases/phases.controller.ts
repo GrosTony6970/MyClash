@@ -23,6 +23,7 @@ import {
 import { assertCanManageTournament } from '../../common/auth/registration-authz';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from './phases.service';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
@@ -31,19 +32,6 @@ import { PopulateBracketDto } from './dto/populate-bracket.dto';
 import { PoolRefereeRoleDto } from './dto/pool-referee-role.dto';
 import type { FastifyRequest } from 'fastify';
 import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
-
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
 
 @ApiTags('phases')
 @ApiBearerAuth()
@@ -87,7 +75,7 @@ export class PhasesController {
     @Req() req: FastifyRequest,
     @Query('force') force?: string,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await assertCanManageTournament(
       { supabase: this.supabase, orgs: this.orgs },
       tournamentId,
@@ -107,7 +95,7 @@ export class PhasesController {
     @Body() dto: { name: string },
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.renamePool(poolId, dto.name, userId);
   }
 
@@ -121,7 +109,7 @@ export class PhasesController {
     @Body() dto: { liceId: string | null },
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.setPoolLice(poolId, dto.liceId ?? null, userId);
   }
 
@@ -138,7 +126,7 @@ export class PhasesController {
     @Body() dto: { liceId: string | null; startAtIso: string },
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.reschedulePool(poolId, dto, userId);
   }
 
@@ -155,7 +143,7 @@ export class PhasesController {
     @Body() dto: PoolRefereeRoleDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.setPoolRefereeRoleAssignment(
       poolId,
       dto.role,
@@ -175,7 +163,7 @@ export class PhasesController {
     @Body() dto: { registrationId: string },
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.addPoolMember(poolId, dto.registrationId, userId);
   }
 
@@ -190,7 +178,7 @@ export class PhasesController {
     @Param('registrationId', ParseUUIDPipe) registrationId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.removePoolMember(poolId, registrationId, userId);
   }
 
@@ -201,7 +189,7 @@ export class PhasesController {
   @ApiOperation({ summary: 'Delete a single pool and its matches (org admin+)' })
   @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
   async deletePool(@Param('poolId', ParseUUIDPipe) poolId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.phases.deletePool(poolId, userId);
   }
 
@@ -215,7 +203,7 @@ export class PhasesController {
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     await this.phases.deleteAllPools(tournamentId, userId);
   }
 
@@ -228,7 +216,7 @@ export class PhasesController {
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.addEmptyPool(tournamentId, userId);
   }
 
@@ -263,7 +251,7 @@ export class PhasesController {
     // the phase and everything cascading from it — ran for anyone the global
     // AuthGuard let through, regardless of organisation. Its three siblings
     // (populate, reseed, delete) have always taken one.
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.generateBracket(tournamentId, dto, force === 'true', userId);
   }
 
@@ -288,7 +276,7 @@ export class PhasesController {
     @Body() dto: PopulateBracketDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.populateBracket(tournamentId, dto, userId);
   }
 
@@ -302,7 +290,7 @@ export class PhasesController {
     @Body() dto: EditBracketConfigDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.editBracketConfig(phaseId, userId, dto);
   }
 
@@ -319,7 +307,7 @@ export class PhasesController {
     @Body() dto: ReseedBracketDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.phases.reseedBracketRoundOne(phaseId, userId, dto);
   }
 
@@ -344,7 +332,7 @@ export class PhasesController {
     @Req() req: FastifyRequest,
     @Query('discardScoredResults') discard?: string,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     // Digits only: `Number()` also reads '1e3', '0x2' and ' 3 '.
     const count = /^[0-9]+$/.test(discard ?? '') ? Number(discard) : 0;
     await this.phases.deleteBracketPhase(phaseId, userId, count);

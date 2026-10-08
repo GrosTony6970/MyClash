@@ -25,7 +25,7 @@ export const ANONYMOUS_USER_ID = 'anonymous';
 
 /**
  * The caller's user id, or 401 — for a route no anonymous caller may use.
- * The persons and registrations routes share it.
+ * Every door that answers that 401 itself shares it.
  */
 export async function requireRequestUserId(
   req: FastifyRequest,

@@ -113,12 +113,10 @@ beforeEach(() => {
       ],
     },
   });
-  // The token IS the user id here, through either door; no token at all is the
-  // anonymous caller.
+  // The token IS the user id here; no token at all is the anonymous caller.
   const supabase = {
     service: db.service,
     getAuthUser: vi.fn(async (token: string) => ({ id: token })),
-    anon: { auth: { getUser: async (token: string) => ({ data: { user: { id: token } } }) } },
   };
   const orgs = new OrganizationsService(db as never);
   service = new PenaltiesService(supabase as never, undefined, undefined, orgs);

@@ -1,34 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TournamentQueryDto, TournamentQuerySettingsDto } from './dto/tournament-query.dto';
 import { TournamentQueryService } from './tournament-query.service';
-
-async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) throw new UnauthorizedException('Authentication required');
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
-  return user.id;
-}
 
 @ApiTags('tournament-query')
 @ApiBearerAuth()
@@ -47,7 +23,7 @@ export class TournamentQueryController {
     @Body() dto: TournamentQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.estimate(tournamentId, userId, dto);
   }
 
@@ -59,7 +35,7 @@ export class TournamentQueryController {
     @Body() dto: TournamentQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.query(tournamentId, userId, dto);
   }
 
@@ -69,7 +45,7 @@ export class TournamentQueryController {
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.history(tournamentId, userId);
   }
 
@@ -79,7 +55,7 @@ export class TournamentQueryController {
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.getSettingsForTournament(tournamentId, userId);
   }
 
@@ -90,7 +66,7 @@ export class TournamentQueryController {
     @Body() dto: TournamentQuerySettingsDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.saveSettings(tournamentId, userId, dto);
   }
 }

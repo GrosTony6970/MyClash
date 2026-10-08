@@ -1900,7 +1900,7 @@ sequenceDiagram
   end
 ```
 
-Three details that matter:
+Four details that matter:
 
 - **Precedence is claimed → guest → staff.** The first mechanism that verifies wins; an expired or
   forged cookie falls through to the next rather than failing the request.
@@ -1910,6 +1910,13 @@ Three details that matter:
 - **The guard verifies the access token locally**, without a GoTrue round-trip. The round-trip (with
   local-JWT fallback on GoTrue outage) lives in `SupabaseService.getAuthUser`, used where freshness
   matters — see §12.5.
+- **No door reads its caller with `anon.auth.getUser`** (ruling 345). That call asks the auth
+  server alone, so a signed-in organiser reads as nobody while it gives no answer: fifteen doors
+  did. A door goes through `common/auth/request-user.ts`, or asks `getAuthUser` itself;
+  `apps/api/src/common/auth/silent-auth-server.doors.test.ts` enters each of the fifteen with a
+  silent auth server and refuses that call in any API source file. One reader still asks the auth
+  server alone, with a `fetch` of its own and no ruling: `PlatformRoleGuard`, on the platform
+  staff routes.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

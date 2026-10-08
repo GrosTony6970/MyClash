@@ -24,15 +24,7 @@ function world(globalPersons: Parameters<typeof mockSupabase>[0]['global_persons
   });
   const supabase = {
     service: db.service,
-    anon: {
-      auth: {
-        getUser: vi.fn(async (token: string) =>
-          token === 'dead'
-            ? { data: { user: null }, error: { message: 'expired' } }
-            : { data: { user: { id: token } }, error: null },
-        ),
-      },
-    },
+    getAuthUser: vi.fn(async (token: string) => (token === 'dead' ? null : { id: token })),
   };
   const applyFollow = vi.fn();
   const controller = new PrivacyController(

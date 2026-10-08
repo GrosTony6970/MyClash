@@ -29,6 +29,7 @@ import {
   publicReader,
 } from '../../common/auth/competition-visibility';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateStaffAccountDto,
@@ -41,19 +42,6 @@ import {
 } from './dto';
 import { Public } from '../../common/auth/public.decorator';
 import { STAFF_COOKIE_NAME, StaffService } from './staff.service';
-
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
-}
 
 @ApiTags('staff')
 @Controller()
@@ -70,7 +58,7 @@ export class StaffController {
   @ApiOperation({ summary: 'List local event staff accounts' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async listAccounts(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.staff.listAccounts(eventId, userId);
   }
 
@@ -83,7 +71,7 @@ export class StaffController {
     @Body() dto: CreateStaffAccountDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.staff.createAccount(eventId, dto, userId);
   }
 
@@ -96,7 +84,7 @@ export class StaffController {
     @Body() dto: UpdateStaffAccountDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.staff.updateAccount(eventId, staffAccountId, dto, userId);
   }
 
@@ -109,7 +97,7 @@ export class StaffController {
     @Body() dto: ResetStaffPinDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.staff.resetPin(eventId, staffAccountId, dto, userId);
   }
 
@@ -122,7 +110,7 @@ export class StaffController {
     @Body() dto: SetStaffLicesDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await resolveRequestUserId(req, this.supabase);
     return this.staff.setLices(eventId, staffAccountId, dto, userId);
   }
 

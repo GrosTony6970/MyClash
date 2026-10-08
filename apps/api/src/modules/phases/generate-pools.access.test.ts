@@ -50,9 +50,7 @@ beforeEach(() => {
   // The token IS the user id here; no token at all is the signed-out caller.
   const supabase = {
     service: db.service,
-    anon: {
-      auth: { getUser: vi.fn(async (token: string) => ({ data: { user: { id: token } } })) },
-    },
+    getAuthUser: vi.fn(async (token: string) => ({ id: token })),
   };
   controller = new PhasesController(
     { generatePools } as never,

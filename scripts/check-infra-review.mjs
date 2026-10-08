@@ -24,9 +24,9 @@
  *      Derived checks survive refactors, which is why these have.
  *
  *   2. API SOURCE TEXT. Decorators, forbidden calls, method and route names.
- *      Some of it is the only guard there is — the four bans on
- *      supabase.anon.auth.getUser are a deliberate exception list, since 21
- *      other API files use that call legitimately.
+ *      Some of it is the only guard there is. Not the four bans on
+ *      supabase.anon.auth.getUser: since ruling 345 no API source file makes
+ *      that call, and the API's silent-auth-server.doors.test.ts holds that.
  *
  *   3. WEB APP SOURCE TEXT. The largest single group and the weakest as a
  *      group, but it holds at least one invariant nothing else holds: the

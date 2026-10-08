@@ -1,34 +1,11 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Post,
-  Query,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Public } from '../../common/auth/public.decorator';
 import { publicReader } from '../../common/auth/competition-visibility';
 import { GeneratedContentService } from './generated-content.service';
-
-async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) throw new UnauthorizedException('Authentication required');
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
-  return user.id;
-}
 
 /** Only EN/FR are supported; anything else falls back to EN (the default locale). */
 function normLocale(locale: string | undefined): string {
@@ -53,7 +30,7 @@ export class GeneratedContentController {
     @Req() req: FastifyRequest,
     @Query('locale') locale?: string,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.generate(type, entityId, normLocale(locale), userId);
   }
 
@@ -65,7 +42,7 @@ export class GeneratedContentController {
     @Req() req: FastifyRequest,
     @Query('locale') locale?: string,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.get(type, entityId, normLocale(locale), userId);
   }
 
@@ -77,7 +54,7 @@ export class GeneratedContentController {
     @Req() req: FastifyRequest,
     @Query('locale') locale?: string,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.setPublished(type, entityId, normLocale(locale), userId, true);
   }
 
@@ -89,7 +66,7 @@ export class GeneratedContentController {
     @Req() req: FastifyRequest,
     @Query('locale') locale?: string,
   ) {
-    const userId = await getClaimedUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.service.setPublished(type, entityId, normLocale(locale), userId, false);
   }
 }

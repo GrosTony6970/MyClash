@@ -17,9 +17,7 @@ const phases = {
   deleteBracketPhase: vi.fn(() => Promise.resolve()),
   generateBracket: vi.fn(() => Promise.resolve({ phaseId: PHASE })),
 };
-const supabase = {
-  anon: { auth: { getUser: vi.fn(() => Promise.resolve({ data: { user: { id: OWNER } } })) } },
-};
+const supabase = { getAuthUser: vi.fn(() => Promise.resolve({ id: OWNER })) };
 const req = { headers: { authorization: 'Bearer token' } };
 const controller = new PhasesController(phases as never, supabase as never, {} as never);
 
