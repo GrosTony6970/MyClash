@@ -30,6 +30,11 @@ export class MeUserDto {
   @ApiProperty({ required: false }) photo_url?: string;
   /** The name of that same profile: one name per account, whatever its rosters say (ruling 298). */
   @ApiProperty({ required: false }) profile_name?: string;
+  /**
+   * Whether the account signs in with a password, for the personal shell's "via Google" tag
+   * (ruling 353). Absent while the auth server does not say: it decorates, it decides nothing.
+   */
+  @ApiProperty({ required: false }) has_password?: boolean;
 }
 
 export class MePersonDto {

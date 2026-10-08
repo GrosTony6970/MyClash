@@ -70,10 +70,10 @@ const request = {
   cookies: {},
 } as never;
 
-function build(over: Record<string, TableSeed> = {}) {
+function build(over: Record<string, TableSeed> = {}, user: object = PAUL) {
   const db = seededSupabase({ ...TABLES, ...over });
   const supabase = {
-    getAuthUser: vi.fn().mockResolvedValue(PAUL),
+    getAuthUser: vi.fn().mockResolvedValue(user),
     refreshSession: vi.fn(),
     service: db.service,
   };
@@ -96,6 +96,31 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+/**
+ * 353. Every personal page made a second read, of the security status, only to draw the
+ * footer: the address and a "via Google" tag. While the auth server gave no answer that read
+ * was a server error on every page. `/me` now says how the account signs in when the auth
+ * server said it, and says nothing when it did not: the tag decorates, `/me` still answers.
+ */
+describe('how the account signs in, on `/me` (ruling 353)', () => {
+  it.each<[string, object[] | undefined, boolean | undefined]>([
+    ['a password', [{ provider: 'email' }], true],
+    ['Google and a password', [{ provider: 'google' }, { provider: 'email' }], true],
+    ['Google alone', [{ provider: 'google' }], false],
+    ['no sign-in method', [], false],
+    ['no list: the auth server gave no answer', undefined, undefined],
+  ])('for an account with %s', async (_what, identities, hasPassword) => {
+    const { service } = build({}, { ...PAUL, identities });
+
+    const me = await service.getMe(request);
+
+    expect(me.type).toBe('claimed');
+    expect(me.user?.email).toBe(PAUL.email);
+    expect(me.user?.has_password).toBe(hasPassword);
+    expect(warn).not.toHaveBeenCalled();
+  });
 });
 
 describe('the name `/me` hands an account (ruling 298)', () => {

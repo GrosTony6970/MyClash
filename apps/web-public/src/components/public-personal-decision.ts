@@ -20,6 +20,13 @@ export type PublicPersonalDecision =
        * user who signs in on the public app but manages tournaments on admin.
        */
       hasAdminAccess: boolean;
+      /** The account's address, for the shell's footer (ruling 353). */
+      email: string | null;
+      /**
+       * The footer's "via Google" tag: the auth server SAID the account has no password.
+       * False while it has not said (ruling 353): the tag decorates, so it waits.
+       */
+      viaGoogle: boolean;
     }
   /**
    * No account. `guest` names a visitor who picked her name on a roster (operator
@@ -70,5 +77,7 @@ export function resolvePublicPersonal(
       me.admin &&
       (me.admin.platformRole || me.admin.organizations.length > 0 || me.admin.hasLeagueRoles),
     ),
+    email: me.user?.email || null,
+    viaGoogle: me.user?.has_password === false,
   };
 }

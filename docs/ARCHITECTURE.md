@@ -1936,6 +1936,11 @@ Five details that matter:
   list. `modules/auth/sign-in-methods.ts` `signsInWithPassword` reads "no list" as "not known"
   and throws a plain Error: the security status answers a server error, and no account is
   deleted, until the auth server answers. `sign-in-methods.doors.test.ts` enters both doors.
+  A reader that only decorates asks `passwordIfKnown` and gets nothing while it is not known:
+  `/me` hands it as `user.has_password`, and the personal shell draws its footer (the address,
+  the "via Google" tag) and the settings hub its address from `/me`, never from the security
+  status (ruling 353). Only the security page asks that status, and it keeps the data export
+  when the read fails.
   The auth server ends every session of an account when an admin call writes its password, the
   caller's own too. The password change and the password reset sign the account in again with
   the new password and hand out that login (ruling 352, `signInWithNewPassword`); when that

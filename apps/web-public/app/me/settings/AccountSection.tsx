@@ -2,34 +2,26 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { fetchMe } from '@myclash/api-client';
 import { useI18n } from '@myclash/next-i18n/client';
 import { SettingRow } from './controls';
-
-interface SecurityStatus {
-  hasPassword: boolean;
-  email: string | null;
-}
 
 /**
  * Account block of the settings hub: current email (read-only), a display-only
  * language row, and links to the security page where email, password, and
  * account deletion are managed. The email-change flow now lives on /me/security
- * (see EmailChangeSection); this section just links there.
+ * (see EmailChangeSection); this section just links there. The address is the one `/me`
+ * hands, which answers while the auth server is silent (ruling 353).
  */
 export function AccountSection({ apiUrl }: { apiUrl: string }) {
   const { t, locale } = useI18n();
-  const [status, setStatus] = useState<SecurityStatus | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me/security-status`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setStatus((await res.json()) as SecurityStatus);
-      })
-      .catch(() => undefined);
+    void fetchMe(apiUrl, { signal: controller.signal }).then((me) => {
+      if (me.ok) setEmail(me.data.user?.email || null);
+    });
     return () => controller.abort();
   }, [apiUrl]);
 
@@ -47,7 +39,7 @@ export function AccountSection({ apiUrl }: { apiUrl: string }) {
           label={t('publicApp.meSettings.account.emailLabel')}
           control={
             <span className="break-all text-sm font-medium text-muted">
-              {status?.email ?? t('common.unknown')}
+              {email ?? t('common.unknown')}
             </span>
           }
         />

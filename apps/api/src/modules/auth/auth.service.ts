@@ -73,7 +73,7 @@ import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { guestPersonOf } from './guest-person';
 import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 import { safeRedirectPath } from './safe-redirect';
-import { signsInWithPassword } from './sign-in-methods';
+import { passwordIfKnown, signsInWithPassword } from './sign-in-methods';
 
 /** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
@@ -684,6 +684,7 @@ export class AuthService {
         display_name: user.user_metadata?.['display_name'] as string | undefined,
         photo_url: profile.photoUrl,
         profile_name: profile.name,
+        has_password: passwordIfKnown(user),
       },
       admin: { ...admin, hasLeagueRoles },
       pendingLegal,

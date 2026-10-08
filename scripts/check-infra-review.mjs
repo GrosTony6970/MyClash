@@ -1319,7 +1319,7 @@ requireContains(
 requireContains(
   publicPersonalShellText,
   'apps/web-public/src/components/PublicPersonalShell.tsx',
-  '/api/v1/me',
+  'await fetchMe(apiUrl',
 );
 requireContains(
   publicPersonalShellText,

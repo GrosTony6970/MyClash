@@ -298,6 +298,50 @@ describe('the mailed link that sets a password', () => {
   });
 });
 
+/**
+ * The personal pages while the auth server gives no answer (operator ruling 353).
+ *
+ * The security status cannot say then how the account signs in: a server error. The shell
+ * asked it on every personal page for its footer, and the settings hub for the address:
+ * both read `/me` now, which answers. Only the security page asks the status, and it keeps
+ * the data export, which needs nothing of it.
+ */
+describe('the readers of the security status', () => {
+  const source = (path: string) => readFileSync(join(__dirname, '..', '..', '..', path), 'utf8');
+  const shell = source('src/components/PublicPersonalShell.tsx');
+  const hub = source('app/me/settings/AccountSection.tsx');
+
+  it('are not the shell and not the settings hub', () => {
+    expect(shell).not.toContain('security-status');
+    expect(hub).not.toContain('security-status');
+  });
+
+  it('the shell draws its footer from the read of who is signed in', () => {
+    expect(shell).toContain(
+      'setAccount({ email: decision.email, viaGoogle: decision.viaGoogle });',
+    );
+    expect(shell).toMatch(
+      /\{account\.viaGoogle && \(\s+<p [^>]+>\s+\{t\('publicApp\.personalShell\.viaGoogle'\)\}/,
+    );
+    expect(shell.match(/useEffect\(/g)).toHaveLength(2);
+  });
+
+  it('the settings hub shows the address `/me` hands', () => {
+    expect(hub).toContain('void fetchMe(apiUrl, { signal: controller.signal }).then((me) => {');
+    expect(hub).toContain('if (me.ok) setEmail(me.data.user?.email || null);');
+    expect(hub).toContain("{email ?? t('common.unknown')}");
+  });
+
+  it('the security page keeps the data export when its status read failed', () => {
+    const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
+    expect(page).toMatch(
+      /\{statusError && \(\s+<>\s+<p [^>]+>\s+\{t\('publicApp\.security\.loadError'\)\}\s+<\/p>\s+<DataAndPrivacySection apiUrl=\{apiUrl\} t=\{t\} \/>\s+<\/>\s+\)\}/,
+    );
+    expect(page.match(/<DataAndPrivacySection /g)).toHaveLength(2);
+    expect(page.match(/<DeleteAccountSection /g)).toHaveLength(1);
+  });
+});
+
 describe('the security page', () => {
   const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
 

@@ -43,9 +43,8 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [account, setAccount] = useState<{ email: string | null; hasPassword: boolean } | null>(
-    null,
-  );
+  // The footer: read from `/me` with the rest, never a read of its own (ruling 353).
+  const [account, setAccount] = useState<{ email: string | null; viaGoogle: boolean } | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   // True when this competitor account also holds a super-admin / organiser /
@@ -85,6 +84,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
 
       setDisplayName(decision.displayName);
       setPhotoUrl(decision.photoUrl);
+      setAccount({ email: decision.email, viaGoogle: decision.viaGoogle });
       setHasAdminAccess(decision.hasAdminAccess);
       // The browser may still hold the alert address of whoever used it before (ruling 238).
       void dropForeignAddress(apiUrl);
@@ -105,22 +105,6 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
     window.addEventListener('myclash:profile-photo', onPhoto);
     return () => window.removeEventListener('myclash:profile-photo', onPhoto);
   }, []);
-
-  // Who's signed in (for the sidebar footer) + whether it's a Google-only
-  // account. Best-effort; the footer just hides if it can't load.
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me/security-status`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok)
-          setAccount((await res.json()) as { email: string | null; hasPassword: boolean });
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [apiUrl]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -191,7 +175,7 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       <p className="truncate text-xs font-medium text-muted" title={account.email}>
         {account.email}
       </p>
-      {!account.hasPassword && (
+      {account.viaGoogle && (
         <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted">
           {t('publicApp.personalShell.viaGoogle')}
         </p>

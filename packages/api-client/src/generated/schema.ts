@@ -9738,6 +9738,7 @@ export interface components {
       display_name?: string;
       photo_url?: string;
       profile_name?: string;
+      has_password?: boolean;
     };
     MePersonDto: {
       id: string;

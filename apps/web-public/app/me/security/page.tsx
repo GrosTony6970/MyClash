@@ -36,16 +36,6 @@ export default function SecurityPage() {
     return () => controller.abort();
   }, [apiUrl]);
 
-  if (statusError) {
-    return (
-      <main className="px-4 py-6 sm:px-6 lg:px-8">
-        <p className="mx-auto max-w-2xl rounded-md border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
-          {t('publicApp.security.loadError')}
-        </p>
-      </main>
-    );
-  }
-
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -56,6 +46,15 @@ export default function SecurityPage() {
           <p className="mt-2 text-sm text-muted">{t('publicApp.security.subtitle')}</p>
         </header>
 
+        {/* The data export asks nothing of the status: it stays when that read failed. */}
+        {statusError && (
+          <>
+            <p className="rounded-md border border-danger/40 bg-danger/10 p-4 text-sm text-danger">
+              {t('publicApp.security.loadError')}
+            </p>
+            <DataAndPrivacySection apiUrl={apiUrl} t={t} />
+          </>
+        )}
         {status && (
           <>
             <EmailChangeSection

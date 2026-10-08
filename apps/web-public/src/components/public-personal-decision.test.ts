@@ -90,6 +90,30 @@ describe('resolvePublicPersonal', () => {
     });
   });
 
+  // The footer made its own read of the security status on every personal page: a server
+  // error on each one while the auth server gave no answer (ruling 353).
+  describe('the footer is drawn from the same read (ruling 353)', () => {
+    const user = (has_password?: boolean) => ({ id: 'u', email: 'a@b.c', has_password });
+
+    it('hands the address of the account', () => {
+      expect(resolvePublicPersonal(claimed({ user: user() }))).toMatchObject({ email: 'a@b.c' });
+    });
+
+    it('hands no address for an account that has none', () => {
+      const d = resolvePublicPersonal(claimed({ user: { id: 'u', email: '' } }));
+      expect(d).toMatchObject({ email: null, viaGoogle: false });
+    });
+
+    it.each([
+      ['the auth server said it has no password', false, true],
+      ['it has a password', true, false],
+      ['the auth server did not say', undefined, false],
+    ])('tags the account "via Google" only when it is known: %s', (_w, hasPassword, tagged) => {
+      const d = resolvePublicPersonal(claimed({ user: user(hasPassword) }));
+      expect(d).toMatchObject({ viaGoogle: tagged });
+    });
+  });
+
   describe('the admin escape hatch is a union of three grants', () => {
     it('offers nothing to a plain competitor', () => {
       const d = resolvePublicPersonal(

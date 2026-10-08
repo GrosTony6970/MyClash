@@ -1,5 +1,12 @@
 import type { SupabaseAuthUser } from '../supabase/supabase.service';
 
+/** The sign-in methods the auth server lists for an account, or null when it listed none. */
+function providersOf(user: SupabaseAuthUser): (string | undefined)[] | null {
+  const identities = (user as { identities?: unknown }).identities;
+  if (!Array.isArray(identities)) return null;
+  return identities.map((identity: { provider?: string }) => identity.provider);
+}
+
 /**
  * Whether an account signs in with a password (operator ruling 349).
  *
@@ -13,9 +20,18 @@ import type { SupabaseAuthUser } from '../supabase/supabase.service';
  * identity (read on GoTrue v2.195.0).
  */
 export function signsInWithPassword(user: SupabaseAuthUser): boolean {
-  const identities = (user as { identities?: unknown }).identities;
-  if (!Array.isArray(identities)) {
+  const known = passwordIfKnown(user);
+  if (known === undefined) {
     throw new Error('The auth server did not answer how this account signs in');
   }
-  return identities.some((identity: { provider?: string }) => identity.provider === 'email');
+  return known;
+}
+
+/**
+ * The same answer for a reader that only DECORATES (operator ruling 353: the "via Google" tag
+ * of the personal shell, read from `/me`): undefined when the auth server did not say. Never
+ * for a reader that decides what an account may do: that one asks `signsInWithPassword`.
+ */
+export function passwordIfKnown(user: SupabaseAuthUser): boolean | undefined {
+  return providersOf(user)?.includes('email');
 }
