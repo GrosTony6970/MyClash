@@ -6,7 +6,7 @@ import { createInstrumentedClients } from './query-errors/install';
 import { classifyGoTrueFailure } from './gotrue-failure';
 
 /** How long to wait on GoTrue before treating it as unavailable (ms). */
-const GOTRUE_TIMEOUT_MS = 5000;
+export const GOTRUE_TIMEOUT_MS = 5000;
 
 export interface SupabaseAuthUser {
   id: string;

@@ -1958,6 +1958,9 @@ Five details that matter:
   the new password and hand out that login (ruling 352, `signInWithNewPassword`); when that
   sign-in gives no login of that account the password stands, the door clears the browser's
   login (it is ended, or it is another account's) and the account signs in by hand.
+  Every call to the auth server's password door (`askPasswordToken`) is held to five seconds,
+  the limit of the API's other calls to it (ruling 357): with no answer a sign-in is a server
+  error, and a door that already wrote the password answers as above.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

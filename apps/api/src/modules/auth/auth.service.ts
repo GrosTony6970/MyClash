@@ -59,7 +59,8 @@ import {
   buildSessionCookieOptions,
   isProductionEnvironment,
 } from '../../security/http-security';
-import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.service';
+import { GOTRUE_TIMEOUT_MS, SupabaseService } from '../supabase/supabase.service';
+import type { SupabaseAuthUser } from '../supabase/supabase.service';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
@@ -2126,7 +2127,8 @@ export class AuthService {
    * The two sign-in screens read their door's 401 as a wrong password (operator
    * ruling 309); the security page reads the 403 of `confirmCurrentPassword`.
    * A silent, throttled or failing auth server has not judged the password: that
-   * is a server error, never the 401.
+   * is a server error, never the 401. Silent is five seconds with no answer
+   * (operator ruling 357): a door that waits longer outlasts the page that asked.
    */
   private async askPasswordToken(
     email: string,
@@ -2146,6 +2148,7 @@ export class AuthService {
           apikey: anonKey,
         },
         body: JSON.stringify({ email, password }),
+        signal: AbortSignal.timeout(GOTRUE_TIMEOUT_MS),
       });
     } catch (err) {
       throw new Error(`The auth server did not answer the password sign-in: ${String(err)}`, {
