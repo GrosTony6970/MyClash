@@ -1267,8 +1267,11 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > (ruling 365). An undo the tablet REMEMBERED is not sent to a bout the server holds completed
 > (ruling 366): a void there is a correction, which can decide the bout again or put it back
 > in play, and the tablet makes none by itself. The settle reads the bout's status once per
-> run for that, and only the entry the referee is undoing at that moment (`tapped`) is sent to
-> a finished bout. Each undo that was not carried out (refused, let go, of an ended bout) is
+> run for that (a status it cannot read keeps the undo for the next run), and only an entry
+> the referee is undoing at that moment is sent to a finished bout. The undo marks that entry
+> before it is written down (`attendUndo`), because the watcher's run can reach it before the
+> undo's own. An undo let go after a day was never asked of the server: its sentence says the
+> entry MAY be on the list again. Each undo that was not carried out (refused, let go, of an ended bout) is
 > written down with its bout in the table `undoNotices` (store version 6,
 > `offline/undo-notices.ts`), in the transaction that forgets it. The screen of THAT bout reads
 > its rows when it opens and after every run, says one sentence per cause with its count

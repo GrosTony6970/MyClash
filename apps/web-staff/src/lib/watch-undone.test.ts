@@ -213,7 +213,7 @@ describe('the bout screen', () => {
   // Ruling 364: what was written while another screen was open is read when this one opens.
   it('reads what is written for its bout when it opens, and after every run', () => {
     expect(notice).toMatch(/\n {4}read\(\);\n {4}const stop = watchUndone\(/);
-    expect(notice).toContain('void noticesOf(matchId).then((rows) => {');
+    expect(notice).toMatch(/noticesOf\(matchId\)\s+\.then\(\(rows\) => \{/);
     expect(notice).toContain(
       'if (!gone) setNotices(rows.filter((row) => !closed.current.has(row.clientUuid)));',
     );
@@ -232,7 +232,7 @@ describe('the bout screen', () => {
   // Only the rows he read are removed: one written since stays for the next read.
   it('removes the rows it showed when he closes the notice, and shows them no more', () => {
     expect(notice).toMatch(
-      /const close = \(\) => \{\s+for \(const notice of notices\) closed\.current\.add\(notice\.clientUuid\);\s+setNotices\(\[\]\);\s+void saidNotices\(notices\);\s+\};/,
+      /const close = \(\) => \{\s+for \(const notice of notices\) closed\.current\.add\(notice\.clientUuid\);\s+setNotices\(\[\]\);\s+saidNotices\(notices\)\.catch\(/,
     );
   });
 });

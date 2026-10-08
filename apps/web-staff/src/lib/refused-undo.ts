@@ -26,7 +26,8 @@ function sharedReason(refused: UndoNotice[], t: Translate): string | null {
 /**
  * What the screen of a bout says of the undos the tablet wrote down and did
  * not carry out (rulings 354, 364 to 366): one sentence per cause, with its
- * count. Each says the entries are on the list again.
+ * count. A refused undo and one of an ended bout are on the list again: the
+ * server held them. One that was let go may be: nobody asked the server.
  */
 export function undoNoticeLines(notices: UndoNotice[], t: Translate): string[] {
   return (['refused', 'expired', 'ended'] as const).flatMap((why) => {

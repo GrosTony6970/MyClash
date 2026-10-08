@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 
 import { db } from '../offline/db';
 import { noticesOf, saidNotices } from '../offline/undo-notices';
-import { settleUndone } from './settle-undone';
+import { attendUndo, settleUndone } from './settle-undone';
 
 /**
  * An undo the tablet wrote down and did not carry out is written down for the screen of its
@@ -182,6 +182,7 @@ describe('the tablet corrects no finished bout by itself (ruling 366)', () => {
   it.each([
     ['a server fault', () => refusal(500, 'INTERNAL')],
     ['a throttle', () => refusal(429, 'too_many_requests')],
+    ['an answer with no status', () => json(200, {})],
   ])('keeps the undo, and voids nothing, when the bout’s read meets %s', async (_what, bout) => {
     await wroteDown('uuid-5');
     const { asked } = server([hit('ex-5', 'uuid-5')], { 'bout-a': bout });
@@ -213,17 +214,48 @@ describe('the tablet corrects no finished bout by itself (ruling 366)', () => {
 
   // He is watching: the undo he taps on a finished bout is his correction, sent as before.
   it('still sends the undo being tapped now on a completed bout, and asks no status', async () => {
+    const unmark = attendUndo('uuid-5');
     await wroteDown('uuid-5');
     const { asked } = server([hit('ex-5', 'uuid-5')], { 'bout-a': completed });
 
     const settled = await settleUndone(API_URL, 'bout-a', 'uuid-5');
+    unmark();
 
     expect(settled).toEqual(new Map([['uuid-5', 'voided']]));
     expect(asked('PATCH')).toEqual(['/exchanges/ex-5/void']);
     expect(asked('GET')).not.toContain('/matches/bout-a');
   });
 
+  // The race: the watcher's run starts between the write of the entry and the undo's own
+  // run. It names no entry, and must still send the one he is tapping.
+  it('sends it too when the watcher’s run reaches it first', async () => {
+    const unmark = attendUndo('uuid-5');
+    await wroteDown('uuid-5');
+    const { asked } = server([hit('ex-5', 'uuid-5')], { 'bout-a': completed });
+
+    const [watcher, own] = await Promise.all([
+      settleUndone(API_URL),
+      settleUndone(API_URL, 'bout-a', 'uuid-5'),
+    ]);
+    unmark();
+
+    expect(watcher).toEqual(new Map([['uuid-5', 'voided']]));
+    expect(own).toEqual(new Map());
+    expect(asked('PATCH')).toEqual(['/exchanges/ex-5/void']);
+    expect(await said('bout-a')).toEqual([]);
+  });
+
+  it('holds it back again once the tap is over: the mark does not outlive it', async () => {
+    attendUndo('uuid-5')();
+    await wroteDown('uuid-5');
+    const { asked } = server([hit('ex-5', 'uuid-5')], { 'bout-a': completed });
+
+    expect(await settleUndone(API_URL)).toEqual(new Map([['uuid-5', 'ended']]));
+    expect(asked('PATCH')).toEqual([]);
+  });
+
   it('lets go the one he remembered while it sends the one he taps, on the same bout', async () => {
+    const unmark = attendUndo('uuid-5');
     await wroteDown('uuid-4');
     await wroteDown('uuid-5');
     const { asked } = server([hit('ex-4', 'uuid-4'), hit('ex-5', 'uuid-5')], {
@@ -231,6 +263,7 @@ describe('the tablet corrects no finished bout by itself (ruling 366)', () => {
     });
 
     const settled = await settleUndone(API_URL, 'bout-a', 'uuid-5');
+    unmark();
 
     expect(settled).toEqual(
       new Map([

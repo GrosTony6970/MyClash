@@ -307,9 +307,9 @@ export const scoring = {
     earlierUndosRefused:
       '{count} annulations précédentes ont été refusées par le serveur. Les saisies sont de nouveau dans la liste.',
     earlierUndoNotSent:
-      'Une annulation précédente n’a pas pu être envoyée. La saisie est de nouveau dans la liste.',
+      'Une annulation précédente n’a pas pu être envoyée. Vérifiez la liste : la saisie y est peut-être de nouveau.',
     earlierUndosNotSent:
-      '{count} annulations précédentes n’ont pas pu être envoyées. Les saisies sont de nouveau dans la liste.',
+      '{count} annulations précédentes n’ont pas pu être envoyées. Vérifiez la liste : les saisies y sont peut-être de nouveau.',
     earlierUndoBoutEnded:
       'Une annulation précédente n’a pas été envoyée : l’assaut est terminé. La saisie est de nouveau dans la liste. Corrigez-la si elle est encore fausse.',
     earlierUndosBoutEnded:

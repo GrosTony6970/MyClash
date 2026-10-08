@@ -7,7 +7,7 @@ import type { TakenBack } from '../offline/take-back';
 import { forgetUndone, listUndone } from '../offline/undone';
 import { refusalMessage } from './refusal-copy';
 import { readServerEntries, type ServerRow } from './server-entries';
-import { settleUndone } from './settle-undone';
+import { attendUndo, settleUndone } from './settle-undone';
 import { askVoid, type ServerEntry } from './void-entry';
 
 type Translate = Parameters<typeof refusalMessage>[1];
@@ -137,15 +137,23 @@ async function undoOnTablet(
   entry: OutboxEntry,
   serverAnswered: boolean,
 ): Promise<ClearLastOutcome> {
-  const taken = await deps.takeBack(entry);
-  if (taken.kind === 'landed') return undoLanded(deps, entry, taken.serverId);
-  if (!serverAnswered) return { kind: 'voided' };
-  const run = await settleUndone(deps.apiUrl, deps.matchId, entry.clientUuid);
-  const settled = run.get(entry.clientUuid);
-  if (settled === 'review') return { kind: 'sent-for-review' };
-  if (typeof settled === 'object') return failed(settled.refused, deps.t);
-  // Also when the screen's watcher settled it first: it reads the bout again itself.
-  return { kind: 'voided' };
+  // Marked before it is written down: the watcher's run can reach it first, and
+  // must send it to a finished bout as this tap would (ruling 366).
+  const unmark = attendUndo(entry.clientUuid);
+  try {
+    const taken = await deps.takeBack(entry);
+    if (taken.kind === 'landed') return await undoLanded(deps, entry, taken.serverId);
+    if (!serverAnswered) return { kind: 'voided' };
+    const run = await settleUndone(deps.apiUrl, deps.matchId, entry.clientUuid);
+    const settled = run.get(entry.clientUuid);
+    if (settled === 'review') return { kind: 'sent-for-review' };
+    if (typeof settled === 'object') return failed(settled.refused, deps.t);
+    // Also when the screen's watcher settled it first: it reads the bout again
+    // itself, and a refusal it met is written down for the bout's screen.
+    return { kind: 'voided' };
+  } finally {
+    unmark();
+  }
 }
 
 /**

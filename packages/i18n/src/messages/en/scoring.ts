@@ -320,9 +320,11 @@ export const scoring = {
     // The undos the tablet wrote down and did not carry out (rulings 364 to 366).
     earlierUndosRefused:
       '{count} earlier undos were refused by the server. The entries are back on the list.',
-    earlierUndoNotSent: 'An earlier undo could not be sent. The entry is back on the list.',
+    // Nobody asked the server about these: the tablet does not know what it holds.
+    earlierUndoNotSent:
+      'An earlier undo could not be sent. Check the list: the entry may be on it again.',
     earlierUndosNotSent:
-      '{count} earlier undos could not be sent. The entries are back on the list.',
+      '{count} earlier undos could not be sent. Check the list: the entries may be on it again.',
     earlierUndoBoutEnded:
       'An earlier undo was not sent: the bout has ended. The entry is back on the list. Correct it if it is still wrong.',
     earlierUndosBoutEnded:

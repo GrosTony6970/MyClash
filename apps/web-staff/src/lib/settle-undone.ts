@@ -83,9 +83,26 @@ function boutEnded(run: Run, matchId: string): Promise<boolean | null> {
     (signal) =>
       apiRequest<{ status?: string }>(run.apiUrl, `/api/v1/matches/${matchId}`, { signal }),
     { ok: false as const, kind: 'aborted' as const },
-  ).then((bout) => (bout.ok ? bout.data?.status === 'completed' : null));
+  ).then((bout) => {
+    const status = bout.ok ? bout.data?.status : undefined;
+    return typeof status === 'string' ? status === 'completed' : null;
+  });
   run.ended.set(matchId, read);
   return read;
+}
+
+/**
+ * The entries a referee is undoing at this moment. A finished bout still takes
+ * their void (ruling 366), whichever run reaches them first: the undo's own,
+ * or the watcher's, which can start between the write of the entry and the
+ * undo's own run.
+ */
+const attended = new Set<string>();
+
+/** Mark an entry as being undone now, BEFORE it is written down. Answers its unmark. */
+export function attendUndo(clientUuid: string): () => void {
+  attended.add(clientUuid);
+  return () => void attended.delete(clientUuid);
 }
 
 async function settleOne(run: Run, entry: UndoneEntry, read: ServerRead): Promise<Settled> {
@@ -95,9 +112,9 @@ async function settleOne(run: Run, entry: UndoneEntry, read: ServerRead): Promis
   const held = read.rows.find((row) => row.clientUuid === entry.clientUuid && !row.voided);
   if (!held) return forget(run, entry, 'absent');
   // A void on a finished bout is a correction: it can decide the bout again or
-  // put it back in play. Only the undo being tapped now is sent there; one the
+  // put it back in play. Only an undo being tapped now is sent there; one the
   // tablet remembered is let go, and the bout's screen says so (ruling 366).
-  if (entry.clientUuid !== run.tapped) {
+  if (!attended.has(entry.clientUuid)) {
     const ended = await boutEnded(run, entry.matchId);
     if (ended === null) return 'kept';
     if (ended) return forget(run, entry, 'ended');
@@ -134,7 +151,7 @@ let turn: Promise<unknown> = Promise.resolve();
  * Ask the server for every entry the undo took off the tablet (ruling 350),
  * of one bout or of all: one it holds is voided there, by whoever is signed
  * in now. With nothing written down, nothing is asked. `tapped` is the entry
- * the referee is undoing at this moment: its answer goes to his button.
+ * whose answer this run hands to the referee's button: it writes no notice.
  *
  * The race is two runs over one entry (the undo's own, the watcher's): the
  * second would void a voided row. One run at a time: the later one reads what

@@ -7,6 +7,7 @@ import { pendingRowsForMatch } from '../offline/pending-events';
 import { takeBack, type TakenBack } from '../offline/take-back';
 import { newestToUndo, undoLastEntry } from './clear-last';
 import type { ServerRow } from './server-entries';
+import * as settle from './settle-undone';
 
 /**
  * "Undo last entry" asks the server first (ruling 350).
@@ -360,5 +361,20 @@ describe('newestToUndo and the screen’s list', () => {
       where: 'tablet',
       entry: { clientUuid: uuid(6) },
     });
+  });
+});
+
+// Ruling 366. The settle writes down the undos it did not carry out, for the bout's screen.
+// The answer about the entry he is undoing NOW goes to his button: the undo names it to the
+// settle. What the settle does with that name is in `settle-undone.notices.test.ts`.
+describe('the undo names the entry it takes off the tablet to the settle', () => {
+  it('asks the settle for its own bout, with the id of that entry', async () => {
+    await waits(5);
+    server({ hits: [[]] });
+    const settled = vi.spyOn(settle, 'settleUndone');
+
+    await expect(undo()).resolves.toEqual(VOIDED);
+
+    expect(settled.mock.calls).toEqual([[API_URL, 'm1', uuid(5)]]);
   });
 });

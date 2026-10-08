@@ -36,9 +36,11 @@ export function RememberedUndos({ engine, apiUrl, matchId, onSettled }: Remember
   useEffect(() => {
     let gone = false;
     const read = () => {
-      void noticesOf(matchId).then((rows) => {
-        if (!gone) setNotices(rows.filter((row) => !closed.current.has(row.clientUuid)));
-      });
+      noticesOf(matchId)
+        .then((rows) => {
+          if (!gone) setNotices(rows.filter((row) => !closed.current.has(row.clientUuid)));
+        })
+        .catch((err: unknown) => console.error('[undo] the notices could not be read', err));
     };
     read();
     const stop = watchUndone({ engine, apiUrl, onSettled, onRan: read, win: window });
@@ -52,7 +54,9 @@ export function RememberedUndos({ engine, apiUrl, matchId, onSettled }: Remember
   const close = () => {
     for (const notice of notices) closed.current.add(notice.clientUuid);
     setNotices([]);
-    void saidNotices(notices);
+    saidNotices(notices).catch((err: unknown) =>
+      console.error('[undo] the notices he read could not be removed', err),
+    );
   };
   return (
     <div

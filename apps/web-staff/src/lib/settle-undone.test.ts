@@ -59,6 +59,8 @@ function server({ mayScore, hits = [], cards = [], voids }: Server) {
       if (init?.method === 'PATCH') voidCanBeStopped = init.signal instanceof AbortSignal;
       if (init?.method === 'PATCH') return (voids ?? (() => json(200, { voided: true })))();
       if (path.endsWith('/penalty-ruleset')) return (mayScore ?? (() => json(200, {})))();
+      // The bout itself: still in play, so an undo the tablet remembered is sent (ruling 366).
+      if (!/\/(exchanges|penalties)$/.test(path)) return json(200, { status: 'running' });
       return json(200, path.endsWith('/exchanges') ? hits : cards);
     }),
   );
