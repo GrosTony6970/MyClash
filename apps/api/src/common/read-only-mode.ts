@@ -22,8 +22,11 @@ export function readOnlyModeRefusal(): OperationalUnavailableException {
  *
  * `ReadOnlyInterceptor` lets `auth/` through whole, so that a sign-in still works, and it
  * never meets a GET: a sign-up form, a Google sign-up and a click on a mailed sign-up link
- * all wrote while the switch was on. Nobody passes here: who signs up has no account yet,
- * so there is no super admin to let through.
+ * all wrote while the switch was on. Nobody passes here, a super admin included: the
+ * Google sign-up is the one door whose caller may hold an account already.
+ *
+ * It stops the club and the accounts WE make. The auth server still makes an account for a
+ * new address at a sign-in by mailed link, and at Google before this door is reached.
  */
 export async function assertNotReadOnly(supabase: SupabaseService): Promise<void> {
   if (await isFlagEnabledDirect(supabase, 'read_only_mode')) throw readOnlyModeRefusal();
