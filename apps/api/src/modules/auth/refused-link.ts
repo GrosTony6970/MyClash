@@ -2,6 +2,9 @@ import { ADMIN_LOCKDOWN_CODE, LINK_EXPIRED_CODE, LINK_UNCHECKED_CODE } from '@my
 import { isAdminLockdownRefusal } from '../../common/admin-lockdown';
 import { MailedCodeRefused, MailedCodeUnjudged } from './auth-server-calls';
 
+type RefusedLink =
+  typeof ADMIN_LOCKDOWN_CODE | typeof LINK_EXPIRED_CODE | typeof LINK_UNCHECKED_CODE;
+
 /**
  * Why a mailed link's door signs nobody in, as the page it sends its reader to
  * reads it (`SIGNUP_REFUSED_PARAM`). A browser that followed a link cannot read
@@ -12,7 +15,7 @@ import { MailedCodeRefused, MailedCodeUnjudged } from './auth-server-calls';
  * again: it is no refusal of the link, and "open it again" would be untrue of a
  * code that is spent.
  */
-export function refusedLinkOrThrow(fault: unknown): string {
+export function refusedLinkOrThrow(fault: unknown): RefusedLink {
   if (isAdminLockdownRefusal(fault)) return ADMIN_LOCKDOWN_CODE;
   if (fault instanceof MailedCodeRefused) return LINK_EXPIRED_CODE;
   if (fault instanceof MailedCodeUnjudged) return LINK_UNCHECKED_CODE;

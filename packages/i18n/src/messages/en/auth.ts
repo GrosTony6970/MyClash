@@ -83,8 +83,10 @@ export const auth = {
   signup: {
     signupsOff: 'Sign-ups are switched off for now. Try again later.',
     // The sign-up link was spent and the organization was not written (ruling 363).
+    // Her account stands, so only the email link works a second time: the
+    // password choice refuses an address that holds an account.
     orgNotMade:
-      'We could not create your organization. Fill in the form again and we will mail you a new link.',
+      'We could not create your organization. Fill in the form again and choose "Continue with a magic link": we will mail you a new link.',
     title: 'Create your organizer account',
     step1Label: 'Step 1 of 2 — Your account',
     step2Label: 'Step 2 of 2 — Your organization',

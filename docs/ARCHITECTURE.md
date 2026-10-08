@@ -1976,10 +1976,13 @@ Five details that matter:
   The other calls of those doors and of the mailed-link doors go through
   `auth/auth-server-calls.ts`, each held to the same five seconds (ruling 360): the code of a
   mailed link or of a reset (`spendMailedCode`), the password write, the account delete. The
-  auth server refuses a code that is made up, used or past its life with a 403, and only that
-  is "expired": a throttle, a server fault or no answer is a server error. supabase-js takes
-  no signal, so the limit ends the wait, not the request: the auth server may still do what
-  was asked.
+  auth server refuses a code that is made up, used or past its life with a 403. Every 4xx it
+  wrote but a throttle is read as that refusal (`classifyGoTrueFailure`), and only a refusal
+  is "expired": a throttle, a server fault, an answer supabase-js cannot read or no answer is
+  a server error. supabase-js takes no signal, so the limit ends the wait, not the request:
+  the auth server may still do what was asked. So an account delete that lands after the
+  limit leaves the account gone and no erasure receipt, and a code can be spent after the
+  door said it was not judged.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.
@@ -2280,7 +2283,7 @@ OrganizationRole grants always require a **claimed** account. They are never giv
 
 The emailed link lands on `GET /auth/signup-callback`. The Organization is made for the account the link proved (`AuthService.signInFromSignupLink`), never for the account the browser was signed in as, and with no `/me` read (ruling 299). On the Google sign-up, an Organization or an owner row that cannot be written fails the request (`completeSignupAfterMagicLink` throws). The password door removes the account it made a moment ago and fails (ruling 306).
 
-A browser that followed a mailed link reads no error body, so both link doors (`GET /auth/callback`, `GET /auth/signup-callback`) answer a link that signs nobody in with a redirect that carries the reason (`SIGNUP_REFUSED_PARAM`): the sign-in page of the link's site, or the sign-up page. `refusedLinkOrThrow` (`auth/refused-link.ts`) names three reasons: the lockdown (ruling 324), a code the auth server refused (`link_expired`, ruling 362) and a code it did not judge (`link_unchecked`, ruling 360: the same link works again). Another fault still throws. The sign-up door adds `club_not_made` (ruling 363): the link is spent, the account stands, the fault is logged and reported, and a second sign-up mails a link that makes the Organization. `refusedLinkKey` in `@myclash/types` is the one owner of the two link sentences for both apps.
+A browser that followed a mailed link reads no error body, so both link doors (`GET /auth/callback`, `GET /auth/signup-callback`) answer a link that signs nobody in with a redirect that carries the reason (`SIGNUP_REFUSED_PARAM`): the sign-in page of the link's site, or the sign-up page. `refusedLinkOrThrow` (`auth/refused-link.ts`) names three reasons: the lockdown (ruling 324), a code the auth server refused (`link_expired`, ruling 362) and a code it did not judge (`link_unchecked`, ruling 360: the page says to open the link again, which works unless the auth server spent the code after its answer came too late). Another fault still throws. The sign-up door adds `club_not_made` (ruling 363): the link is spent, the account stands, the fault is logged and reported, and a second sign-up by email link mails a link that makes the Organization (the password choice refuses an address that holds an account, and the sentence names the email link). `refusedLinkKey` in `@myclash/types` is the one owner of the two link sentences for both apps.
 
 **What an organizer can do** without further approval:
 

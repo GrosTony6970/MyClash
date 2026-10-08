@@ -40,7 +40,7 @@ function build(code: () => Promise<unknown>) {
   const reply = { setCookie: vi.fn(), redirect: vi.fn() };
   const land = (type: string, personId?: string) =>
     service.handleCallback('token-hash', type, personId, '/somewhere', reply as never);
-  return { land, reply, warned };
+  return { land, reply, warned, verifyOtp };
 }
 
 const answers = (error: object) => async () => ({ data: { user: null, session: null }, error });
@@ -96,6 +96,38 @@ describe('a mailed link whose code the auth server did not judge (ruling 360)', 
     expect(reply.redirect.mock.calls).toEqual([[`${site}/login?refused=link_unchecked`]]);
     expect(reply.setCookie).not.toHaveBeenCalled();
     expect(warned).toHaveBeenCalledWith(expect.stringContaining('too many requests'));
+  });
+
+  // The auth server never answers: the limit ends the wait. Nobody judged the code.
+  it('sends her to try again too when the five seconds run out, with a trace', async () => {
+    const limits: number[] = [];
+    const clocks: AbortController[] = [];
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      limits.push(ms);
+      clocks.push(new AbortController());
+      return clocks.at(-1)!.signal;
+    });
+    const { land, reply, warned, verifyOtp } = build(() => new Promise<never>(() => undefined));
+
+    const landed = land('login');
+    await vi.waitFor(() => expect(verifyOtp).toHaveBeenCalled());
+    clocks.at(-1)!.abort();
+    await landed;
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://admin.myclash.localhost/login?refused=link_unchecked'],
+    ]);
+    expect(limits).toEqual([5000]);
+    expect(reply.setCookie).not.toHaveBeenCalled();
+    expect(warned).toHaveBeenCalledWith(expect.stringContaining('no answer in time'));
+  });
+
+  // supabase-js can reject after the code is spent: "open it again" would be untrue.
+  it('still fails when the call itself throws, and sends nobody to try again', async () => {
+    const { land, reply } = build(() => Promise.reject(new Error('the session store failed')));
+
+    await expect(land('login')).rejects.toThrow('the session store failed');
+    expect(reply.redirect).not.toHaveBeenCalled();
   });
 });
 

@@ -16,7 +16,7 @@ const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => unde
  * The door signed her in, then looked for her login in the cookies her browser SENT: a new
  * person sent none, so her club was never made. A browser that still held Bob's login got the
  * club made for Bob. The club is now made for the account the LINK proved, with no `/me` read,
- * and a club that cannot be made fails the request instead of redirecting as done.
+ * and a club that cannot be made is never answered as done (ruling 363, below).
  */
 const ANNA = { id: 'user-anna', email: 'anna@example.com' };
 const BOB = { id: 'user-bob', email: 'bob@example.com' };

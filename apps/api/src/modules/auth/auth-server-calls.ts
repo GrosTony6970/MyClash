@@ -13,10 +13,15 @@ export class MailedCodeRefused extends UnauthorizedException {
 }
 
 /**
- * The auth server gave no judgment of a mailed code (operator ruling 360). The
- * code is not spent: a door a browser reached by a link says "open it again".
+ * The auth server gave no judgment of a mailed code (operator ruling 360): a
+ * door a browser reached by a link says "open it again". The code may still
+ * work. It is not sure to: after a limit that ran out the auth server may
+ * spend it all the same, and the second click then reads "expired".
  */
 export class MailedCodeUnjudged extends Error {}
+
+/** The limit of a call ran out. */
+class NoAnswerInTime extends Error {}
 
 /**
  * The calls of the password doors and of the mailed-link doors that reach the
@@ -31,7 +36,7 @@ function heldToLimit<T>(call: PromiseLike<T>): Promise<T> {
   const limit = AbortSignal.timeout(GOTRUE_TIMEOUT_MS);
   const ranOut = new Promise<never>((_resolve, reject) => {
     limit.addEventListener('abort', () => {
-      reject(new Error('The auth server gave no answer in time'));
+      reject(new NoAnswerInTime('The auth server gave no answer in time'));
     });
   });
   return Promise.race([call, ranOut]);
@@ -46,8 +51,9 @@ function unjudged(why: string, cause: unknown): MailedCodeUnjudged {
 /**
  * Spend the code of a mailed link. Null: the auth server REFUSED the code. It
  * answers a 403 for a code that is made up, used or past its life (read on
- * GoTrue v2.195.0). A throttle, a server fault or no answer is no judgment of
- * the code: a plain Error, so no page says "expired" over a link nobody judged.
+ * GoTrue v2.195.0), and every 4xx it wrote but a throttle is read as a refusal
+ * (`classifyGoTrueFailure`). A throttle, a server fault or no answer is no
+ * judgment of the code: no page says "expired" over a link nobody judged.
  */
 export async function spendMailedCode(
   anon: SupabaseClient,
@@ -55,8 +61,9 @@ export async function spendMailedCode(
   type: 'email' | 'recovery',
 ) {
   const asked = anon.auth.verifyOtp({ token_hash: tokenHash, type });
-  const { data, error } = await heldToLimit(asked).catch((ranOut: Error) => {
-    throw unjudged(ranOut.message, ranOut);
+  // Only the limit: another rejection of supabase-js can come after the code is spent.
+  const { data, error } = await heldToLimit(asked).catch((fault: unknown) => {
+    throw fault instanceof NoAnswerInTime ? unjudged(fault.message, fault) : fault;
   });
   if (!error) return data;
   // supabase-js hands no status, or 0, for an answer it could not read or never got.

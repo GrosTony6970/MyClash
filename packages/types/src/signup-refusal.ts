@@ -29,13 +29,15 @@ export const LINK_EXPIRED_CODE = 'link_expired';
 
 /**
  * The auth server gave no judgment of the link's code (operator ruling 360): a
- * throttle, a fault, no answer. The code is not spent, so the same link works again.
+ * throttle, a fault, no answer. The page says to open the link again. It may
+ * work: the auth server can still spend a code it answered too late about.
  */
 export const LINK_UNCHECKED_CODE = 'link_unchecked';
 
 /**
  * The sign-up link was spent and its organization could not be written (operator
- * ruling 363). The account stands: a second sign-up mails a link that makes it.
+ * ruling 363). The account stands: a second sign-up BY EMAIL LINK mails a link
+ * that makes it. The password choice refuses an address that holds an account.
  */
 export const CLUB_NOT_MADE_CODE = 'club_not_made';
 

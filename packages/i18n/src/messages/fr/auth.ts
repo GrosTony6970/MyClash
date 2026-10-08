@@ -82,7 +82,7 @@ export const auth = {
   signup: {
     signupsOff: 'Les inscriptions sont fermées pour le moment. Réessayez plus tard.',
     orgNotMade:
-      "Nous n'avons pas pu créer votre organisation. Remplissez à nouveau le formulaire : nous vous enverrons un nouveau lien.",
+      "Nous n'avons pas pu créer votre organisation. Remplissez à nouveau le formulaire et choisissez « Continuer avec un lien magique » : nous vous enverrons un nouveau lien.",
     title: 'Créez votre compte organisateur',
     step1Label: 'Étape 1 sur 2 — Votre compte',
     step2Label: 'Étape 2 sur 2 — Votre organisation',

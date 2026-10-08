@@ -149,7 +149,8 @@ export class SignupController {
    * The address of the club made for the account, or null when it cannot be
    * written (operator ruling 363). The link is spent and she is signed in: the
    * door has no 5xx to report, so the fault is logged and reported here. The
-   * account stands, and a second sign-up mails a link that makes the club.
+   * account stands, and a second sign-up by email link mails a link that makes
+   * the club. The password choice refuses her address: it holds an account now.
    */
   private async clubOf(userId: string, orgName: string, orgSlug: string): Promise<string | null> {
     try {

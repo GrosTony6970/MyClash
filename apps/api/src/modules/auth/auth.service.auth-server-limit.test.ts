@@ -120,7 +120,8 @@ describe('a mailed code the auth server did not judge is never "expired" (ruling
     expect(built.reply.send).not.toHaveBeenCalled();
   });
 
-  it.each(NO_JUDGMENT)('a mailed link answers a server error when it %s', async (_w, error) => {
+  // The service's fault. The link's door turns it into a page (`auth.service.dead-link.test.ts`).
+  it.each(NO_JUDGMENT)('the sign-in of a mailed link fails when it %s', async (_w, error) => {
     const built = build({ code: answers(error) });
 
     await serverFault(followLink(built));
