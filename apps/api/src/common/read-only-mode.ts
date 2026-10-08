@@ -25,8 +25,9 @@ export function readOnlyModeRefusal(): OperationalUnavailableException {
  * all wrote while the switch was on. Nobody passes here, a super admin included: the
  * Google sign-up is the one door whose caller may hold an account already.
  *
- * It stops the club and the accounts WE make. The auth server still makes an account for a
- * new address at a sign-in by mailed link, and at Google before this door is reached.
+ * It stops the club and the accounts WE make. The auth server makes one for a new address at
+ * a sign-in by mailed link: that door asks `linkWouldMakeAccount` first (ruling 347). It still
+ * makes one at Google, before this door is reached, and at its own sign-up address.
  */
 export async function assertNotReadOnly(supabase: SupabaseService): Promise<void> {
   if (await isFlagEnabledDirect(supabase, 'read_only_mode')) throw readOnlyModeRefusal();

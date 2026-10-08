@@ -271,14 +271,16 @@ export class SupabaseService {
     };
   }
 
+  /** `filter` is the auth server's loose match on a part of an address: '' answers everybody. */
   async listAuthAdminUsers(
     page: number,
     perPage: number,
+    filter = '',
   ): Promise<GoTrueAdminResponse<{ users: SupabaseAdminUser[] }>> {
     const response = await this.requestGoTrueAdmin<{ users?: unknown }>(
       `/admin/users?page=${encodeURIComponent(String(page))}&per_page=${encodeURIComponent(
         String(perPage),
-      )}`,
+      )}&filter=${encodeURIComponent(filter)}`,
       { method: 'GET' },
     );
 

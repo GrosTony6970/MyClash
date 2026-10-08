@@ -63,6 +63,7 @@ import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.ser
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
+import { linkWouldMakeAccount } from './read-only-link';
 import { anotherNameOnRoster, type NamedProfile } from './roster-names-of-address';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -240,6 +241,11 @@ export class AuthService {
         throw new BadRequestException('personId is required for claim type');
       }
       await this.assertClaimable(personId, email, null);
+    }
+
+    // Read-only mode makes no account (ruling 347): the auth server makes one for a new address.
+    if (await linkWouldMakeAccount(this.supabase, email)) {
+      return { message: 'If this email is registered, a link has been sent.' };
     }
 
     // The code comes from Supabase Auth (GoTrue); the link is ours (ruling 303).
