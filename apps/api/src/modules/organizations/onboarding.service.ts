@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SIGNUPS_DISABLED_CODE, validatePassword } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OperationalUnavailableException } from '../../common/operational-exception';
+import { assertNotReadOnly } from '../../common/read-only-mode';
 import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
 // Value import, not `import type`: Nest reads design:paramtypes to inject it.
@@ -96,6 +97,9 @@ export class OnboardingService {
    *
    * The marker class keeps the `code` through the error filter, so a screen
    * tells this 503 from a fault.
+   *
+   * Read-only mode closes the same three doors, with its own refusal (operator
+   * ruling 341): each of them wrote an account and a club while it was on.
    */
   async assertSignupsOpen(): Promise<void> {
     if (await isFlagEnabledDirect(this.supabase, 'disable_signups')) {
@@ -104,6 +108,7 @@ export class OnboardingService {
         message: 'Signups are temporarily disabled',
       });
     }
+    await assertNotReadOnly(this.supabase);
   }
 
   // ── Signup ───────────────────────────────────────────────────────────────

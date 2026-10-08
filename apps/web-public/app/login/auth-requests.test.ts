@@ -67,14 +67,23 @@ describe('requestSignUp', () => {
     expect(await signUp()).toBe('signups_disabled');
   });
 
+  // Operator ruling 341: a sign-up is refused during read-only mode, and the page says so.
+  it("reads the maintenance from the code of the API's 503", async () => {
+    answers(503, { status: 503, code: 'read_only_mode' });
+    expect(await signUp()).toBe('maintenance');
+  });
+
   it.each([
     ['a 503 of the edge, with no body', 503, undefined],
     ['a 503 with another code', 503, { status: 503, code: 'SERVICE_UNAVAILABLE' }],
     ['a server error', 500, { status: 500, code: 'INTERNAL_SERVER_ERROR' }],
-  ])('reads %s as a failed sign-up, not as "sign-ups are off"', async (_what, status, body) => {
-    answers(status, body);
-    expect(await signUp()).toBe('failed');
-  });
+  ])(
+    'reads %s as a failed sign-up, not as "sign-ups are off" or the maintenance',
+    async (_what, status, body) => {
+      answers(status, body);
+      expect(await signUp()).toBe('failed');
+    },
+  );
 
   it('still reads the stale agreement and the success', async () => {
     answers(400, { status: 400, code: 'legal_version_stale' });
@@ -96,5 +105,14 @@ describe('the login page', () => {
       ].join('\n'),
     );
     expect(page.match(/passwordLoginFailed/g)).toHaveLength(1);
+  });
+
+  // Operator ruling 341: the shared maintenance sentence, the one a refused save reads.
+  it('says the maintenance for a sign-up refused by read-only mode', () => {
+    expect(page).toContain(
+      ["        : code === 'maintenance'", "          ? t('common.apiFailure.readOnlyMode')"].join(
+        '\n',
+      ),
+    );
   });
 });

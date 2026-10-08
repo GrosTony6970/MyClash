@@ -101,9 +101,11 @@ export default function PublicLoginPage() {
     setError(
       code === 'signups_disabled'
         ? t('publicApp.login.errors.signupsDisabled')
-        : code === 'legal_stale'
-          ? t('legal.accept.stale')
-          : t('publicApp.login.errors.signupFailed'),
+        : code === 'maintenance'
+          ? t('common.apiFailure.readOnlyMode')
+          : code === 'legal_stale'
+            ? t('legal.accept.stale')
+            : t('publicApp.login.errors.signupFailed'),
     );
   }
 

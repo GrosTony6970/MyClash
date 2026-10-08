@@ -1,4 +1,4 @@
-import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { READ_ONLY_MODE_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
@@ -52,7 +52,8 @@ export async function requestPasswordSignIn(
   }
 }
 
-export type SignUpCode = 'ok' | 'signups_disabled' | 'legal_stale' | 'failed';
+/** `maintenance` is read-only mode's refusal, by its code (operator ruling 341). */
+export type SignUpCode = 'ok' | 'signups_disabled' | 'maintenance' | 'legal_stale' | 'failed';
 
 export async function requestSignUp(
   apiUrl: string,
@@ -77,6 +78,7 @@ export async function requestSignUp(
     // By its code: a 503 with none is the edge's, while the API is down.
     const code = await errorCode(res);
     if (code === SIGNUPS_DISABLED_CODE) return 'signups_disabled';
+    if (code === READ_ONLY_MODE_CODE) return 'maintenance';
     return code === 'legal_version_stale' ? 'legal_stale' : 'failed';
   } catch {
     return 'failed';

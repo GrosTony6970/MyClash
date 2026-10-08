@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { ADMIN_LOCKDOWN_CODE, SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import {
+  ADMIN_LOCKDOWN_CODE,
+  READ_ONLY_MODE_CODE,
+  SIGNUP_REFUSED_PARAM,
+  SIGNUPS_DISABLED_CODE,
+} from '@myclash/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { SignupController } from './signup.controller';
@@ -164,5 +169,47 @@ describe('the mailed sign-up link during the maintenance lockdown (ruling 324)',
     await land(reply);
 
     expect(reply.redirect.mock.calls).toEqual([['/org/lyon-amhe']]);
+  });
+});
+
+/**
+ * The same link during read-only mode (operator ruling 341).
+ *
+ * Ann clicks her sign-up mail while read-only mode is on. The click is a GET, so the
+ * interceptor never met it: her account and her club were written. The door now names the
+ * switch that closes sign-ups in the address, and the sign-up page says the maintenance.
+ */
+describe('the mailed sign-up link during read-only mode (ruling 341)', () => {
+  const READ_ONLY = new OperationalUnavailableException({
+    code: READ_ONLY_MODE_CODE,
+    message: 'maintenance',
+  });
+
+  it('sends her to the sign-up page with read-only mode as the reason', async () => {
+    onboarding.assertSignupsOpen.mockRejectedValue(READ_ONLY);
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([
+      [`/signup?${SIGNUP_REFUSED_PARAM}=${READ_ONLY_MODE_CODE}`],
+    ]);
+  });
+
+  it('does not spend her link: the same mail works after the maintenance', async () => {
+    onboarding.assertSignupsOpen.mockRejectedValue(READ_ONLY);
+
+    await land(makeReply());
+
+    expect(auth.signInFromSignupLink).not.toHaveBeenCalled();
+    expect(onboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+    expect(legal.recordForUser).not.toHaveBeenCalled();
+  });
+
+  it('refuses the form too, and makes nothing', async () => {
+    onboarding.assertSignupsOpen.mockRejectedValue(READ_ONLY);
+
+    await expect(controller.signup({} as never, { headers: {} } as never)).rejects.toBe(READ_ONLY);
+    expect(onboarding.signup).not.toHaveBeenCalled();
   });
 });

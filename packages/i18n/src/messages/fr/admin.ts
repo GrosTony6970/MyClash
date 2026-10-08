@@ -1007,7 +1007,7 @@ export const admin = {
     readOnlyMode: {
       title: 'Mode lecture seule',
       description:
-        'Refuse tout enregistrement sur la plateforme, pour tout le monde sauf un super-administrateur : organisateurs, combattants, invités et tablettes. La lecture fonctionne toujours, et un compte ou un code PIN sur une tablette peut toujours se connecter. Une tablette affiche la maintenance et garde ses touches pour les envoyer plus tard ; la page En direct montre toujours combien chaque tablette en garde. À utiliser pendant une maintenance de la base de données ou après un déploiement raté.',
+        'Refuse tout enregistrement sur la plateforme, pour tout le monde sauf un super-administrateur : organisateurs, combattants, invités et tablettes. La lecture fonctionne toujours, et un compte ou un code PIN sur une tablette peut toujours se connecter, mais personne ne peut créer de compte. Une tablette affiche la maintenance et garde ses touches pour les envoyer plus tard ; la page En direct montre toujours combien chaque tablette en garde. À utiliser pendant une maintenance de la base de données ou après un déploiement raté.',
     },
     disableSignups: {
       title: 'Désactiver les inscriptions',

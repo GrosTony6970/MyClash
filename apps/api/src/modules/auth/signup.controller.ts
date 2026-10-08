@@ -14,7 +14,12 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
-import { ADMIN_LOCKDOWN_CODE, SIGNUP_REFUSED_PARAM, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import {
+  ADMIN_LOCKDOWN_CODE,
+  READ_ONLY_MODE_CODE,
+  SIGNUP_REFUSED_PARAM,
+  SIGNUPS_DISABLED_CODE,
+} from '@myclash/types';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
@@ -97,9 +102,9 @@ export class SignupController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     // Both checks run BEFORE the link is spent (operator ruling 305). A link
-    // edited by hand made a club under any name. And while sign-ups are off
-    // she goes to the sign-up page, which says so: the same mail works again
-    // once they are back on.
+    // edited by hand made a club under any name. And while sign-ups are off,
+    // or read-only mode is on (ruling 341), she goes to the sign-up page, which
+    // says so: the same mail works again once they are back on.
     if (!signupClubSchema.safeParse({ orgName, orgSlug }).success) {
       throw new BadRequestException('This sign-up link names no valid organization');
     }
@@ -136,18 +141,24 @@ export class SignupController {
    * an account with no club. Nobody who signs up is platform staff.
    */
   private async refusedBeforeTheSpend(): Promise<string | null> {
-    if (await this.signupsAreOff()) return SIGNUPS_DISABLED_CODE;
+    const closedBy = await this.signupsClosedBy();
+    if (closedBy) return closedBy;
     return (await this.auth.isAdminLockdownEnabled()) ? ADMIN_LOCKDOWN_CODE : null;
   }
 
-  /** The switch's own refusal is an answer here; any other fault still throws. */
-  private async signupsAreOff(): Promise<boolean> {
+  /**
+   * The code of the switch that closes sign-ups, or null: "sign-ups off", or read-only
+   * mode (operator ruling 341). A switch's own refusal is an answer here; any other
+   * fault still throws.
+   */
+  private async signupsClosedBy(): Promise<string | null> {
     try {
       await this.onboarding.assertSignupsOpen();
-      return false;
+      return null;
     } catch (refusal) {
-      if (refusal instanceof OperationalUnavailableException) return true;
-      throw refusal;
+      if (!(refusal instanceof OperationalUnavailableException)) throw refusal;
+      const { code } = refusal.getResponse() as { code?: unknown };
+      return code === READ_ONLY_MODE_CODE ? READ_ONLY_MODE_CODE : SIGNUPS_DISABLED_CODE;
     }
   }
 

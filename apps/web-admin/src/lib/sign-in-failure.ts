@@ -1,5 +1,5 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
-import { ADMIN_LOCKDOWN_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import { ADMIN_LOCKDOWN_CODE, READ_ONLY_MODE_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 
 /**
  * What the two admin sign-in screens say when the sign-in fails (operator ruling 301).
@@ -17,12 +17,15 @@ import { ADMIN_LOCKDOWN_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
 const SIGNUPS_OFF_KEY = 'auth.signup.signupsOff';
 /** The one sentence of the lockdown, the shared one (operator ruling 328). */
 const LOCKDOWN_KEY = 'common.apiFailure.adminLockdown';
+/** Read-only mode's, the shared one too: it refuses a sign-up (operator ruling 341). */
+const READ_ONLY_KEY = 'common.apiFailure.readOnlyMode';
 
 /** The Google callback's sentence for a refused exchange: a switch, the account, or the server. */
 export function oauthFailureKey(failure: ApiFailure): string {
   const code = failureCode(failure);
   if (code === SIGNUPS_DISABLED_CODE) return SIGNUPS_OFF_KEY;
   if (code === ADMIN_LOCKDOWN_CODE) return LOCKDOWN_KEY;
+  if (code === READ_ONLY_MODE_CODE) return READ_ONLY_KEY;
   const serverFault =
     failure.kind === 'network' || (failure.kind === 'http' && failure.status >= 500);
   return serverFault ? 'auth.oauth.errors.exchangeFailed' : 'auth.oauth.errors.notAuthorized';
@@ -66,10 +69,12 @@ export function signupFailureMessage(
  * The sentence key for the reason a mailed link's door wrote in the page's address
  * (`SIGNUP_REFUSED_PARAM`), or `null`. A browser that follows a link cannot read a 503.
  *
- * The sign-up link's door writes "sign-ups off" or the lockdown to the sign-up page, and the
- * sign-in link's door writes the lockdown to the sign-in page (operator ruling 324).
+ * The sign-up link's door writes "sign-ups off", read-only mode (operator ruling 341) or the
+ * lockdown to the sign-up page, and the sign-in link's door writes the lockdown to the sign-in
+ * page (operator ruling 324).
  */
 export function signupRefusedKey(value: string | string[] | undefined): string | null {
   if (value === ADMIN_LOCKDOWN_CODE) return LOCKDOWN_KEY;
+  if (value === READ_ONLY_MODE_CODE) return READ_ONLY_KEY;
   return value === SIGNUPS_DISABLED_CODE ? SIGNUPS_OFF_KEY : null;
 }

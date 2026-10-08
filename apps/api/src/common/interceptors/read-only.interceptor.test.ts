@@ -120,7 +120,9 @@ describe('ReadOnlyInterceptor', () => {
     },
   );
 
-  it.each(['/api/v1/auth/signup', '/api/v1/health', '/api/v1/public/feature-flags'])(
+  // `auth/` passes whole, for the sign-in. A sign-up is refused by its own door, not here
+  // (operator ruling 341, `assertNotReadOnly`).
+  it.each(['/api/v1/auth/public-login', '/api/v1/health', '/api/v1/public/feature-flags'])(
     'passes through allow-listed write to %s',
     async (url) => {
       isEnabledMock.mockResolvedValue(true);

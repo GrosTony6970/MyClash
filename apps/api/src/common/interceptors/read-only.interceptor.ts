@@ -1,11 +1,10 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
-import { READ_ONLY_MODE_CODE } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import type { Observable } from 'rxjs';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { hasPlatformTier } from '../auth/platform-role';
-import { OperationalUnavailableException } from '../operational-exception';
+import { readOnlyModeRefusal } from '../read-only-mode';
 
 /**
  * `staff-auth/`: a PIN signs in and out of a pad as an account does under `auth/`
@@ -14,6 +13,9 @@ import { OperationalUnavailableException } from '../operational-exception';
  * `staff/heartbeat`: the pad's beat is what the Live board reads (operator ruling
  * 339). Refused, the board kept the last numbers it had: a green dot over a pad
  * that held hits.
+ *
+ * `auth/` passes whole, for the sign-in. Its doors that make an account or a club
+ * refuse on their own (`assertNotReadOnly`, operator ruling 341).
  */
 const ALLOWLIST = [
   '/api/v1/auth/',
@@ -59,12 +61,7 @@ export class ReadOnlyInterceptor implements NestInterceptor {
       if (userId && (await this.isSuperAdmin(userId))) return next.handle();
     }
 
-    // Its words and its code reach the screen (operator ruling 334): a plain 503 is
-    // scrubbed by the exception filter, and a web page read "Internal server error".
-    throw new OperationalUnavailableException({
-      code: READ_ONLY_MODE_CODE,
-      message: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
-    });
+    throw readOnlyModeRefusal();
   }
 
   private extractToken(req: FastifyRequest): string | null {

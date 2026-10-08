@@ -25,6 +25,7 @@ import { adminLockdownRefusal, isAdminLockdownRefusal } from '../../common/admin
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
+import { assertNotReadOnly } from '../../common/read-only-mode';
 import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
@@ -1525,13 +1526,7 @@ export class AuthService {
     accepted: { terms?: string; privacy?: string },
     context: AcceptanceContext = {},
   ): Promise<{ message: string }> {
-    if (await isFlagEnabledDirect(this.supabase, 'disable_public_signups')) {
-      // Not a plain 503: the filter replaces its code, which the sign-up screen reads.
-      throw new OperationalUnavailableException({
-        code: SIGNUPS_DISABLED_CODE,
-        message: 'Public signups are temporarily disabled',
-      });
-    }
+    await this.assertPublicSignupsOpen();
     // Before the account exists, so a stale-policy client is turned away without
     // having created anything it would then have to be asked about.
     const versions = this.legal.assertCurrent(accepted);
@@ -1568,6 +1563,21 @@ export class AuthService {
     return {
       message: 'If this email is new, a confirmation link has been sent.',
     };
+  }
+
+  /**
+   * The two switches that close a Fighter's sign-up: its own, then read-only mode
+   * (operator ruling 341). The interceptor lets `auth/` through whole, for the sign-in.
+   */
+  private async assertPublicSignupsOpen(): Promise<void> {
+    if (await isFlagEnabledDirect(this.supabase, 'disable_public_signups')) {
+      // Not a plain 503: the filter replaces its code, which the sign-up screen reads.
+      throw new OperationalUnavailableException({
+        code: SIGNUPS_DISABLED_CODE,
+        message: 'Public signups are temporarily disabled',
+      });
+    }
+    await assertNotReadOnly(this.supabase);
   }
 
   /**

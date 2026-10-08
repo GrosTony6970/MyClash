@@ -38,6 +38,11 @@ const lockdown = http(503, {
   code: 'admin_lockdown',
   detail: 'MyClash is in maintenance. Only platform staff can work here for now. Try again later.',
 });
+/** The API's answer at a sign-up door while read-only mode is on (operator ruling 341). */
+const readOnly = http(503, {
+  code: 'read_only_mode',
+  detail: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
+});
 
 // Operator ruling 328: the sign-in screens said "Only super admins can sign in", which is
 // untrue for platform staff of another tier. One sentence for the lockdown, on every screen.
@@ -105,6 +110,11 @@ describe('the Google callback', () => {
     expect(oauthFailureKey(signupsOff)).toBe('auth.signup.signupsOff');
   });
 
+  // Ruling 341: the Google sign-up said "the sign-in could not be completed".
+  it('says the maintenance for the coded 503 of read-only mode', () => {
+    expect(oauthFailureKey(readOnly)).toBe('common.apiFailure.readOnlyMode');
+  });
+
   it('is what the callback screen asks for a refused exchange', () => {
     const screen = readFileSync(join(__dirname, '../components/OAuthCallback.tsx'), 'utf8');
     expect(screen).toContain('throw new OAuthCallbackFailure(oauthFailureKey(r));');
@@ -168,6 +178,11 @@ describe('the sign-up form', () => {
     expect(signupFailureMessage(signupsOff, t)).toBe('[auth.signup.signupsOff]');
   });
 
+  // Ruling 341: the shared sentence, which says read-only mode by its code.
+  it('says the maintenance for the coded 503 of read-only mode', () => {
+    expect(signupFailureMessage(readOnly, t)).toBe('[common.apiFailure.readOnlyMode]');
+  });
+
   it('says the policy moved on for a stale agreement', () => {
     const stale = http(400, { code: 'legal_version_stale' });
     expect(signupFailureMessage(stale, t)).toBe('[legal.accept.stale]');
@@ -197,6 +212,11 @@ describe('the sign-up page after a refused mail link', () => {
   // Operator ruling 324: both mailed links' doors write the lockdown.
   it('says the lockdown for the reason the door writes', () => {
     expect(signupRefusedKey('admin_lockdown')).toBe('common.apiFailure.adminLockdown');
+  });
+
+  // Operator ruling 341: the sign-up link's door writes read-only mode.
+  it('says the maintenance for the reason the door writes', () => {
+    expect(signupRefusedKey('read_only_mode')).toBe('common.apiFailure.readOnlyMode');
   });
 
   it.each([undefined, '', 'something-else'])('says nothing for %o', (value) => {
