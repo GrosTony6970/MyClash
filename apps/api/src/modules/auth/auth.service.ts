@@ -61,6 +61,7 @@ import {
 } from '../../security/http-security';
 import { GOTRUE_TIMEOUT_MS, SupabaseService } from '../supabase/supabase.service';
 import type { SupabaseAuthUser } from '../supabase/supabase.service';
+import { removeAccount, spendMailedCode, writePassword } from './auth-server-calls';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
@@ -500,16 +501,12 @@ export class AuthService {
   ): Promise<{ id: string; email?: string }> {
     // 'email' takes the code of a new address and of a known one. Asked as
     // 'magiclink', GoTrue refuses the code it made for an address with no account.
-    const { data, error } = await this.supabase.anon.auth.verifyOtp({
-      token_hash: token,
-      type: 'email',
-    });
-
-    if (error || !data.session) {
+    const spent = await spendMailedCode(this.supabase.anon, token, 'email');
+    if (!spent?.session) {
       throw new UnauthorizedException('Invalid or expired magic link');
     }
 
-    const { session } = data;
+    const { session } = spent;
 
     if (type === 'login') {
       await this.assertNotLockedOut(session.user.id);
@@ -1442,9 +1439,7 @@ export class AuthService {
     // Re-verify ownership by exchanging email + currentPassword.
     await this.confirmCurrentPassword(user.id, user.email, currentPassword);
 
-    const { error: updateError } = await this.supabase.service.auth.admin.updateUserById(user.id, {
-      password: newPassword,
-    });
+    const { error: updateError } = await writePassword(this.supabase.service, user.id, newPassword);
     if (updateError) {
       throw new ServiceUnavailableException('Could not update password');
     }
@@ -1497,7 +1492,7 @@ export class AuthService {
     // whole operation retryable.
     const redacted = await this.erasure.redactSubject(user.id);
 
-    const { error: deleteError } = await this.supabase.service.auth.admin.deleteUser(user.id);
+    const { error: deleteError } = await removeAccount(this.supabase.service, user.id);
     if (deleteError) {
       throw new ServiceUnavailableException(`Auth delete failed: ${deleteError.message}`);
     }
@@ -1672,17 +1667,15 @@ export class AuthService {
 
     // The reset page hands back the code of our own mailed link (`mailedLink`,
     // ruling 303), read from its `?token_hash=`.
-    const { data, error } = await this.supabase.anon.auth.verifyOtp({
-      token_hash: token,
-      type: 'recovery',
-    });
-    if (error || !data.session || !data.user) {
+    const data = await spendMailedCode(this.supabase.anon, token, 'recovery');
+    if (!data?.session || !data.user) {
       throw new UnauthorizedException('Invalid or expired reset token');
     }
 
-    const { error: updateError } = await this.supabase.service.auth.admin.updateUserById(
+    const { error: updateError } = await writePassword(
+      this.supabase.service,
       data.user.id,
-      { password },
+      password,
     );
     if (updateError) {
       throw new ServiceUnavailableException('Could not update password');

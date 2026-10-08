@@ -78,7 +78,9 @@ describe('AuthService.signInFromSignupLink (ruling 299)', () => {
   });
 
   it('refuses a link GoTrue does not take, and sets no cookie', async () => {
-    verifyOtp.mockResolvedValue({ data: { session: null }, error: { message: 'expired' } });
+    // What the auth server answers for a code it refuses: a 403 (read on GoTrue v2.195.0).
+    const refused = { message: 'expired', status: 403 };
+    verifyOtp.mockResolvedValue({ data: { session: null }, error: refused });
     const { service, reply } = build();
 
     await expect(service.signInFromSignupLink('token-hash', reply as never)).rejects.toThrow(

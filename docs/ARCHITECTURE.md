@@ -1964,6 +1964,13 @@ Five details that matter:
   Every call to the auth server's password door (`askPasswordToken`) is held to five seconds,
   the limit of the API's other calls to it (ruling 357): with no answer a sign-in is a server
   error, and a door that already wrote the password answers as above.
+  The other calls of those doors and of the mailed-link doors go through
+  `auth/auth-server-calls.ts`, each held to the same five seconds (ruling 360): the code of a
+  mailed link or of a reset (`spendMailedCode`), the password write, the account delete. The
+  auth server refuses a code that is made up, used or past its life with a 403, and only that
+  is "expired": a throttle, a server fault or no answer is a server error. supabase-js takes
+  no signal, so the limit ends the wait, not the request: the auth server may still do what
+  was asked.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.
