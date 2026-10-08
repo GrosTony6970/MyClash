@@ -113,8 +113,20 @@ describe('the screens that speak after a password write', () => {
     const page = read('page.tsx');
 
     expect(page).toContain("if (answer !== 'ok' && answer !== 'sign_in_again') {");
-    expect(page).toContain('setMessage(t(passwordChangedKey(answer)));');
+    expect(page).toContain('setChanged(answer);');
+    expect(page).toContain('{changed && <PasswordChangedNotice changed={changed} t={t} />}');
     expect(page).not.toContain('publicApp.security.changePasswordSuccess');
+  });
+
+  // With no login from the door the browser's login is cleared: the box must lead somewhere.
+  it('the change-password box leads to the sign-in screen only when no login was handed', () => {
+    const notice = read('PasswordChangedNotice.tsx');
+
+    expect(notice).toContain('{t(passwordChangedKey(changed))}');
+    expect(notice).toMatch(
+      /\{changed === 'sign_in_again' && \(\s+<>\s+\{' '\}\s+<Link href="\/login" className="font-semibold underline">\s+\{t\('publicApp\.home\.signIn'\)\}\s+<\/Link>\s+<\/>\s+\)\}/,
+    );
+    expect(notice.match(/<Link /g)).toHaveLength(1);
   });
 
   it('the reset page moves to the personal space only with a login', () => {

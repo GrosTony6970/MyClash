@@ -8,14 +8,15 @@ import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
+import { PasswordChangedNotice } from './PasswordChangedNotice';
 import { PasswordSetLink } from './PasswordSetLink';
 import {
   accountDeletionRefusalKey,
   passwordChangeRefusalKey,
-  passwordChangedKey,
   readSecurityStatus,
   requestAccountDeletion,
   requestPasswordChange,
+  type PasswordChanged,
   type SecurityStatus,
 } from './security-requests';
 import { SessionEnded } from './SessionEnded';
@@ -88,7 +89,7 @@ function ChangePasswordSection({
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [changed, setChanged] = useState<PasswordChanged | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
 
@@ -96,7 +97,7 @@ function ChangePasswordSection({
 
   async function submit(): Promise<void> {
     setBusy(true);
-    setMessage(null);
+    setChanged(null);
     setError(null);
     setSessionEnded(false);
     // The request module answers a code for every failure: it never throws.
@@ -107,7 +108,7 @@ function ChangePasswordSection({
       else setError(t(passwordChangeRefusalKey(answer)));
       return;
     }
-    setMessage(t(passwordChangedKey(answer)));
+    setChanged(answer);
     setCurrentPassword('');
     setNewPassword('');
     setConfirm('');
@@ -167,14 +168,7 @@ function ChangePasswordSection({
         </div>
       )}
 
-      {message && (
-        <p
-          className="mt-3 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
-          role="status"
-        >
-          {message}
-        </p>
-      )}
+      {changed && <PasswordChangedNotice changed={changed} t={t} />}
       {error && (
         <p
           className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
