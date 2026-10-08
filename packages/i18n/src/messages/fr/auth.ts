@@ -38,6 +38,8 @@ export const auth = {
     errors: {
       magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
       wrongPassword: 'Adresse e-mail ou mot de passe incorrect.',
+      linkExpired: 'Ce lien a expiré ou a déjà été utilisé. Demandez-en un nouveau.',
+      linkUnchecked: "Nous n'avons pas pu vérifier ce lien. Rouvrez-le dans un instant.",
     },
   },
   resetPassword: {
@@ -79,6 +81,8 @@ export const auth = {
   },
   signup: {
     signupsOff: 'Les inscriptions sont fermées pour le moment. Réessayez plus tard.',
+    orgNotMade:
+      "Nous n'avons pas pu créer votre organisation. Remplissez à nouveau le formulaire : nous vous enverrons un nouveau lien.",
     title: 'Créez votre compte organisateur',
     step1Label: 'Étape 1 sur 2 — Votre compte',
     step2Label: 'Étape 2 sur 2 — Votre organisation',

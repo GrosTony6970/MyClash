@@ -1,6 +1,13 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminLockdownRefusal } from '../../common/admin-lockdown';
+import { captureApiException } from '../../common/observability/sentry';
+import { MailedCodeRefused, MailedCodeUnjudged } from './auth-server-calls';
 import { SignupController } from './signup.controller';
+
+vi.mock('../../common/observability/sentry', () => ({ captureApiException: vi.fn() }));
+const reported = vi.mocked(captureApiException);
+const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
 /**
  * The emailed sign-up link's landing, `GET /auth/signup-callback` (operator ruling 299).
@@ -98,25 +105,50 @@ describe('the sign-up link makes the club for the account the link proved (rulin
 
     expect(legal.recordForUser).not.toHaveBeenCalled();
   });
+});
 
-  it('fails when the club cannot be made, and redirects nowhere', async () => {
-    onboarding.completeSignupAfterMagicLink.mockRejectedValue(
-      new Error('Failed to create organization: connection refused'),
-    );
+/**
+ * Léa clicks her sign-up mail and the door makes no club. A browser that followed a link
+ * showed the door's refusal as raw text on the API's address. The door sends her to the
+ * sign-up page now, with the reason in the address (operator rulings 360, 362, 363).
+ */
+describe('the sign-up link that makes no club sends her to the sign-up page', () => {
+  it.each<[string, Error, string]>([
+    ['the auth server refuses the code', new MailedCodeRefused(), 'link_expired'],
+    ['the auth server does not judge the code', new MailedCodeUnjudged('x'), 'link_unchecked'],
+    ['the lockdown is switched on at the click', adminLockdownRefusal(), 'admin_lockdown'],
+  ])('when %s: no club, and the reason', async (_w, refusal, reason) => {
+    auth.signInFromSignupLink.mockRejectedValue(refusal);
     const reply = makeReply();
 
-    await expect(land(reply)).rejects.toThrow('Failed to create organization');
-    expect(reply.redirect).not.toHaveBeenCalled();
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([[`/signup?refused=${reason}`]]);
+    expect(onboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+    expect(legal.recordForUser).not.toHaveBeenCalled();
   });
 
-  it('makes no club when the link is refused', async () => {
-    auth.signInFromSignupLink.mockRejectedValue(
-      new UnauthorizedException('Invalid or expired magic link'),
-    );
+  it('still fails on a fault that is no refusal of the link', async () => {
+    auth.signInFromSignupLink.mockRejectedValue(new Error('the reply is closed'));
     const reply = makeReply();
 
-    await expect(land(reply)).rejects.toThrow(UnauthorizedException);
-    expect(onboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+    await expect(land(reply)).rejects.toThrow('the reply is closed');
     expect(reply.redirect).not.toHaveBeenCalled();
+    expect(onboarding.completeSignupAfterMagicLink).not.toHaveBeenCalled();
+  });
+
+  // Ruling 363. The link is spent and she is signed in: the page says to fill the form again.
+  it('says so when the club cannot be written, and reports the fault', async () => {
+    const fault = new Error('Failed to create organization: connection refused');
+    onboarding.completeSignupAfterMagicLink.mockRejectedValue(fault);
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([['/signup?refused=club_not_made']]);
+    expect(reported.mock.calls).toEqual([[fault, { door: 'auth/signup-callback' }]]);
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining(ANNA.id), expect.anything());
+    // What she accepted is recorded with her club, at the second click.
+    expect(legal.recordForUser).not.toHaveBeenCalled();
   });
 });

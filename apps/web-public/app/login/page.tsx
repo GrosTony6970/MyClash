@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import {
   AuthAltLink,
   AuthDivider,
@@ -15,7 +15,7 @@ import {
   PasswordChecklist,
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
-import { validatePassword } from '@myclash/types';
+import { refusedLinkKey, SIGNUP_REFUSED_PARAM, validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -28,8 +28,19 @@ import {
 } from './auth-requests';
 
 type Tab = 'signin' | 'signup' | 'reset';
+type Query = Promise<Record<string, string | string[] | undefined>>;
 
-export default function PublicLoginPage() {
+/**
+ * The sentence of a mailed link that signed nobody in, or null. The API's door
+ * sends its reader here with the reason in the address (operator ruling 362).
+ * Read from the page's own `searchParams`, so the server's first paint says it.
+ */
+function useRefusedLinkWords(query: Query, t: (key: string) => string): string | null {
+  const key = refusedLinkKey(use(query)[SIGNUP_REFUSED_PARAM]);
+  return key ? t(key) : null;
+}
+
+export default function PublicLoginPage({ searchParams }: { searchParams: Query }) {
   const { t } = useI18n();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('signin');
@@ -41,7 +52,7 @@ export default function PublicLoginPage() {
 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(useRefusedLinkWords(searchParams, t));
 
   const apiUrl = getPublicApiUrl();
   // The organizer workspace is a different host, so the cross-link needs the

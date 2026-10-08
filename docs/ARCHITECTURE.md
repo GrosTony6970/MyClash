@@ -2269,7 +2269,9 @@ OrganizationRole grants always require a **claimed** account. They are never giv
    - The user becomes the `owner` of this Organization (`organization_members.role = 'owner'`).
 3. They land on the org dashboard at `/org/<slug>` ready to create their first event.
 
-The emailed link lands on `GET /auth/signup-callback`. The Organization is made for the account the link proved (`AuthService.signInFromSignupLink`), never for the account the browser was signed in as, and with no `/me` read (ruling 299). On that door and on the Google sign-up, an Organization or an owner row that cannot be written fails the request (`completeSignupAfterMagicLink` throws). The password door only logs that failure: its account exists by then.
+The emailed link lands on `GET /auth/signup-callback`. The Organization is made for the account the link proved (`AuthService.signInFromSignupLink`), never for the account the browser was signed in as, and with no `/me` read (ruling 299). On the Google sign-up, an Organization or an owner row that cannot be written fails the request (`completeSignupAfterMagicLink` throws). The password door removes the account it made a moment ago and fails (ruling 306).
+
+A browser that followed a mailed link reads no error body, so both link doors (`GET /auth/callback`, `GET /auth/signup-callback`) answer a link that signs nobody in with a redirect that carries the reason (`SIGNUP_REFUSED_PARAM`): the sign-in page of the link's site, or the sign-up page. `refusedLinkOrThrow` (`auth/refused-link.ts`) names three reasons: the lockdown (ruling 324), a code the auth server refused (`link_expired`, ruling 362) and a code it did not judge (`link_unchecked`, ruling 360: the same link works again). Another fault still throws. The sign-up door adds `club_not_made` (ruling 363): the link is spent, the account stands, the fault is logged and reported, and a second sign-up mails a link that makes the Organization. `refusedLinkKey` in `@myclash/types` is the one owner of the two link sentences for both apps.
 
 **What an organizer can do** without further approval:
 

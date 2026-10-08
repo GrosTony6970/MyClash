@@ -197,16 +197,20 @@ describe('the admin sign-in door during the maintenance lockdown (ruling 308)', 
     expect(reply.redirect.mock.calls).toEqual([['https://app.myclash.localhost/me']]);
   });
 
-  it('still fails on a spent or unknown code, with no redirect', async () => {
+  // A spent or unknown code names no account: the page says the link is dead (ruling 362),
+  // never the lockdown.
+  it('says a dead link, not the lockdown, for a spent or unknown code', async () => {
     // What the auth server answers for a code it refuses: a 403 (read on GoTrue v2.195.0).
     const refused = { message: 'expired', status: 403 };
     const verifyOtp = vi.fn().mockResolvedValue({ data: {}, error: refused });
     const { service, reply } = build(LOCKED, { anon: { auth: { verifyOtp } } });
 
-    await expect(
-      service.handleCallback('token-hash', 'login', undefined, undefined, reply as never),
-    ).rejects.toThrow(UnauthorizedException);
-    expect(reply.redirect).not.toHaveBeenCalled();
+    await service.handleCallback('token-hash', 'login', undefined, undefined, reply as never);
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://admin.myclash.localhost/login?refused=link_expired'],
+    ]);
+    expect(reply.setCookie).not.toHaveBeenCalled();
   });
 
   it('lets an organizer in while the lockdown is off', async () => {

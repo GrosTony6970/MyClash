@@ -37,6 +37,9 @@ export const auth = {
     errors: {
       magicLinkFailed: 'Could not send a login link.',
       wrongPassword: 'Wrong email or password.',
+      // A mailed link that signed nobody in (rulings 360, 362): on both sign-in pages.
+      linkExpired: 'This link has expired or was already used. Ask for a new one.',
+      linkUnchecked: 'We could not check this link. Open it again in a moment.',
     },
   },
   resetPassword: {
@@ -79,6 +82,9 @@ export const auth = {
   },
   signup: {
     signupsOff: 'Sign-ups are switched off for now. Try again later.',
+    // The sign-up link was spent and the organization was not written (ruling 363).
+    orgNotMade:
+      'We could not create your organization. Fill in the form again and we will mail you a new link.',
     title: 'Create your organizer account',
     step1Label: 'Step 1 of 2 — Your account',
     step2Label: 'Step 2 of 2 — Your organization',

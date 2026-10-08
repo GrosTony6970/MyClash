@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Post,
   Query,
   Req,
@@ -16,10 +17,12 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
 import {
   ADMIN_LOCKDOWN_CODE,
+  CLUB_NOT_MADE_CODE,
   READ_ONLY_MODE_CODE,
   SIGNUP_REFUSED_PARAM,
   SIGNUPS_DISABLED_CODE,
 } from '@myclash/types';
+import { captureApiException } from '../../common/observability/sentry';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
@@ -27,6 +30,7 @@ import { Public } from '../../common/auth/public.decorator';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
+import { refusedLinkOrThrow } from './refused-link';
 
 // Pre-session bootstrap: org signup, slug availability, signup callback.
 // The caller has no identity yet by definition.
@@ -34,6 +38,8 @@ import { AuthService } from './auth.service';
 @ApiTags('auth')
 @Controller('auth')
 export class SignupController {
+  private readonly logger = new Logger(SignupController.name);
+
   constructor(
     private readonly onboarding: OnboardingService,
     private readonly auth: AuthService,
@@ -80,8 +86,9 @@ export class SignupController {
    *
    * Called after the magic-link signup flow. The mailed link lands here with
    * its code and the org creation payload in query params. We exchange the code,
-   * create the org, and redirect to the org dashboard. A club that cannot be
-   * made fails the request: she is signed in by then, and the trace says why.
+   * create the org, and redirect to the org dashboard. A link that signs nobody
+   * in, and a club that cannot be made, send her to the sign-up page with the
+   * reason (operator rulings 362, 363): a browser reads no error body.
    */
   @Get('signup-callback')
   @ApiOperation({ summary: 'Magic-link signup callback — creates org and redirects' })
@@ -109,17 +116,17 @@ export class SignupController {
       throw new BadRequestException('This sign-up link names no valid organization');
     }
     const refused = await this.refusedBeforeTheSpend();
-    if (refused) {
-      void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${refused}`);
-      return;
-    }
+    if (refused) return this.backToSignup(reply, refused);
 
     // The club is made for the account the LINK proved (operator ruling 299). The
     // old door asked `/me` about the cookies the browser SENT: a new person sent
     // none and got no club, and a browser signed in as somebody else got the club
-    // made for that account.
-    const user = await this.auth.signInFromSignupLink(tokenHash, reply);
-    const made = await this.onboarding.completeSignupAfterMagicLink(user.id, orgName, orgSlug);
+    // made for that account. A link that signs nobody in sends her to the sign-up
+    // page with the reason (rulings 360, 362): her browser cannot read a 401.
+    const user = await this.auth.signInFromSignupLink(tokenHash, reply).catch(refusedLinkOrThrow);
+    if (typeof user === 'string') return this.backToSignup(reply, user);
+    const made = await this.clubOf(user.id, orgName, orgSlug);
+    if (!made) return this.backToSignup(reply, CLUB_NOT_MADE_CODE);
     // The account exists only now, which is why the acceptance is recorded
     // here rather than when the link was requested. Not asserted: the
     // versions were already checked at /auth/signup, and a policy revised
@@ -131,6 +138,27 @@ export class SignupController {
     // The club that was MADE (operator ruling 304): its address is another one
     // than `orgSlug` when somebody took hers between her request and her click.
     void reply.redirect(`/org/${made}`);
+  }
+
+  /** The sign-up page, which says the reason in her language. */
+  private backToSignup(reply: FastifyReply, reason: string): void {
+    void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${reason}`);
+  }
+
+  /**
+   * The address of the club made for the account, or null when it cannot be
+   * written (operator ruling 363). The link is spent and she is signed in: the
+   * door has no 5xx to report, so the fault is logged and reported here. The
+   * account stands, and a second sign-up mails a link that makes the club.
+   */
+  private async clubOf(userId: string, orgName: string, orgSlug: string): Promise<string | null> {
+    try {
+      return await this.onboarding.completeSignupAfterMagicLink(userId, orgName, orgSlug);
+    } catch (fault) {
+      this.logger.error(`No club was made for account ${userId} at the sign-up link`, fault);
+      captureApiException(fault, { door: 'auth/signup-callback' });
+      return null;
+    }
   }
 
   /**

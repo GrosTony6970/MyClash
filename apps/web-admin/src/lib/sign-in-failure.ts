@@ -1,5 +1,11 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
-import { ADMIN_LOCKDOWN_CODE, READ_ONLY_MODE_CODE, SIGNUPS_DISABLED_CODE } from '@myclash/types';
+import {
+  ADMIN_LOCKDOWN_CODE,
+  CLUB_NOT_MADE_CODE,
+  READ_ONLY_MODE_CODE,
+  refusedLinkKey,
+  SIGNUPS_DISABLED_CODE,
+} from '@myclash/types';
 
 /**
  * What the two admin sign-in screens say when the sign-in fails (operator ruling 301).
@@ -71,10 +77,12 @@ export function signupFailureMessage(
  *
  * The sign-up link's door writes "sign-ups off", read-only mode (operator ruling 341) or the
  * lockdown to the sign-up page, and the sign-in link's door writes the lockdown to the sign-in
- * page (operator ruling 324).
+ * page (operator ruling 324). Both doors write a link that signed nobody in (rulings 360,
+ * 362), and the sign-up link's door an organization that was not written (ruling 363).
  */
 export function signupRefusedKey(value: string | string[] | undefined): string | null {
   if (value === ADMIN_LOCKDOWN_CODE) return LOCKDOWN_KEY;
   if (value === READ_ONLY_MODE_CODE) return READ_ONLY_KEY;
-  return value === SIGNUPS_DISABLED_CODE ? SIGNUPS_OFF_KEY : null;
+  if (value === CLUB_NOT_MADE_CODE) return 'auth.signup.orgNotMade';
+  return value === SIGNUPS_DISABLED_CODE ? SIGNUPS_OFF_KEY : refusedLinkKey(value);
 }

@@ -13,7 +13,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
-  ADMIN_LOCKDOWN_CODE,
   CLAIM_REFUSED_PARAM,
   SIGNUP_REFUSED_PARAM,
   SIGNUPS_DISABLED_CODE,
@@ -21,7 +20,7 @@ import {
   validatePassword,
   type ClaimLinkRefusal,
 } from '@myclash/types';
-import { adminLockdownRefusal, isAdminLockdownRefusal } from '../../common/admin-lockdown';
+import { adminLockdownRefusal } from '../../common/admin-lockdown';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
@@ -61,7 +60,13 @@ import {
 } from '../../security/http-security';
 import { GOTRUE_TIMEOUT_MS, SupabaseService } from '../supabase/supabase.service';
 import type { SupabaseAuthUser } from '../supabase/supabase.service';
-import { removeAccount, spendMailedCode, writePassword } from './auth-server-calls';
+import {
+  MailedCodeRefused,
+  removeAccount,
+  spendMailedCode,
+  writePassword,
+} from './auth-server-calls';
+import { refusedLinkOrThrow } from './refused-link';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
@@ -444,14 +449,11 @@ export class AuthService {
     next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
-    const user = await this.exchangeLink(token, type, reply).catch((refusal: unknown) => {
-      if (isAdminLockdownRefusal(refusal)) return null;
-      throw refusal;
-    });
-    if (!user) {
-      // A browser that followed a link cannot read a 503 (ruling 324): the
-      // sign-in page says the lockdown. The code is spent, the cookies are not set.
-      const page = `/login?${SIGNUP_REFUSED_PARAM}=${ADMIN_LOCKDOWN_CODE}`;
+    const user = await this.exchangeLink(token, type, reply).catch(refusedLinkOrThrow);
+    if (typeof user === 'string') {
+      // A browser that followed a link cannot read a 401 or a 503 (rulings 324,
+      // 362): the sign-in page of the link's site says why. No cookie is set.
+      const page = `/login?${SIGNUP_REFUSED_PARAM}=${user}`;
       void reply.redirect(this.buildPostAuthRedirectUrl(page, type));
       return;
     }
@@ -503,7 +505,7 @@ export class AuthService {
     // 'magiclink', GoTrue refuses the code it made for an address with no account.
     const spent = await spendMailedCode(this.supabase.anon, token, 'email');
     if (!spent?.session) {
-      throw new UnauthorizedException('Invalid or expired magic link');
+      throw new MailedCodeRefused();
     }
 
     const { session } = spent;

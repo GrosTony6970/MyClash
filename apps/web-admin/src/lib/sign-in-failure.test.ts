@@ -219,6 +219,19 @@ describe('the sign-up page after a refused mail link', () => {
     expect(signupRefusedKey('read_only_mode')).toBe('common.apiFailure.readOnlyMode');
   });
 
+  // Rulings 360 and 362: a link the auth server refused, and one it did not judge.
+  it.each([
+    ['link_expired', 'auth.login.errors.linkExpired'],
+    ['link_unchecked', 'auth.login.errors.linkUnchecked'],
+  ])('says a link that signed nobody in for %s', (reason, key) => {
+    expect(signupRefusedKey(reason)).toBe(key);
+  });
+
+  // Ruling 363: the link was spent and the organization was not written.
+  it('says to fill the form again for an organization that was not made', () => {
+    expect(signupRefusedKey('club_not_made')).toBe('auth.signup.orgNotMade');
+  });
+
   it.each([undefined, '', 'something-else'])('says nothing for %o', (value) => {
     expect(signupRefusedKey(value)).toBeNull();
   });
