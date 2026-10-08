@@ -73,6 +73,7 @@ import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { guestPersonOf } from './guest-person';
 import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 import { safeRedirectPath } from './safe-redirect';
+import { signsInWithPassword } from './sign-in-methods';
 
 /** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
@@ -1410,9 +1411,7 @@ export class AuthService {
     const user = await this.requestAuthUser(accessToken);
     if (!user) throw new UnauthorizedException('Invalid session');
 
-    const identities = (user as { identities?: Array<{ provider?: string }> }).identities ?? [];
-    const hasPassword = identities.some((i) => i.provider === 'email');
-    return { hasPassword, email: user.email ?? null };
+    return { hasPassword: signsInWithPassword(user), email: user.email ?? null };
   }
 
   /**
@@ -1458,7 +1457,8 @@ export class AuthService {
    * auth.users row via Supabase admin. Idempotent on the row-strip
    * step; the auth delete is the one-shot. An account the auth
    * server lists with a password confirms it; any other is deleted
-   * on the typed word (NOT asked while the auth server is silent).
+   * on the typed word. No account is deleted while the auth server is
+   * silent: how it signs in is not known then (ruling 349).
    */
   async deleteAccount(
     request: FastifyRequest,
@@ -1475,12 +1475,10 @@ export class AuthService {
       throw new BadRequestException({ code: 'confirmation_mismatch' });
     }
 
-    const identities = (user as { identities?: Array<{ provider?: string }> }).identities ?? [];
-    const hasPassword = identities.some((i) => i.provider === 'email');
     // Accounts WITH a password re-authenticate to confirm. Google-only accounts
     // (no password) delete on the authenticated session + typed confirmation
     // alone — they sign in through Google and have no password to verify.
-    if (hasPassword) {
+    if (signsInWithPassword(user)) {
       await this.confirmCurrentPassword(user.id, user.email, currentPassword);
     }
 

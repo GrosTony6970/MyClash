@@ -1900,7 +1900,7 @@ sequenceDiagram
   end
 ```
 
-Four details that matter:
+Five details that matter:
 
 - **Precedence is claimed → guest → staff.** The first mechanism that verifies wins; an expired or
   forged cookie falls through to the next rather than failing the request.
@@ -1922,6 +1922,11 @@ Four details that matter:
   login's hour, a login it would refuse still passes: one of a banned or deleted staff account
   whose row still stands, one signed out or revoked by a password change, and a super admin
   held by the login's claim alone after that claim was removed.
+- **The claims of a login do not say how the account signs in** (ruling 349). The auth server
+  lists an account's `identities`; the user `getAuthUser` hands back while it is silent has no
+  list. `modules/auth/sign-in-methods.ts` `signsInWithPassword` reads "no list" as "not known"
+  and throws a plain Error: the security status answers a server error, and no account is
+  deleted, until the auth server answers. `sign-in-methods.doors.test.ts` enters both doors.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.
