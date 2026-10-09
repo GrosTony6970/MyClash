@@ -79,6 +79,8 @@
     // The personal space's draft-bar rows (ruling 164), split out when its test reached the
     // 400-line cap. It imports vitest.
     "src/modules/me/me-events.drafts.fixtures.ts",
+    // The email-change link's seeded tables, shared by its two test files. It imports vitest.
+    "src/modules/persons/person-email-change.fixtures.ts",
     // Léa's bouts, duties and Workshops for the follower alert tests (rulings 207, 209), split
     // out when their test reached the 400-line cap. It imports vitest.
     "src/workers/follow-notification-scheduler.apply.fixtures.ts",

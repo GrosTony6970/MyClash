@@ -252,13 +252,15 @@ describe('PersonEmailChangeService', () => {
       cancelled_at: null,
     };
     const confirmChain = makeUpdateChain({ data: null, error: null });
+    // The close hands back the row it closed: the call that closed it writes the audit line.
+    confirmChain.select.mockResolvedValue({ data: [{ id: 'request-1' }], error: null });
     const personsUpdateChain = makeUpdateChain({ data: null, error: null });
     const auditInsertChain = makeInsertChain({ data: null, error: null });
 
     fromMock
       .mockReturnValueOnce(makeSelectChain({ data: request, error: null }))
-      .mockReturnValueOnce(confirmChain)
       .mockReturnValueOnce(personsUpdateChain)
+      .mockReturnValueOnce(confirmChain)
       .mockReturnValueOnce(auditInsertChain);
 
     const result = await service.confirmEmailChange('valid-token');

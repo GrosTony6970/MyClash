@@ -156,40 +156,81 @@ export class PersonEmailChangeService {
 
   /**
    * Confirm the request a mailed link's token names, and say what became of it
-   * (operator ruling 371). A fault after the auth server changed the address
-   * still throws: the link is not known to work again by then.
+   * (operator ruling 371). A fault after the auth server was asked answers
+   * `unchecked` too, with a report: a second click asks for the address the
+   * account may already have, the auth server takes it, and the work is done
+   * again.
    */
   async confirmEmailChange(token: string): Promise<EmailChangeOutcome> {
     const request = await this.liveRequest(token);
     if (typeof request === 'string') return request;
 
-    const { user_id: userId, new_email: newEmail } = request;
-    const changed = await changeAddress(this.supabase.service, userId, newEmail).catch(
-      (fault: unknown) => {
-        if (!(fault instanceof AddressChangeUnjudged)) throw fault;
-        this.logger.warn(`The email change of user:${userId} was not judged: ${fault.message}`);
-        return null;
-      },
-    );
-    if (changed === null) return 'unchecked';
-    if (!changed) return 'refused';
+    try {
+      const changed = await changeAddress(this.supabase, request.user_id, request.new_email);
+      if (!changed) return 'refused';
+      await this.finishChange(request);
+      return 'changed';
+    } catch (fault) {
+      // The limit ran out, and the auth server may still say yes (operator ruling 372).
+      if (fault instanceof AddressChangeUnjudged && fault.late) {
+        void this.finishOnLateAnswer(request, fault.late);
+      }
+      this.trace(request, fault);
+      return 'unchecked';
+    }
+  }
 
-    const confirmedAt = new Date().toISOString();
-    const { error: confirmError } = await this.supabase.service
+  /**
+   * The account has the new address: its roster rows take it (operator ruling
+   * 204), then the request is closed. The rows move first: a closed request
+   * answers `changed` at the next click and asks nothing more.
+   *
+   * Two calls can be here for one request: a second click beside the late
+   * answer of the first. Both move the rows to the same address. The close
+   * names an open request, so one of them closes it, and that one writes the
+   * audit line.
+   */
+  private async finishChange(request: EmailChangeRequestRow): Promise<void> {
+    const kept = await moveClaimedRowsToAddress(this.supabase, request.user_id, request.new_email);
+    if (kept) {
+      throw new Error(`Roster rows of ${request.user_id} kept their address: ${kept.message}`);
+    }
+
+    const { data, error } = await this.supabase.service
       .from('person_email_change_requests')
-      .update({ confirmed_at: confirmedAt })
-      .eq('id', request.id);
-    if (confirmError) throw new BadRequestException(confirmError.message);
+      .update({ confirmed_at: new Date().toISOString() })
+      .eq('id', request.id)
+      .is('confirmed_at', null)
+      .select('id');
+    if (error) throw new Error(`Email-change request ${request.id} not closed: ${error.message}`);
+    if (data?.length) await this.writeAuditLog(request);
+  }
 
-    const personsError = await moveClaimedRowsToAddress(
-      this.supabase,
-      request.user_id,
-      request.new_email,
-    );
-    if (personsError) throw new BadRequestException(personsError.message);
+  /** The work of a change whose yes came after the door answered. Nobody waits: it never throws. */
+  private async finishOnLateAnswer(
+    request: EmailChangeRequestRow,
+    late: Promise<boolean>,
+  ): Promise<void> {
+    try {
+      if (await late) await this.finishChange(request);
+    } catch (fault) {
+      this.trace(request, fault);
+    }
+  }
 
-    await this.writeAuditLog(request);
-    return 'changed';
+  /**
+   * The trace of a change that was not finished. No judgment of the auth
+   * server is a warning. Any other fault is reported: the door redirects, and
+   * the late work has no door, so neither has a 5xx to report.
+   */
+  private trace(request: EmailChangeRequestRow, fault: unknown): void {
+    const why = fault instanceof Error ? fault.message : String(fault);
+    if (fault instanceof AddressChangeUnjudged) {
+      this.logger.warn(`The email change of user:${request.user_id} was not judged: ${why}`);
+      return;
+    }
+    this.logger.error(`The email change of user:${request.user_id} was not finished: ${why}`);
+    captureApiException(fault, { door: 'persons/me/email-change/confirm' });
   }
 
   /**

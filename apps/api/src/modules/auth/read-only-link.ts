@@ -11,20 +11,30 @@ const logger = new Logger('ReadOnlyLink');
 const PAGE = 50;
 
 /**
- * Whether an account holds `email`: `null` when the auth server did not say.
+ * The id of the account that holds `email`: `false` for nobody, `null` when the auth server
+ * did not say.
  *
  * The auth server has no read by address. Its `filter` is a case-sensitive `LIKE` over a part
  * of the address, where `_` stands for any character, and it keeps an address in lower case
  * (probed on GoTrue v2.195.0). So the address is lowered, and the answer is compared whole.
  */
+export async function accountHolding(
+  supabase: SupabaseService,
+  email: string,
+): Promise<string | false | null> {
+  const address = email.trim().toLowerCase();
+  const listed = await supabase.listAuthAdminUsers(1, PAGE, address);
+  if (!listed.ok || !listed.data) return null;
+  return listed.data.users.find((user) => user.email === address)?.id ?? false;
+}
+
+/** Whether an account holds `email`: `null` when the auth server did not say. */
 export async function holdsAccount(
   supabase: SupabaseService,
   email: string,
 ): Promise<boolean | null> {
-  const address = email.trim().toLowerCase();
-  const listed = await supabase.listAuthAdminUsers(1, PAGE, address);
-  if (!listed.ok || !listed.data) return null;
-  return listed.data.users.some((user) => user.email === address);
+  const holder = await accountHolding(supabase, email);
+  return holder === null ? null : holder !== false;
 }
 
 /**

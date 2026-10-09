@@ -1,18 +1,9 @@
-import { createHash } from 'node:crypto';
-import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  mockSupabase as seededSupabase,
-  queriedTables,
-  scopedTo,
-  selectsFor,
-  writesTo,
-  type TableSeed,
-} from '../../common/testing/supabase-chain';
+import { queriedTables, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { captureApiException } from '../../common/observability/sentry';
 import { emailChangePage } from './email-change-page';
 import { PersonEmailChangeController } from './person-email-change.controller';
-import { PersonEmailChangeService } from './person-email-change.service';
+import { build, limitByHand, requests } from './person-email-change.fixtures';
 
 vi.mock('../../common/observability/sentry', () => ({ captureApiException: vi.fn() }));
 
@@ -25,39 +16,6 @@ vi.mock('../../common/observability/sentry', () => ({ captureApiException: vi.fn
  * with what became of the link in the address, and never the address itself. The call to the
  * auth server is held to 5 seconds, as the other calls of the mailed-link doors are.
  */
-const hashed = (token: string) => createHash('sha256').update(token).digest('hex');
-const MARC = {
-  id: 'request-marc',
-  token_hash: hashed('marc-token'),
-  user_id: 'user-marc',
-  old_email: 'marc@old.fr',
-  new_email: 'marc@new.fr',
-  expires_at: '2099-01-01T00:00:00.000Z',
-  confirmed_at: null,
-  cancelled_at: null,
-};
-// Another account's request, seeded FIRST: a read that names no token would confirm it.
-const BOB = { ...MARC, id: 'request-bob', token_hash: hashed('bob-token'), user_id: 'user-bob' };
-
-const requests = (marc: object): Record<string, TableSeed> => ({
-  person_email_change_requests: { rows: [BOB, { ...MARC, ...marc }] },
-  persons: { rows: [] },
-  audit_log: { data: null, error: null },
-});
-
-function build(tables: Record<string, TableSeed> = requests({})) {
-  const db = seededSupabase(tables);
-  const updateUserById = vi.fn().mockResolvedValue({ data: { user: {} }, error: null });
-  const supabase = { service: { from: db.service.from, auth: { admin: { updateUserById } } } };
-  const config = {
-    get: vi.fn((key: string, def?: string) => (key === 'DOMAIN' ? 'myclash.localhost' : def)),
-  };
-  const service = new PersonEmailChangeService(supabase as never, {} as never, config as never);
-  const warned = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-  const failed = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  return { service, db, updateUserById, warned, failed };
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(captureApiException).mockClear();
@@ -78,6 +36,7 @@ describe('a good email-change link (ruling 371)', () => {
     expect(scopedTo(moved, 'claimed_by_user_id')).toBe('user-marc');
     expect(selectsFor(db.from, 'person_email_change_requests')).toEqual([
       'id, user_id, old_email, new_email, expires_at, confirmed_at, cancelled_at',
+      'id',
     ]);
   });
 });
@@ -169,19 +128,13 @@ describe('an email-change link nobody judged (ruling 371)', () => {
 
   // The auth server never answers: the limit ends the wait. The same link works again.
   it('answers "unchecked" when the five seconds run out, with a trace', async () => {
-    const limits: number[] = [];
-    const clocks: AbortController[] = [];
-    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
-      limits.push(ms);
-      clocks.push(new AbortController());
-      return clocks.at(-1)!.signal;
-    });
+    const { limits, runOut } = limitByHand();
     const { service, db, updateUserById, warned } = build();
     updateUserById.mockReturnValue(new Promise<never>(() => undefined));
 
     const confirmed = service.confirmEmailChange('marc-token');
     await vi.waitFor(() => expect(updateUserById).toHaveBeenCalled());
-    clocks.at(-1)!.abort();
+    runOut();
 
     await expect(confirmed).resolves.toBe('unchecked');
     expect(limits).toEqual([5000]);
@@ -203,14 +156,6 @@ describe('an email-change link nobody judged (ruling 371)', () => {
     expect(vi.mocked(captureApiException).mock.calls).toEqual([
       [expect.any(Error), { door: 'persons/me/email-change/confirm' }],
     ]);
-  });
-
-  // supabase-js can reject after the address is changed: "open it again" is not known to be true.
-  it('still fails when the call itself throws', async () => {
-    const { service, updateUserById } = build();
-    updateUserById.mockRejectedValue(new Error('the socket closed'));
-
-    await expect(service.confirmEmailChange('marc-token')).rejects.toThrow('the socket closed');
   });
 });
 

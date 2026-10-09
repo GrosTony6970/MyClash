@@ -1,7 +1,8 @@
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { classifyGoTrueFailure } from '../supabase/gotrue-failure';
-import { GOTRUE_TIMEOUT_MS } from '../supabase/supabase.service';
+import { GOTRUE_TIMEOUT_MS, type SupabaseService } from '../supabase/supabase.service';
+import { accountHolding } from './read-only-link';
 
 const logger = new Logger('AuthServerCalls');
 
@@ -85,11 +86,49 @@ export function removeAccount(service: SupabaseClient, userId: string) {
 
 /**
  * The auth server gave no judgment of an address change (operator ruling 371):
- * a throttle, a fault, no answer. The same link works again. After a limit that
- * ran out the auth server may change the address all the same: the second click
- * asks for the same address, and then confirms.
+ * a throttle, a fault, no answer. The same link works again: asked for the
+ * address the account already has, the auth server says yes (read on GoTrue
+ * v2.195.0).
+ *
+ * `late` is set when only the limit ran out (ruling 372): the auth server may
+ * still change the address, and this is its judgment when it comes.
  */
-export class AddressChangeUnjudged extends Error {}
+export class AddressChangeUnjudged extends Error {
+  constructor(
+    message: string,
+    cause: unknown,
+    readonly late?: Promise<boolean>,
+  ) {
+    super(message, { cause });
+  }
+}
+
+type AuthServerFault = { status?: number; message: string } | null;
+
+/**
+ * What the auth server said of an address change. A 500 is its answer for an
+ * address ANOTHER account holds, and for a fault of its own: supabase-js hands
+ * no code and "Error updating user" for both (read on GoTrue v2.195.0). So
+ * after a 500 it is asked who holds the address (operator ruling 373). The
+ * account's own id there is no refusal: an earlier late answer changed it.
+ */
+async function judgmentOf(
+  supabase: SupabaseService,
+  userId: string,
+  email: string,
+  error: AuthServerFault,
+): Promise<boolean> {
+  if (!error) return true;
+  // supabase-js hands no status, or 0, for an answer it could not read or never got.
+  if (error.status && classifyGoTrueFailure(error.status) === 'invalid') {
+    logger.warn(`The auth server refused an address change: ${error.message}`);
+    return false;
+  }
+  const holder = error.status === 500 ? await accountHolding(supabase, email) : null;
+  if (!holder || holder === userId) throw new AddressChangeUnjudged(error.message, error);
+  logger.warn('The auth server refused an address change: another account holds the address');
+  return false;
+}
 
 /**
  * Change an account's address. False: the auth server REFUSED the change (the
@@ -98,22 +137,17 @@ export class AddressChangeUnjudged extends Error {}
  * `AddressChangeUnjudged`.
  */
 export async function changeAddress(
-  service: SupabaseClient,
+  supabase: SupabaseService,
   userId: string,
   email: string,
 ): Promise<boolean> {
-  const asked = service.auth.admin.updateUserById(userId, { email });
+  const judged = Promise.resolve(
+    supabase.service.auth.admin.updateUserById(userId, { email }),
+  ).then(({ error }) => judgmentOf(supabase, userId, email, error));
   // Only the limit: another rejection of supabase-js can come after the change.
-  const { error } = await heldToLimit(asked).catch((fault: unknown) => {
+  return heldToLimit(judged).catch((fault: unknown) => {
     throw fault instanceof NoAnswerInTime
-      ? new AddressChangeUnjudged(fault.message, { cause: fault })
+      ? new AddressChangeUnjudged(fault.message, fault, judged)
       : fault;
   });
-  if (!error) return true;
-  // supabase-js hands no status, or 0, for an answer it could not read or never got.
-  if (!error.status || classifyGoTrueFailure(error.status) === 'unavailable') {
-    throw new AddressChangeUnjudged(error.message, { cause: error });
-  }
-  logger.warn(`The auth server refused an address change: ${error.message}`);
-  return false;
 }
