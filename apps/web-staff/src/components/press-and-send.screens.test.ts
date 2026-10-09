@@ -66,7 +66,8 @@ describe('the end of a pass of the send', () => {
 describe('the page’s reads of the bout', () => {
   it('nobody waits for the sends the page starts', () => {
     const source = page();
-    expect(source.match(/syncEngine\.sendBehind\(\);/g)).toHaveLength(2);
+    // The network back, a tablet opened again, and the server's bout in place of the copy.
+    expect(source.match(/syncEngine\.sendBehind\(\);/g)).toHaveLength(3);
     expect(source).not.toMatch(/\.drain\(\)/);
   });
 
@@ -76,10 +77,13 @@ describe('the page’s reads of the bout', () => {
     expect(source).toContain('const read = (boutReads.current.asked += 1);');
     expect(source).toContain('if (read < boutReads.current.shown) return false;');
     expect(source).toContain('boutReads.current.shown = read;');
-    expect(source).toContain('if (isNewestAnswer()) setMatch(null);');
-    expect(source).toMatch(/if \(!isNewestAnswer\(\)\) return;\s+setMatch\(\{/);
+    // One gate for both answers of the server: the bout, and a bout that is gone.
+    expect(source).toMatch(
+      /if \(!isNewestAnswer\(\)\) return;\s+if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);/,
+    );
+    expect(source.match(/isNewestAnswer\(\)/g)).toHaveLength(1);
     // A read that was replaced still ends the first load: no cleanup marks it.
     expect(source).not.toContain('stale');
-    expect(source).toMatch(/finally \{\s+setLoading\(false\);\s+\}/);
+    expect(source.match(/setLoading\(false\);/g)).toHaveLength(2);
   });
 });

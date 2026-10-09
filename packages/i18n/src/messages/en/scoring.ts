@@ -306,6 +306,10 @@ export const scoring = {
     // No read reached the server: nothing is known of the match, so nothing is guessed.
     notLoadedTitle: 'No connection',
     notLoadedBody: 'This match is not loaded yet. It opens when the network is back.',
+    // The server cannot be reached and the tablet holds a copy of the match.
+    fromTablet:
+      'No connection. This is the match as this tablet read it on {when}. The score and the counts may be wrong: the hits and cards from before are not listed here. New hits and cards are kept and sent later. The clock needs the connection.',
+    scoreUnconfirmed: 'not confirmed',
     reopen: 'Reopen match',
     reopening: 'Reopening...',
     unlockFailed: 'Could not reopen this match.',

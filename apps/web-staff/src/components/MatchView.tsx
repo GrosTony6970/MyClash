@@ -95,6 +95,12 @@ export interface MatchViewProps {
   /** Builds in-scoring match hrefs (prev/next tiles) with the /scoring
    *  prefix + preserved query. Defaults to a bare /matches/[id]. */
   buildMatchHref?: (id: string) => string;
+  /**
+   * When the tablet read this bout from the server (ms), if what is on screen
+   * is the tablet's COPY, opened because the server could not be reached
+   * (`offline/kept-bout.ts`). Null for the server's own answer.
+   */
+  readFromTabletAt?: number | null;
 }
 
 export function MatchView({
@@ -106,8 +112,9 @@ export function MatchView({
   externalDisplayUrl,
   backHref,
   buildMatchHref,
+  readFromTabletAt = null,
 }: MatchViewProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   // Drives the outbox re-read below: a BACKGROUND drain empties the queue with
   // no mutation to notice it, and the provisional score would otherwise linger
   // after the server had already accepted the hits.
@@ -455,7 +462,7 @@ export function MatchView({
   /**
    * The score, plus what the tablet is still holding.
    *
-   * `match.redScore` is the server's, and offline it stops moving — the read
+   * `match.redScore` is the server's (or the tablet's copy of it), and offline it stops moving — the read
    * that refreshes it 503s. So a referee scoring three hits in a dead hall
    * watched the number stand still with no way to tell whether the tablet had
    * heard them. The queued hits are on disk; this adds them up.
@@ -639,6 +646,27 @@ export function MatchView({
         </div>
       )}
 
+      {/* The whole bout came off the tablet: the server could not be reached.
+          Said with the DAY of the copy, because a copy can be a day old
+          (operator ruling 10), and before anything is scored on it. */}
+      {readFromTabletAt !== null && (
+        <div
+          role="status"
+          data-testid="bout-from-tablet"
+          className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning"
+        >
+          {t('scoring.match.fromTablet', {
+            when: new Date(readFromTabletAt).toLocaleString(locale, {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          })}
+        </div>
+      )}
+
       {/* The buttons below came off the tablet, not the server. Said out loud
           because the alternative this replaced was the federal default arming
           itself in silence — and a referee cannot tell +2 from +3 by looking
@@ -662,6 +690,7 @@ export function MatchView({
           score={redScore}
           provisionalDelta={provisional.red}
           reachedCap={capWinnerSide === 'red'}
+          unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && redScore > blueScore}
           readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}
@@ -720,6 +749,7 @@ export function MatchView({
           score={blueScore}
           provisionalDelta={provisional.blue}
           reachedCap={capWinnerSide === 'blue'}
+          unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && blueScore > redScore}
           readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}

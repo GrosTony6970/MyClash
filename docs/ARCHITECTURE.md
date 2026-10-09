@@ -1323,8 +1323,21 @@ resolve", whereas a server failure means "something needs a human". Both leave t
   branching on `!res.ok` is therefore on the OFFLINE path as often as the
   not-found one: classify with `classifySyncFailure` before concluding a record
   is gone. Setup data (the tournament's scoring rules, the penalty catalogue) is
-  cached separately in IndexedDB by `offline/cached-reads.ts`; live match state
-  never is.
+  cached separately in IndexedDB by `offline/cached-reads.ts`.
+- **A bout the tablet has read opens with no network** (quick-win rulings 3, 9
+  and 10). Each good read of a bout (`lib/bout-read.ts`) is kept in the same
+  table by `offline/kept-bout.ts`. A read that finds no network, with no bout on
+  screen, opens that copy: the full bout screen, where hits and cards go to the
+  queue. The rule that replaced "serve no stale scoring data": a copy is shown
+  only when the server cannot be reached, and the screen always says so, with
+  the day and time of the copy and both scores marked "not confirmed". The
+  page asks the server again every 5 seconds. The server's bout replaces the
+  copy on a screen mounted again, so the clock, the lists and the neighbours are
+  read as on a first open, and the queue is sent. Only a 404 removes a copy: a
+  server fault says nothing about the bout. A bout read without its names is
+  not kept over a copy that has them. The lists of hits and cards are not
+  kept, so on a copy the timeline and the counts hold the queue alone, and the
+  notice says so. The clock still needs the network.
 - Manifest installs as standalone tablet app.
 - The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The implemented states are `idle | syncing | offline | error` (see the state machine in §10.2).
 

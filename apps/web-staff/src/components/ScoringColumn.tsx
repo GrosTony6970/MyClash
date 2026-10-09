@@ -60,6 +60,8 @@ interface ScoringColumnProps {
   provisionalDelta?: number;
   /** This side has won by reaching the point cap — highlights the score gold + cup. */
   reachedCap?: boolean;
+  /** The score is the tablet's copy of the bout, not the server's word (`kept-bout.ts`). */
+  unconfirmed?: boolean;
   /** This side currently leads (not yet capped) — adds a subtle side-colour glow. */
   leading?: boolean;
   /** Locked match → read-only: hide the action controls, show score/name/cards only. */
@@ -114,6 +116,7 @@ export function ScoringColumn({
   score,
   provisionalDelta = 0,
   reachedCap,
+  unconfirmed,
   leading,
   readOnly,
   pointCap,
@@ -246,6 +249,14 @@ export function ScoringColumn({
       >
         {score}
       </p>
+      {unconfirmed && (
+        <p
+          data-testid="score-unconfirmed"
+          className="mt-1 text-center text-xs font-bold uppercase tracking-wide text-warning"
+        >
+          {t('scoring.match.scoreUnconfirmed')}
+        </p>
+      )}
       {/* Under the numeral, deliberately OUTSIDE the button grid:
           08-offline-custom-ruleset asserts that no `clean-hit-button` contains
           the text "+2", so any numeric annotation inside those buttons would

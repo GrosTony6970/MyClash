@@ -14,8 +14,9 @@ import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessi
 import { useSendEnded, useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
+import { readBout } from '../../../src/lib/bout-read';
+import { forgetBout, keepBout, keptBout } from '../../../src/offline/kept-bout';
 import { getSyncEngine } from '../../../src/offline/sync';
-import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 
 interface Props {
@@ -29,9 +30,9 @@ const BOUT_NOT_LOADED_RETRY_MS = 5_000;
  * Per-match scoring route. Lets the admin bracket deep-link straight
  * into the scoring UI for one match — no lice context required.
  *
- * Combines `GET /matches/:id` (raw row with registrations + scores +
- * locked_at) and `GET /matches/:id/summary` (roundCode + fighter
- * names + weapon + tournamentId + phaseType).
+ * The bout is read by `readBout` (`src/lib/bout-read.ts`). Each good read is
+ * kept on the tablet, and a read that finds no network opens that copy
+ * (`src/offline/kept-bout.ts`).
  */
 export default function MatchScoringPage({ params }: Props) {
   const { t } = useI18n();
@@ -42,9 +43,14 @@ export default function MatchScoringPage({ params }: Props) {
   const syncState = useSyncState(syncEngine);
 
   const [matchId, setMatchId] = useState<string | null>(null);
-  const [match, setMatch] = useState<MatchInfo | null>(null);
+  // The bout on screen and where it came from, as ONE state: `readAt` is the
+  // time of the tablet's copy, and null for the server's own answer. Two states
+  // could say "from the tablet" over a bout the server just gave.
+  const [shown, setShown] = useState<{ match: MatchInfo; readAt: number | null } | null>(null);
+  const match = shown?.match ?? null;
+  const fromTablet = shown !== null && shown.readAt !== null;
   const [loading, setLoading] = useState(true);
-  // The last read of the bout met no network. Shown only while `match` is null.
+  // The last read of the bout met no network.
   const [unreachable, setUnreachable] = useState(false);
   const [quarantineOpen, setQuarantineOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -127,12 +133,23 @@ export default function MatchScoringPage({ params }: Props) {
   // The screen says the bout opens when the network is back, and the `online`
   // event alone does not keep that word: a tablet that kept its access point
   // while the uplink dropped gets none. So a bout not loaded is asked for
-  // again until it is.
+  // again until it is. A bout opened from the tablet's copy is not loaded
+  // either: the server has not said it.
+  const awaitsServer = unreachable && (shown === null || fromTablet);
   useEffect(() => {
-    if (match || !unreachable) return;
+    if (!awaitsServer) return;
     const timer = window.setInterval(readBoutAgain, BOUT_NOT_LOADED_RETRY_MS);
     return () => window.clearInterval(timer);
-  }, [match, unreachable, readBoutAgain]);
+  }, [awaitsServer, readBoutAgain]);
+
+  // The server's bout has just replaced the tablet's copy: the network is
+  // back, with or without an `online` event. Send what the tablet holds; the
+  // retry above asks for the bout only.
+  const shownFromTablet = useRef(false);
+  useEffect(() => {
+    if (shownFromTablet.current && !fromTablet) syncEngine.sendBehind();
+    shownFromTablet.current = fromTablet;
+  }, [fromTablet, syncEngine]);
 
   // The race: two sends end close together (two hits in a row) and each reads
   // the bout. An answer that lands after a LATER read's answer must not win.
@@ -149,142 +166,37 @@ export default function MatchScoringPage({ params }: Props) {
       return true;
     };
     void (async () => {
-      try {
-        const [rawRes, summaryRes] = await Promise.all([
-          fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
-          fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, { credentials: 'include' }),
-        ]);
-        // GONE vs UNREACHABLE. A bad status used to mean one thing here — the
-        // match is deleted — and that is wrong the moment the tablet loses
-        // wifi, because the service worker RESOLVES a synthetic 503 for every
-        // /api/ call rather than throwing. So `fetch` succeeds, `ok` is false,
-        // and this cleared the match. The end of every send bumps `refreshKey`
-        // and re-runs this effect, so the FIRST hit a referee scored offline
-        // replaced the whole scoring surface with "match unavailable" — with
-        // the outbox holding the hit safely and the network bar cheerfully
-        // reporting one queued. Nothing was lost; the referee simply could not
-        // score the next one.
-        //
-        // The `catch` below says it leaves the cached match in place, and it
-        // cannot: it is unreachable for /api/ while the worker is active.
-        // `classifySyncFailure` is the one owner of this question — its own
-        // docblock explains why a 503 reads as offline — and the body carries
-        // the worker's `{ error: 'offline' }` marker, the only unambiguous
-        // signal of the three, so it is worth parsing before deciding.
-        //
-        // UNREACHABLE is marked, not only skipped: with no bout on screen yet
-        // the page said "deleted or rescheduled" over a bout that was never
-        // read. The mark shows only while there is no bout, so it does not
-        // ask `isNewestAnswer`: that would drop an earlier good answer still
-        // on its way.
-        if (!rawRes.ok) {
-          const body = (await rawRes.json().catch(() => null)) as FailureBody | null;
-          if (classifySyncFailure(rawRes.status, body) === 'offline') {
-            setUnreachable(true);
-            return;
-          }
-          setUnreachable(false);
-          if (isNewestAnswer()) setMatch(null);
-          return;
-        }
-        // The server answered: whatever the order of the answers, it is in reach.
-        setUnreachable(false);
-        const raw = (await rawRes.json()) as {
-          id: string;
-          match_number_label: string | null;
-          status: string;
-          ruleset_code: string;
-          ruleset_version: string;
-          red_registration_id: string;
-          blue_registration_id: string;
-          red_score: number | null;
-          blue_score: number | null;
-          winner_registration_id: string | null;
-          locked_at: string | null;
-          lice_id: string | null;
-          end_reason: string | null;
-          // Best-of-N round state (matches columns; default to a single round).
-          current_round: number | null;
-          red_round_wins: number | null;
-          blue_round_wins: number | null;
-          rounds_json: unknown;
-          awaiting_round_advance: boolean | null;
-        };
-        // Soft requirement: summary is labels only (roundCode,
-        // fighter names, clubs, weapon, tournamentId). The most
-        // common 404 here is a placeholder bracket slot with TBD
-        // fighters that vw_tournament_query_matches refuses to
-        // project. Render the scoreboard with blank labels rather
-        // than blocking the whole page on a name lookup.
-        const summary = summaryRes.ok
-          ? ((await summaryRes.json()) as {
-              roundCode: string;
-              redName: string;
-              blueName: string;
-              redClub?: string | null;
-              blueClub?: string | null;
-              weapon: string;
-              tournamentId: string;
-              tournamentName?: string | null;
-              poolName?: string | null;
-              roundToken?: string | null;
-              liceName?: string | null;
-              phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
-              /** Effective best-of for this match's phase (not a matches column). */
-              bestOf?: number;
-            })
-          : null;
-        if (!isNewestAnswer()) return;
-        setMatch({
-          id: raw.id,
-          matchNumberLabel: raw.match_number_label ?? '',
-          roundCode: summary?.roundCode ?? '',
-          status: raw.status,
-          rulesetCode: raw.ruleset_code,
-          rulesetVersion: raw.ruleset_version,
-          redRegistrationId: raw.red_registration_id,
-          blueRegistrationId: raw.blue_registration_id,
-          redScore: raw.red_score ?? 0,
-          blueScore: raw.blue_score ?? 0,
-          // GET /matches/:id is a select('*'), so this has always been on the
-          // wire — the client simply dropped it, and the end-of-match overlay
-          // announced whoever had more points.
-          winnerRegistrationId: raw.winner_registration_id ?? null,
-          redFighterName: summary?.redName ?? '',
-          blueFighterName: summary?.blueName ?? '',
-          redClub: summary?.redClub ?? null,
-          blueClub: summary?.blueClub ?? null,
-          weapon: summary?.weapon ?? '',
-          tournamentId: summary?.tournamentId,
-          tournamentName: summary?.tournamentName ?? null,
-          poolName: summary?.poolName ?? null,
-          roundToken: summary?.roundToken ?? null,
-          liceName: summary?.liceName ?? null,
-          phaseType: summary?.phaseType ?? null,
-          lockedAt: raw.locked_at,
-          liceId: raw.lice_id,
-          endReason: raw.end_reason ?? null,
-          // bestOf is the effective number from the summary; the live round
-          // counters come off the raw matches row (re-fetched on refreshKey).
-          bestOf: summary?.bestOf ?? 1,
-          currentRound: raw.current_round ?? 1,
-          redRoundWins: raw.red_round_wins ?? 0,
-          blueRoundWins: raw.blue_round_wins ?? 0,
-          roundsJson: raw.rounds_json ?? null,
-          awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
-        });
-      } catch {
-        // A genuine throw: the request never got a response at all. That means
-        // the service worker is not controlling this page — local dev, or a
-        // first visit before it activates — because when it IS active every
-        // /api/ call resolves, and the offline branch above handles it. Same
-        // verdict either way: keep the match we already have, and with none
-        // yet, say it is the network. An answer that cannot be read (a hall's
-        // sign-in page in place of the API) lands here too, and is the same.
+      const answer = await readBout(apiUrl, matchId);
+      // UNREACHABLE is marked, not only skipped, and it does not ask
+      // `isNewestAnswer`: that would drop an earlier good answer still on its
+      // way. With no bout on screen the tablet's copy opens, if it holds one.
+      // The race: the copy is read from the tablet's store, which answers
+      // late, and the server's answer to a LATER read may land first. So the
+      // copy is set only while the screen holds no bout, and never after a
+      // later read's answer was shown: that answer may be "this bout is gone".
+      if (answer.kind === 'unreachable') {
         setUnreachable(true);
-      } finally {
+        const kept = await keptBout(matchId).catch(() => null);
+        if (kept && read >= boutReads.current.shown) setShown((now) => now ?? kept);
         setLoading(false);
+        return;
       }
+      // The server answered: whatever the order of the answers, it is in reach.
+      setUnreachable(false);
+      setLoading(false);
+      if (!isNewestAnswer()) return;
+      if (answer.kind !== 'bout') {
+        setShown(null);
+        // Only a bout the server says is GONE loses its copy. A server fault
+        // says nothing about the bout: the hall's wifi may drop next.
+        if (answer.kind === 'gone') void forgetBout(matchId).catch(() => undefined);
+        return;
+      }
+      setShown({ match: answer.match, readAt: null });
+      // Kept for the next read that finds no network. A store that refuses the
+      // write costs that convenience only. A bout read without its names (the
+      // summary did not land) does not replace a copy that has them.
+      if (answer.labelled) void keepBout(answer.match).catch(() => undefined);
     })();
   }, [matchId, apiUrl, refreshKey]);
 
@@ -317,6 +229,10 @@ export default function MatchScoringPage({ params }: Props) {
 
       {match ? (
         <MatchView
+          // A new screen when the server's bout replaces the copy: the copy's
+          // screen could read no clock, no list and no neighbour, and keeps
+          // none. Mounted again, it reads them all, as a first open does.
+          key={fromTablet ? 'copy' : 'server'}
           match={match}
           apiUrl={apiUrl}
           networkStatus={networkStatus}
@@ -325,6 +241,7 @@ export default function MatchScoringPage({ params }: Props) {
           externalDisplayUrl={externalDisplayUrl}
           backHref={backHref}
           buildMatchHref={buildMatchHref}
+          readFromTabletAt={shown?.readAt ?? null}
         />
       ) : unreachable ? (
         <BoutNotLoadedView onRetry={readBoutAgain} />

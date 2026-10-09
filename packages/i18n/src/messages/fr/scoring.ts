@@ -291,6 +291,9 @@ export const scoring = {
       "Cet assaut n'a pas pu être charge — il a peut-être été supprime ou reprogramme.",
     notLoadedTitle: 'Pas de connexion',
     notLoadedBody: "Cet assaut n'est pas encore chargé. Il s'ouvrira au retour du réseau.",
+    fromTablet:
+      'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score et les compteurs peuvent être faux : les touches et les cartons d’avant ne sont pas listés ici. Les nouvelles touches et les nouveaux cartons sont gardés et envoyés plus tard. Le chrono a besoin de la connexion.',
+    scoreUnconfirmed: 'non confirmé',
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',

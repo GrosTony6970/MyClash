@@ -8,8 +8,11 @@
  *
  * web-staff has no React test setup, so the screens are read as text. These
  * pins hold the WIRING only; a live page proves what the official reads
- * (`tests/a11y/pad-bout-no-network.spec.ts`), and `failure-kind.test.ts` holds
+ * (`tests/a11y/pad-bout-no-network.spec.ts`), and `bout-read.test.ts` holds
  * what counts as "no network".
+ *
+ * A bout the tablet has read opens from the tablet's copy instead (rulings 3,
+ * 9, 10): `tests/a11y/pad-bout-from-tablet.spec.ts`, `kept-bout.test.ts`.
  */
 
 import { readFileSync } from 'node:fs';
@@ -23,17 +26,48 @@ const view = read('components', 'MatchView.tsx');
 describe('the page’s read of the bout', () => {
   it('marks a read that met no network, and clears no bout for it', () => {
     expect(page).toMatch(
-      /if \(classifySyncFailure\(rawRes\.status, body\) === 'offline'\) \{\s+setUnreachable\(true\);\s+return;\s+\}/,
+      /if \(answer\.kind === 'unreachable'\) \{\s+setUnreachable\(true\);\s+const kept = await keptBout\(matchId\)\.catch\(\(\) => null\);\s+if \(kept && read >= boutReads\.current\.shown\) setShown\(\(now\) => now \?\? kept\);\s+setLoading\(false\);\s+return;\s+\}/,
     );
-    // A request with no answer at all (no service worker) is the same verdict.
-    expect(page).toMatch(/\} catch \{[^}]*setUnreachable\(true\);\s+\} finally \{/);
   });
 
-  it('forgets the mark when the server answers: the bout, or a bout that is gone', () => {
-    expect(page.match(/setUnreachable\(false\);/g)).toHaveLength(2);
-    // Before the count of the answers is asked: an answer is an answer.
-    expect(page).toMatch(/setUnreachable\(false\);\s+if \(isNewestAnswer\(\)\) setMatch\(null\);/);
-    expect(page).toMatch(/setUnreachable\(false\);\s+const raw = \(await rawRes\.json\(\)\) as \{/);
+  it('opens the tablet’s copy only while the screen holds no bout', () => {
+    // A server answer that landed first is never replaced by the copy: not the
+    // bout on screen, and not the "gone" of a later read.
+    expect(page.match(/keptBout\(/g)).toHaveLength(1);
+    expect(page).toContain(
+      'if (kept && read >= boutReads.current.shown) setShown((now) => now ?? kept);',
+    );
+  });
+
+  it('gives the server’s bout a screen of its own, and sends what the tablet holds', () => {
+    expect(page).toContain("key={fromTablet ? 'copy' : 'server'}");
+    expect(page).toMatch(
+      /if \(shownFromTablet\.current && !fromTablet\) syncEngine\.sendBehind\(\);\s+shownFromTablet\.current = fromTablet;\s+\}, \[fromTablet, syncEngine\]\);/,
+    );
+  });
+
+  it('forgets the mark when the server answers, before the count of the answers is asked', () => {
+    expect(page.match(/setUnreachable\(false\);/g)).toHaveLength(1);
+    expect(page).toMatch(
+      /setUnreachable\(false\);\s+setLoading\(false\);\s+if \(!isNewestAnswer\(\)\) return;/,
+    );
+  });
+
+  it('keeps the bout the server gave, and forgets the one it said is gone', () => {
+    expect(page).toMatch(
+      /if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);[^}]*if \(answer\.kind === 'gone'\) void forgetBout\(matchId\)\.catch\(\(\) => undefined\);\s+return;\s+\}\s+setShown\(\{ match: answer\.match, readAt: null \}\);/,
+    );
+    // A bout with no names is shown, and not kept over a copy that has them.
+    expect(page).toContain(
+      'if (answer.labelled) void keepBout(answer.match).catch(() => undefined);',
+    );
+  });
+
+  it('holds the bout and where it came from as one state', () => {
+    expect(page).toContain('const match = shown?.match ?? null;');
+    expect(page).toContain('const fromTablet = shown !== null && shown.readAt !== null;');
+    expect(page).toContain('readFromTabletAt={shown?.readAt ?? null}');
+    expect(page).not.toContain('setMatch(');
   });
 
   it('says "no connection" only while it holds no bout', () => {
@@ -52,9 +86,10 @@ describe('the network coming back', () => {
 });
 
 describe('a bout not loaded', () => {
-  it('is asked for again by itself, and only while it is not loaded', () => {
+  it('is asked for again by itself, while the server has not given it: no bout, or the copy', () => {
+    expect(page).toContain('const awaitsServer = unreachable && (shown === null || fromTablet);');
     expect(page).toMatch(
-      /if \(match \|\| !unreachable\) return;\s+const timer = window\.setInterval\(readBoutAgain, BOUT_NOT_LOADED_RETRY_MS\);\s+return \(\) => window\.clearInterval\(timer\);\s+\}, \[match, unreachable, readBoutAgain\]\);/,
+      /if \(!awaitsServer\) return;\s+const timer = window\.setInterval\(readBoutAgain, BOUT_NOT_LOADED_RETRY_MS\);\s+return \(\) => window\.clearInterval\(timer\);\s+\}, \[awaitsServer, readBoutAgain\]\);/,
     );
   });
 });

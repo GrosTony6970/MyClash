@@ -164,14 +164,16 @@ export interface UndoNotice {
  * A GET response held on the tablet so the pad can seed from it before the
  * network answers — and instead of the network, when there is none.
  *
- * Setup data only: the tournament's scoring rules and its penalty catalogue.
- * NOT live match state. The service worker deliberately caches no /api/
- * response, and the reason is that serving a stale score is worse than serving
- * none. Serving a stale BUTTON is not: the alternative is the federal default,
- * which is silently wrong on a custom ruleset and says nothing about it.
+ * Setup data: the tournament's scoring rules and its penalty catalogue. The
+ * service worker deliberately caches no /api/ response, and the reason is that
+ * serving a stale score as the server's is worse than serving none. Serving a
+ * stale BUTTON is not: the alternative is the federal default, which is
+ * silently wrong on a custom ruleset and says nothing about it.
  *
  * Keyed by request path, so the same table serves whatever else needs it later
- * without inventing a second cache.
+ * without inventing a second cache. The copy of a bout is the one row that is
+ * not a request's body: its key is `bout/<id>` and its rule is in
+ * `kept-bout.ts` (shown only with no network, and always said).
  */
 export interface CachedRead {
   /** Request path, e.g. `/api/v1/tournaments/:id/match-config`. */

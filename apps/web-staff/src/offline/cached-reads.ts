@@ -12,10 +12,14 @@
  * whose ruleset says `+3`, a 2 is queued, a 2 is stored, and nothing ever says
  * so.
  *
- * WHAT IT DOES NOT DO. This is setup data, never live match state. The worker's
- * rule — serve no stale scoring data — is the right rule and stays: a stale
- * score is worse than no score. A stale BUTTON is not, because the alternative
- * is a default that is silently wrong and equally stale.
+ * WHAT IT DOES NOT DO. These functions serve setup data, never live match
+ * state: a stale BUTTON beats a default that is silently wrong and equally
+ * stale. A score is another matter, and it has another owner. The rule here
+ * was "serve no stale scoring data"; the operator reversed it on 2026-10-08
+ * (quick-win ruling 3) for one case. The bout itself is kept by
+ * `kept-bout.ts`, and its rule is: a copy is shown only when the server cannot
+ * be reached, and the screen always says so. The service worker still caches
+ * no `/api/` response, and no list of hits or cards is kept.
  *
  * A cached answer can be out of date if an organiser re-pins the ruleset
  * mid-event. The network fetch overwrites it on success, and stale-but-real
