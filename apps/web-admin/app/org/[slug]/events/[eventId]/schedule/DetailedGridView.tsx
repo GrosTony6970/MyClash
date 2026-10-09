@@ -1,6 +1,6 @@
 'use client';
 
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { MIN_LICE_COL_PX, SLOT_HEIGHT_PX, TIME_LABEL_COL_PX } from '@myclash/schedule-core';
 import { DetailedBlockBars, type DetailedBar } from './DetailedBlockBars';
 import { DetailedHeaderBands } from './DetailedHeaderBands';
@@ -25,9 +25,6 @@ import type { HeaderRunGroup, Lice, ScheduleMatch } from './schedule-types';
 
 interface Props {
   visibleLices: Lice[];
-  /** The hall filter control, shared with the Blocks view so switching views
-   *  cannot hide a filter that stays applied. */
-  hallFilterControl: ReactNode;
   gridEndSlot: number;
   gridStartHour: number;
   rowFor: (slot: number) => number;
@@ -64,7 +61,6 @@ interface Props {
 
 export function DetailedGridView({
   visibleLices,
-  hallFilterControl,
   gridEndSlot,
   gridStartHour,
   rowFor,
@@ -92,7 +88,6 @@ export function DetailedGridView({
 }: Props) {
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-center gap-2">{hallFilterControl}</div>
       <div
         className="relative grid w-full"
         style={{

@@ -36,6 +36,8 @@ interface Props {
   tickedKeys: Set<string>;
   onToggleTicked: (key: string) => void;
   onScheduleSelected: () => void;
+  /** The Event is archived: the server refuses what "Schedule selected" saves. */
+  readOnly: boolean;
   slug: string;
   eventId: string;
   /** The one match currently being written, so its chip dims. */
@@ -116,6 +118,7 @@ export function UnscheduledPanel({
   tickedKeys,
   onToggleTicked,
   onScheduleSelected,
+  readOnly,
   slug,
   eventId,
   savingMatchId,
@@ -169,7 +172,8 @@ export function UnscheduledPanel({
             <button
               type="button"
               onClick={onScheduleSelected}
-              className="mb-2 w-full rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
+              disabled={readOnly}
+              className="mb-2 w-full rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
             >
               {t('organizer.schedulePage.grid.scheduleSelected', { count: tickedKeys.size })}
             </button>

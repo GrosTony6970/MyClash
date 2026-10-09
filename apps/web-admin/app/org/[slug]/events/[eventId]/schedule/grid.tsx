@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ConfirmDialog, accentClassFor } from '@myclash/ui';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
@@ -111,12 +119,39 @@ const EMPTY_STRING_SET: Set<string> = new Set();
 // `eachDay` / `formatDayLabel` live in @myclash/schedule-core (shared
 // with the workshop schedule board). Imported at the top of this module.
 
+/** A drag that must not start: the browser drops it, and the board never hears of it. */
+function cancelDrag(event: SyntheticEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+/**
+ * One view of the board, closed on an archived Event (ruling 377): the server
+ * refuses every save its buttons, a resize or a double-click sends. It closes
+ * the view's form controls and stops those two gestures. A save behind a plain
+ * click on something that is no form control is closed where it is wired.
+ */
+function BoardView({ readOnly, children }: { readOnly: boolean; children: ReactNode }) {
+  const stop = readOnly ? (event: SyntheticEvent) => event.stopPropagation() : undefined;
+  return (
+    <fieldset
+      disabled={readOnly}
+      className="contents"
+      onPointerDownCapture={stop}
+      onDoubleClickCapture={stop}
+    >
+      {children}
+    </fieldset>
+  );
+}
+
 export function ScheduleGrid({
   slug,
   eventId,
   onProgrammeMutated,
   configurePanel,
   sheetVersion,
+  readOnly,
 }: {
   slug: string;
   eventId: string;
@@ -135,6 +170,8 @@ export function ScheduleGrid({
   configurePanel?: ReactNode;
   /** Bumped by the page after each planner sheet save. The board re-reads on it. */
   sheetVersion?: number;
+  /** The Event is archived: no drag or resize starts, and the board offers no save. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
@@ -1713,6 +1750,7 @@ export function ScheduleGrid({
                 type="button"
                 data-testid="running-late-open"
                 onClick={() => setPendingDelay(true)}
+                disabled={readOnly}
                 title={t('organizer.schedulePage.grid.runningLateTitle')}
                 className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10"
               >
@@ -1724,7 +1762,7 @@ export function ScheduleGrid({
             <button
               type="button"
               onClick={() => setPendingClear(true)}
-              disabled={clearingDay || scheduledOnActiveDay.length === 0}
+              disabled={clearingDay || scheduledOnActiveDay.length === 0 || readOnly}
               className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50 disabled:hover:bg-transparent"
             >
               {t('organizer.schedulePage.grid.clearDayButton', {
@@ -1737,6 +1775,8 @@ export function ScheduleGrid({
             <button
               type="button"
               onClick={() => setShowAddLice((v) => !v)}
+              disabled={readOnly}
+              title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
               className="rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
             >
               {t('organizer.schedulePage.grid.addLice')}
@@ -1999,8 +2039,12 @@ export function ScheduleGrid({
 
       {/* Retractable LEFT panel: Unscheduled (top) + Configure (below); the
           schedule canvas takes the rest. Collapses to a thin rail. */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <div
+        className="flex flex-col gap-6 lg:flex-row lg:items-start"
+        onDragStartCapture={readOnly ? cancelDrag : undefined}
+      >
         <UnscheduledPanel
+          readOnly={readOnly}
           panelCollapsed={panelCollapsed}
           onToggleCollapsed={() => setPanelCollapsed((v) => !v)}
           panelWidth={panelWidth}
@@ -2096,78 +2140,88 @@ export function ScheduleGrid({
                   </button>
                 </div>
               </div>
-              <BlockGridView
-                lices={visibleLices}
-                blocks={dayBlocks}
-                breaks={bgvBreaks}
-                tournamentColorByName={tournamentColorByName}
-                baseDate={activeDay}
-                timezone={eventTz}
-                gridEndSlot={gridEndSlot}
-                gridStartHour={gridStartHour}
-                drift={liceDrift}
-                nowSlot={nowSlot}
-                conflictMatchIds={conflictMatchIds}
-                overlapBlockKeys={overlapBlockKeys}
-                slotHeightPx={slotHeightPx}
-                focusedTournament={focusedTournament}
-                onShiftLice={shiftLiceRemaining}
-                onEditBlock={openRunWindow}
-                onEditBreak={setEditingBreak}
-                onDeleteBlock={unscheduleRunBlock}
-                onDeleteBreak={(brk) => void deleteBlock(brk.id)}
-                onResizeBlockTime={resizeBlockTimeTo}
-                onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
-                onResizeBlockStart={retimeBlockStart}
-                onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
-                onResizeBlockLices={(block, liceIds) => void changeBlockLices(block, liceIds)}
-                onBlockDragStart={(block) =>
-                  beginDrag({ kind: 'viewBlock', matchIds: block.matches.map((m) => m.id) })
-                }
-                onBlockDragEnd={endDrag}
-                onBreakDragStart={(brk) =>
-                  beginDrag({ kind: 'viewBreak', id: brk.id, startTime: brk.startTime })
-                }
-                onBreakDragEnd={endDrag}
-                onDropOnLice={handleBlockViewDrop}
-                onCreateAtCell={(slot) =>
-                  setCreatingBreak(
-                    newBreakDraftFromCell(slot, t('organizer.schedulePage.grid.breakDefaultLabel')),
-                  )
-                }
-                dragOverLiceId={dragOverLiceId}
-                onDragOverLice={setDragOverLiceId}
-              />
+              <BoardView readOnly={readOnly}>
+                <BlockGridView
+                  lices={visibleLices}
+                  blocks={dayBlocks}
+                  breaks={bgvBreaks}
+                  tournamentColorByName={tournamentColorByName}
+                  baseDate={activeDay}
+                  timezone={eventTz}
+                  gridEndSlot={gridEndSlot}
+                  gridStartHour={gridStartHour}
+                  drift={liceDrift}
+                  nowSlot={nowSlot}
+                  conflictMatchIds={conflictMatchIds}
+                  overlapBlockKeys={overlapBlockKeys}
+                  slotHeightPx={slotHeightPx}
+                  focusedTournament={focusedTournament}
+                  onShiftLice={shiftLiceRemaining}
+                  onEditBlock={openRunWindow}
+                  onEditBreak={setEditingBreak}
+                  onDeleteBlock={unscheduleRunBlock}
+                  onDeleteBreak={(brk) => void deleteBlock(brk.id)}
+                  onResizeBlockTime={resizeBlockTimeTo}
+                  onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
+                  onResizeBlockStart={retimeBlockStart}
+                  onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
+                  onResizeBlockLices={(block, liceIds) => void changeBlockLices(block, liceIds)}
+                  onBlockDragStart={(block) =>
+                    beginDrag({ kind: 'viewBlock', matchIds: block.matches.map((m) => m.id) })
+                  }
+                  onBlockDragEnd={endDrag}
+                  onBreakDragStart={(brk) =>
+                    beginDrag({ kind: 'viewBreak', id: brk.id, startTime: brk.startTime })
+                  }
+                  onBreakDragEnd={endDrag}
+                  onDropOnLice={handleBlockViewDrop}
+                  onCreateAtCell={(slot) =>
+                    setCreatingBreak(
+                      newBreakDraftFromCell(
+                        slot,
+                        t('organizer.schedulePage.grid.breakDefaultLabel'),
+                      ),
+                    )
+                  }
+                  dragOverLiceId={dragOverLiceId}
+                  onDragOverLice={setDragOverLiceId}
+                />
+              </BoardView>
             </>
           ) : (
-            <DetailedGridView
-              visibleLices={visibleLices}
-              hallFilterControl={hallFilterControl}
-              gridEndSlot={gridEndSlot}
-              gridStartHour={gridStartHour}
-              rowFor={rowFor}
-              slotOf={(iso) => isoToSlotTz(iso, activeDay)}
-              matches={scheduledOnActiveDay}
-              conflictMatchIds={conflictMatchIds}
-              savingMatchId={saving}
-              slug={slug}
-              eventId={eventId}
-              runGroups={headerRunsOnActiveDay}
-              onClearRun={setPendingRunClear}
-              bars={blocksOnActiveDay}
-              resizingBlock={resizingBlock}
-              movingBlockId={movingBlockId}
-              deletingBlockId={deletingBlockId}
-              onDeleteBar={setPendingBlockDelete}
-              onBeginBarResize={beginBlockResize}
-              dragOverCell={dragOverCell}
-              onDragOverCell={setDragOverCell}
-              onDropOnCell={handleDrop}
-              onDragStart={beginDrag}
-              onDragEnd={endDrag}
-              onPlaceLice={setPlacingLice}
-              nowSlot={nowSlot}
-            />
+            <>
+              <div className="mb-2 flex flex-wrap items-center gap-2">{hallFilterControl}</div>
+              <BoardView readOnly={readOnly}>
+                <DetailedGridView
+                  visibleLices={visibleLices}
+                  gridEndSlot={gridEndSlot}
+                  gridStartHour={gridStartHour}
+                  rowFor={rowFor}
+                  slotOf={(iso) => isoToSlotTz(iso, activeDay)}
+                  matches={scheduledOnActiveDay}
+                  conflictMatchIds={conflictMatchIds}
+                  savingMatchId={saving}
+                  slug={slug}
+                  eventId={eventId}
+                  runGroups={headerRunsOnActiveDay}
+                  // The run's header strip is no form control: its click is closed here.
+                  onClearRun={readOnly ? () => undefined : setPendingRunClear}
+                  bars={blocksOnActiveDay}
+                  resizingBlock={resizingBlock}
+                  movingBlockId={movingBlockId}
+                  deletingBlockId={deletingBlockId}
+                  onDeleteBar={setPendingBlockDelete}
+                  onBeginBarResize={beginBlockResize}
+                  dragOverCell={dragOverCell}
+                  onDragOverCell={setDragOverCell}
+                  onDropOnCell={handleDrop}
+                  onDragStart={beginDrag}
+                  onDragEnd={endDrag}
+                  onPlaceLice={setPlacingLice}
+                  nowSlot={nowSlot}
+                />
+              </BoardView>
+            </>
           )}
         </div>
       </div>

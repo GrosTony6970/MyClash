@@ -33,6 +33,7 @@ export function ProgrammePlanner({
   topSuggestNonce,
   programmeRefreshKey,
   sheet,
+  readOnly,
   generateScheduleLabel,
   generateGridLabel,
 }: {
@@ -74,6 +75,11 @@ export function ProgrammePlanner({
    * last mount's save and put an old number back.
    */
   sheet: ProgrammeSheet;
+  /**
+   * The Event is archived: the server refuses the sheet, Suggest, Save, Generate
+   * and Reset. The rows stay open: an edit of a row is kept on this screen only.
+   */
+  readOnly: boolean;
   /** Localised button labels — fall back to English defaults if unset. */
   generateScheduleLabel?: string;
   generateGridLabel?: string;
@@ -444,11 +450,13 @@ export function ProgrammePlanner({
           </div>
         )}
         {config && (
-          <ProgrammeSheetInputs
-            config={config}
-            tournaments={sheet.tournaments}
-            onEdit={sheet.edit}
-          />
+          <fieldset disabled={readOnly} className="contents">
+            <ProgrammeSheetInputs
+              config={config}
+              tournaments={sheet.tournaments}
+              onEdit={sheet.edit}
+            />
+          </fieldset>
         )}
         {sheet.saveError && (
           <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
@@ -458,7 +466,7 @@ export function ProgrammePlanner({
         <button
           onClick={() => void suggest()}
           data-testid="schedule-suggest"
-          disabled={suggesting || !config}
+          disabled={suggesting || !config || readOnly}
           className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
         >
           {suggesting
@@ -625,7 +633,8 @@ export function ProgrammePlanner({
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => void saveProgramme()}
-            disabled={saving || loadFailed || blocks.length === 0}
+            disabled={saving || loadFailed || blocks.length === 0 || readOnly}
+            title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="border border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-background disabled:opacity-50"
           >
             {saving
@@ -635,7 +644,7 @@ export function ProgrammePlanner({
           <button
             onClick={() => void confirmAndGenerate()}
             data-testid="schedule-generate"
-            disabled={generating || loadFailed || blocks.length === 0}
+            disabled={generating || loadFailed || blocks.length === 0 || readOnly}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
           >
             {generating
@@ -644,7 +653,7 @@ export function ProgrammePlanner({
           </button>
           <button
             onClick={() => void confirmAndReset()}
-            disabled={resetting || loadFailed}
+            disabled={resetting || loadFailed || readOnly}
             className="ml-auto rounded-md border border-danger/30 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
             title={t('organizer.schedulePage.planner.resetTitle')}
           >

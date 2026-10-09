@@ -10,11 +10,14 @@ import { LiveNowBanner } from './live-now-banner';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useProgrammeSheet } from './useProgrammeSheet';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 export default function SchedulePage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const { t } = useI18n();
+  // On an archived Event the server refuses every save of this page (ruling 377).
+  const { isReadOnly } = useEventStatus(eventId);
 
   // Bumping these nonces tells the children to act:
   //   - topSuggestNonce       → planner re-runs `suggest()` (Generate schedule)
@@ -153,6 +156,7 @@ export default function SchedulePage() {
           eventId={eventId}
           onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
           sheetVersion={sheetVersion}
+          readOnly={isReadOnly}
           configurePanel={
             <div className="rounded-xl border border-border bg-surface p-3">
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
@@ -171,6 +175,7 @@ export default function SchedulePage() {
                 }}
                 onBlocksChanged={() => setGridRefreshKey((k) => k + 1)}
                 sheet={sheet}
+                readOnly={isReadOnly}
               />
             </div>
           }
