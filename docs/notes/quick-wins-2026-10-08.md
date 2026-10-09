@@ -223,6 +223,31 @@ plan, and no code before it is approved. Ruling 4 is planned after, and asked ag
 | 13  | A best-of-3 bout with no wifi stops at "Start round 2". A level bout at time stops at "Extra time".                                                              | **A whole bout of any format runs offline**: Start, Halt, Resume, End, "Start round N+1" and the level-bout steps. Reopen, Reset, the time adjustment and the other corrections still need the network.                                        |
 | 14  | No wifi. The official opens the next bout from the tablet's copy; the server has it as "scheduled".                                                              | **It may be started.** The hits follow the Start in the queue, in order. A Start the server refuses later is held in the inbox with the hits behind it.                                                                                        |
 
+**The plan** for rulings 2 and 3 is `C:\Users\Tony\.claude\plans\offline-bout-plan.md` (on the
+operator's machine, not in the repo): six slices. The operator said "go, in that order" on
+2026-10-10, and two more rulings:
+
+- **A press the server refuses stops the rows of its own bout behind it.** The inbox shows one
+  line, which says how many hits wait behind it. Other bouts keep sending.
+- **Open: does the clock use the queue with a good network too, or only with none?** The operator
+  is torn. Ask again at the start of slice 3, with an example of each on a screen.
+
+**Slice 1 is built: `2c281b70`.** A bout the tablet has read opens with no network, from the
+tablet's copy, and takes hits and cards. The clock still needs the network. Slices 2 to 6 are not
+started.
+
+Named while slice 1 was built, and not fixed (each one checked in code by a review):
+
+- On a copy, the timeline, the doubles count and the card counts hold the queue alone: the lists
+  of earlier hits and cards are not kept on the tablet. The notice says so. Slice 3 needs those
+  lists anyway.
+- A hit the server took, whose answer was lost, can be counted twice on a copy.
+- Nothing removes a copy when somebody signs out. A copy holds the two names, the clubs and the
+  score of a bout that was opened, and it opens with no network for whoever holds the tablet.
+- A best-of copy that waits for its next round opens under the round-break screen, which hides the
+  notice.
+- A tablet whose store is blocked by another tab stays on "Loading" with no network.
+
 Left as it is, by the operator: an organiser signed in with an account and no PIN is still sent to
 the sign-in screen by the piste picker.
 
