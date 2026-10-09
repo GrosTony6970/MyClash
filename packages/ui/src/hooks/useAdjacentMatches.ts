@@ -33,6 +33,28 @@ function toInfo(tile: NeighborTile | null | undefined): NextMatchInfo | null {
   };
 }
 
+/** The neighbours one read answered, and the bout they are the neighbours of. */
+interface HeldNeighbours {
+  matchId: string;
+  previous: NextMatchInfo | null;
+  next: NextMatchInfo | null;
+}
+
+/**
+ * The neighbours to show: the last ones READ for this bout.
+ *
+ * A read that fails keeps them, so a hit scored with no network does not take
+ * the way to the next bout off the screen. Another bout's neighbours are never
+ * shown: the Next of the bout before is this bout.
+ */
+export function neighboursOf(
+  held: HeldNeighbours | null,
+  matchId: string | null | undefined,
+): Pick<HeldNeighbours, 'previous' | 'next'> {
+  if (!held || held.matchId !== matchId) return { previous: null, next: null };
+  return { previous: held.previous, next: held.next };
+}
+
 /**
  * Fetch the previous + next match on the same lice for the scoring
  * pad's header tiles. Backed by the PUBLIC
@@ -45,8 +67,7 @@ export function useAdjacentMatches(
   matchId: string | null | undefined,
   refreshKey: number,
 ): UseAdjacentMatchesResult {
-  const [previous, setPrevious] = useState<NextMatchInfo | null>(null);
-  const [next, setNext] = useState<NextMatchInfo | null>(null);
+  const [held, setHeld] = useState<HeldNeighbours | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,14 +86,12 @@ export function useAdjacentMatches(
           previous?: NeighborTile | null;
           next?: NeighborTile | null;
         };
-        setPrevious(toInfo(body.previous));
-        setNext(toInfo(body.next));
+        setHeld({ matchId, previous: toInfo(body.previous), next: toInfo(body.next) });
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
+        // The neighbours last read stay (`neighboursOf`).
         setError(err instanceof Error ? err.message : String(err));
-        setPrevious(null);
-        setNext(null);
       })
       .finally(() => {
         setLoading(false);
@@ -85,5 +104,5 @@ export function useAdjacentMatches(
     return cleanup;
   }, [refresh, refreshKey]);
 
-  return { previous, next, loading, error };
+  return { ...neighboursOf(held, matchId), loading, error };
 }
