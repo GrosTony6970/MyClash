@@ -42,6 +42,6 @@ describe('the bout’s lists', () => {
     expect(hook).toContain('const activeExchanges = notTakenBack(serverExchanges, takenBack);');
     expect(hook).toContain('const activePenalties = notTakenBack(serverPenalties, takenBack);');
     expect(hook).toMatch(/active: serverExchanges, refresh: refreshExchanges \} = useExchanges\(/);
-    expect(hook).toMatch(/active: serverPenalties,\s+resolveCard,\s+\} = usePenalties\(/);
+    expect(hook).toMatch(/active: serverPenalties,\s+\} = usePenalties\(/);
   });
 });

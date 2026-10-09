@@ -46,6 +46,7 @@ import {
   provisionalDeltas,
   queuedCardsFor as queuedCardsForRegistration,
 } from '../offline/pending-events';
+import { priorsWithQueued, resolveEntryCard } from '../offline/resolve-entry-card';
 
 export interface MatchScoringData {
   // ── What the server has ────────────────────────────────────────────────────
@@ -79,6 +80,15 @@ export interface MatchScoringData {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   countFor: (registrationId: string, card: PenaltyCard) => number;
+  /**
+   * Which card this entry will ACTUALLY produce for this fighter, counting the
+   * offences they already have in the same rule group: the server's, and the
+   * cards this tablet still holds.
+   *
+   * The picker used to show `entry.sanctions[0]`, always the FIRST-occurrence
+   * card. On a fighter's second offence in a group the button said yellow and
+   * the server issued red.
+   */
   resolveCard: (entry: PenaltyRulesetEntry, registrationId: string) => PenaltyCard | undefined;
   refreshExchanges: () => void;
 }
@@ -117,7 +127,6 @@ export function useMatchScoringData(args: {
     priors,
     ruleSetCards,
     active: serverPenalties,
-    resolveCard,
   } = usePenalties(apiUrl, matchId, refreshKey);
   const activeExchanges = notTakenBack(serverExchanges, takenBack);
   const activePenalties = notTakenBack(serverPenalties, takenBack);
@@ -157,6 +166,15 @@ export function useMatchScoringData(args: {
       registrationId,
       card,
     });
+
+  // Same function the server calls (`resolveEntryCard`), on the offences the
+  // server will count: the ones it told the pad and the cards the tablet holds.
+  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string) =>
+    resolveEntryCard(
+      entry,
+      registrationId,
+      priorsWithQueued(priors?.[registrationId], pending.penalties, registrationId),
+    );
 
   const queuedCardsFor = (registrationId: string) =>
     queuedCardsForRegistration({

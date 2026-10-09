@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
 import type { ExistingPenaltyForSanction } from '@myclash/types';
-import { resolveEntryCard } from '../offline/resolve-entry-card';
 import { fetchWithCache } from '../offline/cached-reads';
 
 // The card union and the `match_penalties` wire row are declared once in
@@ -72,18 +71,6 @@ interface UsePenaltiesResult {
    * the given card colour. Used by the per-side card counter chips.
    */
   countFor: (registrationId: string, card: PenaltyCard) => number;
-  /**
-   * Which card this entry will ACTUALLY produce for this fighter, counting the
-   * offences they already have in the same rule group.
-   *
-   * The picker used to show `entry.sanctions[0]` — always the FIRST-occurrence
-   * card. On a fighter's second offence in a group the button said yellow and
-   * the server issued red. Wrong online as much as offline.
-   *
-   * Same function the server calls, on the same input the server gathers, so
-   * the two cannot reach different answers by reasoning differently.
-   */
-  resolveCard: (entry: PenaltyRulesetEntry, registrationId: string) => PenaltyCard | undefined;
 }
 
 const ALL_CARDS: PenaltyCard[] = ['yellow', 'red', 'black'];
@@ -183,9 +170,6 @@ export function usePenalties(
   const countFor = (registrationId: string, card: PenaltyCard) =>
     active.filter((p) => p.registration_id === registrationId && p.card === card).length;
 
-  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string) =>
-    resolveEntryCard(entry, registrationId, scope?.priors[registrationId]);
-
   return {
     ruleset,
     priors: scope?.priors ?? null,
@@ -196,6 +180,5 @@ export function usePenalties(
     error,
     refresh,
     countFor,
-    resolveCard,
   };
 }

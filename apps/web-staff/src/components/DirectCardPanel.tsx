@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { PenaltyCard } from '../hooks/usePenalties';
+import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
 import { giveDirectCard } from '../lib/direct-card';
 import type { BoutNames } from '../offline/db';
@@ -183,7 +184,7 @@ export function DirectCardPanel(props: DirectCardPanelProps) {
         cards={props.ruleSetCards}
         disabled={disabled || busy || reason.trim().length === 0}
         // Yellow is given at the tap; red and black ask first.
-        onPick={(card) => (card === 'yellow' ? void give(card) : setConfirm(card))}
+        onPick={(card) => (cardAsksFirst(card) ? setConfirm(card) : void give(card))}
         t={t}
       />
       <ConfirmDialog

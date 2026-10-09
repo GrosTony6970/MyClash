@@ -31,9 +31,11 @@ import { outlineInkOn, sideStyle } from '@myclash/ui';
 import type { PenaltyCard, PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { cardAsksFirst } from '../lib/card-asks-first';
 import { cardWord } from '../lib/card-word';
 import { queueCard } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
+import { AskFirstDialog } from './AskFirstDialog';
 
 interface ScoringColumnProps {
   side: ExchangeSide;
@@ -203,6 +205,23 @@ export function ScoringColumn({
     } finally {
       setPenaltySubmitting(false);
     }
+  }
+
+  // A red or black card of the list waits here for the referee's yes.
+  const [askedCard, setAskedCard] = useState<{
+    entry: PenaltyRulesetEntry;
+    card: 'red' | 'black';
+  } | null>(null);
+
+  /**
+   * A penalty of the list was tapped. The card this fighter will get decides:
+   * yellow is given at the tap, red and black ask first (`cardAsksFirst`). The
+   * list scrolls, and a scroll that lands as a tap must not disqualify anyone.
+   */
+  function pickPenalty(entry: PenaltyRulesetEntry) {
+    const card = resolveCard(entry, registrationId);
+    if (cardAsksFirst(card)) setAskedCard({ entry, card });
+    else void submitPenalty(listedCard(entry));
   }
 
   return (
@@ -435,7 +454,7 @@ export function ScoringColumn({
                     data-testid="quick-penalty-button"
                     data-entry-id={entry.id}
                     disabled={penaltyDisabled}
-                    onClick={() => void submitPenalty(listedCard(entry))}
+                    onClick={() => pickPenalty(entry)}
                     className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs font-semibold text-foreground hover:border-warning disabled:opacity-40"
                   >
                     {card && (
@@ -470,12 +489,33 @@ export function ScoringColumn({
                 groupLabel={t('scoring.penalties.group')}
                 disabled={penaltyDisabled}
                 card={resolveCard(entry, registrationId)}
-                onClick={() => void submitPenalty(listedCard(entry))}
+                onClick={() => pickPenalty(entry)}
               />
             ))}
           </div>
         </div>
       )}
+
+      <AskFirstDialog
+        open={askedCard !== null}
+        onClose={() => setAskedCard(null)}
+        onConfirm={() => {
+          const asked = askedCard;
+          setAskedCard(null);
+          if (asked) void submitPenalty(listedCard(asked.entry));
+        }}
+        title={t('scoring.lice.directCardConfirmTitle')}
+        message={
+          askedCard
+            ? t('scoring.lice.listCardConfirmBody', {
+                card: cardWord(askedCard.card, t),
+                fighter: fighterName,
+                penalty: askedCard.entry.short_name,
+              })
+            : ''
+        }
+        confirmLabel={t('scoring.lice.directCardConfirm')}
+      />
 
       {/* Silence unused warning — otherStyle reserved for cross-side UI hooks. */}
       <span className="hidden" aria-hidden style={{ color: otherStyle.muted }} />

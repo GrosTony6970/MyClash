@@ -28,6 +28,42 @@ export interface WireEntry {
   sanctions: PenaltyCard[];
 }
 
+/** A card the tablet still holds, as its row of the timeline says it. */
+interface QueuedCardRow {
+  registration_id: string;
+  group_number?: number | null;
+  card: PenaltyCard;
+  source: 'ruleset' | 'direct';
+}
+
+/**
+ * The offences the server will count when this fighter's next card arrives:
+ * the ones it told the pad, plus the cards this tablet still holds for them.
+ *
+ * Without the held ones, a second offence given with no network read as a
+ * first: the button said yellow, the pad gave it in one tap, and the server
+ * issued red when the queue went out.
+ *
+ * Offences that were never read stay "not read" while nothing is held, so
+ * `resolveEntryCard` keeps its first-occurrence answer for that case.
+ */
+export function priorsWithQueued(
+  priors: ExistingPenaltyForSanction[] | undefined,
+  queued: readonly QueuedCardRow[],
+  registrationId: string,
+): ExistingPenaltyForSanction[] | undefined {
+  const held = queued
+    .filter((row) => row.registration_id === registrationId)
+    .map((row) => ({
+      registrationId,
+      card: row.card,
+      source: row.source,
+      ...(row.group_number == null ? {} : { groupNumber: row.group_number }),
+    }));
+  if (!priors && held.length === 0) return undefined;
+  return [...(priors ?? []), ...held];
+}
+
 export function resolveEntryCard(
   entry: WireEntry,
   registrationId: string,

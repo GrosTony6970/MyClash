@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExistingPenaltyForSanction } from '@myclash/types';
-import { resolveEntryCard, type WireEntry } from './resolve-entry-card';
+import { priorsWithQueued, resolveEntryCard, type WireEntry } from './resolve-entry-card';
 
 /** Group 3, escalating yellow → red → red → black. */
 const ENTRY: WireEntry = {
@@ -72,5 +72,52 @@ describe('resolveEntryCard', () => {
     // Undefined is "not read yet", which is different from "read, and empty".
     // Degrading to the old behaviour beats showing a blank or a wrong claim.
     expect(resolveEntryCard(ENTRY, 'reg-red', undefined)).toBe('yellow');
+  });
+});
+
+describe('priorsWithQueued', () => {
+  const queued = (over: Partial<Parameters<typeof priorsWithQueued>[1][number]> = {}) => ({
+    registration_id: 'reg-red',
+    group_number: 3,
+    card: 'yellow' as const,
+    source: 'ruleset' as const,
+    ...over,
+  });
+
+  it('counts a card the tablet still holds: the next one in its group escalates', () => {
+    const priors = priorsWithQueued([], [queued()], 'reg-red');
+
+    expect(resolveEntryCard(ENTRY, 'reg-red', priors)).toBe('red');
+  });
+
+  it('adds the held cards to the offences the server told', () => {
+    const priors = priorsWithQueued([prior({}), prior({})], [queued()], 'reg-red');
+
+    expect(resolveEntryCard(ENTRY, 'reg-red', priors)).toBe('black');
+  });
+
+  it("leaves the other fighter's held card out", () => {
+    const priors = priorsWithQueued([], [queued({ registration_id: 'reg-blue' })], 'reg-red');
+
+    expect(resolveEntryCard(ENTRY, 'reg-red', priors)).toBe('yellow');
+  });
+
+  it('counts a held card when the offences were never read', () => {
+    const priors = priorsWithQueued(undefined, [queued()], 'reg-red');
+
+    expect(resolveEntryCard(ENTRY, 'reg-red', priors)).toBe('red');
+  });
+
+  it('stays "not read" when the offences were never read and nothing is held', () => {
+    expect(priorsWithQueued(undefined, [], 'reg-red')).toBeUndefined();
+    expect(priorsWithQueued(undefined, [queued({ registration_id: 'reg-blue' })], 'reg-red')).toBe(
+      undefined,
+    );
+  });
+
+  it('counts no card the pad could not place in a group', () => {
+    const priors = priorsWithQueued([], [queued({ group_number: null })], 'reg-red');
+
+    expect(resolveEntryCard(ENTRY, 'reg-red', priors)).toBe('yellow');
   });
 });
