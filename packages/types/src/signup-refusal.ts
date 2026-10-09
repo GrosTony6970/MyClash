@@ -42,6 +42,12 @@ export const LINK_UNCHECKED_CODE = 'link_unchecked';
 export const CLUB_NOT_MADE_CODE = 'club_not_made';
 
 /**
+ * The sign-up made no club: its account owns one already (operator ruling 369).
+ * The account is signed in and sent into that club, whose page reads this.
+ */
+export const ALREADY_OWNS_CLUB_CODE = 'already_owns_club';
+
+/**
  * The sentence key of a mailed link that signed nobody in, for the reason its
  * door wrote in the page's address, or null. One owner for the organizer app
  * and the participant app: both sign-in pages read the same two reasons.

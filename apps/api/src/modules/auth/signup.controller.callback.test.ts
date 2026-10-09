@@ -53,7 +53,7 @@ beforeEach(() => {
   auth.signInFromSignupLink.mockResolvedValue(ANNA);
   // What `/me` would say of the cookie the browser SENT: the trap of the old door.
   auth.getMe.mockResolvedValue({ type: 'claimed', user: BOB });
-  onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe');
+  onboarding.completeSignupAfterMagicLink.mockResolvedValue({ slug: 'lyon-amhe', made: true });
   legal.recordForUser.mockResolvedValue(undefined);
 });
 
@@ -73,12 +73,29 @@ describe('the sign-up link makes the club for the account the link proved (rulin
   // Ruling 304. Bob took `lyon-amhe` between her request and her click, so her club was made
   // under another address. The door sent her to `/org/lyon-amhe`: Bob's club.
   it('sends her to the club that was made, not to the address she asked for', async () => {
-    onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe-k3x');
+    onboarding.completeSignupAfterMagicLink.mockResolvedValue({
+      slug: 'lyon-amhe-k3x',
+      made: true,
+    });
     const reply = makeReply();
 
     await land(reply);
 
     expect(reply.redirect.mock.calls).toEqual([['/org/lyon-amhe-k3x']]);
+  });
+
+  // Ruling 369. Paul owns `lyon-escrime` and clicks a second sign-up mail. No second club
+  // is made: he is signed in and sent into the club he owns, whose page says so.
+  it('sends an account that owns a club into that club, with the reason', async () => {
+    onboarding.completeSignupAfterMagicLink.mockResolvedValue({
+      slug: 'lyon-escrime',
+      made: false,
+    });
+    const reply = makeReply();
+
+    await land(reply);
+
+    expect(reply.redirect.mock.calls).toEqual([['/org/lyon-escrime?refused=already_owns_club']]);
   });
 
   it('makes it for her, not for the account the browser was signed in as', async () => {

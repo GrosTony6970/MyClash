@@ -87,6 +87,8 @@ export const auth = {
     // password choice refuses an address that holds an account.
     orgNotMade:
       'We could not create your organization. Fill in the form again and choose "Continue with a magic link": we will mail you a new link.',
+    // A sign-up by an account that owns an organization makes no second one (ruling 369).
+    alreadyOwnsOrg: 'You already have an organization. We opened it.',
     title: 'Create your organizer account',
     step1Label: 'Step 1 of 2 — Your account',
     step2Label: 'Step 2 of 2 — Your organization',

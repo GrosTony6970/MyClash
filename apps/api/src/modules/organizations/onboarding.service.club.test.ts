@@ -20,6 +20,8 @@ import { OnboardingService } from './onboarding.service';
 const FAULT = { data: null, error: { message: 'connection refused' } };
 const FREE_SLUG = { data: null, error: null };
 const CLUB_MADE = { data: { id: 'org-1' }, error: null };
+// What the read of the clubs she owns answers a new account (ruling 369).
+const OWNS_NONE = { data: null, error: null };
 
 const config = {
   get: vi.fn((key: string, def?: string) => (key === 'DOMAIN' ? 'myclash.localhost' : (def ?? ''))),
@@ -83,7 +85,7 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
   it('fails the sign-up when its owner cannot be written', async () => {
     const { service, db } = build({
       organizations: [FREE_SLUG, CLUB_MADE],
-      organization_members: FAULT,
+      organization_members: [OWNS_NONE, FAULT],
     });
 
     await expect(
@@ -104,7 +106,7 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
 
     await expect(
       service.completeSignupAfterMagicLink('user-1', 'Lyon AMHE', 'lyon-amhe'),
-    ).resolves.toBe('lyon-amhe');
+    ).resolves.toEqual({ slug: 'lyon-amhe', made: true });
   });
 
   // Ruling 304: somebody took her address between her request and her click.
@@ -116,9 +118,9 @@ describe('the club of a sign-up by link or by Google (ruling 299)', () => {
 
     const made = await service.completeSignupAfterMagicLink('user-1', 'Lyon AMHE', 'lyon-amhe');
 
-    expect(made).toMatch(/^lyon-amhe-[a-z0-9]+$/u);
+    expect(made).toEqual({ slug: expect.stringMatching(/^lyon-amhe-[a-z0-9]+$/u), made: true });
     expect(writesTo(db, 'organizations').map((write) => write.row)).toEqual([
-      expect.objectContaining({ slug: made, created_by_user_id: 'user-1' }),
+      expect.objectContaining({ slug: made.slug, created_by_user_id: 'user-1' }),
     ]);
   });
 });

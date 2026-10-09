@@ -51,7 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   onboarding.assertSignupsOpen.mockResolvedValue(undefined);
   onboarding.signup.mockResolvedValue({ type: 'magic_link' });
-  onboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe');
+  onboarding.completeSignupAfterMagicLink.mockResolvedValue({ slug: 'lyon-amhe', made: true });
   auth.signInFromSignupLink.mockResolvedValue(ANN);
   auth.isAdminLockdownEnabled.mockResolvedValue(false);
 });

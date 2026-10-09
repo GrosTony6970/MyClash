@@ -25,6 +25,7 @@ import {
 import { captureApiException } from '../../common/observability/sentry';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
+import { clubPage, type SignupClub } from '../organizations/signup-club';
 import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
 import { Public } from '../../common/auth/public.decorator';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
@@ -137,7 +138,8 @@ export class SignupController {
 
     // The club that was MADE (operator ruling 304): its address is another one
     // than `orgSlug` when somebody took hers between her request and her click.
-    void reply.redirect(`/org/${made}`);
+    // Or the club her account owned already (ruling 369): its page says so.
+    void reply.redirect(clubPage(made));
   }
 
   /** The sign-up page, which says the reason in her language. */
@@ -146,13 +148,17 @@ export class SignupController {
   }
 
   /**
-   * The address of the club made for the account, or null when it cannot be
-   * written (operator ruling 363). The link is spent and she is signed in: the
+   * The club of the account, made here or owned before, or null when it cannot
+   * be written (operator ruling 363). The link is spent and she is signed in: the
    * door has no 5xx to report, so the fault is logged and reported here. The
    * account stands, and a second sign-up by email link mails a link that makes
    * the club. The password choice refuses her address: it holds an account now.
    */
-  private async clubOf(userId: string, orgName: string, orgSlug: string): Promise<string | null> {
+  private async clubOf(
+    userId: string,
+    orgName: string,
+    orgSlug: string,
+  ): Promise<SignupClub | null> {
     try {
       return await this.onboarding.completeSignupAfterMagicLink(userId, orgName, orgSlug);
     } catch (fault) {

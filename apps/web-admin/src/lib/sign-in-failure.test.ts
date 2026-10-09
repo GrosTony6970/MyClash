@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ApiFailure } from '@myclash/api-client';
+import { createTranslator, getMessages } from '@myclash/i18n';
 import { describe, expect, it } from 'vitest';
 import {
   oauthFailureKey,
+  ownedClubNoticeKey,
   passwordLoginMessage,
   signupFailureMessage,
   signupRefusedKey,
@@ -232,9 +234,12 @@ describe('the sign-up page after a refused mail link', () => {
     expect(signupRefusedKey('club_not_made')).toBe('auth.signup.orgNotMade');
   });
 
-  it.each([undefined, '', 'something-else'])('says nothing for %o', (value) => {
-    expect(signupRefusedKey(value)).toBeNull();
-  });
+  it.each([undefined, '', 'something-else', 'already_owns_club'])(
+    'says nothing for %o',
+    (value) => {
+      expect(signupRefusedKey(value)).toBeNull();
+    },
+  );
 
   it('is read by the sign-in page too, for a mailed sign-in link', () => {
     const page = readFileSync(join(__dirname, '../../app/login/page.tsx'), 'utf8');
@@ -251,5 +256,40 @@ describe('the sign-up page after a refused mail link', () => {
     );
     const form = readFileSync(join(__dirname, '../../app/login/AuthPage.tsx'), 'utf8');
     expect(form).toContain('useState<string | null>(refused ? t(refused) : null)');
+  });
+});
+
+/**
+ * No second club at the sign-up (operator ruling 369).
+ *
+ * Paul owns a club and signs up again with the same address. The door makes no second club:
+ * it signs him in and sends him into the club he owns. That page says why he is there.
+ */
+describe('the club page after a sign-up that made no second club (ruling 369)', () => {
+  it('says he has one already, for the reason the door writes', () => {
+    expect(ownedClubNoticeKey('?refused=already_owns_club')).toBe('auth.signup.alreadyOwnsOrg');
+  });
+
+  it.each(['en', 'fr'] as const)('has its sentence in %s', (locale) => {
+    const key = ownedClubNoticeKey('?refused=already_owns_club')!;
+    expect(createTranslator(getMessages(locale))(key)).not.toBe(`[${key}]`);
+  });
+
+  it.each([
+    '',
+    '?refused=',
+    '?refused=club_not_made',
+    '?refused=link_expired',
+    '?other=already_owns_club',
+  ])('says nothing for %j', (search) => {
+    expect(ownedClubNoticeKey(search)).toBeNull();
+  });
+
+  it('is read by the club page from its address', () => {
+    const read = (path: string) => readFileSync(join(__dirname, '../..', path), 'utf8');
+    const notice = read('app/org/[slug]/_components/OwnedClubNotice.tsx');
+    expect(notice).toContain('const key = ownedClubNoticeKey(search);');
+    expect(notice).toContain('{t(key)}');
+    expect(read('app/org/[slug]/page.tsx')).toContain('<OwnedClubNotice />');
   });
 });

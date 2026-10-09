@@ -10,6 +10,7 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 import { LogoCropperModal } from './_components/LogoCropperModal';
+import { OwnedClubNotice } from './_components/OwnedClubNotice';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface DashboardStats {
@@ -236,6 +237,8 @@ export default function OrgDashboardPage() {
           </Link>
         }
       />
+
+      <OwnedClubNotice />
 
       {error && (
         <div className="mb-6 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">

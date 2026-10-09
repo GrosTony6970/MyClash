@@ -14,6 +14,7 @@ import {
 } from '../privacy/legal-acceptance.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RESERVED_SLUGS, type SignupDto } from './dto/signup.dto';
+import { ownedClubSlug, type SignupClub } from './signup-club';
 
 export type SignupResult =
   | {
@@ -273,12 +274,21 @@ export class OnboardingService {
    * Hands back the address of the club it made (operator ruling 304): another
    * one than she asked for when somebody took hers in between. Both doors send
    * her there, never to the address she asked for.
+   *
+   * An account that owns a club gets no second one (operator ruling 369): a
+   * second sign-up with the same address made one, active at once. It hands
+   * back the club the account owns, and both doors send it there.
    */
   async completeSignupAfterMagicLink(
     userId: string,
     orgName: string,
     orgSlug: string,
-  ): Promise<string> {
+  ): Promise<SignupClub> {
+    const owned = await ownedClubSlug(this.supabase, userId);
+    if (owned) {
+      this.logger.log(`Account ${userId} owns ${owned}: the sign-up made no second club`);
+      return { slug: owned, made: false };
+    }
     // Re-check slug (race condition guard)
     const slugCheck = await this.checkSlugAvailability(orgSlug);
     if (!slugCheck.available) {
@@ -286,10 +296,10 @@ export class OnboardingService {
       const fallbackSlug = `${orgSlug}-${Date.now().toString(36)}`;
       this.logger.warn(`Slug ${orgSlug} taken at callback time, using ${fallbackSlug}`);
       await this.createOrgAndMembership(userId, orgName, fallbackSlug);
-      return fallbackSlug;
+      return { slug: fallbackSlug, made: true };
     }
     await this.createOrgAndMembership(userId, orgName, orgSlug);
-    return orgSlug;
+    return { slug: orgSlug, made: true };
   }
 
   // ── Shared org creation ──────────────────────────────────────────────────

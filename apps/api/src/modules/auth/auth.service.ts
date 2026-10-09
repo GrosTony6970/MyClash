@@ -68,6 +68,7 @@ import {
 } from './auth-server-calls';
 import { linkTypeOf, type LinkType } from './link-type';
 import { refusedLinkOrThrow } from './refused-link';
+import { clubPage, type SignupClub } from '../organizations/signup-club';
 import { claimPageOf, claimPagePath } from './claim-page';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
@@ -307,7 +308,7 @@ export class AuthService {
 
     if (dto.mode === 'organizer_signup') {
       const made = await this.signUpWithGoogle(user.id, dto, context);
-      destination = destination === '/' ? `/org/${made}` : destination;
+      destination = destination === '/' ? clubPage(made) : destination;
     }
 
     if (dto.mode === 'person_claim') {
@@ -340,7 +341,7 @@ export class AuthService {
     userId: string,
     dto: OAuthSessionDto,
     context: AcceptanceContext,
-  ): Promise<string> {
+  ): Promise<SignupClub> {
     if (!dto.orgName?.trim() || !dto.orgSlug?.trim()) {
       throw new BadRequestException('Organization name and slug are required');
     }

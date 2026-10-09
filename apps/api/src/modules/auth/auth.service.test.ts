@@ -1159,7 +1159,10 @@ describe('AuthService', () => {
     it('creates organizer signup membership after Google session validation', async () => {
       mockAuthUser({ id: 'user-123', email: 'new@example.com' });
       seedLogin();
-      mockOnboarding.completeSignupAfterMagicLink.mockResolvedValue('lyon-amhe-k3x');
+      mockOnboarding.completeSignupAfterMagicLink.mockResolvedValue({
+        slug: 'lyon-amhe-k3x',
+        made: true,
+      });
       const reply = makeReply();
 
       await service.acceptOAuthSession(
@@ -1180,6 +1183,33 @@ describe('AuthService', () => {
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe-k3x' });
       expect(getUserMock).not.toHaveBeenCalled();
+    });
+
+    // Ruling 369: Paul owns a club and signs up again by Google. No second club
+    // is made: he goes into the one he owns, whose page says so.
+    it('sends a Google sign-up of an account that owns a club into that club', async () => {
+      mockAuthUser({ id: 'user-123', email: 'paul@example.com' });
+      seedLogin();
+      mockOnboarding.completeSignupAfterMagicLink.mockResolvedValue({
+        slug: 'lyon-escrime',
+        made: false,
+      });
+      const reply = makeReply();
+
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'organizer_signup',
+          orgName: 'Lyon Sabre',
+          orgSlug: 'lyon-sabre',
+        },
+        reply as never,
+      );
+
+      expect(reply.send).toHaveBeenCalledWith({
+        next: '/org/lyon-escrime?refused=already_owns_club',
+      });
     });
 
     // Ruling 305: "sign-ups off" is off at the Google sign-up too. It made an

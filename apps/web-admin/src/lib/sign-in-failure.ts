@@ -1,9 +1,11 @@
 import { failureCode, failureMessage, type ApiFailure } from '@myclash/api-client';
 import {
   ADMIN_LOCKDOWN_CODE,
+  ALREADY_OWNS_CLUB_CODE,
   CLUB_NOT_MADE_CODE,
   READ_ONLY_MODE_CODE,
   refusedLinkKey,
+  SIGNUP_REFUSED_PARAM,
   SIGNUPS_DISABLED_CODE,
 } from '@myclash/types';
 
@@ -85,4 +87,14 @@ export function signupRefusedKey(value: string | string[] | undefined): string |
   if (value === READ_ONLY_MODE_CODE) return READ_ONLY_KEY;
   if (value === CLUB_NOT_MADE_CODE) return 'auth.signup.orgNotMade';
   return value === SIGNUPS_DISABLED_CODE ? SIGNUPS_OFF_KEY : refusedLinkKey(value);
+}
+
+/**
+ * The sentence key of the club page for an account a sign-up sent there without
+ * making a club: it owns this one already (operator ruling 369). Null for any
+ * other address: the page says nothing of a reason it was not sent.
+ */
+export function ownedClubNoticeKey(search: string): string | null {
+  const reason = new URLSearchParams(search).get(SIGNUP_REFUSED_PARAM);
+  return reason === ALREADY_OWNS_CLUB_CODE ? 'auth.signup.alreadyOwnsOrg' : null;
 }
