@@ -220,6 +220,8 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     await redColumn
       .locator(`[data-testid="penalty-entry-button"][data-entry-id="${redFirst.id}"]`)
       .click();
+    // A red card of the list asks first (quick win P10).
+    await page.getByTestId('ask-first-confirm').click();
 
     // −1 for the card, on top of the +2 already queued. The card is in the
     // number, so it is reported as included and NOT as "not counted yet".

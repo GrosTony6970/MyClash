@@ -290,6 +290,8 @@ test.describe('scoring pad UI', () => {
     await column('blue')
       .locator(`[data-testid="penalty-entry-button"][data-entry-id="${entry.id}"]`)
       .click();
+    // A red or black card of the list asks first (quick win P10); yellow is one tap.
+    if (entry.sanctions[0] !== 'yellow') await page.getByTestId('ask-first-confirm').click();
 
     await expect.poll(async () => (await readPenalties()).length, { timeout: 20_000 }).toBe(1);
     const penalty = (await readPenalties())[0]!;
