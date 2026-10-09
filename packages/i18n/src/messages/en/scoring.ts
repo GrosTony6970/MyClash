@@ -348,6 +348,9 @@ export const scoring = {
     subtractTime: 'Subtract time',
     selectExchange: 'Select an exchange',
     editAsNoExchange: 'Edit as no exchange',
+    rewriteConfirmTitle: 'Replace this entry with "no exchange"?',
+    rewriteConfirmBody:
+      'The entry {entry} is voided, and a "no exchange" takes its place. Its points no longer count.',
     reason: 'Correction reason',
     resetConfirmation: 'Type RESET MATCH to reset',
     dependentsBlockedOne:

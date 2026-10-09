@@ -26,6 +26,7 @@ import { buildUnifiedTimeline, exchangeOptionLabel } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { BoutNames } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
+import { AskFirstDialog } from './AskFirstDialog';
 import { DirectCardPanel, NO_DIRECT_CARD_DRAFT } from './DirectCardPanel';
 import { ForfeitPanel } from './ForfeitPanel';
 import { apiRequest } from '@myclash/api-client';
@@ -144,6 +145,11 @@ export function MatchCorrectionsDrawer({
     selectedExchangeId && exchangeOptions.some((ev) => ev.rawId === selectedExchangeId)
       ? selectedExchangeId
       : (exchangeOptions[0]?.rawId ?? '');
+  // "Edit as no exchange" was tapped. The entry is kept from the tap: the list
+  // is read again after every send, and the yes must void the entry the
+  // question named, not the one that is newest by then.
+  const [askedRewriteId, setAskedRewriteId] = useState<string | null>(null);
+  const rewritten = exchangeOptions.find((ev) => ev.rawId === askedRewriteId);
 
   // Escape closes
   useEffect(() => {
@@ -170,11 +176,10 @@ export function MatchCorrectionsDrawer({
     if (refusal) setError(refusal);
   }
 
-  async function editSelectedExchange() {
-    if (!effectiveExchangeId) return;
+  async function editAsNoExchange(exchangeId: string) {
     setBusy(true);
     setError(null);
-    const result = await apiRequest(apiUrl, `/api/v1/exchanges/${effectiveExchangeId}/edit`, {
+    const result = await apiRequest(apiUrl, `/api/v1/exchanges/${exchangeId}/edit`, {
       method: 'PATCH',
       body: {
         reason: reason || t('scoring.corrections.defaultReason'),
@@ -323,6 +328,7 @@ export function MatchCorrectionsDrawer({
               <select
                 value={effectiveExchangeId}
                 onChange={(e) => setSelectedExchangeId(e.target.value)}
+                aria-label={t('scoring.corrections.selectExchange')}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               >
                 <option value="">{t('scoring.corrections.selectExchange')}</option>
@@ -335,12 +341,26 @@ export function MatchCorrectionsDrawer({
               <button
                 type="button"
                 disabled={disabled || !effectiveExchangeId}
-                onClick={() => void editSelectedExchange()}
-                className="rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
+                onClick={() => setAskedRewriteId(effectiveExchangeId)}
+                className="min-h-[44px] rounded-lg border border-border px-3 py-2 text-sm font-bold hover:bg-background disabled:opacity-40"
               >
                 {t('scoring.corrections.editAsNoExchange')}
               </button>
             </div>
+            {/* One tap voided a scored hit: the pad names the entry and asks. */}
+            <AskFirstDialog
+              open={rewritten !== undefined}
+              onClose={() => setAskedRewriteId(null)}
+              onConfirm={() => {
+                setAskedRewriteId(null);
+                if (rewritten) void editAsNoExchange(rewritten.rawId);
+              }}
+              title={t('scoring.corrections.rewriteConfirmTitle')}
+              message={t('scoring.corrections.rewriteConfirmBody', {
+                entry: rewritten ? exchangeOptionLabel(rewritten) : '',
+              })}
+              confirmLabel={t('scoring.corrections.editAsNoExchange')}
+            />
           </div>
 
           {/* Correction reason */}

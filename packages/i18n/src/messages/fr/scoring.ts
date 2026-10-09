@@ -330,6 +330,9 @@ export const scoring = {
     subtractTime: 'Retirer du temps',
     selectExchange: 'Sélectionner un échange',
     editAsNoExchange: 'Corriger en aucun échange',
+    rewriteConfirmTitle: 'Remplacer cette saisie par « aucun échange » ?',
+    rewriteConfirmBody:
+      'La saisie {entry} est annulée, et un « aucun échange » prend sa place. Ses points ne comptent plus.',
     reason: 'Raison de correction',
     resetConfirmation: 'Taper RESET MATCH pour réinitialiser',
     dependentsBlockedOne:

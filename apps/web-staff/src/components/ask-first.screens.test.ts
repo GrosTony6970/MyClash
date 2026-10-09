@@ -3,7 +3,8 @@
  *
  * web-staff has no React test setup, so the screens are read as text. These
  * pins hold the WIRING only; a live page proves what a tap does
- * (`tests/a11y/pad-list-card-asks-first.spec.ts`).
+ * (`tests/a11y/pad-list-card-asks-first.spec.ts`,
+ * `tests/a11y/pad-rewrite-asks-first.spec.ts`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ const read = (name: string) => readFileSync(join(__dirname, name), 'utf8');
 const column = read('ScoringColumn.tsx');
 const directCard = read('DirectCardPanel.tsx');
 const question = read('AskFirstDialog.tsx');
+const drawer = read('MatchCorrectionsDrawer.tsx');
 
 describe('the question', () => {
   it('is the shared dialog, so Space leaves the clock alone, and Cancel leaves it', () => {
@@ -50,6 +52,27 @@ describe('a card of the penalty list', () => {
     expect(column).toMatch(
       /onClose=\{\(\) => setAskedCard\(null\)\}\s+onConfirm=\{\(\) => \{\s+const asked = askedCard;\s+setAskedCard\(null\);\s+if \(asked\) void submitPenalty\(listedCard\(asked\.entry\)\);/,
     );
+  });
+});
+
+describe('"Edit as no exchange"', () => {
+  it('opens the question on the entry picked at the tap, and is the only door to the rewrite', () => {
+    expect(drawer).toContain('onClick={() => setAskedRewriteId(effectiveExchangeId)}');
+    expect(drawer.match(/editAsNoExchange\(/g)).toHaveLength(2);
+  });
+
+  it('rewrites on a yes, and nothing on a Cancel', () => {
+    expect(drawer).toMatch(
+      /onClose=\{\(\) => setAskedRewriteId\(null\)\}\s+onConfirm=\{\(\) => \{\s+setAskedRewriteId\(null\);\s+if \(rewritten\) void editAsNoExchange\(rewritten\.rawId\);/,
+    );
+  });
+
+  it('names and voids the entry of the tap, whatever the list reads meanwhile', () => {
+    expect(drawer).toContain(
+      'const rewritten = exchangeOptions.find((ev) => ev.rawId === askedRewriteId);',
+    );
+    expect(drawer).toContain('open={rewritten !== undefined}');
+    expect(drawer).toContain("entry: rewritten ? exchangeOptionLabel(rewritten) : '',");
   });
 });
 
