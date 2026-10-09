@@ -25,11 +25,12 @@ import {
   type TimedItem,
 } from '@/components/me/conflicts';
 import type { PoolSpan } from '@/components/me/types';
-import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
+import { dayChipLabel, dayHeading, eventDay, eventDays, onEventDay } from './schedule-days';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -120,14 +121,6 @@ function formatTime(iso: string | null, t: TranslateFn, locale: AppLocale): stri
   });
 }
 
-function formatDay(iso: string, locale: AppLocale): string {
-  return new Date(iso).toLocaleDateString(localeToBcp47(locale), {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-}
-
 /** A duty or a workshop — the items that are not bouts. */
 type OtherItem = Exclude<ScheduleItem, { kind: 'match' }>;
 
@@ -195,7 +188,6 @@ export default function MySchedulePage() {
   const [loading, setLoading] = useState(true);
   const [dayFilter, setDayFilter] = useState<string>('all');
   const [focusMode, setFocusMode] = useState(true);
-  const [days, setDays] = useState<string[]>([]);
   // Guest sessions get a persistent banner: claim upgrade + end-session.
   const [isGuest, setIsGuest] = useState(false);
 
@@ -213,19 +205,6 @@ export default function MySchedulePage() {
         if (res.ok) {
           const data = (await res.json()) as PersonSchedule;
           setSchedule(data);
-
-          // Collect unique days
-          const allTimes = [
-            ...data.matches.map((m) => m.scheduledAt),
-            ...data.refereeSlots.map((r) => r.scheduledAt ?? r.startsAt),
-            ...(data.workshops ?? []).map((w) => w.sessionStart),
-          ]
-            .filter(Boolean)
-            // The event's day, not the UTC day. These two must agree with the
-            // grouping key below or the filter selects a heading that holds
-            // nothing — see the `byDay` comment.
-            .map((t) => zonedDay(t!, data.timezone ?? DEFAULT_EVENT_TIMEZONE) ?? t!.slice(0, 10));
-          setDays([...new Set(allTimes)].sort());
         }
       })
       .catch((err: unknown) => {
@@ -278,9 +257,10 @@ export default function MySchedulePage() {
     })),
   ];
 
-  // Day filter
-  const filtered =
-    dayFilter === 'all' ? allItems : allItems.filter((i) => i.time?.startsWith(dayFilter));
+  // The chips, the filter and the headings below read a day one way: `schedule-days.ts`.
+  const tz = schedule.timezone ?? DEFAULT_EVENT_TIMEZONE;
+  const days = eventDays(allItems, tz);
+  const filtered = onEventDay(allItems, dayFilter, tz);
 
   // Sort by time
   const sorted = [...filtered].sort((a, b) => getTime(a) - getTime(b));
@@ -296,15 +276,10 @@ export default function MySchedulePage() {
     matchKey,
   );
 
-  // Group by day, on the EVENT's clock. This and the day filter above are one
-  // decision made twice, so they have to use the same rule: a UTC key here and
-  // a zoned key there would offer a heading that matches nothing.
+  // Group by day, on the EVENT's clock.
   const byDay = new Map<string, ScheduleItem[]>();
   for (const item of sorted) {
-    const day = item.time
-      ? (zonedDay(item.time, schedule?.timezone ?? DEFAULT_EVENT_TIMEZONE) ??
-        item.time.slice(0, 10))
-      : 'unscheduled';
+    const day = item.time ? eventDay(item.time, tz) : 'unscheduled';
     const arr = byDay.get(day) ?? [];
     arr.push(item);
     byDay.set(day, arr);
@@ -409,10 +384,7 @@ export default function MySchedulePage() {
               ].join(' ')}
               style={dayFilter === day ? { backgroundColor: 'var(--color-accent)' } : {}}
             >
-              {new Date(day).toLocaleDateString(localeToBcp47(locale), {
-                weekday: 'short',
-                day: 'numeric',
-              })}
+              {dayChipLabel(day, locale)}
             </button>
           ))}
         </div>
@@ -435,7 +407,7 @@ export default function MySchedulePage() {
         <section key={day} className="mb-6">
           {day !== 'unscheduled' && (
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted mb-3">
-              {formatDay(day, locale)}
+              {dayHeading(day, locale)}
             </h2>
           )}
           <div className="flex flex-col gap-2">

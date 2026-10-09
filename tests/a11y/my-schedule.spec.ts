@@ -133,6 +133,40 @@ test("my-schedule page - a workshop inside the fighter's Pool conflicts with it,
   await expectNoPageIssues(issues);
 });
 
+/**
+ * A Paris Event whose last bout of Saturday starts at 00:30 on Sunday, which is
+ * 23:30 UTC on Saturday. The page offered a Sunday chip and then filtered on the
+ * UTC day, so the chip hid the one bout it was made for (quick win F2).
+ */
+const PAST_MIDNIGHT = {
+  ...SCHEDULE,
+  timezone: 'Europe/Paris',
+  matches: [
+    bout('Match 1', '2027-03-13T11:00:00.000Z', 'Ada Lovelace'),
+    bout('Match 9', '2027-03-13T23:30:00.000Z', 'Mary Somerville'),
+  ],
+  poolSpans: [],
+  refereeSlots: [],
+  workshops: [],
+};
+
+test('my-schedule page - a bout after midnight shows under the chip of its own day', async ({
+  page,
+}) => {
+  await openMySchedule(page, PAST_MIDNIGHT);
+  const main = page.locator('main');
+
+  await page.getByRole('button', { name: 'Sun 14' }).click();
+  await expect(main.getByText('Mary Somerville')).toBeVisible();
+  await expect(main.getByRole('heading', { name: 'Sunday 14 March' })).toBeVisible();
+  await expect(main.getByText('Ada Lovelace')).toHaveCount(0);
+  await expect(main.getByText('Nothing scheduled on this day.')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Sat 13' }).click();
+  await expect(main.getByText('Ada Lovelace')).toBeVisible();
+  await expect(main.getByText('Mary Somerville')).toHaveCount(0);
+});
+
 test('my-schedule page - with no lengths, a bout ends at its next bout, and the page says what it cannot check', async ({
   page,
 }) => {
