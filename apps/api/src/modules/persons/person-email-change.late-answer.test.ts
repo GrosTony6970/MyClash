@@ -19,6 +19,12 @@ vi.mock('../../common/observability/sentry', () => ({ captureApiException: vi.fn
  */
 const DOOR = { door: 'persons/me/email-change/confirm' };
 const HELD_ADDRESS = { status: 500, message: 'Error updating user' };
+// The rosters are read before the account changes (ruling 374): that read answers, the
+// write after it fails.
+const rowsKept = (message: string) => [
+  { data: [], error: null },
+  { data: null, error: { message } },
+];
 const accounts = (...users: Array<{ id: string; email: string }>) => ({
   ok: true,
   status: 200,
@@ -30,6 +36,58 @@ const writtenTables = (db: { writes: Array<{ table: string }> }) =>
 afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(captureApiException).mockClear();
+});
+
+describe('an address a roster of his already has (ruling 374)', () => {
+  // Asked at the form, and again at the click: an organiser added the other row in between.
+  // His account kept changing, and his rows could not follow it.
+  const rosters = {
+    ...requests({}),
+    persons: {
+      rows: [
+        {
+          id: 'row-marc',
+          event_id: 'event-1',
+          claimed_by_user_id: 'user-marc',
+          email: 'marc@old.fr',
+        },
+        { id: 'row-zoe', event_id: 'event-1', claimed_by_user_id: null, email: 'Marc@New.fr' },
+      ],
+    },
+  };
+
+  it('answers "taken" before the auth server is asked, and writes nothing', async () => {
+    const { service, db, updateUserById } = build(rosters);
+
+    await expect(service.confirmEmailChange('marc-token')).resolves.toBe('taken');
+
+    expect(updateUserById).not.toHaveBeenCalled();
+    expect(db.writes).toEqual([]);
+  });
+
+  it('changes the address when only his own row has it', async () => {
+    const { service, updateUserById } = build({
+      ...rosters,
+      persons: { rows: [{ ...rosters.persons.rows[0], email: 'marc@new.fr' }] },
+    });
+
+    await expect(service.confirmEmailChange('marc-token')).resolves.toBe('changed');
+
+    expect(updateUserById).toHaveBeenCalledOnce();
+  });
+
+  // Nothing is written yet: "open it again" is true.
+  it('answers "unchecked" and reports when the rosters cannot be read', async () => {
+    const { service, updateUserById } = build({
+      ...rosters,
+      persons: { data: null, error: { message: 'statement timeout' } },
+    });
+
+    await expect(service.confirmEmailChange('marc-token')).resolves.toBe('unchecked');
+
+    expect(updateUserById).not.toHaveBeenCalled();
+    expect(vi.mocked(captureApiException).mock.calls).toEqual([[expect.any(Error), DOOR]]);
+  });
 });
 
 describe('an address another account holds (ruling 373)', () => {
@@ -132,7 +190,7 @@ describe('an answer that comes after the limit (ruling 372)', () => {
   it('reports a fault of the work nobody waits for', async () => {
     const { db, late, failed } = await clickAndRunOut({
       ...requests({}),
-      persons: { data: null, error: { message: 'duplicate key value' } },
+      persons: rowsKept('duplicate key value'),
     });
 
     late.answer({ data: { user: {} }, error: null });
@@ -186,7 +244,7 @@ describe('the work after the address changed', () => {
   // The account has the new address by then. A second click asks for the same address,
   // which the auth server takes (read on GoTrue v2.195.0), and does the work again.
   it.each([
-    ['the roster rows did not move', { persons: { data: null, error: { message: 'no rows' } } }],
+    ['the roster rows did not move', { persons: rowsKept('no rows') }],
     [
       'the request was not closed',
       {
@@ -209,7 +267,7 @@ describe('the work after the address changed', () => {
   it('leaves the request open when the roster rows did not move', async () => {
     const { service, db } = build({
       ...requests({}),
-      persons: { data: null, error: { message: 'no rows' } },
+      persons: rowsKept('no rows'),
     });
 
     await service.confirmEmailChange('marc-token');

@@ -26,6 +26,19 @@ describe('the words of a mailed link, on the participant sign-in page', () => {
     });
   });
 
+  it('says a roster of his already has the address, as an error (ruling 374)', () => {
+    expect(linkWordKeys({ emailChange: 'taken_on_roster' })).toEqual({
+      error: 'publicApp.emailChange.takenOnRoster',
+      message: null,
+    });
+    expect(en.publicApp.emailChange.takenOnRoster).toBe(
+      'We could not change your email address. Another person at one of your events already uses it. Ask the organiser.',
+    );
+    expect(fr.publicApp.emailChange.takenOnRoster).toBe(
+      "Nous n'avons pas pu modifier votre adresse email. Une autre personne inscrite à l'un de vos événements l'utilise déjà. Contactez l'organisateur.",
+    );
+  });
+
   it.each([
     ['link_expired', 'auth.login.errors.linkExpired'],
     ['link_unchecked', 'auth.login.errors.linkUnchecked'],

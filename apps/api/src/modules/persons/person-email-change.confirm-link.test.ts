@@ -163,6 +163,7 @@ describe('the page an email-change link sends its reader to (ruling 371)', () =>
   it.each([
     ['changed', 'https://app.myclash.localhost/login?emailChange=changed'],
     ['refused', 'https://app.myclash.localhost/login?emailChange=not_changed'],
+    ['taken', 'https://app.myclash.localhost/login?emailChange=taken_on_roster'],
     ['dead', 'https://app.myclash.localhost/login?refused=link_expired'],
     ['unchecked', 'https://app.myclash.localhost/login?refused=link_unchecked'],
   ] as const)('is the participant sign-in page, for "%s"', (outcome, page) => {

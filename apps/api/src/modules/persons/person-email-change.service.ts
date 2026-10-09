@@ -166,6 +166,11 @@ export class PersonEmailChangeService {
     if (typeof request === 'string') return request;
 
     try {
+      // Asked at the form too, an hour ago at most: asked again before the account
+      // changes, because its rows could not follow it (operator ruling 374).
+      if (await addressTakenOnHerRosters(this.supabase, request.user_id, request.new_email)) {
+        return 'taken';
+      }
       const changed = await changeAddress(this.supabase, request.user_id, request.new_email);
       if (!changed) return 'refused';
       await this.finishChange(request);

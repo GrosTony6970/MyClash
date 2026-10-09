@@ -19,3 +19,9 @@ export const EMAIL_CHANGED_CODE = 'changed';
  * or the account is gone. A second click on the same link fails the same way.
  */
 export const EMAIL_NOT_CHANGED_CODE = 'not_changed';
+
+/**
+ * Another person on a roster the account is on has the new address (operator
+ * ruling 374): a roster holds an address once, so nothing was changed.
+ */
+export const EMAIL_TAKEN_ON_ROSTER_CODE = 'taken_on_roster';

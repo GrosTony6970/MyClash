@@ -259,6 +259,8 @@ describe('PersonEmailChangeService', () => {
 
     fromMock
       .mockReturnValueOnce(makeSelectChain({ data: request, error: null }))
+      // He is on no roster: no other row can have the address (ruling 374).
+      .mockReturnValueOnce(makeSelectChain({ data: [], error: null }))
       .mockReturnValueOnce(personsUpdateChain)
       .mockReturnValueOnce(confirmChain)
       .mockReturnValueOnce(auditInsertChain);
@@ -301,7 +303,9 @@ describe('PersonEmailChangeService', () => {
       }),
     );
 
+    fromMock.mockReturnValueOnce(makeSelectChain({ data: [], error: null }));
+
     await expect(service.confirmEmailChange('valid-token')).resolves.toBe('unchecked');
-    expect(fromMock).toHaveBeenCalledTimes(1);
+    expect(fromMock).toHaveBeenCalledTimes(2);
   });
 });

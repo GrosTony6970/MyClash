@@ -887,6 +887,8 @@ export const publicApp = {
     confirmed: 'Votre adresse email est modifiée. Connectez-vous avec la nouvelle.',
     notConfirmed:
       "Nous n'avons pas pu modifier votre adresse email. La nouvelle adresse a peut-être déjà un compte.",
+    takenOnRoster:
+      "Nous n'avons pas pu modifier votre adresse email. Une autre personne inscrite à l'un de vos événements l'utilise déjà. Contactez l'organisateur.",
   },
   people: {
     title: 'Participants',

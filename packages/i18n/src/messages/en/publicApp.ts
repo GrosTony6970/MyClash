@@ -884,6 +884,8 @@ export const publicApp = {
     confirmed: 'Your email address is changed. Sign in with the new one.',
     notConfirmed:
       'We could not change your email address. The new address may already have an account.',
+    takenOnRoster:
+      'We could not change your email address. Another person at one of your events already uses it. Ask the organiser.',
   },
   people: {
     title: 'Participants',
