@@ -8,6 +8,7 @@ import type {
   LiveBoardProgress,
   MatchChange,
 } from './types';
+import { apiRequest, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const API = getPublicApiUrl();
@@ -18,8 +19,9 @@ const API = getPublicApiUrl();
  *     and a score fallback when the socket is down) — the source of truth;
  *   • `applyMatchChange`, fed by the per-lice anon realtime subscriber, patches
  *     a single score cell instantly between polls.
- * `acknowledge` is the only write: optimistic-clear the flag, reconcile on
- * failure. Errors keep the last-known rows on screen — the board never blanks.
+ * `acknowledge` and `setLiceScorer` are the writes: optimistic, reconciled on
+ * failure, and a refused one is kept in `refused` for the board to say (ruling
+ * 378). Errors keep the last-known rows on screen — the board never blanks.
  */
 export function useLiveBoard(eventId: string) {
   const [rows, setRows] = useState<BoardRow[] | null>(null);
@@ -27,6 +29,7 @@ export function useLiveBoard(eventId: string) {
   const [accounts, setAccounts] = useState<LiveBoardAccount[]>([]);
   const [eventSlug, setEventSlug] = useState<string | null>(null);
   const [error, setError] = useState<'refresh' | 'forbidden' | null>(null);
+  const [refused, setRefused] = useState<ApiFailure | null>(null);
 
   const refetch = useCallback(async () => {
     try {
@@ -86,15 +89,13 @@ export function useLiveBoard(eventId: string) {
             r.scorer?.accountId === staffAccountId ? { ...r, attention: null } : r,
           ) ?? prev,
       );
-      try {
-        const res = await fetch(
-          `${API}/api/v1/events/${eventId}/live/attention/${staffAccountId}/ack`,
-          { method: 'POST', credentials: 'include' },
-        );
-        if (!res.ok) void refetch(); // revert to server truth
-      } catch {
-        void refetch();
-      }
+      const r = await apiRequest(
+        API,
+        `/api/v1/events/${eventId}/live/attention/${staffAccountId}/ack`,
+        { method: 'POST' },
+      );
+      setRefused(r.ok ? null : r);
+      if (!r.ok) void refetch(); // revert to server truth
     },
     [eventId, refetch],
   );
@@ -140,24 +141,14 @@ export function useLiveBoard(eventId: string) {
               : r,
           ) ?? prev,
       );
-      try {
-        const res = await fetch(`${API}/api/v1/events/${eventId}/live/lices/${liceId}/scorer`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ staffAccountId }),
-        });
-        if (!res.ok) {
-          void refetch(); // revert to server truth
-          return [];
-        }
-        const body = (await res.json()) as { removedAccountIds?: string[] };
-        void refetch();
-        return body.removedAccountIds ?? [];
-      } catch {
-        void refetch();
-        return [];
-      }
+      const r = await apiRequest<{ removedAccountIds?: string[] }>(
+        API,
+        `/api/v1/events/${eventId}/live/lices/${liceId}/scorer`,
+        { method: 'PUT', body: { staffAccountId } },
+      );
+      setRefused(r.ok ? null : r);
+      void refetch(); // server truth, after a yes and after a no
+      return r.ok ? (r.data.removedAccountIds ?? []) : [];
     },
     [accounts, eventId, refetch],
   );
@@ -168,6 +159,7 @@ export function useLiveBoard(eventId: string) {
     accounts,
     eventSlug,
     error,
+    refused,
     refetch,
     acknowledge,
     setLiceScorer,

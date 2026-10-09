@@ -27,6 +27,7 @@ import { PayloadCell, type PayloadLabel } from '../../../../../../../src/compone
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../../_hooks/useEventStatus';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
 
@@ -204,6 +205,7 @@ export default function MatchDetailPage() {
   }>();
   const { slug, eventId, matchId } = params;
   const apiUrl = getPublicApiUrl();
+  const { isReadOnly } = useEventStatus(eventId);
   const { t, locale } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
@@ -250,6 +252,8 @@ export default function MatchDetailPage() {
   const [overrideWinningScoreEdit, setOverrideWinningScore] = useState<string | null>(null);
   const currentRedScore = match?.redScore ?? match?.red_score ?? 0;
   const currentBlueScore = match?.blueScore ?? match?.blue_score ?? 0;
+  // The API hands the bout's row as the database holds it: `locked_at`.
+  const lockedAt = match?.lockedAt ?? match?.locked_at;
   const overrideLosingScore =
     overrideLosingScoreEdit ?? String(forfeitSide === 'red' ? currentRedScore : currentBlueScore);
   const overrideWinningScore =
@@ -364,12 +368,9 @@ export default function MatchDetailPage() {
     setRefreshKey((k) => k + 1);
   }
 
-  async function handleLockToggle() {
-    if (!match) return;
-    const endpoint = match.lockedAt ? 'unlock' : 'lock';
-    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/${endpoint}`, {
+  async function handleUnlock() {
+    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/unlock`, {
       method: 'POST',
-      body: { reason: 'Organizer manual lock toggle' },
     });
     if (!r.ok) {
       const message = failureMessage(r, t, t('admin.common.lockOperationFailed'));
@@ -539,7 +540,7 @@ export default function MatchDetailPage() {
             <p className="text-muted text-sm mt-0.5 font-mono">
               {summary?.roundCode ?? match?.matchNumberLabel ?? ''}
             </p>
-            {match?.lockedAt && (
+            {lockedAt && (
               <p className="mt-1 text-sm font-medium text-warning">
                 {t('organizer.matchDetail.lockedBanner')}
               </p>
@@ -563,15 +564,17 @@ export default function MatchDetailPage() {
               </p>
             )}
             <div className="mt-3 flex flex-col items-end gap-1.5">
-              <button
-                type="button"
-                onClick={() => void handleLockToggle()}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-border"
-              >
-                {match?.lockedAt
-                  ? t('organizer.matchDetail.unlockMatch')
-                  : t('organizer.matchDetail.lockMatch')}
-              </button>
+              {lockedAt && (
+                <button
+                  type="button"
+                  onClick={() => void handleUnlock()}
+                  disabled={isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:border-border disabled:opacity-50"
+                >
+                  {t('organizer.matchDetail.unlockMatch')}
+                </button>
+              )}
               {/* Re-open lets the organizer reverse a mistaken End match
                   from the scoring app. Only relevant when the match is
                   in the DB 'completed' state. Backed by the same
@@ -581,7 +584,9 @@ export default function MatchDetailPage() {
                 <button
                   type="button"
                   onClick={() => setReopenOpen(true)}
-                  className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning hover:border-warning hover:bg-warning/20"
+                  disabled={isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                  className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning hover:border-warning hover:bg-warning/20 disabled:opacity-50"
                 >
                   {t('organizer.matchDetail.reopenMatch')}
                 </button>
@@ -723,7 +728,8 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => void handleForfeit()}
-              disabled={forfeitSaving}
+              disabled={forfeitSaving || isReadOnly}
+              title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
               className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground disabled:opacity-50"
             >
               {forfeitSaving

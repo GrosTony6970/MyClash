@@ -41,7 +41,11 @@ export function StaffRoleSection({ staff, staffUrl, publicAppUrl, eventSlug }: P
     <>
       <RoleTabs accounts={staff.accounts} tab={tab} onChange={setTab} />
 
-      <CreateStaffAccountForm role={tab} onCreate={staff.createAccount} />
+      <CreateStaffAccountForm
+        role={tab}
+        onCreate={staff.createAccount}
+        readOnly={staff.isReadOnly}
+      />
 
       {staff.error && <p className="mt-4 text-sm text-danger">{staff.error}</p>}
       {staff.notice && <p className="mt-4 text-sm text-success">{staff.notice}</p>}
@@ -54,6 +58,7 @@ export function StaffRoleSection({ staff, staffUrl, publicAppUrl, eventSlug }: P
         publicAppUrl={publicAppUrl}
         staffUrl={staffUrl}
         eventSlug={eventSlug}
+        readOnly={staff.isReadOnly}
         onToggleStatus={(target) => void staff.toggleStatus(target)}
         onResetPin={(target) => void askForPin(target)}
         onSetRole={(target, role) => void staff.setRole(target, role)}

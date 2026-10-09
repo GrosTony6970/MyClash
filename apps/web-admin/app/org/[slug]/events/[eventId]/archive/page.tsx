@@ -349,7 +349,13 @@ export default function OrganizerArchivePage() {
               <button
                 type="button"
                 onClick={restoreArchive}
-                disabled={busy || !preview.canRestore || confirmation !== RESTORE_CONFIRMATION}
+                disabled={
+                  busy ||
+                  !preview.canRestore ||
+                  confirmation !== RESTORE_CONFIRMATION ||
+                  // One Tournament is restored INTO this Event: refused on an archived one.
+                  (preview.scope === 'tournament' && event?.status === 'archived')
+                }
                 className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
               >
                 {t('organizer.archive.restoreCopy')}

@@ -25,6 +25,7 @@ interface DetailProps {
   eventSlug: string | null;
   accounts: LiveBoardAccount[];
   onAssignScorer: (liceId: string, staffAccountId: string | null) => Promise<string[]>;
+  readOnly: boolean;
   slug: string;
   eventId: string;
   t: T;
@@ -36,6 +37,7 @@ export function BoardRowDetail({
   eventSlug,
   accounts,
   onAssignScorer,
+  readOnly,
   slug,
   eventId,
   t,
@@ -48,13 +50,15 @@ export function BoardRowDetail({
       <section className="flex flex-col gap-2">
         <h3 className="text-xs uppercase text-muted">{t('organizer.live.detail.scorer')}</h3>
         <BoardRowScorer row={row} nowMs={nowMs} t={t} />
-        <BoardScorerPicker
-          liceId={row.lice.id}
-          currentAccountId={row.scorer?.accountId ?? null}
-          accounts={accounts}
-          onAssign={onAssignScorer}
-          t={t}
-        />
+        <fieldset disabled={readOnly} className="contents">
+          <BoardScorerPicker
+            liceId={row.lice.id}
+            currentAccountId={row.scorer?.accountId ?? null}
+            accounts={accounts}
+            onAssign={onAssignScorer}
+            t={t}
+          />
+        </fieldset>
         {cm && (
           <BoardRowActions
             matchId={cm.id}

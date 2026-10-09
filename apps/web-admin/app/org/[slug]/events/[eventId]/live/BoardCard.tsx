@@ -20,6 +20,7 @@ export function BoardCard({
   slug,
   eventId,
   onAck,
+  readOnly,
   t,
 }: {
   row: BoardRow;
@@ -28,6 +29,7 @@ export function BoardCard({
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
+  readOnly: boolean;
   t: T;
 }) {
   const { locale } = useI18n();
@@ -103,7 +105,8 @@ export function BoardCard({
         <button
           type="button"
           onClick={() => onAck(row.scorer!.accountId)}
-          className="self-start rounded-md bg-danger/10 px-2 py-1 text-xs text-danger"
+          disabled={readOnly}
+          className="self-start rounded-md bg-danger/10 px-2 py-1 text-xs text-danger disabled:opacity-50"
         >
           {t(`organizer.live.reason.${row.attention.reason}`)} · {t('organizer.live.ack')}
         </button>

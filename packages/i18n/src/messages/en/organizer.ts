@@ -2208,7 +2208,6 @@ export const organizer = {
     breadcrumbMatch: 'Match',
     lockedBanner: 'Locked for staff scoring',
     bestOfLine: 'Best of {bestOf} · Round {round} · Rounds',
-    lockMatch: 'Lock match',
     unlockMatch: 'Unlock match',
     reopenMatch: '↻ Re-open match',
     restoreConfirm: 'Restore this exchange? The score will be recomputed.',

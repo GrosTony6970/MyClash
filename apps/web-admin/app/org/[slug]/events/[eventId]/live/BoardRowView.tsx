@@ -23,6 +23,7 @@ export function BoardRowView({
   eventSlug,
   accounts,
   onAssignScorer,
+  readOnly,
   slug,
   eventId,
   onAck,
@@ -37,6 +38,8 @@ export function BoardRowView({
   eventSlug: string | null;
   accounts: LiveBoardAccount[];
   onAssignScorer: (liceId: string, staffAccountId: string | null) => Promise<string[]>;
+  /** The Event is archived: the server refuses the board's two saves. */
+  readOnly: boolean;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
@@ -126,7 +129,8 @@ export function BoardRowView({
             <button
               type="button"
               onClick={() => onAck(row.scorer!.accountId)}
-              className="relative z-10 rounded-md bg-danger/10 px-2 py-1 text-danger"
+              disabled={readOnly}
+              className="relative z-10 rounded-md bg-danger/10 px-2 py-1 text-danger disabled:opacity-50"
             >
               {t(`organizer.live.reason.${row.attention.reason}`)} · {t('organizer.live.ack')}
             </button>
@@ -156,6 +160,7 @@ export function BoardRowView({
             eventSlug={eventSlug}
             accounts={accounts}
             onAssignScorer={onAssignScorer}
+            readOnly={readOnly}
             slug={slug}
             eventId={eventId}
             t={t}

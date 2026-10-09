@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useSecondsClock } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { failureMessage } from '@myclash/api-client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
@@ -12,6 +13,7 @@ import { BoardRowView } from './BoardRowView';
 import { BoardCard } from './BoardCard';
 import { BoardSummary } from './BoardSummary';
 import type { BoardRow, MatchChange } from '@/lib/live-board/types';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 // One channel per lice (stable set). `matches` is scoped by lice_id (no
 // event_id column), so we subscribe per lice and patch that lice's current
@@ -53,10 +55,12 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
     accounts,
     eventSlug,
     error,
+    refused,
     acknowledge,
     setLiceScorer,
     applyMatchChange,
   } = useLiveBoard(eventId);
+  const { isReadOnly } = useEventStatus(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
   // One row expanded at a time, keyed by BOTH lice and bout so the panel
@@ -107,6 +111,11 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
         stale={error === 'refresh'}
         t={t}
       />
+      {refused && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {failureMessage(refused, t, t('common.error'))}
+        </p>
+      )}
 
       {/* Wide table: every piste, all breakpoints ≥ md. Sectioned by venue and
           area only when the event actually runs across more than one — a
@@ -129,6 +138,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                   eventSlug={eventSlug}
                   accounts={accounts}
                   onAssignScorer={setLiceScorer}
+                  readOnly={isReadOnly}
                   slug={slug}
                   eventId={eventId}
                   onAck={(id) => void acknowledge(id)}
@@ -152,6 +162,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
               slug={slug}
               eventId={eventId}
               onAck={(id) => void acknowledge(id)}
+              readOnly={isReadOnly}
               t={t}
             />
           ))}
@@ -179,6 +190,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                     slug={slug}
                     eventId={eventId}
                     onAck={(id) => void acknowledge(id)}
+                    readOnly={isReadOnly}
                     t={t}
                   />
                 ))}

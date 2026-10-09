@@ -2167,7 +2167,6 @@ export const organizer = {
     breadcrumbMatch: 'Match',
     lockedBanner: 'Verrouillé pour la saisie par le staff',
     bestOfLine: 'Best of {bestOf} · Manche {round} · Manches',
-    lockMatch: 'Verrouiller le match',
     unlockMatch: 'Déverrouiller le match',
     reopenMatch: '↻ Rouvrir le match',
     restoreConfirm: 'Restaurer cet échange ? Le score sera recalculé.',

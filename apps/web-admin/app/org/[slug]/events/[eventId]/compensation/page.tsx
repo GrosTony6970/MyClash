@@ -10,6 +10,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
   pool: 'organizer.eventCompensation.phases.pool',
@@ -53,6 +54,7 @@ export default function CompensationPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [settings, setSettings] = useState<EventSettings | null>(null);
@@ -325,7 +327,8 @@ export default function CompensationPage() {
           </div>
           <button
             onClick={() => void saveSettings()}
-            disabled={!selectedPlanId || savingSettings}
+            disabled={!selectedPlanId || savingSettings || isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm transition-colors"
           >
             {savingSettings ? t('organizer.eventCompensation.saving') : t('actions.save')}
@@ -466,6 +469,7 @@ export default function CompensationPage() {
                         })}
                         type="checkbox"
                         checked={referee.paid}
+                        disabled={isReadOnly}
                         onChange={(e) => void togglePaid(referee.personId, e.target.checked)}
                         className="accent-accent w-4 h-4"
                       />

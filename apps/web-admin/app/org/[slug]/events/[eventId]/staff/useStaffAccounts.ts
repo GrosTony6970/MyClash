@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StaffRole } from '@myclash/types';
-import { apiRequest, type ApiResult } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createAccountProblem } from './create-account-feedback';
@@ -89,6 +89,8 @@ export function useStaffAccounts(eventId: string) {
     ...lifecycle,
     ...config,
     error: data.error ?? lifecycle.error ?? config.error,
+    // The server refuses every save of this page on an archived Event (ruling 377).
+    isReadOnly: data.event?.status === 'archived',
   };
 }
 
@@ -159,17 +161,26 @@ function useStaffLifecycleWrites(base: string, load: () => Promise<void>) {
     [base, load, t],
   );
 
+  /** A refused switch or move says why (ruling 378): it snapped back with no word. */
+  const patch = useCallback(
+    async (account: StaffAccount, body: Record<string, unknown>) => {
+      setError(null);
+      const res = await patchAccount(base, account, body);
+      if (!res.ok) setError(failureMessage(res, t, t('common.error')));
+      await load();
+    },
+    [base, load, t],
+  );
+
   const toggleStatus = useCallback(
     (account: StaffAccount) =>
-      patchAccount(base, account, {
-        status: account.status === 'active' ? 'disabled' : 'active',
-      }).then(load),
-    [base, load],
+      patch(account, { status: account.status === 'active' ? 'disabled' : 'active' }),
+    [patch],
   );
 
   const setRole = useCallback(
-    (account: StaffAccount, role: StaffRole) => patchAccount(base, account, { role }).then(load),
-    [base, load],
+    (account: StaffAccount, role: StaffRole) => patch(account, { role }),
+    [patch],
   );
 
   return { error, createAccount, toggleStatus, setRole };
@@ -218,7 +229,7 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
         body: { pin },
       });
       if (res.ok) setNotice(t('organizer.staff.resetPinDone'));
-      else setError(t('organizer.staff.resetPinError'));
+      else setError(failureMessage(res, t, t('organizer.staff.resetPinError')));
     },
     [base, t],
   );
@@ -228,13 +239,15 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
       const liceIds = checked
         ? [...account.liceIds, liceId]
         : account.liceIds.filter((existing) => existing !== liceId);
-      await staffRequest(base, `/staff-accounts/${account.id}/lices`, {
+      setError(null);
+      const res = await staffRequest(base, `/staff-accounts/${account.id}/lices`, {
         method: 'PUT',
         body: { liceIds },
       });
+      if (!res.ok) setError(failureMessage(res, t, t('common.error')));
       await load();
     },
-    [base, load],
+    [base, load, t],
   );
 
   return { error, notice, resetPin, setAccountLices };

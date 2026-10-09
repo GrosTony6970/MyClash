@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../_hooks/useEventStatus';
 import { applyFailureMessage } from '@/lib/discard-refusal';
 import { BackLink } from '@/components/BackLink';
 
@@ -44,6 +45,7 @@ export default function EventAIAssistantPage() {
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const initialType = DRAFT_TYPES.includes(search.get('type') as DraftType)
     ? (search.get('type') as DraftType)
@@ -321,7 +323,8 @@ export default function EventAIAssistantPage() {
             <button
               type="button"
               onClick={() => void createDraft()}
-              disabled={busy || aiReady === false || prompt.trim().length < 4}
+              disabled={busy || aiReady === false || prompt.trim().length < 4 || isReadOnly}
+              title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
             >
               {busy ? t('organizer.aiAssistant.working') : t('organizer.aiAssistant.createDraft')}
@@ -376,7 +379,7 @@ export default function EventAIAssistantPage() {
                 <button
                   type="button"
                   onClick={() => void saveDraft()}
-                  disabled={busy}
+                  disabled={busy || isReadOnly}
                   className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
                 >
                   {t('actions.save')}
@@ -384,7 +387,7 @@ export default function EventAIAssistantPage() {
                 <button
                   type="button"
                   onClick={() => void applyDraft()}
-                  disabled={busy || selectedDraft.status !== 'ready'}
+                  disabled={busy || selectedDraft.status !== 'ready' || isReadOnly}
                   className="rounded-lg bg-strong px-4 py-2 text-sm font-semibold text-strong-foreground hover:bg-strong-hover disabled:opacity-50"
                 >
                   {t('actions.apply')}
@@ -392,7 +395,7 @@ export default function EventAIAssistantPage() {
                 <button
                   type="button"
                   onClick={() => void rejectDraft()}
-                  disabled={busy}
+                  disabled={busy || isReadOnly}
                   className="rounded-lg px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('actions.reject')}

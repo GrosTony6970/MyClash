@@ -10,7 +10,7 @@
     "apps/web-admin/src/hooks/useAccountSearch.ts": 1,
     "apps/web-admin/src/hooks/useNotificationsSummary.ts": 1,
     "apps/web-admin/src/hooks/useWeaponOptions.ts": 1,
-    "apps/web-admin/src/lib/live-board/useLiveBoard.ts": 3,
+    "apps/web-admin/src/lib/live-board/useLiveBoard.ts": 1,
     "apps/web-admin/src/lib/selectable-rulesets.ts": 2,
     "apps/web-public/app/_components/LegalUpdateBanner.tsx": 1,
     "apps/web-public/app/_components/PublicEventsBrowser.tsx": 4,

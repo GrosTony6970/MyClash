@@ -17,6 +17,7 @@ import type {
 } from '@myclash/types';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../../_hooks/useEventStatus';
 
 type Step = 'upload' | 'preview' | 'done';
 
@@ -173,6 +174,7 @@ export default function CsvImportPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const router = useRouter();
+  const { isReadOnly } = useEventStatus(eventId);
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
 
@@ -366,7 +368,8 @@ export default function CsvImportPage() {
           <button
             onClick={() => void handlePreview()}
             data-testid="import-validate"
-            disabled={!file || uploading}
+            disabled={!file || uploading || isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
             {uploading
@@ -478,7 +481,7 @@ export default function CsvImportPage() {
                     type="button"
                     onClick={() => void handleCommit()}
                     data-testid="import-commit"
-                    disabled={uploading || willCreate + willLink === 0}
+                    disabled={uploading || willCreate + willLink === 0 || isReadOnly}
                     className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
                   >
                     {uploading

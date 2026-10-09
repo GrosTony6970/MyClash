@@ -23,6 +23,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 const MAX_HERO_BYTES = 10 * 1024 * 1024;
@@ -34,6 +35,7 @@ export default function BrandingEditorPage() {
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
@@ -223,7 +225,7 @@ export default function BrandingEditorPage() {
             <button
               type="button"
               onClick={() => logoInputRef.current?.click()}
-              disabled={uploadingLogo}
+              disabled={uploadingLogo || isReadOnly}
               aria-label={
                 logoUrl
                   ? t('organizer.branding.replaceLogoAria')
@@ -246,6 +248,7 @@ export default function BrandingEditorPage() {
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 className="hidden"
+                disabled={isReadOnly}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void handleLogoUpload(file);
@@ -255,7 +258,7 @@ export default function BrandingEditorPage() {
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                disabled={uploadingLogo}
+                disabled={uploadingLogo || isReadOnly}
                 className="w-fit rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {uploadingLogo
@@ -282,7 +285,7 @@ export default function BrandingEditorPage() {
           <button
             type="button"
             onClick={() => heroInputRef.current?.click()}
-            disabled={uploadingHero}
+            disabled={uploadingHero || isReadOnly}
             aria-label={
               heroImageUrl
                 ? t('organizer.branding.replaceHeroAria')
@@ -306,6 +309,7 @@ export default function BrandingEditorPage() {
             type="file"
             accept="image/png,image/jpeg,image/webp"
             className="hidden"
+            disabled={isReadOnly}
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) void handleHeroUpload(file);
@@ -316,7 +320,7 @@ export default function BrandingEditorPage() {
             <button
               type="button"
               onClick={() => heroInputRef.current?.click()}
-              disabled={uploadingHero}
+              disabled={uploadingHero || isReadOnly}
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground-secondary transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploadingHero

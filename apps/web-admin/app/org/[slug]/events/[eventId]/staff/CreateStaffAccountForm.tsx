@@ -11,6 +11,8 @@ interface Props {
   /** The active tab. The created account gets this role — there is no field for it. */
   role: StaffRole;
   onCreate: (form: NewStaffAccount, role: StaffRole) => Promise<boolean>;
+  /** The Event is archived: the server refuses every save of this page. */
+  readOnly: boolean;
 }
 
 const EMPTY: NewStaffAccount = { displayName: '', username: '', pin: '' };
@@ -129,7 +131,7 @@ function PinFieldWithRule({
  * choice is still visible: an organiser working fast on an event morning
  * reads the button, not the tab they landed on three clicks ago.
  */
-export function CreateStaffAccountForm({ role, onCreate }: Props) {
+export function CreateStaffAccountForm({ role, onCreate, readOnly }: Props) {
   const { t } = useI18n();
   const [form, setForm] = useState<NewStaffAccount>(EMPTY);
   const [showPin, setShowPin] = useState(false);
@@ -162,7 +164,8 @@ export function CreateStaffAccountForm({ role, onCreate }: Props) {
         onToggle={() => setShowPin((current) => !current)}
       />
       <button
-        disabled={problem !== null}
+        disabled={problem !== null || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="h-fit rounded bg-accent px-4 py-2 text-sm font-bold text-accent-foreground disabled:opacity-50"
       >
         {t(STAFF_TAB_CREATE_KEYS[role])}

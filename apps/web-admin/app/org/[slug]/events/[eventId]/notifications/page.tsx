@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
@@ -40,6 +41,7 @@ export default function EventNotificationsPage() {
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const initialTarget = searchParams.get('targetType') as TargetType | null;
   const initialSeverity = searchParams.get('severity') as Severity | null;
@@ -294,7 +296,8 @@ export default function EventNotificationsPage() {
 
           <button
             type="button"
-            disabled={busy || !title.trim() || !body.trim()}
+            disabled={busy || !title.trim() || !body.trim() || isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             onClick={() => void sendBroadcast()}
             className="mt-5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:bg-border"
           >

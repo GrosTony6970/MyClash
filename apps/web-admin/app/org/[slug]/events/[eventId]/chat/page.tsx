@@ -7,9 +7,10 @@ import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage, responseFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 function PencilIcon() {
   return (
@@ -79,12 +80,19 @@ type StreamEvent =
   | { type: 'done'; conversation: ConversationView }
   | { type: 'error'; message?: string };
 
+/** What a refused stream says: its problem+json reason, as any other refusal (ruling 378). */
+async function streamRefusal(res: Response, t: (key: string) => string): Promise<string | null> {
+  const refusal = responseFailure(res.status, await res.json().catch(() => undefined));
+  return failureMessage(refusal, t, t('organizer.chat.errorSend'));
+}
+
 export default function EventChatPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
@@ -208,7 +216,11 @@ export default function EventChatPage() {
           body: JSON.stringify({ content }),
         },
       );
-      if (!res.ok || !res.body) throw new Error(t('organizer.chat.errorSend'));
+      if (!res.ok) {
+        setError(await streamRefusal(res, t));
+        return;
+      }
+      if (!res.body) throw new Error(t('organizer.chat.errorSend'));
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -385,6 +397,7 @@ export default function EventChatPage() {
                       setRenamingId(c.id);
                       setRenameValue(c.title ?? '');
                     }}
+                    disabled={isReadOnly}
                     className="shrink-0 rounded-md p-1.5 text-muted hover:bg-background hover:text-foreground-secondary"
                   >
                     <PencilIcon />
@@ -394,6 +407,7 @@ export default function EventChatPage() {
                     aria-label={t('organizer.chat.deleteConversation')}
                     title={t('organizer.chat.delete')}
                     onClick={() => void removeConversation(c.id)}
+                    disabled={isReadOnly}
                     className="shrink-0 rounded-md p-1.5 text-muted hover:bg-danger/10 hover:text-danger"
                   >
                     <TrashIcon />
@@ -434,7 +448,7 @@ export default function EventChatPage() {
                   {m.proposal && (
                     <ProposalCard
                       proposal={m.proposal}
-                      busy={busy}
+                      busy={busy || isReadOnly}
                       onConfirm={() => void resolveProposal(m.proposal!.id, 'confirm')}
                       onReject={() => void resolveProposal(m.proposal!.id, 'reject')}
                       t={t}
@@ -471,14 +485,15 @@ export default function EventChatPage() {
                 }
               }}
               rows={2}
-              disabled={aiReady === false}
+              disabled={aiReady === false || isReadOnly}
               placeholder={t('organizer.chat.placeholder')}
               className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
             />
             <button
               type="button"
               onClick={() => void send()}
-              disabled={busy || aiReady === false || input.trim().length === 0}
+              disabled={busy || aiReady === false || input.trim().length === 0 || isReadOnly}
+              title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
             >
               {t('organizer.chat.send')}

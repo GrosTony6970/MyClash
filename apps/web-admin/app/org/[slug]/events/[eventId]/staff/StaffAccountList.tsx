@@ -18,6 +18,8 @@ interface Props {
   onResetPin: (account: StaffAccount) => void;
   onSetRole: (account: StaffAccount, role: StaffRole) => void;
   onSetLices: (account: StaffAccount, liceId: string, checked: boolean) => void;
+  /** The Event is archived: the server refuses every save of this page. */
+  readOnly: boolean;
 }
 
 /**

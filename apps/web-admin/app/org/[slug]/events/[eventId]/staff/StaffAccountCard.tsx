@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { STAFF_ROLES, staffRoleUsesLices, type StaffRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { StaffLoginLink } from './StaffLoginLink';
@@ -24,6 +25,8 @@ interface Props {
   onResetPin: (account: StaffAccount) => void;
   onSetRole: (account: StaffAccount, role: StaffRole) => void;
   onSetLices: (account: StaffAccount, liceId: string, checked: boolean) => void;
+  /** The Event is archived: the server refuses every save of this page. */
+  readOnly: boolean;
 }
 
 // A literal map rather than a template literal interpolating the status. A
@@ -171,6 +174,23 @@ function AccountHeader({
 }
 
 /**
+ * The card's saves, behind one switch: the server refuses every one of them on
+ * an archived Event, and a control added here later is closed with the rest.
+ */
+function AccountSaves({ readOnly, children }: { readOnly: boolean; children: ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <fieldset
+      disabled={readOnly}
+      title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+      className="min-w-0 disabled:opacity-60"
+    >
+      {children}
+    </fieldset>
+  );
+}
+
+/**
  * One local staff account: identity, enable/disable + PIN reset, the role it
  * holds, its own PIN sign-in link, and — for a scoring account only — Lice
  * assignments and one labelled display URL per assigned Lice.
@@ -185,16 +205,17 @@ export function StaffAccountCard({
   onResetPin,
   onSetRole,
   onSetLices,
+  readOnly,
 }: Props) {
   const { t } = useI18n();
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
-      <AccountHeader account={account} onToggleStatus={onToggleStatus} onResetPin={onResetPin} />
-
-      <RoleSwitcher account={account} onSetRole={onSetRole} />
-
-      <LiceAssignments account={account} lices={lices} onSetLices={onSetLices} />
+      <AccountSaves readOnly={readOnly}>
+        <AccountHeader account={account} onToggleStatus={onToggleStatus} onResetPin={onResetPin} />
+        <RoleSwitcher account={account} onSetRole={onSetRole} />
+        <LiceAssignments account={account} lices={lices} onSetLices={onSetLices} />
+      </AccountSaves>
 
       {eventSlug && (
         <div className="mt-4">
