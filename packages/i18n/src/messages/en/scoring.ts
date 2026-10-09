@@ -425,6 +425,8 @@ export const scoring = {
     roundComplete: 'Round {round} complete',
     seriesTally: 'Rounds',
     startRound: 'Start round {round}',
+    // The server refused the clock between two rounds: this tablet's screen was behind.
+    startNextRoundFirst: 'This round is over. Start the next round first.',
     endRound: 'End round',
   },
   // What the referee does about a bout that is LEVEL when the clock runs out.

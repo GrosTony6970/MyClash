@@ -33,6 +33,7 @@ import {
 } from './time-limit-result';
 import { endRefusal } from './level-at-time-refusal';
 import { matchLocked } from './match-locked';
+import { roundAwaitsAdvance } from './round-awaits-advance';
 import {
   effectiveTimeLimitSeconds,
   pendingLevelStep,
@@ -171,6 +172,16 @@ export class ClockService {
         `Cannot ${action} clock when status is '${current.status}'. ` +
           `Allowed: ${allowed.length ? allowed.join(', ') : 'none'}`,
       );
+    }
+
+    // Between two rounds of a best-of bout nobody fights: the clock does not
+    // start there (operator, 2026-10-09). "Start round N+1" opens the round
+    // first, and uses a Halt, a Reopen and a Reset only, which pass.
+    if (
+      (action === 'start' || action === 'resume') &&
+      (match as { awaiting_round_advance?: boolean | null }).awaiting_round_advance
+    ) {
+      throw roundAwaitsAdvance();
     }
 
     // What ending the clock would do — resolved BEFORE the event row is

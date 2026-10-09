@@ -408,6 +408,7 @@ export const scoring = {
     roundComplete: 'Manche {round} terminée',
     seriesTally: 'Manches',
     startRound: 'Démarrer la manche {round}',
+    startNextRoundFirst: "Cette manche est terminée. Démarrez d'abord la manche suivante.",
     endRound: 'Terminer la manche',
   },
   level: {

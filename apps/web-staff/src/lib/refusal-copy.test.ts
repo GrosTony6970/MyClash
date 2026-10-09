@@ -236,6 +236,25 @@ describe('refusalMessage', () => {
     );
   });
 
+  it('says to start the next round, for a clock refused between two rounds', () => {
+    expect(
+      refusalMessage(
+        refusal(400, {
+          code: 'round_awaits_advance',
+          detail: 'Round ended — start the next round before the clock',
+        }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.rounds.startNextRoundFirst');
+    expect(en.scoring.rounds.startNextRoundFirst).toBe(
+      'This round is over. Start the next round first.',
+    );
+    expect(fr.scoring.rounds.startNextRoundFirst).toBe(
+      "Cette manche est terminée. Démarrez d'abord la manche suivante.",
+    );
+  });
+
   it('says the Event is over, instead of the API sentence', () => {
     expect(
       refusalMessage(

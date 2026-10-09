@@ -68,6 +68,7 @@ const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
 const SESSION_ENDED = 'scoring.corrections.sessionEnded';
+const START_NEXT_ROUND_FIRST = 'scoring.rounds.startNextRoundFirst';
 
 /**
  * The API's code on the 401 of an organiser's door asked by a live PIN session
@@ -116,6 +117,9 @@ const REFUSED_WHOLE = new Map([
   ['correction_leaves_bout_level', LEAVES_BOUT_LEVEL],
   ['correction_changes_closed_round', CLOSED_ROUND_RESULT],
   ['black_card_undo_refused', BLACK_CARD_UNDO_REFUSED],
+  // The clock, started between two rounds of a best-of bout: this tablet's
+  // screen is behind the table's, which shows "Round complete".
+  ['round_awaits_advance', START_NEXT_ROUND_FIRST],
 ]);
 
 /**

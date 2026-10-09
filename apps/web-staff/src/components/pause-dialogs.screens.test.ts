@@ -37,6 +37,12 @@ describe('the bout screen', () => {
     );
   });
 
+  it('reads the bout again when the server refuses the clock, so a late tablet catches up', () => {
+    expect(view).toMatch(
+      /method: 'POST',\s+body: \{ action \},\s+\}\);\s+if \(!result\.ok\) \{[^}]*onRefresh\(\);\s+throw new Error\(refusalMessage\(result, t, 'scoring\.clock\.actionFailed'\)/,
+    );
+  });
+
   it('opens each one on the state it had', () => {
     expect(view).toContain('open={pendingResume !== null}');
     expect(view).toContain(

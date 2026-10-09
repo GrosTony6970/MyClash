@@ -291,6 +291,10 @@ export function MatchView({
           body: { action },
         });
         if (!result.ok) {
+          // A refusal says this screen's picture of the bout is old: read it
+          // again. A tablet that missed the end of a round is told "start the
+          // next round first", and needs the screen that holds that button.
+          onRefresh();
           throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
         }
         const newState = result.data;
