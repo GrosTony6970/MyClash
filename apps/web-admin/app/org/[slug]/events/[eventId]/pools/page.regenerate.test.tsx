@@ -26,6 +26,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'running' }] }),
+}));
 vi.mock('./_tabs/MatchesTab', () => ({ MatchesTab: () => null }));
 vi.mock('./_tabs/StandingsTab', () => ({ StandingsTab: () => null }));
 vi.mock('./_tabs/RefereesTab', () => ({ RefereesTab: () => null }));
@@ -59,7 +62,6 @@ function serve(answers: unknown[]) {
       if (path === '/api/v1/events/ev1/tournaments') {
         return { ok: true, data: [{ id: 't1', name: 'Longsword' }] };
       }
-      if (path === '/api/v1/events/ev1') return { ok: true, data: { status: 'running' } };
       if (path === '/api/v1/tournaments/t1/pools') {
         return { ok: true, data: { phaseId: 'phase-1', pools: [] } };
       }

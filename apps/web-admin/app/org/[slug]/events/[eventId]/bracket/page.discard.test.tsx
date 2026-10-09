@@ -33,6 +33,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'running' }] }),
+}));
 vi.mock('@/lib/supabase-browser', () => ({ useRealtimeWithFallback: () => {} }));
 vi.mock('./_tabs/RefereesTab', () => ({ RefereesTab: () => null }));
 vi.mock('@myclash/api-client', async (importOriginal) => ({
@@ -94,7 +97,6 @@ function serve(read: ReturnType<typeof bracket>, answers: unknown[]) {
       if (path === '/api/v1/events/ev1/tournaments') {
         return { ok: true, data: [{ id: 't1', name: 'Longsword' }] };
       }
-      if (path === '/api/v1/events/ev1') return { ok: true, data: { status: 'running' } };
       if (path === '/api/v1/tournaments/t1') return { ok: true, data: { weapon: 'longsword' } };
       if (path === '/api/v1/tournaments/t1/bracket') return { ok: true, data: read };
       if (path === '/api/v1/tournaments/t1/registrations') return { ok: true, data: [] };

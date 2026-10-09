@@ -42,6 +42,7 @@ import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 
 interface OrgEvent {
   id: string;
@@ -164,6 +165,7 @@ export default function OrgEventsListPage() {
   const { slug } = params;
   const apiUrl = getPublicApiUrl();
   const { t, locale } = useI18n();
+  const { refetchEvents } = useOrganizerSelectedEvent();
 
   const [events, setEvents] = useState<OrgEvent[]>([]);
   const [orgName, setOrgName] = useState<string>(slug);
@@ -434,6 +436,8 @@ export default function OrgEventsListPage() {
         if (message) setError(message);
         return;
       }
+      // The form sends the status: every page of that Event reads it from the club's list.
+      void refetchEvents();
       // Reconcile the event's venues (adds links + seeds tournament lices;
       // safe-removes — venues with matches/sessions are reported as blocked).
       let blockedNames: string[] = [];

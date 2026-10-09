@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { useEventStatus } from '../_hooks/useEventStatus';
 import { restoredNotice, type RestoreAnswer } from './restore-notice';
 
 type ArchiveScope = 'event' | 'tournament';
@@ -50,6 +51,7 @@ export default function OrganizerArchivePage() {
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const { isArchived } = useEventStatus(eventId);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -354,7 +356,7 @@ export default function OrganizerArchivePage() {
                   !preview.canRestore ||
                   confirmation !== RESTORE_CONFIRMATION ||
                   // One Tournament is restored INTO this Event: refused on an archived one.
-                  (preview.scope === 'tournament' && event?.status === 'archived')
+                  (preview.scope === 'tournament' && isArchived)
                 }
                 className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
               >

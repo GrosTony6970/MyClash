@@ -24,6 +24,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'archived' }] }),
+}));
 vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
@@ -34,7 +37,7 @@ vi.mock('./_components/AttachToLeaguePanel', () => ({
 }));
 
 const READS: Record<string, unknown> = {
-  '/api/v1/events/ev1': { name: 'Open 2025', status: 'archived' },
+  '/api/v1/events/ev1': { name: 'Open 2025', status: 'published' },
   '/api/v1/events/ev1/tournaments': [
     { id: 't-1', slug: 'longsword', name: 'Longsword', status: 'completed' },
   ],

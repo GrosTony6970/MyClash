@@ -37,6 +37,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'running' }] }),
+}));
 vi.mock('@/hooks/useWeaponOptions', () => ({ useWeaponOptions: () => [] }));
 // The board is another tab of the page; stubbed so its imports stay out of this test.
 vi.mock('./WorkshopScheduleBoard', () => ({ WorkshopScheduleBoard: () => null }));

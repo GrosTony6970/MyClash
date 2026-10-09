@@ -18,11 +18,23 @@ import { createRoot, type Root } from 'react-dom/client';
 import { vi } from 'vitest';
 import { ToastProvider } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
+import { OrganizerEventContextProvider } from '@/components/organizer-event-context';
 import { I18nProvider } from '@/i18n/I18nProvider';
+
+// Pressing everything takes seconds alone and several times that beside the other
+// packages' tests: two files ran out of the default five in the gate chain.
+vi.setConfig({ testTimeout: 60_000 });
 
 export const API = 'http://api.test';
 export const EVENT_ID = 'ev1';
 export const ARCHIVED_EVENT = { id: EVENT_ID, name: 'Open 2025', status: 'archived' };
+
+const SLUG = 'club';
+const ORG_ID = 'org-1';
+const ORG_READ = `/api/v1/organizations/slug/${SLUG}`;
+/** The club's own Event list: where a page takes its Event's status from (ruling 380). */
+export const EVENTS_READ = `/api/v1/organizations/${ORG_ID}/events`;
+const EVENT_READ = `/api/v1/events/${EVENT_ID}`;
 
 /** What the server answers a refused save on an archived Event. */
 const REFUSAL = {
@@ -198,17 +210,32 @@ export function openArchivedPage(
   reads: Record<string, unknown>,
   taken: Record<string, unknown> = {},
 ): Promise<OpenedPage> {
-  return openEventPage(page, { [`/api/v1/events/${EVENT_ID}`]: ARCHIVED_EVENT, ...reads }, taken);
+  // The public read disagrees on purpose: a page that took its status there would stay live.
+  const published = { ...ARCHIVED_EVENT, status: 'published' };
+  return openEventPage(
+    page,
+    { [EVENT_READ]: published, [EVENTS_READ]: [ARCHIVED_EVENT], ...reads },
+    taken,
+  );
 }
 
-/** The same page on an Event the test describes itself: `reads` holds the Event's own read. */
+/**
+ * The same page on an Event the test describes itself: `reads` holds the Event's
+ * own read, and the club's list then holds that Event. A test that names
+ * `EVENTS_READ` says what the list holds.
+ */
 export async function openEventPage(
   page: ReactNode,
-  answers: Record<string, unknown>,
+  reads: Record<string, unknown>,
   taken: Record<string, unknown> = {},
 ): Promise<OpenedPage> {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const sent: string[] = [];
+  const answers = {
+    [ORG_READ]: { id: ORG_ID, name: 'Club' },
+    [EVENTS_READ]: EVENT_READ in reads ? [reads[EVENT_READ]] : [],
+    ...reads,
+  };
   standInServer(answers, taken, sent);
   vi.stubGlobal('confirm', () => true);
   vi.stubGlobal('prompt', () => TYPED);
@@ -221,7 +248,11 @@ export async function openEventPage(
   await act(async () => {
     root.render(
       <I18nProvider locale="en">
-        <ToastProvider>{page}</ToastProvider>
+        <ToastProvider>
+          <OrganizerEventContextProvider slug={SLUG} urlEventId={EVENT_ID}>
+            {page}
+          </OrganizerEventContextProvider>
+        </ToastProvider>
       </I18nProvider>,
     );
   });

@@ -35,6 +35,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'draft' }] }),
+}));
 vi.mock('@/lib/supabase-browser', () => ({
   useRealtimeWithFallback: (opts: { onFallbackPoll: () => void }) => {
     realtime.poll = opts.onFallbackPoll;
@@ -120,7 +123,6 @@ function serve() {
           ],
         };
       }
-      if (path === '/api/v1/events/ev1') return { ok: true, data: { status: 'draft' } };
       if (path === '/api/v1/tournaments/t1/generate-bracket?force=true') {
         saved = { ...saved, t1: drawn };
         return { ok: true, data: drawn };

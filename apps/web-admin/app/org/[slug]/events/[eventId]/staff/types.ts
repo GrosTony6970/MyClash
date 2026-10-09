@@ -19,7 +19,6 @@ export interface EventInfo {
   id: string;
   slug: string;
   name: string;
-  status?: string;
 }
 
 /**

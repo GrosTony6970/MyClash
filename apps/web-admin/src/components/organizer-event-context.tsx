@@ -33,6 +33,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchRenewingLogin } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -43,6 +44,7 @@ export interface OrgEventSummary {
   status: string;
   start_date: string | null;
   end_date: string | null;
+  updated_at?: string | null;
 }
 
 interface OrganizerEventContextValue {
@@ -120,11 +122,17 @@ export function OrganizerEventContextProvider({
     async (signal?: AbortSignal): Promise<void> => {
       if (!slug) return;
       try {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-          credentials: 'include',
-          ...(signal ? { signal } : {}),
-        });
-        if (!res.ok) return;
+        // Renewed on a 401, as the pages' own reads are: the list this leads to is what
+        // closes an archived Event's pages (ruling 380), and a login lasts an hour.
+        const res = await fetchRenewingLogin(
+          apiUrl,
+          `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+          { credentials: 'include', ...(signal ? { signal } : {}) },
+        );
+        if (!res.ok) {
+          setEventsError(`${res.status} ${res.statusText || t('admin.common.requestFailed')}`);
+          return;
+        }
         const raw = (await res.json()) as Record<string, unknown>;
         if (typeof raw['id'] === 'string') setOrgId(raw['id']);
         if (typeof raw['name'] === 'string') setOrgName(raw['name']);
@@ -137,7 +145,7 @@ export function OrganizerEventContextProvider({
         // before this call.
       }
     },
-    [slug],
+    [slug, t],
   );
 
   useEffect(() => {
@@ -164,7 +172,7 @@ export function OrganizerEventContextProvider({
     async (signal?: AbortSignal): Promise<void> => {
       if (!orgId) return;
       try {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/events`, {
+        const res = await fetchRenewingLogin(apiUrl, `/api/v1/organizations/${orgId}/events`, {
           credentials: 'include',
           ...(signal ? { signal } : {}),
         });

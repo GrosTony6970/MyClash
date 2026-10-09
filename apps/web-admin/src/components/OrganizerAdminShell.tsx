@@ -328,39 +328,38 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                     role="menu"
                     className="absolute left-2 right-2 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-xl"
                   >
-                    {events.length === 0 ? (
-                      eventsError ? (
-                        <p role="alert" className="px-3 py-2 text-xs font-medium text-danger">
-                          {t('organizer.shell.eventSwitcher.loadFailed')} ({eventsError})
-                        </p>
-                      ) : (
-                        <p className="px-3 py-2 text-sm italic text-muted">
-                          {t('organizer.shell.eventSwitcher.noEvents')}
-                        </p>
-                      )
-                    ) : (
-                      events.map((ev) => (
-                        <button
-                          key={ev.id}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => handlePickEvent(ev.id)}
-                          className={[
-                            'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors',
-                            ev.id === selectedEventId
-                              ? 'bg-accent/70 text-accent-foreground'
-                              : 'text-foreground hover:bg-foreground/10',
-                          ].join(' ')}
-                        >
-                          <span className="truncate">{ev.name}</span>
-                          {ev.status === 'running' && (
-                            <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-gold">
-                              LIVE
-                            </span>
-                          )}
-                        </button>
-                      ))
+                    {eventsError && (
+                      <p role="alert" className="px-3 py-2 text-xs font-medium text-danger">
+                        {t('organizer.shell.eventSwitcher.loadFailed')} ({eventsError})
+                      </p>
                     )}
+                    {events.length === 0
+                      ? !eventsError && (
+                          <p className="px-3 py-2 text-sm italic text-muted">
+                            {t('organizer.shell.eventSwitcher.noEvents')}
+                          </p>
+                        )
+                      : events.map((ev) => (
+                          <button
+                            key={ev.id}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => handlePickEvent(ev.id)}
+                            className={[
+                              'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors',
+                              ev.id === selectedEventId
+                                ? 'bg-accent/70 text-accent-foreground'
+                                : 'text-foreground hover:bg-foreground/10',
+                            ].join(' ')}
+                          >
+                            <span className="truncate">{ev.name}</span>
+                            {ev.status === 'running' && (
+                              <span className="shrink-0 rounded bg-danger/30 px-1 py-px text-[10px] font-bold text-gold">
+                                LIVE
+                              </span>
+                            )}
+                          </button>
+                        ))}
                     <div className="my-1 border-t border-border" />
                     <Link
                       role="menuitem"

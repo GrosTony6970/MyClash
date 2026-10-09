@@ -5,6 +5,7 @@ import { Modal, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 
 interface Props {
   targetType: 'event' | 'tournament';
@@ -42,6 +43,7 @@ export function RequestDeletionModal({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toast = useToast();
+  const { refetchEvents } = useOrganizerSelectedEvent();
 
   const reasonLen = reason.trim().length;
   const isValid = reasonLen >= 10 && reasonLen <= 500;
@@ -70,6 +72,8 @@ export function RequestDeletionModal({
           if (message) setError(message);
           return;
         }
+        // Every page of that Event reads its status from the club's list.
+        void refetchEvents();
       }
       const r = await apiRequest(apiUrl, '/api/v1/deletion-requests', {
         method: 'POST',

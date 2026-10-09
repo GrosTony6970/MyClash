@@ -5,6 +5,7 @@ import type { StaffRole } from '@myclash/types';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
+import { useEventStatus } from '../_hooks/useEventStatus';
 import { createAccountProblem } from './create-account-feedback';
 import { pinProblem } from './pin-feedback';
 import type { EventInfo, Lice, StaffAccount } from './types';
@@ -83,14 +84,15 @@ export function useStaffAccounts(eventId: string) {
   const data = useStaffData(base);
   const lifecycle = useStaffLifecycleWrites(base, data.load);
   const config = useStaffConfigWrites(base, data.load);
+  // The server refuses every save of this page on an archived Event (ruling 377).
+  const { isReadOnly } = useEventStatus(eventId);
 
   return {
     ...data,
     ...lifecycle,
     ...config,
     error: data.error ?? lifecycle.error ?? config.error,
-    // The server refuses every save of this page on an archived Event (ruling 377).
-    isReadOnly: data.event?.status === 'archived',
+    isReadOnly,
   };
 }
 

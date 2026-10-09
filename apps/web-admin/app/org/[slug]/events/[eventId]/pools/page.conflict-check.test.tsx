@@ -27,6 +27,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
+vi.mock('@/components/organizer-event-context', () => ({
+  useOrganizerSelectedEvent: () => ({ events: [{ id: 'ev1', status: 'draft' }] }),
+}));
 // The tabs render only on their own hash; stubbed so their imports stay out of this test.
 vi.mock('./_tabs/MatchesTab', () => ({ MatchesTab: () => null }));
 vi.mock('./_tabs/StandingsTab', () => ({ StandingsTab: () => null }));
@@ -72,7 +75,6 @@ const TOURNAMENT_PATH =
 function serve(tournaments: Array<{ id: string; name: string }>, clashes: Record<string, unknown>) {
   vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string) => {
     if (path === '/api/v1/events/ev1/tournaments') return { ok: true, data: tournaments };
-    if (path === '/api/v1/events/ev1') return { ok: true, data: { status: 'draft' } };
     const [, tournamentId = '', read] = TOURNAMENT_PATH.exec(path) ?? [];
     if (read === 'pools') return { ok: true, data: { phaseId: null, pools: [] } };
     if (read === 'unassigned-fighters') return { ok: true, data: [] };

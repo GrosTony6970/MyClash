@@ -1,45 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getPublicApiUrl } from '@/lib/api-url';
-import { apiRequest } from '@myclash/api-client';
+import {
+  useOrganizerSelectedEvent,
+  type OrgEventSummary,
+} from '@/components/organizer-event-context';
 
-type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'archived';
-
+/**
+ * The Event's status, for an organiser page (ruling 380).
+ *
+ * Read from the club's own Event list, which the organiser shell holds. Never from
+ * `GET /events/:id`: that is the public read, and it answers 404 for a test Event to
+ * everybody, so a gate that leaned on it did nothing there.
+ *
+ * `event` is null until the list is read, and for an Event the list does not hold.
+ * A page's gates are open in that moment. The list is read when the shell opens and
+ * again after a screen changes a status: an Event that archives itself while the tab
+ * is open reads as live until a reload.
+ */
 export function useEventStatus(eventId: string): {
-  status: EventStatus | null;
+  event: OrgEventSummary | null;
   isReadOnly: boolean;
   isArchived: boolean;
-  isLoading: boolean;
-  refetch: () => void;
 } {
-  const apiUrl = getPublicApiUrl();
-  const [status, setStatus] = useState<EventStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for an async fetch on mount; behaviour-preserving
-    setIsLoading(true);
-    // Silent by design: this hook renders nothing itself, it hands a status to
-    // the screens around it, and `null` is the honest answer when the read did
-    // not land.
-    void apiRequest<{ status?: string }>(apiUrl, `/api/v1/events/${eventId}`).then((r) => {
-      if (cancelled) return;
-      setStatus(r.ok ? ((r.data.status ?? null) as EventStatus | null) : null);
-      setIsLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiUrl, eventId, refreshKey]);
-
-  return {
-    status,
-    isReadOnly: status === 'archived',
-    isArchived: status === 'archived',
-    isLoading,
-    refetch: () => setRefreshKey((k) => k + 1),
-  };
+  const { events } = useOrganizerSelectedEvent();
+  const event = events.find((e) => e.id === eventId) ?? null;
+  const isArchived = event?.status === 'archived';
+  return { event, isReadOnly: isArchived, isArchived };
 }
