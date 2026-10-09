@@ -1160,7 +1160,7 @@ export default function BracketPage() {
               <button
                 type="button"
                 onClick={() => setReseedOpen(true)}
-                disabled={r1HasStartedMatch}
+                disabled={r1HasStartedMatch || isReadOnly}
                 title={r1HasStartedMatch ? t('organizer.phaseVisibility.reseedBlocked') : undefined}
                 className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground-secondary disabled:opacity-40"
               >
@@ -1302,7 +1302,8 @@ export default function BracketPage() {
               )}
               <button
                 onClick={() => void generate(false)}
-                disabled={generating || !selectedTournament}
+                disabled={generating || !selectedTournament || isReadOnly}
+                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
                 className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {generating
@@ -1369,7 +1370,7 @@ export default function BracketPage() {
               {bracket.phaseType === 'double_elim' && (
                 <button
                   onClick={() => void saveBracketConfig()}
-                  disabled={configSaving}
+                  disabled={configSaving || isReadOnly}
                   className="rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-50 px-3 py-2 text-sm font-semibold text-accent-foreground"
                 >
                   {configSaving
@@ -1379,14 +1380,14 @@ export default function BracketPage() {
               )}
               <button
                 onClick={() => setShowForceConfirm(true)}
-                disabled={generating || deleting}
+                disabled={generating || deleting || isReadOnly}
                 className="ml-auto rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground-secondary disabled:opacity-50"
               >
                 {t('organizer.bracketPage.regenerateButton')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                disabled={generating || deleting}
+                disabled={generating || deleting || isReadOnly}
                 className="rounded-lg border border-danger/30 bg-surface hover:bg-danger/10 px-3 py-2 text-sm font-semibold text-danger disabled:opacity-50"
               >
                 {t('organizer.bracketPage.deleteButton')}
@@ -1456,7 +1457,9 @@ export default function BracketPage() {
                     }
                     void populateBracket();
                   }}
-                  disabled={populating || !existingBracket || bracket.poolsCompleted === false}
+                  disabled={
+                    populating || !existingBracket || bracket.poolsCompleted === false || isReadOnly
+                  }
                   title={
                     bracket.poolsCompleted === false
                       ? t('organizer.bracket.autoPopulatePoolsNotFinished')
@@ -1645,7 +1648,7 @@ export default function BracketPage() {
                 </button>
                 <button
                   onClick={() => void submitOverride()}
-                  disabled={overriding}
+                  disabled={overriding || isReadOnly}
                   className="flex-1 px-4 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold rounded-lg text-sm"
                 >
                   {overriding ? t('organizer.bracketPage.saving') : t('organizer.bracketPage.save')}
@@ -1850,7 +1853,7 @@ export default function BracketPage() {
                 <button
                   type="button"
                   onClick={() => void submitForfeit()}
-                  disabled={forfeitBusy || !forfeitSide}
+                  disabled={forfeitBusy || !forfeitSide || isReadOnly}
                   className="w-full rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
                 >
                   {forfeitBusy ? '…' : t('organizer.bracketPage.forfeitTitle')}
@@ -2048,7 +2051,8 @@ export default function BracketPage() {
             </p>
             <button
               onClick={() => void generate(false)}
-              disabled={generating || !selectedTournament}
+              disabled={generating || !selectedTournament || isReadOnly}
+              title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
               className="inline-flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-50 px-4 py-2 text-sm font-semibold text-accent-foreground"
             >
               {t('organizer.bracketPage.generateButton')}
