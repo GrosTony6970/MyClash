@@ -264,14 +264,13 @@ export const OPEN_ON_PURPOSE: Readonly<Record<string, readonly string[]>> = {
       'POST clubs/review-requests/:id/link',
       'POST clubs/review-requests/:id/reject',
     ],
-};
-
-/** They reach the rows of an archived Event and no ruling covers it. May only shrink. */
-export const NAMED_OPEN: Readonly<Record<string, readonly string[]>> = {
-  "AI text about an Event, a Tournament or a profile, shown on its page: no ruling says whether an archived Event's text may still be generated or published.":
+  "AI text about an Event, a Tournament or a profile, shown on its page: an archived Event's recap is still generated, published and unpublished (ruling 379).":
     [
       'POST generated-content/:type/:entityId/generate',
       'POST generated-content/:type/:entityId/publish',
       'POST generated-content/:type/:entityId/unpublish',
     ],
 };
+
+/** They reach the rows of an archived Event and no ruling covers it. May only shrink. */
+export const NAMED_OPEN: Readonly<Record<string, readonly string[]>> = {};

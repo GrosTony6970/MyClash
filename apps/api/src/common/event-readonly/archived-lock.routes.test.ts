@@ -44,7 +44,9 @@ const listed = new Set(Object.values(LISTS).flat());
 describe('the archived-Event lock, API-wide', () => {
   it('finds the write routes, so an empty sweep cannot pass as a clean one', () => {
     expect(routes.length).toBeGreaterThan(300);
-    for (const [name, list] of Object.entries(LISTS)) expect(list.length, name).toBeGreaterThan(0);
+    // NAMED_OPEN is empty since ruling 379: its count is pinned below.
+    const { NAMED_OPEN: _unruled, ...ruled } = LISTS;
+    for (const [name, list] of Object.entries(ruled)) expect(list.length, name).toBeGreaterThan(0);
   });
 
   it('places every write route, or the ledger says why it does not', () => {
@@ -128,7 +130,7 @@ describe('the archived-Event lock, API-wide', () => {
 
   it('pins the routes it places, and NAMED_OPEN may only shrink', () => {
     expect(placed).toHaveLength(183);
-    expect(LISTS.NAMED_OPEN).toHaveLength(3);
+    expect(LISTS.NAMED_OPEN).toHaveLength(0);
   });
 });
 
