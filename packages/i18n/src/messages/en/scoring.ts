@@ -396,6 +396,10 @@ export const scoring = {
     resetConfirmAction: 'Reset clock',
     resetConfirmCancel: 'Cancel',
   },
+  endGuard: {
+    title: 'End the match now?',
+    message: 'Neither the point cap nor the time is reached.',
+  },
   resumeGuard: {
     title: 'Time is up',
     message:

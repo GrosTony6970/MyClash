@@ -379,6 +379,10 @@ export const scoring = {
     resetConfirmAction: 'Réinitialiser',
     resetConfirmCancel: 'Annuler',
   },
+  endGuard: {
+    title: 'Terminer le match maintenant ?',
+    message: "Ni le plafond de points ni le temps n'est atteint.",
+  },
   resumeGuard: {
     title: 'Temps ecoule',
     message:

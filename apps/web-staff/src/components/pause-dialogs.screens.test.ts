@@ -23,6 +23,10 @@ const warning = dialogs.slice(
   dialogs.indexOf('export function RoundBreakDialog('),
 );
 const roundBreak = dialogs.slice(dialogs.indexOf('export function RoundBreakDialog('));
+const earlyEnd = dialogs.slice(
+  dialogs.indexOf('export function EndEarlyDialog('),
+  dialogs.indexOf('interface ResumeGuardDialogProps'),
+);
 
 describe('the bout screen', () => {
   it('draws no overlay of its own', () => {
@@ -70,6 +74,33 @@ describe('the resume warning', () => {
   it('has three buttons the size of a finger', () => {
     expect(warning.match(/<button/g)).toHaveLength(3);
     expect(warning.match(/min-h-\[44px\]/g)).toHaveLength(3);
+  });
+});
+
+describe('the question on an early End', () => {
+  it('is asked by the controls, and not by the resume warning', () => {
+    expect(view).toContain('onClockAction={onControlsClockAction}');
+    expect(view).toContain('<EndEarlyDialog\n        open={pendingEnd}');
+    expect(view).toMatch(
+      /onEndMatch=\{\(\) => \{\s+setPendingResume\(null\);\s+void onClockAction\('end'\);/,
+    );
+  });
+
+  it('is the shared dialog, and Close leaves it', () => {
+    expect(earlyEnd).toMatch(/<Modal\s+open=\{open\}\s+onClose=\{onClose\}/);
+  });
+
+  it('puts Close first, so a Space after the slip ends nothing', () => {
+    const close = earlyEnd.indexOf("{t('scoring.result.close')}");
+    const end = earlyEnd.indexOf("{t('scoring.clock.endMatch')}");
+    expect(close).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(close);
+    expect(earlyEnd).toMatch(/<>\s+<button\s+type="button"\s+onClick=\{onClose\}/);
+  });
+
+  it('has two buttons the size of a finger', () => {
+    expect(earlyEnd.match(/<button/g)).toHaveLength(2);
+    expect(earlyEnd.match(/min-h-\[44px\]/g)).toHaveLength(2);
   });
 });
 

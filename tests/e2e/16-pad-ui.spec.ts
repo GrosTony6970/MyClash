@@ -340,6 +340,8 @@ test.describe('scoring pad UI', () => {
     // Ending the clock is one of only two ways a pad-scored match ever finishes
     // (the other is the point cap), and it is what completes the match row.
     await page.getByTestId('clock-end-button').click();
+    // Seconds into the bout and far from the cap: the pad asks before it ends.
+    await page.getByTestId('end-early-confirm').click();
     await expect(clockStatus).toHaveAttribute('data-status', 'ended', { timeout: 20_000 });
 
     const overlay = page.getByTestId('match-result-overlay');

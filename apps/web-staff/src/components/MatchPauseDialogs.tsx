@@ -4,17 +4,62 @@ import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 
 /**
- * The two screens that stand between the official and the clock: the resume
- * warning and the break between two rounds.
+ * The screens that stand between the official and the clock: the question on
+ * an early End, the resume warning and the break between two rounds.
  *
- * Both are the shared `Modal`, and that is the point. The Space bar asks the
- * page for an open dialog before it touches the clock (`MatchView`). These two
+ * All are the shared `Modal`, and that is the point. The Space bar asks the
+ * page for an open dialog before it touches the clock (`MatchView`). The last two
  * were plain `div`s, so Space found none and resumed the clock behind the
  * "Round complete" screen while nobody fought.
  *
  * A dialog takes the keyboard focus, and Space presses the focused button. So
  * the ORDER of the buttons is a decision, not a layout.
  */
+
+interface EndEarlyDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onEndMatch: () => void;
+}
+
+/**
+ * "End match" was pressed before the cap or the time (`end-guard.ts`): the
+ * official says whether that was meant.
+ *
+ * Close comes FIRST, as on the resume warning, so the focus lands on it: a
+ * Space after a slip closes the question and ends nothing.
+ */
+export function EndEarlyDialog({ open, onClose, onEndMatch }: EndEarlyDialogProps) {
+  const { t } = useI18n();
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('scoring.endGuard.title')}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[44px] rounded-lg border-2 border-border bg-surface px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-border"
+          >
+            {t('scoring.result.close')}
+          </button>
+          <button
+            type="button"
+            data-testid="end-early-confirm"
+            onClick={onEndMatch}
+            className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
+          >
+            {t('scoring.clock.endMatch')}
+          </button>
+        </>
+      }
+    >
+      <p className="text-sm text-foreground-secondary">{t('scoring.endGuard.message')}</p>
+    </Modal>
+  );
+}
 
 interface ResumeGuardDialogProps {
   open: boolean;

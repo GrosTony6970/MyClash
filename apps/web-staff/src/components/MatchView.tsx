@@ -6,7 +6,7 @@ import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
-import { ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
+import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import { boutNames } from '../lib/held-hit';
@@ -24,10 +24,11 @@ import {
   pointCapWinnerColor,
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
-import { effectiveTimeLimitSeconds, levelChainApplies } from './scoreboard-clock';
+import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
+import { endIsEarly } from './end-guard';
 import { apiRequest } from '@myclash/api-client';
 
 export interface MatchInfo {
@@ -160,6 +161,8 @@ export function MatchView({
   // Resume guard: when the operator starts/resumes at zero / in the soft
   // zone, hold the action here and ask first (continue anyway / end match).
   const [pendingResume, setPendingResume] = useState<'start' | 'resume' | null>(null);
+  // "End match" was pressed before the cap or the time: the question is up.
+  const [pendingEnd, setPendingEnd] = useState(false);
   // End-of-match result overlay; dismiss resets whenever the clock leaves
   // 'ended' so Reopen → end shows it again.
   const [resultDismissed, setResultDismissed] = useState(false);
@@ -499,6 +502,25 @@ export function MatchView({
   const capWinnerSide = pointCapWinnerColor({ redScore, blueScore }, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
+  // The controls' clock buttons. "End match" before the cap or the time is asked
+  // about first (`end-guard.ts`). It reads the score on the screen, unsent hits
+  // included, because that is the score the official ends the bout on. The
+  // resume warning's own "End match" does not come here: it is already the
+  // answer to a question.
+  const onControlsClockAction = (action: Parameters<typeof onClockAction>[0]) => {
+    const early =
+      action === 'end' &&
+      endIsEarly(
+        matchFormat,
+        match.phaseType ?? undefined,
+        match.matchNumberLabel,
+        elapsedActiveMs(clockState, Date.now()),
+        { redScore, blueScore },
+      );
+    if (early) setPendingEnd(true);
+    else void onClockAction(action);
+  };
+
   // A hit or a card was written on the tablet. The press reads nothing from
   // the server (ruling 316): the engine says the new count, which shows the
   // hit as provisional, and the ONE read of the server per scored hit
@@ -671,7 +693,7 @@ export function MatchView({
           clockState={clockState}
           clockLoading={clockLoading}
           clockError={clockError}
-          onClockAction={(action) => void onClockAction(action)}
+          onClockAction={onControlsClockAction}
           submit={submit}
           scoring={scoring}
           syncEngine={syncEngine}
@@ -754,6 +776,15 @@ export function MatchView({
         }}
         onEndMatch={() => {
           setPendingResume(null);
+          void onClockAction('end');
+        }}
+      />
+
+      <EndEarlyDialog
+        open={pendingEnd}
+        onClose={() => setPendingEnd(false)}
+        onEndMatch={() => {
+          setPendingEnd(false);
           void onClockAction('end');
         }}
       />
