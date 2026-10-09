@@ -147,6 +147,19 @@ async function settleAll(run: Run, matchId?: string): Promise<Map<string, Settle
 
 let turn: Promise<unknown> = Promise.resolve();
 
+const told = new Set<() => void>();
+
+/**
+ * Told after every run, whoever asked for it: the screen's watcher, or a tap on
+ * Undo. A run can write a notice for the bout on screen (rulings 364 to 366):
+ * told by its watcher alone, the screen showed that of a tap's run up to 15
+ * seconds late. Answers its stop.
+ */
+export function onSettleRan(ran: () => void): () => void {
+  told.add(ran);
+  return () => void told.delete(ran);
+}
+
 /**
  * Ask the server for every entry the undo took off the tablet (ruling 350),
  * of one bout or of all: one it holds is voided there, by whoever is signed
@@ -164,5 +177,7 @@ export function settleUndone(
 ): Promise<Map<string, Settled>> {
   const run = turn.then(() => settleAll({ apiUrl, tapped, ended: new Map() }, matchId));
   turn = run.catch(() => undefined);
+  // Beside the chain of runs, not in it: a listener's fault ends no later run.
+  void turn.then(() => told.forEach((ran) => ran()));
   return run;
 }

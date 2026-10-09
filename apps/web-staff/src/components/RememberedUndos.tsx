@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import type { UndoNotice } from '../offline/db';
 import { noticesOf, saidNotices } from '../offline/undo-notices';
 import { undoNoticeLines } from '../lib/refused-undo';
+import { onSettleRan } from '../lib/settle-undone';
 import { watchUndone } from '../lib/watch-undone';
 
 interface RememberedUndosProps {
@@ -23,7 +24,8 @@ interface RememberedUndosProps {
  *
  * What is said was written down by the settle, with its bout. So an undo of
  * this bout settled while another screen was open is said here, when this
- * screen opens (ruling 364).
+ * screen opens (ruling 364). And what a run writes while this screen is open
+ * is read after that run, the watcher's or a tap's own.
  *
  * The race is a read that started before the Close and lands after it: it
  * would show the rows again. The ids he closed are left out of every read.
@@ -43,10 +45,10 @@ export function RememberedUndos({ engine, apiUrl, matchId, onSettled }: Remember
         .catch((err: unknown) => console.error('[undo] the notices could not be read', err));
     };
     read();
-    const stop = watchUndone({ engine, apiUrl, onSettled, onRan: read, win: window });
+    const stops = [onSettleRan(read), watchUndone({ engine, apiUrl, onSettled, win: window })];
     return () => {
       gone = true;
-      stop();
+      stops.forEach((stop) => stop());
     };
   }, [engine, apiUrl, matchId, onSettled]);
 

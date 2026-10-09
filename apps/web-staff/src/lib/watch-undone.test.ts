@@ -35,10 +35,9 @@ function watching(settled: Array<[string, Settled]> = []) {
     },
   };
   const onSettled = vi.fn();
-  const onRan = vi.fn();
-  const stop = watchUndone({ engine, apiUrl: API_URL, onSettled, onRan, win: win as never });
+  const stop = watchUndone({ engine, apiUrl: API_URL, onSettled, win: win as never });
   const endSend = () => sendEnded?.();
-  return { runs, heard, onSettled, onRan, stop, endSend, listens: () => sendEnded };
+  return { runs, heard, onSettled, stop, endSend, listens: () => sendEnded };
 }
 
 const refusal = (status: number, code: string): ApiFailure => ({
@@ -50,7 +49,6 @@ const refusal = (status: number, code: string): ApiFailure => ({
   validationErrors: null,
 });
 const LOCKED = refusal(400, 'BAD_REQUEST');
-const GONE = refusal(404, 'NOT_FOUND');
 
 /** Let the run in flight end: its answer is a resolved promise. */
 const ended = () => vi.advanceTimersByTimeAsync(0);
@@ -127,29 +125,6 @@ describe('watchUndone', () => {
     expect(onSettled).not.toHaveBeenCalled();
   });
 
-  // Rulings 364 to 366. The settle writes down what it did not carry out, with its bout:
-  // the screen reads what is written for its own bout after every run, whatever the run did.
-  it.each<[string, Array<[string, Settled]>]>([
-    ['settled nothing', []],
-    ['kept every entry', [['uuid-1', 'kept']]],
-    ['met a refusal about another bout', [['uuid-1', { refused: GONE, matchId: 'm2' }]]],
-    ['let an undo of an ended bout go', [['uuid-1', 'ended']]],
-  ])('tells the screen a run ended when it %s', async (_what, settled) => {
-    const { onRan } = watching(settled);
-    await ended();
-
-    expect(onRan).toHaveBeenCalledOnce();
-  });
-
-  it('tells the screen after each run, once per run', async () => {
-    const { onRan, endSend } = watching();
-    await ended();
-    endSend();
-    await ended();
-
-    expect(onRan).toHaveBeenCalledTimes(2);
-  });
-
   it('a run that throws is logged, and the next one still runs', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { runs, endSend } = watching();
@@ -177,13 +152,12 @@ describe('watchUndone', () => {
 
   // The bout screen closed while a run was out: its answer is for nobody.
   it('a run in flight at the stop tells no screen', async () => {
-    const { onSettled, onRan, stop } = watching([['uuid-1', { refused: LOCKED, matchId: 'm1' }]]);
+    const { onSettled, stop } = watching([['uuid-1', { refused: LOCKED, matchId: 'm1' }]]);
 
     stop();
     await ended();
 
     expect(onSettled).not.toHaveBeenCalled();
-    expect(onRan).not.toHaveBeenCalled();
   });
 });
 
@@ -204,15 +178,21 @@ describe('the bout screen', () => {
 
   it('watches while it is open, and stops when it closes', () => {
     expect(notice).toContain(
-      'const stop = watchUndone({ engine, apiUrl, onSettled, onRan: read, win: window });',
+      'const stops = [onSettleRan(read), watchUndone({ engine, apiUrl, onSettled, win: window })];',
     );
-    expect(notice).toMatch(/return \(\) => \{\s+gone = true;\s+stop\(\);\s+\};/);
+    expect(notice).toMatch(
+      /return \(\) => \{\s+gone = true;\s+stops\.forEach\(\(stop\) => stop\(\)\);\s+\};/,
+    );
     expect(notice).toContain('}, [engine, apiUrl, matchId, onSettled]);');
   });
 
   // Ruling 364: what was written while another screen was open is read when this one opens.
+  // After EVERY run of the settle, a tap's own too: told by the watcher alone, a notice
+  // the tap's run wrote showed up to 15 seconds late.
   it('reads what is written for its bout when it opens, and after every run', () => {
-    expect(notice).toMatch(/\n {4}read\(\);\n {4}const stop = watchUndone\(/);
+    expect(notice).toMatch(
+      /\n {4}read\(\);\n {4}const stops = \[onSettleRan\(read\), watchUndone\(/,
+    );
     expect(notice).toMatch(/noticesOf\(matchId\)\s+\.then\(\(rows\) => \{/);
     expect(notice).toContain(
       'if (!gone) setNotices(rows.filter((row) => !closed.current.has(row.clientUuid)));',

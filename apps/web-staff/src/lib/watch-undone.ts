@@ -13,16 +13,15 @@ const changesTheList = (settled: Settled) => settled !== 'absent' && settled !==
  * event and nothing to send. One run at a time: a trigger that meets a run in
  * flight is dropped, so a dead wifi piles up nothing. `onSettled` when a run
  * voided an entry, or could not: the screen reads the bout again, and a hit
- * the server kept is on the list again. `onRan` after every run: an undo that
- * was not carried out is written down for the screen of its bout (rulings 364
- * to 366), and this screen reads what is written for its own. Answers its own
+ * the server kept is on the list again. An undo that was not carried out is
+ * written down for the screen of its bout (rulings 364 to 366): that screen
+ * hears of every run from the settle itself (`onSettleRan`). Answers its own
  * stop: a run in flight at the stop tells nobody, its screen is closed.
  */
 export function watchUndone(deps: {
   engine: { onSendEnded(ended: () => void): () => void };
   apiUrl: string;
   onSettled: () => void;
-  onRan: () => void;
   win: Pick<Window, 'addEventListener' | 'removeEventListener' | 'setInterval' | 'clearInterval'>;
 }): () => void {
   const { win } = deps;
@@ -33,9 +32,7 @@ export function watchUndone(deps: {
     running = true;
     settleUndone(deps.apiUrl)
       .then((settled) => {
-        if (stopped) return;
-        if ([...settled.values()].some(changesTheList)) deps.onSettled();
-        deps.onRan();
+        if (!stopped && [...settled.values()].some(changesTheList)) deps.onSettled();
       })
       .catch((err: unknown) => {
         console.error('[undo] the undos written down could not be settled', err);
