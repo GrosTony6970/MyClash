@@ -86,8 +86,6 @@ describe('a save of the Live board the server refuses', () => {
     await page.settle();
 
     expect(page.writes()).toEqual(['POST /api/v1/events/ev1/live/attention/a1/ack']);
-    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
-      'This event is archived',
-    );
+    expect(document.body.textContent).toContain('This event is archived');
   });
 });

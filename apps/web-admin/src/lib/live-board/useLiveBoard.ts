@@ -20,16 +20,15 @@ const API = getPublicApiUrl();
  *   • `applyMatchChange`, fed by the per-lice anon realtime subscriber, patches
  *     a single score cell instantly between polls.
  * `acknowledge` and `setLiceScorer` are the writes: optimistic, reconciled on
- * failure, and a refused one is kept in `refused` for the board to say (ruling
- * 378). Errors keep the last-known rows on screen — the board never blanks.
+ * failure, and a refused one is handed to `onRefused` for the board to say
+ * (ruling 378). Errors keep the last-known rows on screen — the board never blanks.
  */
-export function useLiveBoard(eventId: string) {
+export function useLiveBoard(eventId: string, onRefused?: (refusal: ApiFailure) => void) {
   const [rows, setRows] = useState<BoardRow[] | null>(null);
   const [progress, setProgress] = useState<LiveBoardProgress | null>(null);
   const [accounts, setAccounts] = useState<LiveBoardAccount[]>([]);
   const [eventSlug, setEventSlug] = useState<string | null>(null);
   const [error, setError] = useState<'refresh' | 'forbidden' | null>(null);
-  const [refused, setRefused] = useState<ApiFailure | null>(null);
 
   const refetch = useCallback(async () => {
     try {
@@ -94,10 +93,11 @@ export function useLiveBoard(eventId: string) {
         `/api/v1/events/${eventId}/live/attention/${staffAccountId}/ack`,
         { method: 'POST' },
       );
-      setRefused(r.ok ? null : r);
-      if (!r.ok) void refetch(); // revert to server truth
+      if (r.ok) return;
+      onRefused?.(r);
+      void refetch(); // revert to server truth
     },
-    [eventId, refetch],
+    [eventId, onRefused, refetch],
   );
 
   /**
@@ -146,11 +146,11 @@ export function useLiveBoard(eventId: string) {
         `/api/v1/events/${eventId}/live/lices/${liceId}/scorer`,
         { method: 'PUT', body: { staffAccountId } },
       );
-      setRefused(r.ok ? null : r);
+      if (!r.ok) onRefused?.(r);
       void refetch(); // server truth, after a yes and after a no
       return r.ok ? (r.data.removedAccountIds ?? []) : [];
     },
-    [accounts, eventId, refetch],
+    [accounts, eventId, onRefused, refetch],
   );
 
   return {
@@ -159,7 +159,6 @@ export function useLiveBoard(eventId: string) {
     accounts,
     eventSlug,
     error,
-    refused,
     refetch,
     acknowledge,
     setLiceScorer,

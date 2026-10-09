@@ -481,7 +481,7 @@ export default function CsvImportPage() {
                     type="button"
                     onClick={() => void handleCommit()}
                     data-testid="import-commit"
-                    disabled={uploading || willCreate + willLink === 0 || isReadOnly}
+                    disabled={uploading || willCreate + willLink === 0}
                     className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
                   >
                     {uploading

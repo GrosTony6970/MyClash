@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
-import { useSecondsClock } from '@myclash/ui';
+import { useCallback, useState } from 'react';
+import { useSecondsClock, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { failureMessage } from '@myclash/api-client';
+import { failureMessage, type ApiFailure } from '@myclash/api-client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
@@ -49,17 +49,24 @@ function LiceRealtime({
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
   const { t } = useI18n();
+  const toast = useToast();
+  const sayRefusal = useCallback(
+    (refusal: ApiFailure) => {
+      const message = failureMessage(refusal, t, t('common.error'));
+      if (message) toast.error(message);
+    },
+    [t, toast],
+  );
   const {
     rows,
     progress,
     accounts,
     eventSlug,
     error,
-    refused,
     acknowledge,
     setLiceScorer,
     applyMatchChange,
-  } = useLiveBoard(eventId);
+  } = useLiveBoard(eventId, sayRefusal);
   const { isReadOnly } = useEventStatus(eventId);
   const [mode, setMode] = useState<'piste' | 'worst'>('piste');
   const [showHealthy, setShowHealthy] = useState(false);
@@ -111,11 +118,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
         stale={error === 'refresh'}
         t={t}
       />
-      {refused && (
-        <p role="alert" className="mt-2 text-sm text-danger">
-          {failureMessage(refused, t, t('common.error'))}
-        </p>
-      )}
 
       {/* Wide table: every piste, all breakpoints ≥ md. Sectioned by venue and
           area only when the event actually runs across more than one — a

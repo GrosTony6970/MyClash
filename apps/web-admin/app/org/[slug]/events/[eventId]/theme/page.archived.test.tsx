@@ -36,6 +36,11 @@ describe('the branding page of an archived Event', () => {
   it('uploads neither a logo nor a hero image', async () => {
     page = await openArchivedPage(<BrandingEditorPage />, READS);
 
+    // Each of the page's four buttons opens a file picker, and a picked file is an upload.
+    const pickers = [...document.body.querySelectorAll('main button')];
+    expect(pickers).toHaveLength(4);
+    expect(pickers.filter((picker) => picker.matches(':disabled'))).toHaveLength(4);
+
     await page.pressEverything();
 
     expect(page.writes()).toEqual([]);

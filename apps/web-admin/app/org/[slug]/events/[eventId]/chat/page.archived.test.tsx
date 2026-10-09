@@ -68,6 +68,24 @@ describe('the AI chat of an archived Event', () => {
 
     expect(page.writes()).toEqual([]);
   });
+
+  it('closes the rename, the message box and Send, each on its own', async () => {
+    page = await openArchivedPage(<EventChatPage />, READS);
+    const rename = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Rename conversation"]',
+    );
+    const box = document.body.querySelector<HTMLTextAreaElement>('textarea');
+    expect(rename?.disabled).toBe(true);
+    expect(box?.disabled).toBe(true);
+
+    // A message typed before the Event's status was read: Send stays closed over it.
+    await act(async () => type(box!, 'Add a third pool'));
+    const send = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Send',
+    );
+    expect(box?.value).toBe('Add a third pool');
+    expect(send?.disabled).toBe(true);
+  });
 });
 
 describe('a send the server refuses', () => {

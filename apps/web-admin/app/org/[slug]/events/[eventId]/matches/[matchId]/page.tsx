@@ -102,7 +102,6 @@ interface Match {
   blue_fighter_name?: string | null;
   rulesetCode: string;
   ruleset_code?: string;
-  lockedAt?: string | null;
   locked_at?: string | null;
 }
 
@@ -253,7 +252,7 @@ export default function MatchDetailPage() {
   const currentRedScore = match?.redScore ?? match?.red_score ?? 0;
   const currentBlueScore = match?.blueScore ?? match?.blue_score ?? 0;
   // The API hands the bout's row as the database holds it: `locked_at`.
-  const lockedAt = match?.lockedAt ?? match?.locked_at;
+  const lockedAt = match?.locked_at;
   const overrideLosingScore =
     overrideLosingScoreEdit ?? String(forfeitSide === 'red' ? currentRedScore : currentBlueScore);
   const overrideWinningScore =
