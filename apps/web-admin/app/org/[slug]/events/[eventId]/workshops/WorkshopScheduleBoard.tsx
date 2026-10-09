@@ -69,6 +69,8 @@ interface Props {
   /** Event IANA timezone — the board axis + placement are resolved in it. */
   timezone: string;
   breaks?: WorkshopBreak[];
+  /** The Event is archived: no card is dragged or resized, so `onPlace` is never called. */
+  readOnly: boolean;
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
   onBlockClick?: (workshopId: string) => void;
   onUnschedule?: (sessionId: string) => void;
@@ -118,6 +120,7 @@ export function WorkshopScheduleBoard({
   days,
   timezone,
   breaks = [],
+  readOnly,
   onPlace,
   onBlockClick,
   onUnschedule,
@@ -289,7 +292,8 @@ export function WorkshopScheduleBoard({
     e.preventDefault();
     setGhost(null);
     const workshopId = e.dataTransfer.getData('workshopId');
-    if (!workshopId) return;
+    // A drag that began before the Event's status was read can still land here.
+    if (!workshopId || readOnly) return;
     const sessionId = e.dataTransfer.getData('sessionId') || null;
     const span = Number(e.dataTransfer.getData('span')) || 12;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -570,7 +574,7 @@ export function WorkshopScheduleBoard({
               drawer.map((w) => (
                 <div
                   key={w.id}
-                  draggable
+                  draggable={!readOnly}
                   onDragStart={(e) => {
                     const span = w.durationMinutes
                       ? Math.round(w.durationMinutes / SLOT_MINUTES)
@@ -742,7 +746,7 @@ export function WorkshopScheduleBoard({
                           return (
                             <div
                               key={bl.sessionId}
-                              draggable
+                              draggable={!readOnly}
                               onDragStart={(e) => {
                                 dragSpanRef.current = bl.span;
                                 e.dataTransfer.setData('workshopId', bl.workshopId);
@@ -788,22 +792,24 @@ export function WorkshopScheduleBoard({
                                 </button>
                               )}
                               {/* Top resize grip */}
-                              <span
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  setResizing({
-                                    workshopId: bl.workshopId,
-                                    sessionId: bl.sessionId,
-                                    column: c,
-                                    edge: 'top',
-                                    baseStart: bl.startSlot,
-                                    baseEnd: bl.endSlot,
-                                    curStart: bl.startSlot,
-                                    curEnd: bl.endSlot,
-                                  });
-                                }}
-                                className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-black/15"
-                              />
+                              {!readOnly && (
+                                <span
+                                  onPointerDown={(e) => {
+                                    e.stopPropagation();
+                                    setResizing({
+                                      workshopId: bl.workshopId,
+                                      sessionId: bl.sessionId,
+                                      column: c,
+                                      edge: 'top',
+                                      baseStart: bl.startSlot,
+                                      baseEnd: bl.endSlot,
+                                      curStart: bl.startSlot,
+                                      curEnd: bl.endSlot,
+                                    });
+                                  }}
+                                  className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-black/15"
+                                />
+                              )}
                               <span className="block truncate pr-3 text-base font-bold">
                                 {bl.title}
                               </span>
@@ -824,22 +830,24 @@ export function WorkshopScheduleBoard({
                                 {bl.confirmedCount}/{bl.capacity ?? '∞'}
                               </span>
                               {/* Bottom resize grip */}
-                              <span
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  setResizing({
-                                    workshopId: bl.workshopId,
-                                    sessionId: bl.sessionId,
-                                    column: c,
-                                    edge: 'bottom',
-                                    baseStart: bl.startSlot,
-                                    baseEnd: bl.endSlot,
-                                    curStart: bl.startSlot,
-                                    curEnd: bl.endSlot,
-                                  });
-                                }}
-                                className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-black/15"
-                              />
+                              {!readOnly && (
+                                <span
+                                  onPointerDown={(e) => {
+                                    e.stopPropagation();
+                                    setResizing({
+                                      workshopId: bl.workshopId,
+                                      sessionId: bl.sessionId,
+                                      column: c,
+                                      edge: 'bottom',
+                                      baseStart: bl.startSlot,
+                                      baseEnd: bl.endSlot,
+                                      curStart: bl.startSlot,
+                                      curEnd: bl.endSlot,
+                                    });
+                                  }}
+                                  className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-black/15"
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -859,6 +867,8 @@ export function WorkshopScheduleBoard({
                       <div
                         key={b.id}
                         onPointerDown={(e) => {
+                          // No save to send the move to: the bar stays where it is.
+                          if (!onUpdateBreak) return;
                           setBreakDrag({
                             id: b.id,
                             mode: 'move',
@@ -873,20 +883,22 @@ export function WorkshopScheduleBoard({
                         style={{ top: startSlot * slotHeightPx, height: h, ...tint }}
                       >
                         {/* Top resize grip */}
-                        <span
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            setBreakDrag({
-                              id: b.id,
-                              mode: 'top',
-                              baseStart: startSlot,
-                              baseEnd: endSlot,
-                              curStart: startSlot,
-                              curEnd: endSlot,
-                            });
-                          }}
-                          className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-muted/50"
-                        />
+                        {onUpdateBreak && (
+                          <span
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              setBreakDrag({
+                                id: b.id,
+                                mode: 'top',
+                                baseStart: startSlot,
+                                baseEnd: endSlot,
+                                curStart: startSlot,
+                                curEnd: endSlot,
+                              });
+                            }}
+                            className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-muted/50"
+                          />
+                        )}
                         <span className="text-sm font-semibold">
                           {b.label ?? t('organizer.schedulePage.grid.breakDefaultLabel')}
                         </span>
@@ -922,20 +934,22 @@ export function WorkshopScheduleBoard({
                           </button>
                         )}
                         {/* Bottom resize grip */}
-                        <span
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            setBreakDrag({
-                              id: b.id,
-                              mode: 'bottom',
-                              baseStart: startSlot,
-                              baseEnd: endSlot,
-                              curStart: startSlot,
-                              curEnd: endSlot,
-                            });
-                          }}
-                          className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-muted/50"
-                        />
+                        {onUpdateBreak && (
+                          <span
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              setBreakDrag({
+                                id: b.id,
+                                mode: 'bottom',
+                                baseStart: startSlot,
+                                baseEnd: endSlot,
+                                curStart: startSlot,
+                                curEnd: endSlot,
+                              });
+                            }}
+                            className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-muted/50"
+                          />
+                        )}
                       </div>
                     );
                   })}

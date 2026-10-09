@@ -51,6 +51,7 @@ import {
 import { rosterRequests } from './roster-requests';
 import { RosterName } from './RosterName';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
+import { useEventStatus } from '../_hooks/useEventStatus';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -159,6 +160,8 @@ export default function WorkshopsAdminPage() {
   // next refresh with nothing said.
   const toast = useToast();
   const { t, locale } = useI18n();
+  // An archived Event takes no save from this page but the roster's "Link" (ruling 377).
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -890,7 +893,9 @@ export default function WorkshopsAdminPage() {
         </div>
         <button
           onClick={openCreate}
-          className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+          disabled={isReadOnly}
+          title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+          className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
           {t('organizer.workshopsPage.newWorkshop')}
         </button>
@@ -929,16 +934,17 @@ export default function WorkshopsAdminPage() {
           days={eventDays}
           timezone={eventTz}
           breaks={breaks}
+          readOnly={isReadOnly}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
           onBlockClick={(wid) => {
             const s = workshops.find((w) => w.id === wid)?.sessions[0];
             if (s) void openRoster(s.id);
           }}
-          onUnschedule={(sessionId) => void handleUnschedule(sessionId)}
-          onAddBreak={openBreakCreate}
-          onEditBreak={openBreakEdit}
-          onUpdateBreak={(b, times) => void handleUpdateBreak(b, times)}
-          onDeleteBreak={(id) => void handleDeleteBreakById(id)}
+          onUnschedule={isReadOnly ? undefined : (sessionId) => void handleUnschedule(sessionId)}
+          onAddBreak={isReadOnly ? undefined : openBreakCreate}
+          onEditBreak={isReadOnly ? undefined : openBreakEdit}
+          onUpdateBreak={isReadOnly ? undefined : (b, times) => void handleUpdateBreak(b, times)}
+          onDeleteBreak={isReadOnly ? undefined : (id) => void handleDeleteBreakById(id)}
         />
       ) : workshops.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
@@ -1063,6 +1069,7 @@ export default function WorkshopsAdminPage() {
                       <select
                         value={w.status}
                         onChange={(e) => void changeStatus(w, e.target.value)}
+                        disabled={isReadOnly}
                         aria-label={t('organizer.workshopsPage.statusAria')}
                         className={`${statusPillClass(workshopStatusSemantic(w.status), 'light', {
                           size: 'sm',
@@ -1080,7 +1087,11 @@ export default function WorkshopsAdminPage() {
                         <button
                           type="button"
                           onClick={() => openEdit(w)}
-                          className="text-xs font-semibold text-accent hover:text-accent-hover"
+                          disabled={isReadOnly}
+                          title={
+                            isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                          }
+                          className="text-xs font-semibold text-accent hover:text-accent-hover disabled:opacity-50"
                         >
                           {t('organizer.workshopsPage.edit')}
                         </button>
@@ -1522,14 +1533,19 @@ export default function WorkshopsAdminPage() {
                     {entry.status === 'waitlisted' && (
                       <button
                         onClick={() => void handlePromote(rosterSession, entry)}
-                        className="text-xs text-success hover:underline"
+                        disabled={isReadOnly}
+                        className="text-xs text-success hover:underline disabled:opacity-50"
                       >
                         {t('organizer.workshopsPage.promote')}
                       </button>
                     )}
                     <button
                       onClick={() => void handleRemove(rosterSession, entry)}
-                      className="text-xs text-danger hover:underline"
+                      disabled={isReadOnly}
+                      title={
+                        isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                      }
+                      className="text-xs text-danger hover:underline disabled:opacity-50"
                     >
                       {t('organizer.workshopsPage.remove')}
                     </button>
