@@ -222,6 +222,8 @@ export const scoring = {
     nextMatchLabel: 'NEXT',
     previousMatchLabel: 'PREVIOUS',
     noNextMatch: 'No next match',
+    listUnreachable:
+      'No connection. The matches of this lice are not loaded yet. They load when the network is back.',
     allMatches: 'All matches on this lice ({count})',
     allMatchesEmpty: 'No match on this lice yet.',
     refereeLabel: 'Referee',

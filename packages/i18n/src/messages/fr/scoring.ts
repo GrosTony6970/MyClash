@@ -224,6 +224,8 @@ export const scoring = {
     nextMatchLabel: 'SUIVANT',
     previousMatchLabel: 'PRÉCÉDENT',
     noNextMatch: 'Aucun assaut suivant',
+    listUnreachable:
+      'Pas de connexion. Les assauts de cette lice ne sont pas encore chargés. Ils se chargeront au retour du réseau.',
     allMatches: 'Tous les assauts de cette lice ({count})',
     allMatchesEmpty: 'Aucun assaut sur cette lice pour le moment.',
     refereeLabel: 'Arbitre',

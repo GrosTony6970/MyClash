@@ -84,7 +84,7 @@ export default function LiceMatchListPage({ params }: Props) {
   }, [params]);
 
   const apiUrl = getApiUrl();
-  const { data, loading, sessionExpired } = useLiceMatches(apiUrl, liceId);
+  const { data, loading, sessionExpired, unreachable } = useLiceMatches(apiUrl, liceId);
 
   useEffect(() => {
     if (sessionExpired) router.replace('/login');
@@ -133,17 +133,31 @@ export default function LiceMatchListPage({ params }: Props) {
           columns, clubs included) and at 3xl it pushed Lice and Status off the
           side on the 1024px tablets the pistes actually run. */}
       <div className="flex-1 p-4 max-w-5xl w-full mx-auto">
-        {/* Only rendered when something is genuinely running or paused. */}
-        {live.length > 0 && (
-          <MatchSection heading={t('scoring.lice.live')} matches={live} testId="live-section" />
+        {/* No list yet and no network: "No next match" would be a guess. A list
+            already read stays on screen, whatever the network does. */}
+        {!data && unreachable ? (
+          <p
+            role="status"
+            data-testid="lice-unreachable"
+            className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-muted"
+          >
+            {t('scoring.lice.listUnreachable')}
+          </p>
+        ) : (
+          <>
+            {/* Only rendered when something is genuinely running or paused. */}
+            {live.length > 0 && (
+              <MatchSection heading={t('scoring.lice.live')} matches={live} testId="live-section" />
+            )}
+            <MatchSection
+              heading={t('scoring.lice.nextMatchLabel')}
+              matches={next}
+              emptyLabel={t('scoring.lice.noNextMatch')}
+            />
+            <AllMatchesDisclosure matches={all} />
+            <TournamentSections matches={all} apiUrl={apiUrl} liceId={liceId ?? ''} />
+          </>
         )}
-        <MatchSection
-          heading={t('scoring.lice.nextMatchLabel')}
-          matches={next}
-          emptyLabel={t('scoring.lice.noNextMatch')}
-        />
-        <AllMatchesDisclosure matches={all} />
-        <TournamentSections matches={all} apiUrl={apiUrl} liceId={liceId ?? ''} />
       </div>
     </main>
   );

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { LiceMatchesPayload } from '../components/lice-match-types';
+import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
 
 /**
  * How often a piste tablet re-reads its lice.
@@ -17,6 +18,8 @@ export interface LiceMatchesState {
   loading: boolean;
   /** True only after a real auth failure — never after a network blip. */
   sessionExpired: boolean;
+  /** True when the last read found no network. With `data` null: nothing to show yet. */
+  unreachable: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -36,28 +39,19 @@ export function useLiceMatches(apiUrl: string, liceId: string | null): LiceMatch
   const [data, setData] = useState<LiceMatchesPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!liceId) return;
-    // Offline: the request would fail anyway, and skipping it keeps the
-    // last-good queue on screen.
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/staff/lices/${liceId}/matches`, {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (res.status === 401 || res.status === 403) {
-        setSessionExpired(true);
-        return;
-      }
-      if (!res.ok) return;
-      setData((await res.json()) as LiceMatchesPayload);
-    } catch {
-      // Network failure — deliberately keep the previous payload.
-    } finally {
-      setLoading(false);
-    }
+    const online = typeof navigator === 'undefined' || navigator.onLine;
+    const read = await readLiceMatches(`${apiUrl}/api/v1/staff/lices/${liceId}/matches`, online);
+    if (read.kind === 'signedOut') setSessionExpired(true);
+    // Any other answer deliberately keeps the previous payload.
+    if (read.kind === 'data') setData(read.data);
+    setUnreachable(read.kind === 'unreachable');
+    // After EVERY read. It sat in a `finally` whose `try` the offline return
+    // never entered, so a piste opened with no network said "Loading" for ever.
+    setLoading(false);
   }, [apiUrl, liceId]);
 
   useEffect(() => {
@@ -70,7 +64,47 @@ export function useLiceMatches(apiUrl: string, liceId: string | null): LiceMatch
     return startPolling(refresh);
   }, [liceId, refresh]);
 
-  return { data, loading, sessionExpired, refresh };
+  return { data, loading, sessionExpired, unreachable, refresh };
+}
+
+export type LiceRead =
+  | { kind: 'data'; data: LiceMatchesPayload }
+  | { kind: 'signedOut' }
+  /** No network: the browser says so, the service worker says so, or nothing answered. */
+  | { kind: 'unreachable' }
+  /** The server answered, and not with the list. */
+  | { kind: 'failed' };
+
+/**
+ * One read of the lice's matches, and what it means for the screen.
+ *
+ * With no network the request is not sent: it would fail anyway. The service
+ * worker answers a synthetic 503 for a dead network instead of throwing, so
+ * "no network" is asked of `classifySyncFailure`, its one owner.
+ */
+export async function readLiceMatches(
+  url: string,
+  online: boolean,
+  fetchFn: typeof fetch = fetch,
+): Promise<LiceRead> {
+  if (!online) return { kind: 'unreachable' };
+  let res: Response;
+  try {
+    res = await fetchFn(url, { credentials: 'include', cache: 'no-store' });
+  } catch {
+    return { kind: 'unreachable' };
+  }
+  if (res.status === 401 || res.status === 403) return { kind: 'signedOut' };
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as FailureBody | null;
+    const offline = classifySyncFailure(res.status, body) === 'offline';
+    return { kind: offline ? 'unreachable' : 'failed' };
+  }
+  try {
+    return { kind: 'data', data: (await res.json()) as LiceMatchesPayload };
+  } catch {
+    return { kind: 'failed' };
+  }
 }
 
 /**
