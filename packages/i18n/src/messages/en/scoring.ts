@@ -302,6 +302,9 @@ export const scoring = {
   match: {
     unavailableTitle: 'Match unavailable',
     unavailableBody: 'This match could not be loaded — it may have been deleted or rescheduled.',
+    // No read reached the server: nothing is known of the match, so nothing is guessed.
+    notLoadedTitle: 'No connection',
+    notLoadedBody: 'This match is not loaded yet. It opens when the network is back.',
     reopen: 'Reopen match',
     reopening: 'Reopening...',
     unlockFailed: 'Could not reopen this match.',

@@ -288,6 +288,8 @@ export const scoring = {
     unavailableTitle: 'Assaut indisponible',
     unavailableBody:
       "Cet assaut n'a pas pu être charge — il a peut-être été supprime ou reprogramme.",
+    notLoadedTitle: 'Pas de connexion',
+    notLoadedBody: "Cet assaut n'est pas encore chargé. Il s'ouvrira au retour du réseau.",
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',

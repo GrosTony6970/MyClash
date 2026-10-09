@@ -872,3 +872,32 @@ export function NoMatchView({ mode = 'lice' }: NoMatchViewProps) {
     </main>
   );
 }
+
+/**
+ * The bout was never read, because no read reached the server. Not `NoMatchView`:
+ * "deleted or rescheduled" is a guess the page cannot make with no answer. The
+ * page reads again by itself when the network is back; Retry is for the
+ * official who will not wait. Inside the page's own `main`, so it opens none.
+ */
+export function BoutNotLoadedView({ onRetry }: { onRetry: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      data-testid="bout-not-loaded"
+      className="flex flex-1 items-center justify-center p-8 text-center"
+    >
+      <div className="max-w-md">
+        <h1 className="text-2xl font-bold text-foreground">{t('scoring.match.notLoadedTitle')}</h1>
+        <p className="mt-3 text-muted">{t('scoring.match.notLoadedBody')}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-6 min-h-[44px] rounded-lg border-2 border-border bg-surface px-6 py-2 text-sm font-bold text-foreground hover:bg-border"
+        >
+          {t('scoring.lice.retry')}
+        </button>
+      </div>
+    </div>
+  );
+}

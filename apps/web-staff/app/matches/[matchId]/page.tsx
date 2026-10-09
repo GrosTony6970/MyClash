@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
+import {
+  BoutNotLoadedView,
+  MatchView,
+  NoMatchView,
+  type MatchInfo,
+} from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { RememberedUndos } from '../../../src/components/RememberedUndos';
 import { SyncBar } from '../../../src/components/SyncBar';
@@ -16,6 +21,9 @@ import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 interface Props {
   params: Promise<{ matchId: string }>;
 }
+
+/** How often a bout opened with no network is asked for again. */
+const BOUT_NOT_LOADED_RETRY_MS = 5_000;
 
 /**
  * Per-match scoring route. Lets the admin bracket deep-link straight
@@ -36,6 +44,8 @@ export default function MatchScoringPage({ params }: Props) {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  // The last read of the bout met no network. Shown only while `match` is null.
+  const [unreachable, setUnreachable] = useState(false);
   const [quarantineOpen, setQuarantineOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
@@ -95,6 +105,12 @@ export default function MatchScoringPage({ params }: Props) {
     const handleOnline = () => {
       setNetworkStatus('online');
       syncEngine.sendBehind(); // flush any exchanges queued while offline
+      // Whatever the queue holds: an empty one ends no send, so nothing else
+      // read a bout opened with no network. The race is this read against the
+      // read at the end of that send, and `boutReads` below settles it: the
+      // newest answer wins. A hit tapped while it is on its way is in the
+      // tablet's queue, and the score counts it as it does after every send.
+      readBoutAgain();
     };
     const handleOffline = () => setNetworkStatus('offline');
     window.addEventListener('online', handleOnline);
@@ -106,7 +122,17 @@ export default function MatchScoringPage({ params }: Props) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [syncEngine]);
+  }, [syncEngine, readBoutAgain]);
+
+  // The screen says the bout opens when the network is back, and the `online`
+  // event alone does not keep that word: a tablet that kept its access point
+  // while the uplink dropped gets none. So a bout not loaded is asked for
+  // again until it is.
+  useEffect(() => {
+    if (match || !unreachable) return;
+    const timer = window.setInterval(readBoutAgain, BOUT_NOT_LOADED_RETRY_MS);
+    return () => window.clearInterval(timer);
+  }, [match, unreachable, readBoutAgain]);
 
   // The race: two sends end close together (two hits in a row) and each reads
   // the bout. An answer that lands after a LATER read's answer must not win.
@@ -145,12 +171,24 @@ export default function MatchScoringPage({ params }: Props) {
         // docblock explains why a 503 reads as offline — and the body carries
         // the worker's `{ error: 'offline' }` marker, the only unambiguous
         // signal of the three, so it is worth parsing before deciding.
+        //
+        // UNREACHABLE is marked, not only skipped: with no bout on screen yet
+        // the page said "deleted or rescheduled" over a bout that was never
+        // read. The mark shows only while there is no bout, so it does not
+        // ask `isNewestAnswer`: that would drop an earlier good answer still
+        // on its way.
         if (!rawRes.ok) {
           const body = (await rawRes.json().catch(() => null)) as FailureBody | null;
-          if (classifySyncFailure(rawRes.status, body) === 'offline') return;
+          if (classifySyncFailure(rawRes.status, body) === 'offline') {
+            setUnreachable(true);
+            return;
+          }
+          setUnreachable(false);
           if (isNewestAnswer()) setMatch(null);
           return;
         }
+        // The server answered: whatever the order of the answers, it is in reach.
+        setUnreachable(false);
         const raw = (await rawRes.json()) as {
           id: string;
           match_number_label: string | null;
@@ -240,7 +278,10 @@ export default function MatchScoringPage({ params }: Props) {
         // the service worker is not controlling this page — local dev, or a
         // first visit before it activates — because when it IS active every
         // /api/ call resolves, and the offline branch above handles it. Same
-        // verdict either way: keep the match we already have.
+        // verdict either way: keep the match we already have, and with none
+        // yet, say it is the network. An answer that cannot be read (a hall's
+        // sign-in page in place of the API) lands here too, and is the same.
+        setUnreachable(true);
       } finally {
         setLoading(false);
       }
@@ -285,6 +326,8 @@ export default function MatchScoringPage({ params }: Props) {
           backHref={backHref}
           buildMatchHref={buildMatchHref}
         />
+      ) : unreachable ? (
+        <BoutNotLoadedView onRetry={readBoutAgain} />
       ) : (
         <NoMatchView mode="match" />
       )}
