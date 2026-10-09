@@ -267,6 +267,9 @@ export const scoring = {
     // "provisional" rather than "offline": the hits are real and recorded, it
     // is only the server that has not seen them yet.
     provisionalScore: 'includes {delta} not yet sent',
+    // The tablet's own store refused the write. Covers a hit, a double and a
+    // no-exchange: the same press path writes all three.
+    hitNotSaved: 'Not saved on this tablet. Tap it again.',
     // Two different admissions, and they are not interchangeable. "Included"
     // means the pad worked out what the card costs and put it in the number
     // above — which is often nothing, because a yellow is worth zero points

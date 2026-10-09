@@ -34,8 +34,8 @@ export interface UseScoringSubmitResult {
   /** Handed on to the card column, which queues its own rows. */
   bout: BoutNames;
   submitting: boolean;
-  error: string | null;
-  setError: (value: string | null) => void;
+  /** The last press could not be written on the tablet. Cleared by the next press that is. */
+  notSaved: boolean;
   submitClean: (side: ExchangeSide, btn: CleanButton) => void;
   submitAfterblow: (side: ExchangeSide, btn: AfterblowButton) => void;
   submitDouble: () => void;
@@ -57,7 +57,7 @@ export function useScoringSubmit({
   onExchangeRecorded,
 }: UseScoringSubmitArgs): UseScoringSubmitResult {
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [notSaved, setNotSaved] = useState(false);
   const sequenceRef = useRef(nextSequence);
 
   useEffect(() => {
@@ -67,31 +67,29 @@ export function useScoringSubmit({
   const submit = useCallback(
     async (exchange: PendingExchange) => {
       setSubmitting(true);
-      setError(null);
-      try {
-        // Durable-first: write to the IndexedDB outbox, then let the SyncEngine POST
-        // it. Online it syncs immediately; offline it stays queued and drains on
-        // reconnect. clientUuid makes the POST idempotent (a re-drain answers the saved row).
-        // The press does not wait for the send (ruling 316): the buttons come back
-        // once the hit is on the tablet, whatever the queue or the wifi is doing.
-        await enqueue({
-          clientUuid: crypto.randomUUID(),
-          matchId,
-          sequence: sequenceRef.current,
-          occurredAt: new Date().toISOString(),
-          clockTimeMs,
-          bout,
-          ...exchange,
-        });
-        syncEngine?.sendBehind();
-        // Moves the sequence on. The engine says the new count, which shows the
-        // hit as provisional; the server is read once, when the send has ended.
-        onExchangeRecorded?.();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to record exchange');
-      } finally {
-        setSubmitting(false);
-      }
+      // Durable-first: write to the IndexedDB outbox, then let the SyncEngine POST
+      // it. Online it syncs immediately; offline it stays queued and drains on
+      // reconnect. clientUuid makes the POST idempotent (a re-drain answers the saved row).
+      // The press does not wait for the send (ruling 316): the buttons come back
+      // once the hit is on the tablet, whatever the queue or the wifi is doing.
+      const written = await writeHit(
+        async () => {
+          await enqueue({
+            clientUuid: crypto.randomUUID(),
+            matchId,
+            sequence: sequenceRef.current,
+            occurredAt: new Date().toISOString(),
+            clockTimeMs,
+            bout,
+            ...exchange,
+          });
+        },
+        syncEngine,
+        onExchangeRecorded,
+      );
+      // The one writer: the alert stays until a press is written.
+      setNotSaved(written === 'not_saved');
+      setSubmitting(false);
     },
     [matchId, clockTimeMs, bout, syncEngine, onExchangeRecorded],
   );
@@ -132,11 +130,34 @@ export function useScoringSubmit({
   return {
     bout,
     submitting,
-    error,
-    setError,
+    notSaved,
     submitClean,
     submitAfterblow,
     submitDouble,
     submitNoExchange,
   };
+}
+
+/**
+ * One press, written on the tablet. Only then is a send asked for and the
+ * sequence moved on: a hit the tablet could not write is not counted, and the
+ * screen says so. The store's own words (Dexie's, in English) go to the
+ * console, never to the official.
+ */
+export async function writeHit(
+  write: () => Promise<void>,
+  syncEngine: Pick<SyncEngine, 'sendBehind'> | null | undefined,
+  onExchangeRecorded: (() => void) | undefined,
+): Promise<'saved' | 'not_saved'> {
+  try {
+    await write();
+  } catch (err) {
+    console.error('[pad] a hit could not be written on the tablet', err);
+    return 'not_saved';
+  }
+  syncEngine?.sendBehind();
+  // Moves the sequence on. The engine says the new count, which shows the
+  // hit as provisional; the server is read once, when the send has ended.
+  onExchangeRecorded?.();
+  return 'saved';
 }

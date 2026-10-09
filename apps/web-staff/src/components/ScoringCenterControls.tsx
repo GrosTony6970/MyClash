@@ -410,6 +410,17 @@ export function ScoringCenterControls({
 
       {clockError && <p className="text-center text-xs text-danger">{clockError}</p>}
 
+      {/* The tablet could not write the last press down: it is not counted. */}
+      {submit.notSaved && (
+        <p
+          role="alert"
+          data-testid="hit-not-saved"
+          className="w-full rounded-lg bg-danger/20 px-3 py-2 text-center text-sm font-semibold text-danger"
+        >
+          {t('scoring.lice.hitNotSaved')}
+        </p>
+      )}
+
       {!readOnly && (
         <>
           {/* Primary Play/Pause toggle */}
