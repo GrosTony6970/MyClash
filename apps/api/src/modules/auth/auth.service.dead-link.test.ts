@@ -2,7 +2,10 @@ import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
-import { mockSupabase as seededSupabase } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase as seededSupabase,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 
 /**
  * A mailed link that signs nobody in, at `GET /auth/callback` (operator rulings 360, 362).
@@ -23,8 +26,11 @@ const config = {
   get: vi.fn((key: string, def?: string) => (key === 'DOMAIN' ? 'myclash.localhost' : (def ?? ''))),
 };
 
-function build(code: () => Promise<unknown>) {
-  const db = seededSupabase({ feature_flags: { rows: [] } });
+function build(
+  code: () => Promise<unknown>,
+  tables: Record<string, TableSeed> = { feature_flags: { rows: [] } },
+) {
+  const db = seededSupabase(tables);
   const verifyOtp = vi.fn(code);
   const supabase = { service: db.service, anon: { auth: { verifyOtp } } };
   const service = new AuthService(
@@ -83,6 +89,18 @@ describe('a mailed link whose code the auth server refuses (ruling 362)', () => 
 
     expect(reply.redirect.mock.calls).toEqual([
       ['https://app.myclash.localhost/login?refused=link_expired'],
+    ]);
+  });
+
+  // No mail carries another type than the three. One edited by hand named a site
+  // that has no sign-in page: it is read as the door's default, the organizer link.
+  it('reads a type edited by hand as the organizer link', async () => {
+    const { land, reply } = build(answers(REFUSED));
+
+    await land('admin');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://admin.myclash.localhost/login?refused=link_expired'],
     ]);
   });
 });
@@ -150,5 +168,28 @@ describe('a mailed link whose door fails for another reason', () => {
 
     expect(reply.redirect.mock.calls).toEqual([['https://app.myclash.localhost/somewhere']]);
     expect(reply.setCookie).toHaveBeenCalledTimes(2);
+  });
+
+  it('signs in the reader of a good link whose type was edited by hand, on the organizer site', async () => {
+    const { land, reply } = build(signsIn);
+
+    await land('admin');
+
+    expect(reply.redirect.mock.calls).toEqual([['https://admin.myclash.localhost/somewhere']]);
+  });
+
+  // The lockdown is asked of an organizer link only: an edited type passed it.
+  it('refuses a good link whose type was edited by hand during the lockdown, as an organizer link', async () => {
+    const { land, reply } = build(signsIn, {
+      feature_flags: { rows: [{ key: 'admin_lockdown', enabled: true }] },
+      platform_roles: { rows: [] },
+    });
+
+    await land('admin');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://admin.myclash.localhost/login?refused=admin_lockdown'],
+    ]);
+    expect(reply.setCookie).not.toHaveBeenCalled();
   });
 });

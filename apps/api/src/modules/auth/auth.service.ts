@@ -66,6 +66,7 @@ import {
   spendMailedCode,
   writePassword,
 } from './auth-server-calls';
+import { linkTypeOf, type LinkType } from './link-type';
 import { refusedLinkOrThrow } from './refused-link';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
@@ -444,11 +445,12 @@ export class AuthService {
    */
   async handleCallback(
     token: string,
-    type: string,
+    asked: string,
     personId: string | undefined,
     next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
+    const type = linkTypeOf(asked);
     const user = await this.exchangeLink(token, type, reply).catch(refusedLinkOrThrow);
     if (typeof user === 'string') {
       // A browser that followed a link cannot read a 401 or a 503 (rulings 324,
@@ -2253,17 +2255,12 @@ export class AuthService {
     );
   }
 
-  private buildPostAuthRedirectUrl(path: string, type: string): string {
+  private buildPostAuthRedirectUrl(path: string, type: LinkType): string {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = domain.includes('localhost') ? 'https' : 'https';
-    const base =
-      type === 'login'
-        ? `${protocol}://admin.${domain}`
-        : type === 'public_login' || type === 'claim'
-          ? `${protocol}://app.${domain}`
-          : `${protocol}://${domain}`;
+    const site = type === 'login' ? 'admin' : 'app';
 
-    return `${base}${path}`;
+    return `${protocol}://${site}.${domain}${path}`;
   }
 
   private extractToken(request: FastifyRequest): string | null {
