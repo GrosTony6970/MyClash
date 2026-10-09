@@ -3,10 +3,12 @@
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { useConfirm } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { broadcastQuestion, narrowedToTournament } from './broadcast-question';
 
 type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
@@ -42,6 +44,7 @@ export default function EventNotificationsPage() {
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
+  const { confirm, confirmDialog } = useConfirm();
 
   const initialTarget = searchParams.get('targetType') as TargetType | null;
   const initialSeverity = searchParams.get('severity') as Severity | null;
@@ -102,8 +105,24 @@ export default function EventNotificationsPage() {
     );
   }, [people, search]);
 
+  /** The question before a broadcast leaves: which message, to whom, as what. */
+  function askBeforeSend(): Promise<boolean> {
+    const question = broadcastQuestion(
+      {
+        title: title.trim(),
+        audience: targetOptions.find((option) => option.value === targetType)?.label ?? '',
+        severity: severityOptions.find((option) => option.value === severity)?.label ?? '',
+        selectedCount: targetType === 'specific_persons' ? selected.size : null,
+        oneTournament: narrowedToTournament(targetType, tournamentId),
+      },
+      t,
+    );
+    return confirm(question);
+  }
+
   async function sendBroadcast() {
     if (!title.trim() || !body.trim() || busy) return;
+    if (!(await askBeforeSend())) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -348,6 +367,8 @@ export default function EventNotificationsPage() {
           </div>
         )}
       </section>
+
+      {confirmDialog}
     </main>
   );
 }

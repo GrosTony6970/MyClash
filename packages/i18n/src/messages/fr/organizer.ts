@@ -1470,6 +1470,12 @@ export const organizer = {
     searchPeople: 'Chercher une personne',
     preview: 'Aperçu',
     send: 'Envoyer notification',
+    confirmTitle: 'Envoyer « {title} » ?',
+    confirmBody:
+      'Destinataires : {audience}. Type : {severity}. Un message envoyé ne peut pas être repris.',
+    confirmBodyOneTournament:
+      "Destinataires : {audience}, d'un seul tournoi. Type : {severity}. Un message envoyé ne peut pas être repris.",
+    confirmSelected: 'Personnes choisies : {count}',
     sending: 'Envoi...',
     sent: 'Notification envoyée a {count} destinataire(s).',
     sendError: 'Envoi impossible.',

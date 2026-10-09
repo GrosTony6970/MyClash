@@ -1472,6 +1472,12 @@ export const organizer = {
     searchPeople: 'Search people',
     preview: 'Preview',
     send: 'Send notification',
+    confirmTitle: 'Send "{title}"?',
+    confirmBody:
+      'Recipients: {audience}. Type: {severity}. A message that was sent cannot be taken back.',
+    confirmBodyOneTournament:
+      'Recipients: {audience}, of one tournament only. Type: {severity}. A message that was sent cannot be taken back.',
+    confirmSelected: 'Selected people: {count}',
     sending: 'Sending...',
     sent: 'Notification sent to {count} recipient(s).',
     sendError: 'Could not send notification.',
