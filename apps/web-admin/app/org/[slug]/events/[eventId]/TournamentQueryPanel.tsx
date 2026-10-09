@@ -67,8 +67,13 @@ const SUGGESTION_KEYS = [
   'laggingRefsFr',
 ] as const;
 
-export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tournament[] }) {
-  const { apiUrl, tournaments } = props;
+export function TournamentQueryPanel(props: {
+  apiUrl: string;
+  tournaments: Tournament[];
+  /** The Event is archived: the server refuses a question, its estimate and the settings. */
+  readOnly: boolean;
+}) {
+  const { apiUrl, tournaments, readOnly } = props;
   const { t } = useI18n();
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
   const [question, setQuestion] = useState('');
@@ -226,6 +231,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
             aria-label={t('organizer.tournamentQuery.question')}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
+            disabled={readOnly}
             placeholder={t('organizer.tournamentQuery.placeholder')}
             className="w-full rounded-lg border border-border px-3 py-2 text-sm"
           />
@@ -233,6 +239,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
         <button
           type="submit"
           disabled={busy || !estimate?.allowed || question.trim().length < 4}
+          title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {busy ? t('organizer.tournamentQuery.asking') : t('organizer.tournamentQuery.ask')}
@@ -255,6 +262,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
             key={suggestion}
             type="button"
             onClick={() => setQuestion(suggestion)}
+            disabled={readOnly}
             className="rounded-full border border-border px-3 py-1 text-xs text-foreground-secondary hover:border-accent"
           >
             {suggestion}
@@ -310,6 +318,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
                   setQuestion(item.question);
                   void askQuestion(item.question);
                 }}
+                disabled={readOnly}
                 className="block w-full rounded border border-border bg-surface p-2 text-left text-xs hover:border-accent"
               >
                 <span className="font-medium text-foreground">{item.question}</span>
@@ -369,7 +378,7 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
             <button
               type="button"
               onClick={() => void saveSettings()}
-              disabled={busy}
+              disabled={busy || readOnly}
               className="self-end rounded border border-border px-3 py-1 text-sm font-medium hover:bg-background disabled:opacity-50"
             >
               {t('actions.save')}

@@ -784,7 +784,9 @@ export default function EventDetailPage() {
         </div>
       </section>
 
-      {aiEnabled && <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} />}
+      {aiEnabled && (
+        <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} readOnly={isReadOnly} />
+      )}
 
       {aiEnabled && (
         <section className="mb-8 rounded-lg border border-border bg-surface shadow-sm">
