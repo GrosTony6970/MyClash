@@ -1172,6 +1172,8 @@ describe('AuthService', () => {
           mode: 'organizer_signup',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
+          // What the sign-up screen sends: the address she TYPED.
+          next: '/org/lyon-amhe',
         },
         reply as never,
       );
@@ -1203,6 +1205,8 @@ describe('AuthService', () => {
           mode: 'organizer_signup',
           orgName: 'Lyon Sabre',
           orgSlug: 'lyon-sabre',
+          // What the sign-up screen sends: a club that was never made.
+          next: '/org/lyon-sabre',
         },
         reply as never,
       );

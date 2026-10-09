@@ -307,8 +307,8 @@ export class AuthService {
     }
 
     if (dto.mode === 'organizer_signup') {
-      const made = await this.signUpWithGoogle(user.id, dto, context);
-      destination = destination === '/' ? clubPage(made) : destination;
+      // Never `next`: the screen sends the club she TYPED, not the one made or owned (304, 369).
+      destination = clubPage(await this.signUpWithGoogle(user.id, dto, context));
     }
 
     if (dto.mode === 'person_claim') {
