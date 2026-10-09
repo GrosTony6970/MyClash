@@ -209,6 +209,23 @@ Size: **S** = under about one hour, **M** = about half a day.
 | 8   | The pad's tests cannot render a screen. How is "the alert is on screen" or "Space sends nothing" proved?                                                                  | **Pure functions, text pins, and one stubbed browser spec per row** in `tests/a11y/pad-*.spec.ts`. No React test setup for the pad.                                                                                               | `4511bc52` to `d1db074f` |
 | 9   | For ruling 3. The wifi is down, the official swipes down by mistake and the pad reloads. The tablet remembers the bout from its last good read. What may the official do? | **Keep scoring**: the full bout screen opens from the tablet's memory, hits and cards go to the queue, and a notice says the score is the last one confirmed plus this tablet's hits. The clock waits for the network (ruling 2). | not built                |
 
+### Rulings — operator, night of 2026-10-09 (rulings 2 and 3 are planned as one design)
+
+The operator asked "any way to keep the clock going even offline?". That is ruling 2. The answer
+to the order of work was **plan the clock first, build nothing yet**: rulings 2 and 3 get one
+plan, and no code before it is approved. Ruling 4 is planned after, and asked again.
+
+| #   | Asked with this story                                                                                                                                            | Ruling                                                                                                                                                                                                                                         |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10  | On Sunday, with no wifi, an official opens a bout of Saturday. The tablet still has its copy, "running, 3-2".                                                    | **It opens, with its date shown.** The notice says the day and time the copy was read. The pad blocks nothing by the age of a copy.                                                                                                            |
+| 11  | No wifi for an hour. A pool bout reaches its time, 5-3, and the official presses End match.                                                                      | **End on the tablet, confirm later.** The pad checks the rules it knows, shows the bout as ended and not confirmed, and the table moves on. The End goes out with the queue. A refused End puts the bout back to paused and sits in the inbox. |
+| 12  | Tablet A, offline, starts the clock at 10:00 and stops it at 10:01. Tablet B, online, started it at 10:00:05. A's presses reach the server while the clock runs. | **Drop what is already true, hold the rest.** A press that asks for the state the clock is in is taken as done. A press that still makes sense is applied. A press that fits nothing is held in the inbox with its reason.                     |
+| 13  | A best-of-3 bout with no wifi stops at "Start round 2". A level bout at time stops at "Extra time".                                                              | **A whole bout of any format runs offline**: Start, Halt, Resume, End, "Start round N+1" and the level-bout steps. Reopen, Reset, the time adjustment and the other corrections still need the network.                                        |
+| 14  | No wifi. The official opens the next bout from the tablet's copy; the server has it as "scheduled".                                                              | **It may be started.** The hits follow the Start in the queue, in order. A Start the server refuses later is held in the inbox with the hits behind it.                                                                                        |
+
+Left as it is, by the operator: an organiser signed in with an account and no PIN is still sent to
+the sign-in screen by the piste picker.
+
 Named while P1 to P4 were built, and not fixed (each one checked in code by a review):
 
 - A server failure (a 500) with no list yet shows "No next match" on the piste. On a bout's read it
