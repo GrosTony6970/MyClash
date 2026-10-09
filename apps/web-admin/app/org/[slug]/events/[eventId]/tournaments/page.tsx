@@ -11,6 +11,7 @@ import {
   TournamentColorDot,
   statusPillClass,
   tournamentStatusSemantic,
+  useConfirm,
 } from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -21,6 +22,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
+import { statusChangeQuestion } from './_lib/status-change-question';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -106,6 +108,7 @@ export default function EventTournamentsPage() {
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
+  const { confirm, confirmDialog } = useConfirm();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [eventName, setEventName] = useState<string>('');
@@ -174,6 +177,8 @@ export default function EventTournamentsPage() {
 
   async function changeStatus(tournament: Tournament, nextStatus: string) {
     if (nextStatus === tournament.status) return;
+    const question = statusChangeQuestion(nextStatus, tournament.name, t);
+    if (question && !(await confirm(question))) return;
     setBusyId(tournament.id);
     setError(null);
     setNotice(null);
@@ -197,6 +202,8 @@ export default function EventTournamentsPage() {
   }
 
   async function archiveTournament(tournament: Tournament) {
+    const question = statusChangeQuestion('archived', tournament.name, t);
+    if (question && !(await confirm(question))) return;
     setBusyId(tournament.id);
     setError(null);
     setNotice(null);
@@ -522,6 +529,8 @@ export default function EventTournamentsPage() {
           </p>
         </Modal>
       )}
+
+      {confirmDialog}
 
       {deletionRequestTarget && (
         <RequestDeletionModal

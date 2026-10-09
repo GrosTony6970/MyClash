@@ -13,6 +13,7 @@ import {
   formatCountryName,
   statusPillTone,
   tournamentStatusSemantic,
+  useConfirm,
 } from '@myclash/ui';
 import {
   calendarGapBetweenDays,
@@ -31,6 +32,7 @@ import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
 import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
 import { isOutstanding, type ReadinessReport } from './readiness-copy';
+import { statusChangeQuestion } from './tournaments/_lib/status-change-question';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -145,6 +147,7 @@ export default function EventDetailPage() {
   const { t, locale } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
   const [showDeletionModal, setShowDeletionModal] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -205,7 +208,9 @@ export default function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl, t]);
 
-  async function changeTournamentStatus(tournamentId: string, status: string) {
+  async function changeTournamentStatus(tournamentId: string, name: string, status: string) {
+    const question = statusChangeQuestion(status, name, t);
+    if (question && !(await confirm(question))) return;
     setTournamentBusy(tournamentId);
     setTournamentError(null);
     try {
@@ -720,7 +725,11 @@ export default function EventDetailPage() {
                         value={tournament.status}
                         disabled={tournamentBusy === tournament.id || isReadOnly}
                         onChange={(ev) =>
-                          void changeTournamentStatus(tournament.id, ev.target.value)
+                          void changeTournamentStatus(
+                            tournament.id,
+                            tournament.name,
+                            ev.target.value,
+                          )
                         }
                         className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -934,6 +943,8 @@ export default function EventDetailPage() {
           </div>
         </div>
       </section>
+
+      {confirmDialog}
 
       {showDeletionModal && (
         <RequestDeletionModal

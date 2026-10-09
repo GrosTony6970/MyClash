@@ -653,6 +653,16 @@ export const organizer = {
     deleteTitle: 'Delete tournament',
     deleteWarning: 'This permanently deletes "{name}". This cannot be undone.',
     confirmHardDelete: 'Delete permanently',
+    statusConfirm: {
+      completedTitle: 'Mark "{name}" as completed?',
+      completedBody:
+        'On a public event, its fighters who have an account are told that the results are out. A notice that was sent cannot be taken back.',
+      completedYes: 'Mark as completed',
+      archivedTitle: 'Archive "{name}"?',
+      archivedBody:
+        'The tournament leaves the public pages. Nobody is told, and you can set another status later.',
+      archivedYes: 'Archive',
+    },
     emptyTitle: 'Create your first tournament',
     emptyDescription:
       'A tournament is a competition inside this event - longsword, messer, sabre and so on. Add one to start managing pools, the bracket, and registrations.',

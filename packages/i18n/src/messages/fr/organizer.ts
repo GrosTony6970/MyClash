@@ -648,6 +648,16 @@ export const organizer = {
     deleteTitle: 'Supprimer le tournoi',
     deleteWarning: 'Cette action supprime définitivement "{name}". Elle est irréversible.',
     confirmHardDelete: 'Supprimer définitivement',
+    statusConfirm: {
+      completedTitle: 'Marquer « {name} » comme terminé ?',
+      completedBody:
+        'Sur un événement public, ses combattants qui ont un compte sont prévenus que les résultats sont publiés. Une notification envoyée ne peut pas être reprise.',
+      completedYes: 'Marquer comme terminé',
+      archivedTitle: 'Archiver « {name} » ?',
+      archivedBody:
+        "Le tournoi quitte les pages publiques. Personne n'est prévenu, et vous pourrez choisir un autre statut plus tard.",
+      archivedYes: 'Archiver',
+    },
     emptyTitle: 'Créez votre premier tournoi',
     emptyDescription:
       'Un tournoi est une compétition au sein de cet événement - épée longue, messer, sabre, etc. Ajoutez-en un pour commencer à gérer les poules, le tableau et les inscriptions.',
