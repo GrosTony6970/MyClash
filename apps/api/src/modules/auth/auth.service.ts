@@ -1494,13 +1494,13 @@ export class AuthService {
     // whole operation retryable.
     const redacted = await this.erasure.redactSubject(user.id);
 
+    // Art. 5(2) receipt, BEFORE the removal: that can land after its limit (ruling 367).
+    await this.erasure.recordErasure(user.id, 'account_deletion', redacted);
+
     const { error: deleteError } = await removeAccount(this.supabase.service, user.id);
     if (deleteError) {
       throw new ServiceUnavailableException(`Auth delete failed: ${deleteError.message}`);
     }
-
-    // Art. 5(2) receipt, written only once the erasure actually completed.
-    await this.erasure.recordErasure(user.id, 'account_deletion', redacted);
 
     // Clear our own cookies; the Supabase session is gone anyway.
     const cookieReply = reply as FastifyReply & {

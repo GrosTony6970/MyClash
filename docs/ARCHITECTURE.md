@@ -1983,9 +1983,11 @@ Five details that matter:
   wrote but a throttle is read as that refusal (`classifyGoTrueFailure`), and only a refusal
   is "expired": a throttle, a server fault, an answer supabase-js cannot read or no answer is
   a server error. supabase-js takes no signal, so the limit ends the wait, not the request:
-  the auth server may still do what was asked. So an account delete that lands after the
-  limit leaves the account gone and no erasure receipt, and a code can be spent after the
-  door said it was not judged.
+  the auth server may still do what was asked. So a code can be spent after the door said it
+  was not judged, and an account delete can land after its door answered a fault: the
+  erasure receipt is written once the data is erased, BEFORE the account is removed (ruling
+  367), so it stands either way. A removal that fails and is tried again writes a second
+  receipt.
 
 `AUTH_GUARD_MODE` defaults to `shadow`: the guard logs what it _would_ have rejected instead of
 rejecting, so the enforcement flip can be made once the would-401 log is clean.

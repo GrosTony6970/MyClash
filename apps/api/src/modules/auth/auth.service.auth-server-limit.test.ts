@@ -201,7 +201,7 @@ describe('each call to the auth server stops after five seconds (ruling 360)', (
     expect(built.reply.setCookie).not.toHaveBeenCalled();
   });
 
-  it('the account delete: a server error, no receipt, and the login stays', async () => {
+  it('the account delete: a server error, and the login stays', async () => {
     const built = build({ remove: NEVER });
 
     const asked = remove(built);
@@ -209,7 +209,68 @@ describe('each call to the auth server stops after five seconds (ruling 360)', (
 
     await serverFault(asked);
     expect(built.deleteUser).toHaveBeenCalledWith(PAUL.id);
-    expect(built.erasure.recordErasure).not.toHaveBeenCalled();
     expect(built.reply.clearCookie).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The receipt of an erasure is written once the data is erased (operator ruling 367).
+ *
+ * Marie deletes her account while the auth server is slow. Her data is erased, then the
+ * removal of the account takes 8 seconds: at 5 her page says "try again", and the removal
+ * lands all the same. Her retry reads "session ended": the account is gone. The receipt was
+ * written after the removal, so nothing ever wrote it. It is written before the removal now.
+ */
+describe('the erasure receipt is written before the account is removed (ruling 367)', () => {
+  const COUNTS = { person_privacy: 1 };
+  /** The steps of a delete, in the order they were asked. */
+  function ordered(built: Built) {
+    const steps: string[] = [];
+    built.erasure.redactSubject.mockImplementation(async () => {
+      steps.push('data erased');
+      return COUNTS;
+    });
+    built.erasure.recordErasure.mockImplementation(async () => void steps.push('receipt'));
+    built.deleteUser.mockImplementationOnce(async () => {
+      steps.push('account removed');
+      return { error: null };
+    });
+    return steps;
+  }
+
+  it('writes it after the data is erased and before the account is removed', async () => {
+    const built = build();
+    const steps = ordered(built);
+
+    await remove(built);
+
+    expect(steps).toEqual(['data erased', 'receipt', 'account removed']);
+    expect(built.erasure.recordErasure.mock.calls).toEqual([[PAUL.id, 'account_deletion', COUNTS]]);
+  });
+
+  it('has written it when the removal of the account never answers', async () => {
+    const built = build({ remove: NEVER });
+
+    const asked = remove(built);
+    await built.timeIsUp(built.deleteUser);
+
+    await serverFault(asked);
+    expect(built.erasure.recordErasure).toHaveBeenCalledOnce();
+  });
+
+  it('has written it when the auth server refuses the removal', async () => {
+    const built = build({ remove: async () => ({ error: { message: 'boom' } }) });
+
+    await expect(remove(built)).rejects.toThrow('Auth delete failed');
+    expect(built.erasure.recordErasure).toHaveBeenCalledOnce();
+  });
+
+  it('writes none when the data could not be erased, and removes no account', async () => {
+    const built = build();
+    built.erasure.redactSubject.mockRejectedValue(new Error('the redaction failed'));
+
+    await expect(remove(built)).rejects.toThrow('the redaction failed');
+    expect(built.erasure.recordErasure).not.toHaveBeenCalled();
+    expect(built.deleteUser).not.toHaveBeenCalled();
   });
 });
