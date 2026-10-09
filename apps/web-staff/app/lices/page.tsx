@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
-import { apiRequest, fetchMe } from '@myclash/api-client';
+import { apiRequest, failureFromError, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
 import { answeredFault, resolveStaffSession } from '../../src/lib/staff-session-decision';
@@ -78,7 +78,11 @@ export default function LicePickerPage() {
         }>;
         try {
           lices = await api.get('/api/v1/staff/assigned-lices');
-        } catch {
+        } catch (err) {
+          // Only a 401 or a 403 says "nobody is signed in". A server that
+          // restarts or a dead network is a failed load: it sent a whole table
+          // to the sign-in screen. Thrown on, it reaches the Retry below.
+          if (failureFromError(err).kind !== 'unauthenticated') throw err;
           router.replace('/login');
           return;
         }
