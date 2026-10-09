@@ -51,6 +51,8 @@ interface Props {
   registrations: WaitlistRegistration[];
   personById: Map<string, PersonLite>;
   onChange: () => void;
+  /** The Event is archived: the server refuses a promote, a removal and a new order. */
+  readOnly: boolean;
 }
 
 export function WaitingListPanel({
@@ -59,6 +61,7 @@ export function WaitingListPanel({
   registrations,
   personById,
   onChange,
+  readOnly,
 }: Props) {
   const { t: translate } = useI18n();
   const toast = useToast();
@@ -174,6 +177,7 @@ export function WaitingListPanel({
                 onPromote={(reg) => void promote(reg)}
                 onRemove={(reg) => void remove(reg)}
                 onReorder={(orderedIds) => void reorder(t.id, orderedIds)}
+                readOnly={readOnly}
               />
             )}
           </section>
@@ -190,12 +194,14 @@ function WaitingListTable({
   onPromote,
   onRemove,
   onReorder,
+  readOnly,
 }: {
   rows: WaitlistRegistration[];
   personById: Map<string, PersonLite>;
   onPromote: (reg: WaitlistRegistration) => void;
   onRemove: (reg: WaitlistRegistration) => void;
   onReorder: (orderedRegistrationIds: string[]) => void;
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -241,7 +247,7 @@ function WaitingListTable({
           return (
             <DataTableRow
               key={reg.id}
-              draggable
+              draggable={!readOnly}
               onDragStart={() => setDragId(reg.id)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(reg)}
@@ -268,14 +274,16 @@ function WaitingListTable({
                 <button
                   type="button"
                   onClick={() => onPromote(reg)}
-                  className="mr-2 text-xs font-semibold text-success hover:text-success-hover"
+                  disabled={readOnly}
+                  className="mr-2 text-xs font-semibold text-success hover:text-success-hover disabled:opacity-50"
                 >
                   {t('admin.orgPersons.promote')}
                 </button>
                 <button
                   type="button"
                   onClick={() => onRemove(reg)}
-                  className="text-xs text-danger hover:text-danger-hover"
+                  disabled={readOnly}
+                  className="text-xs text-danger hover:text-danger-hover disabled:opacity-50"
                 >
                   {t('admin.orgPersons.remove')}
                 </button>

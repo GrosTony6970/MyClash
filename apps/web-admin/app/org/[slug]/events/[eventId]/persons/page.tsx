@@ -1069,6 +1069,7 @@ export default function ParticipantsPage() {
             )
           }
           onChange={refresh}
+          readOnly={isReadOnly}
         />
       )}
 
@@ -1143,7 +1144,7 @@ export default function ParticipantsPage() {
                       {bulkAssignTournamentId && (
                         <button
                           onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
-                          disabled={bulkLoading}
+                          disabled={bulkLoading || isReadOnly}
                           className="rounded bg-info px-2 py-1 text-xs text-info-foreground hover:bg-info-hover disabled:opacity-50"
                         >
                           {t('organizer.persons.bulk.assign')}
@@ -1194,7 +1195,7 @@ export default function ParticipantsPage() {
                           {bulkAssignTournamentId && (
                             <button
                               onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
-                              disabled={bulkLoading}
+                              disabled={bulkLoading || isReadOnly}
                               className="rounded bg-info px-2 py-1 text-xs text-info-foreground hover:bg-info-hover disabled:opacity-50"
                             >
                               {t('organizer.persons.bulk.assign')}
