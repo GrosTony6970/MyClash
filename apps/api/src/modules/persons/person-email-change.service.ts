@@ -193,7 +193,8 @@ export class PersonEmailChangeService {
    * Two calls can be here for one request: a second click beside the late
    * answer of the first. Both move the rows to the same address. The close
    * names an open request, so one of them closes it, and that one writes the
-   * audit line.
+   * audit line. A request cancelled while a late answer was awaited is closed
+   * too: the account has its address, and the rows follow the account.
    */
   private async finishChange(request: EmailChangeRequestRow): Promise<void> {
     const kept = await moveClaimedRowsToAddress(this.supabase, request.user_id, request.new_email);

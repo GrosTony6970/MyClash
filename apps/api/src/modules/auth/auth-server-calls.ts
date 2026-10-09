@@ -29,9 +29,10 @@ class NoAnswerInTime extends Error {}
  * auth server through supabase-js, each held to the limit of the API's other
  * calls to it (operator ruling 360).
  *
- * supabase-js takes no signal, so a call is raced against the limit. The answer
- * that comes late is dropped; the request itself is not stopped, and the auth
- * server may still do what was asked.
+ * supabase-js takes no signal, so a call is raced against the limit. The
+ * request itself is not stopped, and the auth server may still do what was
+ * asked. The answer that comes late is dropped, but for `changeAddress`,
+ * which hands it on (operator ruling 372).
  */
 function heldToLimit<T>(call: PromiseLike<T>): Promise<T> {
   const limit = AbortSignal.timeout(GOTRUE_TIMEOUT_MS);

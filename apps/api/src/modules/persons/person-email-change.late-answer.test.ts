@@ -244,9 +244,10 @@ describe('the work after the address changed', () => {
   // The account has the new address by then. A second click asks for the same address,
   // which the auth server takes (read on GoTrue v2.195.0), and does the work again.
   it.each([
-    ['the roster rows did not move', { persons: rowsKept('no rows') }],
+    ['the roster rows did not move', 'no rows', { persons: rowsKept('no rows') }],
     [
       'the request was not closed',
+      'no close',
       {
         person_email_change_requests: [
           { data: MARC, error: null },
@@ -254,13 +255,13 @@ describe('the work after the address changed', () => {
         ],
       },
     ],
-  ])('answers "unchecked" and reports when %s', async (_what, seed) => {
+  ])('answers "unchecked" and reports when %s', async (_what, fault, seed) => {
     const { service, db, failed } = build({ ...requests({}), ...seed });
 
     await expect(service.confirmEmailChange('marc-token')).resolves.toBe('unchecked');
 
     expect(vi.mocked(captureApiException).mock.calls).toEqual([[expect.any(Error), DOOR]]);
-    expect(failed).toHaveBeenCalledWith(expect.stringContaining('no '));
+    expect(failed).toHaveBeenCalledWith(expect.stringContaining(fault));
     expect(writesTo(db, 'audit_log')).toEqual([]);
   });
 
