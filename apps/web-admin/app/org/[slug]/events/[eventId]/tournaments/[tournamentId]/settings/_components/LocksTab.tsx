@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Switch, useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
@@ -22,7 +23,7 @@ const LOCK_DEFAULTS: LockConfig = {
   autoLockCompletedBrackets: false,
 };
 
-export function LocksTab({ tournamentId }: { tournamentId: string }) {
+export function LocksTab({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -153,7 +154,8 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving}
+        disabled={saving || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

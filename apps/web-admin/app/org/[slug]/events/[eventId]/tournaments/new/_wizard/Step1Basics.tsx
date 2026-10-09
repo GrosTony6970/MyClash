@@ -57,10 +57,13 @@ export function Step1Basics({
   eventId,
   initialTournamentId,
   onCreated,
+  readOnly,
 }: {
   eventId: string;
   initialTournamentId: string | null;
   onCreated: (id: string) => void;
+  /** The Event is archived: the server refuses the step's save, so its button is closed. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -367,7 +370,8 @@ export function Step1Basics({
           type="button"
           onClick={() => void submit()}
           data-testid="tournament-create"
-          disabled={submitting || !name.trim()}
+          disabled={submitting || !name.trim() || readOnly}
+          title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {t('actions.next')}

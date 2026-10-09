@@ -83,7 +83,12 @@ async function openStep() {
     root.render(
       <I18nProvider locale="en">
         <ToastProvider>
-          <Step1Basics eventId="ev1" initialTournamentId={null} onCreated={() => {}} />
+          <Step1Basics
+            eventId="ev1"
+            initialTournamentId={null}
+            onCreated={() => {}}
+            readOnly={false}
+          />
         </ToastProvider>
       </I18nProvider>,
     );

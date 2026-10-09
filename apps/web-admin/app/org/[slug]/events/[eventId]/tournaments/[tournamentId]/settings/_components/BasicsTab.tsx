@@ -10,6 +10,7 @@ import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import type { TabProps } from './tab-props';
 
 interface Ruleset {
   code: string;
@@ -36,7 +37,7 @@ interface TournamentBasics {
 
 const apiUrl = getPublicApiUrl();
 
-export function BasicsTab({ tournamentId }: { tournamentId: string }) {
+export function BasicsTab({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string }>();
@@ -292,6 +293,7 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           <button
             type="button"
             onClick={() => void changeRuleset()}
+            disabled={readOnly}
             className="mt-2 rounded-md border border-accent px-3 py-1.5 text-sm font-semibold text-accent hover:bg-accent/10"
           >
             {t('admin.orgTournaments.changeRuleset')}
@@ -367,7 +369,8 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving}
+        disabled={saving || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

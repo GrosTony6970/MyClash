@@ -13,10 +13,11 @@ import { useCustomiseFormat } from '../../../_shared/useCustomiseFormat';
 import { isCodedRuleset } from '../../../../../../../../../src/components/rulesets/ruleset-kind';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
-export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
+export function AdvancedTab({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -91,13 +92,15 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
           locked={isSystem}
           onCustomise={() => void customise()}
           customising={customising}
+          readOnly={readOnly}
         />
       )}
 
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving}
+        disabled={saving || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

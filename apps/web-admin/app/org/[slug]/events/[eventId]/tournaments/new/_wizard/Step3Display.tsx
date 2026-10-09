@@ -26,10 +26,13 @@ export function Step3Display({
   tournamentId,
   onNext,
   onBack,
+  readOnly,
 }: {
   tournamentId: string;
   onNext: () => void;
   onBack: () => void;
+  /** The Event is archived: the server refuses the step's saves, so they are closed. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -158,7 +161,8 @@ export function Step3Display({
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-6">
         <div className="space-y-6">
-          <fieldset className="space-y-2">
+          {/* Closed whole on an archived Event: a picked file is an upload at once. */}
+          <fieldset disabled={readOnly} className="space-y-2">
             <legend className="text-xs font-medium text-foreground-secondary">
               {t('organizer.tournaments.settings.logoLabel')}
             </legend>
@@ -487,7 +491,8 @@ export function Step3Display({
         <button
           type="button"
           onClick={() => void saveAndAdvance()}
-          disabled={saving}
+          disabled={saving || readOnly}
+          title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('actions.next')}

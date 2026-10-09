@@ -22,6 +22,7 @@ export function TfRulesetControls({
   locked,
   onCustomise,
   customising,
+  readOnly,
 }: {
   tf: RulesetConfigTF;
   onChange: (next: RulesetConfigTF) => void;
@@ -29,6 +30,8 @@ export function TfRulesetControls({
   locked: boolean;
   onCustomise?: () => void;
   customising?: boolean;
+  /** The Event is archived: the server refuses the fork, so its button is closed. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -42,7 +45,12 @@ export function TfRulesetControls({
         <div className="space-y-2 rounded-md border border-border bg-background p-3">
           <p className="text-xs text-muted">{t('admin.orgTournaments.formatLockedHint')}</p>
           {onCustomise && (
-            <Button type="button" variant="secondary" onClick={onCustomise} disabled={customising}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onCustomise}
+              disabled={customising || readOnly}
+            >
               {customising ? t('common.saving') : t('admin.orgTournaments.customiseFormat')}
             </Button>
           )}

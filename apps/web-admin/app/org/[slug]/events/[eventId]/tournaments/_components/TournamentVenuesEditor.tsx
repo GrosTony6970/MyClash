@@ -27,9 +27,12 @@ type PhaseVenueKind = 'pool' | 'swiss' | 'bracket';
 export function TournamentVenuesEditor({
   tournamentId,
   eventId,
+  readOnly,
 }: {
   tournamentId: string;
   eventId: string;
+  /** The Event is archived: the server refuses the save and the three moves. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -175,7 +178,8 @@ export function TournamentVenuesEditor({
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving || loading || venues.length === 0}
+        disabled={saving || loading || venues.length === 0 || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
@@ -191,7 +195,7 @@ export function TournamentVenuesEditor({
               <button
                 type="button"
                 onClick={() => void moveNow('pool')}
-                disabled={movingKind !== null}
+                disabled={movingKind !== null || readOnly}
                 className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
               >
                 {movingKind === 'pool'
@@ -203,7 +207,7 @@ export function TournamentVenuesEditor({
               <button
                 type="button"
                 onClick={() => void moveNow('swiss')}
-                disabled={movingKind !== null}
+                disabled={movingKind !== null || readOnly}
                 className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
               >
                 {movingKind === 'swiss'
@@ -215,7 +219,7 @@ export function TournamentVenuesEditor({
               <button
                 type="button"
                 onClick={() => void moveNow('bracket')}
-                disabled={movingKind !== null}
+                disabled={movingKind !== null || readOnly}
                 className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
               >
                 {movingKind === 'bracket'

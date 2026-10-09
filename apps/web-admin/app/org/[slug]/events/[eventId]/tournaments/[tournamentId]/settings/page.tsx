@@ -13,6 +13,7 @@ import { RecapTab } from './_components/RecapTab';
 import { RulesetDriftBanner } from './_components/RulesetDriftBanner';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 import { BackLink } from '@/components/BackLink';
+import { useEventStatus } from '../../../_hooks/useEventStatus';
 
 type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks' | 'recap';
 
@@ -36,6 +37,9 @@ export default function TournamentSettingsPage() {
   const { t } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string; tournamentId: string }>();
+  // An archived Event: the server refuses every save here but the Recap's (rulings 377, 379).
+  const { isReadOnly } = useEventStatus(params.eventId);
+  const tab = { tournamentId: params.tournamentId, readOnly: isReadOnly };
   const [active, setActive] = useState<TabKey>('basics');
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function TournamentSettingsPage() {
         />
       </div>
 
-      <RulesetDriftBanner tournamentId={params.tournamentId} />
+      <RulesetDriftBanner {...tab} />
 
       <div className="mt-6 grid grid-cols-[200px_1fr] gap-8">
         <nav
@@ -92,14 +96,12 @@ export default function TournamentSettingsPage() {
         </nav>
 
         <section>
-          {active === 'basics' && <BasicsTab tournamentId={params.tournamentId} />}
-          {active === 'match-format' && <MatchFormatTab tournamentId={params.tournamentId} />}
-          {active === 'venues' && (
-            <TournamentVenuesEditor tournamentId={params.tournamentId} eventId={params.eventId} />
-          )}
-          {active === 'display' && <DisplayTab tournamentId={params.tournamentId} />}
-          {active === 'advanced' && <AdvancedTab tournamentId={params.tournamentId} />}
-          {active === 'locks' && <LocksTab tournamentId={params.tournamentId} />}
+          {active === 'basics' && <BasicsTab {...tab} />}
+          {active === 'match-format' && <MatchFormatTab {...tab} />}
+          {active === 'venues' && <TournamentVenuesEditor {...tab} eventId={params.eventId} />}
+          {active === 'display' && <DisplayTab {...tab} />}
+          {active === 'advanced' && <AdvancedTab {...tab} />}
+          {active === 'locks' && <LocksTab {...tab} />}
           {active === 'recap' && <RecapTab tournamentId={params.tournamentId} />}
         </section>
       </div>

@@ -17,6 +17,7 @@ import {
   levelChainsAreValid,
   type LevelAtTimeChains,
 } from '../../../new/_wizard/LevelAtTimeEditor';
+import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
@@ -61,7 +62,7 @@ const BEST_OF_OPTIONS = [
   { value: '7', labelKey: 'organizer.tournaments.settings.bestOf7' },
 ] as const;
 
-export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
+export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -356,7 +357,8 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving || !levelChainsAreValid(data.levelAtTime)}
+        disabled={saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

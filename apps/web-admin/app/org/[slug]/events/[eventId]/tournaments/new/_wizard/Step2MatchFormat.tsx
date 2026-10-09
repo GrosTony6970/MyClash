@@ -22,10 +22,13 @@ export function Step2MatchFormat({
   tournamentId,
   onNext,
   onBack,
+  readOnly,
 }: {
   tournamentId: string;
   onNext: () => void;
   onBack: () => void;
+  /** The Event is archived: the server refuses the step's save, so its button is closed. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -291,7 +294,8 @@ export function Step2MatchFormat({
           // schema, and the editor already says why in place. Blocking here
           // means the organiser fixes it where they built it rather than
           // reading a rejected save.
-          disabled={saving || !levelChainsAreValid(data.levelAtTime)}
+          disabled={saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
+          title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('actions.next')}

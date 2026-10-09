@@ -18,11 +18,14 @@ export function Step4Advanced({
   eventId,
   onBack,
   onFinish,
+  readOnly,
 }: {
   tournamentId: string;
   eventId: string;
   onBack: () => void;
   onFinish: (publish: boolean) => void;
+  /** The Event is archived: the server refuses the step's saves, so they are closed. */
+  readOnly: boolean;
 }) {
   const { t } = useI18n();
 
@@ -108,7 +111,7 @@ export function Step4Advanced({
       <p className="text-xs text-muted">{t('admin.orgTournaments.advancedWizardHint')}</p>
 
       <div className="rounded-md border border-border p-4">
-        <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} />
+        <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} readOnly={readOnly} />
       </div>
 
       {tfLike && (
@@ -118,6 +121,7 @@ export function Step4Advanced({
           locked={isSystem}
           onCustomise={() => void customise()}
           customising={customising}
+          readOnly={readOnly}
         />
       )}
 
@@ -140,7 +144,8 @@ export function Step4Advanced({
         <button
           type="button"
           onClick={() => void saveAndFinish()}
-          disabled={saving}
+          disabled={saving || readOnly}
+          title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('organizer.tournaments.wizard.finish')}

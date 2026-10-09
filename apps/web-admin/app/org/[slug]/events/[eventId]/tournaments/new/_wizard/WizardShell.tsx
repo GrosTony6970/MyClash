@@ -10,6 +10,7 @@ import { Step3Display } from './Step3Display';
 import { Step4Advanced } from './Step4Advanced';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useEventStatus } from '../../../_hooks/useEventStatus';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -34,6 +35,8 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
   const toast = useToast();
   const [tournamentId, setTournamentId] = useState<string | null>(initialTournamentId);
   const [step, setStep] = useState<Step>(initialStep);
+  // An archived Event: the server refuses every save of the wizard (ruling 377).
+  const { isReadOnly: readOnly } = useEventStatus(eventId);
 
   function goNext() {
     if (step < 4) setStep((step + 1) as Step);
@@ -102,6 +105,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
           <Step1Basics
             eventId={eventId}
             initialTournamentId={tournamentId}
+            readOnly={readOnly}
             onCreated={(id) => {
               setTournamentId(id);
               goNext();
@@ -109,15 +113,16 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
           />
         )}
         {step === 2 && tournamentId && (
-          <Step2MatchFormat tournamentId={tournamentId} onNext={goNext} onBack={goBack} />
+          <Step2MatchFormat {...{ tournamentId, readOnly }} onNext={goNext} onBack={goBack} />
         )}
         {step === 3 && tournamentId && (
-          <Step3Display tournamentId={tournamentId} onNext={goNext} onBack={goBack} />
+          <Step3Display {...{ tournamentId, readOnly }} onNext={goNext} onBack={goBack} />
         )}
         {step === 4 && tournamentId && (
           <Step4Advanced
             tournamentId={tournamentId}
             eventId={eventId}
+            readOnly={readOnly}
             onBack={goBack}
             onFinish={(publish) => void finish(publish)}
           />

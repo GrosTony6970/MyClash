@@ -7,6 +7,7 @@ import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
@@ -48,7 +49,7 @@ const DEFAULTS: DisplayState = {
 // of the 11 tokens the API accepts.
 const COLORS = TOURNAMENT_SIDE_COLORS;
 
-export function DisplayTab({ tournamentId }: { tournamentId: string }) {
+export function DisplayTab({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -189,7 +190,8 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         {t('organizer.tournaments.settings.display')}
       </h2>
 
-      <fieldset className="space-y-2">
+      {/* Closed whole on an archived Event: a picked file is an upload at once. */}
+      <fieldset disabled={readOnly} className="space-y-2">
         <legend className="text-xs font-medium text-foreground-secondary">
           {t('organizer.tournaments.settings.logoLabel')}
         </legend>
@@ -531,7 +533,8 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving}
+        disabled={saving || readOnly}
+        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

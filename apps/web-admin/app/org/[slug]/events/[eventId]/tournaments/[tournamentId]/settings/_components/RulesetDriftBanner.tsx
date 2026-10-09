@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Button, useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
@@ -16,7 +17,7 @@ const apiUrl = getPublicApiUrl();
  * acknowledge, which re-stamps the fingerprint to the current behaviour.
  * Renders nothing when there is no drift (the common case).
  */
-export function RulesetDriftBanner({ tournamentId }: { tournamentId: string }) {
+export function RulesetDriftBanner({ tournamentId, readOnly }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -81,7 +82,7 @@ export function RulesetDriftBanner({ tournamentId }: { tournamentId: string }) {
           variant="secondary"
           size="sm"
           onClick={() => void acknowledge()}
-          disabled={busy}
+          disabled={busy || readOnly}
           className="shrink-0"
         >
           {t('organizer.tournaments.settings.drift.acknowledge')}
