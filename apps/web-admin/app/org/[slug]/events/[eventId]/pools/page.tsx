@@ -482,7 +482,7 @@ export default function PoolsPage() {
   }
 
   async function handleDrop(toPoolId: string) {
-    if (!dragging) return;
+    if (!dragging || isReadOnly) return;
     const { memberId, fromPoolId } = dragging;
     setDragging(null);
     if (fromPoolId === toPoolId) return;
@@ -490,7 +490,7 @@ export default function PoolsPage() {
   }
 
   async function handleDropOnUnassigned() {
-    if (!dragging) return;
+    if (!dragging || isReadOnly) return;
     const { memberId, fromPoolId } = dragging;
     setDragging(null);
     if (fromPoolId === UNASSIGNED_DROP_ID) return;
@@ -744,6 +744,7 @@ export default function PoolsPage() {
                           <button
                             type="button"
                             onClick={() => void startRename(pool)}
+                            disabled={isReadOnly}
                             title={t('organizer.pools.page.renameTitle')}
                             className="self-start font-bold text-foreground hover:text-accent hover:underline decoration-dotted"
                           >
@@ -763,7 +764,7 @@ export default function PoolsPage() {
                       <RowActionButton
                         variant="danger"
                         onClick={() => setPendingDeletePoolId(pool.id)}
-                        disabled={lifecycleBusy || renamingPoolId === pool.id}
+                        disabled={lifecycleBusy || renamingPoolId === pool.id || isReadOnly}
                         title={t('organizer.pools.page.deletePoolTitle')}
                       >
                         {t('organizer.pools.page.delete')}
@@ -779,7 +780,7 @@ export default function PoolsPage() {
                       {pool.members.map((m) => (
                         <div
                           key={m.registrationId}
-                          draggable
+                          draggable={!isReadOnly}
                           onDragStart={() =>
                             setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
                           }
@@ -807,7 +808,7 @@ export default function PoolsPage() {
                           </span>
                           <button
                             type="button"
-                            disabled={editBusy}
+                            disabled={editBusy || isReadOnly}
                             onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
                             title={t('organizer.pools.page.moveToUnassignedTitle')}
                             className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30"
@@ -973,7 +974,8 @@ export default function PoolsPage() {
             <div className="space-y-2 border-t border-border pt-4">
               <button
                 onClick={() => void generate(false)}
-                disabled={generating || !selectedTournament}
+                disabled={generating || !selectedTournament || isReadOnly}
+                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
                 className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
                 {generating
@@ -987,7 +989,7 @@ export default function PoolsPage() {
               <button
                 type="button"
                 onClick={() => void addEmptyPool()}
-                disabled={lifecycleBusy || !selectedTournament}
+                disabled={lifecycleBusy || !selectedTournament || isReadOnly}
                 className="w-full rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50 transition-colors"
               >
                 {t('organizer.pools.page.addEmptyPool')}
@@ -995,7 +997,7 @@ export default function PoolsPage() {
               <button
                 type="button"
                 onClick={() => setPendingDeleteAll(true)}
-                disabled={lifecycleBusy || !existingPhase || !selectedTournament}
+                disabled={lifecycleBusy || !existingPhase || !selectedTournament || isReadOnly}
                 className="w-full rounded-lg border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50 transition-colors"
               >
                 {t('organizer.pools.page.deleteAllButton')}
@@ -1041,7 +1043,7 @@ export default function PoolsPage() {
                     {unassigned.map((u) => (
                       <div
                         key={u.registrationId}
-                        draggable
+                        draggable={!isReadOnly}
                         onDragStart={() =>
                           setDragging({
                             memberId: u.registrationId,
@@ -1081,6 +1083,7 @@ export default function PoolsPage() {
           poolPhaseId={poolPhaseId}
           slug={slug}
           eventId={eventId}
+          isReadOnly={isReadOnly}
         />
       )}
 

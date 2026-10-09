@@ -98,9 +98,17 @@ interface MatchesTabProps {
   poolPhaseId: string;
   slug: string;
   eventId: string;
+  /** An archived Event: the server refuses every piste and referee save of this tab. */
+  isReadOnly: boolean;
 }
 
-export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
+export function MatchesTab({
+  tournamentId,
+  poolPhaseId,
+  slug,
+  eventId,
+  isReadOnly,
+}: MatchesTabProps) {
   const { t } = useI18n();
 
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
@@ -424,6 +432,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               if (raw === '__mixed__') return;
                               void applyPoolLice(pool.poolId, raw || null);
                             }}
+                            disabled={isReadOnly}
                             className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                           >
                             {poolLiceCommonValue(pool) === 'mixed' && (
@@ -455,6 +464,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                   if (raw === '__mixed__') return;
                                   void applyPoolReferee(pool.poolId, role.id, raw || null);
                                 }}
+                                disabled={isReadOnly}
                                 className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                               >
                                 {common === 'mixed' && (
@@ -666,6 +676,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               <select
                                 value={m.lice_id ?? ''}
                                 onChange={(e) => void updateMatchLice(m.id, e.target.value || null)}
+                                disabled={isReadOnly}
                                 className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                               >
                                 <option value="">{t('common.none')}</option>
@@ -705,6 +716,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                         e.target.value || null,
                                       )
                                     }
+                                    disabled={isReadOnly}
                                     className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                                   >
                                     <option value="">{t('common.none')}</option>

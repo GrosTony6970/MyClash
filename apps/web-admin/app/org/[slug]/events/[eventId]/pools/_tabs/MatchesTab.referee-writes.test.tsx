@@ -106,7 +106,13 @@ beforeEach(async () => {
   await act(async () => {
     root.render(
       <I18nProvider locale="en">
-        <MatchesTab tournamentId="t-1" poolPhaseId="phase-1" slug="org" eventId="ev1" />
+        <MatchesTab
+          tournamentId="t-1"
+          poolPhaseId="phase-1"
+          slug="org"
+          eventId="ev1"
+          isReadOnly={false}
+        />
       </I18nProvider>,
     );
   });
