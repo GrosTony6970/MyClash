@@ -2092,6 +2092,13 @@ export const organizer = {
     statusCompleted: 'Terminé',
     edit: 'Modifier',
     roster: 'Inscrits',
+    sessionDelete: {
+      title: 'Retirer « {title} » du programme ?',
+      body: "Sa liste d'inscrits est supprimée en même temps. Inscriptions, liste d'attente comprise : {count}. Cette action est irréversible.",
+      bodyUncounted:
+        "Sa liste d'inscrits est supprimée en même temps. Les inscriptions n'ont pas pu être comptées. Cette action est irréversible.",
+      yes: 'Retirer et supprimer les inscriptions',
+    },
     editWorkshop: "Modifier l'atelier",
     newWorkshopTitle: 'Nouvel atelier',
     titleLabel: 'Titre *',

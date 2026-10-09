@@ -39,6 +39,7 @@ import {
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
+import { sessionDeleteQuestion } from './session-delete-question';
 import { WorkshopLogoField } from './WorkshopLogoField';
 import { WorkshopsTableHeader } from './WorkshopsTableHeader';
 import {
@@ -433,6 +434,24 @@ export default function WorkshopsAdminPage() {
     }
   }
 
+  /**
+   * Deleting a session deletes its bookings with it: ask first when it holds any.
+   * The roster is read now, because the list on this page is as old as its last
+   * load and a fighter may have booked since.
+   */
+  async function mayDeleteSession(sessionId: string): Promise<boolean> {
+    const workshop = workshops.find((w) => w.sessions.some((s) => s.id === sessionId));
+    const roster = await apiRequest<RosterEntry[]>(
+      apiUrl,
+      `/api/v1/workshop-sessions/${sessionId}/roster`,
+    );
+    const booked = roster.ok
+      ? roster.data.filter((e) => e.status === 'confirmed' || e.status === 'waitlisted').length
+      : null;
+    const question = sessionDeleteQuestion(workshop?.title ?? '', booked, t);
+    return !question || confirm(question);
+  }
+
   async function handleSubmit() {
     if (!form.title.trim() || !form.slug.trim()) {
       setFormError(t('admin.common.titleAndSlugRequired'));
@@ -442,6 +461,14 @@ export default function WorkshopsAdminPage() {
     setFormError(null);
 
     try {
+      // A save with no day deletes the Workshop's session: asked before anything
+      // is sent, and inside the saving state, so the Escape that answers the
+      // question does not close the form behind it too.
+      const dropped =
+        editingId && !sessionTimesFromForm()
+          ? workshops.find((w) => w.id === editingId)?.sessions[0]
+          : undefined;
+      if (dropped && !(await mayDeleteSession(dropped.id))) return;
       if (editingId) {
         const patchRes = await apiRequest(apiUrl, `/api/v1/workshops/${editingId}`, {
           method: 'PATCH',
@@ -829,6 +856,7 @@ export default function WorkshopsAdminPage() {
 
   // ✕ on a card → delete its session, returning the workshop to the drawer.
   async function handleUnschedule(sessionId: string) {
+    if (!(await mayDeleteSession(sessionId))) return;
     const r = await apiRequest(apiUrl, `/api/v1/workshop-sessions/${sessionId}`, {
       method: 'DELETE',
     });

@@ -2135,6 +2135,13 @@ export const organizer = {
     statusCompleted: 'Completed',
     edit: 'Edit',
     roster: 'Roster',
+    sessionDelete: {
+      title: 'Remove "{title}" from the schedule?',
+      body: 'Its sign-up list is deleted with it. Bookings, waiting list included: {count}. This cannot be undone.',
+      bodyUncounted:
+        'Its sign-up list is deleted with it. The bookings could not be counted just now. This cannot be undone.',
+      yes: 'Remove and delete the bookings',
+    },
     editWorkshop: 'Edit workshop',
     newWorkshopTitle: 'New workshop',
     titleLabel: 'Title *',
