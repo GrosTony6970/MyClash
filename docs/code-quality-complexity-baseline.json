@@ -719,7 +719,7 @@
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx:281",
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx:31",
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/use-match-live-channel.ts:157",
-    "apps/web-public/app/e/[eventSlug]/my-schedule/page.tsx:181",
+    "apps/web-public/app/e/[eventSlug]/my-schedule/page.tsx:184",
     "apps/web-public/app/e/[eventSlug]/participants/_components/ParticipantsList.tsx:15",
     "apps/web-public/app/e/[eventSlug]/participants/_components/ParticipantsTabbedView.tsx:42",
     "apps/web-public/app/e/[eventSlug]/participants/page.tsx:73",

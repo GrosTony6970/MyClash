@@ -31,6 +31,9 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { dayChipLabel, dayHeading, eventDay, eventDays, onEventDay } from './schedule-days';
+import { readMySchedule } from './read-my-schedule';
+import { ScheduleNotShown, type NotShownReason } from './ScheduleNotShown';
+import { unknownCaller } from '@/components/me/workshop-booking';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -184,8 +187,13 @@ export default function MySchedulePage() {
   const { eventSlug } = params;
   const apiUrl = getPublicApiUrl();
 
-  const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The schedule, why there is none, or "loading" while a read is out. One state, one writer.
+  const [view, setView] = useState<
+    | { kind: 'loading' }
+    | { kind: 'data'; data: PersonSchedule }
+    | { kind: 'notShown'; reason: NotShownReason }
+  >({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
   const [dayFilter, setDayFilter] = useState<string>('all');
   const [focusMode, setFocusMode] = useState(true);
   // Guest sessions get a persistent banner: claim upgrade + end-session.
@@ -196,25 +204,22 @@ export default function MySchedulePage() {
     void fetchMe(apiUrl, { signal: controller.signal }).then((result) => {
       if (result.ok) setIsGuest(result.data.type === 'guest');
     });
-    fetch(`${apiUrl}/api/v1/events/${eventSlug}/my-schedule`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        setLoading(false);
-        if (res.ok) {
-          const data = (await res.json()) as PersonSchedule;
-          setSchedule(data);
-        }
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    void readMySchedule<PersonSchedule>(
+      `${apiUrl}/api/v1/events/${eventSlug}/my-schedule`,
+      controller.signal,
+    ).then(async (read) => {
+      // The page left before the answer: nothing is written for it.
+      if (read.kind === 'aborted') return;
+      if (read.kind === 'data') return setView(read);
+      // The server knows nobody here: a visitor, or an account with no row at
+      // this Event, for which "sign in" would be false.
+      const reason = read.kind === 'signedOut' ? await unknownCaller(apiUrl) : 'failed';
+      if (!controller.signal.aborted) setView({ kind: 'notShown', reason });
+    });
     return () => controller.abort();
-  }, [eventSlug, apiUrl]);
+  }, [eventSlug, apiUrl, attempt]);
 
-  if (loading) {
+  if (view.kind === 'loading') {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
         <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
@@ -222,21 +227,19 @@ export default function MySchedulePage() {
     );
   }
 
-  if (!schedule) {
+  if (view.kind !== 'data') {
     return (
-      <main
-        id="main-content"
-        className="flex min-h-screen items-center justify-center px-4 text-center"
-      >
-        <div>
-          <p className="text-4xl mb-3">📅</p>
-          <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
-            {t('publicApp.mySchedule.signInTitle')}
-          </h1>
-        </div>
-      </main>
+      <ScheduleNotShown
+        reason={view.reason}
+        eventSlug={eventSlug}
+        onRetry={() => {
+          setView({ kind: 'loading' });
+          setAttempt((n) => n + 1);
+        }}
+      />
     );
   }
+  const schedule = view.data;
 
   // Build unified item list
   const allItems: ScheduleItem[] = [

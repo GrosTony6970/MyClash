@@ -167,6 +167,82 @@ test('my-schedule page - a bout after midnight shows under the chip of its own d
   await expect(main.getByText('Mary Somerville')).toHaveCount(0);
 });
 
+/**
+ * The schedule's read answers `status` until the test says the server is well.
+ * A read that fails is not a signed-out device (quick win F1).
+ */
+async function openMyScheduleAnswering(page: Page, status: number) {
+  const server = { well: false, reads: 0 };
+  await stubPublicApi(page);
+  await page.route('**/api/v1/events/**/my-schedule', (route) => {
+    server.reads += 1;
+    return server.well
+      ? route.fulfill({ json: SCHEDULE })
+      : route.fulfill({ status, json: { detail: 'refused' } });
+  });
+  await page.goto('http://localhost:3001/e/test-event/my-schedule');
+  await waitForPageMain(page);
+  return server;
+}
+
+test('my-schedule page - a read that fails offers Retry, and says nothing about signing in', async ({
+  page,
+}) => {
+  const server = await openMyScheduleAnswering(page, 500);
+  const main = page.locator('main');
+
+  await expect(
+    main.getByRole('heading', { name: 'We could not load your schedule' }),
+  ).toBeVisible();
+  await expect(main.getByText(/sign in/i)).toHaveCount(0);
+  // The page does not read again by itself. (The dev server mounts a page twice,
+  // so the count at this point is not one.)
+  const before = server.reads;
+
+  server.well = true;
+  await main.getByRole('button', { name: 'Try again' }).click();
+
+  await expect(main.getByRole('heading', { name: 'My Schedule' })).toBeVisible();
+  await expect(main.getByText('Ada Lovelace')).toBeVisible();
+  expect(server.reads).toBe(before + 1);
+});
+
+test('my-schedule page - a device the server does not know gets the two doors in', async ({
+  page,
+}) => {
+  await openMyScheduleAnswering(page, 401);
+  const main = page.locator('main');
+
+  await expect(main.getByRole('heading', { name: 'Sign in to see your schedule' })).toBeVisible();
+  await expect(main.getByRole('link', { name: 'Participants list' })).toHaveAttribute(
+    'href',
+    '/e/test-event/participants',
+  );
+  await expect(main.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+  await expect(main.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await expectNoCriticalAxeViolations(page);
+});
+
+test('my-schedule page - an account that is not on the list is not told to sign in', async ({
+  page,
+}) => {
+  await stubPublicApi(page);
+  await page.route('**/api/v1/me', (route) =>
+    route.fulfill({ json: { type: 'claimed', user: { id: 'u-1', email: 'ana@example.org' } } }),
+  );
+  await page.route('**/api/v1/events/**/my-schedule', (route) =>
+    route.fulfill({ status: 401, json: { detail: 'Authentication required' } }),
+  );
+  await page.goto('http://localhost:3001/e/test-event/my-schedule');
+  await waitForPageMain(page);
+  const main = page.locator('main');
+
+  await expect(main.getByRole('heading', { name: 'Your schedule is not here' })).toBeVisible();
+  await expect(main.getByText(/not on this event's participants list/i)).toBeVisible();
+  await expect(main.getByRole('link', { name: 'Sign in' })).toHaveCount(0);
+  await expect(main.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+});
+
 test('my-schedule page - with no lengths, a bout ends at its next bout, and the page says what it cannot check', async ({
   page,
 }) => {
