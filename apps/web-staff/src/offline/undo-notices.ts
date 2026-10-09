@@ -5,7 +5,9 @@ import { KEPT_FOR_MS } from './undone';
  * The undos the tablet wrote down and did not carry out (rulings 364 to 366).
  * `lib/settle-undone.ts` writes a row; the screen of the row's bout reads its
  * rows, says them, and removes them when the referee closes the notice.
- *
+ */
+
+/**
  * A notice is said for a day (operator ruling 370). One nobody read by then
  * is said no more, and `dropUnreadNotices` removes it: a bout nobody opens
  * again kept its rows on the tablet for ever.

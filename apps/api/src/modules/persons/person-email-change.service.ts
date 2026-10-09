@@ -194,12 +194,14 @@ export class PersonEmailChangeService {
 
   /**
    * The request a link's token names, while it can still be confirmed. `dead`:
-   * no such request, or one that is used, cancelled or past its hour.
+   * no such request, or one that is cancelled or past its hour. `changed`: it
+   * was confirmed before (a mail scanner opened the link, a second click), and
+   * "ask for a new one" would send its reader to redo a change that landed.
    * `unchecked`: the read failed. Nothing is written by then, so the same link
    * works again; the door redirects and has no 5xx to report, so the fault is
    * reported here.
    */
-  private async liveRequest(token: string): Promise<EmailChangeRequestRow | 'dead' | 'unchecked'> {
+  private async liveRequest(token: string): Promise<EmailChangeRequestRow | EmailChangeOutcome> {
     if (!token) return 'dead';
 
     const { data, error } = await this.supabase.service
@@ -214,7 +216,8 @@ export class PersonEmailChangeService {
     }
 
     const request = data as EmailChangeRequestRow | null;
-    if (!request || request.cancelled_at || request.confirmed_at) return 'dead';
+    if (!request || request.cancelled_at) return 'dead';
+    if (request.confirmed_at) return 'changed';
     return new Date(request.expires_at).getTime() <= Date.now() ? 'dead' : request;
   }
 

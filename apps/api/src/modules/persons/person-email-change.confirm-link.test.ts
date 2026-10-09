@@ -85,7 +85,6 @@ describe('a good email-change link (ruling 371)', () => {
 describe('a dead email-change link (ruling 371)', () => {
   it.each([
     ['made up', 'no-such-token', {}],
-    ['already used', 'marc-token', { confirmed_at: '2026-10-09T08:00:00.000Z' }],
     ['cancelled', 'marc-token', { cancelled_at: '2026-10-09T08:00:00.000Z' }],
     ['past its hour', 'marc-token', { expires_at: '2020-01-01T00:00:00.000Z' }],
   ])('answers "dead" for a link that is %s, and changes nothing', async (_what, token, marc) => {
@@ -96,6 +95,35 @@ describe('a dead email-change link (ruling 371)', () => {
     expect(updateUserById).not.toHaveBeenCalled();
     expect(writesTo(db, 'person_email_change_requests')).toEqual([]);
     expect(writesTo(db, 'persons')).toEqual([]);
+  });
+
+  // A mail scanner opened the link before him, or he clicked twice: the change is made.
+  // "Ask for a new one" sent him to redo a change that had landed.
+  it('answers "changed" for a link that was already confirmed, and asks the auth server nothing', async () => {
+    const { service, db, updateUserById } = build(
+      requests({
+        confirmed_at: '2026-10-09T08:00:00.000Z',
+        expires_at: '2020-01-01T00:00:00.000Z',
+      }),
+    );
+
+    await expect(service.confirmEmailChange('marc-token')).resolves.toBe('changed');
+
+    expect(updateUserById).not.toHaveBeenCalled();
+    expect(writesTo(db, 'person_email_change_requests')).toEqual([]);
+    expect(writesTo(db, 'persons')).toEqual([]);
+  });
+
+  // A cancelled request stays dead, confirmed or not.
+  it('answers "dead" for a cancelled link, whatever else its row says', async () => {
+    const { service } = build(
+      requests({
+        cancelled_at: '2026-10-09T07:00:00.000Z',
+        confirmed_at: '2026-10-09T08:00:00.000Z',
+      }),
+    );
+
+    await expect(service.confirmEmailChange('marc-token')).resolves.toBe('dead');
   });
 
   it('answers "dead" for a link with no token, and reads nothing', async () => {

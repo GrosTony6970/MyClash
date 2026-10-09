@@ -10,7 +10,7 @@ import {
 /**
  * What became of an email-change link. `changed`: the account has the new
  * address. `refused`: the auth server judged the change and said no. `dead`:
- * the link is made up, used, cancelled or past its hour. `unchecked`: nobody
+ * the link is made up, cancelled or past its hour. `unchecked`: nobody
  * judged it, and the same link works again.
  */
 export type EmailChangeOutcome = 'changed' | 'refused' | 'dead' | 'unchecked';

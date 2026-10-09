@@ -204,7 +204,7 @@ describe('PersonEmailChangeService', () => {
   });
 
   // Ruling 371: a browser follows this link, so a dead one is an answer, not a 400.
-  it('answers "dead" for expired, missing, or reused confirmation tokens', async () => {
+  it('answers "dead" for an expired or missing token, "changed" for one already confirmed', async () => {
     fromMock.mockReturnValueOnce(makeSelectChain({ data: null, error: null }));
     await expect(service.confirmEmailChange('missing-token')).resolves.toBe('dead');
 
@@ -238,7 +238,7 @@ describe('PersonEmailChangeService', () => {
         error: null,
       }),
     );
-    await expect(service.confirmEmailChange('used-token')).resolves.toBe('dead');
+    await expect(service.confirmEmailChange('used-token')).resolves.toBe('changed');
   });
 
   it('confirms by updating auth email, all claimed Person rows, request state, and audit log', async () => {
@@ -282,7 +282,7 @@ describe('PersonEmailChangeService', () => {
   });
 
   // An answer with no status is one supabase-js could not read: nobody judged the change.
-  it('leaves request unconfirmed when Supabase Auth email update fails', async () => {
+  it('leaves request unconfirmed when the auth server gives no judgment of the change', async () => {
     updateUserByIdMock.mockResolvedValue({ data: null, error: { message: 'auth failed' } });
     fromMock.mockReturnValueOnce(
       makeSelectChain({
