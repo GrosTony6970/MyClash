@@ -1,4 +1,10 @@
-import { CLAIM_REFUSED_PARAM, isClaimLinkRefusal, type ClaimLinkRefusal } from '@myclash/types';
+import {
+  CLAIM_REFUSED_PARAM,
+  isClaimLinkRefusal,
+  refusedLinkKey,
+  SIGNUP_REFUSED_PARAM,
+  type ClaimLinkRefusal,
+} from '@myclash/types';
 
 /** The sentence for each reason the API refused an emailed claim link (ruling 57). */
 const CLAIM_REFUSAL_MESSAGE_KEYS: Record<ClaimLinkRefusal, string> = {
@@ -24,8 +30,13 @@ export function claimTapRefusalKey(result: ClaimPersonsResult): string | null {
  * The message key for the refusal a query string carries, or null when it
  * carries none — or a value this build does not know, which says nothing
  * rather than something wrong.
+ *
+ * A claim link that signed nobody in lands on the claim page too (operator
+ * ruling 368), with the reason the sign-in pages read.
  */
 export function claimRefusalMessageKey(search: string): string | null {
-  const value = new URLSearchParams(search).get(CLAIM_REFUSED_PARAM);
-  return isClaimLinkRefusal(value) ? CLAIM_REFUSAL_MESSAGE_KEYS[value] : null;
+  const query = new URLSearchParams(search);
+  const value = query.get(CLAIM_REFUSED_PARAM);
+  if (isClaimLinkRefusal(value)) return CLAIM_REFUSAL_MESSAGE_KEYS[value];
+  return refusedLinkKey(query.get(SIGNUP_REFUSED_PARAM));
 }

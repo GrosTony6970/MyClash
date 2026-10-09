@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import {
+  filtersFor,
   mockSupabase as seededSupabase,
+  queriedTables,
+  selectsFor,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 
@@ -46,7 +49,7 @@ function build(
   const reply = { setCookie: vi.fn(), redirect: vi.fn() };
   const land = (type: string, personId?: string) =>
     service.handleCallback('token-hash', type, personId, '/somewhere', reply as never);
-  return { land, reply, warned, verifyOtp };
+  return { land, reply, warned, verifyOtp, db };
 }
 
 const answers = (error: object) => async () => ({ data: { user: null, session: null }, error });
@@ -72,7 +75,7 @@ describe('a mailed link whose code the auth server refuses (ruling 362)', () => 
     async (type, site) => {
       const { land, reply } = build(answers(REFUSED));
 
-      await land(type, 'person-1');
+      await land(type);
 
       expect(reply.redirect.mock.calls).toEqual([[`${site}/login?refused=link_expired`]]);
       expect(reply.setCookie).not.toHaveBeenCalled();
@@ -109,7 +112,7 @@ describe('a mailed link whose code the auth server did not judge (ruling 360)', 
   it.each(SITES)('sends the reader of a %s link to try again, with a trace', async (type, site) => {
     const { land, reply, warned } = build(answers(THROTTLED));
 
-    await land(type, 'person-1');
+    await land(type);
 
     expect(reply.redirect.mock.calls).toEqual([[`${site}/login?refused=link_unchecked`]]);
     expect(reply.setCookie).not.toHaveBeenCalled();
@@ -146,6 +149,90 @@ describe('a mailed link whose code the auth server did not judge (ruling 360)', 
 
     await expect(land('login')).rejects.toThrow('the session store failed');
     expect(reply.redirect).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A dead CLAIM link (operator ruling 368).
+ *
+ * Léa asks for her "this is me" mail on the claim page of her Event and clicks it two days
+ * late. The door sent her to the sign-in page, which knows nothing of her roster name: she
+ * had to find her Event and her name again. It sends her back to her Event's claim page, her
+ * name kept, where the form that mails a new link is.
+ */
+const ROSTER: Record<string, TableSeed> = {
+  feature_flags: { rows: [] },
+  persons: {
+    rows: [
+      { id: 'person-0', events: { slug: 'another-event' } },
+      { id: 'person-1', events: { slug: 'fal 2026' } },
+    ],
+  },
+};
+
+describe('a claim link that signs nobody in (ruling 368)', () => {
+  it.each([
+    [REFUSED, 'link_expired'],
+    [THROTTLED, 'link_unchecked'],
+  ])('sends her to the claim page of her Event, her name kept', async (answer, reason) => {
+    const { land, reply, db } = build(answers(answer), ROSTER);
+
+    await land('claim', 'person-1');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      [`https://app.myclash.localhost/e/fal%202026/claim?personId=person-1&refused=${reason}`],
+    ]);
+    expect(reply.setCookie).not.toHaveBeenCalled();
+    expect(selectsFor(db.from, 'persons')).toEqual(['events(slug)']);
+    expect(filtersFor(db.from, 'persons', 'eq')).toEqual([['id', 'person-1']]);
+  });
+
+  it('sends her to the sign-in page when the roster holds no such name', async () => {
+    const { land, reply } = build(answers(REFUSED), ROSTER);
+
+    await land('claim', 'person-9');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/login?refused=link_expired'],
+    ]);
+  });
+
+  // The read only chooses a page: a fault is no reason to show her raw text.
+  it('sends her to the sign-in page, with a trace, when the roster cannot be read', async () => {
+    const { land, reply, warned } = build(answers(REFUSED), {
+      ...ROSTER,
+      persons: { data: null, error: { message: 'statement timeout' } },
+    });
+
+    await land('claim', 'person-1');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/login?refused=link_expired'],
+    ]);
+    expect(warned).toHaveBeenCalledWith(expect.stringContaining('statement timeout'));
+  });
+
+  it('asks the roster nothing for a claim link that names nobody', async () => {
+    const { land, reply, db } = build(answers(REFUSED), ROSTER);
+
+    await land('claim');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/login?refused=link_expired'],
+    ]);
+    expect(queriedTables(db.from)).not.toContain('persons');
+  });
+
+  // `personId` on a sign-in link is not hers to name: only a claim link carries one.
+  it('asks the roster nothing for a sign-in link, whatever its address names', async () => {
+    const { land, reply, db } = build(answers(REFUSED), ROSTER);
+
+    await land('public_login', 'person-1');
+
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/login?refused=link_expired'],
+    ]);
+    expect(queriedTables(db.from)).not.toContain('persons');
   });
 });
 

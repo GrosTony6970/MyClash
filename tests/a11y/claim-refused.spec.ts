@@ -61,6 +61,27 @@ test('claim page - a refusal that arrives by a move inside the app is said too',
   await expect(page.getByText(HELD)).toBeVisible();
 });
 
+/**
+ * A claim link that signed nobody in lands here too (operator ruling 368). Léa clicks her
+ * "this is me" mail two days late: the API's door sends her back to this page, her roster
+ * name kept, with the reason the sign-in pages read. The form that mails a new link is under it.
+ */
+test('claim page - a dead claim link says so above the form that mails a new one', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page);
+  await stubPublicApi(page);
+  await page.goto('http://localhost:3001/e/test-event/claim?personId=row-1&refused=link_expired');
+
+  await expect(
+    page.getByText('This link has expired or was already used. Ask for a new one.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send confirmation link' })).toBeEnabled();
+
+  await expectNoCriticalAxeViolations(page);
+  await expectNoPageIssues(issues);
+});
+
 test('claim page - an ordinary visit shows no refusal', async ({ page }) => {
   await stubPublicApi(page);
   await page.goto('http://localhost:3001/e/test-event/claim?personId=row-1');

@@ -68,6 +68,7 @@ import {
 } from './auth-server-calls';
 import { linkTypeOf, type LinkType } from './link-type';
 import { refusedLinkOrThrow } from './refused-link';
+import { claimPageOf, claimPagePath } from './claim-page';
 import { syncClaimedPersonRows } from './claimed-person-sync';
 import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
@@ -455,7 +456,12 @@ export class AuthService {
     if (typeof user === 'string') {
       // A browser that followed a link cannot read a 401 or a 503 (rulings 324,
       // 362): the sign-in page of the link's site says why. No cookie is set.
-      const page = `/login?${SIGNUP_REFUSED_PARAM}=${user}`;
+      // A claim link goes back to its form, her roster name kept (ruling 368).
+      const reason = `${SIGNUP_REFUSED_PARAM}=${user}`;
+      const { supabase, logger } = this;
+      const claimPage =
+        type === 'claim' && personId ? await claimPageOf({ supabase, logger }, personId) : null;
+      const page = claimPage ? `${claimPage}&${reason}` : `/login?${reason}`;
       void reply.redirect(this.buildPostAuthRedirectUrl(page, type));
       return;
     }
@@ -547,9 +553,7 @@ export class AuthService {
     if (!refusal) return null;
     this.logger.warn(`claim of person ${personId} refused: ${refusal}`);
     const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
-    return eventSlug
-      ? `/e/${encodeURIComponent(eventSlug)}/claim?personId=${encodeURIComponent(personId)}&${reason}`
-      : `/me?${reason}`;
+    return eventSlug ? `${claimPagePath(eventSlug, personId)}&${reason}` : `/me?${reason}`;
   }
 
   // ── /me endpoint ────────────────────────────────────────────────────────

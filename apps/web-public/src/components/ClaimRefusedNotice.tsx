@@ -13,6 +13,8 @@ const onTheServer = () => '';
  * Why the emailed claim link or the Google claim just used did not claim its roster
  * row (rulings 57, 307). The API signs the reader in and sends them to the claim page,
  * or to /me when there was no row to name an Event by, with the reason in the query.
+ * A claim link that signed nobody in sends its reader to the claim page too, to ask
+ * for a new one (ruling 368).
  *
  * Reads `window.location` rather than `useSearchParams`, which the repo's React
  * Compiler setup bails out on, through `useSyncExternalStore` so the server's

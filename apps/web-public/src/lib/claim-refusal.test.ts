@@ -2,7 +2,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { messages } from '@myclash/i18n/public';
 import { createTranslator } from '@myclash/i18n/runtime';
-import { CLAIM_LINK_REFUSALS } from '@myclash/types';
+import {
+  CLAIM_LINK_REFUSALS,
+  LINK_EXPIRED_CODE,
+  LINK_UNCHECKED_CODE,
+  refusedLinkKey,
+} from '@myclash/types';
 import { describe, expect, it } from 'vitest';
 
 import { claimRefusalMessageKey, claimTapRefusalKey } from './claim-refusal';
@@ -32,12 +37,36 @@ describe('claimRefusalMessageKey', () => {
     expect(new Set(keys.map((key) => fr(key!))).size).toBe(CLAIM_LINK_REFUSALS.length);
   });
 
-  it.each(['', '?personId=row-1', '?claimRefused=', '?claimRefused=toString'])(
-    'says nothing for %j',
-    (search) => {
-      expect(claimRefusalMessageKey(search)).toBeNull();
+  it.each([
+    '',
+    '?personId=row-1',
+    '?claimRefused=',
+    '?claimRefused=toString',
+    '?refused=',
+    '?refused=toString',
+    '?refused=held_by_another',
+  ])('says nothing for %j', (search) => {
+    expect(claimRefusalMessageKey(search)).toBeNull();
+  });
+
+  // Ruling 368. Léa clicks her claim mail two days late. The door sends her back to the
+  // claim page, and the notice above the form says what a sign-in page says of a dead link.
+  it.each([LINK_EXPIRED_CODE, LINK_UNCHECKED_CODE])(
+    'gives a claim link that signed nobody in (%s) the sentence of the sign-in pages',
+    (reason) => {
+      const key = claimRefusalMessageKey(`?personId=row-1&refused=${reason}`);
+
+      expect(key).toBe(refusedLinkKey(reason));
+      expect(en(key!)).not.toBe(`[${key}]`);
+      expect(fr(key!)).not.toBe(`[${key}]`);
     },
   );
+
+  it('says the claim’s own reason when the address carries both', () => {
+    expect(claimRefusalMessageKey('?refused=link_expired&claimRefused=not_found')).toBe(
+      claimRefusalMessageKey('?claimRefused=not_found'),
+    );
+  });
 });
 
 /**
