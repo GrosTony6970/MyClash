@@ -69,12 +69,12 @@ describe('the tablet’s store, upgraded to version 6', () => {
   it('reads the notices of one bout by its index', async () => {
     const db = new ScoringDb();
     await db.undoNotices.bulkPut([
-      { clientUuid: 'uuid-1', matchId: 'm1', why: 'ended' },
-      { clientUuid: 'uuid-2', matchId: 'm2', why: 'expired' },
+      { clientUuid: 'uuid-1', matchId: 'm1', why: 'ended', writtenAt: 1 },
+      { clientUuid: 'uuid-2', matchId: 'm2', why: 'expired', writtenAt: 2 },
     ]);
 
     expect(await db.undoNotices.where('matchId').equals('m2').toArray()).toEqual([
-      { clientUuid: 'uuid-2', matchId: 'm2', why: 'expired' },
+      { clientUuid: 'uuid-2', matchId: 'm2', why: 'expired', writtenAt: 2 },
     ]);
     db.close();
   });

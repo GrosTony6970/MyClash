@@ -31,6 +31,7 @@ const notice = (why: UndoNotice['why'], refused?: ApiFailure): UndoNotice => ({
   matchId: 'm1',
   why,
   refusal: refused,
+  writtenAt: 0,
 });
 const LOCKED = refusal(400, 'match_locked');
 const OVER = refusal(409, 'event_results_frozen');

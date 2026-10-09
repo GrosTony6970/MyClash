@@ -152,6 +152,8 @@ export interface UndoNotice {
   clientUuid: string;
   matchId: string;
   why: 'refused' | 'expired' | 'ended';
+  /** When the settle wrote it: a notice nobody read for a day is removed (ruling 370). */
+  writtenAt: number;
   /** The server's refusal, for its reason in the pad's own words. */
   refusal?: ApiFailure;
 }

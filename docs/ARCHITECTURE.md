@@ -1276,7 +1276,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > `offline/undo-notices.ts`), in the transaction that forgets it. The screen of THAT bout reads
 > its rows when it opens and after every run, says one sentence per cause with its count
 > (`undoNoticeLines`), and removes the rows it showed when the referee closes the notice
-> (ruling 364). The entry being tapped writes no row: its answer is at the button. The one row a send has out is never deleted: the send claims a row just before its POST
+> (ruling 364). The entry being tapped writes no row: its answer is at the button. The screen
+> hears of every run from the settle itself (`onSettleRan`), a tap's own run too. A notice is
+> said for a day: one nobody read by then is said no more, and each run of the settle removes
+> those (`dropUnreadNotices`, ruling 370). The one row a send has out is never deleted: the send claims a row just before its POST
 > (`claimForSend`), `takeOffTablet` checks that claim, and both are write transactions on the
 > outbox, so the undo sees the claim or the send sees the delete and skips the row. For the row
 > that is out the undo waits for that one answer (`SyncEngine.takeBack`,

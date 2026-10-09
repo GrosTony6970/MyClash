@@ -1,6 +1,7 @@
 import { apiRequest, type ApiFailure } from '@myclash/api-client';
 import { db, type UndoNotice, type UndoneEntry } from '../offline/db';
-import { listUndone } from '../offline/undone';
+import { dropUnreadNotices } from '../offline/undo-notices';
+import { KEPT_FOR_MS, listUndone } from '../offline/undone';
 import { readServerEntries, type ServerRead } from './server-entries';
 import { heldTo, SERVER_LIMIT_MS } from './time-limit';
 import { askVoid } from './void-entry';
@@ -36,9 +37,6 @@ export function isVerdict(failure: ApiFailure): boolean {
   return 'status' in failure && failure.code !== null && JUDGED.includes(failure.status);
 }
 
-/** Nobody who may score the bout came back to the tablet: the undo is let go. */
-const KEPT_FOR_MS = 24 * 60 * 60 * 1000;
-
 /** One run: the entry the referee is undoing now, and each bout's status, read once. */
 interface Run {
   apiUrl: string;
@@ -49,9 +47,12 @@ interface Run {
 /** What the bout's screen says later of an undo that was not carried out (rulings 364, 365). */
 function noticeOf(entry: UndoneEntry, settled: Settled): UndoNotice | null {
   const { clientUuid, matchId } = entry;
-  if (settled === 'expired' || settled === 'ended') return { clientUuid, matchId, why: settled };
+  const writtenAt = Date.now();
+  if (settled === 'expired' || settled === 'ended') {
+    return { clientUuid, matchId, why: settled, writtenAt };
+  }
   if (typeof settled !== 'object') return null;
-  return { clientUuid, matchId, why: 'refused', refusal: settled.refused };
+  return { clientUuid, matchId, why: 'refused', refusal: settled.refused, writtenAt };
 }
 
 async function forget(run: Run, entry: UndoneEntry, settled: Settled): Promise<Settled> {
@@ -142,6 +143,10 @@ async function settleAll(run: Run, matchId?: string): Promise<Map<string, Settle
       settled.set(entry.clientUuid, await settleOne(run, entry, read));
     }
   }
+  // Housekeeping (ruling 370): a store that refuses it stops no undo being settled.
+  await dropUnreadNotices().catch((err: unknown) => {
+    console.error('[undo] the notices nobody read could not be removed', err);
+  });
   return settled;
 }
 
