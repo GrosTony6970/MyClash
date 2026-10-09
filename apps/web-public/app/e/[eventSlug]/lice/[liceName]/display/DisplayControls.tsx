@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { getStaffLoginUrl } from '@/lib/staff-url';
+import { liceDisplayHref } from './lice-board';
 
 interface Props {
   eventSlug: string;
@@ -110,7 +111,7 @@ export function DisplayControls({ eventSlug, currentLiceName }: Props) {
                 ) : (
                   <Link
                     key={name}
-                    href={`/e/${eventSlug}/lice/${encodeURIComponent(name)}/display`}
+                    href={liceDisplayHref(eventSlug, name)}
                     className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent hover:text-accent"
                   >
                     {name}

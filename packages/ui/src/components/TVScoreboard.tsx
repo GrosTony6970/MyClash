@@ -123,8 +123,12 @@ export function TVScoreboard({
   const clockStatus = clock?.status ?? 'idle';
   const nextMatchId = match?.nextMatchId ?? null;
 
+  // A bout a correction reopened is `paused` again while its clock still reads
+  // `ended`: it is not over, and the screen stays on it.
+  const boutIsOver = clockStatus === 'ended' && match?.status === 'completed';
+
   useEffect(() => {
-    if (clockStatus !== 'ended') {
+    if (!boutIsOver) {
       setCountdownRemaining(null);
       return;
     }
@@ -148,7 +152,7 @@ export function TVScoreboard({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
+  }, [boutIsOver, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
 
   // Alarm debounce. The channel acks SUBSCRIBED on a handshake that lands
   // AFTER the initial HTTP fetch, so a realtime-only surface is briefly

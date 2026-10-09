@@ -6,7 +6,13 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 import { DisplayControls } from './DisplayControls';
-import { EMPTY_BOARD, liceBoardPollMs, readLiceBoard, type LiceBoard } from './lice-board';
+import {
+  EMPTY_BOARD,
+  liceBoardPollMs,
+  liceDisplayHref,
+  readLiceBoard,
+  type LiceBoard,
+} from './lice-board';
 
 interface Props {
   eventSlug: string;
@@ -66,6 +72,10 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     return () => window.clearInterval(timer);
   }, [pollMs, refresh]);
 
+  // One function for the life of the screen: the bout view restarts its
+  // five-second countdown when this prop changes.
+  const ownHref = useCallback(() => liceDisplayHref(eventSlug, liceName), [eventSlug, liceName]);
+
   // The control layer rides over BOTH states — it stays invisible until the
   // screen is touched, so it costs the projection nothing either way.
   if (!board.matchId) {
@@ -84,7 +94,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
 
   return (
     <>
-      <DisplayView matchId={board.matchId} eventSlug={eventSlug} />
+      <DisplayView matchId={board.matchId} eventSlug={eventSlug} buildNextDisplayHref={ownHref} />
       <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
     </>
   );

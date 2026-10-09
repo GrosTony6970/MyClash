@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EMPTY_BOARD, liceBoardPollMs, readLiceBoard } from './lice-board';
+import { EMPTY_BOARD, liceBoardPollMs, liceDisplayHref, readLiceBoard } from './lice-board';
 
 /**
  * The piste screen's board (ruling 92). Its live channel is anonymous and RLS
@@ -84,6 +84,12 @@ describe('readLiceBoard', () => {
       }),
     );
     expect(await readLiceBoard('slug-1', 'Piste 1')).toBeNull();
+  });
+});
+
+describe('liceDisplayHref', () => {
+  it("is the piste screen's address, with the piste name encoded", () => {
+    expect(liceDisplayHref('slug-1', 'Piste 1')).toBe('/e/slug-1/lice/Piste%201/display');
   });
 });
 

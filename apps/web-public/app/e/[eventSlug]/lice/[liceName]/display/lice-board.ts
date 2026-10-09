@@ -20,6 +20,16 @@ export const EMPTY_BOARD: LiceBoard = {
   hiddenFromPublic: false,
 };
 
+/**
+ * The piste screen's own address. The bout view rolls over to it when a bout
+ * ends, so the screen reads its piste again. Rolling to the next bout's own
+ * address made the screen follow a chain of Match ids: a bout moved to another
+ * piste took the TV with it.
+ */
+export function liceDisplayHref(eventSlug: string, liceName: string): string {
+  return `/e/${eventSlug}/lice/${encodeURIComponent(liceName)}/display`;
+}
+
 interface CurrentBody {
   liceId: string;
   liceName: string;
