@@ -8,11 +8,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import type { FastifyRequest } from 'fastify';
+import { AddressChangeUnjudged, changeAddress } from '../auth/auth-server-calls';
 import { addressTakenOnHerRosters, moveClaimedRowsToAddress } from '../auth/claimed-person-sync';
 import { MailService } from '../mail/mail.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { captureApiException } from '../../common/observability/sentry';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { RequestPersonEmailChangeDto } from './dto/person-email-change.dto';
+import { emailChangePage, type EmailChangeOutcome } from './email-change-page';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TOKEN_BYTES = 32;
@@ -142,31 +145,34 @@ export class PersonEmailChangeService {
     if (error) throw new BadRequestException(error.message);
   }
 
-  async confirmEmailChange(token: string): Promise<{ email: string }> {
-    if (!token) throw new BadRequestException('Missing confirmation token');
+  /**
+   * The page the confirm link's door sends its reader to (operator ruling 371):
+   * a browser that followed a link reads no body.
+   */
+  async pageAfterConfirm(token: string): Promise<string> {
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    return emailChangePage(domain, await this.confirmEmailChange(token));
+  }
 
-    const { data, error } = await this.supabase.service
-      .from('person_email_change_requests')
-      .select('id, user_id, old_email, new_email, expires_at, confirmed_at, cancelled_at')
-      .eq('token_hash', this.hashToken(token))
-      .maybeSingle();
+  /**
+   * Confirm the request a mailed link's token names, and say what became of it
+   * (operator ruling 371). A fault after the auth server changed the address
+   * still throws: the link is not known to work again by then.
+   */
+  async confirmEmailChange(token: string): Promise<EmailChangeOutcome> {
+    const request = await this.liveRequest(token);
+    if (typeof request === 'string') return request;
 
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new BadRequestException('Invalid or expired email-change token');
-
-    const request = data as EmailChangeRequestRow;
-    if (request.cancelled_at || request.confirmed_at) {
-      throw new BadRequestException('Email-change token has already been used');
-    }
-    if (new Date(request.expires_at).getTime() <= Date.now()) {
-      throw new BadRequestException('Email-change token has expired');
-    }
-
-    const { error: authError } = await this.supabase.service.auth.admin.updateUserById(
-      request.user_id,
-      { email: request.new_email },
+    const { user_id: userId, new_email: newEmail } = request;
+    const changed = await changeAddress(this.supabase.service, userId, newEmail).catch(
+      (fault: unknown) => {
+        if (!(fault instanceof AddressChangeUnjudged)) throw fault;
+        this.logger.warn(`The email change of user:${userId} was not judged: ${fault.message}`);
+        return null;
+      },
     );
-    if (authError) throw new BadRequestException(authError.message);
+    if (changed === null) return 'unchecked';
+    if (!changed) return 'refused';
 
     const confirmedAt = new Date().toISOString();
     const { error: confirmError } = await this.supabase.service
@@ -183,7 +189,33 @@ export class PersonEmailChangeService {
     if (personsError) throw new BadRequestException(personsError.message);
 
     await this.writeAuditLog(request);
-    return { email: request.new_email };
+    return 'changed';
+  }
+
+  /**
+   * The request a link's token names, while it can still be confirmed. `dead`:
+   * no such request, or one that is used, cancelled or past its hour.
+   * `unchecked`: the read failed. Nothing is written by then, so the same link
+   * works again; the door redirects and has no 5xx to report, so the fault is
+   * reported here.
+   */
+  private async liveRequest(token: string): Promise<EmailChangeRequestRow | 'dead' | 'unchecked'> {
+    if (!token) return 'dead';
+
+    const { data, error } = await this.supabase.service
+      .from('person_email_change_requests')
+      .select('id, user_id, old_email, new_email, expires_at, confirmed_at, cancelled_at')
+      .eq('token_hash', this.hashToken(token))
+      .maybeSingle();
+    if (error) {
+      this.logger.error(`An email-change link could not be checked: ${error.message}`);
+      captureApiException(new Error(error.message), { door: 'persons/me/email-change/confirm' });
+      return 'unchecked';
+    }
+
+    const request = data as EmailChangeRequestRow | null;
+    if (!request || request.cancelled_at || request.confirmed_at) return 'dead';
+    return new Date(request.expires_at).getTime() <= Date.now() ? 'dead' : request;
   }
 
   private async resolveClaimedUser(

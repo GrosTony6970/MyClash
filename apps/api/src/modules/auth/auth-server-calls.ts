@@ -82,3 +82,38 @@ export function writePassword(service: SupabaseClient, userId: string, password:
 export function removeAccount(service: SupabaseClient, userId: string) {
   return heldToLimit(service.auth.admin.deleteUser(userId));
 }
+
+/**
+ * The auth server gave no judgment of an address change (operator ruling 371):
+ * a throttle, a fault, no answer. The same link works again. After a limit that
+ * ran out the auth server may change the address all the same: the second click
+ * asks for the same address, and then confirms.
+ */
+export class AddressChangeUnjudged extends Error {}
+
+/**
+ * Change an account's address. False: the auth server REFUSED the change (the
+ * address holds another account, the account is gone), with a trace. A
+ * throttle, a server fault or no answer is no judgment of it, and throws
+ * `AddressChangeUnjudged`.
+ */
+export async function changeAddress(
+  service: SupabaseClient,
+  userId: string,
+  email: string,
+): Promise<boolean> {
+  const asked = service.auth.admin.updateUserById(userId, { email });
+  // Only the limit: another rejection of supabase-js can come after the change.
+  const { error } = await heldToLimit(asked).catch((fault: unknown) => {
+    throw fault instanceof NoAnswerInTime
+      ? new AddressChangeUnjudged(fault.message, { cause: fault })
+      : fault;
+  });
+  if (!error) return true;
+  // supabase-js hands no status, or 0, for an answer it could not read or never got.
+  if (!error.status || classifyGoTrueFailure(error.status) === 'unavailable') {
+    throw new AddressChangeUnjudged(error.message, { cause: error });
+  }
+  logger.warn(`The auth server refused an address change: ${error.message}`);
+  return false;
+}

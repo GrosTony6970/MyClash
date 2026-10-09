@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
-import { use, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AuthAltLink,
   AuthDivider,
@@ -15,7 +15,7 @@ import {
   PasswordChecklist,
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
-import { refusedLinkKey, SIGNUP_REFUSED_PARAM, validatePassword } from '@myclash/types';
+import { validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -26,19 +26,10 @@ import {
   requestSignUp,
   startGoogleSignIn,
 } from './auth-requests';
+import { useLinkWords } from './link-words';
 
 type Tab = 'signin' | 'signup' | 'reset';
 type Query = Promise<Record<string, string | string[] | undefined>>;
-
-/**
- * The sentence of a mailed link that signed nobody in, or null. The API's door
- * sends its reader here with the reason in the address (operator ruling 362).
- * Read from the page's own `searchParams`, so the server's first paint says it.
- */
-function useRefusedLinkWords(query: Query, t: (key: string) => string): string | null {
-  const key = refusedLinkKey(use(query)[SIGNUP_REFUSED_PARAM]);
-  return key ? t(key) : null;
-}
 
 export default function PublicLoginPage({ searchParams }: { searchParams: Query }) {
   const { t } = useI18n();
@@ -51,8 +42,11 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(useRefusedLinkWords(searchParams, t));
+  // A mailed link's door sends its reader here with the outcome in the address
+  // (operator rulings 362, 371): the page opens on its sentence.
+  const opensOn = useLinkWords(searchParams, t);
+  const [message, setMessage] = useState<string | null>(opensOn.message);
+  const [error, setError] = useState<string | null>(opensOn.error);
 
   const apiUrl = getPublicApiUrl();
   // The organizer workspace is a different host, so the cross-link needs the

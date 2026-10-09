@@ -880,6 +880,10 @@ export const publicApp = {
     cancelError: 'Could not cancel the pending request.',
     sameEmail: 'Enter a different email address.',
     invalidEmail: 'Enter a valid email address.',
+    // The sign-in page, after the link that confirms the new address (ruling 371).
+    confirmed: 'Your email address is changed. Sign in with the new one.',
+    notConfirmed:
+      'We could not change your email address. The new address may already have an account.',
   },
   people: {
     title: 'Participants',

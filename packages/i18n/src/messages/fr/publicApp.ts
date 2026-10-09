@@ -884,6 +884,9 @@ export const publicApp = {
     cancelError: "Impossible d'annuler la demande.",
     sameEmail: 'Saisissez une adresse email différente.',
     invalidEmail: 'Saisissez une adresse email valide.',
+    confirmed: 'Votre adresse email est modifiée. Connectez-vous avec la nouvelle.',
+    notConfirmed:
+      "Nous n'avons pas pu modifier votre adresse email. La nouvelle adresse a peut-être déjà un compte.",
   },
   people: {
     title: 'Participants',

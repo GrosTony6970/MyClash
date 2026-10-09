@@ -7,6 +7,7 @@ export * from './read-only-mode';
 export * from './branding';
 export * from './claim-link';
 export * from './signup-refusal';
+export * from './email-change-link';
 export * from './compensation';
 export * from './csv';
 export * from './date';

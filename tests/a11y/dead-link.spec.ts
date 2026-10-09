@@ -49,3 +49,36 @@ test('participant sign-in page - no reason, or the reason of another door, says 
   await expect(page.getByText(EXPIRED)).toHaveCount(0);
   await expect(page.getByText(UNCHECKED)).toHaveCount(0);
 });
+
+/**
+ * The link that confirms a new account address lands here too (operator ruling 371). It is
+ * the API's own door, and a browser showed its answer as a line of code. The door redirects
+ * with the outcome in `?emailChange=`, never the address itself.
+ */
+const CHANGED = 'Your email address is changed. Sign in with the new one.';
+const NOT_CHANGED =
+  'We could not change your email address. The new address may already have an account.';
+
+test('participant sign-in page - a confirmed address change says so, and the form stays', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page);
+  await stubPublicApi(page);
+  await page.goto('http://localhost:3001/login?emailChange=changed');
+
+  await expect(page.getByText(CHANGED)).toBeVisible();
+  await expect(page.getByText(NOT_CHANGED)).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Sign up' }).click();
+  await page.getByRole('tab', { name: 'Sign up', selected: true }).waitFor();
+
+  await expectNoCriticalAxeViolations(page);
+  await expectNoPageIssues(issues);
+});
+
+test('participant sign-in page - a refused address change says so', async ({ page }) => {
+  await stubPublicApi(page);
+  await page.goto('http://localhost:3001/login?emailChange=not_changed');
+
+  await expect(page.getByText(NOT_CHANGED)).toBeVisible();
+  await expect(page.getByText(CHANGED)).toHaveCount(0);
+});

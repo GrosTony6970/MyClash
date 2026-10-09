@@ -203,9 +203,10 @@ describe('PersonEmailChangeService', () => {
     expect(cancelChain.is).toHaveBeenCalledWith('cancelled_at', null);
   });
 
-  it('rejects expired, missing, or reused confirmation tokens', async () => {
+  // Ruling 371: a browser follows this link, so a dead one is an answer, not a 400.
+  it('answers "dead" for expired, missing, or reused confirmation tokens', async () => {
     fromMock.mockReturnValueOnce(makeSelectChain({ data: null, error: null }));
-    await expect(service.confirmEmailChange('missing-token')).rejects.toThrow(BadRequestException);
+    await expect(service.confirmEmailChange('missing-token')).resolves.toBe('dead');
 
     fromMock.mockReturnValueOnce(
       makeSelectChain({
@@ -221,7 +222,7 @@ describe('PersonEmailChangeService', () => {
         error: null,
       }),
     );
-    await expect(service.confirmEmailChange('expired-token')).rejects.toThrow(BadRequestException);
+    await expect(service.confirmEmailChange('expired-token')).resolves.toBe('dead');
 
     fromMock.mockReturnValueOnce(
       makeSelectChain({
@@ -237,7 +238,7 @@ describe('PersonEmailChangeService', () => {
         error: null,
       }),
     );
-    await expect(service.confirmEmailChange('used-token')).rejects.toThrow(BadRequestException);
+    await expect(service.confirmEmailChange('used-token')).resolves.toBe('dead');
   });
 
   it('confirms by updating auth email, all claimed Person rows, request state, and audit log', async () => {
@@ -277,9 +278,10 @@ describe('PersonEmailChangeService', () => {
         entity_id: 'user-1',
       }),
     );
-    expect(result).toEqual({ email: 'new@example.com' });
+    expect(result).toBe('changed');
   });
 
+  // An answer with no status is one supabase-js could not read: nobody judged the change.
   it('leaves request unconfirmed when Supabase Auth email update fails', async () => {
     updateUserByIdMock.mockResolvedValue({ data: null, error: { message: 'auth failed' } });
     fromMock.mockReturnValueOnce(
@@ -297,7 +299,7 @@ describe('PersonEmailChangeService', () => {
       }),
     );
 
-    await expect(service.confirmEmailChange('valid-token')).rejects.toThrow(BadRequestException);
+    await expect(service.confirmEmailChange('valid-token')).resolves.toBe('unchecked');
     expect(fromMock).toHaveBeenCalledTimes(1);
   });
 });

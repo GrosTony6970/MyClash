@@ -19658,8 +19658,8 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Email changed */
-      200: {
+      /** @description Redirect to the sign-in page with the outcome */
+      302: {
         headers: {
           [name: string]: unknown;
         };

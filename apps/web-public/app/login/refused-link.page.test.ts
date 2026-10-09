@@ -16,14 +16,17 @@ const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
 
 describe('the participant sign-in page after a mailed link that signed nobody in', () => {
   it('reads the reason from its address, through the one owner of its sentence', () => {
-    expect(page).toContain('refusedLinkKey(use(query)[SIGNUP_REFUSED_PARAM])');
+    const words = readFileSync(join(__dirname, 'link-words.ts'), 'utf8');
+    expect(words).toContain('error: refusedLinkKey(query[SIGNUP_REFUSED_PARAM]) ?? notChanged,');
+    expect(words).toContain('linkWordKeys(use(query))');
     expect(page).toContain(
       'export default function PublicLoginPage({ searchParams }: { searchParams: Query }) {',
     );
   });
 
   it('opens on that sentence, as an error', () => {
-    expect(page).toContain('useState<string | null>(useRefusedLinkWords(searchParams, t))');
+    expect(page).toContain('const opensOn = useLinkWords(searchParams, t);');
+    expect(page).toContain('useState<string | null>(opensOn.error)');
     expect(page).toContain('{error && <AuthNotice tone="error">{error}</AuthNotice>}');
   });
 
