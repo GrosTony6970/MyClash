@@ -6,6 +6,7 @@ import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
+import { ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import { boutNames } from '../lib/held-hit';
@@ -564,6 +565,13 @@ export function MatchView({
 
   const redName = match.redFighterName ?? t('scoring.lice.red');
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
+  const roundWinnerSide = closedRoundWinner(match.roundsJson, currentRound);
+  const roundWinner = roundWinnerSide
+    ? {
+        name: roundWinnerSide === 'red' ? redName : blueName,
+        color: sideStyle(scoringConfig, roundWinnerSide).border,
+      }
+    : null;
 
   return (
     <div className="flex flex-1 flex-col bg-background">
@@ -732,92 +740,40 @@ export function MatchView({
 
       {/* Resume guard: the ruleset says the clock shouldn't restart at zero
           remaining / inside the soft zone — the operator decides. */}
-      {pendingResume && (
-        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-warning/40 bg-surface p-6 text-center shadow-2xl">
-            <p className="mb-2 text-lg font-bold text-warning">{t('scoring.resumeGuard.title')}</p>
-            <p className="mb-5 text-sm text-foreground-secondary">
-              {t('scoring.resumeGuard.message')}
-            </p>
-            <div className="flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  const action = pendingResume;
-                  setPendingResume(null);
-                  void onClockAction(action, true);
-                }}
-                className="rounded-lg border-2 border-warning bg-warning/20 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/30"
-              >
-                {t('scoring.resumeGuard.continueAnyway')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingResume(null);
-                  void onClockAction('end');
-                }}
-                className="rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
-              >
-                {t('scoring.resumeGuard.endMatch')}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPendingResume(null)}
-              className="mt-4 text-xs text-muted hover:text-foreground-secondary"
-            >
-              {t('scoring.result.close')}
-            </button>
-          </div>
-        </div>
-      )}
+      <ResumeGuardDialog
+        open={pendingResume !== null}
+        onClose={() => setPendingResume(null)}
+        onContinue={() => {
+          const action = pendingResume;
+          setPendingResume(null);
+          if (action) void onClockAction(action, true);
+        }}
+        onEndMatch={() => {
+          setPendingResume(null);
+          void onClockAction('end');
+        }}
+      />
 
       {/* Best-of round break: a round ended without clinching the match — show
           the round result and let the operator start the next round (resets the
           clock + score to 0–0). Mutually exclusive with the final-result overlay
-          (a clinched round ends the clock instead of awaiting). */}
-      {isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended' && (
-        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-info/60 bg-surface p-8 text-center shadow-2xl">
-            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-info">
-              {t('scoring.rounds.roundComplete', { round: String(currentRound) })}
-            </p>
-            {(() => {
-              // The ROUND's winner, from `rounds_json` — not the match's, and
-              // not the live score, which is about to reset to 0-0.
-              const winner = closedRoundWinner(match.roundsJson, currentRound);
-              const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
-              const winnerColor = winner ? sideStyle(scoringConfig, winner).border : undefined;
-              return winnerName ? (
-                <p className="mb-2 text-2xl font-black" style={{ color: winnerColor }}>
-                  <span aria-hidden>🏆</span> {winnerName}
-                </p>
-              ) : null;
-            })()}
-            <p className="mb-4 font-mono text-2xl font-bold text-foreground-secondary">
-              {match.redScore} – {match.blueScore}
-            </p>
-            <p className="mb-6 text-sm font-semibold text-muted">
-              {t('scoring.rounds.seriesTally')}{' '}
-              <span style={{ color: sideStyle(scoringConfig, 'red').border }}>{redRoundWins}</span>
-              {' – '}
-              <span style={{ color: sideStyle(scoringConfig, 'blue').border }}>
-                {blueRoundWins}
-              </span>
-            </p>
-            {clockError && <p className="mb-3 text-xs font-normal text-danger">{clockError}</p>}
-            <button
-              type="button"
-              disabled={roundBusy}
-              onClick={() => void onRoundAdvance()}
-              className="rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30 disabled:opacity-40"
-            >
-              {t('scoring.rounds.startRound', { round: String(currentRound + 1) })} →
-            </button>
-          </div>
-        </div>
-      )}
+          (a clinched round ends the clock instead of awaiting). The ROUND's
+          winner, from `rounds_json` — not the match's, and not the live score,
+          which is about to reset to 0-0. */}
+      <RoundBreakDialog
+        open={isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended'}
+        round={currentRound}
+        winner={roundWinner}
+        redScore={match.redScore}
+        blueScore={match.blueScore}
+        redRoundWins={redRoundWins}
+        blueRoundWins={blueRoundWins}
+        redColor={sideStyle(scoringConfig, 'red').border}
+        blueColor={sideStyle(scoringConfig, 'blue').border}
+        error={clockError}
+        busy={roundBusy}
+        onStart={() => void onRoundAdvance()}
+      />
 
       {/* End-of-match review: winner, score, and how the bout got there. */}
       {clockState?.status === 'ended' && !resultDismissed && (
