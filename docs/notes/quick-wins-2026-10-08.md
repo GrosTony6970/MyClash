@@ -199,6 +199,28 @@ Size: **S** = under about one hour, **M** = about half a day.
 | 4   | **Yes**   | "Next match" with no network reaches the next bout. Built on ruling 3.                                                                                                                                                                       |
 | 5   | **Later** | `/e/[slug]/people` stays as it is for now.                                                                                                                                                                                                   |
 
+### Rulings — operator, 2026-10-09 (while P1 to P4 were built)
+
+| #   | Asked with this story                                                                                                                         | Ruling                                                                                                                              | Done                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| 6   | Round 1 just ended. A second tablet on the same bout still shows a live Resume, taps it, and the server starts the clock while nobody fights. | **Yes**: the server refuses a clock Start or Resume while a round waits for "Start round N+1". Halt, End, Reopen and Reset stay.    | `d1db074f`               |
+| 7   | The clock is at 0:00, Space opens the "clock should not restart" warning, and Space presses the focused button. Which button takes the focus? | **Close**: a second Space only closes the warning. On the round-break screen the only button is "Start round N+1".                  | `88c3520e`               |
+| 8   | The pad's tests cannot render a screen. How is "the alert is on screen" or "Space sends nothing" proved?                                      | **Pure functions, text pins, and one stubbed browser spec per row** in `tests/a11y/pad-*.spec.ts`. No React test setup for the pad. | `4511bc52` to `d1db074f` |
+
+Named while P1 to P4 were built, and not fixed (each one checked in code by a review):
+
+- A server failure (a 500) with no list yet shows "No next match" on the piste. On a bout's read it
+  clears the bout and says "Match unavailable".
+- A card's local write that fails shows a raw message or a hardcoded "Network error"
+  (`ScoringColumn.tsx`). P1 fixed the hit, not the card.
+- The piste's green "online" bar reads the browser alone: with wifi and no internet it says online
+  above "No connection".
+- Retry on the "bout not loaded" screen shows no busy state.
+- On a one-column screen, P1's alert sits in the centre column, under the red one.
+- A tap on the backdrop closes the resume warning. It starts nothing.
+- A bout a forfeit ended between two rounds, on a clock that never ran, can no longer be reopened
+  by a clock Start. Taking the forfeit back still reopens it.
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
