@@ -63,6 +63,13 @@ export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from '
 export type { PhaseType } from './domain';
 
 /**
+ * The clock after a press the pad still holds: a bout runs with no network,
+ * and the pad shows the clock the server will have once the queue is sent.
+ */
+export { clockAfterPress } from './clock';
+export type { ClockFold, ClockPress, ClockStatus } from './clock';
+
+/**
  * Ranking vocabulary `@myclash/types` re-exports for its own final-ranking and
  * league shapes. Type-only on purpose — a union erases, so these cost a client
  * nothing, and none of the arithmetic that reads them is exported here.

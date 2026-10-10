@@ -75,6 +75,24 @@ export type {
   TimerMode,
 } from './match-format';
 
+// The match clock: the server folds the bout's rows, the pad the presses it holds.
+export {
+  CLOCK_ACTIONS_FROM,
+  IDLE_CLOCK,
+  clockAfterPress,
+  clockStep,
+  foldClock,
+  pressAlreadyTrue,
+} from './clock';
+export type {
+  ClockAction,
+  ClockFold,
+  ClockMove,
+  ClockMoveType,
+  ClockPress,
+  ClockStatus,
+} from './clock';
+
 // The formula AST, its evaluator and the stats it reads. The zod schemas that
 // validate an AUTHORED tree stay in @myclash/rulesets: authoring is resolution,
 // evaluating is application.

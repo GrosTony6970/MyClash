@@ -52,6 +52,7 @@ import {
   timeIsFinished,
   type LevelStep,
 } from '@myclash/rulesets';
+import { CLOCK_ACTIONS_FROM, foldClock } from '@myclash/rules';
 
 export type ClockAction =
   'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
@@ -120,13 +121,8 @@ const BOUT_COLUMNS =
 /** Postgres: a unique key refused the row. */
 const UNIQUE_VIOLATION = '23505';
 
-// Valid transitions
-const VALID_TRANSITIONS: Record<string, ClockAction[]> = {
-  idle: ['start'],
-  running: ['halt', 'end'],
-  halted: ['resume', 'end', 'reset_clock'],
-  ended: ['reopen'],
-};
+// Valid transitions: the pad folds its own presses by the same table.
+const VALID_TRANSITIONS: Record<string, readonly ClockAction[]> = CLOCK_ACTIONS_FROM;
 
 @Injectable()
 export class ClockService {
@@ -635,66 +631,9 @@ export class ClockService {
       adjustmentMs: e.adjustment_ms ?? null,
     }));
 
-    let status: ClockState['status'] = 'idle';
-    let activeMs = 0;
-    let runningFrom: string | null = null;
-    let startedAt: string | null = null;
-
-    for (const ev of events) {
-      switch (ev.type) {
-        case 'start':
-          status = 'running';
-          runningFrom = ev.occurredAt;
-          if (startedAt === null) startedAt = ev.occurredAt;
-          break;
-
-        case 'halt':
-          if (runningFrom) {
-            activeMs += new Date(ev.occurredAt).getTime() - new Date(runningFrom).getTime();
-            runningFrom = null;
-          }
-          status = 'halted';
-          break;
-
-        case 'resume':
-          status = 'running';
-          runningFrom = ev.occurredAt;
-          break;
-
-        case 'end':
-          if (runningFrom) {
-            activeMs += new Date(ev.occurredAt).getTime() - new Date(runningFrom).getTime();
-            runningFrom = null;
-          }
-          status = 'ended';
-          break;
-
-        case 'reopen':
-          // Inverse of 'end' — keep the accumulated activeMs, return
-          // the clock to halted so the referee can resume or end again.
-          runningFrom = null;
-          status = 'halted';
-          break;
-
-        case 'reset_clock':
-          // Reset: clear all accumulated time, go back to halted
-          activeMs = 0;
-          runningFrom = null;
-          status = 'halted';
-          break;
-
-        case 'adjust_time':
-          activeMs = Math.max(0, activeMs + (ev.adjustmentMs ?? 0));
-          break;
-
-        case 'reset_match':
-          activeMs = 0;
-          runningFrom = null;
-          status = 'idle';
-          startedAt = null;
-          break;
-      }
-    }
+    // The fold is the shared one: the pad replays the presses it still holds
+    // by the same rules.
+    const { status, activeMs, runningFrom, startedAt } = foldClock(events);
 
     // Compute total including current running interval
     const totalActiveMs =

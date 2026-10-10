@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { pressAlreadyTrue } from '@myclash/rules';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { ClockAction, ClockState } from './clock.service';
 import { assertScoredAfterLastReset } from './hit-before-reset';
@@ -68,17 +69,11 @@ export function eventStatusOf(match: Record<string, unknown>): string {
   return status;
 }
 
-/** Ruling 12: the states of the clock in which a press asks for what is already true. */
-const ALREADY_TRUE: Record<PressAction, ReadonlyArray<ClockState['status']>> = {
-  start: ['running', 'halted'],
-  halt: ['halted', 'ended'],
-  resume: ['running'],
-  end: ['ended'],
-};
-
-/** Does the press ask for the state the clock is in? It is then taken as done. */
-export const alreadyTrue = (action: PressAction, status: ClockState['status']): boolean =>
-  ALREADY_TRUE[action].includes(status);
+/**
+ * Ruling 12: does the press ask for the state the clock is in? It is then
+ * taken as done. The pad folds its own queue by the same rule.
+ */
+export const alreadyTrue = pressAlreadyTrue;
 
 /**
  * The server's time of the press: how OLD the press is, taken off the server's

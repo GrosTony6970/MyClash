@@ -29,15 +29,19 @@
  * counterpart for — the warning threshold and the `MM:SS:CC` formatting.
  */
 import {
+  clockAfterPress,
   displayClockMs,
   effectiveTimeLimitSeconds,
   timeIsFinished,
+  type ClockFold,
+  type ClockPress,
+  type ClockStatus,
   type MatchFormatConfig,
   type PhaseType,
 } from '@myclash/rules/pad';
 
-export { displayClockMs, effectiveTimeLimitSeconds, timeIsFinished };
-export type { PhaseType };
+export { clockAfterPress, displayClockMs, effectiveTimeLimitSeconds, timeIsFinished };
+export type { ClockFold, ClockPress, ClockStatus, PhaseType };
 
 /**
  * Whether the clock is inside the last 10 seconds of the phase limit — the cue

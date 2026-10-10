@@ -720,6 +720,7 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `winnerColorFrom` (`@myclash/rules`)                 | name the winner on the end-of-clock overlay and the TV endcard — the ladder behind `resolveMatchWinner`, which the pad already calls       |
 | `pendingLevelStep` (`@myclash/rules`)                | name the remedy a LEVEL bout is waiting on — extra time, sudden death — on the button that applies it and the clock face that announces it |
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
+| `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
 
 `packages/types/src/penalties.ts` argues this boundary at length in its own
 docblock and is the place to read next. Two rules keep the list honest: every
