@@ -289,8 +289,13 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // comparison against the phase limit the pad already renders the clock from,
   // so the button stays hidden until the End would be accepted rather than
   // offering a remedy the server answers with a 400.
+  // `clockAfterPress` joined when the clock began to run on the tablet (the
+  // offline bout, 2026-10-10): the pad folds the clock presses its queue still
+  // holds by the function the server replays the bout's clock rows with. It
+  // moves a clock, never a score, and the server still judges every press.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
+    'clockAfterPress',
     'computeAfterblowDeltas',
     'computePenaltySanction',
     'displayClockMs',
