@@ -134,6 +134,22 @@ export const boutCompleted = () =>
     code: BOUT_COMPLETED,
   });
 
+export const CLOCK_PRESS_TOO_OLD = 'clock_press_too_old';
+
+/** The oldest press the server applies: one day (operator, 2026-10-10). */
+const OLDEST_PRESS_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A press made more than a day before its send is not applied: a tablet left
+ * in a bag must not move the clock of a bout still open a week later. No new
+ * send cures it. The pad itself blocks nothing by age (ruling 10).
+ */
+export const pressTooOld = () =>
+  new ConflictException({
+    message: 'This clock press was made more than a day ago. It is not applied.',
+    code: CLOCK_PRESS_TOO_OLD,
+  });
+
 /** A press that fits nothing the clock can do from where it is (ruling 12). */
 export const pressOutOfOrder = (action: PressAction, status: ClockState['status']) =>
   new ConflictException({
@@ -184,6 +200,7 @@ export interface AskedPress {
  *
  *   - A completed bout is never put back in play. An End stays: it stops the
  *     clock of a bout a forfeit completed, and decides nothing again.
+ *   - A press older than one day is not applied.
  *   - A press from before the bout's last reset is for the fight that was
  *     cancelled. Read on the server's time of the press, not the pad's.
  *   - The rules of every press: the lock, what the clock can do from where it
@@ -193,7 +210,9 @@ export async function placeLatePress(supabase: Database, asked: AskedPress): Pro
   const { matchId, match, action } = asked;
   if (match['status'] === 'completed' && action !== 'end') throw boutCompleted();
 
-  const pressedMs = pressedAtServer(asked.press, Date.now());
+  const nowMs = Date.now();
+  const pressedMs = pressedAtServer(asked.press, nowMs);
+  if (nowMs - pressedMs > OLDEST_PRESS_MS) throw pressTooOld();
   await assertScoredAfterLastReset(supabase, matchId, new Date(pressedMs).toISOString());
   if (match['locked_at'] && !asked.mayPassLock) throw matchLocked();
   if (!asked.fits) throw pressOutOfOrder(action, asked.clockStatus);

@@ -179,6 +179,54 @@ describe('a press from before the bout’s last reset', () => {
   });
 });
 
+describe('a press older than one day (operator, 2026-10-10)', () => {
+  /** A press whose send comes `ageMs` after it, on a tablet whose clock is `skewMinutes` wrong. */
+  const aged = (ageMs: number, skewMinutes = 0) => {
+    const sentAt = Date.parse(NOW) + skewMinutes * 60_000;
+    return {
+      clientUuid: PRESS,
+      pressedAt: new Date(sentAt - ageMs).toISOString(),
+      sentAt: new Date(sentAt).toISOString(),
+    };
+  };
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('is refused with a code, and writes nothing', async () => {
+    const { db, clock } = setup(HALTED);
+
+    expect(await refusalOf(clock.latePress(BOUT, 'resume', aged(DAY + 1)))).toEqual({
+      status: 409,
+      code: 'clock_press_too_old',
+    });
+    wroteNothing(db);
+  });
+
+  it('a press of exactly one day is taken', async () => {
+    const { db, clock } = setup(IDLE);
+
+    await clock.latePress(BOUT, 'start', aged(DAY));
+
+    expect(writesTo(db, 'match_events')).toHaveLength(1);
+  });
+
+  it('is judged on how old it is: a tablet two days wrong sends a press of one minute', async () => {
+    const { db, clock } = setup(HALTED);
+
+    await clock.latePress(BOUT, 'resume', aged(60_000, -2 * 24 * 60));
+
+    expect(writesTo(db, 'match_events')).toHaveLength(1);
+  });
+
+  it('that asks for the state the clock is in is still done: nothing is left to hold', async () => {
+    const { db, clock } = setup(ENDED, { status: 'completed' });
+
+    await expect(clock.latePress(BOUT, 'end', aged(7 * DAY))).resolves.toMatchObject({
+      status: 'ended',
+    });
+    wroteNothing(db);
+  });
+});
+
 describe('the rules of every press', () => {
   it('a locked bout refuses it', async () => {
     const { db, clock } = setup(HALTED, { locked_at: NOW });
