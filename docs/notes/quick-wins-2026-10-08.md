@@ -338,6 +338,34 @@ Named while slice 4a was built, and not fixed (each one checked in code by a rev
 - The tablet has no words yet for the two new refusals (`round_not_waiting`, `round_not_open`).
   They are slice 4b.
 
+Three rulings on the night of 2026-10-10, before the tablet's side of slice 4 (slice 4b):
+
+| Asked with this story                                                                                                                                                                                                                 | Ruling                                                                                                                                                                           | Done      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| No wifi, best-of-3. Red reaches the cap in round 1. The tablet opens "Round 1 complete" by its own count; the server has not seen it.                                                                                                 | **The screen of today, plus one line under the score: "Closed on this tablet, not confirmed."** The line goes when the server has confirmed the round.                           | not built |
+| Same bout, round 2. Red reaches the cap again: 2 rounds to 0, decided on the tablet, still with no wifi.                                                                                                                              | **The result screen, as after "End match" with no network** (ruling 11): marked "ended on this tablet, not confirmed", with the rounds won and "Next match". The table moves on. | not built |
+| Best-of-3, round 1, clock at 0:00, red leads 3-2. The official taps Resume; the warning "the clock should not restart" has an "End match" button. Today it ends the WHOLE bout with no winner and no round closed, with wifi as well. | **On a best-of bout that button reads "End round" and ends the round**, as the "End round" button does. A level round gets the sentence it gets today.                           | not built |
+
+**Slice 4b is planned** (the plan file's section 14: seven commits) **and its first two commits
+are built.** `5c9dd3b6`: the rule "is this round over by itself, and for whom" is one function
+apart from its score, for the server and soon the tablet. `a67198c1`: the doubles chip of the
+pad counts the doubles of the open round of a best-of bout, and shows the doubles limit only
+where the server applies it (a Pool and a Swiss round); the "DOUBLE LOSS" banner reads how the
+bout ended, as the TV does. Before, in round 2 of a best-of-3 with two doubles in round 1, the
+chip read 2/4 in warning colours, and a bracket bout showed a limit that ends no bracket bout.
+
+Named while the doubles chip was fixed, and not fixed (each one checked in code by a review):
+
+- A Tournament whose ruleset has no doubles limit still shows one on the pad: the route that
+  gives the pad its rules does not drop it, and the server's scorer does. It is the next commit
+  of slice 4b.
+- The chart of a finished bout, on the pad, on the TV and on the public Match page, writes
+  "doubles 1/4" on a bracket bout: it reads the limit with no phase.
+- The chip's tooltip says "per match" in both languages. In a best-of bout it is per round.
+- A bout read without its names (the second read did not land on weak wifi) has no phase on the
+  pad. The chip then shows no limit on a Pool bout until the next read. That bout also reads as
+  a single round, and with the default rules.
+
 Also on 2026-10-10: the security scan of the marketing site's image accepts the four findings in
 the Caddy binary that no Caddy release fixes (`6ffff8f0`, `apps/web-marketing/.trivyignore.yaml`).
 Remove the entries at the next Caddy release. The two unstable browser tests wait until the
