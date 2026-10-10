@@ -279,6 +279,38 @@ Named while the lists were kept, and not fixed (each one checked in code by a re
   read from the server. The kept list now holds the number to start from; nothing reads it.
 - A double that another tablet took back after the last good read still counts on the copy.
 
+Three rulings on 2026-10-10, before slice 4 (rounds with no network):
+
+| Asked with this story                                                                                                                                                           | Ruling                                                                                                                                                                                                                                                                                              | Done       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| A best-of-3 bout, no wifi. Red reaches the cap in round 1. With wifi the server says "round over". The server judges with the Tournament's ruleset, which is not on the tablet. | **The tablet closes the round at the cap**, or at the doubles limit, from the score it shows, marked "not confirmed". The official taps "Start round 2". When the server counts another way, "Start round 2" is held with the rest of its bout behind it, and the screen goes back to the server's. | not built  |
+| No wifi: hit 1, hit 2, hit 3, "End match". The server refuses hit 2. Hit 3 and the End still went, and the bout ended on the server without hit 2.                              | **A held hit stops the rows of its own bout behind it**, as a held clock press does. One line in the inbox says how many wait. Retry or Discard frees them. Other bouts keep sending. This replaces the older ruling for hits.                                                                      | `c626976b` |
+| A session has ended and the queue holds only a Pause. The bar says "HITS NOT SENT".                                                                                             | **"ENTRIES NOT SENT"**, in the four sentences of the bar, with the matching French ("SAISIES NON ENVOYÉES").                                                                                                                                                                                        | `06694b47` |
+
+Named while "a held hit stops its bout" was built, and not fixed (each one checked in code by a
+review):
+
+- A refusal about a whole bout now shows one row at a time. An Event closes with 12 rows of one
+  bout unsent: the inbox lists one row and "11 wait behind it". Each Discard sends the next row,
+  which is refused in turn, so the official confirms 12 Discards. Before, the inbox listed the 12.
+  The same holds for a tablet off its piste and for a locked bout.
+- The result screen ("ended on this tablet, not confirmed") covers the bar's Review button and
+  the notice at the clock. With an End that waits behind a refused row, the official must Close
+  the result first. It was so for a refused clock press already.
+- With a held row of a bout and queued rows of that bout only, nothing is sent, so a session that
+  has ended is not seen until a row of another bout is sent.
+- A bout that holds one row a new send can cure and one it cannot: Retry on the bar puts the first
+  back in the queue, where it waits behind the second. Discard of the second frees it.
+- An undo of a hit that is out and is then refused removes the held hit, and its bout stays on
+  hold until the next send starts.
+- A hit queued between the two steps of a Discard is not sent by that Discard. The next press
+  sends it.
+- The bar counts a refused card as a "hit", and says "the match" when refused hits are of two
+  matches.
+
+Not ruled: "End round" on time with no network. The operator chose the cap alone for the tablet's
+own close; ask before a time end of a round is taken on the tablet.
+
 Also on 2026-10-10: the security scan of the marketing site's image accepts the four findings in
 the Caddy binary that no Caddy release fixes (`6ffff8f0`, `apps/web-marketing/.trivyignore.yaml`).
 Remove the entries at the next Caddy release. The two unstable browser tests wait until the
@@ -319,11 +351,12 @@ Named while slice 3 was built, and not fixed (each one checked in code by a revi
   only Discard and a new End work.
 - The age of a press is wrong in two cases, both between the press and the send: a time of day
   corrected forwards, and a time of day corrected backwards on a pad that was also reloaded.
-- With a session that has ended, the bar says "hits not sent" when the queue holds only a clock
-  press.
+- ~~With a session that has ended, the bar says "hits not sent" when the queue holds only a clock
+  press.~~ Ruled 2026-10-10 and done: the bar's four sentences say "entries not sent".
 - A double tap on Start can read as Start then Pause: the button is Pause as soon as the clock
   runs. With a fast network this was already so.
-- A held hit does not stop the rows of its bout. An End behind it reaches the server without it.
+- ~~A held hit does not stop the rows of its bout. An End behind it reaches the server without it.~~
+  Ruled 2026-10-10 and done `c626976b`: a held hit or card stops the rows of its own bout.
 - Reopen, Reset, the end of a round and a level bout's remedy still need the network. Rounds and
   level bouts with no network are slices 4 and 5.
 - `apps/web-staff/src/components/MatchClock.tsx` is used by nothing. It is older than this work.
