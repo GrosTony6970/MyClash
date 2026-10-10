@@ -273,6 +273,12 @@ Named while the last piece of slice 3 was built, and not fixed (each one checked
 - ~~Found by its browser test, which failed about one run in eight: the wifi comes back while a
   send that fails is still out, and the queue then waits on the tablet for the next press.~~ Done
   `d632ce37`.
+- Two browser tests fail now and then, and CI's browser job needed three attempts on `2a2d5879`.
+  `tests/drag/schedule-grid.spec.ts:241` ("Ctrl+Z re-creates a deleted programme bar") failed
+  once on CI and was not looked at. `tests/a11y/pad-space-behind-dialogs.spec.ts:150` ("the
+  resume warning opens on Close") fails 1 run of 40 here: the pad attaches its key listener in
+  an effect, a moment after it draws the clock button, and the test presses Space inside that
+  moment (`MatchView.tsx:655`).
 - Another tablet's late press can be written between the server's read of the bout's last clock
   row and its own End. The End then sorts before that press, and the clock of a completed bout
   reads as paused or running. A late press has the same gap.
