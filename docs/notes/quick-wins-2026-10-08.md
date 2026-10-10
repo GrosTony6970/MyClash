@@ -230,18 +230,52 @@ operator's machine, not in the repo): six slices. The operator said "go, in that
 - **A press the server refuses stops the rows of its own bout behind it.** The inbox shows one
   line, which says how many hits wait behind it. Other bouts keep sending.
 - **Open: does the clock use the queue with a good network too, or only with none?** The operator
-  is torn. Ask again at the start of slice 3, with an example of each on a screen.
+  was torn. Ruled on 2026-10-10, below.
 
-A third ruling was taken as an assumption while slice 2 was built, and the operator can reverse it:
-**a late clock press for a bout of a finished Event is refused to everybody, a super admin
-included.** The clock of a finished Event was closed to everybody before.
+Four rulings on 2026-10-10, at the start of slice 3. The first was asked with a working model of
+the two choices on a screen:
+
+| Asked with this story                                                                                                                                     | Ruling                                                                                                                                                                                         | Done       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| The wifi is slow: 3 seconds per answer. The official taps Start as the fight begins. With a network, does the press wait for the server?                  | **Act at once.** The clock moves on the tap, always, and the press is sent behind. One path for wifi and no wifi. A refusal comes a moment later: the clock goes back, and the reason is said. | `d89978bf` |
+| An Event finished on Sunday. On Monday a tablet sends a clock press from Sunday, and the person signed in is a super admin.                               | **Refused to everybody**, a super admin included, as slice 2 built it.                                                                                                                         | `eea8c8e6` |
+| A tablet is left in a bag for a week with a Halt in its queue. Next Saturday it finds wifi and sends the press.                                           | **The server refuses a press made more than one day before its send.** The tablet itself still blocks nothing by age (ruling 10).                                                              | `dd079586` |
+| An official opens three bouts, signs out and hands the tablet over. The tablet still holds the copy of each bout: the two names, the clubs and the score. | **The copies stay.** The next official at the table can open a bout with no network.                                                                                                           | no change  |
 
 **Slice 1 is built: `2c281b70`.** A bout the tablet has read opens with no network, from the
-tablet's copy, and takes hits and cards. The clock still needs the network.
+tablet's copy, and takes hits and cards.
 
 **Slice 2 is built: `eea8c8e6`.** The server takes a clock press that a tablet sends late: a Start,
 a Halt, a Resume or an End, with an id the tablet made and the tablet's times of the press and of
-the send. No screen uses it yet. It is pushed with slice 3. Slices 3 to 6 are not started.
+the send. It is pushed with slice 3.
+
+**Slice 3 is built, and not pushed: `dd079586`, `b1e5f718`, `28a02965`, `92ff7da4`, `d89978bf`.**
+The clock runs on the tablet. Start, Pause, Resume and End match act on the tap and go through the
+tablet's queue with the hits, in the order of the bout. End match shows the tablet's own result,
+marked "not confirmed", until the server's row says the bout is completed. A press the server
+refuses is held in the inbox, is said at the clock, and stops the rows of its bout behind it.
+**One piece of slice 3 is left before the push:** hits and cards must send their send time too, so
+that the server's own End or Halt is placed at the time of the hit or the card, not at the time of
+arrival. Today a black card given with no network while the clock runs ends the clock at the time
+of arrival, and the bout's active time is then too long by the whole time with no network.
+Slices 4 to 6 are not started.
+
+Named while slice 3 was built, and not fixed (each one checked in code by a review):
+
+- The pad judges "End match" on a level bout by its own clock. A tablet a few seconds ahead of the
+  server can take an End the server then refuses as "time not finished". The End is held, and
+  only Discard and a new End work.
+- The age of a press is wrong in two cases, both between the press and the send: a time of day
+  corrected forwards, and a time of day corrected backwards on a pad that was also reloaded.
+- With a session that has ended, the bar says "hits not sent" when the queue holds only a clock
+  press.
+- A double tap on Start can read as Start then Pause: the button is Pause as soon as the clock
+  runs. With a fast network this was already so.
+- A held hit does not stop the rows of its bout. An End behind it reaches the server without it.
+- Reopen, Reset, the end of a round and a level bout's remedy still need the network. Rounds and
+  level bouts with no network are slices 4 and 5.
+- `apps/web-staff/src/components/MatchClock.tsx` is used by nothing. It is older than this work.
+- The deployed-stack tests (`tests/e2e/06`, `10`, `16`) were not run for this change.
 
 Named while slice 2 was built, and not fixed (each one checked in code by a review):
 
