@@ -146,7 +146,8 @@ export function SyncBar({
         phase={phase}
         rejected={rejected}
         sendable={sendable}
-        pending={pending}
+        // What a send can try: a row behind a held row of its bout is not one.
+        pending={syncState?.freeCount ?? 0}
         syncEngine={syncEngine}
         onReview={onReview}
       />

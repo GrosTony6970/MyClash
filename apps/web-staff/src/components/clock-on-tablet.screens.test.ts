@@ -167,13 +167,13 @@ describe('what needs the network while presses wait', () => {
   });
 });
 
-describe('a press the server refused', () => {
+describe('a row of the bout the server refused', () => {
   it('is said at the clock, as an alert, with its reason and the way out', () => {
-    expect(view).toContain('const heldPress = padClock.heldPresses[0];');
-    expect(view).toContain(
-      "? `${t('scoring.clock.pressHeld')} ${heldReason(heldPress, t)} ${t('scoring.clock.pressHeldWaits')}`",
-    );
+    // A press, a hit or a card: the oldest held row of the bout (`heldRowNotice`).
+    expect(view).toContain('const heldPressNotice = heldRowNotice(padClock.heldRows[0], t);');
     expect(view).toContain('heldPressNotice={heldPressNotice}');
+    // The bar offers Retry for what a send can try, not for the rows that wait behind it.
+    expect(read('components', 'SyncBar.tsx')).toContain('pending={syncState?.freeCount ?? 0}');
     expect(controls).toMatch(
       /\{heldPressNotice && \(\s+<p\s+role="alert"\s+data-testid="clock-press-held"/,
     );

@@ -59,6 +59,8 @@ interface Stub {
   arrived: string[];
   /** The server refuses the next clock press with this code, once. */
   refuseNext: string | null;
+  /** The server refuses the next hit with this code, once. */
+  refuseNextHit: string | null;
   /** Every write the server TOOK or refused, in order: `POST /clock start`, `POST /exchanges`. */
   sent: string[];
   /** The body of each clock press that arrived. */
@@ -130,6 +132,15 @@ function answerHit(stub: Stub, route: Route) {
   stub.arrived.push('hit');
   stub.hits.push({ occurredAt: hit.occurredAt, sentAt: hit.sentAt });
   stub.sent.push('POST /exchanges');
+  if (stub.refuseNextHit) {
+    const code = stub.refuseNextHit;
+    stub.refuseNextHit = null;
+    return route.fulfill({
+      status: 409,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ status: 409, code, detail: 'API words', message: 'API words' }),
+    });
+  }
   stub.row = { ...stub.row, red_score: stub.row.red_score + (hit.firstStrikeValue ?? 0) };
   return route.fulfill({ status: 201, json: { id: `saved-${stub.sent.length}` } });
 }
@@ -146,6 +157,7 @@ export async function openBout(
     readsFail: false,
     arrived: [],
     refuseNext: null,
+    refuseNextHit: null,
     sent: [],
     presses: [],
     hits: [],

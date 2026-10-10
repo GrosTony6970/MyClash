@@ -51,10 +51,10 @@ function heldApi() {
   return { posted, answer };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -222,7 +222,7 @@ describe('a send that stops', () => {
 
 describe('the other ways a send is asked for while one runs', () => {
   it('Retry of a held hit sends it after the hit in flight', async () => {
-    await quarantine(await addHit(7, 'uuid-held'), 'Match is locked');
+    await quarantine(await addHit(7, 'uuid-held', 'm2'), 'Match is locked');
     const heldId = (await getRejected())[0]!.id as number;
     const { engine, first, posted, answer } = await sending();
 

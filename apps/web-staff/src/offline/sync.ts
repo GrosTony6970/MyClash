@@ -35,7 +35,13 @@ import { canSendAgain } from './can-send-again';
 import { kindOf, type OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
-import { boutsBehindHeldPress, dropSentPress, holdsPress } from './press-queue';
+import {
+  boutsBehindHeldRow,
+  dropSentPress,
+  freeToSend,
+  holdsBack,
+  holdsPress,
+} from './press-queue';
 import { BoutOrder, CLOCK_ROW_COLLIDED, postPress, sentAtOf } from './press-send';
 import { takeBack, type TakenBack } from './take-back';
 
@@ -66,6 +72,8 @@ export interface SyncState {
   sendableCount: number;
   /** The held ones that are clock presses: the rows of their bouts wait behind them. */
   heldPressCount: number;
+  /** The queued rows a send can try: not the ones that wait behind a held row of their bout. */
+  freeCount: number;
   /** Last error message, if status === 'error' */
   lastError?: string;
 }
@@ -194,6 +202,7 @@ export class SyncEngine {
       rejectedCount: rejected,
       sendableCount: held.filter(canSendAgain).length,
       heldPressCount: held.filter((row) => kindOf(row) === 'press').length,
+      freeCount: rejected > 0 ? await freeToSend(held) : pendingCount,
       lastError,
     };
     for (const listener of this.listeners) {
@@ -554,8 +563,8 @@ export class SyncEngine {
     await this.emit('syncing');
 
     let consecutiveFailures = 0;
-    // The rows of a bout go in order around its clock presses (`BoutOrder`).
-    const order = new BoutOrder(await boutsBehindHeldPress());
+    // The rows of a bout go in order, and wait behind a held one (`BoutOrder`).
+    const order = new BoutOrder(await boutsBehindHeldRow());
 
     for (const entry of pending) {
       if (this.aborted) break;
@@ -563,7 +572,7 @@ export class SyncEngine {
       const waits = order.waits(entry);
       const outcome = waits ?? (await this.sendClaimed(entry));
       // The undo removed it since this pass listed it: nothing was sent. Or it
-      // waits behind a press the inbox holds: nothing was tried.
+      // waits behind a row the inbox holds: nothing was tried.
       if (outcome === 'gone' || outcome === 'behind-held') continue;
       if (outcome === 'stopped') return 'stopped';
       order.note(entry, outcome);
@@ -739,8 +748,12 @@ export class SyncEngine {
    * responsible for having confirmed it. See `discardRejected` in outbox.ts.
    */
   async discardRejectedEntry(id: number): Promise<void> {
-    // A discarded press frees the rows of its bout that waited behind it.
-    if ((await discardRejected(id)) === 'press') await this.drain();
+    // A discarded row frees the rows of its bout that waited behind it: they
+    // are sent now. With none behind it, nothing is sent, and the inbox does
+    // not wait for a send that runs.
+    const frees = await holdsBack(id);
+    await discardRejected(id);
+    if (frees) await this.drain();
     else await this.emitResting();
   }
 

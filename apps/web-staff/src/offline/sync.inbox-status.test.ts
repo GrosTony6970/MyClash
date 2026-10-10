@@ -35,10 +35,10 @@ function mockApi(status: number, body: unknown = {}) {
   );
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -47,9 +47,13 @@ function addHit(sequence: number, clientUuid: string) {
   });
 }
 
-/** One held hit and `waiting` hits in the queue, then a drain the server answers with `status`. */
+/**
+ * One held hit and `waiting` hits of another bout in the queue, then a drain
+ * the server answers with `status`. Another bout: behind a held hit of their
+ * own, they would not be sent at all.
+ */
 async function drained(status: number, waiting: number, body: unknown = {}) {
-  await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
+  await quarantine(await addHit(1, 'uuid-held', 'm2'), 'Match is locked');
   for (let i = 0; i < waiting; i += 1) await addHit(i + 2, `uuid-waiting-${i}`);
   mockApi(status, body);
   const engine = new SyncEngine(API_URL);

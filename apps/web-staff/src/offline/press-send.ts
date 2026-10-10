@@ -43,7 +43,7 @@ export function sentAtOf(entry: OutboxEntry, now: TabletTime = tabletTime()): st
 
 /** Why a row is not sent in this pass, when it must wait for a row before it. */
 export type Waits =
-  /** A press of its bout is held in the inbox. Nothing is tried, nothing is counted. */
+  /** A row of its bout is held in the inbox. Nothing is tried, nothing is counted. */
   | 'behind-held'
   /** A row of its bout before it was not sent in this pass: it meets that row's end. */
   | 'failed'
@@ -56,9 +56,11 @@ export type Waits =
  * A hit is refused on a bout nobody started, and an End names the winner from
  * the hits the server holds. So:
  *
- *   - While a press of a bout is HELD (the server refused it), every row of
- *     that bout waits. A Retry or a Discard of the press, in the inbox, frees
- *     them (operator, 2026-10-10). Other bouts go on.
+ *   - While a row of a bout is HELD (the server refused it), every row of
+ *     that bout waits. A Retry or a Discard of the held row, in the inbox,
+ *     frees them. Other bouts go on. Ruled for a press first, then for a hit
+ *     and a card (operator, 2026-10-10): an End sent past a held hit ended
+ *     the bout on the server without that hit.
  *   - A press that could not be sent (no network, a server fault) stops the
  *     rows of its bout behind it for this pass.
  *   - A press never passes a hit or a card of its bout that could not be sent.
@@ -69,7 +71,7 @@ export type Waits =
 export class BoutOrder {
   private readonly unsent = new Map<string, { press: boolean; outcome: 'failed' | 'offline' }>();
 
-  /** `held`: the bouts that hold a refused press when the pass starts. */
+  /** `held`: the bouts that hold a refused row when the pass starts. */
   constructor(private readonly held: Set<string>) {}
 
   waits(entry: OutboxEntry): Waits | null {
@@ -82,7 +84,7 @@ export class BoutOrder {
   /** What became of a row this pass sent. */
   note(entry: OutboxEntry, outcome: 'sent' | 'held' | 'failed' | 'offline'): void {
     const press = kindOf(entry) === 'press';
-    if (outcome === 'held' && press) this.held.add(entry.matchId);
+    if (outcome === 'held') this.held.add(entry.matchId);
     if (outcome !== 'failed' && outcome !== 'offline') return;
     const before = this.unsent.get(entry.matchId);
     this.unsent.set(entry.matchId, { press: press || before?.press === true, outcome });

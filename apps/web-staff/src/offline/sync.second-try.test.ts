@@ -63,10 +63,10 @@ function mockApi(
   return { posted };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -83,10 +83,13 @@ async function drainWatched(): Promise<SyncState | undefined> {
   return states.at(-1);
 }
 
-/** Two hits wait; the first is answered 400, then `second` at its new sequence. */
+/**
+ * Two hits wait, of two bouts; the first is answered 400, then `second` at its
+ * new sequence. Two bouts: a hit that ends held stops the rows of its own.
+ */
 async function secondTry(second: Answer) {
   await addHit(1, 'uuid-bad');
-  await addHit(2, 'uuid-behind');
+  await addHit(2, 'uuid-behind', 'm2');
   const { posted } = mockApi((sequence) => (sequence === 1 ? BAD_SEQUENCE : second));
   return { last: await drainWatched(), posted };
 }
@@ -229,7 +232,7 @@ describe('the second try meets no verdict (ruling 344)', () => {
 describe('the second try that changes nothing', () => {
   it('a second 400 is held under the FIRST answer, and the queue goes on', async () => {
     await addHit(1, 'uuid-bad');
-    await addHit(2, 'uuid-good');
+    await addHit(2, 'uuid-good', 'm2');
     const { posted } = mockApi((sequence) =>
       sequence === 2
         ? { status: 201, body: { id: 'srv-2' } }

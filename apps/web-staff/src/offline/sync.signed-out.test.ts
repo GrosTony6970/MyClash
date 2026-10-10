@@ -50,10 +50,10 @@ function mockApi(post: (sequence: number) => { status: number; body: unknown }) 
   return { posted };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -124,7 +124,7 @@ describe('drain — nobody is signed in (401)', () => {
 
   it('is said over a held hit too: "refused" would hide why nothing goes', async () => {
     await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
-    await addHit(2, 'uuid-waiting');
+    await addHit(2, 'uuid-waiting', 'm2');
     mockApi(() => ({ status: 401, body: NO_SESSION }));
 
     const last = await drainWatched(new SyncEngine(API_URL));

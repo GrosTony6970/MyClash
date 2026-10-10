@@ -1325,12 +1325,15 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 >
 > **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
 > row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,
-> and an End names the winner from the hits the server holds. So while a press of a bout is held
-> in the inbox, every row of that bout waits behind it, and other bouts go on; a Retry puts the
-> press back at its own place, and a Discard frees the rows and sends them. A press that could
+> and an End names the winner from the hits the server holds. So while a row of a bout is held
+> in the inbox (a press, a hit or a card), every row of that bout waits behind it, and other
+> bouts go on; a Retry puts the held row back at its own place, and a Discard frees the rows and
+> sends them. It was ruled for a press first, and for a hit and a card on 2026-10-10: sent on,
+> the rows behind a refused hit ended the bout on the server without it. A press that could
 > not be sent stops its bout's rows for that pass, and a press never passes a hit of its bout
-> that could not be sent. A refused press is said at the bout's clock with its reason, and the
-> bar says "a clock press was refused" before anything else it holds. A press answered 401
+> that could not be sent; a hit behind a hit that could not be sent still goes. A refused row is
+> said at the bout's clock with its reason (`heldRowNotice`), and the bar says "a clock press
+> was refused" before anything else it holds, or that the rest of the match waits behind a hit. A press answered 401
 > leaves the bout for the sign-in screen, as it did before it was queued (ruling 342). A press
 > the server answers `clock_row_collided` wrote nothing and goes with the next send.
 >

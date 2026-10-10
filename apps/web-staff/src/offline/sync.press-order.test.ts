@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
 import { getRejected, quarantine, requeueRejected } from './outbox';
-import { boutsBehindHeldPress, heldPressesOf, waitingBehind } from './press-queue';
+import { boutsBehindHeldRow, heldPressesOf, waitingBehind } from './press-queue';
 import { SyncEngine, type SyncState } from './sync';
 import {
   API_URL,
@@ -89,21 +89,8 @@ describe('a press the server refuses', () => {
 
     expect(held).toMatchObject({ pressAction: 'start', rejectedCode: 'clock_press_out_of_order' });
     expect(await waitingBehind(held!)).toBe(2);
-    expect([...(await boutsBehindHeldPress())]).toEqual(['m1']);
+    expect([...(await boutsBehindHeldRow())]).toEqual(['m1']);
     expect(await heldPressesOf('m2')).toEqual([]);
-  });
-
-  it('a held HIT stops nothing: the rows behind it go on, as before', async () => {
-    await addHit('m1', 'hit-1');
-    await addPress('halt', 'm1', 30);
-    const { calls } = mockServer((call) =>
-      call === 'exchanges m1' ? refused(409, 'event_results_frozen') : undefined,
-    );
-
-    await new SyncEngine(API_URL).drain();
-
-    expect(calls).toEqual(['exchanges m1', 'clock m1 halt']);
-    expect([...(await boutsBehindHeldPress())]).toEqual([]);
   });
 });
 
@@ -187,9 +174,8 @@ describe('Retry of a held hit', () => {
     // The hit is refused for a moment (its bout was locked); the official goes on to the End.
     await addPress('start', 'm1', 0);
     await addHit('m1', 'hit-1');
-    let network: 'locked' | 'down' | 'up' = 'locked';
+    let network: 'locked' | 'up' = 'locked';
     const { calls } = mockServer((call) => {
-      if (network === 'down') return OFFLINE;
       return network === 'locked' && call === 'exchanges m1'
         ? refused(409, 'match_locked')
         : undefined;
@@ -197,9 +183,9 @@ describe('Retry of a held hit', () => {
     const engine = new SyncEngine(API_URL);
     await engine.drain();
     expect(await heldRows()).toEqual(['hit']);
-    network = 'down';
     await addPress('end', 'm1', 60);
     await engine.drain();
+    expect(await queued(), 'the End waits behind the held hit').toEqual(['press end']);
     const [held] = await getRejected();
 
     network = 'up';
@@ -226,19 +212,6 @@ describe('Discard of a held press', () => {
     expect(calls).toEqual(['clock m1 start', 'exchanges m1', 'clock m1 end']);
     expect(await heldRows()).toEqual([]);
     expect(await queued()).toEqual([]);
-  });
-
-  it('of a held hit sends nothing: nothing waited behind it', async () => {
-    await addHit();
-    const { calls } = mockServer(() => refused(409, 'event_results_frozen'));
-    const engine = new SyncEngine(API_URL);
-    await engine.drain();
-    const [held] = await getRejected();
-
-    await engine.discardRejectedEntry(held!.id as number);
-
-    expect(calls).toEqual(['exchanges m1']);
-    expect(await heldRows()).toEqual([]);
   });
 });
 

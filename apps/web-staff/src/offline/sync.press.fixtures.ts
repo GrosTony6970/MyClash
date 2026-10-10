@@ -47,6 +47,20 @@ export function addHit(matchId = 'm1', clientUuid = crypto.randomUUID()): Promis
   });
 }
 
+export function addCard(matchId = 'm1', clientUuid = crypto.randomUUID()): Promise<number> {
+  return enqueue({
+    kind: 'penalty',
+    clientUuid,
+    matchId,
+    sequence: 1,
+    registrationId: 'reg-1',
+    occurredAt: new Date(AT_TEN.wall).toISOString(),
+    directCard: 'yellow',
+    reason: 'Excessive force',
+    bout: BOUT,
+  });
+}
+
 /** One call the tablet made: its door, the bout, and for a press its button. */
 export type Call = `${'clock' | 'exchanges'} ${string}${string}`;
 

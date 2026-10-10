@@ -180,6 +180,63 @@ test('a press the server refuses goes back, says why at the clock, and holds the
   await expect(page.getByTestId('network-bar')).not.toContainText(/refused/i);
 });
 
+test('a hit the server refuses stops the rows of its match behind it, and says so at the clock', async ({
+  page,
+}) => {
+  // Operator, 2026-10-10: sent on, the rows behind a refused hit ended the bout
+  // on the server without it.
+  const stub = await openBout(page);
+  await primary(page).click();
+  await primary(page).click();
+  await expect.poll(() => stub.sent).toEqual(['POST /clock start', 'POST /clock halt']);
+  stub.refuseNextHit = 'match_locked';
+
+  await redHit(page).first().click();
+
+  await expect(held(page)).toHaveAttribute('role', 'alert');
+  await expect(held(page)).toContainText(/the server refused an entry of this match/i);
+  await expect(held(page)).toContainText(/this bout is locked/i);
+  await expect(held(page)).toContainText(/open review/i);
+  await expect(page.getByTestId('network-bar')).toContainText(
+    /1 hit not recorded - the rest of the match waits/i,
+  );
+
+  // A second hit and the End are taken on the tablet, and wait behind the refused hit.
+  await redHit(page).first().click();
+  await page.getByTestId('clock-end-button').click();
+  await page.getByTestId('end-early-confirm').click();
+  await expect(result(page)).toBeVisible();
+  // The result covers the bar: the official closes it to reach Review.
+  await result(page)
+    .getByRole('button', { name: /^close$/i })
+    .click();
+
+  await page.getByTestId('review-refused').click();
+  await expect(page.getByTestId('quarantine-waiting')).toHaveText(
+    '2 entries of this match wait behind it.',
+  );
+  // Nothing passed the refused hit: it is still the last call.
+  expect(stub.sent).toEqual(['POST /clock start', 'POST /clock halt', 'POST /exchanges']);
+
+  await page
+    .getByTestId('quarantine-row')
+    .getByRole('button', { name: /^discard$/i })
+    .click();
+  await page.getByRole('button', { name: /discard permanently/i }).click();
+
+  // The discard frees them, in their order: the hit, then the End.
+  await expect
+    .poll(() => stub.sent)
+    .toEqual([
+      'POST /clock start',
+      'POST /clock halt',
+      'POST /exchanges',
+      'POST /exchanges',
+      'POST /clock end',
+    ]);
+  await expect(held(page)).toHaveCount(0);
+});
+
 test('with no network, a reloaded pad opens the clock the tablet kept, and a press moves it', async ({
   page,
 }) => {

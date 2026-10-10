@@ -47,10 +47,10 @@ function mockApi(post: (sequence: number) => { status: number; body: unknown }) 
   return { posted };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -109,9 +109,9 @@ describe('drain — a hit refused because the Event is over (409)', () => {
     expect(await db.synced.count()).toBe(0);
   });
 
-  it('keeps draining the hits behind it', async () => {
+  it('keeps draining the hits of another bout behind it', async () => {
     await addHit(1, 'uuid-late');
-    await addHit(2, 'uuid-good');
+    await addHit(2, 'uuid-good', 'm2');
     mockApi((sequence) =>
       sequence === 1 ? { status: 409, body: EVENT_OVER } : { status: 201, body: { id: 'srv-2' } },
     );

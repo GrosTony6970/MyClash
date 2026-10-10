@@ -155,7 +155,7 @@ export const scoring = {
     discard: 'Supprimer',
     discardTitle: 'Supprimer cette touche ?',
     discardBody:
-      "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie à la main, sinon elle n'atteindra jamais les résultats.",
+      "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie à la main, sinon elle n'atteindra jamais les résultats. Les saisies de son assaut qui attendent derrière sont alors envoyées sans elle.",
     discardConfirm: 'Supprimer définitivement',
     typeClean: 'Touche nette',
     typeAfterblow: 'Coup double retarde',
@@ -208,7 +208,8 @@ export const scoring = {
     maintenanceQueued: 'MAINTENANCE - échanges gardés sur cette tablette',
     syncing: 'SYNCHRONISATION',
     syncError: 'ERREUR DE SYNCHRO',
-    hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
+    hitsRefused:
+      '{count} TOUCHE{plural} NON ENREGISTRÉE{plural} - LA SUITE DE L’ASSAUT ATTEND. OUVREZ EXAMINER',
     pressRefused: 'UNE ACTION SUR LE CHRONO A ÉTÉ REFUSÉE - SON ASSAUT ATTEND. EXAMINEZ-LA',
     sessionEnded:
       "SESSION TERMINÉE - SAISIES NON ENVOYÉES. RECONNECTEZ-VOUS. SI L'ÉVÉNEMENT EST TERMINÉ, PRÉVENEZ UN ORGANISATEUR",
@@ -403,6 +404,7 @@ export const scoring = {
     resetConfirmCancel: 'Annuler',
     pressHeld:
       'Le serveur a refusé une action sur le chrono de cet assaut. Le chrono affiche ce que le serveur a.',
+    entryHeld: 'Le serveur a refusé une saisie de cet assaut.',
     pressHeldWaits:
       'Ce que vous saisissez maintenant sur cet assaut attend derrière. Ouvrez Examiner en haut de l’écran.',
   },

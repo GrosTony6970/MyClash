@@ -83,10 +83,10 @@ function mockApi(post: (sequence: number) => { status: number; body: unknown }) 
   return { posted };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -127,7 +127,7 @@ describe.each(CALLERS)('drain — the server refuses the person (%s)', (code, st
 
   it('is said over a held hit too: "refused" would hide why nothing goes', async () => {
     await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
-    await addHit(2, 'uuid-waiting');
+    await addHit(2, 'uuid-waiting', 'm2');
     mockApi(() => refused);
 
     const last = await drainWatched(new SyncEngine(API_URL));
@@ -137,7 +137,7 @@ describe.each(CALLERS)('drain — the server refuses the person (%s)', (code, st
 
   it('a Discard in the inbox keeps the sentence while a hit still waits', async () => {
     await quarantine(await addHit(1, 'uuid-held'), 'Match is locked');
-    await addHit(2, 'uuid-waiting');
+    await addHit(2, 'uuid-waiting', 'm2');
     mockApi(() => refused);
     const engine = new SyncEngine(API_URL);
     await engine.drain();
@@ -171,8 +171,8 @@ describe.each(CALLERS)('drain — the server refuses the person (%s)', (code, st
 describe('drain — a refusal about the bout, then one about the person', () => {
   it('holds the first, goes on, and stops at the second', async () => {
     await addHit(1, 'uuid-off-piste');
-    await addHit(2, 'uuid-2');
-    await addHit(3, 'uuid-3');
+    await addHit(2, 'uuid-2', 'm2');
+    await addHit(3, 'uuid-3', 'm2');
     const disabled = { message: 'Staff account is disabled', code: 'staff_account_disabled' };
     const { posted } = mockApi((sequence) => ({
       status: 403,

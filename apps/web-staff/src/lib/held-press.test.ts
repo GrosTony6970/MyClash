@@ -7,7 +7,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { canSendAgain } from '../offline/can-send-again';
-import { discardQuestion, heldPressLabel, heldWaitingLine, heldWhoLine } from './held-hit';
+import {
+  discardQuestion,
+  heldPressLabel,
+  heldRowNotice,
+  heldWaitingLine,
+  heldWhoLine,
+} from './held-hit';
 import { endRefusalMessage, heldReason } from './refusal-copy';
 import { syncBarLabel } from './sync-bar';
 
@@ -116,6 +122,29 @@ describe('a held press and Retry', () => {
       true,
     );
     expect(canSendAgain({ rejectedReason: '' })).toBe(true);
+  });
+});
+
+describe('the notice at the clock of a bout that holds a refused row', () => {
+  const LOCKED = { rejectedReason: 'in English', rejectedCode: 'match_locked' };
+
+  it('says a clock press was refused, why, and that the bout waits', () => {
+    expect(heldRowNotice({ kind: 'press', ...LOCKED }, t)).toBe(
+      `scoring.clock.pressHeld ${heldReason(LOCKED, t)} scoring.clock.pressHeldWaits`,
+    );
+  });
+
+  it.each(['exchange', 'penalty', undefined] as const)(
+    'says an entry was refused, for a row of kind %s: a hit and a card stop their bout too',
+    (kind) => {
+      expect(heldRowNotice({ kind, ...LOCKED }, t)).toBe(
+        `scoring.clock.entryHeld ${heldReason(LOCKED, t)} scoring.clock.pressHeldWaits`,
+      );
+    },
+  );
+
+  it('says nothing while the inbox holds no row of the bout', () => {
+    expect(heldRowNotice(undefined, t)).toBeNull();
   });
 });
 

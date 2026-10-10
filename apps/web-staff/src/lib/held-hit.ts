@@ -12,6 +12,7 @@ import { kindOf, type BoutNames, type RejectedEntry } from '../offline/db';
 import type { ClockPress } from '@myclash/types';
 import type { ConfirmOptions } from '@myclash/ui';
 import { cardWord } from './card-word';
+import { heldReason } from './refusal-copy';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -49,7 +50,23 @@ export function heldPressLabel(action: ClockPress | undefined, t: Translate): st
 }
 
 /**
- * How many rows of its bout wait behind a held press, or null for none. `t()`
+ * What the bout's screen says at the clock while the inbox holds a row of this
+ * bout: what was refused, why, and that what is pressed now waits behind it.
+ * Null with no held row. A hit and a card stop their bout as a press does
+ * (operator, 2026-10-10), so the official is told the same way.
+ */
+export function heldRowNotice(
+  held: Pick<RejectedEntry, 'kind' | 'rejectedReason' | 'rejectedCode'> | undefined,
+  t: Translate,
+): string | null {
+  if (!held) return null;
+  const what =
+    kindOf(held) === 'press' ? t('scoring.clock.pressHeld') : t('scoring.clock.entryHeld');
+  return `${what} ${heldReason(held, t)} ${t('scoring.clock.pressHeldWaits')}`;
+}
+
+/**
+ * How many rows of its bout wait behind a held row, or null for none. `t()`
  * has no plural engine, so one row has its own key.
  */
 export function heldWaitingLine(count: number, t: Translate): string | null {

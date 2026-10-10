@@ -50,10 +50,10 @@ function mockApi(post: (clientUuid: string) => { status: number; body: unknown }
   return { posted };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -62,8 +62,13 @@ function addHit(sequence: number, clientUuid: string) {
   });
 }
 
-async function hold(sequence: number, clientUuid: string, refusal: typeof BEFORE_RESET) {
-  await quarantine(await addHit(sequence, clientUuid), refusal.message, refusal.code);
+async function hold(
+  sequence: number,
+  clientUuid: string,
+  refusal: typeof BEFORE_RESET,
+  matchId = 'm1',
+) {
+  await quarantine(await addHit(sequence, clientUuid, matchId), refusal.message, refusal.code);
 }
 
 function watch(engine: SyncEngine): () => SyncState | undefined {
@@ -94,8 +99,9 @@ describe('Retry all — a held hit no new send can cure', () => {
   });
 
   it('is not sent: the server hears only of the hits it may take', async () => {
+    // Of two bouts: behind the one no send can cure, a hit of its own bout waits.
     await hold(1, 'uuid-not-started', NOT_STARTED);
-    await hold(2, 'uuid-before-reset', BEFORE_RESET);
+    await hold(2, 'uuid-before-reset', BEFORE_RESET, 'm2');
     const { posted } = mockApi(() => ({ status: 201, body: { id: 'srv-1' } }));
     const engine = new SyncEngine(API_URL);
     const last = watch(engine);
@@ -129,7 +135,7 @@ describe('Retry all — a held hit no new send can cure', () => {
 describe('what a drain says of the hits it holds', () => {
   it('counts the ones a new send can cure', async () => {
     await addHit(1, 'uuid-not-started');
-    await addHit(2, 'uuid-before-reset');
+    await addHit(2, 'uuid-before-reset', 'm2');
     mockApi((clientUuid) => ({
       status: 409,
       body: clientUuid === 'uuid-before-reset' ? BEFORE_RESET : NOT_STARTED,

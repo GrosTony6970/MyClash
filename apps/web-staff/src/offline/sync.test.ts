@@ -299,11 +299,12 @@ describe('drain — a refused exchange (400)', () => {
     expect(posted).toHaveLength(2);
   });
 
-  it('keeps draining the entries behind it', async () => {
+  it('keeps draining the entries of another bout behind it', async () => {
     // The property `dropTerminal` existed for: one permanently-failing entry at
-    // the head of an in-order queue must not strand everything after it.
+    // the head of an in-order queue must not strand the other bouts after it.
+    // The rows of its OWN bout wait for the inbox (`sync.press-order.test.ts`).
     await addExchange('m1', 1, 'uuid-bad');
-    await addExchange('m1', 2, 'uuid-good');
+    await addExchange('m2', 2, 'uuid-good');
     mockExchangeApi({
       serverRows: [{ sequence: 9 }],
       post: () => ({ status: 400, body: { message: 'nope' } }),

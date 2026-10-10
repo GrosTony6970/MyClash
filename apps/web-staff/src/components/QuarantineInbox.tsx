@@ -57,11 +57,11 @@ function entryLabel(entry: RejectedEntry, t: (key: string) => string): string {
   }
 }
 
-/** How many rows of its bout wait behind each held press, by the press's id. */
+/** How many rows of its bout wait behind each held row, by the row's id. */
 async function countWaiting(held: RejectedEntry[]): Promise<Map<number, number>> {
   const behind = new Map<number, number>();
   for (const entry of held) {
-    if (entry.id === undefined || kindOf(entry) !== 'press') continue;
+    if (entry.id === undefined) continue;
     behind.set(entry.id, await waitingBehind(entry));
   }
   return behind;

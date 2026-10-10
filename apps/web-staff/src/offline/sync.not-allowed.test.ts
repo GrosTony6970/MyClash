@@ -50,10 +50,10 @@ function mockApi(post: (sequence: number) => { status: number; body: unknown }) 
   return { posted, reads };
 }
 
-function addHit(sequence: number, clientUuid: string) {
+function addHit(sequence: number, clientUuid: string, matchId = 'm1') {
   return enqueue({
     clientUuid,
-    matchId: 'm1',
+    matchId,
     sequence,
     type: 'clean',
     occurredAt: new Date().toISOString(),
@@ -101,10 +101,11 @@ describe('drain — a hit the caller may not score (403)', () => {
 
   it('three in a row do not end the drain: the hit behind them goes', async () => {
     // Three failed attempts in a row used to end the drain on "check connection".
-    await addHit(1, 'uuid-1');
-    await addHit(2, 'uuid-2');
-    await addHit(3, 'uuid-3');
-    await addHit(4, 'uuid-other-bout');
+    // Three bouts: a held hit stops the rows of its own bout.
+    await addHit(1, 'uuid-1', 'm1');
+    await addHit(2, 'uuid-2', 'm2');
+    await addHit(3, 'uuid-3', 'm3');
+    await addHit(4, 'uuid-other-bout', 'm4');
     const { posted } = mockApi((sequence) =>
       sequence === 4 ? { status: 201, body: { id: 'srv-4' } } : { status: 403, body: OFF_PISTE },
     );

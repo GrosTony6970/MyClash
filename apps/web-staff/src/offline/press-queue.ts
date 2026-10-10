@@ -52,22 +52,49 @@ export async function holdsPress(): Promise<boolean> {
   return rows.some((row) => kindOf(row) === 'press');
 }
 
-/** The bouts that hold a refused press: their rows wait behind it. */
-export async function boutsBehindHeldPress(): Promise<Set<string>> {
+/**
+ * The bouts that hold a refused row: their rows wait behind it. A hit or a
+ * card as much as a press (operator, 2026-10-10): an End sent past a held hit
+ * would end the bout on the server without it.
+ */
+export async function boutsBehindHeldRow(): Promise<Set<string>> {
   const held = await db.rejected.toArray();
-  return new Set(held.filter((row) => kindOf(row) === 'press').map((row) => row.matchId));
+  return new Set(held.map((row) => row.matchId));
 }
 
-/** The refused presses of one bout, oldest first: what the bout's screen says at the clock. */
+/** The refused rows of one bout, oldest first: what the bout's screen says at the clock. */
+export function heldRowsOf(matchId: string): Promise<RejectedEntry[]> {
+  return db.rejected.where('matchId').equals(matchId).sortBy('id');
+}
+
+/** The refused presses of one bout, oldest first. */
 export async function heldPressesOf(matchId: string): Promise<RejectedEntry[]> {
-  const held = await db.rejected.where('matchId').equals(matchId).sortBy('id');
-  return held.filter((row) => kindOf(row) === 'press');
+  return (await heldRowsOf(matchId)).filter((row) => kindOf(row) === 'press');
 }
 
-/** How many rows of its bout wait in the queue behind a refused press. */
-export async function waitingBehind(
-  held: Pick<RejectedEntry, 'matchId' | 'outboxId'>,
-): Promise<number> {
-  const rows = await db.outbox.where('matchId').equals(held.matchId).toArray();
-  return rows.filter((row) => (row.id ?? 0) > (held.outboxId ?? 0)).length;
+/** Does a row of its bout wait in the queue behind this held row? Asked before its Discard. */
+export async function holdsBack(heldId: number): Promise<boolean> {
+  const held = await db.rejected.get(heldId);
+  return held !== undefined && (await waitingBehind(held)) > 0;
+}
+
+/**
+ * How many rows of its bout wait in the queue behind a refused row: every
+ * queued row of the bout, as `BoutOrder` holds them all. A row with a place
+ * BEFORE the held one waits too: a hit that met a server fault stays queued
+ * while the hit after it goes and is refused.
+ */
+export function waitingBehind(held: Pick<RejectedEntry, 'matchId'>): Promise<number> {
+  return db.outbox.where('matchId').equals(held.matchId).count();
+}
+
+/**
+ * How many queued rows a send can try now: the ones of a bout that holds no
+ * refused row. The bar offers Retry only while this, or a curable held row,
+ * gives it something to do (ruling 291).
+ */
+export async function freeToSend(held: readonly Pick<RejectedEntry, 'matchId'>[]): Promise<number> {
+  const waits = new Set(held.map((row) => row.matchId));
+  const rows = await db.outbox.toArray();
+  return rows.filter((row) => !waits.has(row.matchId)).length;
 }

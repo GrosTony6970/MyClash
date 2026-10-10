@@ -146,7 +146,7 @@ export const scoring = {
     discard: 'Discard',
     discardTitle: 'Discard this hit?',
     discardBody:
-      'This permanently deletes a hit a referee scored. Only do this if you have already re-entered it by hand — otherwise it will never reach the results.',
+      'This permanently deletes a hit a referee scored. Only do this if you have already re-entered it by hand — otherwise it will never reach the results. The entries of its match that wait behind it are then sent without it.',
     discardConfirm: 'Discard permanently',
     typeClean: 'Clean hit',
     typeAfterblow: 'Afterblow',
@@ -204,7 +204,8 @@ export const scoring = {
     // Distinct from syncError on purpose: "sync error" reads as a connection
     // problem that will clear itself, and this one never will until the
     // operator retries. `{plural}` is filled by the caller (see voidedHidden).
-    hitsRefused: '{count} HIT{plural} NOT RECORDED',
+    // A refused hit or card stops the rows of its match behind it, as a press does.
+    hitsRefused: '{count} HIT{plural} NOT RECORDED - THE REST OF THE MATCH WAITS. OPEN REVIEW',
     // A refused clock press stops the rows of its match behind it.
     pressRefused: 'A CLOCK PRESS WAS REFUSED - ITS MATCH WAITS. REVIEW IT',
     // The server answered 401: nothing is refused, the queue waits (ruling 241).
@@ -424,6 +425,8 @@ export const scoring = {
     // The server refused a clock press of the match on screen.
     pressHeld:
       'The server refused a clock press of this match. The clock shows what the server has.',
+    // The same notice for a hit or a card the server refused.
+    entryHeld: 'The server refused an entry of this match.',
     pressHeldWaits:
       'What you press on this match now waits behind it. Open Review at the top of the screen.',
   },

@@ -20,12 +20,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest, failureCode } from '@myclash/api-client';
 import type { ClockState } from '../components/scoreboard-clock';
 import { refusalMessage } from '../lib/refusal-copy';
-import type { OutboxEntry, RejectedEntry } from '../offline/db';
+import { kindOf, type OutboxEntry, type RejectedEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { keepClock, keptClock } from '../offline/kept-bout';
 import { getPendingForMatch } from '../offline/outbox';
 import { endScoreOf, padClock, pressesOf, type EndScore } from '../offline/pad-clock';
-import { heldPressesOf } from '../offline/press-queue';
+import { heldRowsOf } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
 
 type Translate = Parameters<typeof refusalMessage>[1];
@@ -61,6 +61,8 @@ export interface PadClock {
   readClock: () => Promise<void>;
   /** The presses of this bout the server refused, oldest first. */
   heldPresses: RejectedEntry[];
+  /** Every row of this bout the server refused, a hit and a card too: the bout waits behind them. */
+  heldRows: RejectedEntry[];
   /** How many presses of this bout the tablet still holds. */
   pressesWaiting: number;
   /**
@@ -137,20 +139,18 @@ function useServerClock({ apiUrl, matchId, refreshKey, syncEngine, t }: PadClock
   return { server, sent, error, setError, readClock };
 }
 
-/** The clock presses of the bout the tablet holds: the ones that wait, and the refused ones. */
+/** The clock presses of the bout the tablet holds that wait, and every row of it the server refused. */
 function useQueuedPresses({ matchId, refreshKey, pendingCount, rejectedCount }: PadClockArgs) {
   const [rows, setRows] = useState(NO_ROWS);
   const [pressTick, setPressTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([getPendingForMatch(matchId), heldPressesOf(matchId)]).then(
-      ([queue, held]) => {
-        if (cancelled) return;
-        const presses = pressesOf(queue);
-        setRows((before) => ({ presses, held, endScore: endScoreOf(presses, before.endScore) }));
-      },
-    );
+    void Promise.all([getPendingForMatch(matchId), heldRowsOf(matchId)]).then(([queue, held]) => {
+      if (cancelled) return;
+      const presses = pressesOf(queue);
+      setRows((before) => ({ presses, held, endScore: endScoreOf(presses, before.endScore) }));
+    });
     return () => {
       cancelled = true;
     };
@@ -183,7 +183,8 @@ export function usePadClock(args: PadClockArgs): PadClock {
     error,
     setError,
     readClock,
-    heldPresses: held,
+    heldPresses: held.filter((row) => kindOf(row) === 'press'),
+    heldRows: held,
     pressesWaiting: presses.filter((row) => !sent.has(row.clientUuid)).length,
     endScore,
     pressed,

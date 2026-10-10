@@ -319,9 +319,9 @@ export async function requeueRejectedEntry(id: number): Promise<boolean> {
  * exchange by hand, and the held copy is now a duplicate keeping the sync bar
  * red. Callers must confirm before calling it.
  *
- * Answers what kind of row it was, or null for a row already gone: a discarded
- * press frees the rows of its bout that waited behind it, and the caller sends
- * them.
+ * Answers what kind of row it was, or null for a row already gone. A discarded
+ * row frees the rows of its bout that waited behind it: the engine asks
+ * `holdsBack` first, and sends them.
  */
 export async function discardRejected(id: number): Promise<OutboxKind | null> {
   return db.transaction('rw', db.rejected, async () => {

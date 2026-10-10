@@ -10,8 +10,8 @@ import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPaus
 import { useI18n } from '@myclash/next-i18n/client';
 import { usePadClock } from '../hooks/usePadClock';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
-import { boutNames } from '../lib/held-hit';
-import { endRefusalMessage, heldReason, refusalMessage } from '../lib/refusal-copy';
+import { boutNames, heldRowNotice } from '../lib/held-hit';
+import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
 import { queuePress } from '../offline/press-queue';
@@ -579,12 +579,10 @@ export function MatchView({
   const unconfirmed = resultUnconfirmed(match.status, clockState?.status ?? 'idle');
   const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });
 
-  // A clock press of this bout the server refused: said at the clock, with
-  // the way out. The rows of this bout wait behind it until the inbox acts.
-  const heldPress = padClock.heldPresses[0];
-  const heldPressNotice = heldPress
-    ? `${t('scoring.clock.pressHeld')} ${heldReason(heldPress, t)} ${t('scoring.clock.pressHeldWaits')}`
-    : null;
+  // A row of this bout the server refused, a press, a hit or a card: said at
+  // the clock, with the way out. The rows of this bout wait behind it until
+  // the inbox acts.
+  const heldPressNotice = heldRowNotice(padClock.heldRows[0], t);
 
   // A hit or a card was written on the tablet. The press reads nothing from
   // the server (ruling 316): the engine says the new count, which shows the

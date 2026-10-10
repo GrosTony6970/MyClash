@@ -152,7 +152,9 @@ describe('a held row', () => {
     expect(await holdsPress()).toBe(true);
   });
 
-  it('counts behind a held press the rows of its bout queued AFTER it, and no other', async () => {
+  // The send holds back EVERY row of the bout (`BoutOrder`), also one queued
+  // before the held row that a server fault left in the queue.
+  it('counts behind a held press every queued row of its bout, and no other', async () => {
     await addHit('m1', 'before');
     const press = await addPress('halt');
     await addHit('m1', 'after');
@@ -160,7 +162,7 @@ describe('a held row', () => {
     await quarantine(press.id as number, 'refused', 'clock_press_out_of_order');
     const [held] = await heldPressesOf('m1');
 
-    expect(await waitingBehind(held!)).toBe(1);
+    expect(await waitingBehind(held!)).toBe(2);
     expect(await heldPressesOf('m2')).toEqual([]);
   });
 
