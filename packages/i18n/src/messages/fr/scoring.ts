@@ -30,9 +30,9 @@ export const scoring = {
     signingIn: 'Connexion...',
     localLoginError: 'Connexion impossible avec cet événement, cet identifiant et ce PIN.',
     unsentOne:
-      "Cette tablette contient 1 touche non envoyée. Elle sera envoyée dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
+      "Cette tablette contient 1 saisie non envoyée. Elle sera envoyée dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
     unsentMany:
-      "Cette tablette contient {count} touches non envoyées. Elles seront envoyées dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
+      "Cette tablette contient {count} saisies non envoyées. Elles seront envoyées dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
     picker: {
       label: 'Événement',
       tabsLabel: 'Quels événements afficher',
@@ -176,6 +176,21 @@ export const scoring = {
       "Cet assaut n'est pas commencé, ou il a été remis à zéro après cette saisie. Elle est conservée ici, pas perdue. Démarrez l'assaut puis réessayez, ou supprimez-la.",
     boutLocked:
       "Cet assaut est verrouillé : le serveur n'a pas accepté cette saisie. Elle est conservée ici, pas perdue. Rouvrez l'assaut, puis réessayez.",
+    typePressStart: 'Chrono : Démarrer',
+    typePressHalt: 'Chrono : Pause',
+    typePressResume: 'Chrono : Reprendre',
+    typePressEnd: 'Chrono : Terminer le match',
+    pressWaitingOne: '1 saisie de cet assaut attend derrière.',
+    pressWaitingMany: '{count} saisies de cet assaut attendent derrière.',
+    pressBoutCompleted:
+      'Cet assaut est terminé : le serveur n’a pas appliqué cette action sur le chrono. Une action sur le chrono envoyée en retard ne rouvre pas un assaut. Supprimez-la.',
+    pressOutOfOrder:
+      'Le chrono de cet assaut n’était pas dans l’état que cette action demande : il a été modifié ailleurs. Supprimez-la, puis vérifiez le chrono.',
+    pressTooOld:
+      'Cette action sur le chrono a été faite plus d’un jour avant son envoi : le serveur ne l’a pas appliquée. Supprimez-la.',
+    discardPressTitle: 'Supprimer cette action sur le chrono ?',
+    discardPressBody:
+      'L’action sur le chrono est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées sans elle.',
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",
@@ -194,6 +209,7 @@ export const scoring = {
     syncing: 'SYNCHRONISATION',
     syncError: 'ERREUR DE SYNCHRO',
     hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
+    pressRefused: 'UNE ACTION SUR LE CHRONO A ÉTÉ REFUSÉE - SON ASSAUT ATTEND. EXAMINEZ-LA',
     sessionEnded:
       "SESSION TERMINÉE - TOUCHES NON ENVOYÉES. RECONNECTEZ-VOUS. SI L'ÉVÉNEMENT EST TERMINÉ, PRÉVENEZ UN ORGANISATEUR",
     accountCannotScore:
@@ -292,7 +308,7 @@ export const scoring = {
     notLoadedTitle: 'Pas de connexion',
     notLoadedBody: "Cet assaut n'est pas encore chargé. Il s'ouvrira au retour du réseau.",
     fromTablet:
-      'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score et les compteurs peuvent être faux : les touches et les cartons d’avant ne sont pas listés ici. Les nouvelles touches et les nouveaux cartons sont gardés et envoyés plus tard. Le chrono a besoin de la connexion.',
+      'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score et les compteurs peuvent être faux : les touches et les cartons d’avant ne sont pas listés ici. Ce que vous saisissez maintenant, chrono compris, est gardé et envoyé plus tard.',
     scoreUnconfirmed: 'non confirmé',
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
@@ -385,6 +401,10 @@ export const scoring = {
     resetConfirmBody: 'Le chrono retombe à zéro. Les échanges ne sont pas modifies.',
     resetConfirmAction: 'Réinitialiser',
     resetConfirmCancel: 'Annuler',
+    pressHeld:
+      'Le serveur a refusé une action sur le chrono de cet assaut. Le chrono affiche ce que le serveur a.',
+    pressHeldWaits:
+      'Ce que vous saisissez maintenant sur cet assaut attend derrière. Ouvrez Examiner en haut de l’écran.',
   },
   endGuard: {
     title: 'Terminer le match maintenant ?',
@@ -401,6 +421,7 @@ export const scoring = {
     finalResult: 'Résultat final',
     draw: 'Egalite',
     close: 'Fermer',
+    notConfirmed: 'Terminé sur cette tablette. Le serveur ne l’a pas encore confirmé.',
   },
   boutFlow: {
     title: 'Déroulé du combat',

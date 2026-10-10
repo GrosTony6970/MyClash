@@ -2,8 +2,8 @@
  * A tap answered "nobody is signed in" sends the pad to its sign-in screen
  * (ruling 342).
  *
- * The clock, a correction, a forfeit and the undo are sent at once. Answered
- * 401, the tap showed the server's English words under its button ("Staff
+ * A Reopen or a Reset of the clock, a correction, a forfeit and the undo are
+ * sent at once. Answered 401, the tap showed the server's English words under its button ("Staff
  * session required") and the bar stayed green. Every refused tap is worded by
  * `refusalMessage`, so it tells the bout screen there, and the screen leaves
  * for the sign-in screen, which says the hits the tablet still holds.

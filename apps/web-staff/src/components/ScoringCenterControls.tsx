@@ -73,6 +73,14 @@ interface ScoringCenterControlsProps {
   clockLoading: boolean;
   clockError: string | null;
   /**
+   * This tablet still holds clock presses of the bout. Reopen and Reset need
+   * the server's answer, and the server does not know those presses yet: both
+   * wait until the queue has sent them.
+   */
+  pressesWaiting: boolean;
+  /** The server refused a clock press of this bout: what, why and the way out. */
+  heldPressNotice: string | null;
+  /**
    * Trigger a clock state machine transition. Handled by the parent
    * (MatchView) because the action + match-refresh wiring lives there.
    */
@@ -143,6 +151,8 @@ export function ScoringCenterControls({
   clockState,
   clockLoading,
   clockError,
+  pressesWaiting,
+  heldPressNotice,
   onClockAction,
   submit,
   scoring,
@@ -410,6 +420,16 @@ export function ScoringCenterControls({
 
       {clockError && <p className="text-center text-xs text-danger">{clockError}</p>}
 
+      {heldPressNotice && (
+        <p
+          role="alert"
+          data-testid="clock-press-held"
+          className="w-full rounded-lg bg-danger/20 px-3 py-2 text-center text-sm font-semibold text-danger"
+        >
+          {heldPressNotice}
+        </p>
+      )}
+
       {/* The tablet could not write the last press down: it is not counted. */}
       {submit.notSaved && (
         <p
@@ -432,7 +452,7 @@ export function ScoringCenterControls({
               // turn, so `data-action` is the only reliable way to say WHICH
               // transition was just taken.
               data-action={primary.action}
-              disabled={clockLoading}
+              disabled={clockLoading || (primary.action === 'reopen' && pressesWaiting)}
               onClick={() => onClockAction(primary.action)}
               className={`min-h-[64px] w-full max-w-[280px] rounded-2xl border-2 px-6 text-lg font-bold transition-colors disabled:opacity-40 ${primary.classes}`}
             >
@@ -448,7 +468,7 @@ export function ScoringCenterControls({
               <button
                 type="button"
                 data-testid="clock-end-button"
-                disabled={clockLoading || roundBusy}
+                disabled={clockLoading || roundBusy || (isBestOf && pressesWaiting)}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
                 className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
@@ -465,7 +485,7 @@ export function ScoringCenterControls({
                 type="button"
                 data-testid="level-resolution-button"
                 data-remedy={offeredRemedy.kind}
-                disabled={clockLoading || roundBusy}
+                disabled={clockLoading || roundBusy || pressesWaiting}
                 onClick={onAdvanceLevelResolution}
                 className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
               >
@@ -477,7 +497,7 @@ export function ScoringCenterControls({
             {status === 'halted' && (
               <button
                 type="button"
-                disabled={clockLoading}
+                disabled={clockLoading || pressesWaiting}
                 onClick={() => setResetConfirmOpen(true)}
                 className="min-h-[44px] rounded-lg border-2 border-border bg-surface px-4 py-1.5 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"
               >

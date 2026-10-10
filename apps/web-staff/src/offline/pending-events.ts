@@ -28,7 +28,7 @@ import {
   type TournamentScoringConfig,
 } from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
-import type { OutboxEntry } from './db';
+import { kindOf, type OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
 /** Deltas an exchange contributes, on the pad's own reading of the config. */
@@ -153,8 +153,10 @@ export function pendingRowsForMatch(args: {
     // the next card in its group.
     if (known.has(entry.clientUuid)) continue;
 
-    // Absent on rows written before v3, which were all exchanges.
-    if ((entry.kind ?? 'exchange') === 'penalty') {
+    const kind = kindOf(entry);
+    // A clock press is no line of the bout's list, and adds to no score.
+    if (kind === 'press') continue;
+    if (kind === 'penalty') {
       const priced = pricer.price({
         registrationId: entry.registrationId ?? '',
         rulesetEntryId: entry.rulesetEntryId,

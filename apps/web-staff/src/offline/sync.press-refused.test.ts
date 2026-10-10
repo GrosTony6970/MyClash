@@ -1,8 +1,8 @@
 /**
  * A press sent at once and refused for WHO sends it turns the bar red (ruling 311).
  *
- * The clock, a correction and a forfeit are not queued: the server answers the
- * press. Refused for the person (rulings 244, 245), the press said why under
+ * A Reopen or a Reset of the clock, a correction and a forfeit are not queued:
+ * the server answers the press. Refused for the person (rulings 244, 245), the press said why under
  * its own button, and the bar stayed green: "Sign that account out" is on the
  * bar, which turned red only at the first queued hit. Every refused press of
  * the pad is worded by `refusalMessage`, so it tells the engine there, and the
@@ -165,9 +165,9 @@ describe('a press refused for another cause', () => {
 describe('what the bar says of it', () => {
   it.each(CALLERS)('%s: no "hits not sent" while none waits', (_code, status, queued, none) => {
     const phase = syncPhaseOf('online', status);
-    expect(syncBarLabel(phase, 0, t, 0)).toBe(`⚠ ${none}`);
-    expect(syncBarLabel(phase, 3, t, 0), 'a held hit is not a waiting one').toBe(`⚠ ${none}`);
-    expect(syncBarLabel(phase, 0, t, 1)).toBe(`⚠ ${queued}`);
+    expect(syncBarLabel(phase, 0, t, 0, 0)).toBe(`⚠ ${none}`);
+    expect(syncBarLabel(phase, 3, t, 0, 0), 'a held hit is not a waiting one').toBe(`⚠ ${none}`);
+    expect(syncBarLabel(phase, 0, t, 1, 0)).toBe(`⚠ ${queued}`);
   });
 
   it('still offers the account’s sign-out, which is why the bar turns red', () => {
@@ -190,6 +190,8 @@ describe('the pad’s screens', () => {
 
   it('draw the bar’s sentence from the hits that wait', () => {
     const bar = read('src', 'components', 'SyncBar.tsx');
-    expect(bar).toContain('{syncBarLabel(phase, rejected, t, pending)}');
+    expect(bar).toContain(
+      '{syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}',
+    );
   });
 });

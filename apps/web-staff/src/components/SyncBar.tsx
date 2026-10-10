@@ -139,7 +139,7 @@ export function SyncBar({
       className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase)}`}
     >
       <span>
-        {syncBarLabel(phase, rejected, t, pending)}
+        {syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}
         {pending > 0 ? ` (${pending})` : ''}
       </span>
       <SyncBarActions

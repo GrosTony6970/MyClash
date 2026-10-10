@@ -84,12 +84,16 @@ export function syncBarTone(phase: SyncPhase): string {
  * `pending` only changes the wording of a refusal about the person: a press
  * sent at once turns the bar to it with no hit queued (ruling 311), and "hits
  * not sent" would be said of no hit.
+ *
+ * `heldPresses` rewords an error once more: a refused clock press stops the
+ * rows of its bout behind it, so the bar says that first, whatever else is held.
  */
 export function syncBarLabel(
   phase: SyncPhase,
   rejected: number,
   t: Translate,
   pending: number,
+  heldPresses: number,
 ): string {
   const waits = pending > 0;
   switch (phase) {
@@ -110,6 +114,7 @@ export function syncBarLabel(
     case 'maintenance':
       return `● ${t('scoring.lice.maintenanceQueued')}`;
     case 'error':
+      if (heldPresses > 0) return `⚠ ${t('scoring.lice.pressRefused')}`;
       return rejected > 0
         ? `⚠ ${t('scoring.lice.hitsRefused', {
             count: String(rejected),

@@ -41,7 +41,7 @@ describe('the bout screen', () => {
     );
   });
 
-  it('reads the bout again when the server refuses the clock, so a late tablet catches up', () => {
+  it('reads the bout again when the server refuses a Reopen or a Reset, so a late tablet catches up', () => {
     expect(view).toMatch(
       /method: 'POST',\s+body: \{ action \},\s+\}\);\s+if \(!result\.ok\) \{[^}]*onRefresh\(\);\s+throw new Error\(refusalMessage\(result, t, 'scoring\.clock\.actionFailed'\)/,
     );
@@ -81,9 +81,9 @@ describe('the question on an early End', () => {
   it('is asked by the controls, and not by the resume warning', () => {
     expect(view).toContain('onClockAction={onControlsClockAction}');
     expect(view).toContain('<EndEarlyDialog\n        open={pendingEnd}');
-    expect(view).toMatch(
-      /onEndMatch=\{\(\) => \{\s+setPendingResume\(null\);\s+void onClockAction\('end'\);/,
-    );
+    // The warning's own "End match" goes to the pad's End rule, which asks nothing.
+    expect(view).toMatch(/onEndMatch=\{\(\) => \{\s+setPendingResume\(null\);\s+endMatch\(\);/);
+    expect(view).toMatch(/onEndMatch=\{\(\) => \{\s+setPendingEnd\(false\);\s+endMatch\(\);/);
   });
 
   it('is the shared dialog, and Close leaves it', () => {

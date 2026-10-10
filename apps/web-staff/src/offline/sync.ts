@@ -25,11 +25,18 @@ import {
   totalPendingCount,
 } from './outbox';
 import { fetchRenewingLogin } from '@myclash/api-client';
-import { callerRefusalOf, hearCallerRefusals, type CallerRefusal } from './caller-refusal';
+import {
+  callerRefusalOf,
+  hearCallerRefusals,
+  tellSessionEnded,
+  type CallerRefusal,
+} from './caller-refusal';
 import { canSendAgain } from './can-send-again';
-import type { OutboxEntry } from './db';
+import { kindOf, type OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
+import { boutsBehindHeldPress, dropSentPress, holdsPress } from './press-queue';
+import { BoutOrder, CLOCK_ROW_COLLIDED, postPress } from './press-send';
 import { takeBack, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -57,6 +64,8 @@ export interface SyncState {
   rejectedCount: number;
   /** The held ones a new send can cure: what Retry on the bar sends (ruling 291). */
   sendableCount: number;
+  /** The held ones that are clock presses: the rows of their bouts wait behind them. */
+  heldPressCount: number;
   /** Last error message, if status === 'error' */
   lastError?: string;
 }
@@ -66,6 +75,15 @@ export type SyncStateListener = (state: SyncState) => void;
 interface ExchangeResponse {
   id: string;
 }
+
+/**
+ * Told when the server took a clock press: which press, and the clock it
+ * answered with. The bout's screen shows that clock at once, with no read.
+ */
+export type PressSentListener = (
+  press: { matchId: string; clientUuid: string },
+  clock: unknown,
+) => void;
 
 /** The statuses `answerRefusal` reads: about the caller or the bout, never the sequence. */
 const REFUSALS = [409, 403, 401];
@@ -104,6 +122,7 @@ export class SyncEngine {
   /** A send was asked for while one ran: the queue is walked once more. */
   private askedAgain = false;
   private sendEnded: Set<() => void> = new Set();
+  private pressSent: Set<PressSentListener> = new Set();
   /** The row whose POST is out (`claimForSend`), and the filing of its answer: what the undo asks. */
   private sendingId: number | null = null;
   private filed: Promise<unknown> = Promise.resolve();
@@ -149,6 +168,14 @@ export class SyncEngine {
     };
   }
 
+  /** Told at each clock press the server took, before the press leaves the queue. */
+  onPressSent(sent: PressSentListener): () => void {
+    this.pressSent.add(sent);
+    return () => {
+      this.pressSent.delete(sent);
+    };
+  }
+
   private async emit(calm: SyncStatus, lastError?: string): Promise<void> {
     const status = calm === 'idle' ? (this.pressRefused ?? calm) : calm;
     this.resting = status;
@@ -166,6 +193,7 @@ export class SyncEngine {
       pendingCount,
       rejectedCount: rejected,
       sendableCount: held.filter(canSendAgain).length,
+      heldPressCount: held.filter((row) => kindOf(row) === 'press').length,
       lastError,
     };
     for (const listener of this.listeners) {
@@ -204,30 +232,42 @@ export class SyncEngine {
     // any of that would be teaching the crew a screen they will never see.
     if (isDrillActive()) return Promise.resolve(offlineResponse());
 
-    // A penalty is a scored artefact like an exchange: same client_uuid
-    // idempotency (match_penalties.client_uuid is NOT NULL UNIQUE, migration
-    // 0016), same server-side dedupe, same client-supplied occurred_at — so a
-    // card drained twenty minutes later still records the moment it was issued.
-    // Only the URL and the body differ; everything below this method is
-    // kind-agnostic already.
-    if ((entry.kind ?? 'exchange') === 'penalty') {
-      return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/penalties`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          clientUuid: entry.clientUuid,
-          sequence,
-          registrationId: entry.registrationId,
-          occurredAt: entry.occurredAt,
-          clockTimeMs: entry.clockTimeMs ?? null,
-          ...(entry.rulesetEntryId ? { rulesetEntryId: entry.rulesetEntryId } : {}),
-          ...(entry.directCard ? { directCard: entry.directCard } : {}),
-          ...(entry.reason ? { reason: entry.reason } : {}),
-        }),
-      });
+    // Three kinds of row, three doors. No `default`: a fourth kind does not compile.
+    switch (kindOf(entry)) {
+      case 'press':
+        return postPress(this.apiUrl, entry);
+      case 'penalty':
+        return this.postCard(entry, sequence);
+      case 'exchange':
+        return this.postHit(entry, sequence);
     }
+  }
 
+  /**
+   * A penalty is a scored artefact like an exchange: same client_uuid
+   * idempotency (match_penalties.client_uuid is NOT NULL UNIQUE, migration
+   * 0016), same server-side dedupe, same client-supplied occurred_at — so a
+   * card drained twenty minutes later still records the moment it was issued.
+   */
+  private postCard(entry: OutboxEntry, sequence: number): Promise<Response> {
+    return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/penalties`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        clientUuid: entry.clientUuid,
+        sequence,
+        registrationId: entry.registrationId,
+        occurredAt: entry.occurredAt,
+        clockTimeMs: entry.clockTimeMs ?? null,
+        ...(entry.rulesetEntryId ? { rulesetEntryId: entry.rulesetEntryId } : {}),
+        ...(entry.directCard ? { directCard: entry.directCard } : {}),
+        ...(entry.reason ? { reason: entry.reason } : {}),
+      }),
+    });
+  }
+
+  private postHit(entry: OutboxEntry, sequence: number): Promise<Response> {
     return fetchRenewingLogin(this.apiUrl, `/api/v1/matches/${entry.matchId}/exchanges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -321,12 +361,25 @@ export class SyncEngine {
     entry: OutboxEntry,
     res: Response,
   ): Promise<'held' | 'failed' | 'stopped'> {
-    if (res.status === 401) return this.waitForCaller('signed-out');
+    if (res.status === 401) {
+      // A tap of the clock answered "nobody is signed in" leaves the bout for
+      // the sign-in screen (ruling 342), as it did when the clock was not
+      // queued. The press stays in the queue, and goes after the sign-in. It
+      // may wait behind the hit that met this answer: the queue is asked.
+      if (await holdsPress()) tellSessionEnded();
+      return this.waitForCaller('signed-out');
+    }
     const body = (await res.json().catch(() => ({}))) as FailureBody & { code?: string };
     const caller = res.status === 403 ? callerRefusalOf(body.code) : undefined;
     if (caller) return this.waitForCaller(caller);
     if (res.status === 403 && !body.code) {
       await markFailed(entry.id!, `HTTP ${res.status}`);
+      return 'failed';
+    }
+    // Another press was saved in the same moment, and the server wrote nothing:
+    // no verdict on this press, which waits for the next send.
+    if (body.code === CLOCK_ROW_COLLIDED) {
+      await markFailed(entry.id!, CLOCK_ROW_COLLIDED);
       return 'failed';
     }
     await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
@@ -357,6 +410,12 @@ export class SyncEngine {
    */
   private async answerBadRequest(entry: OutboxEntry, res: Response): Promise<Filed> {
     const body = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
+    // A press holds no sequence: another one cannot cure it. Held with its code
+    // (a locked bout, a round that waits, a level bout at its time).
+    if (kindOf(entry) === 'press') {
+      await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
+      return 'held';
+    }
     const retried = await this.retryWithFreshSequence(entry);
     if (retried && 'refused' in retried) return this.answerRefusal(entry, retried.refused);
     if (retried && 'unanswered' in retried) return this.fileUnanswered(entry, retried.unanswered);
@@ -477,14 +536,23 @@ export class SyncEngine {
     await this.emit('syncing');
 
     let consecutiveFailures = 0;
+    // The rows of a bout go in order around its clock presses (`BoutOrder`).
+    const order = new BoutOrder(await boutsBehindHeldPress());
 
     for (const entry of pending) {
       if (this.aborted) break;
 
-      const outcome = await this.sendClaimed(entry);
-      // The undo removed it since this pass listed it: nothing was sent.
-      if (outcome === 'gone') continue;
+      const waits = order.waits(entry);
+      const outcome = waits ?? (await this.sendClaimed(entry));
+      // The undo removed it since this pass listed it: nothing was sent. Or it
+      // waits behind a press the inbox holds: nothing was tried.
+      if (outcome === 'gone' || outcome === 'behind-held') continue;
       if (outcome === 'stopped') return 'stopped';
+      order.note(entry, outcome);
+      // A row that waits behind a server fault of its own bout says nothing
+      // about the network: other bouts go on. Behind a dead network it counts,
+      // so three rows of one bout still end the send as "offline".
+      if (waits === 'failed') continue;
       const failed = outcome === 'failed' || outcome === 'offline';
       consecutiveFailures = failed ? consecutiveFailures + 1 : 0;
 
@@ -544,6 +612,7 @@ export class SyncEngine {
     try {
       const res = await this.postExchange(entry, entry.sequence);
 
+      if (res.ok && kindOf(entry) === 'press') return await this.filePressSent(entry, res);
       if (res.ok || res.status === 201) {
         // Success or idempotent duplicate — remove from outbox
         const data = (await res.json()) as ExchangeResponse;
@@ -568,6 +637,27 @@ export class SyncEngine {
       await markFailed(entry.id!, error);
       return 'offline';
     }
+  }
+
+  /**
+   * The server took the press, or it was already true (ruling 12): the pad
+   * cannot tell the two apart, and does not need to. The bout's screen is told
+   * the clock BEFORE the press leaves the queue: told after, the screen would
+   * show for a moment the clock from before the press.
+   */
+  private async filePressSent(entry: OutboxEntry, res: Response): Promise<Filed> {
+    const clock: unknown = await res.json().catch(() => null);
+    for (const sent of this.pressSent) {
+      try {
+        sent({ matchId: entry.matchId, clientUuid: entry.clientUuid }, clock);
+      } catch (err) {
+        console.error('[sync] a listener of a sent clock press threw', err);
+      }
+    }
+    await dropSentPress(entry.id!);
+    this.pressRefused = null;
+    await this.emit('syncing');
+    return 'sent';
   }
 
   /**
@@ -631,8 +721,9 @@ export class SyncEngine {
    * responsible for having confirmed it. See `discardRejected` in outbox.ts.
    */
   async discardRejectedEntry(id: number): Promise<void> {
-    await discardRejected(id);
-    await this.emitResting();
+    // A discarded press frees the rows of its bout that waited behind it.
+    if ((await discardRejected(id)) === 'press') await this.drain();
+    else await this.emitResting();
   }
 
   /**

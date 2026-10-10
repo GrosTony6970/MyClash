@@ -11,7 +11,7 @@
 
 import type { ApiFailure } from '@myclash/api-client';
 import Dexie, { type Table } from 'dexie';
-import type { PenaltyCard } from '@myclash/types';
+import type { ClockPress, PenaltyCard } from '@myclash/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,8 +32,19 @@ export type PenaltyCardColor = PenaltyCard;
  * Absent on rows written before v3, which were all exchanges — read it as
  * `?? 'exchange'` rather than assuming it is set. A referee upgrades mid-event
  * with a queue on disk.
+ *
+ * A `press` is a tap on a clock button (Start, Halt, Resume, End), kept and
+ * sent in the order of the bout (operator rulings 2 and 11 to 14 of the
+ * quick-win list). It is no hit: it takes no number of the bout's sequence, it
+ * is not drawn in the bout's list, and the undo never takes it back.
  */
-export type OutboxKind = 'exchange' | 'penalty';
+export type OutboxKind = 'exchange' | 'penalty' | 'press';
+
+/**
+ * What kind of row this is. The one reader of `kind`: a caller switches on the
+ * answer with no `default`, so a fourth kind is a compile error in each place.
+ */
+export const kindOf = (entry: { kind?: OutboxKind }): OutboxKind => entry.kind ?? 'exchange';
 
 /**
  * The bout a queued hit or card belongs to, in words (ruling 243): its label
@@ -89,6 +100,22 @@ export interface OutboxEntry {
   cardName?: string;
   /** Absent on rows queued before ruling 243: the inbox then names no bout. */
   bout?: BoutNames;
+  // ── Press only ─────────────────────────────────────────────────────────────
+  /** Which clock button. `occurredAt` is the tablet's time of the tap. */
+  pressAction?: ClockPress;
+  /**
+   * The tap on the page's own clock, which no correction of the time of day
+   * moves (`performance.now()`), and the page it belongs to
+   * (`performance.timeOrigin`). `press-age.ts` reads them at the send.
+   */
+  pressedPerf?: number;
+  pressOrigin?: number;
+  /**
+   * Of an End: the score on the screen when it was pressed. The result screen
+   * shows it until the server's own row says the bout is completed. Never
+   * posted: the server derives its score from the hits.
+   */
+  endScore?: { red: number; blue: number };
   /** Match-clock position (active ms) at record time — display metadata carried
    *  through sync so an offline exchange keeps its timeline clock label. */
   clockTimeMs?: number | null;
@@ -127,6 +154,13 @@ export interface RejectedEntry extends Omit<OutboxEntry, 'id'> {
   /** The refusal's `code`, when it carried one: the inbox says a known one in the reader's language. */
   rejectedCode?: string;
   rejectedAt: number; // ms
+  /**
+   * The place the row had in the queue: a Retry puts it back there, not at the
+   * end. A press has the rows of its bout waiting behind it, and a hit must not
+   * land behind an End of its bout that was pressed after it. Absent on a row
+   * held before 2026-10-10, which goes to the end as it always did.
+   */
+  outboxId?: number;
 }
 
 /**

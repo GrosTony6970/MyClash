@@ -3,11 +3,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { heldBoutLine, heldWhoLine } from '../lib/held-hit';
+import {
+  discardQuestion,
+  heldBoutLine,
+  heldPressLabel,
+  heldWaitingLine,
+  heldWhoLine,
+} from '../lib/held-hit';
 import { heldReason } from '../lib/refusal-copy';
 import { canSendAgain } from '../offline/can-send-again';
 import { getRejected } from '../offline/outbox';
-import type { ExchangeType, RejectedEntry } from '../offline/db';
+import { kindOf, type ExchangeType, type RejectedEntry } from '../offline/db';
+import { waitingBehind } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
 
 /**
@@ -36,11 +43,28 @@ function exchangeTypeLabel(type: ExchangeType, t: (key: string) => string): stri
  *
  * The queue carries penalties as well as exchanges now, and a penalty has no
  * `type` — so this row can no longer assume one. A pre-v3 row also has no
- * `kind`; every reader treats that as 'exchange'.
+ * `kind`; every reader treats that as 'exchange'. A clock press is a third
+ * kind, named by its button. No `default`: a fourth kind does not compile.
  */
 function entryLabel(entry: RejectedEntry, t: (key: string) => string): string {
-  if ((entry.kind ?? 'exchange') === 'penalty') return t('scoring.quarantine.typePenalty');
-  return entry.type ? exchangeTypeLabel(entry.type, t) : t('scoring.quarantine.typeUnknown');
+  switch (kindOf(entry)) {
+    case 'press':
+      return heldPressLabel(entry.pressAction, t);
+    case 'penalty':
+      return t('scoring.quarantine.typePenalty');
+    case 'exchange':
+      return entry.type ? exchangeTypeLabel(entry.type, t) : t('scoring.quarantine.typeUnknown');
+  }
+}
+
+/** How many rows of its bout wait behind each held press, by the press's id. */
+async function countWaiting(held: RejectedEntry[]): Promise<Map<number, number>> {
+  const behind = new Map<number, number>();
+  for (const entry of held) {
+    if (entry.id === undefined || kindOf(entry) !== 'press') continue;
+    behind.set(entry.id, await waitingBehind(entry));
+  }
+  return behind;
 }
 
 /**
@@ -54,10 +78,14 @@ function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
   const { t } = useI18n();
   const { confirm, confirmDialog } = useConfirm();
   const [entries, setEntries] = useState<RejectedEntry[]>([]);
+  const [behind, setBehind] = useState<Map<number, number>>(new Map());
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    setEntries(await getRejected());
+    const held = await getRejected();
+    const waiting = await countWaiting(held);
+    setEntries(held);
+    setBehind(waiting);
   }, []);
 
   useEffect(() => {
@@ -83,20 +111,11 @@ function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
     run(entry.id, (id) => syncEngine.retryRejectedEntry(id));
 
   async function handleDiscard(entry: RejectedEntry) {
-    // Discarding destroys a hit a referee scored. The only legitimate reason is
-    // that it has already been re-entered by hand, so the confirmation says so
-    // rather than asking a generic "are you sure".
-    const confirmed = await confirm({
-      title: t('scoring.quarantine.discardTitle'),
-      description: t('scoring.quarantine.discardBody'),
-      confirmLabel: t('scoring.quarantine.discardConfirm'),
-      danger: true,
-    });
-    if (!confirmed) return;
+    if (!(await confirm(discardQuestion(entry, t)))) return;
     await run(entry.id, (id) => syncEngine.discardRejectedEntry(id));
   }
 
-  return { entries, busyId, confirmDialog, handleRetry, handleDiscard };
+  return { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard };
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -111,15 +130,46 @@ function HeldNames({ entry, t }: { entry: RejectedEntry; t: Translate }) {
   ));
 }
 
+/**
+ * Why the row is held: the server's own words, unless the pad knows the
+ * refusal by its code. A 400 carries a real message; only 5xx is scrubbed, and
+ * a scrubbed one would say so. Under it, for a held press, the rows of its
+ * bout that wait behind it.
+ */
+function HeldReason({
+  entry,
+  waiting,
+  t,
+}: {
+  entry: RejectedEntry;
+  waiting: number;
+  t: Translate;
+}) {
+  const behind = heldWaitingLine(waiting, t);
+  return (
+    <>
+      <p className="mt-1 text-sm text-danger">{heldReason(entry, t)}</p>
+      {behind && (
+        <p data-testid="quarantine-waiting" className="mt-1 text-sm font-semibold">
+          {behind}
+        </p>
+      )}
+    </>
+  );
+}
+
 /** One held exchange: what it was, when it was refused, and the way out. */
 function QuarantineRow({
   entry,
+  waiting,
   busy,
   onRetry,
   onDiscard,
   t,
 }: {
   entry: RejectedEntry;
+  /** Of a held press: the rows of its bout that wait behind it. */
+  waiting: number;
   busy: boolean;
   onRetry: () => void;
   onDiscard: () => void;
@@ -134,10 +184,7 @@ function QuarantineRow({
         </span>
       </div>
       <HeldNames entry={entry} t={t} />
-      {/* The server's own words, unless the pad knows the refusal by its code.
-          A 400 carries a real message; only 5xx is scrubbed, and a scrubbed
-          one would say so. */}
-      <p className="mt-1 text-sm text-danger">{heldReason(entry, t)}</p>
+      <HeldReason entry={entry} waiting={waiting} t={t} />
       <div className="mt-3 flex gap-2">
         {canSendAgain(entry) && (
           <button
@@ -184,10 +231,8 @@ export function QuarantineInbox({
   syncEngine: SyncEngine;
 }) {
   const { t } = useI18n();
-  const { entries, busyId, confirmDialog, handleRetry, handleDiscard } = useQuarantineActions(
-    open,
-    syncEngine,
-  );
+  const { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard } =
+    useQuarantineActions(open, syncEngine);
 
   return (
     <>
@@ -206,6 +251,7 @@ export function QuarantineInbox({
               <QuarantineRow
                 key={entry.id}
                 entry={entry}
+                waiting={behind.get(entry.id ?? -1) ?? 0}
                 busy={busyId === entry.id}
                 onRetry={() => void handleRetry(entry)}
                 onDiscard={() => void handleDiscard(entry)}

@@ -8,16 +8,19 @@ import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
 import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
-import { useScoringSubmit } from '../hooks/useScoringSubmit';
+import { usePadClock } from '../hooks/usePadClock';
+import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
 import { boutNames } from '../lib/held-hit';
-import { refusalMessage } from '../lib/refusal-copy';
+import { endRefusalMessage, heldReason, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
+import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
+import { queuePress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
 import { useSendEnded, useSyncState } from '../offline/use-sync-state';
 import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import type { ClockState } from './MatchClock';
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
@@ -28,7 +31,7 @@ import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from '.
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
-import { endIsEarly } from './end-guard';
+import { endIsEarly, endRefusedOnPad } from './end-guard';
 import { apiRequest } from '@myclash/api-client';
 
 export interface MatchInfo {
@@ -152,10 +155,23 @@ export function MatchView({
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
   const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(DEFAULT_MATCH_FORMAT_CONFIG);
-  const [clockState, setClockState] = useState<ClockState | null>(null);
   const [clockLoading, setClockLoading] = useState(false);
-  const [clockError, setClockError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // The clock on screen: the server's last answer plus the presses this
+  // tablet still holds (`usePadClock`). It is read at the open and after each
+  // send; a press of this screen moves it at once.
+  const padClock = usePadClock({
+    apiUrl,
+    matchId: match.id,
+    refreshKey,
+    syncEngine,
+    pendingCount: syncState?.pendingCount ?? 0,
+    rejectedCount: syncState?.rejectedCount ?? 0,
+    t,
+  });
+  const clockState: ClockState | null = padClock.clock;
+  const clockError = padClock.error;
+  const { setError: setClockError, readClock: fetchClockState, pressed: clockPressed } = padClock;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -216,22 +232,6 @@ export function MatchView({
     };
   }, [match.tournamentId, apiUrl]);
 
-  // Fetch initial clock state
-  const fetchClockState = useCallback(async () => {
-    const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`);
-    if (result.ok) {
-      setClockState(result.data);
-      return;
-    }
-    const message = refusalMessage(result, t, 'scoring.clock.loadFailed');
-    if (message) setClockError(message);
-  }, [apiUrl, match.id, t]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchClockState() loads + syncs the clock on mount/refresh.
-    void fetchClockState();
-  }, [fetchClockState, refreshKey]);
-
   // ── Level at time ──────────────────────────────────────────────────────────
   //
   // A bout that is LEVEL when the clock runs out follows the phase's chain of
@@ -271,13 +271,68 @@ export function MatchView({
       : null;
   const inSuddenDeath = levelApplied?.kind === 'sudden_death';
 
-  // Clock state machine: POST + refresh. Start/Resume at zero remaining /
-  // inside the soft-clock zone is challenged first (per the ruleset the
-  // clock should not restart) — the modal proceeds with `force`.
+  // A Start, a Halt, a Resume or an End acts on this screen at once and is
+  // sent behind, with a network or with none (operator, 2026-10-10). The press
+  // is written on the tablet, in the bout's own order with its hits, and the
+  // queue sends it. A refusal comes a moment later: the press is then held in
+  // the inbox, the clock goes back to what the server says, and the reason is
+  // said at the clock (`heldPressNotice`). The page reads the bout again at
+  // the end of each send, as it does for a hit.
+  const bout = boutNames(match);
+  const pressClock = useCallback(
+    async (action: ClockPress, endScore?: { red: number; blue: number }) => {
+      setClockError(null);
+      const written = await writeHit(
+        async () => {
+          await queuePress({ matchId: match.id, action, bout, endScore });
+        },
+        syncEngine,
+        clockPressed,
+      );
+      if (written === 'not_saved') setClockError(t('scoring.lice.hitNotSaved'));
+    },
+    // `bout` is three strings of the bout's row: its fields are the dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [match.id, bout.label, bout.red, bout.blue, syncEngine, clockPressed, setClockError, t],
+  );
+
+  // Reopen and Reset are a person's, with a network (ruling 13): the server
+  // answers them under the finger, as every clock press did before.
+  const askServerClock = useCallback(
+    async (action: 'reopen' | 'reset_clock') => {
+      setClockLoading(true);
+      setClockError(null);
+      try {
+        const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`, {
+          method: 'POST',
+          body: { action },
+        });
+        if (!result.ok) {
+          // A refusal says this screen's picture of the bout is old: read it again.
+          onRefresh();
+          throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
+        }
+        await fetchClockState();
+        // Bump the parent refresh so match.status updates (which gates
+        // the scoring buttons + penalty picker).
+        onRefresh();
+      } catch (err) {
+        setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
+      } finally {
+        setClockLoading(false);
+      }
+    },
+    [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t],
+  );
+
+  // Clock state machine. Start/Resume at zero remaining / inside the
+  // soft-clock zone is challenged first (per the ruleset the clock should not
+  // restart) — the modal proceeds with `force`.
   const onClockAction = useCallback(
     async (
       action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock',
       force = false,
+      endScore?: { red: number; blue: number },
     ) => {
       if (
         !force &&
@@ -293,50 +348,17 @@ export function MatchView({
         setPendingResume(action);
         return;
       }
-      setClockLoading(true);
-      setClockError(null);
-      try {
-        const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`, {
-          method: 'POST',
-          body: { action },
-        });
-        if (!result.ok) {
-          // A refusal says this screen's picture of the bout is old: read it
-          // again. A tablet that missed the end of a round is told "start the
-          // next round first", and needs the screen that holds that button.
-          onRefresh();
-          throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
-        }
-        const newState = result.data;
-        setClockState(newState);
-        // Ending the clock raises the result overlay, which reviews the whole
-        // bout. It used to fetch its own exchanges and penalties on mount, so
-        // they were current by construction; reading them from the lifted hook
-        // means nothing refetches unless this says so. `onRefresh` below is the
-        // PAGE's key, not this component's — it re-reads the match row and
-        // nothing else. Narrow on purpose: a clock action is not a scoring
-        // mutation, and bumping on every one would re-fetch the clock we were
-        // just handed.
-        if (newState.status === 'ended') setRefreshKey((k) => k + 1);
-        // Bump the parent refresh so match.status updates (which gates
-        // the scoring buttons + penalty picker).
-        onRefresh();
-      } catch (err) {
-        setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
-      } finally {
-        setClockLoading(false);
-      }
+      if (action === 'reopen' || action === 'reset_clock') await askServerClock(action);
+      else await pressClock(action, endScore);
     },
     [
-      apiUrl,
-      match.id,
       match.phaseType,
       match.matchNumberLabel,
       matchFormat,
       clockState?.activeMs,
       inSuddenDeath,
-      onRefresh,
-      t,
+      askServerClock,
+      pressClock,
     ],
   );
 
@@ -389,7 +411,7 @@ export function MatchView({
     } finally {
       setRoundBusy(false);
     }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
 
   // End the current round on time (best-of). The server picks the leader as the
   // round winner; a tied round is rejected so the operator plays a sudden-death point.
@@ -411,7 +433,7 @@ export function MatchView({
     } finally {
       setRoundBusy(false);
     }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
 
   const onAdvanceLevelResolution = useCallback(async () => {
     setRoundBusy(true);
@@ -432,7 +454,7 @@ export function MatchView({
     } finally {
       setRoundBusy(false);
     }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
 
   // Scoring gate — DB status enum is 'scheduled' | 'running' | 'paused'
   // | 'completed' | 'voided'. Active scoring requires running OR paused.
@@ -441,8 +463,11 @@ export function MatchView({
   // (points, penalties, corrections) — the ruleset warning moved to the
   // Start/Resume action instead (resume guard below). Best-of also blocks
   // scoring while a round is awaiting advance (the operator must start the next).
+  // The bout's status is the pad's: a bout this tablet started with no
+  // network is in play here before the server knows (`boutStatusOnPad`).
+  const boutStatus = boutStatusOnPad(match.status, clockState?.status ?? 'idle');
   const scoringEnabled =
-    (match.status === 'running' || match.status === 'paused') &&
+    (boutStatus === 'running' || boutStatus === 'paused') &&
     !match.lockedAt &&
     !awaitingRoundAdvance;
   const clockRunning = clockState?.status === 'running';
@@ -504,8 +529,8 @@ export function MatchView({
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
   // Reads the provisional score on purpose: it only paints a numeral gold, and
   // a referee needs to see the cap coming while the tablet is offline. It
-  // cannot end a bout — the result overlay gates on the CLOCK being ended, and
-  // ending the clock is a POST.
+  // cannot end a bout: the result overlay opens on the CLOCK being ended, and
+  // only "End match" ends the clock.
   const capWinnerSide = pointCapWinnerColor({ redScore, blueScore }, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
@@ -525,8 +550,41 @@ export function MatchView({
         { redScore, blueScore },
       );
     if (early) setPendingEnd(true);
+    else if (action === 'end') endMatch();
     else void onClockAction(action);
   };
+
+  // "End match" is taken on the tablet (ruling 11), so the two refusals the
+  // server gives a level bout are given here first (`endRefusedOnPad`). A
+  // best-of bout is not judged here: the server ends its round or its series.
+  function endMatch() {
+    const refused = isBestOf
+      ? null
+      : endRefusedOnPad({
+          matchFormat,
+          phaseType: match.phaseType ?? undefined,
+          matchNumberLabel: match.matchNumberLabel,
+          elapsedMs: elapsedActiveMs(clockState, Date.now()),
+          score: { redScore, blueScore },
+          levelStepsTaken: levelSteps,
+        });
+    if (refused) setClockError(endRefusalMessage(refused, t));
+    // The End carries the score it is pressed on, for the result screen.
+    else void onClockAction('end', false, { red: redScore, blue: blueScore });
+  }
+
+  // The result is the tablet's own until the server's row says "completed":
+  // the score the End was pressed on, and its leader. Never an old row of the
+  // server, and never a score that moves while the queue goes out (ruling 11).
+  const unconfirmed = resultUnconfirmed(match.status, clockState?.status ?? 'idle');
+  const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });
+
+  // A clock press of this bout the server refused: said at the clock, with
+  // the way out. The rows of this bout wait behind it until the inbox acts.
+  const heldPress = padClock.heldPresses[0];
+  const heldPressNotice = heldPress
+    ? `${t('scoring.clock.pressHeld')} ${heldReason(heldPress, t)} ${t('scoring.clock.pressHeldWaits')}`
+    : null;
 
   // A hit or a card was written on the tablet. The press reads nothing from
   // the server (ruling 316): the engine says the new count, which shows the
@@ -571,6 +629,8 @@ export function MatchView({
         return;
       }
       if (drawerOpen) return;
+      // A locked bout shows no clock button: the key presses none either.
+      if (match.lockedAt) return;
       // Any open modal blocks the shortcut. Asked of the DOM rather than
       // tracked as state because the dialogs are owned by children (the
       // no-exchange reason picker in ScoringCenterControls, the reset-clock
@@ -594,7 +654,7 @@ export function MatchView({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clockState?.status, drawerOpen, onClockAction]);
+  }, [clockState?.status, drawerOpen, match.lockedAt, onClockAction]);
 
   const redName = match.redFighterName ?? t('scoring.lice.red');
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
@@ -722,6 +782,8 @@ export function MatchView({
           clockState={clockState}
           clockLoading={clockLoading}
           clockError={clockError}
+          pressesWaiting={padClock.pressesWaiting > 0 || padClock.heldPresses.length > 0}
+          heldPressNotice={heldPressNotice}
           onClockAction={onControlsClockAction}
           submit={submit}
           scoring={scoring}
@@ -806,7 +868,7 @@ export function MatchView({
         }}
         onEndMatch={() => {
           setPendingResume(null);
-          void onClockAction('end');
+          endMatch();
         }}
       />
 
@@ -815,7 +877,7 @@ export function MatchView({
         onClose={() => setPendingEnd(false)}
         onEndMatch={() => {
           setPendingEnd(false);
-          void onClockAction('end');
+          endMatch();
         }}
       />
 
@@ -847,9 +909,10 @@ export function MatchView({
           blueName={blueName}
           redRegistrationId={match.redRegistrationId}
           blueRegistrationId={match.blueRegistrationId}
-          redScore={match.redScore}
-          blueScore={match.blueScore}
-          winnerRegistrationId={match.winnerRegistrationId ?? null}
+          unconfirmed={unconfirmed}
+          redScore={unconfirmed ? ownResult.red : match.redScore}
+          blueScore={unconfirmed ? ownResult.blue : match.blueScore}
+          winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}
           endReason={match.endReason}
           bestOf={bestOf}
           currentRound={currentRound}

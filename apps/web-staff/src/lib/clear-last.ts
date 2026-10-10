@@ -1,5 +1,5 @@
 import { failureCode, type ApiFailure } from '@myclash/api-client';
-import type { OutboxEntry } from '../offline/db';
+import { kindOf, type OutboxEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { newestOf } from '../offline/newest-entry';
 import { getPendingForMatch } from '../offline/outbox';
@@ -115,7 +115,9 @@ async function undoLanded(
   serverId: string,
 ): Promise<ClearLastOutcome> {
   const { apiUrl, t } = deps;
-  const kind = entry.kind ?? 'exchange';
+  const kind = kindOf(entry);
+  // `undoLastEntry` lists hits and cards only: a press here is a bug of this file.
+  if (kind === 'press') throw new Error('A clock press is never undone');
   // No id (the store kept none, or the entry's own uuid after a second try).
   if (serverId && serverId !== entry.clientUuid) {
     return voidOnServer(apiUrl, { kind, id: serverId }, t);
@@ -176,7 +178,9 @@ async function undoOnTablet(
  * during the read is still left out, and it is voided by then.
  */
 export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
-  const waiting = await getPendingForMatch(deps.matchId);
+  // A clock press is no entry of the bout's list: the undo never takes one back.
+  const queued = await getPendingForMatch(deps.matchId);
+  const waiting = queued.filter((entry) => kindOf(entry) !== 'press');
   const takenBack = new Set((await listUndone()).map((entry) => entry.clientUuid));
   const read = await readServerEntries(deps.apiUrl, deps.matchId);
   const rows = 'rows' in read ? read.rows.filter((row) => !takenBack.has(row.clientUuid)) : null;

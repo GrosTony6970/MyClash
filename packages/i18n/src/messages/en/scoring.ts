@@ -28,9 +28,9 @@ export const scoring = {
     localLoginError: 'Could not sign in with this event, username, and PIN.',
     // Hits the tablet still holds, said where a session that ended lands.
     unsentOne:
-      'This tablet holds 1 hit that was not sent. It is sent once you sign in and open a match. If the event is over, tell an organiser.',
+      'This tablet holds 1 entry that was not sent. It is sent once you sign in and open a match. If the event is over, tell an organiser.',
     unsentMany:
-      'This tablet holds {count} hits that were not sent. They are sent once you sign in and open a match. If the event is over, tell an organiser.',
+      'This tablet holds {count} entries that were not sent. They are sent once you sign in and open a match. If the event is over, tell an organiser.',
     picker: {
       label: 'Event',
       tabsLabel: 'Which events to show',
@@ -168,6 +168,22 @@ export const scoring = {
       'This bout is not started, or it was reset after this entry. It is held here, not lost. Start the bout and retry, or discard it.',
     boutLocked:
       'This bout is locked, so the server did not accept this entry. It is held here, not lost. Reopen the bout, then retry.',
+    // A clock press the server refused (the offline bout, rulings 11 to 14).
+    typePressStart: 'Clock: Start',
+    typePressHalt: 'Clock: Pause',
+    typePressResume: 'Clock: Resume',
+    typePressEnd: 'Clock: End match',
+    pressWaitingOne: '1 entry of this match waits behind it.',
+    pressWaitingMany: '{count} entries of this match wait behind it.',
+    pressBoutCompleted:
+      'This match is completed, so the server did not apply this clock press. A clock press sent late does not re-open a match. Discard it.',
+    pressOutOfOrder:
+      'The clock of this match was not in the state this press needs: it was moved from somewhere else. Discard it, then check the clock.',
+    pressTooOld:
+      'This clock press was made more than a day before it was sent, so the server did not apply it. Discard it.',
+    discardPressTitle: 'Discard this clock press?',
+    discardPressBody:
+      'The clock press is deleted. The entries of this match that wait behind it are then sent without it.',
   },
   lice: {
     loadingMatch: 'Loading match...',
@@ -189,6 +205,8 @@ export const scoring = {
     // problem that will clear itself, and this one never will until the
     // operator retries. `{plural}` is filled by the caller (see voidedHidden).
     hitsRefused: '{count} HIT{plural} NOT RECORDED',
+    // A refused clock press stops the rows of its match behind it.
+    pressRefused: 'A CLOCK PRESS WAS REFUSED - ITS MATCH WAITS. REVIEW IT',
     // The server answered 401: nothing is refused, the queue waits (ruling 241).
     sessionEnded:
       'SESSION ENDED - HITS NOT SENT. SIGN IN AGAIN. IF THE EVENT IS OVER, TELL AN ORGANISER',
@@ -308,7 +326,7 @@ export const scoring = {
     notLoadedBody: 'This match is not loaded yet. It opens when the network is back.',
     // The server cannot be reached and the tablet holds a copy of the match.
     fromTablet:
-      'No connection. This is the match as this tablet read it on {when}. The score and the counts may be wrong: the hits and cards from before are not listed here. New hits and cards are kept and sent later. The clock needs the connection.',
+      'No connection. This is the match as this tablet read it on {when}. The score and the counts may be wrong: the hits and cards from before are not listed here. What you press now, the clock included, is kept and sent later.',
     scoreUnconfirmed: 'not confirmed',
     reopen: 'Reopen match',
     reopening: 'Reopening...',
@@ -403,6 +421,11 @@ export const scoring = {
     resetConfirmBody: 'This sets the clock to zero. Exchanges are not affected.',
     resetConfirmAction: 'Reset clock',
     resetConfirmCancel: 'Cancel',
+    // The server refused a clock press of the match on screen.
+    pressHeld:
+      'The server refused a clock press of this match. The clock shows what the server has.',
+    pressHeldWaits:
+      'What you press on this match now waits behind it. Open Review at the top of the screen.',
   },
   endGuard: {
     title: 'End the match now?',
@@ -419,6 +442,8 @@ export const scoring = {
     finalResult: 'Final result',
     draw: 'Draw',
     close: 'Close',
+    // End match was pressed and the server has not answered it yet (ruling 11).
+    notConfirmed: 'Ended on this tablet. The server has not confirmed it yet.',
   },
   boutFlow: {
     title: 'Bout flow',

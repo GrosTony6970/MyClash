@@ -184,15 +184,15 @@ test('when the network is back, the server’s bout replaces the copy with no ta
   const stub = await openBoutOnline(page);
   await reload(page, stub, 'down');
   await expect(notice(page)).toBeVisible();
-  // The copy's screen could not read the clock: it has none.
-  await expect(clock(page)).toHaveAttribute('data-status', 'idle');
+  // The copy's screen shows the clock the tablet kept with the bout.
+  await expect(clock(page)).toHaveAttribute('data-status', 'halted');
 
   await comeBackOnline(page, stub);
 
   await expect(notice(page)).toHaveCount(0);
   await expect(page.getByTestId('score-unconfirmed')).toHaveCount(0);
   await expect(main(page).getByText('Ana Red').first()).toBeVisible();
-  // The server's screen reads what the copy's screen could not: the clock is the server's.
+  // The server's screen reads the server's clock again.
   await expect(clock(page)).toHaveAttribute('data-status', 'halted');
 });
 

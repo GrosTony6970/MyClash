@@ -41,6 +41,11 @@ export interface MatchResultOverlayProps {
    *  reads the record rather than comparing the two numbers — a forfeit or a
    *  `referee_decision` override can put the winner on the lower score. */
   winnerRegistrationId: string | null;
+  /**
+   * "End match" is still on the tablet: the result is the tablet's own, and
+   * the screen says the server has not confirmed it (operator ruling 11).
+   */
+  unconfirmed?: boolean;
   endReason?: string | null;
   bestOf?: number;
   currentRound?: number;
@@ -138,7 +143,10 @@ function BoutReview({
   matchFormat,
   clockState,
   scoring,
-}: Omit<MatchResultOverlayProps, 'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose'>) {
+}: Omit<
+  MatchResultOverlayProps,
+  'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose' | 'unconfirmed'
+>) {
   const { t } = useI18n();
   // The chart picks its own side colours in JS via sideColorsFor(config,
   // surface), so it needs the scope as a value — a CSS token cannot reach it.
@@ -199,6 +207,20 @@ function BoutReview({
   );
 }
 
+/** "End match" is still on the tablet: the server has not confirmed this result. */
+function NotConfirmed() {
+  const { t } = useI18n();
+  return (
+    <p
+      role="status"
+      data-testid="match-result-unconfirmed"
+      className="mb-4 rounded-lg bg-warning/15 px-3 py-2 text-sm font-bold text-warning"
+    >
+      {t('scoring.result.notConfirmed')}
+    </p>
+  );
+}
+
 export function MatchResultOverlay(props: MatchResultOverlayProps) {
   const { t } = useI18n();
   const { redName, blueName, redScore, blueScore, scoringConfig, nextMatchHref, onClose } = props;
@@ -219,6 +241,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
           winnerRegistrationId={props.winnerRegistrationId}
           scoringConfig={scoringConfig}
         />
+        {props.unconfirmed && <NotConfirmed />}
         <BoutReview {...props} />
 
         <div className="flex items-center justify-center gap-3">

@@ -132,7 +132,7 @@ describe('the bar during maintenance', () => {
 
   it('says maintenance and that the hits are kept', () => {
     expect(phase).toBe('maintenance');
-    expect(syncBarLabel(phase, 0, t, 2)).toBe('● scoring.lice.maintenanceQueued');
+    expect(syncBarLabel(phase, 0, t, 2, 0)).toBe('● scoring.lice.maintenanceQueued');
   });
 
   it('is calm like offline, not red: the operator did nothing wrong', () => {

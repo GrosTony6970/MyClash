@@ -8,7 +8,7 @@
  */
 
 import { canSendAgain } from './can-send-again';
-import { db, type OutboxEntry, type RejectedEntry } from './db';
+import { db, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -193,9 +193,34 @@ export async function quarantine(id: number, reason: string, code?: string): Pro
       rejectedReason: reason,
       ...(code ? { rejectedCode: code } : {}),
       rejectedAt: Date.now(),
+      // Its place in the queue, for a Retry (`backInQueue`).
+      outboxId: id,
     });
     await db.outbox.delete(id);
   });
+}
+
+/**
+ * A held entry as the row that goes back in the queue, at the place it had.
+ * The rows of a bout go to the server in the order they were made: a press has
+ * rows waiting behind it, and a hit put at the end would land behind an End of
+ * its bout pressed after it, on a bout the server has completed without it. A
+ * hit or a card takes a new sequence; a press keeps the sequence of a press
+ * (0). A row held before it knew its place goes to the end.
+ */
+function backInQueue(held: RejectedEntry, sequence: number): OutboxEntry {
+  const {
+    id: _id,
+    rejectedReason: _reason,
+    rejectedCode: _code,
+    rejectedAt: _at,
+    lastError: _err,
+    outboxId,
+    ...payload
+  } = held;
+  const place = outboxId === undefined ? {} : { id: outboxId };
+  if (kindOf(held) !== 'press') return { ...payload, ...place, sequence, attempts: 0 };
+  return { ...payload, ...place, attempts: 0 };
 }
 
 /** Every quarantined entry, oldest first. */
@@ -234,18 +259,11 @@ export async function requeueRejected(): Promise<number> {
     for (const entry of entries) {
       // Listed outside this transaction: the undo may have removed it since.
       if (entry.id === undefined || !(await db.rejected.get(entry.id))) continue;
-      const {
-        id,
-        rejectedReason: _reason,
-        rejectedCode: _code,
-        rejectedAt: _at,
-        lastError: _err,
-        ...payload
-      } = entry;
       const sequence = nextByMatch.get(entry.matchId) ?? entry.sequence;
-      nextByMatch.set(entry.matchId, sequence + 1);
-      await db.outbox.add({ ...payload, sequence, attempts: 0 });
-      if (id !== undefined) await db.rejected.delete(id);
+      // A press takes no number of the bout's sequence.
+      if (kindOf(entry) !== 'press') nextByMatch.set(entry.matchId, sequence + 1);
+      await db.outbox.add(backInQueue(entry, sequence));
+      await db.rejected.delete(entry.id);
     }
   });
 
@@ -276,15 +294,7 @@ export async function requeueRejectedEntry(id: number): Promise<boolean> {
     // tab may have requeued or discarded this row.
     const current = await db.rejected.get(id);
     if (!current) return false;
-    const {
-      id: _id,
-      rejectedReason: _reason,
-      rejectedCode: _code,
-      rejectedAt: _at,
-      lastError: _err,
-      ...payload
-    } = current;
-    await db.outbox.add({ ...payload, sequence, attempts: 0 });
+    await db.outbox.add(backInQueue(current, sequence));
     await db.rejected.delete(id);
     return true;
   });
@@ -298,9 +308,17 @@ export async function requeueRejectedEntry(id: number): Promise<boolean> {
  * for the one case retrying cannot fix: the operator has already re-entered the
  * exchange by hand, and the held copy is now a duplicate keeping the sync bar
  * red. Callers must confirm before calling it.
+ *
+ * Answers what kind of row it was, or null for a row already gone: a discarded
+ * press frees the rows of its bout that waited behind it, and the caller sends
+ * them.
  */
-export async function discardRejected(id: number): Promise<void> {
-  await db.rejected.delete(id);
+export async function discardRejected(id: number): Promise<OutboxKind | null> {
+  return db.transaction('rw', db.rejected, async () => {
+    const held = await db.rejected.get(id);
+    await db.rejected.delete(id);
+    return held ? kindOf(held) : null;
+  });
 }
 
 // ── Sequence ──────────────────────────────────────────────────────────────────

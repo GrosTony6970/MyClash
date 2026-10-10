@@ -6,6 +6,9 @@
  *
  * The API is stubbed. `/me` answers `anonymous`: the client asks it once to
  * renew a login before a 401 stands, and here no login comes back.
+ *
+ * A Start goes through the tablet's queue since 2026-10-10, and its 401 still
+ * moves the pad. A Re-open is sent at once, as every clock press was before.
  */
 import { test, expect, type Page } from '@playwright/test';
 
@@ -32,9 +35,10 @@ const ROW = {
   awaiting_round_advance: false,
 };
 const CLOCK = { status: 'idle', activeMs: 0, startedAt: null, levelResolutionSteps: 0 };
+const ENDED = { ...CLOCK, status: 'ended', activeMs: 30_000 };
 
-/** The bout screen's reads answer; the clock's Start is answered 401 with `code`. */
-async function openBout(page: Page, code: string, detail: string) {
+/** The bout screen's reads answer; a press of the clock is answered 401 with `code`. */
+async function openBout(page: Page, code: string, detail: string, clock = CLOCK) {
   await page.route('**/api/**', (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
@@ -42,7 +46,7 @@ async function openBout(page: Page, code: string, detail: string) {
     if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
       return route.fulfill({ json: [] });
     }
-    if (path.endsWith('/clock') && method === 'GET') return route.fulfill({ json: CLOCK });
+    if (path.endsWith('/clock') && method === 'GET') return route.fulfill({ json: clock });
     if (path.endsWith('/clock')) {
       return route.fulfill({
         status: 401,
@@ -54,10 +58,10 @@ async function openBout(page: Page, code: string, detail: string) {
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto(`${PAD}/matches/${BOUT}`);
-  const start = page.getByRole('button', { name: /start/i }).first();
+  const button = page.getByTestId('clock-primary-button');
   // Only a live page draws the clock's button: the listener is set by then.
-  await start.waitFor();
-  return start;
+  await button.waitFor();
+  return button;
 }
 
 test('a tap answered "nobody is signed in" leaves the bout for the sign-in screen', async ({
@@ -71,9 +75,20 @@ test('a tap answered "nobody is signed in" leaves the bout for the sign-in scree
 });
 
 test('an organiser door’s 401 keeps a signed-in scorekeeper on the bout', async ({ page }) => {
-  const start = await openBout(page, 'organizer_session_required', 'Organizer session required');
+  const reopen = await openBout(
+    page,
+    'organizer_session_required',
+    'Organizer session required',
+    ENDED,
+  );
+  await expect(reopen).toHaveAttribute('data-action', 'reopen');
+  // An ended clock opens the result over the bout: closed, the button is in reach.
+  await page
+    .getByTestId('match-result-overlay')
+    .getByRole('button', { name: /^close$/i })
+    .click();
 
-  await start.click();
+  await reopen.click();
 
   await expect(page.getByText(/only an organiser can do this/i).first()).toBeVisible();
   await expect(page.getByText('Organizer session required')).toHaveCount(0);

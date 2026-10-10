@@ -16,9 +16,11 @@
  * screen holds it, not the body of one request.
  */
 import type { MatchInfo } from '../components/MatchView';
+import type { ClockState } from '../components/scoreboard-clock';
 import { db } from './db';
 
 const keyOf = (matchId: string) => `bout/${matchId}`;
+const clockKeyOf = (matchId: string) => `clock/${matchId}`;
 
 export interface KeptBout {
   match: MatchInfo;
@@ -39,5 +41,20 @@ export async function keptBout(matchId: string): Promise<KeptBout | null> {
 
 /** The server said there is no such bout (a 404): its copy must not open again. */
 export async function forgetBout(matchId: string): Promise<void> {
-  await db.reads.delete(keyOf(matchId));
+  await db.reads.bulkDelete([keyOf(matchId), clockKeyOf(matchId)]);
+}
+
+/**
+ * Keeps the clock the server just gave for a bout. A bout opened with no
+ * network starts its clock from this, then adds the presses the tablet holds:
+ * without it a bout paused at 1:20 would open at 0:00.
+ */
+export async function keepClock(matchId: string, clock: ClockState): Promise<void> {
+  await db.reads.put({ path: clockKeyOf(matchId), body: clock, fetchedAt: Date.now() });
+}
+
+/** The copy of that bout's clock, or null when the tablet never read it. */
+export async function keptClock(matchId: string): Promise<ClockState | null> {
+  const row = await db.reads.get(clockKeyOf(matchId));
+  return row ? (row.body as ClockState) : null;
 }

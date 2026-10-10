@@ -36,6 +36,7 @@
  */
 
 import type { ApiFailure } from '@myclash/api-client';
+import type { EndRefusedOnPad } from '../components/end-guard';
 import { tellCallerRefusal, tellSessionEnded } from '../offline/caller-refusal';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -69,6 +70,9 @@ const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
 const SESSION_ENDED = 'scoring.corrections.sessionEnded';
 const START_NEXT_ROUND_FIRST = 'scoring.rounds.startNextRoundFirst';
+const HELD_PRESS_BOUT_COMPLETED = 'scoring.quarantine.pressBoutCompleted';
+const HELD_PRESS_OUT_OF_ORDER = 'scoring.quarantine.pressOutOfOrder';
+const HELD_PRESS_TOO_OLD = 'scoring.quarantine.pressTooOld';
 
 /**
  * The API's code on the 401 of an organiser's door asked by a live PIN session
@@ -123,6 +127,31 @@ const REFUSED_WHOLE = new Map([
 ]);
 
 /**
+ * Why the server holds back a clock press the tablet sent late
+ * (`late-press.ts` on the server), by its code. A Map: see `REFUSED_WHOLE`.
+ */
+const HELD_PRESS = new Map([
+  ['bout_completed', HELD_PRESS_BOUT_COMPLETED],
+  ['clock_press_out_of_order', HELD_PRESS_OUT_OF_ORDER],
+  ['clock_press_too_old', HELD_PRESS_TOO_OLD],
+  ['round_awaits_advance', START_NEXT_ROUND_FIRST],
+  ['time_not_finished', TIME_NOT_FINISHED],
+]);
+
+/**
+ * Why the pad itself does not take "End match" (`endRefusedOnPad`): the words
+ * the server's own refusal of that End has always had here.
+ */
+export function endRefusalMessage(refusal: EndRefusedOnPad, t: Translate): string {
+  if (refusal.reason === 'time_not_finished') return t(TIME_NOT_FINISHED);
+  const step = refusal.step;
+  return levelAtTime(
+    t,
+    step?.kind === 'extra_time' ? { remedy: 'extra_time', seconds: step.seconds } : null,
+  );
+}
+
+/**
  * Why a queued hit is held, for the refused-hits inbox. A refusal the pad knows
  * by its `code` is said in the reader's language; any other keeps the server's
  * own words, which are the useful part there.
@@ -139,7 +168,8 @@ export function heldReason(
   if (held.rejectedCode === 'match_locked') return t(HELD_LOCKED);
   // Ruling 242: the API's own code of a 403 that carries no other one.
   if (held.rejectedCode === 'FORBIDDEN') return t(HELD_NOT_ALLOWED);
-  return held.rejectedReason;
+  const press = HELD_PRESS.get(held.rejectedCode ?? '');
+  return press ? t(press) : held.rejectedReason;
 }
 
 /** A refusal the pad knows by its `code`, or null. */

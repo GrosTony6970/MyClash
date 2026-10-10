@@ -1211,7 +1211,7 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > refusals their own `code` (`staff/scoring-refusals.ts` in the API): `staff_account_disabled`,
 > `staff_role_not_allowed` and `account_cannot_score`. Each meets every hit the tablet holds, so the
 > drain ends at the first one, every hit waits in order, and the bar names the cause; a write outside
-> the queue (the clock, a reset) says the same cause (`refusal-copy.ts`). A 403 with any other code
+> the queue (a Reopen of the clock, a reset) says the same cause (`refusal-copy.ts`). A 403 with any other code
 > is about the bout (another piste, another Event, no piste) and is held as above. The server asks an
 > account before a PIN, and an account's login is one login for every MyClash site of a browser: a
 > tablet where somebody's own account is signed in has every write refused when that account has no
@@ -1221,7 +1221,7 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > the tablet (ruling 312). The PIN
 > session stays, and the next drain is answered for it. A send in flight at the tap left as the
 > account: the button waits for its answer, then sends the queue again (`drainAsNewCaller`), and is
-> greyed until then. A press sent at once (the clock, a correction, a forfeit) and refused for the
+> greyed until then. A press sent at once (a Reopen or a Reset of the clock, a correction, a forfeit) and refused for the
 > person turns the bar to the same status with no hit queued (ruling 311): `refusalMessage`, where
 > every refused press is worded, tells the engine (`tellCallerRefusal`), and the bar's sentence
 > drops "hits not sent" while none waits. That status stands in place of `idle` (`pressRefused`)
@@ -1307,6 +1307,32 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > sequence counter, which moves on only once the screen has drawn again; the store gives a press
 > the next number when that counter is behind what the tablet holds (`enqueue`, one
 > transaction), so two presses never share a sequence.
+>
+> **The clock on the tablet (quick-win rulings 2 and 11 to 14, and the operator's ruling of
+> 2026-10-10).** A Start, a Halt, a Resume and an End act on the bout screen at once and are sent
+> behind, with a network or with none: one path. The press is a third kind of row of the queue
+> (`OutboxKind` `press`, `offline/press-queue.ts`), with an id, the tablet's time of the tap and
+> no sequence. It goes to `POST /matches/:id/clock` with that id and two times, of which the
+> server reads only the difference (`offline/press-age.ts`, `ClockService.latePress`). The clock
+> on screen is the server's last answer plus the presses the tablet still holds, folded by
+> `clockAfterPress` of `@myclash/rules`, the function the server replays the bout's clock rows
+> with (`offline/pad-clock.ts`, `hooks/usePadClock.ts`); the scoring buttons follow that clock
+> (`boutStatusOnPad`), so a bout the tablet started is in play before the server knows. "End
+> match" is judged on the tablet first by the server's own two refusals of a level bout
+> (`endRefusedOnPad`), and the result screen then shows the tablet's own score and leader, marked
+> "not confirmed", until the server has answered the End. Reopen, Reset, the time adjustment, a
+> round's end and a level bout's remedy still wait for the server.
+>
+> **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
+> row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,
+> and an End names the winner from the hits the server holds. So while a press of a bout is held
+> in the inbox, every row of that bout waits behind it, and other bouts go on; a Retry puts the
+> press back at its own place, and a Discard frees the rows and sends them. A press that could
+> not be sent stops its bout's rows for that pass, and a press never passes a hit of its bout
+> that could not be sent. A refused press is said at the bout's clock with its reason, and the
+> bar says "a clock press was refused" before anything else it holds. A press answered 401
+> leaves the bout for the sign-in screen, as it did before it was queued (ruling 342). A press
+> the server answers `clock_row_collided` wrote nothing and goes with the next send.
 
 ### 10.3 Conflict resolution
 
@@ -1338,7 +1364,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
   server fault says nothing about the bout. A bout read without its names is
   not kept over a copy that has them. The lists of hits and cards are not
   kept, so on a copy the timeline and the counts hold the queue alone, and the
-  notice says so. The clock still needs the network.
+  notice says so. The clock the server last gave is kept with the bout
+  (`keepClock`), so a copy opens at the time the bout had, and the presses the
+  tablet holds are added to it (§10.2, "The clock on the tablet").
 - Manifest installs as standalone tablet app.
 - The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The implemented states are `idle | syncing | offline | error` (see the state machine in §10.2).
 
