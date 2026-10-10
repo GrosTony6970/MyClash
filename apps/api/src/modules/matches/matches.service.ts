@@ -1258,8 +1258,8 @@ export class MatchesService {
   }
 
   /** End the current round on time in a best-of match (operator-driven). */
-  async endRoundOnTime(matchId: string, context?: MatchActor) {
-    return this.scoring.endRoundOnTime(matchId, context);
+  async endRoundOnTime(matchId: string, context?: MatchActor, late?: LateRoundPress | null) {
+    return this.scoring.endRoundOnTime(matchId, context, late);
   }
 
   async lockMatch(

@@ -62,6 +62,7 @@
     "src/modules/matches/match-placement.fixtures.ts",
     "src/modules/matches/clock-late-press.fixtures.ts",
     "src/modules/matches/round-advance.fixtures.ts",
+    "src/modules/matches/round-end.fixtures.ts",
     "src/modules/matches/scoring.service.corrections.fixtures.ts",
     "src/modules/penalties/penalties.void-black-card.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.

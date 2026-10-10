@@ -308,12 +308,14 @@ describe('every other pad write stays closed on an over Event', () => {
     );
   });
 
-  // The third is a clock press sent late (`clock-late-press.door.test.ts`), the
-  // fourth a "Start round N+1" sent late (`round-advance.door.test.ts`).
-  it('only the four queue routes leave the over Event to their handler', () => {
+  // The third is a clock press sent late (`clock-late-press.door.test.ts`). The
+  // fourth is `roundPress`, the one door of the two round routes, for a "Start
+  // round N+1" and an "End round" sent late (`round-advance.door.test.ts`).
+  it('only the queue routes leave the over Event to their handler', () => {
     const read = (...path: string[]) => readFileSync(join(__dirname, ...path), 'utf8');
-    const sources =
-      read('matches.controller.ts') + read('..', 'penalties', 'penalties.controller.ts');
+    const controller = read('matches.controller.ts');
+    const sources = controller + read('..', 'penalties', 'penalties.controller.ts');
     expect(sources.split("'leave-to-handler'").length - 1).toBe(4);
+    expect(controller.split('await this.roundPress(').length - 1).toBe(2);
   });
 });

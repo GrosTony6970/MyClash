@@ -15650,7 +15650,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RoundPressDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

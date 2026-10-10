@@ -12,7 +12,6 @@ import {
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
-  pressIsSaved,
   pressTooOld,
   type LatePress,
 } from './late-press';
@@ -72,8 +71,9 @@ export const roundNotWaiting = (round: number) =>
   });
 
 /**
- * The late advance a body names, or null for the body of the pad of before.
- * All four fields or none, for the reason `latePressOf` gives.
+ * The late "Start round N+1" or "End round" a body names, or null for the body
+ * of the pad of before. All four fields or none, for the reason `latePressOf`
+ * gives.
  */
 export function lateRoundPressOf(body: {
   clientUuid?: string;
@@ -85,11 +85,35 @@ export function lateRoundPressOf(body: {
   if ([clientUuid, round, pressedAt, sentAt].every((field) => field === undefined)) return null;
   if (!clientUuid || !round || !pressedAt || !sentAt) {
     throw new BadRequestException(
-      'A round start with an id names its id, the round it opens, ' +
+      'A round press with an id names its id, its round, ' +
         'the time of the press and the time of the send',
     );
   }
   return { clientUuid, round, pressedAt, sentAt };
+}
+
+/**
+ * The row the server holds for this round press, or null for a press that is
+ * new to it. An id it holds for another bout, or for another kind of press, is
+ * a bad request: read as "saved", it opened or closed a round with no row. A
+ * failed read is an error, never "not saved".
+ */
+export async function savedRoundPress(
+  db: Database,
+  press: { clientUuid: string; matchId: string; type: 'round_advance' | 'round_end' },
+): Promise<{ sequence: number } | null> {
+  const { data, error } = await db
+    .from('match_events')
+    .select('match_id, type, sequence')
+    .eq('client_uuid', press.clientUuid)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read a round press: ${error.message}`);
+  const row = data as { match_id: string; type: string; sequence: number } | null;
+  if (!row) return null;
+  if (row.match_id !== press.matchId || row.type !== press.type) {
+    throw new BadRequestException('This id is the id of another press');
+  }
+  return { sequence: row.sequence };
 }
 
 async function readBout(db: Database, matchId: string): Promise<Record<string, unknown>> {
@@ -101,16 +125,22 @@ async function readBout(db: Database, matchId: string): Promise<Record<string, u
 const roundOf = (bout: Record<string, unknown>): number =>
   (bout['current_round'] as number | null) ?? 1;
 
+const advanceTo = (round: number) =>
+  ({ type: 'round_advance', reason: `advance to round ${round}` }) as const;
+
 /**
- * Write the `round_advance` row. It is state, not an audit line:
- * `computeClockState` reads it as the marker that puts the level-at-time chain
- * back to the top, so a failed insert is an error. A late one that loses its
- * sequence, or its own id, to another writer says so with `ClockRowCollided`.
+ * Write a round's row in the bout's timeline, and say when it is not written.
+ *
+ * `round_advance` is state, not an audit line: `computeClockState` reads it as
+ * the marker that puts the level-at-time chain back to the top. A late row
+ * carries the id of its press, which is what answers the second send. A late
+ * one that loses its sequence, or its own id, to another writer says so with
+ * `ClockRowCollided`.
  */
-async function writeAdvanceRow(
+export async function writeRoundRow(
   db: Database,
   matchId: string,
-  round: number,
+  written: { type: 'round_advance' | 'round_end'; reason: string },
   actor: Actor | undefined,
   late?: { clientUuid: string; at: string },
 ): Promise<void> {
@@ -124,8 +154,8 @@ async function writeAdvanceRow(
   const { error } = await db.from('match_events').insert({
     match_id: matchId,
     sequence: ((last as { sequence: number } | null)?.sequence ?? 0) + 1,
-    type: 'round_advance',
-    reason: `advance to round ${round}`,
+    type: written.type,
+    reason: written.reason,
     by_user_id: actor?.userId ?? null,
     staff_account_id: actor?.staffAccountId ?? null,
     occurred_at: late?.at ?? new Date().toISOString(),
@@ -211,7 +241,7 @@ async function advanceNow(
     throw new BadRequestException('Match is already completed');
   }
   const round = roundOf(bout) + 1;
-  await writeAdvanceRow(deps.db, matchId, round, actor);
+  await writeRoundRow(deps.db, matchId, advanceTo(round), actor);
   return openRound(deps, matchId, round, actor);
 }
 
@@ -241,7 +271,10 @@ async function advanceLate(
   late: LateRoundPress,
 ): Promise<{ currentRound: number }> {
   const { db } = deps;
-  const saved = await pressIsSaved(db, late.clientUuid);
+  // The body is also the one of "End round", which round 1 has. No press opens it.
+  if (late.round < 2) throw new BadRequestException('No press opens round 1');
+  const asked = { clientUuid: late.clientUuid, matchId, type: 'round_advance' } as const;
+  const saved = (await savedRoundPress(db, asked)) !== null;
   const bout = await readBout(db, matchId);
   const current = roundOf(bout);
   const completed = bout['status'] === 'completed';
@@ -263,7 +296,8 @@ async function advanceLate(
 
   const at = await placedInTimeline(db, matchId, pressedMs);
   if (!saved) {
-    await writeAdvanceRow(db, matchId, late.round, actor, { clientUuid: late.clientUuid, at });
+    const press = { clientUuid: late.clientUuid, at };
+    await writeRoundRow(db, matchId, advanceTo(late.round), actor, press);
   }
   return openRound(deps, matchId, late.round, actor, at);
 }

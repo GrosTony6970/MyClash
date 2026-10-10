@@ -414,24 +414,30 @@ export class MatchesController {
     @Body() dto: RoundPressDto,
     @Req() req: FastifyRequest,
   ) {
-    const late = lateRoundPressOf(dto);
-    const whenOver = late ? 'leave-to-handler' : 'refuse';
-    const actor = await this.staff.authorizeMatchScoring(req, id, whenOver);
+    const { actor, late } = await this.roundPress(id, dto, req);
     return this.matches.advanceRound(id, actor, late);
   }
 
   /**
    * POST /api/v1/matches/:id/rounds/end
    * End the current round on time in a best-of-N match (scorekeeper+). The round
-   * winner is whoever leads; a tied round is rejected (play a sudden-death point).
+   * winner is whoever leads; a level round follows the phase's chain.
+   *
+   * A body that carries `clientUuid` is the press from a pad's queue, sent late
+   * (`round-end.ts`), and its door is the one of a late "Start round N+1".
    */
   @Post('matches/:id/rounds/end')
+  @AllowOnArchivedEvent() // as a clock press sent late: a saved one is answered; a new one is refused
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'End the current round on time in a best-of-N match (scorekeeper+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async endRound(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.matches.endRoundOnTime(id, actor);
+  async endRound(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RoundPressDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const { actor, late } = await this.roundPress(id, dto, req);
+    return this.matches.endRoundOnTime(id, actor, late);
   }
 
   /**
@@ -605,6 +611,18 @@ export class MatchesController {
   ) {
     const actor = await this.staff.authorizeMatchScoring(req, id);
     return this.clock.adjustTime(id, dto.adjustmentMs, dto.reason, actor);
+  }
+
+  /**
+   * Who presses "Start round N+1" or "End round", and the late press the body
+   * names. A press with an id comes from a pad's queue: the over Event is left
+   * to its handler, which answers one the server holds. The empty body is
+   * refused on an over Event here, as it was.
+   */
+  private async roundPress(id: string, dto: RoundPressDto, req: FastifyRequest) {
+    const late = lateRoundPressOf(dto);
+    const whenOver = late ? 'leave-to-handler' : 'refuse';
+    return { actor: await this.staff.authorizeMatchScoring(req, id, whenOver), late };
   }
 
   /**

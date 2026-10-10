@@ -42,7 +42,9 @@ import { ClockService, type ClockState } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
-import { advanceRound, type LateRoundPress } from './round-advance';
+import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
+import { advanceRound, writeRoundRow, type LateRoundPress } from './round-advance';
+import { placeLateRoundEnd, type RoundEndBout } from './round-end';
 import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
@@ -1032,34 +1034,146 @@ export class ScoringService {
 
   /**
    * Operator ends the current round on time (best-of only). The round winner is
-   * whoever leads on score; a tied round is rejected so the operator plays a
-   * sudden-death point (decision: time-ties go to sudden death, never a draw).
+   * whoever leads on score; a level round follows the phase's chain
+   * (`refuseLevelRound`). `late`: the press a pad made earlier and sends now
+   * (`round-end.ts`); a row of it that collides asks every rule again.
    */
   async endRoundOnTime(
     matchId: string,
-    actor?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
+    actor?: { userId?: string; staffAccountId?: string },
+    late?: LateRoundPress | null,
   ): Promise<{ redScore: number; blueScore: number }> {
+    if (!late) return this.endRound(matchId, actor, null);
+    return againOnCollision(() => this.endRound(matchId, actor, late));
+  }
+
+  private async endRound(
+    matchId: string,
+    actor: { userId?: string; staffAccountId?: string } | undefined,
+    late: LateRoundPress | null,
+  ): Promise<{ redScore: number; blueScore: number }> {
+    const db = this.supabase.service;
     const ctx = await this.loadRoundContext(matchId);
     if (!ctx) throw new NotFoundException(`Match ${matchId} not found`);
-    if (getEffectiveBestOf(ctx.match, ctx.matchFormat) <= 1) {
+    const currentRound = (ctx.matchRow['current_round'] as number) ?? 1;
+    const closedRounds = this.parseRoundsJson(ctx.matchRow['rounds_json']);
+    const placed = late
+      ? await placeLateRoundEnd(
+          db,
+          matchId,
+          this.roundEndBout(ctx, currentRound, closedRounds),
+          late,
+        )
+      : null;
+    if (placed && 'done' in placed) return placed.done;
+    const bestOf = getEffectiveBestOf(ctx.match, ctx.matchFormat);
+    if (bestOf <= 1) {
       throw new BadRequestException('Not a best-of match — end the match via the clock');
     }
+    this.assertRoundCanEndNow(ctx, currentRound, closedRounds);
+
+    const { redScore, blueScore } = this.openRoundScore(ctx, currentRound);
+    const winnerColor = leadingColor({ redScore, blueScore });
+    if (winnerColor === null) await this.refuseLevelRound(matchId, ctx, placed?.at);
+
+    const closure = this.buildRoundClosure(
+      ctx.match,
+      closedRounds,
+      currentRound,
+      redScore,
+      blueScore,
+      winnerColor,
+      'time_limit',
+      bestOf,
+      ctx.match.status,
+    );
+    const press = late && placed ? { clientUuid: late.clientUuid, ...placed } : null;
+    await this.writeRoundEnd(matchId, { currentRound, redScore, blueScore, closure }, actor, press);
+    return { redScore, blueScore };
+  }
+
+  /**
+   * Write a round ended on time: its line, the bout, the clock.
+   *
+   * A press of now: the bout, then a line that is only an audit line. A press
+   * sent late (`press`): the row FIRST. It carries the id that answers the next
+   * send, and a send cut short after it finds its round still open, and closes
+   * it (`saved`: no second row). The bout and the clock are then written at the
+   * time of the press.
+   */
+  private async writeRoundEnd(
+    matchId: string,
+    round: {
+      currentRound: number;
+      redScore: number;
+      blueScore: number;
+      closure: { updates: Record<string, unknown>; justCompleted: boolean };
+    },
+    actor: { userId?: string; staffAccountId?: string } | undefined,
+    press: { clientUuid: string; at: string; saved: boolean } | null,
+  ): Promise<void> {
+    const db = this.supabase.service;
+    const { currentRound, closure } = round;
+    const line = { type: 'round_end', reason: `round ${currentRound} ended on time` } as const;
+    if (press && !press.saved) await writeRoundRow(db, matchId, line, actor, press);
+    const { error } = await db
+      .from('matches')
+      .update({
+        ...closure.updates,
+        ...(closure.justCompleted && press ? { ended_at: press.at } : {}),
+        red_score: round.redScore,
+        blue_score: round.blueScore,
+        current_round: currentRound,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId);
+    if (error) {
+      throw new Error(`Round ${currentRound} not closed on bout ${matchId}: ${error.message}`);
+    }
+    if (!press) await this.logRoundEnd(matchId, line, actor);
+    await this.stopSeriesClock(matchId, closure.justCompleted, !closure.justCompleted, press?.at);
+  }
+
+  /** What the rules of a late "End round" read of the bout. */
+  private roundEndBout(
+    ctx: { match: RulesetMatch; matchRow: Record<string, unknown> },
+    currentRound: number,
+    closed: ClosedRound[],
+  ): RoundEndBout {
+    const eventStatus = eventStatusOf(ctx.matchRow);
+    return { status: ctx.match.status, currentRound, closed, eventStatus };
+  }
+
+  /**
+   * A round that cannot be ended, in the words the pad of today reads. A press
+   * sent late met its own rules first (`placeLateRoundEnd`), which answer or
+   * refuse each of these cases with a code.
+   */
+  private assertRoundCanEndNow(
+    ctx: { match: RulesetMatch; matchRow: Record<string, unknown> },
+    currentRound: number,
+    closedRounds: ClosedRound[],
+  ): void {
     if (ctx.match.status === 'completed') {
       throw new BadRequestException('Match is already completed');
     }
     if (ctx.matchRow['awaiting_round_advance']) {
       throw new BadRequestException('Round already ended — advance to the next round');
     }
-    const currentRound = (ctx.matchRow['current_round'] as number) ?? 1;
-    const closedRounds = this.parseRoundsJson(ctx.matchRow['rounds_json']);
     if (closedRounds.some((r) => r.round === currentRound)) {
       throw new BadRequestException('Round already closed');
     }
+  }
 
+  /** The open round's score, from its own hits and its own cards. */
+  private openRoundScore(
+    ctx: NonNullable<Awaited<ReturnType<ScoringService['loadRoundContext']>>>,
+    currentRound: number,
+  ): { redScore: number; blueScore: number } {
     const openExchanges = ctx.rawRows
       .filter((r) => ((r['round_number'] as number | null) ?? 1) === currentRound)
       .map((r) => this.mapExchange(r));
-    const ev = this.evaluateOpenRound(
+    return this.evaluateOpenRound(
       ctx.ruleset,
       ctx.match,
       openExchanges,
@@ -1067,36 +1181,7 @@ export class ScoringService {
       ctx.config,
       ctx.matchFormat,
       this.penaltiesInRound(ctx.penaltyRows, currentRound),
-    );
-    const openRed = ev.score.redScore;
-    const openBlue = ev.score.blueScore;
-
-    const winnerColor = leadingColor({ redScore: openRed, blueScore: openBlue });
-    if (winnerColor === null) await this.refuseLevelRound(matchId, ctx);
-
-    const closure = this.buildRoundClosure(
-      ctx.match,
-      closedRounds,
-      currentRound,
-      openRed,
-      openBlue,
-      winnerColor,
-      'time_limit',
-      getEffectiveBestOf(ctx.match, ctx.matchFormat),
-      ctx.match.status,
-    );
-    const updates: Record<string, unknown> = {
-      ...closure.updates,
-      red_score: openRed,
-      blue_score: openBlue,
-      current_round: currentRound,
-      updated_at: new Date().toISOString(),
-    };
-    await this.supabase.service.from('matches').update(updates).eq('id', matchId);
-    await this.logRoundEnd(matchId, `round ${currentRound} ended on time`, actor);
-    if (closure.justCompleted) await this.endClockBestEffort(matchId);
-    else await this.haltClockBestEffort(matchId);
-    return { redScore: openRed, blueScore: openBlue };
+    ).score;
   }
 
   /**
@@ -1117,14 +1202,15 @@ export class ScoringService {
   private async refuseLevelRound(
     matchId: string,
     ctx: { matchFormat: MatchFormatConfig; match: RulesetMatch },
+    at?: string,
   ): Promise<void> {
     const { matchFormat, match } = ctx;
     const clock = await this.clock.getClockState(matchId);
+    // A press sent late is judged on the time the clock had run WHEN PRESSED.
+    const elapsedMs = at ? elapsedAt(clock, at) : clock.totalActiveMs;
     // The round's OWN clock and the round's OWN chain: `advanceRound` resets
     // both, so neither carries over from the round before it.
-    if (
-      !timeIsFinished(clock.totalActiveMs, matchFormat, match.phaseType, match.matchNumberLabel)
-    ) {
+    if (!timeIsFinished(elapsedMs, matchFormat, match.phaseType, match.matchNumberLabel)) {
       throw endRefusal({ reason: 'time_not_finished' });
     }
     const step = pendingLevelStep(
@@ -1151,7 +1237,7 @@ export class ScoringService {
     const { data: matchData } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json))',
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json, events(status)))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1201,32 +1287,16 @@ export class ScoringService {
   }
 
   /**
-   * Append a `round_end` line to the match timeline: an audit line, best-effort.
-   * The `round_advance` row is state, and `round-advance.ts` writes it.
+   * Append a `round_end` line to the match timeline for a press of now: an
+   * audit line, best-effort. A press sent late writes it as state, with its id.
    */
   private async logRoundEnd(
     matchId: string,
-    reason: string,
+    line: { type: 'round_end'; reason: string },
     actor?: { userId?: string; staffAccountId?: string },
   ): Promise<void> {
     try {
-      const { data: lastEvent } = await this.supabase.service
-        .from('match_events')
-        .select('sequence')
-        .eq('match_id', matchId)
-        .order('sequence', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const sequence = ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
-      await this.supabase.service.from('match_events').insert({
-        match_id: matchId,
-        sequence,
-        type: 'round_end',
-        reason,
-        by_user_id: actor?.userId ?? null,
-        staff_account_id: actor?.staffAccountId ?? null,
-        occurred_at: new Date().toISOString(),
-      });
+      await writeRoundRow(this.supabase.service, matchId, line, actor);
     } catch (err) {
       this.logger.warn(
         `Round event 'round_end' not logged for match ${matchId}: ${

@@ -174,6 +174,21 @@ describe('a late "Start round 2" the server already holds', () => {
     wroteNothing(db);
   });
 
+  it('is a bad request when the id is the id of another press, or of another bout', async () => {
+    // Read as "saved", the id of an "End round" opened round 2 with no row of its own.
+    const ended = row(3, 'round_end', '10:00:30', { client_uuid: PRESS });
+    const elsewhere = { ...SAVED, match_id: 'm2' };
+    for (const held of [ended, elsewhere]) {
+      const { db, scoring } = series([...HALTED, held]);
+
+      expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+        status: 400,
+        code: undefined,
+      });
+      wroteNothing(db);
+    }
+  });
+
   it('is not finished on a bout reset since, which waits again at the same round', async () => {
     const { db, scoring } = series([...HALTED, SAVED, row(4, 'reset_match', '10:30:00')]);
 
@@ -255,6 +270,16 @@ describe('a late "Start round" the server does not hold', () => {
     expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
       status: 409,
       code: 'scored_before_reset',
+    });
+    wroteNothing(db);
+  });
+
+  it('is a bad request for round 1, which no press opens: the body is also "End round"’s', async () => {
+    const { db, scoring } = series(HALTED, OPEN);
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00', 1)))).toEqual({
+      status: 400,
+      code: undefined,
     });
     wroteNothing(db);
   });

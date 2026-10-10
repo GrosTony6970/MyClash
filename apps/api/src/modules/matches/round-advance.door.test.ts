@@ -27,6 +27,8 @@ const LICE = 'lice-1';
 const USER = 'a0000000-0000-4000-8000-000000000001';
 const SAVED = 'a0000000-0000-4000-8000-0000000000aa';
 const NEW = 'a0000000-0000-4000-8000-0000000000bb';
+/** The "End round 1" the server holds. */
+const ENDED = 'a0000000-0000-4000-8000-0000000000cc';
 const TIMES = { pressedAt: '2026-10-03T10:00:00.000Z', sentAt: '2026-10-03T10:30:00.000Z' };
 const FROZEN = new ConflictException({
   message: 'Event results are frozen',
@@ -45,35 +47,78 @@ const event = (sequence: number, type: string, minute: string, more = {}) => ({
   ...more,
 });
 
-/** Round 1 ran for a minute. `round` is where the bout is; it waits when that is 1. */
+/** Round 1 as it was closed, on time: red, 3-1. */
+const ROUND_1 = {
+  round: 1,
+  redScore: 3,
+  blueScore: 1,
+  winnerColor: 'red',
+  endReason: 'time_limit',
+};
+
+/** A hit of round 2: blue leads it 2-0. */
+const HIT = {
+  id: 'x1',
+  client_uuid: 'u1',
+  match_id: MATCH,
+  sequence: 1,
+  type: 'clean',
+  occurred_at: '2026-10-03T09:03:00.000Z',
+  first_striker_color: 'blue',
+  first_strike_value: 2,
+  afterblow_value: null,
+  no_exchange_reason: null,
+  round_number: 2,
+  voided: false,
+};
+
+/** The bout: a best-of-3 whose round 1 is closed. */
+const boutRow = (round: number, ofEvent: Record<string, unknown>) => ({
+  id: MATCH,
+  lice_id: LICE,
+  status: 'paused',
+  locked_at: null,
+  red_registration_id: 'red',
+  blue_registration_id: 'blue',
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.0.0',
+  winner_registration_id: null,
+  match_number_label: 'QF1',
+  rounds_json: [ROUND_1],
+  red_round_wins: 1,
+  blue_round_wins: 0,
+  current_round: round,
+  awaiting_round_advance: round === 1,
+  phases: {
+    type: 'single_elim',
+    tournaments: {
+      id: 'tournament-1',
+      event_id: EVENT,
+      lock_config_json: null,
+      ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 3, finals: 3 } } },
+      scoring_config_json: null,
+      events: ofEvent,
+    },
+  },
+});
+
+/**
+ * Round 1 ran for a minute and was ended on time by a pad's queue. `round` is
+ * where the bout is; it waits when that is 1.
+ */
 function database(status: string, piste: string, round: number) {
   const ofEvent = { organization_id: ORG, status };
-  const timeline = [event(1, 'start', '00'), event(2, 'halt', '01')];
-  if (round === 2) timeline.push(event(3, 'round_advance', '02', { client_uuid: SAVED }));
+  const timeline = [
+    event(1, 'start', '00'),
+    event(2, 'round_end', '01', { client_uuid: ENDED }),
+    event(3, 'halt', '01'),
+  ];
+  if (round === 2) timeline.push(event(4, 'round_advance', '02', { client_uuid: SAVED }));
   return mockSupabase({
-    matches: {
-      rows: [
-        {
-          id: MATCH,
-          lice_id: LICE,
-          status: 'paused',
-          locked_at: null,
-          current_round: round,
-          awaiting_round_advance: round === 1,
-          phases: {
-            type: 'single_elim',
-            tournaments: {
-              id: 'tournament-1',
-              event_id: EVENT,
-              lock_config_json: null,
-              ruleset_config: {},
-              events: ofEvent,
-            },
-          },
-        },
-      ],
-    },
+    matches: { rows: [boutRow(round, ofEvent)] },
     match_events: { rows: timeline },
+    exchanges: { rows: [HIT] },
+    match_penalties: { rows: [] },
     events: { rows: [{ id: EVENT, ...ofEvent, end_date: '2026-10-03' }] },
     platform_roles: { rows: [] },
     event_staff_accounts: {
@@ -102,7 +147,7 @@ function setup(status: string, caller: Caller, { piste = LICE, round = 1 } = {})
 
   const scoring = new ScoringService(
     db as never,
-    undefined as never,
+    { resolve: vi.fn().mockResolvedValue(null) } as never,
     new ClockService(db as never),
   );
   vi.spyOn(scoring, 'recomputeMatchScore').mockResolvedValue({ redScore: 0, blueScore: 0 });
@@ -120,7 +165,8 @@ function setup(status: string, caller: Caller, { piste = LICE, round = 1 } = {})
     ? { cookies: { [STAFF_COOKIE_NAME]: 'token' }, headers: {} }
     : { cookies: {}, headers: {} }) as unknown as FastifyRequest;
   const send = (body: Record<string, unknown>) => controller.advanceRound(MATCH, body, req);
-  return { db, send };
+  const sendEnd = (body: Record<string, unknown>) => controller.endRound(MATCH, body, req);
+  return { db, send, sendEnd };
 }
 
 const everyCaller = OVER.flatMap((status) =>
@@ -193,6 +239,68 @@ describe('a "Start round 2" from a pad’s queue, on a running Event', () => {
   });
 });
 
+describe('an "End round" from a pad’s queue, sent to an over Event', () => {
+  it.each(everyCaller)('a saved one is answered (%s Event, %s)', async (status, caller) => {
+    const { db, sendEnd } = setup(status, caller, { round: 2 });
+
+    await expect(sendEnd({ clientUuid: ENDED, round: 1, ...TIMES })).resolves.toEqual({
+      redScore: 3,
+      blueScore: 1,
+    });
+    expect(db.writes).toEqual([]);
+  });
+
+  it.each(everyCaller)('a new one is refused to everybody (%s Event, %s)', async (s, caller) => {
+    const { db, sendEnd } = setup(s, caller, { round: 2 });
+
+    await expect(sendEnd({ clientUuid: NEW, round: 2, ...TIMES })).rejects.toEqual(FROZEN);
+    expect(db.writes).toEqual([]);
+  });
+
+  it.each(OVER)('still asks who may score: another piste’s pad is refused (%s)', async (status) => {
+    const { sendEnd } = setup(status, 'pin', { piste: 'lice-2', round: 2 });
+
+    await expect(sendEnd({ clientUuid: ENDED, round: 1, ...TIMES })).rejects.toThrow(
+      /not assigned to this Lice/i,
+    );
+  });
+
+  it.each(OVER)('the press of the pad of before is refused as before (%s)', async (status) => {
+    const { db, sendEnd } = setup(status, 'pin', { round: 2 });
+
+    await expect(sendEnd({})).rejects.toThrow(/not open for staff scoring/i);
+    expect(db.writes).toEqual([]);
+  });
+});
+
+describe('an "End round 2" from a pad’s queue, on a running Event', () => {
+  it('closes the round for the leader, under the pad’s own account', async () => {
+    const { db, sendEnd } = setup('running', 'pin', { round: 2 });
+
+    await expect(sendEnd({ clientUuid: NEW, round: 2, ...TIMES })).resolves.toEqual({
+      redScore: 0,
+      blueScore: 2,
+    });
+
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({
+      type: 'round_end',
+      client_uuid: NEW,
+      staff_account_id: 'staff-1',
+      by_user_id: null,
+    });
+    expect(writesTo(db, 'matches')[0]?.row).toMatchObject({ blue_round_wins: 1 });
+  });
+
+  it('a body with no id closes the round now, and its line carries no id', async () => {
+    const { db, sendEnd } = setup('running', 'pin', { round: 2 });
+
+    await expect(sendEnd({})).resolves.toEqual({ redScore: 0, blueScore: 2 });
+
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({ type: 'round_end' });
+    expect(writesTo(db, 'match_events')[0]?.row).not.toHaveProperty('client_uuid');
+  });
+});
+
 describe('the late advance a body names', () => {
   const whole = { clientUuid: NEW, round: 2, ...TIMES };
 
@@ -208,7 +316,7 @@ describe('the late advance a body names', () => {
     'refuses half an advance: no %s',
     (missing) => {
       const { [missing]: _, ...half } = whole;
-      expect(() => lateRoundPressOf(half)).toThrow(/names its id, the round it opens/);
+      expect(() => lateRoundPressOf(half)).toThrow(/names its id, its round/);
     },
   );
 });
@@ -222,8 +330,12 @@ describe('the body the route takes', () => {
     expect(takes(whole)).toBe(true);
   });
 
+  it('takes round 1: "End round" has one', () => {
+    expect(takes({ ...whole, round: 1 })).toBe(true);
+  });
+
   it.each([
-    ['round 1, which no press opens', { ...whole, round: 1 }],
+    ['round 0', { ...whole, round: 0 }],
     ['a round that is not a whole number', { ...whole, round: 2.5 }],
     ['an id that is not a uuid', { ...whole, clientUuid: 'press-1' }],
     ['a time that is not a time', { ...whole, pressedAt: 'ten past' }],
