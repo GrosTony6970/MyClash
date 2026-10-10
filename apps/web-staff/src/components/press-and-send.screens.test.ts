@@ -66,8 +66,10 @@ describe('the end of a pass of the send', () => {
 describe('the page’s reads of the bout', () => {
   it('nobody waits for the sends the page starts', () => {
     const source = page();
-    // The network back, a tablet opened again, and the server's bout in place of the copy.
-    expect(source.match(/syncEngine\.sendBehind\(\);/g)).toHaveLength(3);
+    // A tablet opened again, and the server's bout in place of the copy.
+    expect(source.match(/syncEngine\.sendBehind\(\);/g)).toHaveLength(2);
+    // The network back: after the send that left before it, never beside it.
+    expect(source.match(/syncEngine\.sendAfterReconnect\(\);/g)).toHaveLength(1);
     expect(source).not.toMatch(/\.drain\(\)/);
   });
 

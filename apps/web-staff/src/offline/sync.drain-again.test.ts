@@ -167,6 +167,42 @@ describe('a send that stops', () => {
     expect(states.at(-1)).toMatchObject({ status: 'offline', pendingCount: 4 });
   });
 
+  // The wifi comes back while the tablet still waits for the answer of a send
+  // that left with no network. That send stops as "offline" and takes with it
+  // every send asked for meanwhile: the queue stayed on the tablet until the
+  // next press. The network coming back is news; a press with no network is not.
+  it('for a dead network is followed by one more send when the network came back meanwhile', async () => {
+    const offline = offlineResponse();
+    const down = { status: offline.status, body: await offline.json() };
+    const { engine, states, first, posted, answer } = await sending(2);
+
+    expect(engine.sendAfterReconnect()).toBeUndefined();
+    await answer(down);
+    await answer(down);
+    await answer(down);
+    await first;
+    await answer(SAVED);
+    await answer(SAVED);
+    await answer(SAVED);
+
+    await vi.waitFor(() =>
+      expect(states.at(-1)).toMatchObject({ status: 'idle', pendingCount: 0 }),
+    );
+    expect(posted).toEqual(['uuid-1', 'uuid-2', 'uuid-3', 'uuid-1', 'uuid-2', 'uuid-3']);
+  });
+
+  it('with no send out, the network coming back sends the queue at once', async () => {
+    const api = heldApi();
+    await addHit(1, 'uuid-1');
+    const engine = new SyncEngine(API_URL);
+
+    engine.sendAfterReconnect();
+    await api.answer(SAVED);
+
+    await vi.waitFor(async () => expect(await getAllPending()).toHaveLength(0));
+    expect(api.posted).toEqual(['uuid-1']);
+  });
+
   it('is asked again by the next press, which sends the queue in order', async () => {
     const { engine, first, posted, answer } = await sending();
     await addHit(2, 'uuid-2');

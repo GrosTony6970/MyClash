@@ -80,7 +80,7 @@ describe('the page’s read of the bout', () => {
 describe('the network coming back', () => {
   it('reads the bout again, whatever the queue holds', () => {
     expect(page).toMatch(
-      /const handleOnline = \(\) => \{\s+setNetworkStatus\('online'\);\s+syncEngine\.sendBehind\(\);[^}]*readBoutAgain\(\);\s+\};/,
+      /const handleOnline = \(\) => \{\s+setNetworkStatus\('online'\);[^}]*syncEngine\.sendAfterReconnect\(\);[^}]*readBoutAgain\(\);\s+\};/,
     );
   });
 });

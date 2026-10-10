@@ -110,7 +110,9 @@ export default function MatchScoringPage({ params }: Props) {
   useEffect(() => {
     const handleOnline = () => {
       setNetworkStatus('online');
-      syncEngine.sendBehind(); // flush any exchanges queued while offline
+      // What was queued with no network. Not `sendBehind`: a send that left
+      // before the network came back would take this one down with it.
+      syncEngine.sendAfterReconnect();
       // Whatever the queue holds: an empty one ends no send, so nothing else
       // read a bout opened with no network. The race is this read against the
       // read at the end of that send, and `boutReads` below settles it: the

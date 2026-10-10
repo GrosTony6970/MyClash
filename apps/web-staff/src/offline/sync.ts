@@ -482,6 +482,22 @@ export class SyncEngine {
   }
 
   /**
+   * What the bout's page asks when the network is back. The race is a send in
+   * flight that left while the network was dead: it stops as "offline", and a
+   * send asked for meanwhile stops with it (a press with no network is no
+   * news). The network coming back is: wait that send out, then send again.
+   * Nobody waits for it, as for `sendBehind`.
+   */
+  sendAfterReconnect(): void {
+    this.inFlight
+      .catch(() => undefined)
+      .then(() => this.drain())
+      .catch((err: unknown) => {
+        console.error('[sync] the send after the network came back threw', err);
+      });
+  }
+
+  /**
    * Send the queue for the caller as it is NOW: a sign-out just changed it.
    * The race is a send in flight (a Retry, a hit just scored). It left as the
    * old caller, so its answer says nothing of the new one: wait it out, then
