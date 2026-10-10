@@ -38,6 +38,7 @@ import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
 import { readMatchConfig } from './match-config';
@@ -62,6 +63,7 @@ export class EventsController {
     private readonly eventThemes: EventThemesService,
     private readonly clockReconciliation: ClockReconciliationService,
     private readonly orgs: OrganizationsService,
+    private readonly rulesets: RulesetResolver,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -625,6 +627,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Get tournament match format and display configuration' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getMatchConfig(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    return readMatchConfig({ supabase: this.supabase, orgs: this.orgs }, id, publicReader(req));
+    const deps = { supabase: this.supabase, orgs: this.orgs, rulesets: this.rulesets };
+    return readMatchConfig(deps, id, publicReader(req));
   }
 }

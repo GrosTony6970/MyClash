@@ -92,7 +92,14 @@ function build(overrides: Parameters<typeof mockSupabase>[0] = {}) {
   const orgs = new OrganizationsService(db as never);
   const registry = { has: () => false };
   const events = new EventsService(db as never, orgs, {} as never, registry as never);
-  controller = new EventsController(events, db as never, {} as never, {} as never, orgs);
+  controller = new EventsController(
+    events,
+    db as never,
+    {} as never,
+    {} as never,
+    orgs,
+    {} as never,
+  );
 }
 
 beforeEach(() => build());

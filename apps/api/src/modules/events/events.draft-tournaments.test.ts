@@ -193,7 +193,14 @@ function build(overrides: Parameters<typeof mockSupabase>[0] = {}) {
   db = mockSupabase({ ...SEED, ...overrides });
   const orgs = new OrganizationsService(db as never);
   const events = new EventsService(db as never, orgs, {} as never, {} as never);
-  controller = new EventsController(events, db as never, {} as never, {} as never, orgs);
+  controller = new EventsController(
+    events,
+    db as never,
+    {} as never,
+    {} as never,
+    orgs,
+    {} as never,
+  );
 }
 
 beforeEach(() => build());

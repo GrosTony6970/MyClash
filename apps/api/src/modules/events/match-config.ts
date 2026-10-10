@@ -6,6 +6,9 @@ import {
   type PublicReader,
 } from '../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
+import type { RulesetResolver } from '../matches/ruleset-resolver.service';
+import { scoredMatchFormat, scoredRuleset } from '../matches/scored-match-format';
+import { normalizeRulesetVersion } from './ruleset-defaults';
 import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
@@ -13,10 +16,11 @@ import {
 } from './tournament-config';
 
 const MATCH_CONFIG_SELECT =
-  'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)';
+  'ruleset_code, ruleset_version, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)';
 
 interface MatchConfigRow {
   ruleset_code: string;
+  ruleset_version: string | null;
   ruleset_config: unknown;
   scoring_config_json: unknown;
   lock_config_json: unknown;
@@ -32,9 +36,18 @@ interface MatchConfigRow {
  * defaults, and a failed read too: the pad stored those as fresh and scored with
  * the wrong buttons. A failed read is now a 5xx: a pad that stored the rules
  * keeps them and says they are not confirmed.
+ *
+ * The match format is built by the scorer's own functions, not read as the row
+ * stores it: a ruleset with no doubles rule has no doubles limit. The pad shows
+ * that limit, and with no network closes a round on it.
+ *
+ * It is the format of a bout generated NOW. The scorer reads the pair stamped
+ * on each bout at its generation, and a change of the Tournament's ruleset
+ * leaves the bouts already generated on the old pair: for those this answer
+ * and the scorer can differ.
  */
 export async function readMatchConfig(
-  deps: EventAuthzDeps,
+  deps: EventAuthzDeps & { rulesets: RulesetResolver },
   tournamentId: string,
   reader: PublicReader,
 ) {
@@ -51,13 +64,22 @@ export async function readMatchConfig(
     throw unknown;
   }
 
-  const rulesetConfig = validateTournamentRulesetConfig(row.ruleset_code, row.ruleset_config ?? {});
+  // First: a stored config the schema refuses is a 400 here, in its own words.
+  const stored = validateTournamentRulesetConfig(row.ruleset_code, row.ruleset_config ?? {});
+  // The pair a bout generated now is stamped with (`matchRulesetForTournament`).
+  const ruleset = await scoredRuleset(
+    deps.rulesets,
+    row.ruleset_code,
+    normalizeRulesetVersion(row.ruleset_version || '1'),
+  );
+  const matchFormat = scoredMatchFormat(row.ruleset_config, ruleset);
+  const rulesetConfig = { ...stored, matchFormat };
   const scoringConfig = normalizeTournamentScoringConfig(
     row.scoring_config_json ?? DEFAULT_SCORING_CONFIG,
   );
   return {
     rulesetConfig,
-    matchFormat: rulesetConfig.matchFormat,
+    matchFormat,
     scoringConfig,
     display: scoringConfig.display,
     lockConfig: normalizeTournamentLockConfig(row.lock_config_json),

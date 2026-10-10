@@ -17,7 +17,9 @@ import 'reflect-metadata';
 import { HttpException } from '@nestjs/common';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { EventThemesService } from './event-themes.service';
 import { EventsController } from './events.controller';
 
@@ -78,8 +80,11 @@ const STAFF = [
 let db: ReturnType<typeof mockSupabase>;
 let controller: EventsController;
 
-function build(tournaments: Parameters<typeof mockSupabase>[0][string]) {
+type Seed = Parameters<typeof mockSupabase>[0];
+
+function build(tournaments: Seed[string], rulesetTables: Seed = {}) {
   db = mockSupabase({
+    ...rulesetTables,
     tournaments,
     events: {
       rows: Object.values(events).map((e) => ({ ...e, logo_url: `logo-${e.id}` })),
@@ -102,6 +107,7 @@ function build(tournaments: Parameters<typeof mockSupabase>[0][string]) {
     new EventThemesService(supabase as never, orgs, {} as never),
     {} as never,
     orgs,
+    new RulesetResolver(supabase as never, createRulesetRegistry()),
   );
 }
 
@@ -213,7 +219,7 @@ describe('GET tournaments/:id/match-config (rulings 81-83, 95)', () => {
     await config(RUNNING);
     expect(queriedTables(db.from)).toEqual(['tournaments']);
     expect(selectsFor(db.from, 'tournaments')).toEqual([
-      'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)',
+      'ruleset_code, ruleset_version, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)',
     ]);
   });
 
@@ -226,6 +232,104 @@ describe('GET tournaments/:id/match-config (rulings 81-83, 95)', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(HttpException);
     expect((error as Error).message).toMatch(/^match-config read failed: connection reset$/);
+  });
+});
+
+/**
+ * The pad shows the doubles limit of this answer, and with no network it closes
+ * a round on it. So the answer is the limit the scorer applies, read the way the
+ * scorer reads it: a ruleset with no doubles rule has none, whatever the
+ * Tournament's row stores.
+ */
+describe('GET tournaments/:id/match-config: the doubles limit the server scores with', () => {
+  /** A club's own copy of the points-cap ruleset: it runs the points-cap engine. */
+  const COPY = {
+    id: 'cr-copy',
+    code: 'club_points_cap',
+    version: '1.0.0',
+    name: 'Club points cap',
+    status: 'published',
+    is_system: false,
+    base_code: 'Generic_PointsCap',
+    base_version: '1.0.0',
+  };
+  /** A club's own formula, never published: the scorer cannot read it, and scores with TF_v1. */
+  const DRAFT_FORMULA = {
+    ...COPY,
+    id: 'cr-draft',
+    code: 'club_draft',
+    status: 'draft',
+    base_code: null,
+    base_version: null,
+  };
+
+  async function limitsOf(
+    code: string,
+    version: string | null,
+    customRulesets: Record<string, unknown>[] = [],
+    status = 'running',
+  ) {
+    build(
+      {
+        rows: [
+          {
+            ...tournament(RUNNING, status, EVENT_OPEN, 1),
+            ruleset_code: code,
+            ruleset_version: version,
+            ruleset_config: { matchFormat: { maxDoubleHits: 3 } },
+          },
+        ],
+      },
+      { custom_rulesets: { rows: customRulesets }, custom_ruleset_versions: { rows: [] } },
+    );
+    const body = await controller.getMatchConfig(RUNNING, req());
+    return [body.matchFormat.maxDoubleHits, body.rulesetConfig.matchFormat.maxDoubleHits];
+  }
+
+  it('keeps the limit of a ruleset that has the doubles rule', async () => {
+    expect(await limitsOf('TF_v1', '1.0.0')).toEqual([3, 3]);
+  });
+
+  it('answers no limit for the points-cap ruleset, in both places the format is given', async () => {
+    expect(await limitsOf('Generic_PointsCap', '1.0.0')).toEqual([null, null]);
+  });
+
+  it('reads the version as a generated bout carries it: "1", or none, is 1.0.0', async () => {
+    expect(await limitsOf('Generic_PointsCap', '1')).toEqual([null, null]);
+    expect(await limitsOf('Generic_PointsCap', null)).toEqual([null, null]);
+  });
+
+  it("answers no limit for a club's copy of the points-cap ruleset", async () => {
+    expect(await limitsOf(COPY.code, '1.0.0', [COPY])).toEqual([null, null]);
+    expect(queriedTables(db.from)).toEqual(['tournaments', 'custom_rulesets']);
+  });
+
+  it('reads no ruleset for a Tournament hidden from the caller', async () => {
+    await expect(limitsOf(COPY.code, '1.0.0', [COPY], 'draft')).rejects.toThrow(
+      `Tournament ${RUNNING} not found`,
+    );
+    expect(queriedTables(db.from)).not.toContain('custom_rulesets');
+  });
+
+  it('answers a stored format the schema refuses with a 400, not a 5xx', async () => {
+    build({
+      rows: [
+        {
+          ...tournament(RUNNING, 'running', EVENT_OPEN, 1),
+          ruleset_config: { matchFormat: { maxDoubleHits: 'many' } },
+        },
+      ],
+    });
+    const error = await controller.getMatchConfig(RUNNING, req()).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect((error as HttpException).getStatus?.()).toBe(400);
+  });
+
+  it('keeps the limit when the scorer cannot read the ruleset: it scores with TF_v1 then', async () => {
+    expect(await limitsOf(DRAFT_FORMULA.code, '1.0.0', [DRAFT_FORMULA])).toEqual([3, 3]);
+    expect(await limitsOf('no_such_ruleset', '1.0.0')).toEqual([3, 3]);
   });
 });
 

@@ -15,13 +15,11 @@ import {
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { LeagueRescoreService } from './league-rescore.service';
 import {
-  TF_v1,
   evaluateRound,
   getEffectiveBestOf,
   getPointCapWinnerRegistrationId,
   isDoubleLossBout,
   leadingColor,
-  normalizeMatchFormatConfig,
   pendingLevelStep,
   seriesResult,
   timeIsFinished,
@@ -38,6 +36,7 @@ import type {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
+import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
 import { ClockService, type ClockState } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
@@ -59,29 +58,6 @@ import {
 } from './correction-preflight';
 
 export type { ClosedRound };
-
-/**
- * The match format a ruleset actually plays under.
- *
- * The doubles ceiling lives on the SHARED match format, so a tournament can
- * carry one whatever its ruleset is — including `Generic_PointsCap`, which has
- * no such rule. Stripping it here means the round lifecycle agrees with the
- * ruleset: `evaluateRound` closes a round on max-doubles from this config, and
- * it is deliberately ruleset-blind, so the gate has to happen before it.
- *
- * `hasMaxDoubles === false` is the only case that strips. An older ruleset that
- * declares nothing keeps the ceiling, which is what every one of them did
- * before the capability existed.
- */
-function resolveMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
-  const matchFormat = normalizeMatchFormatConfig(
-    (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
-  );
-  if (ruleset.metadata?.hasMaxDoubles === false) {
-    return { ...matchFormat, maxDoubleHits: null };
-  }
-  return matchFormat;
-}
 
 /** One bout, read once: what it is fought under and what is on its sheet. */
 interface LoadedBout extends ScoreRows {
@@ -451,13 +427,7 @@ export class ScoringService {
     const match = rulesetMatch(m, this.phaseType(m['phases']));
 
     // Resolve the ruleset (registry first, then DB-driven FormulaRuleset).
-    let ruleset = await this.rulesets.resolve(match.rulesetCode, match.rulesetVersion);
-    if (!ruleset) {
-      this.logger.warn(
-        `Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`,
-      );
-      ruleset = TF_v1;
-    }
+    const ruleset = await scoredRuleset(this.rulesets, match.rulesetCode, match.rulesetVersion);
 
     const config = this.rulesetConfig(m['phases']);
     return {
@@ -470,7 +440,7 @@ export class ScoringService {
       // required parameter now, so the splice is gone and the config travels as
       // the ruleset authored it.
       afterblowMode: this.afterblowMode(m['phases']),
-      matchFormat: resolveMatchFormat(config, ruleset),
+      matchFormat: scoredMatchFormat(config, ruleset),
       stored: storedBout(m),
       rawRows: (exchangeRows ?? []) as Record<string, unknown>[],
       penaltyRows: (penaltyRows ?? []) as Record<string, unknown>[],
@@ -1267,12 +1237,11 @@ export class ScoringService {
       matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
     };
 
-    let ruleset = await this.rulesets.resolve(match.rulesetCode, match.rulesetVersion);
-    if (!ruleset) ruleset = TF_v1;
+    const ruleset = await scoredRuleset(this.rulesets, match.rulesetCode, match.rulesetVersion);
 
     const config = this.rulesetConfig(m['phases']);
     const afterblowMode = this.afterblowMode(m['phases']);
-    const matchFormat = resolveMatchFormat(config, ruleset);
+    const matchFormat = scoredMatchFormat(config, ruleset);
 
     return {
       match,
