@@ -57,6 +57,7 @@ export {
   maxDoubleHitZeroesScores,
   pendingLevelStep,
   pointCapWinnerColor,
+  roundOutcome,
   roundWinTarget,
   seriesResult,
   timeIsFinished,

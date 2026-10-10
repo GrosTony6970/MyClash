@@ -791,7 +791,22 @@ export function evaluateRound(
   scoreRound: RoundScorer = (m, exchanges) => computeMatchFormatScore(m, exchanges, config),
 ): RoundEvaluation {
   const score = scoreRound(match, roundExchanges);
+  return { score, ...roundOutcome(match, score, config) };
+}
 
+/**
+ * Is a round over by itself on this score, and for whom?
+ *
+ * The part of {@link evaluateRound} after the score is known, on its own so the
+ * scoring pad asks it too: with no network the pad closes a round on the score
+ * it shows, and the server closes it on the score of the ruleset's scorer, by
+ * this one function. The server decides when the two scores differ.
+ */
+export function roundOutcome(
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
+  score: Pick<MatchScore, 'redScore' | 'blueScore' | 'doubles'>,
+  config: MatchFormatConfig,
+): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> {
   // A ROUND asks the cap exactly what a single bout asks it, through the same
   // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
   // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
@@ -799,7 +814,6 @@ export function evaluateRound(
   // target and the bout could not finish at all.
   if (pointCapEndsBout(match, score, config)) {
     return {
-      score,
       autoOver: true,
       winnerColor: pointCapWinnerColor(score, config),
       endReason: 'first_to_points',
@@ -811,12 +825,11 @@ export function evaluateRound(
     // Pool only. A wiped board is a drawn round (no round win for either side);
     // under `result_stands` the board still holds a leader, so the round is won.
     return {
-      score,
       autoOver: true,
       winnerColor: maxDoubleHitZeroesScores(config) ? null : leadingColor(score),
       endReason: maxDoubleHitEndReason(config),
     };
   }
 
-  return { score, autoOver: false, winnerColor: null, endReason: null };
+  return { autoOver: false, winnerColor: null, endReason: null };
 }
