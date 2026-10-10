@@ -1343,7 +1343,8 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > that long ago, never before the bout's last clock row (`scoredAtServer`, `placedInTimeline`,
 > `ClockService.clockAction`). So a black card given with no network while the clock runs does
 > not add the time with no network to the bout. A body with no `sentAt` (a pad of before) and
-> every correction a person makes with a network get the time of arrival. The hit's own row
+> every correction a person makes with a network get the time of arrival. So does a hit or a
+> card whose age reads over one day: it is taken, and its age is not trusted. The hit's own row
 > keeps the tablet's `occurredAt`.
 
 ### 10.3 Conflict resolution

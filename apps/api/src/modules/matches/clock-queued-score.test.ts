@@ -57,6 +57,20 @@ describe('the server’s time of a hit or a card from a tablet’s queue', () =>
   it('a send dated before its hit is a hit of now', () => {
     expect(scoredAtServer({ occurredAt: at('10:50:00'), sentAt: at('10:10:00') })).toBe(NOW);
   });
+
+  // Ruled 2026-10-10: a tablet whose time of day is corrected between the hit
+  // and the send says an age that is wrong. The hit is taken all the same.
+  it('is none for an age over one day: the server’s press is then of now', () => {
+    const dayAndMore = new Date(Date.parse(NOW) - 24 * 60 * 60_000 - 1).toISOString();
+
+    expect(scoredAtServer({ occurredAt: dayAndMore, sentAt: NOW })).toBeUndefined();
+  });
+
+  it('an age of one day is still read', () => {
+    const dayBefore = new Date(Date.parse(NOW) - 24 * 60 * 60_000).toISOString();
+
+    expect(scoredAtServer({ occurredAt: dayBefore, sentAt: NOW })).toBe(dayBefore);
+  });
 });
 
 describe('the server’s own press, placed at the time of what caused it', () => {

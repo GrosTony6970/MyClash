@@ -95,14 +95,21 @@ export function pressedAtServer(
  *
  * None for the pad of before, which sends no `sentAt`: the server's press is
  * then of now, as it was. The hit's own row keeps the pad's `occurredAt`.
+ *
+ * None also for an age over one day (operator, 2026-10-10): a tablet whose
+ * time of day is corrected between the hit and the send says an age that is
+ * wrong, and an End placed that far back takes the last run of the clock off
+ * the bout. The hit itself is taken: only a clock press is refused by its age.
  */
 export function scoredAtServer(scored: {
   occurredAt: string;
   sentAt?: string;
 }): string | undefined {
   if (!scored.sentAt) return undefined;
-  const press = { pressedAt: scored.occurredAt, sentAt: scored.sentAt };
-  return new Date(pressedAtServer(press, Date.now())).toISOString();
+  const nowMs = Date.now();
+  const scoredMs = pressedAtServer({ pressedAt: scored.occurredAt, sentAt: scored.sentAt }, nowMs);
+  if (nowMs - scoredMs > OLDEST_PRESS_MS) return undefined;
+  return new Date(scoredMs).toISOString();
 }
 
 /** Where the press goes in the bout's timeline: never before the row the bout ends with. */
@@ -152,7 +159,10 @@ export const boutCompleted = () =>
 
 export const CLOCK_PRESS_TOO_OLD = 'clock_press_too_old';
 
-/** The oldest press the server applies: one day (operator, 2026-10-10). */
+/**
+ * The oldest press the server applies: one day (operator, 2026-10-10). Also
+ * the oldest age it reads off a hit or a card (`scoredAtServer`).
+ */
 const OLDEST_PRESS_MS = 24 * 60 * 60 * 1000;
 
 /**
