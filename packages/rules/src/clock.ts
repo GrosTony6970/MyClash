@@ -39,12 +39,24 @@ export interface ClockFold {
   startedAt: string | null;
 }
 
-export const IDLE_CLOCK: ClockFold = {
+/** Frozen: it is one object for every caller, and a fold hands out a copy. */
+export const IDLE_CLOCK: Readonly<ClockFold> = Object.freeze({
   status: 'idle',
   activeMs: 0,
   runningFrom: null,
   startedAt: null,
-};
+});
+
+/**
+ * The entry of a table for a key that comes from a stored row or a request.
+ * An unknown key has no entry: read straight off the object, `constructor`
+ * would find one.
+ */
+function listed<V>(table: Record<string, readonly V[]>, key: string): readonly V[] {
+  // Not `Object.hasOwn`: this runs on the hall's tablets, and an old one lacks it.
+  const own = Object.prototype.hasOwnProperty.call(table, key);
+  return own ? (table[key] as readonly V[]) : [];
+}
 
 /** The clock with the interval that runs closed at `at`. */
 function closed(clock: ClockFold, at: string): Pick<ClockFold, 'activeMs' | 'runningFrom'> {
@@ -56,6 +68,9 @@ function closed(clock: ClockFold, at: string): Pick<ClockFold, 'activeMs' | 'run
 /**
  * The clock after one row. It does not ask whether the row was legal: the
  * write does (`CLOCK_ACTIONS_FROM`), and a row that is saved is replayed.
+ *
+ * A row of a type this fold does not know leaves the clock as it is: the rows
+ * come from a database, and one unknown row must not stop a bout's clock.
  */
 export function clockStep(clock: ClockFold, move: ClockMove): ClockFold {
   switch (move.type) {
@@ -80,13 +95,17 @@ export function clockStep(clock: ClockFold, move: ClockMove): ClockFold {
     case 'adjust_time':
       return { ...clock, activeMs: Math.max(0, clock.activeMs + (move.adjustmentMs ?? 0)) };
     case 'reset_match':
-      return IDLE_CLOCK;
+      return { ...IDLE_CLOCK };
   }
+  // Every type the compiler knows returned above: a new one is an error here.
+  const unknown: never = move.type;
+  void unknown;
+  return clock;
 }
 
 /** The clock a list of rows adds up to, in the order given. */
 export function foldClock(moves: readonly ClockMove[]): ClockFold {
-  return moves.reduce(clockStep, IDLE_CLOCK);
+  return moves.reduce(clockStep, { ...IDLE_CLOCK });
 }
 
 /** What a person may press from each state of the clock. */
@@ -105,9 +124,12 @@ const PRESS_ALREADY_TRUE: Record<ClockPress, readonly ClockStatus[]> = {
   end: ['ended'],
 };
 
-/** Does the press ask for the state the clock is in? It is then taken as done. */
+/**
+ * Does the press ask for the state the clock is in? It is then taken as done.
+ * A press this table does not know is never "already true".
+ */
 export const pressAlreadyTrue = (press: ClockPress, status: ClockStatus): boolean =>
-  PRESS_ALREADY_TRUE[press].includes(status);
+  listed(PRESS_ALREADY_TRUE, press).includes(status);
 
 /**
  * The clock after a press the pad still holds, as the server will take it
@@ -117,6 +139,6 @@ export const pressAlreadyTrue = (press: ClockPress, status: ClockStatus): boolea
  */
 export function clockAfterPress(clock: ClockFold, press: ClockPress, at: string): ClockFold {
   if (pressAlreadyTrue(press, clock.status)) return clock;
-  if (!CLOCK_ACTIONS_FROM[clock.status].includes(press)) return clock;
+  if (!listed<ClockAction>(CLOCK_ACTIONS_FROM, clock.status).includes(press)) return clock;
   return clockStep(clock, { type: press, occurredAt: at });
 }

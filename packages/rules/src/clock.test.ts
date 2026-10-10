@@ -129,6 +129,54 @@ describe('clockStep', () => {
 
     expect(before).toEqual(IDLE_CLOCK);
   });
+
+  it('a row of a type it does not know leaves the clock as it is, and the fold goes on', () => {
+    // The rows come from a database: the old fold on the server ignored such a row.
+    const stray = { type: 'level_resolution', occurredAt: at('10:00:10') } as unknown as ClockMove;
+
+    const clock = foldClock([move('start', '10:00:00'), stray, move('halt', '10:00:30')]);
+
+    expect(clock).toMatchObject({ status: 'halted', activeMs: 30_000 });
+  });
+});
+
+describe('the idle clock is one object for every caller', () => {
+  it('cannot be changed', () => {
+    expect(Object.isFrozen(IDLE_CLOCK)).toBe(true);
+  });
+
+  it('is handed out as a copy: by an empty fold, and by a Reset of the bout', () => {
+    expect(foldClock([])).not.toBe(IDLE_CLOCK);
+    expect(clockStep(foldClock([]), move('reset_match', '10:00:00'))).not.toBe(IDLE_CLOCK);
+
+    const mine = foldClock([]);
+    mine.activeMs = 99;
+    expect(foldClock([]).activeMs).toBe(0);
+  });
+});
+
+describe('a press or a state the tables do not know', () => {
+  // A stored row can hold anything. `constructor` is on every object.
+  const odd = (word: string) => word as never;
+
+  it.each(['constructor', 'toString', 'reopen', ''])('a "%s" is never already true', (word) => {
+    expect(pressAlreadyTrue(odd(word), 'running')).toBe(false);
+  });
+
+  it.each(['constructor', 'toString', ''])(
+    'a "%s" press leaves the pad’s clock as it is',
+    (word) => {
+      const running = foldClock([move('start', '10:00:00')]);
+
+      expect(clockAfterPress(running, odd(word), at('10:00:30'))).toBe(running);
+    },
+  );
+
+  it('a clock in a state the tables do not know takes no press', () => {
+    const odd: ClockFold = { ...IDLE_CLOCK, status: 'constructor' as never };
+
+    expect(clockAfterPress(odd, 'start', at('10:00:00'))).toBe(odd);
+  });
 });
 
 describe('what a person may press', () => {
