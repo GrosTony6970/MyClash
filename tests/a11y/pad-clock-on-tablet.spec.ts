@@ -102,6 +102,10 @@ test('with no network, a bout runs from Start to End on the tablet, and goes to 
   const ages = stub.presses.map((p) => Date.parse(p.sentAt) - Date.parse(p.pressedAt));
   expect(ages[0]).toBeGreaterThan(ages[2] as number);
   expect(Math.min(...ages)).toBeGreaterThan(0);
+  // The hit says its age too: the server stops the clock by itself that long ago,
+  // when a hit or a card decides the bout.
+  const [hit] = stub.hits;
+  expect(Date.parse(hit!.sentAt) - Date.parse(hit!.occurredAt)).toBeGreaterThan(0);
   // The server confirmed the End: the result is the server's now.
   await expect(page.getByTestId('match-result-unconfirmed')).toHaveCount(0);
   await expect(page.getByTestId('match-result-score')).toHaveText('2 – 0');

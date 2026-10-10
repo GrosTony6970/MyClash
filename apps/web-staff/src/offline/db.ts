@@ -106,7 +106,9 @@ export interface OutboxEntry {
   /**
    * The tap on the page's own clock, which no correction of the time of day
    * moves (`performance.now()`), and the page it belongs to
-   * (`performance.timeOrigin`). `press-age.ts` reads them at the send.
+   * (`performance.timeOrigin`). `press-age.ts` reads them at the send. A hit
+   * and a card keep them too: each says its age to the server. Absent on a
+   * hit or a card queued before 2026-10-10, whose age is by the time of day.
    */
   pressedPerf?: number;
   pressOrigin?: number;

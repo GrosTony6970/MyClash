@@ -36,7 +36,7 @@ import { kindOf, type OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
 import { boutsBehindHeldPress, dropSentPress, holdsPress } from './press-queue';
-import { BoutOrder, CLOCK_ROW_COLLIDED, postPress } from './press-send';
+import { BoutOrder, CLOCK_ROW_COLLIDED, postPress, sentAtOf } from './press-send';
 import { takeBack, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -259,6 +259,7 @@ export class SyncEngine {
         sequence,
         registrationId: entry.registrationId,
         occurredAt: entry.occurredAt,
+        sentAt: sentAtOf(entry),
         clockTimeMs: entry.clockTimeMs ?? null,
         ...(entry.rulesetEntryId ? { rulesetEntryId: entry.rulesetEntryId } : {}),
         ...(entry.directCard ? { directCard: entry.directCard } : {}),
@@ -277,6 +278,7 @@ export class SyncEngine {
         sequence,
         type: entry.type,
         occurredAt: entry.occurredAt,
+        sentAt: sentAtOf(entry),
         firstStrikerColor: entry.firstStrikerColor ?? null,
         firstStrikeValue: entry.firstStrikeValue ?? null,
         afterblowValue: entry.afterblowValue ?? null,

@@ -63,6 +63,8 @@ interface Stub {
   sent: string[];
   /** The body of each clock press that arrived. */
   presses: Array<{ action: string; clientUuid: string; pressedAt: string; sentAt: string }>;
+  /** The two times of each hit that arrived. */
+  hits: Array<{ occurredAt: string; sentAt: string }>;
   row: typeof ROW;
   clock: ServerClock;
 }
@@ -122,8 +124,11 @@ async function answerPress(stub: Stub, route: Route) {
 
 /** The server's answer to a hit: taken, and the red score moves by its points. */
 function answerHit(stub: Stub, route: Route) {
-  const hit = route.request().postDataJSON() as { firstStrikeValue?: number | null };
+  const hit = route.request().postDataJSON() as Stub['hits'][number] & {
+    firstStrikeValue?: number | null;
+  };
   stub.arrived.push('hit');
+  stub.hits.push({ occurredAt: hit.occurredAt, sentAt: hit.sentAt });
   stub.sent.push('POST /exchanges');
   stub.row = { ...stub.row, red_score: stub.row.red_score + (hit.firstStrikeValue ?? 0) };
   return route.fulfill({ status: 201, json: { id: `saved-${stub.sent.length}` } });
@@ -143,6 +148,7 @@ export async function openBout(
     refuseNext: null,
     sent: [],
     presses: [],
+    hits: [],
     row: { ...ROW, ...start.row },
     clock: { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null, ...start.clock },
   };

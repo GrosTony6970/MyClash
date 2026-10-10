@@ -50,6 +50,13 @@ const createExchangeSchema = z
     type: z.enum(['clean', 'afterblow', 'double', 'no_exchange']),
     occurredAt: z.iso.datetime(),
     /**
+     * The pad's time of this send. The server reads only `sentAt - occurredAt`,
+     * the age of the hit: if the hit decides the bout, the clock is stopped
+     * that long ago, not at the time a queue arrives (`scoredAtServer`). A pad
+     * of before sends none.
+     */
+    sentAt: z.iso.datetime().optional(),
+    /**
      * Match-clock position (accumulated active ms) when the exchange was
      * recorded. Persisted to exchanges.clock_time_ms so the timeline can
      * show match-clock time rather than wall-clock. Sent by the scoring

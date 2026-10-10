@@ -85,7 +85,7 @@ describe('PenaltiesService', () => {
       causes_match_forfeit: false,
       source: 'direct',
     });
-    expect(recomputeMatchScore).toHaveBeenCalledWith('match-1');
+    expect(recomputeMatchScore).toHaveBeenCalledWith('match-1', undefined);
   });
 
   // The scoring pad sends the match-clock position with each penalty so

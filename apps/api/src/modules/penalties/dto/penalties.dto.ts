@@ -32,6 +32,8 @@ export const createPenaltySchema = z
     rulesetEntryId: z.uuid().optional(),
     directCard: cardSchema.optional(),
     occurredAt: z.iso.datetime(),
+    /** The pad's time of this send: the card's age, as on `CreateExchangeDto`. */
+    sentAt: z.iso.datetime().optional(),
     /**
      * Match-clock position (accumulated active ms) when the penalty was
      * recorded. Persisted to match_penalties.clock_time_ms so the timeline

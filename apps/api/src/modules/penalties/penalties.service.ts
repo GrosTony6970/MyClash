@@ -31,6 +31,7 @@ import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
+import { scoredAtServer } from '../matches/late-press';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -1013,7 +1014,10 @@ export class PenaltiesService {
       throw new BadRequestException(error.message);
     }
 
-    await this.scoring?.recomputeMatchScore(matchId);
+    // A card of a tablet's queue says its age. If it decides the bout, by its
+    // points or by its forfeit, the clock is stopped at the time of the card.
+    const causedAt = scoredAtServer(dto);
+    await this.scoring?.recomputeMatchScore(matchId, causedAt);
 
     if (sanction.causesMatchForfeit) {
       // Determine the ordinal: count this registration's non-voided black
@@ -1040,6 +1044,7 @@ export class PenaltiesService {
               note: dto.reason ?? 'Black card',
             },
             context,
+            causedAt,
           );
         } else {
           await this.supabase.service

@@ -31,6 +31,16 @@ export function postPress(
   });
 }
 
+/**
+ * The send time a queued hit or card carries beside its own time
+ * (`occurredAt`): that time plus its age. The server reads the age and nothing
+ * else. When the hit or the card decides the bout, the server stops the clock
+ * by itself, that long ago and not at the time the queue arrives.
+ */
+export function sentAtOf(entry: OutboxEntry, now: TabletTime = tabletTime()): string {
+  return pressTimes(entry, now).sentAt;
+}
+
 /** Why a row is not sent in this pass, when it must wait for a row before it. */
 export type Waits =
   /** A press of its bout is held in the inbox. Nothing is tried, nothing is counted. */

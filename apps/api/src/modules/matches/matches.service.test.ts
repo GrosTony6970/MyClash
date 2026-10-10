@@ -328,8 +328,8 @@ describe('MatchesService', () => {
         match_id: 'm1',
         sequence: 2,
       });
-      // Score IS recomputed after new insert
-      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
+      // Score IS recomputed after new insert. No time: this body has no `sentAt`.
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
     });
 
     it('appends at the server next sequence when a stale pad sequence collides', async () => {
@@ -368,7 +368,7 @@ describe('MatchesService', () => {
       // The SECOND insert is the retry. Named by position in the recorded
       // writes rather than by which chain variable happened to receive it.
       expect(writesTo(supabase, 'exchanges')[1]?.row).toMatchObject({ sequence: 13 });
-      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
     });
 
     it('rejects new exchange creation when event results are frozen', async () => {
@@ -632,7 +632,7 @@ describe('MatchesService', () => {
       });
 
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledOnce();
-      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1');
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1', undefined);
     });
   });
 

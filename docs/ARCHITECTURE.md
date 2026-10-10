@@ -1333,6 +1333,18 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > bar says "a clock press was refused" before anything else it holds. A press answered 401
 > leaves the bout for the sign-in screen, as it did before it was queued (ruling 342). A press
 > the server answers `clock_row_collided` wrote nothing and goes with the next send.
+>
+> **The server's own End or Halt.** The server stops the clock by itself, with no press of the
+> pad, in three places: a hit or a card that takes a bout to its cap (`endClockBestEffort`), a
+> round that closes (`haltClockBestEffort`), and the forfeit a black card creates
+> (`MatchForfeitsService.completeMatch`). A hit or a card of the queue says how old it is: it
+> carries `sentAt` beside `occurredAt`, built as the two times of a press are (`sentAtOf`,
+> `offline/press-send.ts`). The server reads only the difference and writes its own End or Halt
+> that long ago, never before the bout's last clock row (`scoredAtServer`, `placedInTimeline`,
+> `ClockService.clockAction`). So a black card given with no network while the clock runs does
+> not add the time with no network to the bout. A body with no `sentAt` (a pad of before) and
+> every correction a person makes with a network get the time of arrival. The hit's own row
+> keeps the tablet's `occurredAt`.
 
 ### 10.3 Conflict resolution
 

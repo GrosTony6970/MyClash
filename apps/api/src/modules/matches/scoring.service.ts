@@ -150,8 +150,16 @@ export class ScoringService {
    *
    * This is the authoritative scoring path — the ruleset engine is the
    * single source of truth.
+   *
+   * `causedAt`: the server's time of the hit or the card that asks, when a
+   * tablet kept it in a queue (`scoredAtServer`). If it decides the bout or
+   * closes a round, the clock is stopped at that time, not at the time the
+   * queue arrives. Every other caller is a person with a network: now.
    */
-  async recomputeMatchScore(matchId: string): Promise<{ redScore: number; blueScore: number }> {
+  async recomputeMatchScore(
+    matchId: string,
+    causedAt?: string,
+  ): Promise<{ redScore: number; blueScore: number }> {
     const m = await this.loadMatchRow(matchId);
     if (!m) {
       this.logger.error(`Cannot recompute score for match ${matchId}: not found`);
@@ -162,13 +170,14 @@ export class ScoringService {
       this.logger.log(`Match ${matchId} keeps the result of its forfeit record beside its sheet`);
       return { redScore: Number(m['red_score'] ?? 0), blueScore: Number(m['blue_score'] ?? 0) };
     }
-    return this.recomputeFromSheet(matchId, m);
+    return this.recomputeFromSheet(matchId, m, causedAt);
   }
 
   /** The sheet's half of `recomputeMatchScore`: a single fight, or a series' open round. */
   private async recomputeFromSheet(
     matchId: string,
     m: Record<string, unknown>,
+    causedAt?: string,
   ): Promise<{ redScore: number; blueScore: number }> {
     const bout = await this.loadBout(m);
     const { match, matchFormat } = bout;
@@ -176,7 +185,7 @@ export class ScoringService {
     // Best-of-N (bestOf > 1) runs the round lifecycle instead of the single-fight
     // path below. bestOf = 1 falls through to the exact existing behaviour.
     if (getEffectiveBestOf(match, matchFormat) > 1) {
-      return this.recomputeBestOfRounds({ matchId, ...bout, matchRow: m });
+      return this.recomputeBestOfRounds({ matchId, ...bout, matchRow: m, causedAt });
     }
 
     const scored = this.scoreSingleFight(bout, bout);
@@ -223,7 +232,7 @@ export class ScoringService {
     await this.supabase.service.from('matches').update(matchUpdates).eq('id', matchId);
 
     const redecided = outcome.kind === 'redecide' && correction ? correction : null;
-    await this.afterFightWrite(matchId, justCompleted, redecided);
+    await this.afterFightWrite(matchId, justCompleted, redecided, causedAt);
     await this.rescoreLeagues(matchId, justCompleted || match.status === 'completed');
 
     return { redScore: score.redScore, blueScore: score.blueScore };
@@ -234,11 +243,12 @@ export class ScoringService {
     matchId: string,
     justCompleted: boolean,
     redecided: { eventOver: boolean } | null,
+    causedAt?: string,
   ): Promise<void> {
     // The ruleset closed the match (point cap or double cap). Stop the
     // clock so it freezes and the scoreboard's clock-driven endcard fires.
     if (justCompleted) {
-      await this.endClockBestEffort(matchId);
+      await this.endClockBestEffort(matchId, causedAt);
       // THIS is how a real bracket match ends — the pad never calls
       // PATCH /matches/:id/status, so before this call the only completion paths
       // that ran the side effects were that endpoint (used solely by the e2e
@@ -264,9 +274,14 @@ export class ScoringService {
   }
 
   /** A series' clock after its row write: ended with the series, halted between two rounds. */
-  private async stopSeriesClock(matchId: string, ended: boolean, awaiting: boolean): Promise<void> {
-    if (ended) await this.endClockBestEffort(matchId);
-    else if (awaiting) await this.haltClockBestEffort(matchId);
+  private async stopSeriesClock(
+    matchId: string,
+    ended: boolean,
+    awaiting: boolean,
+    causedAt?: string,
+  ): Promise<void> {
+    if (ended) await this.endClockBestEffort(matchId, causedAt);
+    else if (awaiting) await this.haltClockBestEffort(matchId, causedAt);
   }
 
   /**
@@ -655,15 +670,15 @@ export class ScoringService {
    * is running or halted — the 'end' transition is invalid (throws) from
    * idle (timer never started) or ended (already stopped), so we skip those.
    * Passes canOverrideLocked so a match auto-locked in the same cycle still
-   * stops its clock.
+   * stops its clock. `causedAt`: see `recomputeMatchScore`.
    */
-  private async endClockBestEffort(matchId: string): Promise<void> {
+  private async endClockBestEffort(matchId: string, causedAt?: string): Promise<void> {
     try {
       const clock = await this.clock.getClockState(matchId);
       if (clock.status === 'running' || clock.status === 'halted') {
-        await this.clock.clockAction(matchId, 'end', 'auto: match complete', {
-          canOverrideLocked: true,
-        });
+        const opensLock = { canOverrideLocked: true };
+        const reason = 'auto: match complete';
+        await this.clock.clockAction(matchId, 'end', reason, opensLock, false, causedAt);
       }
     } catch (err) {
       this.logger.warn(
@@ -865,6 +880,7 @@ export class ScoringService {
     rawRows: Record<string, unknown>[];
     penaltyRows: Record<string, unknown>[];
     matchRow: Record<string, unknown>;
+    causedAt?: string;
   }): Promise<{ redScore: number; blueScore: number }> {
     const { matchId, match, ruleset, config, afterblowMode, matchFormat, rawRows, penaltyRows } =
       args;
@@ -929,7 +945,8 @@ export class ScoringService {
     }
 
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);
-    await this.stopSeriesClock(matchId, justCompleted, updates['awaiting_round_advance'] === true);
+    const awaiting = updates['awaiting_round_advance'] === true;
+    await this.stopSeriesClock(matchId, justCompleted, awaiting, args.causedAt);
     await this.rescoreLeagues(matchId, justCompleted || match.status === 'completed');
 
     return { redScore: openRed, blueScore: openBlue };
@@ -1274,13 +1291,19 @@ export class ScoringService {
   }
 
   /** Halt a running clock when a round closes but the series isn't decided. */
-  private async haltClockBestEffort(matchId: string): Promise<void> {
+  private async haltClockBestEffort(matchId: string, causedAt?: string): Promise<void> {
     try {
       const clock = await this.clock.getClockState(matchId);
       if (clock.status === 'running') {
-        await this.clock.clockAction(matchId, 'halt', 'auto: round over', {
-          canOverrideLocked: true,
-        });
+        const opensLock = { canOverrideLocked: true };
+        await this.clock.clockAction(
+          matchId,
+          'halt',
+          'auto: round over',
+          opensLock,
+          false,
+          causedAt,
+        );
       }
     } catch (err) {
       this.logger.warn(

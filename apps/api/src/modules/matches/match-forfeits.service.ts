@@ -72,7 +72,17 @@ export class MatchForfeitsService {
     @Optional() private readonly scoring?: ScoringService,
   ) {}
 
-  async createForfeit(matchId: string, dto: CreateMatchForfeitDto, actor: Actor = {}) {
+  /**
+   * `causedAt`: of a black card a tablet kept in its queue, the server's time
+   * of that card (`scoredAtServer`). The clock is ended there, not at the time
+   * the queue arrives. A forfeit a person records has none: now.
+   */
+  async createForfeit(
+    matchId: string,
+    dto: CreateMatchForfeitDto,
+    actor: Actor = {},
+    causedAt?: string,
+  ) {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
 
@@ -163,6 +173,7 @@ export class MatchForfeitsService {
         scores,
         forfeitEndReason(dto.reason),
         now,
+        causedAt,
       );
     }
     await this.applyTournamentState(dto.forfeitingRegistrationId, tournamentState, canContinue);
@@ -1007,6 +1018,7 @@ export class MatchForfeitsService {
     scores: { redScore: number; blueScore: number },
     endReason: string,
     endedAt = new Date().toISOString(),
+    causedAt?: string,
   ) {
     await this.supabase.service
       .from('matches')
@@ -1030,12 +1042,12 @@ export class MatchForfeitsService {
       try {
         const clk = await this.clock.getClockState(matchId);
         if (clk.status === 'running' || clk.status === 'halted') {
-          await this.clock.clockAction(matchId, 'end', 'auto: forfeit', {
-            canOverrideLocked: true,
-          });
+          const opensLock = { canOverrideLocked: true };
+          await this.clock.clockAction(matchId, 'end', 'auto: forfeit', opensLock, false, causedAt);
         }
-      } catch {
-        // swallow — clock end is best-effort
+      } catch (err) {
+        // Best-effort, and said: the bout is completed with a clock that still runs.
+        this.logger.warn(`Clock end skipped after the forfeit of match ${matchId}`, err);
       }
     }
   }

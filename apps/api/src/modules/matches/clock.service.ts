@@ -40,6 +40,7 @@ import {
   elapsedAt,
   eventStatusOf,
   placeLatePress,
+  placedInTimeline,
   pressIsSaved,
   type LatePress,
   type PressAction,
@@ -103,8 +104,13 @@ interface ClockStep {
   /** What an End does to the bout. Null for every other action. */
   ending: ReturnType<typeof timeLimitResult> | null;
   uncompletes: boolean;
-  /** A press sent late: its id, and where it is placed in the timeline. */
-  press?: { clientUuid: string; at: string };
+  /** A press sent late: its id. */
+  press?: { clientUuid: string };
+  /**
+   * Where the row is placed in the timeline: a press sent late, or the
+   * server's own press after a queued hit or card. None: now.
+   */
+  at?: string;
 }
 
 // The scores and the phase's match format are here so `end` can NAME
@@ -181,6 +187,12 @@ export class ClockService {
       canDiscardDependentResults?: boolean;
     },
     discardDependents = false,
+    /**
+     * Of the server's own End or Halt: its time of the hit or the card that
+     * decided the bout, when a tablet kept it in a queue (`scoredAtServer`).
+     * The row is written there, not at the time the queue arrives.
+     */
+    causedAt?: string,
   ): Promise<ClockState> {
     // Verify match exists
     const { data: match } = await this.supabase.service
@@ -253,12 +265,16 @@ export class ClockService {
       });
     }
 
+    const at = causedAt
+      ? await placedInTimeline(this.supabase.service, matchId, Date.parse(causedAt))
+      : undefined;
     return this.record(matchId, match as unknown as Record<string, unknown>, current, {
       action,
       reason,
       actor,
       ending,
       uncompletes,
+      at,
     });
   }
 
@@ -336,7 +352,8 @@ export class ClockService {
       actor,
       ending,
       uncompletes: false,
-      press: { clientUuid: press.clientUuid, at },
+      press: { clientUuid: press.clientUuid },
+      at,
     });
   }
 
@@ -383,8 +400,8 @@ export class ClockService {
     step: ClockStep,
   ): Promise<ClockState> {
     const { action, ending, uncompletes } = step;
-    // The time of the row: now, or where a press sent late is placed.
-    const now = step.press?.at ?? new Date().toISOString();
+    // The time of the row: now, or where a press sent late or the server's own is placed.
+    const now = step.at ?? new Date().toISOString();
     await this.insertRow(matchId, step, now);
 
     // Ruling 331: out of `completed`, no result. An End read the old winner first.

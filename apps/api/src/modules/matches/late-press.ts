@@ -80,8 +80,29 @@ export const alreadyTrue = pressAlreadyTrue;
  * own clock. The time of day the pad says is never read, so a pad an hour wrong
  * gives the same answer. A send dated before its press is a press of now.
  */
-export function pressedAtServer(press: LatePress, nowMs: number): number {
+export function pressedAtServer(
+  press: Pick<LatePress, 'pressedAt' | 'sentAt'>,
+  nowMs: number,
+): number {
   return nowMs - Math.max(0, Date.parse(press.sentAt) - Date.parse(press.pressedAt));
+}
+
+/**
+ * The server's time of a hit or a card a pad kept in its queue, read as the
+ * time of a press is: by its age. A hit or a card can decide the bout, and the
+ * server then stops the clock by itself: that End or Halt is written at this
+ * time, not at the time the queue arrives (`ClockService.clockAction`).
+ *
+ * None for the pad of before, which sends no `sentAt`: the server's press is
+ * then of now, as it was. The hit's own row keeps the pad's `occurredAt`.
+ */
+export function scoredAtServer(scored: {
+  occurredAt: string;
+  sentAt?: string;
+}): string | undefined {
+  if (!scored.sentAt) return undefined;
+  const press = { pressedAt: scored.occurredAt, sentAt: scored.sentAt };
+  return new Date(pressedAtServer(press, Date.now())).toISOString();
 }
 
 /** Where the press goes in the bout's timeline: never before the row the bout ends with. */
@@ -176,6 +197,15 @@ async function lastRowAt(supabase: Database, matchId: string): Promise<string | 
   return (data as { occurred_at: string } | null)?.occurred_at ?? null;
 }
 
+/** `placedAt` for a row of this bout: `atMs`, or the time of the bout's last row when that is later. */
+export async function placedInTimeline(
+  supabase: Database,
+  matchId: string,
+  atMs: number,
+): Promise<string> {
+  return placedAt(atMs, await lastRowAt(supabase, matchId));
+}
+
 /** A press that is new to the server and not already true, as the clock's door read it. */
 export interface AskedPress {
   matchId: string;
@@ -214,5 +244,5 @@ export async function placeLatePress(supabase: Database, asked: AskedPress): Pro
   if ((action === 'start' || action === 'resume') && match['awaiting_round_advance']) {
     throw roundAwaitsAdvance();
   }
-  return placedAt(pressedMs, await lastRowAt(supabase, matchId));
+  return placedInTimeline(supabase, matchId, pressedMs);
 }

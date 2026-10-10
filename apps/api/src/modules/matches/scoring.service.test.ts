@@ -27,6 +27,9 @@ const bracketPhase = (bestOf: number, pointCap = 3) => ({
   },
 });
 
+/** The server's time of a hit a tablet kept in its queue (`scoredAtServer`). */
+const QUEUED_HIT_AT = '2026-01-01T10:20:00.000Z';
+
 function matchRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'm1',
@@ -168,13 +171,50 @@ describe('ScoringService — best-of rounds', () => {
       red_round_wins: 2,
       awaiting_round_advance: false,
     });
-    // The clinching round's clock-end side effect fired.
-    expect(clock.clockAction).toHaveBeenCalledWith(
-      'm1',
-      'end',
-      expect.any(String),
-      expect.anything(),
-    );
+    // The clinching round's clock-end side effect fired, at the time of now.
+    expect(clock.clockAction.mock.calls).toEqual([
+      ['m1', 'end', 'auto: match complete', { canOverrideLocked: true }, false, undefined],
+    ]);
+  });
+
+  // The offline bout, slice 3: the hit came from a tablet's queue, an hour late.
+  it('ends the clock of a series at the time of the queued hit that clinched it', async () => {
+    const match = matchRow({
+      current_round: 2,
+      red_round_wins: 1,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 1, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 3, 1), ex(2, 'red', 3, 2)]);
+
+    await service.recomputeMatchScore('m1', QUEUED_HIT_AT);
+
+    expect(clock.clockAction.mock.calls).toEqual([
+      ['m1', 'end', 'auto: match complete', { canOverrideLocked: true }, false, QUEUED_HIT_AT],
+    ]);
+  });
+
+  it('halts a running clock at the time of the queued hit that closed the round', async () => {
+    clock.getClockState.mockResolvedValue({ status: 'running' });
+    wire(matchRow(), [ex(1, 'red', 3)]);
+
+    await service.recomputeMatchScore('m1', QUEUED_HIT_AT);
+
+    expect(clock.clockAction.mock.calls).toEqual([
+      ['m1', 'halt', 'auto: round over', { canOverrideLocked: true }, false, QUEUED_HIT_AT],
+    ]);
+  });
+
+  it('halts it now when the round was closed by a hit that carries no time', async () => {
+    clock.getClockState.mockResolvedValue({ status: 'running' });
+    wire(matchRow(), [ex(1, 'red', 3)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(clock.clockAction.mock.calls).toEqual([
+      ['m1', 'halt', 'auto: round over', { canOverrideLocked: true }, false, undefined],
+    ]);
   });
 
   it('does not re-close a round already recorded (idempotent recompute while awaiting)', async () => {
@@ -732,6 +772,19 @@ describe('ScoringService — a single fight, penalties included', () => {
       expect(lastUpdate?.['end_reason']).toBe('first_to_points');
       expect(lastUpdate?.['winner_registration_id']).toBe('red');
     });
+  });
+
+  it.each([
+    ['at the time of the queued hit that reached the cap', QUEUED_HIT_AT],
+    ['now, for a hit that carries no time', undefined],
+  ])('ends the clock %s', async (_, causedAt) => {
+    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)]);
+
+    await service.recomputeMatchScore('m1', causedAt);
+
+    expect(clock.clockAction.mock.calls).toEqual([
+      ['m1', 'end', 'auto: match complete', { canOverrideLocked: true }, false, causedAt],
+    ]);
   });
 
   it('a penalty that drops the cap-reacher below the cap un-ends the bout', async () => {

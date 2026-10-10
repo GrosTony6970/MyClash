@@ -9,6 +9,7 @@
 
 import { canSendAgain } from './can-send-again';
 import { db, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
+import { tabletTime } from './press-age';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
 
@@ -22,13 +23,22 @@ import { db, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } fro
  * has not caught up with (a card right behind a hit): both carry the same
  * number. The store holds what was queued, so the later one gets the next
  * number here, read and written in ONE transaction.
+ *
+ * The row keeps the page's own clock of the tap, as a clock press does: the
+ * send says how old the hit or the card is (`press-age.ts`).
  */
 export async function enqueue(
-  entry: Omit<OutboxEntry, 'id' | 'createdAt' | 'attempts' | 'lastError'>,
+  entry: Omit<
+    OutboxEntry,
+    'id' | 'createdAt' | 'attempts' | 'lastError' | 'pressedPerf' | 'pressOrigin'
+  >,
 ): Promise<number> {
+  const at = tabletTime();
   return db.transaction('rw', db.outbox, db.synced, async () =>
     db.outbox.add({
       ...entry,
+      pressedPerf: at.page,
+      pressOrigin: at.origin,
       sequence: Math.max(entry.sequence, await nextSequence(entry.matchId)),
       createdAt: Date.now(),
       attempts: 0,

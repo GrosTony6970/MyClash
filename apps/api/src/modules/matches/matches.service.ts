@@ -21,6 +21,7 @@ import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
+import { scoredAtServer } from './late-press';
 import { matchLocked } from './match-locked';
 import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
@@ -840,8 +841,10 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
 
-    // Recompute authoritative match score from all non-voided exchanges
-    await this.scoring.recomputeMatchScore(matchId);
+    // Recompute authoritative match score from all non-voided exchanges. A hit
+    // of a tablet's queue says its age: if it decides the bout, the clock is
+    // stopped at the time of the hit, not at the time the queue arrives.
+    await this.scoring.recomputeMatchScore(matchId, scoredAtServer(dto));
 
     return data;
   }

@@ -10243,6 +10243,8 @@ export interface components {
       type: 'clean' | 'afterblow' | 'double' | 'no_exchange';
       /** Format: date-time */
       occurredAt: string;
+      /** Format: date-time */
+      sentAt?: string;
       clockTimeMs?: number | null;
       durationSincePrevMs?: number | null;
       /** @enum {string|null} */
@@ -11332,6 +11334,8 @@ export interface components {
       directCard?: 'yellow' | 'red' | 'black';
       /** Format: date-time */
       occurredAt: string;
+      /** Format: date-time */
+      sentAt?: string;
       clockTimeMs?: number | null;
       reason?: string;
     };
