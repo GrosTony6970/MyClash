@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ExchangeRow } from '@myclash/ui';
+import { listAfterRead, readBoutList, type ShownList } from '../lib/bout-list-read';
 
 // The wire shape is declared once in @myclash/ui (packages/ui/src/types/
 // match-events.ts) because the shared timeline builder and the TV display need
 // it too. Re-exported here so this hook stays the import site every consumer
 // already uses. `export type` is required — isolatedModules is on.
 export type { ExchangeRow };
+
+const NO_ROWS: ExchangeRow[] = [];
 
 interface UseExchangesResult {
   exchanges: ExchangeRow[];
@@ -33,7 +36,7 @@ export function useExchanges(
   matchId: string | null | undefined,
   refreshKey: number,
 ): UseExchangesResult {
-  const [exchanges, setExchanges] = useState<ExchangeRow[]>([]);
+  const [list, setList] = useState<ShownList<ExchangeRow> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,24 +45,14 @@ export function useExchanges(
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load exchanges (HTTP ${res.status})`);
-        }
-        const rows = (await res.json()) as ExchangeRow[];
-        setExchanges(rows);
-      })
-      .catch((err) => {
-        if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    // With no network the read gives the rows the tablet kept (`bout-list-read.ts`).
+    void readBoutList<ExchangeRow>(apiUrl, matchId, 'exchanges', controller.signal).then((read) => {
+      setLoading(false);
+      if (controller.signal.aborted) return;
+      setList((now) => listAfterRead(now, matchId, read));
+      // The status alone: no screen shows this, and a sentence would need a key.
+      if (read.kind === 'failed') setError(String(read.status));
+    });
     return () => controller.abort();
   }, [apiUrl, matchId]);
 
@@ -69,6 +62,7 @@ export function useExchanges(
     return cleanup;
   }, [refresh, refreshKey]);
 
+  const exchanges = list?.rows ?? NO_ROWS;
   const active = exchanges.filter((row) => !row.voided);
 
   return { exchanges, active, loading, error, refresh };

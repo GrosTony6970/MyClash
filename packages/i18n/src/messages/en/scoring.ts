@@ -326,7 +326,7 @@ export const scoring = {
     notLoadedBody: 'This match is not loaded yet. It opens when the network is back.',
     // The server cannot be reached and the tablet holds a copy of the match.
     fromTablet:
-      'No connection. This is the match as this tablet read it on {when}. The score and the counts may be wrong: the hits and cards from before are not listed here. What you press now, the clock included, is kept and sent later.',
+      'No connection. This is the match as this tablet read it on {when}. The score, the hits and the cards are from that read, and may be behind. What you press now, the clock included, is kept and sent later.',
     scoreUnconfirmed: 'not confirmed',
     reopen: 'Reopen match',
     reopening: 'Reopening...',

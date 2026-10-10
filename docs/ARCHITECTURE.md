@@ -1375,9 +1375,15 @@ resolve", whereas a server failure means "something needs a human". Both leave t
   copy on a screen mounted again, so the clock, the lists and the neighbours are
   read as on a first open, and the queue is sent. Only a 404 removes a copy: a
   server fault says nothing about the bout. A bout read without its names is
-  not kept over a copy that has them. The lists of hits and cards are not
-  kept, so on a copy the timeline and the counts hold the queue alone, and the
-  notice says so. The clock the server last gave is kept with the bout
+  not kept over a copy that has them. The lists of hits and cards are kept
+  too, at each good read (`lib/bout-list-read.ts`): on a copy the timeline and
+  the counts hold those rows and the queue, and a hit the server already has
+  is not counted again from the queue. The tablet's rows never replace the
+  server's rows of the same bout. The bout and its lists are kept by separate
+  reads: when a list is kept and the bout's read of the same moment is not, a
+  hit whose answer was lost reads in the list and not in the score, and the
+  score is one hit low until the network is back. A score that lags is the
+  smaller lie (the same choice as on a live screen). The clock the server last gave is kept with the bout
   (`keepClock`), so a copy opens at the time the bout had, and the presses the
   tablet holds are added to it (§10.2, "The clock on the tablet").
 - Manifest installs as standalone tablet app.

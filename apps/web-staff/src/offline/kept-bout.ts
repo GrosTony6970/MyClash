@@ -22,6 +22,10 @@ import { db } from './db';
 const keyOf = (matchId: string) => `bout/${matchId}`;
 const clockKeyOf = (matchId: string) => `clock/${matchId}`;
 
+/** The two lists of a bout the tablet keeps, named as their routes are. */
+export type BoutListName = 'exchanges' | 'penalties';
+const listKeyOf = (matchId: string, list: BoutListName) => `${list}/${matchId}`;
+
 export interface KeptBout {
   match: MatchInfo;
   /** When the server gave this bout (ms). */
@@ -41,7 +45,32 @@ export async function keptBout(matchId: string): Promise<KeptBout | null> {
 
 /** The server said there is no such bout (a 404): its copy must not open again. */
 export async function forgetBout(matchId: string): Promise<void> {
-  await db.reads.bulkDelete([keyOf(matchId), clockKeyOf(matchId)]);
+  await db.reads.bulkDelete([
+    keyOf(matchId),
+    clockKeyOf(matchId),
+    listKeyOf(matchId, 'exchanges'),
+    listKeyOf(matchId, 'penalties'),
+  ]);
+}
+
+/**
+ * Keeps the hits or the cards the server just listed for a bout. A bout opened
+ * with no network shows them under the tablet's queue: without them the
+ * timeline, the doubles count and the card counts hold the queue alone, and a
+ * hit the server already has is counted again from the queue.
+ */
+export async function keepList(
+  matchId: string,
+  list: BoutListName,
+  rows: unknown[],
+): Promise<void> {
+  await db.reads.put({ path: listKeyOf(matchId, list), body: rows, fetchedAt: Date.now() });
+}
+
+/** The copy of that list, or null when the tablet never read it. */
+export async function keptList<T>(matchId: string, list: BoutListName): Promise<T[] | null> {
+  const row = await db.reads.get(listKeyOf(matchId, list));
+  return row ? (row.body as T[]) : null;
 }
 
 /**

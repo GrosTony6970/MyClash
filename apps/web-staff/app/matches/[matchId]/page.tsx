@@ -232,8 +232,8 @@ export default function MatchScoringPage({ params }: Props) {
       {match ? (
         <MatchView
           // A new screen when the server's bout replaces the copy: the copy's
-          // screen could read no clock, no list and no neighbour, and keeps
-          // none. Mounted again, it reads them all, as a first open does.
+          // screen holds the tablet's clock and lists and no neighbour, and
+          // keeps none. Mounted again, it reads them all, as a first open does.
           key={fromTablet ? 'copy' : 'server'}
           match={match}
           apiUrl={apiUrl}

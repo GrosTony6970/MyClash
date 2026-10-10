@@ -308,7 +308,7 @@ export const scoring = {
     notLoadedTitle: 'Pas de connexion',
     notLoadedBody: "Cet assaut n'est pas encore chargé. Il s'ouvrira au retour du réseau.",
     fromTablet:
-      'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score et les compteurs peuvent être faux : les touches et les cartons d’avant ne sont pas listés ici. Ce que vous saisissez maintenant, chrono compris, est gardé et envoyé plus tard.',
+      'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score, les touches et les cartons datent de cette lecture, et peuvent ne plus être à jour. Ce que vous saisissez maintenant, chrono compris, est gardé et envoyé plus tard.',
     scoreUnconfirmed: 'non confirmé',
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',

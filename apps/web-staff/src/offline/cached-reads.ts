@@ -18,8 +18,9 @@
  * was "serve no stale scoring data"; the operator reversed it on 2026-10-08
  * (quick-win ruling 3) for one case. The bout itself is kept by
  * `kept-bout.ts`, and its rule is: a copy is shown only when the server cannot
- * be reached, and the screen always says so. The service worker still caches
- * no `/api/` response, and no list of hits or cards is kept.
+ * be reached, and the screen always says so. Its lists of hits and cards are
+ * kept there too, under the same rule. The service worker still caches no
+ * `/api/` response.
  *
  * A cached answer can be out of date if an organiser re-pins the ruleset
  * mid-event. The network fetch overwrites it on success, and stale-but-real

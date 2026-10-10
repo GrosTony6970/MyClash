@@ -207,9 +207,10 @@ export interface UndoNotice {
  * silently wrong on a custom ruleset and says nothing about it.
  *
  * Keyed by request path, so the same table serves whatever else needs it later
- * without inventing a second cache. The copy of a bout is the one row that is
- * not a request's body: its key is `bout/<id>` and its rule is in
- * `kept-bout.ts` (shown only with no network, and always said).
+ * without inventing a second cache. The copy of a bout is not keyed by a
+ * request path: its rows are `bout/<id>`, `clock/<id>`, `exchanges/<id>` and
+ * `penalties/<id>`, and their rule is in `kept-bout.ts` (shown only with no
+ * network, and always said).
  */
 export interface CachedRead {
   /** Request path, e.g. `/api/v1/tournaments/:id/match-config`. */

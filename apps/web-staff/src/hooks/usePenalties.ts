@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
 import type { ExistingPenaltyForSanction } from '@myclash/types';
+import { listAfterRead, readBoutList, type ShownList } from '../lib/bout-list-read';
 import { fetchWithCache } from '../offline/cached-reads';
 
 // The card union and the `match_penalties` wire row are declared once in
@@ -74,6 +75,7 @@ interface UsePenaltiesResult {
 }
 
 const ALL_CARDS: PenaltyCard[] = ['yellow', 'red', 'black'];
+const NO_ROWS: MatchPenalty[] = [];
 
 /**
  * Centralised penalty + ruleset fetch. Used by:
@@ -93,7 +95,7 @@ export function usePenalties(
 ): UsePenaltiesResult {
   const [ruleset, setRuleset] = useState<PenaltyRuleset | null>(null);
   const [scope, setScope] = useState<PenaltyScope | null>(null);
-  const [penalties, setPenalties] = useState<MatchPenalty[]>([]);
+  const [list, setList] = useState<ShownList<MatchPenalty> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,18 +107,15 @@ export function usePenalties(
     Promise.all([
       // The catalogue is SETUP data — which entries exist and what card each
       // one carries — so it is cached on the tablet. Without it an offline pad
-      // shows an empty penalty picker and no referee can card anyone. The
-      // penalties themselves are live match state and are never cached; a stale
-      // card list is the kind of thing the service worker's no-stale rule
-      // exists to prevent.
+      // shows an empty penalty picker and no referee can card anyone.
       fetchWithCache<PenaltyRuleset | null>(apiUrl, `/api/v1/matches/${matchId}/penalty-ruleset`, {
         credentials: 'include',
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
+      // The cards themselves are live match state. With no network the read
+      // gives the rows the tablet kept, under the bout's own rule: a copy is
+      // shown only when the server cannot be reached (`bout-list-read.ts`).
+      readBoutList<MatchPenalty>(apiUrl, matchId, 'penalties', controller.signal),
       // Prior offences in the ruleset's accumulation scope. Cached for the same
       // reason the catalogue is: at tournament scope these live in OTHER
       // matches, so an offline pad cannot re-derive them and would silently
@@ -126,13 +125,12 @@ export function usePenalties(
         signal: controller.signal,
       }),
     ])
-      .then(async ([rulesetResult, penaltiesRes, scopeResult]) => {
+      .then(([rulesetResult, cardsRead, scopeResult]) => {
+        if (controller.signal.aborted) return;
         if (rulesetResult) {
           setRuleset(rulesetResult.body);
         }
-        if (penaltiesRes.ok) {
-          setPenalties((await penaltiesRes.json()) as MatchPenalty[]);
-        }
+        setList((now) => listAfterRead(now, matchId, cardsRead));
         if (scopeResult) {
           setScope(scopeResult.body);
         }
@@ -153,6 +151,7 @@ export function usePenalties(
     return cleanup;
   }, [refresh, refreshKey]);
 
+  const penalties = list?.rows ?? NO_ROWS;
   const active = penalties.filter((p) => !p.voided);
 
   // Derive the set of card colours actually used by this ruleset's
