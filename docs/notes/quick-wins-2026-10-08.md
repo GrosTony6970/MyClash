@@ -356,15 +356,50 @@ chip read 2/4 in warning colours, and a bracket bout showed a limit that ends no
 
 Named while the doubles chip was fixed, and not fixed (each one checked in code by a review):
 
-- A Tournament whose ruleset has no doubles limit still shows one on the pad: the route that
-  gives the pad its rules does not drop it, and the server's scorer does. It is the next commit
-  of slice 4b.
+- ~~A Tournament whose ruleset has no doubles limit still shows one on the pad: the route that
+  gives the pad its rules does not drop it, and the server's scorer does.~~ Done `35c028b2`.
 - The chart of a finished bout, on the pad, on the TV and on the public Match page, writes
   "doubles 1/4" on a bracket bout: it reads the limit with no phase.
 - The chip's tooltip says "per match" in both languages. In a best-of bout it is per round.
 - A bout read without its names (the second read did not land on weak wifi) has no phase on the
   pad. The chip then shows no limit on a Pool bout until the next read. That bout also reads as
   a single round, and with the default rules.
+
+**Commits 3 and 4 of slice 4b are built** (2026-10-11). `35c028b2`: the route that gives the pad
+its rules answers the doubles limit the server scores with. For the points-cap ruleset, and for a
+club's own copy of it, the pad shows no limit now, as the server applies none. The route and the
+scorer build the match format with the same two functions. `688a9747` (not pushed: it goes out
+with the next commit): "Start round N" and "End round" are a fourth kind of row in the tablet's
+queue. Such a row is kept and sent as a clock press is: it takes no number of the bout's
+sequence, it never passes a hit of its bout that was not sent, and no row of its bout passes it.
+A refusal holds it in the inbox with its button, its round and its reason, and the rest of its
+bout waits behind it. Each hit and card is queued with the round open on the tablet. No screen
+writes a round row yet: the two round buttons still need the network until the next commit.
+
+**A bug found while commit 3 was built, NOT fixed, and a question for the operator.** A bout
+keeps the ruleset it was generated with. An organiser generates the Pools of a Tournament under
+one ruleset, then changes the Tournament's ruleset before the first bout (the Tournament form
+allows it while no bout has started). The Pool table is then computed with the new ruleset, and
+every bout is still scored with the old one: the tablet shows the new ruleset's buttons and
+limits, and the server counts with the old ruleset's engine. The audited change of ruleset during
+an Event leaves the bouts not yet started on the old ruleset in the same way, and a bout made by
+hand is given TF_v1 whatever its Tournament says (`apps/api/src/modules/phases/match-ruleset.ts`,
+`events.service.ts:3238-3298, 3510-3590`, `matches.service.ts:395-396`). Question: when a
+Tournament's ruleset changes, do the bouts NOT YET STARTED take the new ruleset?
+
+Named while commits 3 and 4 were built, and not fixed (each one checked in code by a review):
+
+- The server reads a failed read of a club's ruleset as "no such ruleset" for 5 seconds, and
+  scores with TF_v1 meanwhile. The pad's rules route then answers a doubles limit for a club's
+  copy of the points-cap ruleset, and the tablet keeps that answer as fresh.
+- Two more answers of the server give the doubles limit as the Tournament stores it
+  (`staff.service.ts:1719, 1878`). The pad's chip does not read them.
+- A late "End round" on a level round is held in the inbox with the server's English sentence,
+  as a late "End match" on a level bout is today. The next commit refuses it on the tablet first.
+- A hit tapped while a "Start round 2" of its bout is held in the inbox is queued with the round
+  the screen shows. Nothing reads that round yet.
+- A row of the queue with a round and no button named would go to the "Start round" door. Only
+  one function writes such a row, and it writes both.
 
 Also on 2026-10-10: the security scan of the marketing site's image accepts the four findings in
 the Caddy binary that no Caddy release fixes (`6ffff8f0`, `apps/web-marketing/.trivyignore.yaml`).
