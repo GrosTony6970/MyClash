@@ -1,0 +1,25 @@
+# Findings the Trivy scan of the web-marketing image accepts. Read by the
+# `trivy-images` job of .github/workflows/ci.yml, for this image only.
+#
+# Accepted by the operator on 2026-10-10. All four rows are in the Go runtime
+# that the Caddy binary was built with (Go 1.26.8, fixed in 1.26.9). Caddy
+# 2.11.7 is the newest release and it has no fix. The image serves static
+# pages only.
+#
+# REMOVE each entry when a Caddy release built with Go 1.26.9 or later is
+# out: `caddy:2-alpine` follows the newest release, so the scan is then green
+# without it. Each entry names the Caddy binary, so it accepts nothing in
+# another file of the image.
+vulnerabilities:
+  - id: CVE-2026-78667
+    paths:
+      - usr/bin/caddy
+    statement: Go stdlib net/http in the Caddy 2.11.7 binary. No Caddy release has the fix.
+  - id: CVE-2026-78669
+    paths:
+      - usr/bin/caddy
+    statement: Go net/http HTTP/2 (stdlib and golang.org/x/net) in the Caddy 2.11.7 binary. No Caddy release has the fix.
+  - id: CVE-2026-97031
+    paths:
+      - usr/bin/caddy
+    statement: Go stdlib crypto/tls in the Caddy 2.11.7 binary. No Caddy release has the fix.

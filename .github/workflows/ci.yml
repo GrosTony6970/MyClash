@@ -663,6 +663,10 @@ jobs:
           # base image has CVEs like any other.
           - image: myclash-web-marketing
             dockerfile: apps/web-marketing/Dockerfile
+            # Findings inside the Caddy binary that no Caddy release fixes yet.
+            # The file says which, why, and when to remove them. The other
+            # images have no such file: their leg passes an empty value.
+            trivyignores: apps/web-marketing/.trivyignore.yaml
     steps:
       - uses: actions/checkout@v4
 
@@ -704,4 +708,5 @@ jobs:
           image-ref: ${{ matrix.image }}:ci
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          trivyignores: ${{ matrix.trivyignores }}
           exit-code: '1'
