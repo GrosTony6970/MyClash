@@ -281,11 +281,11 @@ Named while the lists were kept, and not fixed (each one checked in code by a re
 
 Three rulings on 2026-10-10, before slice 4 (rounds with no network):
 
-| Asked with this story                                                                                                                                                           | Ruling                                                                                                                                                                                                                                                                                              | Done       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| A best-of-3 bout, no wifi. Red reaches the cap in round 1. With wifi the server says "round over". The server judges with the Tournament's ruleset, which is not on the tablet. | **The tablet closes the round at the cap**, or at the doubles limit, from the score it shows, marked "not confirmed". The official taps "Start round 2". When the server counts another way, "Start round 2" is held with the rest of its bout behind it, and the screen goes back to the server's. | not built  |
-| No wifi: hit 1, hit 2, hit 3, "End match". The server refuses hit 2. Hit 3 and the End still went, and the bout ended on the server without hit 2.                              | **A held hit stops the rows of its own bout behind it**, as a held clock press does. One line in the inbox says how many wait. Retry or Discard frees them. Other bouts keep sending. This replaces the older ruling for hits.                                                                      | `c626976b` |
-| A session has ended and the queue holds only a Pause. The bar says "HITS NOT SENT".                                                                                             | **"ENTRIES NOT SENT"**, in the four sentences of the bar, with the matching French ("SAISIES NON ENVOYÉES").                                                                                                                                                                                        | `06694b47` |
+| Asked with this story                                                                                                                                                           | Ruling                                                                                                                                                                                                                                                                                              | Done                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| A best-of-3 bout, no wifi. Red reaches the cap in round 1. With wifi the server says "round over". The server judges with the Tournament's ruleset, which is not on the tablet. | **The tablet closes the round at the cap**, or at the doubles limit, from the score it shows, marked "not confirmed". The official taps "Start round 2". When the server counts another way, "Start round 2" is held with the rest of its bout behind it, and the screen goes back to the server's. | server `6ceb204b`, pad not built |
+| No wifi: hit 1, hit 2, hit 3, "End match". The server refuses hit 2. Hit 3 and the End still went, and the bout ended on the server without hit 2.                              | **A held hit stops the rows of its own bout behind it**, as a held clock press does. One line in the inbox says how many wait. Retry or Discard frees them. Other bouts keep sending. This replaces the older ruling for hits.                                                                      | `c626976b`                       |
+| A session has ended and the queue holds only a Pause. The bar says "HITS NOT SENT".                                                                                             | **"ENTRIES NOT SENT"**, in the four sentences of the bar, with the matching French ("SAISIES NON ENVOYÉES").                                                                                                                                                                                        | `06694b47`                       |
 
 Named while "a held hit stops its bout" was built, and not fixed (each one checked in code by a
 review):
@@ -308,8 +308,35 @@ review):
 - The bar counts a refused card as a "hit", and says "the match" when refused hits are of two
   matches.
 
-Not ruled: "End round" on time with no network. The operator chose the cap alone for the tablet's
-own close; ask before a time end of a round is taken on the tablet.
+Two rulings on the evening of 2026-10-10, while the server side of slice 4 was planned:
+
+| Asked with this story                                                                                                                                                               | Ruling                                                                                                                                                                                                                         | Done                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| A best-of-3 bout, no wifi. Round 1 runs out of time at 3-2 and the official taps "End round". Today that button needs the server.                                                   | **The tablet takes "End round" on time, as it takes "End match".** The round closes for the leader, marked "not confirmed". A refusal is held with the bout's rows behind it. A level round goes to the level steps (slice 5). | server `e0c6059e`, pad not built |
+| The official taps "Start round 2". The server opens round 2 and fails to put the clock back to 0:00. It opened the round anyway, with round 1's time on the clock, and told nobody. | **The server refuses, and the tablet sends again.** Nothing opens with a wrong clock. This also changes the button as it works with wifi: the official sees an error and taps again.                                           | `6ceb204b`                       |
+
+**Slice 4a is built: `6ceb204b` and `e0c6059e`** (2026-10-10). The server takes a "Start round N+1"
+and an "End round" that a tablet made with no network and sends later: once, at the time of the
+tap. A hit or a card sent while a round waits is refused with a code. Nothing on a screen changes
+yet: the tablet's side is slice 4b.
+
+Named while slice 4a was built, and not fixed (each one checked in code by a review):
+
+- An "End round" tapped before somebody reopened that round, and sent after, closes the round
+  again when the server never took it. A press the server already took does not.
+- A late "End round" closes the round for the leader the SERVER reads when the press arrives. A
+  hit voided on another device meanwhile can give the round to the other fighter than the tablet
+  showed.
+- Two tablets that send "Start round 2" within a few milliseconds: the second can put a clock
+  the first one already started back to zero.
+- When the server opens a round and then fails to read the score again, the score of the closed
+  round stays on the bout until the next hit.
+- "Start round" and "End round" pressed with wifi on an archived Event are refused in English
+  with no code. The clock's buttons already were.
+- A best-of bout moves its winner on in the bracket only when the server ends the clock. That
+  step can fail in silence, and a second send of the press does not repair it. It was so before.
+- The tablet has no words yet for the two new refusals (`round_not_waiting`, `round_not_open`).
+  They are slice 4b.
 
 Also on 2026-10-10: the security scan of the marketing site's image accepts the four findings in
 the Caddy binary that no Caddy release fixes (`6ffff8f0`, `apps/web-marketing/.trivyignore.yaml`).
