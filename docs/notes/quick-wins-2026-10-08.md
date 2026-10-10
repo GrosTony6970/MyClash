@@ -249,16 +249,36 @@ tablet's copy, and takes hits and cards.
 a Halt, a Resume or an End, with an id the tablet made and the tablet's times of the press and of
 the send. It is pushed with slice 3.
 
-**Slice 3 is built, and not pushed: `dd079586`, `b1e5f718`, `28a02965`, `92ff7da4`, `d89978bf`.**
+**Slice 3 is built: `dd079586`, `b1e5f718`, `28a02965`, `92ff7da4`, `d89978bf`, `fd814eea`.**
 The clock runs on the tablet. Start, Pause, Resume and End match act on the tap and go through the
 tablet's queue with the hits, in the order of the bout. End match shows the tablet's own result,
 marked "not confirmed", until the server's row says the bout is completed. A press the server
 refuses is held in the inbox, is said at the clock, and stops the rows of its bout behind it.
-**One piece of slice 3 is left before the push:** hits and cards must send their send time too, so
-that the server's own End or Halt is placed at the time of the hit or the card, not at the time of
-arrival. Today a black card given with no network while the clock runs ends the clock at the time
-of arrival, and the bout's active time is then too long by the whole time with no network.
+The last piece is `fd814eea`: a hit and a card send their send time too. The server stops the
+clock by itself in three places (a hit or a card at the cap, a round that closes, the forfeit of a
+black card), and it now writes that End or Halt at the time of the hit or the card, not at the
+time of arrival. Before, a black card given with no network while the clock ran made the bout's
+active time too long by the whole time with no network.
 Slices 4 to 6 are not started.
+
+Named while the last piece of slice 3 was built, and not fixed (each one checked in code):
+
+- **"Edit as no exchange" on the pad is always refused.** The pad sends three fields the route
+  does not take (`clientUuid`, `sequence`, `occurredAt`), and the server answers 400. The browser
+  test of that button has a stubbed server, so it did not see it
+  (`MatchCorrectionsDrawer.tsx:182-191`, `EditExchangeDto`).
+- The age of a hit or a card has no upper limit, and the tablet can read it wrong when its time of
+  day is corrected forwards between the hit and the send. The server's End then goes back to the
+  bout's last clock row, and the last run of the clock can read zero. A clock press has the
+  one-day limit; a hit has none.
+- Another tablet's late press can be written between the server's read of the bout's last clock
+  row and its own End. The End then sorts before that press, and the clock of a completed bout
+  reads as paused or running. A late press has the same gap.
+- The bout's end time is the time of arrival when its clock was never started or was already
+  ended: only the clock's own End carries the time of the hit.
+- "Scored before the last reset" still reads the tablet's time of day. With the send time it could
+  read the server's time of the hit.
+- The start of a round and its clock reset are still written at the time of arrival (slice 4).
 
 Named while slice 3 was built, and not fixed (each one checked in code by a review):
 
@@ -284,9 +304,8 @@ Named while slice 2 was built, and not fixed (each one checked in code by a revi
   Slice 3 must measure the age without the tablet's time of day.
 - A press whose clock row is saved, and whose bout update then fails, is answered "done" at its
   next send. The failed update is an error now, where it was silent. Nothing repairs the bout.
-- When a hit or a card from the queue decides a bout, the server ends or halts the clock by itself
-  with the time of arrival. The plan put the fix in slice 2. It needs the tablet's send time on
-  hits and cards, so it moves to slice 3, and it must be done before slice 4 (rounds).
+- ~~When a hit or a card from the queue decides a bout, the server ends or halts the clock by
+  itself with the time of arrival.~~ Done `fd814eea`.
 - A clock press with no id, sent for an archived Event, is refused with an English sentence and no
   code. It was refused with the translated "this Event is archived" before.
 - The referee statistics sort a bout's clock rows by time alone. Two rows can now hold the same
