@@ -114,8 +114,16 @@ test('Edit as no exchange asks first, names the hit, and changes nothing', async
 
   // Nothing was sent: the correction the official means is the first call.
   await rewrite(page).click();
+  const edit = page.waitForRequest((request) => request.method() === 'PATCH');
   await page.getByTestId('ask-first-confirm').click();
   await expect.poll(() => sent).toEqual(['PATCH /exchanges/hit-1/edit no_exchange']);
+  // The route takes these three fields and refuses any other: the pad sent
+  // the id, the sequence and the time of a new hit beside them, and got a 400.
+  expect((await edit).postDataJSON()).toEqual({
+    type: 'no_exchange',
+    noExchangeReason: 'other',
+    reason: 'Scorekeeper correction',
+  });
   await expect(dialog(page)).toHaveCount(0);
 });
 

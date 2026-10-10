@@ -21,6 +21,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
+import { noExchangeRewrite } from '../lib/no-exchange-rewrite';
 import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, exchangeOptionLabel } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
@@ -181,14 +182,7 @@ export function MatchCorrectionsDrawer({
     setError(null);
     const result = await apiRequest(apiUrl, `/api/v1/exchanges/${exchangeId}/edit`, {
       method: 'PATCH',
-      body: {
-        reason: reason || t('scoring.corrections.defaultReason'),
-        clientUuid: crypto.randomUUID(),
-        sequence: 0,
-        type: 'no_exchange',
-        occurredAt: new Date().toISOString(),
-        noExchangeReason: 'other',
-      },
+      body: noExchangeRewrite(reason || t('scoring.corrections.defaultReason')),
     });
     setBusy(false);
     if (result.ok) {
