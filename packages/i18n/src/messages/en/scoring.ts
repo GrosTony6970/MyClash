@@ -181,6 +181,22 @@ export const scoring = {
       'The clock of this match was not in the state this press needs: it was moved from somewhere else. Discard it, then check the clock.',
     pressTooOld:
       'This clock press was made more than a day before it was sent, so the server did not apply it. Discard it.',
+    // A round press the server refused (the offline bout, slice 4b).
+    typeRoundAdvance: 'Start round {round}',
+    typeRoundEnd: 'End round {round}',
+    roundNotWaiting:
+      'The server is not waiting for this round to start: for the server the round before it is not finished, or another round is in play. Check the score and the round with the table, then retry it or discard it.',
+    roundNotOpen:
+      'This round is not the round in play on the server, so the server did not end it. Check the round with the table, then retry it or discard it.',
+    roundBoutCompleted:
+      'This match is completed, so the server did not apply this round action. A round action sent late does not re-open a match. Discard it.',
+    roundTooOld:
+      'This round action was made more than a day before it was sent, so the server did not apply it. Discard it.',
+    roundBeforeReset:
+      'This round action was made before the match was reset, so the server did not apply it. It belongs to the fight that was cancelled. Discard it.',
+    discardRoundTitle: 'Discard this round action?',
+    discardRoundBody:
+      'The round action is deleted. The entries of this match that wait behind it are then sent, and the server counts them in the round it has in play.',
     discardPressTitle: 'Discard this clock press?',
     discardPressBody:
       'The clock press is deleted. The entries of this match that wait behind it are then sent without it.',
@@ -425,6 +441,8 @@ export const scoring = {
     // The server refused a clock press of the match on screen.
     pressHeld:
       'The server refused a clock press of this match. The clock shows what the server has.',
+    // The same notice for "Start round N" or "End round".
+    roundHeld: 'The server refused a round action of this match.',
     // The same notice for a hit or a card the server refused.
     entryHeld: 'The server refused an entry of this match.',
     pressHeldWaits:

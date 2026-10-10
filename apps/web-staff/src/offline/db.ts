@@ -37,14 +37,38 @@ export type PenaltyCardColor = PenaltyCard;
  * sent in the order of the bout (operator rulings 2 and 11 to 14 of the
  * quick-win list). It is no hit: it takes no number of the bout's sequence, it
  * is not drawn in the bout's list, and the undo never takes it back.
+ *
+ * A `round` is a tap on "Start round N" or "End round" of a best-of bout (the
+ * offline bout, slice 4b). It is a tap as a press is ({@link isTap}), and it
+ * goes to its own two doors, not to the clock's.
  */
-export type OutboxKind = 'exchange' | 'penalty' | 'press';
+export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round';
 
 /**
  * What kind of row this is. The one reader of `kind`: a caller switches on the
- * answer with no `default`, so a fourth kind is a compile error in each place.
+ * answer with no `default`, so a fifth kind is a compile error in each place.
  */
 export const kindOf = (entry: { kind?: OutboxKind }): OutboxKind => entry.kind ?? 'exchange';
+
+/**
+ * Is this row a tap on a button of the bout (a clock press, a round press),
+ * and not an entry of its sheet (a hit, a card)? A tap takes no number of the
+ * bout's sequence, no other sequence cures it, it is in no list of the bout,
+ * and the undo never takes it back. It keeps its place among the bout's rows.
+ */
+export function isTap(entry: { kind?: OutboxKind }): boolean {
+  switch (kindOf(entry)) {
+    case 'press':
+    case 'round':
+      return true;
+    case 'penalty':
+    case 'exchange':
+      return false;
+  }
+}
+
+/** Which of the two round buttons a `round` row is. */
+export type RoundPress = 'advance' | 'end';
 
 /**
  * The bout a queued hit or card belongs to, in words (ruling 243): its label
@@ -118,6 +142,18 @@ export interface OutboxEntry {
    * posted: the server derives its score from the hits.
    */
   endScore?: { red: number; blue: number };
+  // ── Round ──────────────────────────────────────────────────────────────────
+  /** Round press only: "Start round N" or "End round". */
+  roundAction?: RoundPress;
+  /**
+   * The round this row belongs to on the tablet. Of a hit or a card: the round
+   * open on the pad at the tap. Of a round press: the round an advance OPENS,
+   * or the round an end ENDS (the server's `RoundPressDto.round`). Posted for a
+   * round press only: the server counts a hit in the round open when it
+   * arrives. Absent on a row queued before 2026-10-11, which reads as the
+   * server's open round.
+   */
+  round?: number;
   /** Match-clock position (active ms) at record time — display metadata carried
    *  through sync so an offline exchange keeps its timeline clock label. */
   clockTimeMs?: number | null;

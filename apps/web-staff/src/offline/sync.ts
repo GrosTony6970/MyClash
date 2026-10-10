@@ -32,7 +32,7 @@ import {
   type CallerRefusal,
 } from './caller-refusal';
 import { canSendAgain } from './can-send-again';
-import { kindOf, type OutboxEntry } from './db';
+import { isTap, kindOf, type OutboxEntry } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
 import {
@@ -42,7 +42,7 @@ import {
   holdsBack,
   holdsPress,
 } from './press-queue';
-import { BoutOrder, CLOCK_ROW_COLLIDED, postPress, sentAtOf } from './press-send';
+import { BoutOrder, CLOCK_ROW_COLLIDED, postPress, postRoundPress, sentAtOf } from './press-send';
 import { takeBack, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export interface SyncState {
   rejectedCount: number;
   /** The held ones a new send can cure: what Retry on the bar sends (ruling 291). */
   sendableCount: number;
-  /** The held ones that are clock presses: the rows of their bouts wait behind them. */
+  /** The held ones that are presses of the clock or of a round button (`isTap`). */
   heldPressCount: number;
   /** The queued rows a send can try: not the ones that wait behind a held row of their bout. */
   freeCount: number;
@@ -201,7 +201,7 @@ export class SyncEngine {
       pendingCount,
       rejectedCount: rejected,
       sendableCount: held.filter(canSendAgain).length,
-      heldPressCount: held.filter((row) => kindOf(row) === 'press').length,
+      heldPressCount: held.filter(isTap).length,
       freeCount: rejected > 0 ? await freeToSend(held) : pendingCount,
       lastError,
     };
@@ -241,10 +241,12 @@ export class SyncEngine {
     // any of that would be teaching the crew a screen they will never see.
     if (isDrillActive()) return Promise.resolve(offlineResponse());
 
-    // Three kinds of row, three doors. No `default`: a fourth kind does not compile.
+    // Four kinds of row, four doors. No `default`: a fifth kind does not compile.
     switch (kindOf(entry)) {
       case 'press':
         return postPress(this.apiUrl, entry);
+      case 'round':
+        return postRoundPress(this.apiUrl, entry);
       case 'penalty':
         return this.postCard(entry, sequence);
       case 'exchange':
@@ -422,8 +424,9 @@ export class SyncEngine {
   private async answerBadRequest(entry: OutboxEntry, res: Response): Promise<Filed> {
     const body = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
     // A press holds no sequence: another one cannot cure it. Held with its code
-    // (a locked bout, a round that waits, a level bout at its time).
-    if (kindOf(entry) === 'press') {
+    // (a locked bout, a round that waits, a level bout at its time). A round
+    // press the same.
+    if (isTap(entry)) {
       await quarantine(entry.id!, body.message ?? `HTTP ${res.status}`, body.code);
       return 'held';
     }
@@ -639,7 +642,7 @@ export class SyncEngine {
     try {
       const res = await this.postExchange(entry, entry.sequence);
 
-      if (res.ok && kindOf(entry) === 'press') return await this.filePressSent(entry, res);
+      if (res.ok && isTap(entry)) return await this.filePressSent(entry, res);
       if (res.ok || res.status === 201) {
         // Success or idempotent duplicate — remove from outbox
         const data = (await res.json()) as ExchangeResponse;
@@ -670,7 +673,8 @@ export class SyncEngine {
    * The server took the press, or it was already true (ruling 12): the pad
    * cannot tell the two apart, and does not need to. The bout's screen is told
    * the clock BEFORE the press leaves the queue: told after, the screen would
-   * show for a moment the clock from before the press.
+   * show for a moment the clock from before the press. A round press is told
+   * the same way; its answer is no clock, and the listener sees that.
    */
   private async filePressSent(entry: OutboxEntry, res: Response): Promise<Filed> {
     const clock: unknown = await res.json().catch(() => null);

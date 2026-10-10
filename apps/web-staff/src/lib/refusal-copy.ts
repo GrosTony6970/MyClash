@@ -139,6 +139,22 @@ const HELD_PRESS = new Map([
 ]);
 
 /**
+ * Why the server holds back "Start round N" or "End round" sent late
+ * (`round-advance.ts`, `round-end.ts` on the server). Read BEFORE the other
+ * maps for a round row: three of these codes are also a clock press's and a
+ * hit's, whose sentences say "this clock press" and "enter it again by hand".
+ * The first two stay curable by a Retry: another device may close or open the
+ * round meanwhile.
+ */
+const HELD_ROUND = new Map([
+  ['round_not_waiting', 'scoring.quarantine.roundNotWaiting'],
+  ['round_not_open', 'scoring.quarantine.roundNotOpen'],
+  ['bout_completed', 'scoring.quarantine.roundBoutCompleted'],
+  ['clock_press_too_old', 'scoring.quarantine.roundTooOld'],
+  ['scored_before_reset', 'scoring.quarantine.roundBeforeReset'],
+]);
+
+/**
  * Why the pad itself does not take "End match" (`endRefusedOnPad`): the words
  * the server's own refusal of that End has always had here.
  */
@@ -157,9 +173,11 @@ export function endRefusalMessage(refusal: EndRefusedOnPad, t: Translate): strin
  * own words, which are the useful part there.
  */
 export function heldReason(
-  held: { rejectedReason: string; rejectedCode?: string },
+  held: { rejectedReason: string; rejectedCode?: string; kind?: string },
   t: Translate,
 ): string {
+  const round = held.kind === 'round' ? HELD_ROUND.get(held.rejectedCode ?? '') : undefined;
+  if (round) return t(round);
   if (held.rejectedCode === 'event_results_frozen') return t(HELD_EVENT_OVER);
   // Ruling 286: the bout was put back to unplayed after this hit was scored.
   if (held.rejectedCode === 'bout_not_started') return t(HELD_NOT_STARTED);

@@ -8,7 +8,7 @@
  */
 
 import { canSendAgain } from './can-send-again';
-import { db, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
+import { db, isTap, kindOf, type OutboxEntry, type OutboxKind, type RejectedEntry } from './db';
 import { tabletTime } from './press-age';
 
 // ── Write ─────────────────────────────────────────────────────────────────────
@@ -26,6 +26,11 @@ import { tabletTime } from './press-age';
  *
  * The row keeps the page's own clock of the tap, as a clock press does: the
  * send says how old the hit or the card is (`press-age.ts`).
+ *
+ * `entry.round` is the screen's open round, and the same race holds: a hit
+ * right behind "Start round 2", before the screen has drawn round 2. So the
+ * round written is the larger of the screen's and the round the bout's newest
+ * queued "Start round" opens, read in the same transaction.
  */
 export async function enqueue(
   entry: Omit<
@@ -37,6 +42,7 @@ export async function enqueue(
   return db.transaction('rw', db.outbox, db.synced, async () =>
     db.outbox.add({
       ...entry,
+      ...(entry.round === undefined ? {} : { round: await openRoundFor(entry) }),
       pressedPerf: at.page,
       pressOrigin: at.origin,
       sequence: Math.max(entry.sequence, await nextSequence(entry.matchId)),
@@ -44,6 +50,15 @@ export async function enqueue(
       attempts: 0,
     }),
   );
+}
+
+/** The round a hit or a card belongs to: the screen's, or the one a queued "Start round" opens. */
+async function openRoundFor(entry: { matchId: string; round?: number }): Promise<number> {
+  const queued = await db.outbox.where('matchId').equals(entry.matchId).toArray();
+  const opened = queued
+    .filter((row) => kindOf(row) === 'round' && row.roundAction === 'advance')
+    .map((row) => row.round ?? 0);
+  return Math.max(entry.round ?? 0, ...opened);
 }
 
 /** A card's row in the queue: what every card carries, around what this one is. */
@@ -229,7 +244,7 @@ function backInQueue(held: RejectedEntry, sequence: number): OutboxEntry {
     ...payload
   } = held;
   const place = outboxId === undefined ? {} : { id: outboxId };
-  if (kindOf(held) !== 'press') return { ...payload, ...place, sequence, attempts: 0 };
+  if (!isTap(held)) return { ...payload, ...place, sequence, attempts: 0 };
   return { ...payload, ...place, attempts: 0 };
 }
 
@@ -271,7 +286,7 @@ export async function requeueRejected(): Promise<number> {
       if (entry.id === undefined || !(await db.rejected.get(entry.id))) continue;
       const sequence = nextByMatch.get(entry.matchId) ?? entry.sequence;
       // A press takes no number of the bout's sequence.
-      if (kindOf(entry) !== 'press') nextByMatch.set(entry.matchId, sequence + 1);
+      if (!isTap(entry)) nextByMatch.set(entry.matchId, sequence + 1);
       await db.outbox.add(backInQueue(entry, sequence));
       await db.rejected.delete(entry.id);
     }

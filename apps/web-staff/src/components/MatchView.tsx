@@ -606,6 +606,7 @@ export function MatchView({
     nextSequence,
     clockTimeMs,
     bout: boutNames(match),
+    round: currentRound,
     syncEngine,
     onExchangeRecorded: moveSequenceOn,
   });
@@ -842,6 +843,7 @@ export function MatchView({
         clockTimeMs={clockTimeMs}
         syncEngine={syncEngine}
         bout={submit.bout}
+        round={submit.round}
         onCardQueued={moveSequenceOn}
         config={scoringConfig}
         scoring={scoring}

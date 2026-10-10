@@ -24,6 +24,8 @@ export interface UseScoringSubmitArgs {
   clockTimeMs: number | null;
   /** The bout in words, queued with each hit and card so a held one can be named (ruling 243). */
   bout: BoutNames;
+  /** The round open on the pad: each hit and card is queued with it (`OutboxEntry.round`). */
+  round: number;
   /** Durable-sync engine. Exchanges are written to the IndexedDB outbox and POSTed
    *  by the engine (online → immediate; offline → queued until reconnect). */
   syncEngine?: SyncEngine | null;
@@ -33,6 +35,8 @@ export interface UseScoringSubmitArgs {
 export interface UseScoringSubmitResult {
   /** Handed on to the card column, which queues its own rows. */
   bout: BoutNames;
+  /** Handed on the same way. */
+  round: number;
   submitting: boolean;
   /** The last press could not be written on the tablet. Cleared by the next press that is. */
   notSaved: boolean;
@@ -53,6 +57,7 @@ export function useScoringSubmit({
   nextSequence,
   clockTimeMs,
   bout,
+  round,
   syncEngine,
   onExchangeRecorded,
 }: UseScoringSubmitArgs): UseScoringSubmitResult {
@@ -81,6 +86,7 @@ export function useScoringSubmit({
             occurredAt: new Date().toISOString(),
             clockTimeMs,
             bout,
+            round,
             ...exchange,
           });
         },
@@ -91,7 +97,7 @@ export function useScoringSubmit({
       setNotSaved(written === 'not_saved');
       setSubmitting(false);
     },
-    [matchId, clockTimeMs, bout, syncEngine, onExchangeRecorded],
+    [matchId, clockTimeMs, bout, round, syncEngine, onExchangeRecorded],
   );
 
   const submitClean = useCallback(
@@ -129,6 +135,7 @@ export function useScoringSubmit({
 
   return {
     bout,
+    round,
     submitting,
     notSaved,
     submitClean,

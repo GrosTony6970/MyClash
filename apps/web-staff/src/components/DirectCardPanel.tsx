@@ -55,6 +55,8 @@ export interface DirectCardPanelProps {
   clockTimeMs: number | null;
   /** The bout in words: a held card's row is read out from them (ruling 243). */
   bout: BoutNames;
+  /** The round open on the pad, kept on the card's row. */
+  round: number;
   syncEngine?: SyncEngine | null | undefined;
   /** For the line that says a card is kept (ruling 315). It greys nothing here. */
   online: boolean;
@@ -216,6 +218,7 @@ function directCardRow(props: DirectCardPanelProps, card: PenaltyCard) {
     registrationId: fighter === 'red' ? props.redRegistrationId : props.blueRegistrationId,
     clockTimeMs: props.clockTimeMs,
     bout: props.bout,
+    round: props.round,
     cardedColor: fighter,
     directCard: card,
     reason: reason.trim(),

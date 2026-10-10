@@ -7,8 +7,8 @@
  * (`ClockService.latePress` on the server). The server takes each press once,
  * and answers a press that is already true as done.
  */
-import { fetchRenewingLogin } from '@myclash/api-client';
-import { kindOf, type OutboxEntry } from './db';
+import { fetchRenewingLogin, type components } from '@myclash/api-client';
+import { isTap, type OutboxEntry } from './db';
 import { pressTimes, tabletTime, type TabletTime } from './press-age';
 
 /** The server's word for "another press was saved in the same moment": send it again later. */
@@ -28,6 +28,37 @@ export function postPress(
       clientUuid: entry.clientUuid,
       ...pressTimes(entry, now),
     }),
+  });
+}
+
+/** The body of the two round doors, as the API's own schema types it. */
+export type RoundPressBody = components['schemas']['RoundPressDto'];
+
+/**
+ * What a queued round press says to the server: its id, the round it opens or
+ * ends, and its two times. The times are built at EVERY send: the server reads
+ * only how long ago the press was made.
+ */
+export function roundPressBody(entry: OutboxEntry, now: TabletTime = tabletTime()): RoundPressBody {
+  return { clientUuid: entry.clientUuid, round: entry.round, ...pressTimes(entry, now) };
+}
+
+/**
+ * How a queued "Start round N" or "End round" goes to the server:
+ * `POST /matches/:id/rounds/advance` or `/rounds/end`. The server takes each
+ * press once, and answers one that is already true as done.
+ */
+export function postRoundPress(
+  apiUrl: string,
+  entry: OutboxEntry,
+  now: TabletTime = tabletTime(),
+): Promise<Response> {
+  const door = entry.roundAction === 'end' ? 'end' : 'advance';
+  return fetchRenewingLogin(apiUrl, `/api/v1/matches/${entry.matchId}/rounds/${door}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(roundPressBody(entry, now)),
   });
 }
 
@@ -65,6 +96,9 @@ export type Waits =
  *     rows of its bout behind it for this pass.
  *   - A press never passes a hit or a card of its bout that could not be sent.
  *
+ * A round press ("Start round N", "End round") is a press here: the hits of
+ * round 2 must not reach the server before round 2 is open there.
+ *
  * A hit behind a hit that could not be sent still goes, as before: two hits
  * do not depend on each other.
  */
@@ -78,12 +112,12 @@ export class BoutOrder {
     if (this.held.has(entry.matchId)) return 'behind-held';
     const before = this.unsent.get(entry.matchId);
     if (!before) return null;
-    return before.press || kindOf(entry) === 'press' ? before.outcome : null;
+    return before.press || isTap(entry) ? before.outcome : null;
   }
 
   /** What became of a row this pass sent. */
   note(entry: OutboxEntry, outcome: 'sent' | 'held' | 'failed' | 'offline'): void {
-    const press = kindOf(entry) === 'press';
+    const press = isTap(entry);
     if (outcome === 'held') this.held.add(entry.matchId);
     if (outcome !== 'failed' && outcome !== 'offline') return;
     const before = this.unsent.get(entry.matchId);

@@ -71,6 +71,8 @@ interface MatchCorrectionsDrawerProps {
    *  names for a held row, and the bout screen's step after a queued card. */
   syncEngine?: SyncEngine | null | undefined;
   bout: BoutNames;
+  /** The round open on the pad: a direct card is queued with it. */
+  round: number;
   onCardQueued: () => void;
 }
 
@@ -96,6 +98,7 @@ export function MatchCorrectionsDrawer({
   clockTimeMs,
   syncEngine,
   bout,
+  round,
   onCardQueued,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
@@ -393,6 +396,7 @@ export function MatchCorrectionsDrawer({
             nextSequence={nextSequence}
             clockTimeMs={clockTimeMs}
             bout={bout}
+            round={round}
             syncEngine={syncEngine}
             online={online}
             disabled={busy || locked}

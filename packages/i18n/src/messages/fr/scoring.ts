@@ -188,6 +188,21 @@ export const scoring = {
       'Le chrono de cet assaut n’était pas dans l’état que cette action demande : il a été modifié ailleurs. Supprimez-la, puis vérifiez le chrono.',
     pressTooOld:
       'Cette action sur le chrono a été faite plus d’un jour avant son envoi : le serveur ne l’a pas appliquée. Supprimez-la.',
+    typeRoundAdvance: 'Démarrer la manche {round}',
+    typeRoundEnd: 'Terminer la manche {round}',
+    roundNotWaiting:
+      'Le serveur n’attend pas le démarrage de cette manche : pour lui, la manche précédente n’est pas terminée, ou une autre manche est en cours. Vérifiez le score et la manche avec la table, puis réessayez ou supprimez-la.',
+    roundNotOpen:
+      'Cette manche n’est pas la manche en cours sur le serveur : il ne l’a pas terminée. Vérifiez la manche avec la table, puis réessayez ou supprimez-la.',
+    roundBoutCompleted:
+      'Cet assaut est terminé : le serveur n’a pas appliqué cette action sur la manche. Une action sur la manche envoyée en retard ne rouvre pas un assaut. Supprimez-la.',
+    roundTooOld:
+      'Cette action sur la manche a été faite plus d’un jour avant son envoi : le serveur ne l’a pas appliquée. Supprimez-la.',
+    roundBeforeReset:
+      'Cette action sur la manche a été faite avant la remise à zéro de l’assaut : le serveur ne l’a pas appliquée. Elle appartient au combat annulé. Supprimez-la.',
+    discardRoundTitle: 'Supprimer cette action sur la manche ?',
+    discardRoundBody:
+      'L’action sur la manche est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées, et le serveur les compte dans la manche qu’il a en cours.',
     discardPressTitle: 'Supprimer cette action sur le chrono ?',
     discardPressBody:
       'L’action sur le chrono est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées sans elle.',
@@ -404,6 +419,7 @@ export const scoring = {
     resetConfirmCancel: 'Annuler',
     pressHeld:
       'Le serveur a refusé une action sur le chrono de cet assaut. Le chrono affiche ce que le serveur a.',
+    roundHeld: 'Le serveur a refusé une action sur une manche de cet assaut.',
     entryHeld: 'Le serveur a refusé une saisie de cet assaut.',
     pressHeldWaits:
       'Ce que vous saisissez maintenant sur cet assaut attend derrière. Ouvrez Examiner en haut de l’écran.',

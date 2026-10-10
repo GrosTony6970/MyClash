@@ -194,6 +194,7 @@ export function ScoringColumn({
         registrationId,
         clockTimeMs,
         bout: submit.bout,
+        round: submit.round,
         cardedColor: side,
         ...payload,
       });

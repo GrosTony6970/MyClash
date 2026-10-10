@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest, failureCode } from '@myclash/api-client';
 import type { ClockState } from '../components/scoreboard-clock';
 import { refusalMessage } from '../lib/refusal-copy';
-import { kindOf, type OutboxEntry, type RejectedEntry } from '../offline/db';
+import { isTap, type OutboxEntry, type RejectedEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { keepClock, keptClock } from '../offline/kept-bout';
 import { getPendingForMatch } from '../offline/outbox';
@@ -183,7 +183,7 @@ export function usePadClock(args: PadClockArgs): PadClock {
     error,
     setError,
     readClock,
-    heldPresses: held.filter((row) => kindOf(row) === 'press'),
+    heldPresses: held.filter(isTap),
     heldRows: held,
     pressesWaiting: presses.filter((row) => !sent.has(row.clientUuid)).length,
     endScore,

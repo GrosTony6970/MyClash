@@ -7,6 +7,7 @@ import {
   discardQuestion,
   heldBoutLine,
   heldPressLabel,
+  heldRoundLabel,
   heldWaitingLine,
   heldWhoLine,
 } from '../lib/held-hit';
@@ -46,10 +47,15 @@ function exchangeTypeLabel(type: ExchangeType, t: (key: string) => string): stri
  * `kind`; every reader treats that as 'exchange'. A clock press is a third
  * kind, named by its button. No `default`: a fourth kind does not compile.
  */
-function entryLabel(entry: RejectedEntry, t: (key: string) => string): string {
+function entryLabel(
+  entry: RejectedEntry,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
   switch (kindOf(entry)) {
     case 'press':
       return heldPressLabel(entry.pressAction, t);
+    case 'round':
+      return heldRoundLabel(entry, t);
     case 'penalty':
       return t('scoring.quarantine.typePenalty');
     case 'exchange':

@@ -8,7 +8,7 @@
  * Pure, out of the component: web-staff has no React test setup.
  */
 
-import { kindOf, type BoutNames, type RejectedEntry } from '../offline/db';
+import { kindOf, type BoutNames, type OutboxKind, type RejectedEntry } from '../offline/db';
 import type { ClockPress } from '@myclash/types';
 import type { ConfirmOptions } from '@myclash/ui';
 import { cardWord } from './card-word';
@@ -50,18 +50,51 @@ export function heldPressLabel(action: ClockPress | undefined, t: Translate): st
 }
 
 /**
+ * Which round button a held round press is, with its round: "Start round 2",
+ * "End round 1". A row that names no button or no round (a broken row) reads
+ * as any entry the pad cannot name. No `default`: a third button does not
+ * compile.
+ */
+export function heldRoundLabel(
+  held: Pick<RejectedEntry, 'roundAction' | 'round'>,
+  t: Translate,
+): string {
+  if (held.round === undefined) return t('scoring.quarantine.typeUnknown');
+  switch (held.roundAction) {
+    case 'advance':
+      return t('scoring.quarantine.typeRoundAdvance', { round: held.round });
+    case 'end':
+      return t('scoring.quarantine.typeRoundEnd', { round: held.round });
+    case undefined:
+      return t('scoring.quarantine.typeUnknown');
+  }
+}
+
+/**
  * What the bout's screen says at the clock while the inbox holds a row of this
  * bout: what was refused, why, and that what is pressed now waits behind it.
  * Null with no held row. A hit and a card stop their bout as a press does
  * (operator, 2026-10-10), so the official is told the same way.
  */
+/** The notice's first sentence, by the kind of the held row. No `default`. */
+function heldWhat(held: Pick<RejectedEntry, 'kind'>, t: Translate): string {
+  switch (kindOf(held)) {
+    case 'press':
+      return t('scoring.clock.pressHeld');
+    case 'round':
+      return t('scoring.clock.roundHeld');
+    case 'penalty':
+    case 'exchange':
+      return t('scoring.clock.entryHeld');
+  }
+}
+
 export function heldRowNotice(
   held: Pick<RejectedEntry, 'kind' | 'rejectedReason' | 'rejectedCode'> | undefined,
   t: Translate,
 ): string | null {
   if (!held) return null;
-  const what =
-    kindOf(held) === 'press' ? t('scoring.clock.pressHeld') : t('scoring.clock.entryHeld');
+  const what = heldWhat(held, t);
   return `${what} ${heldReason(held, t)} ${t('scoring.clock.pressHeldWaits')}`;
 }
 
@@ -84,13 +117,29 @@ export function heldWaitingLine(count: number, t: Translate): string | null {
  * than asking a generic "are you sure". A press is no hit: its question says
  * what its discard does to the rows of its bout that wait behind it.
  */
+const DISCARD_ENTRY = {
+  title: 'scoring.quarantine.discardTitle',
+  body: 'scoring.quarantine.discardBody',
+};
+/** The question's title and body, by the kind of the row: a kind with none does not compile. */
+const DISCARD_WORDS: Record<OutboxKind, { title: string; body: string }> = {
+  exchange: DISCARD_ENTRY,
+  penalty: DISCARD_ENTRY,
+  press: {
+    title: 'scoring.quarantine.discardPressTitle',
+    body: 'scoring.quarantine.discardPressBody',
+  },
+  round: {
+    title: 'scoring.quarantine.discardRoundTitle',
+    body: 'scoring.quarantine.discardRoundBody',
+  },
+};
+
 export function discardQuestion(held: Pick<RejectedEntry, 'kind'>, t: Translate): ConfirmOptions {
-  const press = kindOf(held) === 'press';
+  const { title, body } = DISCARD_WORDS[kindOf(held)];
   return {
-    title: press ? t('scoring.quarantine.discardPressTitle') : t('scoring.quarantine.discardTitle'),
-    description: press
-      ? t('scoring.quarantine.discardPressBody')
-      : t('scoring.quarantine.discardBody'),
+    title: t(title),
+    description: t(body),
     confirmLabel: t('scoring.quarantine.discardConfirm'),
     cancelLabel: t('common.cancel'),
     danger: true,

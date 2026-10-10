@@ -286,10 +286,24 @@ describe('the screens', () => {
     expect(drawer).toContain('<DirectCardPanel');
   });
 
-  it('the bout screen hands the drawer the queue, the names and the sequence step', () => {
+  it('the bout screen hands the drawer the queue, the names, the round and the sequence step', () => {
     const view = read('components', 'MatchView.tsx');
     expect(view).toMatch(
-      /<MatchCorrectionsDrawer[\s\S]*?syncEngine=\{syncEngine\}\s+bout=\{submit\.bout\}\s+onCardQueued=\{moveSequenceOn\}/,
+      /<MatchCorrectionsDrawer[\s\S]*?syncEngine=\{syncEngine\}\s+bout=\{submit\.bout\}\s+round=\{submit\.round\}\s+onCardQueued=\{moveSequenceOn\}/,
+    );
+  });
+
+  it('each of the three writers of a hit or a card queues it with the round', () => {
+    expect(read('components', 'MatchView.tsx')).toMatch(/bout: boutNames\(match\),\s+round: /);
+    expect(read('hooks', 'useScoringSubmit.ts')).toMatch(/bout,\s+round,\s+\.\.\.exchange,/);
+    expect(read('components', 'ScoringColumn.tsx')).toMatch(
+      /bout: submit\.bout,\s+round: submit\.round,/,
+    );
+    expect(read('components', 'DirectCardPanel.tsx')).toMatch(
+      /bout: props\.bout,\s+round: props\.round,/,
+    );
+    expect(read('components', 'MatchCorrectionsDrawer.tsx')).toMatch(
+      /bout=\{bout\}\s+round=\{round\}/,
     );
   });
 

@@ -10,7 +10,14 @@
  * The send is `press-send.ts`; this is the store.
  */
 import type { ClockPress } from '@myclash/types';
-import { db, kindOf, type BoutNames, type OutboxEntry, type RejectedEntry } from './db';
+import {
+  db,
+  isTap,
+  type BoutNames,
+  type OutboxEntry,
+  type RejectedEntry,
+  type RoundPress,
+} from './db';
 import { tabletTime, type TabletTime } from './press-age';
 
 /** Writes one tap on a clock button on the tablet. Returns its row. */
@@ -41,15 +48,51 @@ export async function queuePress(
   return { ...row, id: await db.outbox.add(row) };
 }
 
+/**
+ * Writes one tap on "Start round N" or "End round" on the tablet. `round` is
+ * the round an advance OPENS, or the round an end ENDS. Returns its row.
+ */
+export async function queueRoundPress(
+  press: {
+    matchId: string;
+    action: RoundPress;
+    round: number;
+    bout: BoutNames;
+    /** Of an end: the round's score on the screen at the tap. */
+    endScore?: { red: number; blue: number };
+  },
+  at: TabletTime = tabletTime(),
+): Promise<OutboxEntry> {
+  const row: OutboxEntry = {
+    kind: 'round',
+    clientUuid: crypto.randomUUID(),
+    matchId: press.matchId,
+    sequence: 0,
+    occurredAt: new Date(at.wall).toISOString(),
+    roundAction: press.action,
+    round: press.round,
+    pressedPerf: at.page,
+    pressOrigin: at.origin,
+    bout: press.bout,
+    ...(press.endScore ? { endScore: press.endScore } : {}),
+    createdAt: at.wall,
+    attempts: 0,
+  };
+  return { ...row, id: await db.outbox.add(row) };
+}
+
 /** The server took the press: it leaves the queue. A press is never undone, so nothing is kept. */
 export async function dropSentPress(id: number): Promise<void> {
   await db.outbox.delete(id);
 }
 
-/** Does a tap of the clock wait on the tablet? A send answered "nobody is signed in" asks. */
+/**
+ * Does a tap of the clock or of a round button wait on the tablet? A send
+ * answered "nobody is signed in" asks.
+ */
 export async function holdsPress(): Promise<boolean> {
   const rows = await db.outbox.toArray();
-  return rows.some((row) => kindOf(row) === 'press');
+  return rows.some(isTap);
 }
 
 /**
@@ -67,9 +110,9 @@ export function heldRowsOf(matchId: string): Promise<RejectedEntry[]> {
   return db.rejected.where('matchId').equals(matchId).sortBy('id');
 }
 
-/** The refused presses of one bout, oldest first. */
+/** The refused presses of one bout (the clock's and the rounds'), oldest first. */
 export async function heldPressesOf(matchId: string): Promise<RejectedEntry[]> {
-  return (await heldRowsOf(matchId)).filter((row) => kindOf(row) === 'press');
+  return (await heldRowsOf(matchId)).filter(isTap);
 }
 
 /** Does a row of its bout wait in the queue behind this held row? Asked before its Discard. */
