@@ -263,14 +263,16 @@ Slices 4 to 6 are not started.
 
 Named while the last piece of slice 3 was built, and not fixed (each one checked in code):
 
-- **"Edit as no exchange" on the pad is always refused.** The pad sends three fields the route
-  does not take (`clientUuid`, `sequence`, `occurredAt`), and the server answers 400. The browser
-  test of that button has a stubbed server, so it did not see it
-  (`MatchCorrectionsDrawer.tsx:182-191`, `EditExchangeDto`).
-- The age of a hit or a card has no upper limit, and the tablet can read it wrong when its time of
-  day is corrected forwards between the hit and the send. The server's End then goes back to the
-  bout's last clock row, and the last run of the clock can read zero. A clock press has the
-  one-day limit; a hit has none.
+- ~~"Edit as no exchange" on the pad is always refused: the pad sends three fields the route
+  does not take, and the server answers 400.~~ Done `96818d5e`. The pad's body is typed by the
+  route's own schema now.
+- ~~The age of a hit or a card has no upper limit.~~ Ruled 2026-10-10 and done `2ffa26d0`: a hit
+  or a card whose age reads over one day is taken, and the server stops the clock at the time of
+  arrival. Under one day, a tablet whose time of day is corrected forwards between the hit and
+  the send still gives an age that is too long.
+- ~~Found by its browser test, which failed about one run in eight: the wifi comes back while a
+  send that fails is still out, and the queue then waits on the tablet for the next press.~~ Done
+  `d632ce37`.
 - Another tablet's late press can be written between the server's read of the bout's last clock
   row and its own End. The End then sorts before that press, and the clock of a completed bout
   reads as paused or running. A late press has the same gap.
