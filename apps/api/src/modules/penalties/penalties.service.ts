@@ -32,6 +32,7 @@ import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
 import { scoredAtServer } from '../matches/late-press';
+import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -921,9 +922,7 @@ export class PenaltiesService {
     // banked in `rounds_json` — so the card could move that round's score and
     // never who won it (ruling 247), where the referee meant it to count. The
     // probe above still answers a card the server holds after the round closed.
-    if (match.awaitingRoundAdvance) {
-      throw new BadRequestException('Round ended — advance to the next round before scoring');
-    }
+    if (match.awaitingRoundAdvance) throw scoringAwaitsRoundAdvance();
 
     if (![match.redRegistrationId, match.blueRegistrationId].includes(dto.registrationId)) {
       throw new BadRequestException('Penalty registration must belong to the current match');

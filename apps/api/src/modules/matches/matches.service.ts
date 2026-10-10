@@ -22,6 +22,8 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { scoredAtServer } from './late-press';
+import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
+import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
 import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
@@ -876,9 +878,7 @@ export class MatchesService {
       { id: matchId, status: bout?.status },
       { occurredAt },
     );
-    if (bout?.awaiting_round_advance) {
-      throw new BadRequestException('Round ended — advance to the next round before scoring');
-    }
+    if (bout?.awaiting_round_advance) throw scoringAwaitsRoundAdvance();
     return bout?.current_round ?? 1;
   }
 
@@ -1248,8 +1248,8 @@ export class MatchesService {
    * Advance a best-of match to the next round (delegates to the scoring service,
    * which owns the round lifecycle + clock reset).
    */
-  async advanceRound(matchId: string, context?: MatchActor) {
-    return this.scoring.advanceRound(matchId, context);
+  async advanceRound(matchId: string, context?: MatchActor, late?: LateRoundPress | null) {
+    return this.scoring.advanceRound(matchId, context, late);
   }
 
   /** A clock action asked over HTTP: through the door that reads the sheet (ruling 331). */

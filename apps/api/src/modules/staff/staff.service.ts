@@ -842,9 +842,10 @@ export class StaffService {
   }
 
   /**
-   * `whenOver` is `'leave-to-handler'` for a hit, a card and a clock press
-   * sent late, the only WRITES that pass it (rulings 233, 240, 240a), and for the reads of
-   * `authorizeMatchScoringRead` (259). A pad queues the two writes offline and
+   * `whenOver` is `'leave-to-handler'` for a hit, a card, a clock press sent
+   * late and a "Start round N+1" sent late, the only WRITES that pass it
+   * (rulings 233, 240, 240a), and for the reads of
+   * `authorizeMatchScoringRead` (259). A pad queues those writes offline and
    * may send them after its Event is completed or archived; their handler
    * answers one the server already holds and refuses a new one with a code the
    * pad holds. Refused here, the pad

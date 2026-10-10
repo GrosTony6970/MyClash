@@ -648,7 +648,8 @@ describe('ScoringService — best-of rounds', () => {
     // that puts the level-at-time chain back to the top. Swallowing the failure
     // — which is what a round event used to do — would open round 2 already in
     // sudden death, with a skull on the pad and the End refused until someone
-    // led. The clock reset below it stays best-effort.
+    // led. The row is written FIRST: the bout row has not moved, so the round
+    // still waits and the next press does the whole advance again.
     const failingInsert = thenableResult(null);
     (failingInsert['insert'] as ReturnType<typeof vi.fn>).mockReturnValue({
       ...failingInsert,
@@ -664,7 +665,6 @@ describe('ScoringService — best-of rounds', () => {
           current_round: 1,
         }),
       )
-      .mockReturnValueOnce(thenableResult({ id: 'm1' }))
       .mockReturnValueOnce(thenableResult({ sequence: 4 }))
       .mockReturnValueOnce(failingInsert);
 
@@ -672,6 +672,8 @@ describe('ScoringService — best-of rounds', () => {
     // The chain reset never happened, so the clock must not have been reset
     // either — the round is still the one the operator was on.
     expect(clock.clockAction).not.toHaveBeenCalled();
+    // The bout, the last sequence, the insert: no fourth query moved the bout row.
+    expect(fromMock).toHaveBeenCalledTimes(3);
   });
 
   it('advanceRound rejects when the match is already completed', async () => {

@@ -209,20 +209,27 @@ describe('PenaltiesService', () => {
       { recomputeMatchScore: vi.fn() } as never,
     );
 
-    await expect(
-      service.createPenalty(
-        'match-1',
-        {
-          clientUuid: 'client-awaiting',
-          sequence: 1,
-          registrationId: 'reg-red',
-          directCard: 'yellow',
-          reason: 'direct referee decision',
-          occurredAt: '2026-05-05T10:00:00.000Z',
-        },
-        { userId: 'scorekeeper-1' },
-      ),
-    ).rejects.toThrow('advance to the next round');
+    const refused = service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-awaiting',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'yellow',
+        reason: 'direct referee decision',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    // A 400 with the code: a pad holds the card and says why in its own words.
+    await expect(refused).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message: 'Round ended — advance to the next round before scoring',
+        code: 'round_awaits_advance',
+      },
+    });
     expect(supabase.inserted.match_penalties ?? []).toEqual([]);
   });
 

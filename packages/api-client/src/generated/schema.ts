@@ -10253,6 +10253,15 @@ export interface components {
       afterblowValue?: number | null;
       noExchangeReason?: string | null;
     };
+    RoundPressDto: {
+      /** Format: uuid */
+      clientUuid?: string;
+      round?: number;
+      /** Format: date-time */
+      pressedAt?: string;
+      /** Format: date-time */
+      sentAt?: string;
+    };
     VoidExchangeDto: {
       reason?: string;
     };
@@ -15618,7 +15627,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RoundPressDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

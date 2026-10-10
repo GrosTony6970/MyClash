@@ -687,16 +687,23 @@ describe('MatchesService', () => {
         matches: { rows: [{ id: 'match-1', current_round: 2, awaiting_round_advance: true }] },
       });
 
-      await expect(
-        exchangeService.createExchange('match-1', {
-          clientUuid: 'uuid-blocked',
-          sequence: 1,
-          type: 'clean',
-          firstStrikerColor: 'red',
-          firstStrikeValue: 1,
-          occurredAt: new Date().toISOString(),
-        }),
-      ).rejects.toThrow(BadRequestException);
+      const refused = exchangeService.createExchange('match-1', {
+        clientUuid: 'uuid-blocked',
+        sequence: 1,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+        occurredAt: new Date().toISOString(),
+      });
+
+      await expect(refused).rejects.toThrow(BadRequestException);
+      // The code: a pad holds the hit and says why in its own words.
+      await expect(refused).rejects.toMatchObject({
+        response: {
+          message: 'Round ended — advance to the next round before scoring',
+          code: 'round_awaits_advance',
+        },
+      });
       expect(supabase.writes).toEqual([]);
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });

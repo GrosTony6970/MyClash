@@ -101,6 +101,7 @@ describe('the archived-Event lock, API-wide', () => {
       'POST matches/:id/clock',
       'POST matches/:id/exchanges',
       'POST matches/:id/penalties',
+      'POST matches/:id/rounds/advance',
       'POST workshops/:id/feedback',
     ]);
   });

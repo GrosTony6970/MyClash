@@ -43,8 +43,10 @@ import {
 } from '../../common/auth/competition-visibility';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
+import { lateRoundPressOf } from './round-advance';
 import {
   AdjustClockDto,
+  RoundPressDto,
   CreateExchangeDto,
   CreateMatchForfeitDto,
   CreateMatchDto,
@@ -397,14 +399,25 @@ export class MatchesController {
   /**
    * POST /api/v1/matches/:id/rounds/advance
    * Start the next round of a best-of-N match (scorekeeper+). Resets the clock.
+   *
+   * A body that carries `clientUuid` is the press from a pad's queue, sent late
+   * (`round-advance.ts`). Its door leaves an over Event to the handler, as a
+   * clock press sent late does: an advance the server holds is answered there.
    */
   @Post('matches/:id/rounds/advance')
+  @AllowOnArchivedEvent() // as a clock press sent late: a saved one is answered; a new one is refused
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Advance to the next round in a best-of-N match (scorekeeper+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async advanceRound(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.matches.advanceRound(id, actor);
+  async advanceRound(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RoundPressDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const late = lateRoundPressOf(dto);
+    const whenOver = late ? 'leave-to-handler' : 'refuse';
+    const actor = await this.staff.authorizeMatchScoring(req, id, whenOver);
+    return this.matches.advanceRound(id, actor, late);
   }
 
   /**

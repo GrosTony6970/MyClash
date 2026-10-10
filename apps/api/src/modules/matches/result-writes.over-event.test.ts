@@ -338,7 +338,7 @@ const CLOSED_DOORS: Door[] = [
   ],
   ['the clock ended', (d) => d.matches.clockAction(MATCH, { action: 'end' } as never, d.req)],
   ['a round ended on time', (d) => d.matches.endRound(MATCH, d.req)],
-  ['a round advanced', (d) => d.matches.advanceRound(MATCH, d.req)],
+  ['a round advanced', (d) => d.matches.advanceRound(MATCH, {}, d.req)],
   ['the colours swapped', (d) => d.matches.swapFighterColor(MATCH, d.req)],
   ['a bout reset', (d) => d.matches.resetMatch(MATCH, {} as never, d.req)],
   ['a bout voided', (d) => d.matches.voidMatch(MATCH, d.req)],

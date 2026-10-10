@@ -296,19 +296,24 @@ describe('a queued hit refused for who sends it', () => {
 describe('every other pad write stays closed on an over Event', () => {
   it.each(OVER)('a round advance is refused by "who may score" (%s Event)', async (status) => {
     const { matches, req } = setup(status, 'user');
-    await expect(matches.advanceRound(MATCH, req)).rejects.toThrow(/not open for staff scoring/i);
+    await expect(matches.advanceRound(MATCH, {}, req)).rejects.toThrow(
+      /not open for staff scoring/i,
+    );
   });
 
   it.each(OVER)('a pad’s PIN session is refused there too (%s Event)', async (status) => {
     const { matches, req } = setup(status, 'pin');
-    await expect(matches.advanceRound(MATCH, req)).rejects.toThrow(/not open for staff scoring/i);
+    await expect(matches.advanceRound(MATCH, {}, req)).rejects.toThrow(
+      /not open for staff scoring/i,
+    );
   });
 
-  // The third is a clock press sent late: `clock-late-press.door.test.ts`.
-  it('only the three queue routes leave the over Event to their handler', () => {
+  // The third is a clock press sent late (`clock-late-press.door.test.ts`), the
+  // fourth a "Start round N+1" sent late (`round-advance.door.test.ts`).
+  it('only the four queue routes leave the over Event to their handler', () => {
     const read = (...path: string[]) => readFileSync(join(__dirname, ...path), 'utf8');
     const sources =
       read('matches.controller.ts') + read('..', 'penalties', 'penalties.controller.ts');
-    expect(sources.split("'leave-to-handler'").length - 1).toBe(3);
+    expect(sources.split("'leave-to-handler'").length - 1).toBe(4);
   });
 });

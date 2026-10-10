@@ -35,6 +35,7 @@ import { endRefusal } from './level-at-time-refusal';
 import { isOver } from '../../common/live-status';
 import { eventResultsFrozen } from './event-results-frozen';
 import {
+  againOnCollision,
   alreadyTrue,
   ClockRowCollided,
   elapsedAt,
@@ -308,13 +309,7 @@ export class ClockService {
     press: LatePress,
     actor?: ClockActor,
   ): Promise<ClockState> {
-    for (let attempt = 1; ; attempt++) {
-      try {
-        return await this.takePress(matchId, action, press, actor);
-      } catch (refusal) {
-        if (!(refusal instanceof ClockRowCollided) || attempt === 3) throw refusal;
-      }
-    }
+    return againOnCollision(() => this.takePress(matchId, action, press, actor));
   }
 
   private async takePress(

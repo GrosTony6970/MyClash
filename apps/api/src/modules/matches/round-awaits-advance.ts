@@ -14,3 +14,14 @@ export const roundAwaitsAdvance = () =>
     message: 'Round ended — start the next round before the clock',
     code: ROUND_AWAITS_ADVANCE,
   });
+
+/**
+ * The refusal of a new hit or card between two rounds: it would be stamped with
+ * a round whose result is already banked. The same code, so a pad that sends
+ * one from its queue holds it and says why in its own words.
+ */
+export const scoringAwaitsRoundAdvance = () =>
+  new BadRequestException({
+    message: 'Round ended — advance to the next round before scoring',
+    code: ROUND_AWAITS_ADVANCE,
+  });

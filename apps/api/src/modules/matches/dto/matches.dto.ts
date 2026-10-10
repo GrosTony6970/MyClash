@@ -188,6 +188,22 @@ const adjustClockSchema = z
   .strict();
 export class AdjustClockDto extends createZodDto(adjustClockSchema) {}
 
+/**
+ * `POST /matches/:id/rounds/advance`. `{}` is "Start round N+1" pressed with a
+ * network: the next round, now. The four fields are the same press kept in a
+ * pad's queue and sent later: its id, the round it OPENS, and the pad's times
+ * of the press and of this send. All four or none (`lateRoundPressOf`).
+ */
+export const roundPressSchema = z
+  .object({
+    clientUuid: z.uuid().optional(),
+    round: z.number().int().min(2).optional(),
+    pressedAt: z.iso.datetime().optional(),
+    sentAt: z.iso.datetime().optional(),
+  })
+  .strict();
+export class RoundPressDto extends createZodDto(roundPressSchema) {}
+
 const updateMatchSchema = z
   .object({
     liceId: z.uuid().nullish(),

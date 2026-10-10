@@ -142,6 +142,21 @@ export class ClockRowCollided extends ConflictException {
   }
 }
 
+/**
+ * Take a press, and ask EVERY rule again when its row collided: the row that
+ * won may have ended the clock, opened the round or ended the bout. A new
+ * sequence alone would write a press nobody judged. Three tries.
+ */
+export async function againOnCollision<T>(take: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await take();
+    } catch (refusal) {
+      if (!(refusal instanceof ClockRowCollided) || attempt === 3) throw refusal;
+    }
+  }
+}
+
 /** The codes of the two refusals below. The pad holds the press and says them. */
 export const BOUT_COMPLETED = 'bout_completed';
 export const CLOCK_PRESS_OUT_OF_ORDER = 'clock_press_out_of_order';
@@ -163,7 +178,7 @@ export const CLOCK_PRESS_TOO_OLD = 'clock_press_too_old';
  * The oldest press the server applies: one day (operator, 2026-10-10). Also
  * the oldest age it reads off a hit or a card (`scoredAtServer`).
  */
-const OLDEST_PRESS_MS = 24 * 60 * 60 * 1000;
+export const OLDEST_PRESS_MS = 24 * 60 * 60 * 1000;
 
 /**
  * A press made more than a day before its send is not applied: a tablet left

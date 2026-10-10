@@ -42,6 +42,7 @@ import { ClockService, type ClockState } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
+import { advanceRound, type LateRoundPress } from './round-advance';
 import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
@@ -1013,39 +1014,20 @@ export class ScoringService {
 
   /**
    * Advance a best-of match to the next round: opens it for scoring, resets the
-   * clock, and refreshes the (now empty) open-round score. Guards against
-   * advancing when no round is awaiting or the match is already completed.
+   * clock, and refreshes the (now empty) open-round score. `late`: the advance
+   * a pad made earlier and sends now. `round-advance.ts` owns both.
    */
   async advanceRound(
     matchId: string,
-    actor?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
+    actor?: { userId?: string; staffAccountId?: string },
+    late?: LateRoundPress | null,
   ): Promise<{ currentRound: number }> {
-    const { data: m } = await this.supabase.service
-      .from('matches')
-      .select('id, status, awaiting_round_advance, current_round')
-      .eq('id', matchId)
-      .maybeSingle();
-    if (!m) throw new NotFoundException(`Match ${matchId} not found`);
-    const row = m as Record<string, unknown>;
-    if (!row['awaiting_round_advance']) {
-      throw new BadRequestException('No round is awaiting advance');
-    }
-    if (row['status'] === 'completed') {
-      throw new BadRequestException('Match is already completed');
-    }
-    const nextRound = ((row['current_round'] as number) ?? 1) + 1;
-    await this.supabase.service
-      .from('matches')
-      .update({
-        current_round: nextRound,
-        awaiting_round_advance: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', matchId);
-    await this.appendRoundEvent(matchId, 'round_advance', `advance to round ${nextRound}`, actor);
-    await this.resetClockForNewRound(matchId, actor);
-    await this.recomputeMatchScore(matchId);
-    return { currentRound: nextRound };
+    const deps = {
+      db: this.supabase.service,
+      clock: this.clock,
+      recompute: (id: string) => this.recomputeMatchScore(id),
+    };
+    return advanceRound(deps, matchId, actor, late);
   }
 
   /**
@@ -1111,7 +1093,7 @@ export class ScoringService {
       updated_at: new Date().toISOString(),
     };
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);
-    await this.appendRoundEvent(matchId, 'round_end', `round ${currentRound} ended on time`, actor);
+    await this.logRoundEnd(matchId, `round ${currentRound} ended on time`, actor);
     if (closure.justCompleted) await this.endClockBestEffort(matchId);
     else await this.haltClockBestEffort(matchId);
     return { redScore: openRed, blueScore: openBlue };
@@ -1219,22 +1201,14 @@ export class ScoringService {
   }
 
   /**
-   * Append a round event to the match timeline.
-   *
-   * `round_end` is an audit line and stays best-effort. `round_advance` is NOT:
-   * `computeClockState` reads it as the marker that puts the level-at-time chain
-   * back to the top, so THE EVENT IS THE STATE — the same reason
-   * `advanceLevelResolution` checks its own insert. A swallowed failure here
-   * would open the next round already in sudden death, with a skull on the pad
-   * and the End refused until someone led.
+   * Append a `round_end` line to the match timeline: an audit line, best-effort.
+   * The `round_advance` row is state, and `round-advance.ts` writes it.
    */
-  private async appendRoundEvent(
+  private async logRoundEnd(
     matchId: string,
-    type: 'round_advance' | 'round_end',
     reason: string,
     actor?: { userId?: string; staffAccountId?: string },
   ): Promise<void> {
-    const isState = type === 'round_advance';
     try {
       const { data: lastEvent } = await this.supabase.service
         .from('match_events')
@@ -1244,46 +1218,18 @@ export class ScoringService {
         .limit(1)
         .maybeSingle();
       const sequence = ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
-      const { error } = await this.supabase.service.from('match_events').insert({
+      await this.supabase.service.from('match_events').insert({
         match_id: matchId,
         sequence,
-        type,
+        type: 'round_end',
         reason,
         by_user_id: actor?.userId ?? null,
         staff_account_id: actor?.staffAccountId ?? null,
         occurred_at: new Date().toISOString(),
       });
-      if (error && isState) throw new BadRequestException(error.message);
-    } catch (err) {
-      if (isState) throw err;
-      this.logger.warn(
-        `Round event '${type}' not logged for match ${matchId}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-  }
-
-  /** Reset the clock to 0 for a new round: halt/reopen as needed, then reset. */
-  private async resetClockForNewRound(
-    matchId: string,
-    actor?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
-  ): Promise<void> {
-    try {
-      const opts = { ...actor, canOverrideLocked: true };
-      const clock = await this.clock.getClockState(matchId);
-      if (clock.status === 'running') {
-        await this.clock.clockAction(matchId, 'halt', 'round advance', opts);
-      } else if (clock.status === 'ended') {
-        await this.clock.clockAction(matchId, 'reopen', 'round advance', opts);
-      }
-      const after = await this.clock.getClockState(matchId);
-      if (after.status === 'halted') {
-        await this.clock.clockAction(matchId, 'reset_clock', 'next round', opts);
-      }
     } catch (err) {
       this.logger.warn(
-        `Clock reset skipped for match ${matchId}: ${
+        `Round event 'round_end' not logged for match ${matchId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
