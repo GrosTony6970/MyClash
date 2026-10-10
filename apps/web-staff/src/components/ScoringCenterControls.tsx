@@ -42,6 +42,7 @@ import {
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { padSeries } from '../offline/pad-series';
 import { takeBack } from '../offline/take-back';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
@@ -227,13 +228,17 @@ export function ScoringCenterControls({
 
   // Queued doubles count. Max-doubles is a rule the referee acts on — a bout
   // ends on it — so a chip that stops moving offline is worse than no chip.
-  // `isDoubleLoss` is gated on a COMPLETED match, so including these cannot
-  // flip the DOUBLE LOSS banner on a bout still being fought.
-  const doubleCount =
-    activeExchanges.filter((e) => e.type === 'double').length +
-    pendingExchanges.filter((e) => e.type === 'double').length;
-  const maxDoubles = matchFormat.maxDoubleHits;
-  const doubleLoss = isDoubleLoss(matchStatus, doubleCount, maxDoubles);
+  // Of the open round, under the limit the server applies (`padSeries`). The
+  // DOUBLE LOSS banner does not read this count: it reads how the bout ended.
+  const { doubles: doubleCount, doublesLimit: maxDoubles } = padSeries({
+    isBestOf,
+    phaseType,
+    matchFormat,
+    currentRound,
+    exchanges: activeExchanges,
+    queued: pendingExchanges,
+  });
+  const doubleLoss = isDoubleLoss(matchStatus, endReason);
 
   // Black card closed the match (per the penalty ruleset). Name the carded
   // fighter so the banner reads "Black card — {fighter}".

@@ -293,6 +293,9 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // offline bout, 2026-10-10): the pad folds the clock presses its queue still
   // holds by the function the server replays the bout's clock rows with. It
   // moves a clock, never a score, and the server still judges every press.
+  // `getEffectiveMaxDoubles` joined for the doubles chip: the limit applies in a
+  // pool and a Swiss round only, and the pad showed it on every bout. It is a
+  // lookup in config the pad already holds.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
     'clockAfterPress',
@@ -300,6 +303,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'computePenaltySanction',
     'displayClockMs',
     'effectiveTimeLimitSeconds',
+    'getEffectiveMaxDoubles',
     'penaltyScoreDelta',
     'pendingLevelStep',
     'pointCapWinnerColor',

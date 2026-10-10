@@ -1,16 +1,15 @@
 /**
- * A finished match where the double cap was hit — both fighters lose, no
- * winner. The ruleset zeroes both scores server-side when
- * `doubleCount >= maxDoubleHits` and completes the match; this predicate
- * lets the referee pad render the "DOUBLE LOSS" state from data it already
- * has (status + live double count + the configured cap).
+ * A finished bout the doubles limit ended as a loss for BOTH fighters.
  *
- * A null `maxDoubleHits` means "no cap" → never a double loss.
+ * The server says so in the bout's end reason: `'max_doubles'`, and only that
+ * value (`isDoubleLossBout` in `@myclash/rules`; the TV scoreboard reads the
+ * same). The other two outcomes of the limit are a draw and a result that
+ * stands, and a best-of bout whose last round met the limit can have a winner.
+ *
+ * It read the pad's own doubles count against the limit. That count is of the
+ * open round and holds the tablet's unsent hits, and the limit depends on a
+ * phase the pad may not have read: none of it says how a bout ended.
  */
-export function isDoubleLoss(
-  matchStatus: string,
-  doubleCount: number,
-  maxDoubleHits: number | null,
-): boolean {
-  return matchStatus === 'completed' && maxDoubleHits !== null && doubleCount >= maxDoubleHits;
+export function isDoubleLoss(matchStatus: string, endReason: string | null | undefined): boolean {
+  return matchStatus === 'completed' && endReason === 'max_doubles';
 }

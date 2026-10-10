@@ -58,6 +58,12 @@ export { pendingLevelStep } from './match-format';
  * until the server would accept it, instead of offering one that 400s.
  */
 export { timeIsFinished } from './match-format';
+
+/**
+ * The doubles limit the bout is fought under: the format's in a pool and a
+ * Swiss round, none in a bracket. The pad shows the limit the server applies.
+ */
+export { getEffectiveMaxDoubles } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';

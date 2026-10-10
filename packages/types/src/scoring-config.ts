@@ -188,6 +188,9 @@ export { applyScoringDirection, pointCapWinnerColor } from '@myclash/rules/pad';
  */
 export { pendingLevelStep } from '@myclash/rules/pad';
 
+/** The doubles limit a bout is fought under: none outside a pool and a Swiss round. */
+export { getEffectiveMaxDoubles } from '@myclash/rules/pad';
+
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 
 /**
