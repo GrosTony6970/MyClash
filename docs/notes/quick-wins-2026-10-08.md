@@ -232,9 +232,31 @@ operator's machine, not in the repo): six slices. The operator said "go, in that
 - **Open: does the clock use the queue with a good network too, or only with none?** The operator
   is torn. Ask again at the start of slice 3, with an example of each on a screen.
 
+A third ruling was taken as an assumption while slice 2 was built, and the operator can reverse it:
+**a late clock press for a bout of a finished Event is refused to everybody, a super admin
+included.** The clock of a finished Event was closed to everybody before.
+
 **Slice 1 is built: `2c281b70`.** A bout the tablet has read opens with no network, from the
-tablet's copy, and takes hits and cards. The clock still needs the network. Slices 2 to 6 are not
-started.
+tablet's copy, and takes hits and cards. The clock still needs the network.
+
+**Slice 2 is built: `eea8c8e6`.** The server takes a clock press that a tablet sends late: a Start,
+a Halt, a Resume or an End, with an id the tablet made and the tablet's times of the press and of
+the send. No screen uses it yet. It is pushed with slice 3. Slices 3 to 6 are not started.
+
+Named while slice 2 was built, and not fixed (each one checked in code by a review):
+
+- The server trusts the tablet for the age of a press (send time minus press time). A tablet whose
+  clock is set between the press and the send gives a wrong age, and the age has no upper limit.
+  Slice 3 must measure the age without the tablet's time of day.
+- A press whose clock row is saved, and whose bout update then fails, is answered "done" at its
+  next send. The failed update is an error now, where it was silent. Nothing repairs the bout.
+- When a hit or a card from the queue decides a bout, the server ends or halts the clock by itself
+  with the time of arrival. The plan put the fix in slice 2. It needs the tablet's send time on
+  hits and cards, so it moves to slice 3, and it must be done before slice 4 (rounds).
+- A clock press with no id, sent for an archived Event, is refused with an English sentence and no
+  code. It was refused with the translated "this Event is archived" before.
+- The referee statistics sort a bout's clock rows by time alone. Two rows can now hold the same
+  time, and their order is then not sure there.
 
 Named while slice 1 was built, and not fixed (each one checked in code by a review):
 
