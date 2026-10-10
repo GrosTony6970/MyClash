@@ -261,6 +261,30 @@ time of arrival. Before, a black card given with no network while the clock ran 
 active time too long by the whole time with no network.
 Slices 4 to 6 are not started.
 
+**The lists of hits and cards are kept on the tablet: `adacd5c9`** (2026-10-10). A bout opened
+with no network lists the hits and the cards of the tablet's last good read, under the ones the
+queue holds.
+
+Named while the lists were kept, and not fixed (each one checked in code by a review):
+
+- The bout and its lists are kept by separate reads. When a list is kept and the bout's read of
+  the same moment is not, a hit whose answer was lost reads in the list and not in the score. The
+  score on the copy is then one hit low until the network is back, and "End match" reads that
+  score. Written in `docs/ARCHITECTURE.md` 10.4.
+- A list route answers an empty list, not a refusal, to a caller it does not know. A read made
+  with a session that has ended on a hidden Event replaces a good kept list with an empty one.
+- The notice of a copy gives one date, the bout's. The lists can be from another read.
+- A pad reloaded with no network numbers its next hit from its own queue. When another tablet
+  scored the bout before, the number can collide, and the pad sends the hit once more under a number
+  read from the server. The kept list now holds the number to start from; nothing reads it.
+- A double that another tablet took back after the last good read still counts on the copy.
+
+Also on 2026-10-10: the security scan of the marketing site's image accepts the four findings in
+the Caddy binary that no Caddy release fixes (`6ffff8f0`, `apps/web-marketing/.trivyignore.yaml`).
+Remove the entries at the next Caddy release. The two unstable browser tests wait until the
+offline bout is done (operator). The Space key test has a sister with the same cause:
+`tests/a11y/pad-space-behind-dialogs.spec.ts:100` failed with `:150` on CI run 38061928155.
+
 Named while the last piece of slice 3 was built, and not fixed (each one checked in code):
 
 - ~~"Edit as no exchange" on the pad is always refused: the pad sends three fields the route
@@ -321,10 +345,11 @@ Named while slice 2 was built, and not fixed (each one checked in code by a revi
 
 Named while slice 1 was built, and not fixed (each one checked in code by a review):
 
-- On a copy, the timeline, the doubles count and the card counts hold the queue alone: the lists
-  of earlier hits and cards are not kept on the tablet. The notice says so. Slice 3 needs those
-  lists anyway.
-- A hit the server took, whose answer was lost, can be counted twice on a copy.
+- ~~On a copy, the timeline, the doubles count and the card counts hold the queue alone: the lists
+  of earlier hits and cards are not kept on the tablet.~~ Done `adacd5c9`: the tablet keeps both
+  lists at each good read, and a copy shows them under the queue.
+- ~~A hit the server took, whose answer was lost, can be counted twice on a copy.~~ Done
+  `adacd5c9`: the kept list names the hit, so the queue does not add it again.
 - Nothing removes a copy when somebody signs out. A copy holds the two names, the clubs and the
   score of a bout that was opened, and it opens with no network for whoever holds the tablet.
 - A best-of copy that waits for its next round opens under the round-break screen, which hides the
