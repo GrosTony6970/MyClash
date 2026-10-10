@@ -1224,7 +1224,7 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > greyed until then. A press sent at once (a Reopen or a Reset of the clock, a correction, a forfeit) and refused for the
 > person turns the bar to the same status with no hit queued (ruling 311): `refusalMessage`, where
 > every refused press is worded, tells the engine (`tellCallerRefusal`), and the bar's sentence
-> drops "hits not sent" while none waits. That status stands in place of `idle` (`pressRefused`)
+> drops "entries not sent" while none waits. That status stands in place of `idle` (`pressRefused`)
 > until the server takes a hit or the account is signed out: a Retry, the inbox or the `online`
 > event send nothing and prove nothing about the person, and Retry is not offered while no hit
 > waits. A press answered 401 (nobody is signed in) sends the pad to its sign-in screen (ruling
