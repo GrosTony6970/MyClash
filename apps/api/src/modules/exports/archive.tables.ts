@@ -340,6 +340,9 @@ const TABLES = {
   match_events: {
     key: 'matchEvents',
     collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    // The id a pad gave a clock press (0221) is unique, and the bout it was
+    // pressed on still holds it. The copy's rows are nobody's presses.
+    set: { client_uuid: null },
   },
   exchanges: {
     key: 'exchanges',

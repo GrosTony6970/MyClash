@@ -98,6 +98,7 @@ describe('the archived-Event lock, API-wide', () => {
       'POST admin/review-queue/:type/:id/reject',
       'POST deletion-requests',
       'POST events/:eventId/feedback',
+      'POST matches/:id/clock',
       'POST matches/:id/exchanges',
       'POST matches/:id/penalties',
       'POST workshops/:id/feedback',

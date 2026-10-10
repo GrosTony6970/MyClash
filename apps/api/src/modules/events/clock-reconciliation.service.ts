@@ -85,7 +85,10 @@ export class ClockReconciliationService {
    *
    * These are SERVER-stamped — every writer inserts `new Date()` — which is the
    * whole reason the envelope check is worth anything: it is the one comparison
-   * in the report with no queue latency mixed into it. Note this contradicts
+   * in the report with no queue latency mixed into it. One writer differs: a
+   * press a pad sends late (`ClockService.latePress`) is placed on the SERVER's
+   * clock at "now minus the age the pad measured", so it holds no time of day
+   * of the pad, but it trusts the pad for that age. Note this contradicts
    * migration 0172's header, which claims these carry the tablet's clock; the
    * writers are the truth and the header is stale.
    */

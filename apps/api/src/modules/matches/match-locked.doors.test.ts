@@ -50,6 +50,7 @@ describe('the refusal of a locked bout', () => {
   /** The doors that refuse a locked bout, and how many times each file throws. */
   const DOORS: Record<string, number> = {
     'modules/matches/clock.service.ts': 3,
+    'modules/matches/late-press.ts': 1,
     'modules/matches/match-forfeits.service.ts': 2,
     'modules/matches/matches.service.ts': 1,
     'modules/penalties/penalties.service.ts': 1,

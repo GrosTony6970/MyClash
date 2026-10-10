@@ -411,6 +411,10 @@ describe('ArchiveService', () => {
         },
       },
     ],
+    // A clock press a pad sent with its own id (0221).
+    match_events: [
+      { id: 'me-1', match_id: 'm-1', sequence: 1, type: 'start', client_uuid: 'cu-press-1' },
+    ],
     exchanges: [
       { id: 'ex-1', match_id: 'm-1', client_uuid: 'cu-ex-1', sequence: 1 },
       // A correction pointing at the exchange it replaced (0019).
@@ -666,6 +670,15 @@ describe('ArchiveService', () => {
       const correction = restored.find((row) => row['sequence'] === 2);
       expect(original?.['id']).not.toBe('ex-1');
       expect(correction?.['corrected_exchange_id']).toBe(original?.['id']);
+    });
+
+    it('copies a clock press with no id: the bout it was pressed on keeps the id', async () => {
+      // `match_events.client_uuid` is unique. A copy that kept it could not be
+      // restored beside its source: the insert would fail on the index.
+      const { inserted, matchId } = await restoreScoped();
+      expect(inserted.match_events).toEqual([
+        expect.objectContaining({ match_id: matchId, type: 'start', client_uuid: null }),
+      ]);
     });
 
     it('remaps the penalty ids a second-black-card review names', async () => {

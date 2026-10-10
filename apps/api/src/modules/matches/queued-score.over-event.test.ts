@@ -304,10 +304,11 @@ describe('every other pad write stays closed on an over Event', () => {
     await expect(matches.advanceRound(MATCH, req)).rejects.toThrow(/not open for staff scoring/i);
   });
 
-  it('only the two queue routes leave the over Event to their handler', () => {
+  // The third is a clock press sent late: `clock-late-press.door.test.ts`.
+  it('only the three queue routes leave the over Event to their handler', () => {
     const read = (...path: string[]) => readFileSync(join(__dirname, ...path), 'utf8');
     const sources =
       read('matches.controller.ts') + read('..', 'penalties', 'penalties.controller.ts');
-    expect(sources.split("'leave-to-handler'").length - 1).toBe(2);
+    expect(sources.split("'leave-to-handler'").length - 1).toBe(3);
   });
 });

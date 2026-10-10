@@ -197,7 +197,7 @@ export function timeLimitResult(
 }
 
 /** A PostgREST embed arrives as an object or a one-element array. */
-function asRow(value: unknown): Record<string, unknown> | null {
+export function asRow(value: unknown): Record<string, unknown> | null {
   const row = Array.isArray(value) ? value[0] : value;
   return row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
 }

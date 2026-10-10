@@ -26,6 +26,7 @@ import { z } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
 import { ClockService } from './clock.service';
+import { latePressOf } from './late-press';
 import { MatchAuditService } from './match-audit.service';
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { MatchForfeitsService } from './match-forfeits.service';
@@ -61,6 +62,14 @@ const clockActionSchema = z
     reason: z.string().optional(),
     /** See `ResetMatchDto` — four of these actions can un-complete a bout. */
     discardDependentResults: z.boolean().optional(),
+    /**
+     * A press the pad made earlier and sends now: the id the pad gave it, and
+     * the pad's times of the press and of this send. All three or none — see
+     * `latePressOf`.
+     */
+    clientUuid: z.uuid().optional(),
+    pressedAt: z.iso.datetime().optional(),
+    sentAt: z.iso.datetime().optional(),
   })
   .strict();
 class ClockActionDto extends createZodDto(clockActionSchema) {}
@@ -544,8 +553,13 @@ export class MatchesController {
    * Persists a match_events row and updates match.status. `reopen` reverses
    * a prior `end`, returning the clock to halted with accumulated active
    * time preserved.
+   *
+   * A body that carries `clientUuid` is a press from a pad's queue, sent late
+   * (`ClockService.latePress`). Its door leaves an over Event to the handler,
+   * as a hit's does: a press the server holds is answered there too.
    */
   @Post('matches/:id/clock')
+  @AllowOnArchivedEvent() // as a hit (ruling 240): a saved press is answered; a new one is refused
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Clock action: start | halt | resume | end | reopen | reset_clock' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -554,6 +568,8 @@ export class MatchesController {
     @Body() dto: ClockActionDto,
     @Req() req: FastifyRequest,
   ) {
+    const press = latePressOf(dto);
+    if (press) return this.takeLatePress(id, press, req);
     // …WithDiscard for the same reason as the reset: four clock actions
     // un-complete a bout.
     const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
@@ -576,5 +592,19 @@ export class MatchesController {
   ) {
     const actor = await this.staff.authorizeMatchScoring(req, id);
     return this.clock.adjustTime(id, dto.adjustmentMs, dto.reason, actor);
+  }
+
+  /**
+   * A press from a pad's queue never takes a bout out of completed, so it asks
+   * who may score and no more. The over Event is left to the handler, as for a
+   * hit: it answers a press the server holds.
+   */
+  private async takeLatePress(
+    id: string,
+    press: NonNullable<ReturnType<typeof latePressOf>>,
+    req: FastifyRequest,
+  ) {
+    const scorer = await this.staff.authorizeMatchScoring(req, id, 'leave-to-handler');
+    return this.clock.latePress(id, press.action, press, scorer);
   }
 }

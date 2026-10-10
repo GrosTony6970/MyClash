@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -21,6 +15,7 @@ import {
   type RequestClosureDeps,
   type ResetCause,
 } from './answered-requests';
+import { eventResultsFrozen } from './event-results-frozen';
 
 export type ExchangeEditRequestType = 'void_exchange' | 'revert_void_exchange';
 export type ExchangeEditRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -91,12 +86,7 @@ export class FrozenResultsGuard {
     const state = await this.getEventStateForMatch(matchId);
     if (!isOver(state.status)) return;
     if (await this.isSuperAdmin(userId)) return;
-    // The object form: the pad and web-admin map it by `code`. A bare string
-    // put this English sentence in front of a French referee.
-    throw new ConflictException({
-      message: 'Event results are frozen',
-      code: 'event_results_frozen',
-    });
+    throw eventResultsFrozen();
   }
 
   /**

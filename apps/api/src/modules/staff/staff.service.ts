@@ -842,8 +842,8 @@ export class StaffService {
   }
 
   /**
-   * `whenOver` is `'leave-to-handler'` for a hit and a card, the only WRITES
-   * that pass it (rulings 233, 240, 240a), and for the reads of
+   * `whenOver` is `'leave-to-handler'` for a hit, a card and a clock press
+   * sent late, the only WRITES that pass it (rulings 233, 240, 240a), and for the reads of
    * `authorizeMatchScoringRead` (259). A pad queues the two writes offline and
    * may send them after its Event is completed or archived; their handler
    * answers one the server already holds and refuses a new one with a code the
@@ -1511,8 +1511,8 @@ export class StaffService {
    * Omit it for the surfaces every role shares — `/staff-auth/me` and the
    * heartbeat, which a desk tablet sends exactly like a scoring tablet.
    *
-   * `whenOver` skips the over-Event refusal alone, for a queued hit or card and
-   * for a read (see `authorizeMatchScoring`). Every check of the person runs
+   * `whenOver` skips the over-Event refusal alone, for a queued hit, card or
+   * clock press and for a read (see `authorizeMatchScoring`). Every check of the person runs
    * before it.
    */
   private async requireStaffFromRequest(

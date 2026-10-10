@@ -32,6 +32,18 @@ import {
   timeLimitResult,
 } from './time-limit-result';
 import { endRefusal } from './level-at-time-refusal';
+import { isOver } from '../../common/live-status';
+import { eventResultsFrozen } from './event-results-frozen';
+import {
+  alreadyTrue,
+  ClockRowCollided,
+  elapsedAt,
+  eventStatusOf,
+  placeLatePress,
+  pressIsSaved,
+  type LatePress,
+  type PressAction,
+} from './late-press';
 import { matchLocked } from './match-locked';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import {
@@ -73,6 +85,40 @@ export interface ClockState {
     adjustmentMs: number | null;
   }>;
 }
+
+/** Who presses, and what they may pass. */
+interface ClockActor {
+  userId?: string;
+  staffAccountId?: string;
+  canOverrideLocked?: boolean;
+  canDiscardDependentResults?: boolean;
+}
+
+/** One clock row to write, once every rule has let it through. */
+interface ClockStep {
+  action: ClockAction;
+  reason?: string;
+  actor?: ClockActor;
+  /** What an End does to the bout. Null for every other action. */
+  ending: ReturnType<typeof timeLimitResult> | null;
+  uncompletes: boolean;
+  /** A press sent late: its id, and where it is placed in the timeline. */
+  press?: { clientUuid: string; at: string };
+}
+
+// The scores and the phase's match format are here so `end` can NAME
+// the winner of a bout that ran out of time — see `timeLimitResult`.
+// `status` is there because a bout already completed is not decided
+// again, and `winner_registration_id` because the decision reads the
+// LADDER, not the scores. The Event's status is for a press sent late.
+const BOUT_COLUMNS =
+  'id, status, locked_at, started_at, rounds_json, current_round, ' +
+  'red_registration_id, blue_registration_id, winner_registration_id, ' +
+  'red_score, blue_score, match_number_label, awaiting_round_advance, ' +
+  'phases(type, tournaments(ruleset_config, events(status)))';
+
+/** Postgres: a unique key refused the row. */
+const UNIQUE_VIOLATION = '23505';
 
 // Valid transitions
 const VALID_TRANSITIONS: Record<string, ClockAction[]> = {
@@ -143,17 +189,7 @@ export class ClockService {
     // Verify match exists
     const { data: match } = await this.supabase.service
       .from('matches')
-      .select(
-        // The scores and the phase's match format are here so `end` can NAME
-        // the winner of a bout that ran out of time — see `timeLimitResult`.
-        // `status` is there because a bout already completed is not decided
-        // again, and `winner_registration_id` because the decision reads the
-        // LADDER, not the scores.
-        'id, status, locked_at, started_at, rounds_json, current_round, ' +
-          'red_registration_id, blue_registration_id, winner_registration_id, ' +
-          'red_score, blue_score, match_number_label, awaiting_round_advance, ' +
-          'phases(type, tournaments(ruleset_config))',
-      )
+      .select(BOUT_COLUMNS)
       .eq('id', matchId)
       .maybeSingle();
 
@@ -221,68 +257,149 @@ export class ClockService {
       });
     }
 
-    // Get next sequence number
-    const { data: lastEvent } = await this.supabase.service
-      .from('match_events')
-      .select('sequence')
-      .eq('match_id', matchId)
-      .order('sequence', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    return this.record(matchId, match as unknown as Record<string, unknown>, current, {
+      action,
+      reason,
+      actor,
+      ending,
+      uncompletes,
+    });
+  }
 
-    const sequence = ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
-    const now = new Date().toISOString();
+  // ── A press sent late ─────────────────────────────────────────────────────
 
-    // Insert match_event. The error MUST be checked: an unchecked failed
-    // insert would return a recomputed-but-unchanged clock with HTTP 200 —
-    // a silent no-op the operator can't diagnose.
-    const { error: insertErr } = await this.supabase.service.from('match_events').insert({
+  /**
+   * Take a Start, Halt, Resume or End a pad pressed earlier and sends now.
+   * The order of the rules is the design, and `late-press.ts` says why:
+   *
+   *   1. A press the server holds is answered with the clock. No rule below may
+   *      answer it: the pad reads a refusal as "never taken" and sends it for ever.
+   *   2. An over Event refuses it with a new hit's refusal, and to everybody:
+   *      the clock of an over Event was closed to a super admin too.
+   *   3. A press that asks for the state the clock is in is done, and writes
+   *      nothing (ruling 12). This is the common case: the hit at the cap ended
+   *      the clock before the pad's own End arrived. Before the lock, because
+   *      such a bout may be locked by then.
+   *   4. The rules of `placeLatePress`, which says where the press goes.
+   *   5. A level bout at its time. The End is judged on the time the clock had
+   *      run WHEN IT WAS PRESSED.
+   *
+   * Two writers on one bout: another tablet, or the server's own End, can
+   * write a row between these rules and the insert. The insert then fails on
+   * the sequence's unique key, and EVERY rule is asked again on the new
+   * timeline: the row that won may have ended the clock or the bout. A new
+   * sequence alone would write a press nobody judged.
+   */
+  async latePress(
+    matchId: string,
+    action: PressAction,
+    press: LatePress,
+    actor?: ClockActor,
+  ): Promise<ClockState> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.takePress(matchId, action, press, actor);
+      } catch (refusal) {
+        if (!(refusal instanceof ClockRowCollided) || attempt === 3) throw refusal;
+      }
+    }
+  }
+
+  private async takePress(
+    matchId: string,
+    action: PressAction,
+    press: LatePress,
+    actor?: ClockActor,
+  ): Promise<ClockState> {
+    const db = this.supabase.service;
+    if (await pressIsSaved(db, press.clientUuid)) return this.getClockState(matchId);
+    const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+    const match = data as unknown as Record<string, unknown>;
+    if (isOver(eventStatusOf(match))) throw eventResultsFrozen();
+
+    const current = await this.getClockState(matchId);
+    if (alreadyTrue(action, current.status)) return current;
+    const at = await placeLatePress(db, {
+      matchId,
+      match,
+      action,
+      press,
+      mayPassLock: actor?.canOverrideLocked === true,
+      fits: (VALID_TRANSITIONS[current.status] ?? []).includes(action),
+      clockStatus: current.status,
+    });
+    const ending =
+      action === 'end'
+        ? timeLimitResult(match, current.levelResolutionSteps, elapsedAt(current, at))
+        : null;
+    if (ending && 'refuse' in ending) throw endRefusal(ending.refuse);
+
+    return this.record(matchId, match, current, {
+      action,
+      actor,
+      ending,
+      uncompletes: false,
+      press: { clientUuid: press.clientUuid, at },
+    });
+  }
+
+  /**
+   * Insert the clock row at the bout's next sequence.
+   *
+   * The error MUST be checked: an unchecked failed insert would return a
+   * recomputed-but-unchanged clock with HTTP 200 — a silent no-op the operator
+   * can't diagnose. A press sent late that loses its sequence, or its own id,
+   * to another writer says so with `ClockRowCollided`: `latePress` asks again.
+   */
+  private async insertRow(matchId: string, step: ClockStep, at: string): Promise<void> {
+    const sequence = await this.nextSequence(matchId);
+    const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence,
-      type: action,
-      reason: reason ?? null,
-      by_user_id: actor?.userId ?? null,
-      staff_account_id: actor?.staffAccountId ?? null,
-      occurred_at: now,
+      type: step.action,
+      reason: step.reason ?? null,
+      by_user_id: step.actor?.userId ?? null,
+      staff_account_id: step.actor?.staffAccountId ?? null,
+      occurred_at: at,
+      ...(step.press ? { client_uuid: step.press.clientUuid } : {}),
     });
-    if (insertErr) throw new BadRequestException(insertErr.message);
+    if (!error) return;
+    if (step.press && error.code === UNIQUE_VIOLATION) throw new ClockRowCollided();
+    throw new BadRequestException(error.message);
+  }
+
+  /**
+   * Write what a clock row does to its bout. Checked: the row is saved by now,
+   * and a lost update would leave the clock ended on a bout that still runs,
+   * with every later send of that press answered "done".
+   */
+  private async writeBout(matchId: string, columns: Record<string, unknown>): Promise<void> {
+    const { error } = await this.supabase.service.from('matches').update(columns).eq('id', matchId);
+    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
+  }
+
+  /** Write one clock row, and what it does to the bout. */
+  private async record(
+    matchId: string,
+    match: Record<string, unknown>,
+    current: ClockState,
+    step: ClockStep,
+  ): Promise<ClockState> {
+    const { action, ending, uncompletes } = step;
+    // The time of the row: now, or where a press sent late is placed.
+    const now = step.press?.at ?? new Date().toISOString();
+    await this.insertRow(matchId, step, now);
 
     // Ruling 331: out of `completed`, no result. An End read the old winner first.
     const noResult = uncompletes ? noResultColumns() : {};
     if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
-      await this.supabase.service
-        .from('matches')
-        .update({ status: 'running', ...started, ...noResult })
-        .eq('id', matchId);
+      await this.writeBout(matchId, { status: 'running', ...started, ...noResult });
     } else if (action === 'halt') {
-      const halted = { status: 'paused', ...noResult };
-      await this.supabase.service.from('matches').update(halted).eq('id', matchId);
+      await this.writeBout(matchId, { status: 'paused', ...noResult });
     } else if (action === 'end') {
-      let finalActiveMs = current.activeMs;
-      if (current.status === 'running' && current.runningFrom) {
-        finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
-      }
-      const matchStartedAt = (match as { started_at?: string | null }).started_at;
-      const durationTotalMs = matchStartedAt
-        ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
-        : null;
-      await this.supabase.service
-        .from('matches')
-        .update({
-          status: 'completed',
-          ended_at: now,
-          duration_active_ms: finalActiveMs,
-          ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
-          ...(ending && 'complete' in ending ? ending.complete : {}),
-        })
-        .eq('id', matchId);
-      // Ending the clock completes the match, so the bracket must advance here
-      // too — this and the point-cap path in ScoringService are the only ways a
-      // pad-scored match ever finishes. It can advance now: the update above
-      // NAMES the leader, where it used to leave the winner null and strand
-      // every time-limit bout in the bracket.
-      await this.matchCompletion?.onMatchCompleted(matchId);
+      await this.completeOnEnd(matchId, match, current, ending, now);
     } else if (action === 'reopen') {
       // Reverses a prior 'end': clock goes back to halted with the
       // accumulated active time preserved (computeClockState reads the
@@ -295,13 +412,44 @@ export class ClockService {
       };
       // Best-of: pop the round that ended the series so it reopens for
       // correction. A series a forfeit ended keeps its closed rounds.
-      const poppedRound = popClinchingRoundColumns(match as unknown as Record<string, unknown>);
+      const poppedRound = popClinchingRoundColumns(match);
       if (poppedRound) Object.assign(reopenUpdates, poppedRound);
-      await this.supabase.service.from('matches').update(reopenUpdates).eq('id', matchId);
+      await this.writeBout(matchId, reopenUpdates);
     }
 
     this.logger.log(`Match ${matchId}: clock ${action}`);
     return this.getClockState(matchId);
+  }
+
+  /** What an End writes on the bout: completed at `now`, with its two durations and its result. */
+  private async completeOnEnd(
+    matchId: string,
+    match: Record<string, unknown>,
+    current: ClockState,
+    ending: ClockStep['ending'],
+    now: string,
+  ): Promise<void> {
+    let finalActiveMs = current.activeMs;
+    if (current.status === 'running' && current.runningFrom) {
+      finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
+    }
+    const matchStartedAt = (match as { started_at?: string | null }).started_at;
+    const durationTotalMs = matchStartedAt
+      ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
+      : null;
+    await this.writeBout(matchId, {
+      status: 'completed',
+      ended_at: now,
+      duration_active_ms: finalActiveMs,
+      ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
+      ...(ending && 'complete' in ending ? ending.complete : {}),
+    });
+    // Ending the clock completes the match, so the bracket must advance here
+    // too — this and the point-cap path in ScoringService are the only ways a
+    // pad-scored match ever finishes. It can advance now: the update above
+    // NAMES the leader, where it used to leave the winner null and strand
+    // every time-limit bout in the bracket.
+    await this.matchCompletion?.onMatchCompleted(matchId);
   }
 
   // ── Level at time ─────────────────────────────────────────────────────────

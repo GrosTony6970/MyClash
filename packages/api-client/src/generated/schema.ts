@@ -10274,6 +10274,12 @@ export interface components {
       action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock';
       reason?: string;
       discardDependentResults?: boolean;
+      /** Format: uuid */
+      clientUuid?: string;
+      /** Format: date-time */
+      pressedAt?: string;
+      /** Format: date-time */
+      sentAt?: string;
     };
     AdjustClockDto: {
       adjustmentMs: number;
