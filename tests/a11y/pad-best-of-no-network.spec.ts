@@ -150,6 +150,40 @@ test('a level round is not ended on the tablet: the pad says why, and queues not
   await expect.poll(() => stub.sent).toEqual(['POST /clock start', 'POST /clock halt']);
 });
 
+test('at the end of the time, the resume warning of a best-of bout ends the ROUND, not the bout', async ({
+  page,
+}) => {
+  // The format's time is 90 s: the clock is halted on it, and red leads 1-0.
+  const stub = await openBestOf(page, { haltedAtMs: 90_000 });
+  stub.network = 'down';
+  await expect(primary(page)).toHaveAttribute('data-action', 'resume');
+  await plusOne(page, 'red').click();
+
+  await primary(page).click();
+
+  const warning = page.getByRole('dialog');
+  await expect(warning).toContainText(/time is up/i);
+  await expect(warning).toContainText(/or end the round\?/i);
+  await expect(warning.getByRole('button', { name: /end match/i })).toHaveCount(0);
+  await warning.getByRole('button', { name: /^end round$/i }).click();
+
+  // The round is closed for its leader, on the tablet, and round 2 can start.
+  await expect(roundBreak(page)).toContainText(/round 1 complete/i);
+  await expect(roundBreak(page)).toContainText('Ana Red');
+  await expect(roundBreak(page)).toContainText('1 – 0');
+  await expect(notConfirmedRound(page)).toBeVisible();
+  await expect(result(page)).toHaveCount(0);
+
+  await comeBackOnline(page, stub);
+
+  // The whole list: an End of the round, and no End of the clock, which
+  // completed the bout with no winner and no round closed.
+  await expect.poll(() => stub.sent).toEqual(['POST /exchanges', 'POST /rounds/end 1']);
+  expect(stub.row).toMatchObject({ status: 'paused', red_round_wins: 1, current_round: 1 });
+  await expect(notConfirmedRound(page)).toHaveCount(0);
+  await expect(roundBreak(page)).toContainText(/round 1 complete/i);
+});
+
 test('when the server counts another way, "Start round 2" is held and the screen goes back to the server’s round', async ({
   page,
 }) => {

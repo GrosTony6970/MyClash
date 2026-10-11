@@ -115,8 +115,8 @@ describe('the scoring buttons', () => {
 describe('"End match" on the tablet', () => {
   it('asks the pad’s own rule first, from every End of the screen', () => {
     expect(view).toContain("else if (action === 'end') endMatch();");
-    // A best-of bout is not judged here: the server ends its round or its series.
-    expect(view).toMatch(/const refused = isBestOf\s+\? null\s+: endRefusedOnPad\(\{/);
+    // No End of a best-of bout comes here: each one ends the ROUND (`usePadRounds`).
+    expect(view).toContain('const refused = endRefusedOnPad({');
     expect(view).toContain('if (refused) setClockError(endRefusalMessage(refused, t));');
     // The End carries the score it is pressed on, for the result screen.
     expect(view).toContain(

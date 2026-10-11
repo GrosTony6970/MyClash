@@ -231,18 +231,36 @@ const clockBody = (stub: Stub) => ({
   events: [],
 });
 
-/** Opens the best-of-3 bout with the network up. Returns the stub's switches and its record. */
-export async function openBestOf(page: Page, start: { serverCap?: number } = {}) {
-  const stub: Stub = {
+interface Start {
+  serverCap?: number;
+  /** The bout was started before, and its clock is halted at this time. */
+  haltedAtMs?: number;
+}
+
+function newStub(start: Start): Stub {
+  const halted = start.haltedAtMs !== undefined;
+  return {
     network: 'up',
     serverCap: start.serverCap ?? 2,
     holdRow: null,
     sent: [],
     roundBodies: [],
-    row: { ...ROW },
+    row: { ...ROW, status: halted ? 'paused' : 'scheduled' },
     hits: [],
-    clock: { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null },
+    clock: halted
+      ? {
+          status: 'halted',
+          activeMs: start.haltedAtMs ?? 0,
+          runningFrom: null,
+          startedAt: '2026-01-01T10:00:00.000Z',
+        }
+      : { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null },
   };
+}
+
+/** Opens the best-of-3 bout with the network up. Returns the stub's switches and its record. */
+export async function openBestOf(page: Page, start: Start = {}) {
+  const stub = newStub(start);
   await page.route('**/api/**', async (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;

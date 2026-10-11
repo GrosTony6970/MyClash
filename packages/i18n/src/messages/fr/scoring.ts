@@ -432,6 +432,8 @@ export const scoring = {
     title: 'Temps ecoule',
     message:
       'Selon le règlement le chrono ne devrait pas être relance (limite atteinte ou zone de soft clock). Continuer quand même, ou terminer le match ?',
+    messageRound:
+      'Selon le règlement le chrono ne devrait pas être relancé (limite atteinte ou zone de soft clock). Continuer quand même, ou terminer la manche ?',
     continueAnyway: 'Continuer quand même',
     endMatch: 'Terminer le match',
   },

@@ -456,6 +456,8 @@ export const scoring = {
     title: 'Time is up',
     message:
       'Per the ruleset the clock should not be restarted (time limit reached or soft-clock zone). Continue anyway, or end the match?',
+    messageRound:
+      'Per the ruleset the clock should not be restarted (time limit reached or soft-clock zone). Continue anyway, or end the round?',
     continueAnyway: 'Continue anyway',
     endMatch: 'End match',
   },

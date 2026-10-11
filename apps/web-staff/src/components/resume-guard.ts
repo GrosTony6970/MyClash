@@ -2,8 +2,8 @@
  * Should starting/resuming the clock be challenged? Per the ruleset the
  * clock should not restart once the countdown has reached zero or sits
  * inside the soft-clock zone — but the operator stays in charge: the UI
- * shows a warning with "continue anyway" / "end match" rather than
- * blocking outright.
+ * shows a warning with "continue anyway" / "end match" ("end round" on a
+ * best-of bout) rather than blocking outright.
  *
  * Pure: no React, no I/O.
  */

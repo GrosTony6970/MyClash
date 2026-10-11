@@ -63,7 +63,7 @@ describe('the resume warning', () => {
 
   it('puts Close first, so the focus lands on it and a second Space restarts nothing', () => {
     const close = warning.indexOf("{t('scoring.result.close')}");
-    const end = warning.indexOf("{t('scoring.resumeGuard.endMatch')}");
+    const end = warning.indexOf("'scoring.resumeGuard.endMatch')}");
     const restart = warning.indexOf("{t('scoring.resumeGuard.continueAnyway')}");
     expect(close).toBeGreaterThan(0);
     expect(end).toBeGreaterThan(close);
@@ -76,14 +76,33 @@ describe('the resume warning', () => {
     expect(warning.match(/<button/g)).toHaveLength(3);
     expect(warning.match(/min-h-\[44px\]/g)).toHaveLength(3);
   });
+
+  it('names its End by what it ends: the round of a best-of bout, the bout of any other', () => {
+    expect(warning).toContain(
+      "{t(endsRound ? 'scoring.rounds.endRound' : 'scoring.resumeGuard.endMatch')}",
+    );
+    // Its sentence asks the same thing as its button.
+    expect(warning).toContain(
+      "{t(endsRound ? 'scoring.resumeGuard.messageRound' : 'scoring.resumeGuard.message')}",
+    );
+    expect(view).toMatch(
+      /<ResumeGuardDialog\s+open=\{pendingResume !== null\}\s+endsRound=\{isBestOf\}/,
+    );
+  });
+
+  it('ends the round of a best-of bout as the "End round" button does, and no bout', () => {
+    expect(view).toMatch(
+      /onEnd=\{\(\) => \{\s+setPendingResume\(null\);\s+if \(isBestOf\) \{\s+rounds\.endRound\(\);\s+\} else \{\s+endMatch\(\);\s+\}/,
+    );
+  });
 });
 
 describe('the question on an early End', () => {
   it('is asked by the controls, and not by the resume warning', () => {
     expect(view).toContain('onClockAction={onControlsClockAction}');
     expect(view).toContain('<EndEarlyDialog\n        open={pendingEnd}');
-    // The warning's own "End match" goes to the pad's End rule, which asks nothing.
-    expect(view).toMatch(/onEndMatch=\{\(\) => \{\s+setPendingResume\(null\);\s+endMatch\(\);/);
+    // The warning's own End asks nothing: it is already the answer to a question.
+    expect(view.match(/setPendingEnd\(true\)/g)).toHaveLength(1);
     expect(view).toMatch(/onEndMatch=\{\(\) => \{\s+setPendingEnd\(false\);\s+endMatch\(\);/);
   });
 

@@ -65,7 +65,9 @@ interface ResumeGuardDialogProps {
   open: boolean;
   onClose: () => void;
   onContinue: () => void;
-  onEndMatch: () => void;
+  /** A best-of bout: the End of this warning ends the ROUND, and says so. */
+  endsRound: boolean;
+  onEnd: () => void;
 }
 
 /**
@@ -75,12 +77,17 @@ interface ResumeGuardDialogProps {
  * Close comes FIRST, so the focus lands on it (operator, 2026-10-09). With
  * "Continue anyway" first, Space twice restarted the clock and the warning
  * protected nothing.
+ *
+ * On a best-of bout the End reads "End round" (operator, 2026-10-10). It read
+ * "End match" and ended the clock: the bout was completed with no winner and
+ * no round closed.
  */
 export function ResumeGuardDialog({
   open,
   onClose,
   onContinue,
-  onEndMatch,
+  endsRound,
+  onEnd,
 }: ResumeGuardDialogProps) {
   const { t } = useI18n();
   return (
@@ -99,10 +106,10 @@ export function ResumeGuardDialog({
           </button>
           <button
             type="button"
-            onClick={onEndMatch}
+            onClick={onEnd}
             className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-2 text-sm font-bold text-danger hover:bg-danger/30"
           >
-            {t('scoring.resumeGuard.endMatch')}
+            {t(endsRound ? 'scoring.rounds.endRound' : 'scoring.resumeGuard.endMatch')}
           </button>
           <button
             type="button"
@@ -114,7 +121,9 @@ export function ResumeGuardDialog({
         </>
       }
     >
-      <p className="text-sm text-foreground-secondary">{t('scoring.resumeGuard.message')}</p>
+      <p className="text-sm text-foreground-secondary">
+        {t(endsRound ? 'scoring.resumeGuard.messageRound' : 'scoring.resumeGuard.message')}
+      </p>
     </Modal>
   );
 }

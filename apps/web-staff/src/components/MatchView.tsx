@@ -182,7 +182,8 @@ export function MatchView({
     refreshKey,
   );
   // Resume guard: when the operator starts/resumes at zero / in the soft
-  // zone, hold the action here and ask first (continue anyway / end match).
+  // zone, hold the action here and ask first (continue anyway / end the
+  // match, or the round of a best-of bout).
   const [pendingResume, setPendingResume] = useState<'start' | 'resume' | null>(null);
   // "End match" was pressed before the cap or the time: the question is up.
   const [pendingEnd, setPendingEnd] = useState(false);
@@ -511,8 +512,8 @@ export function MatchView({
   // The controls' clock buttons. "End match" before the cap or the time is asked
   // about first (`end-guard.ts`). It reads the score on the screen, unsent hits
   // included, because that is the score the official ends the bout on. The
-  // resume warning's own "End match" does not come here: it is already the
-  // answer to a question.
+  // resume warning's own End does not come here: it is already the answer to
+  // a question.
   const onControlsClockAction = (action: Parameters<typeof onClockAction>[0]) => {
     const early =
       action === 'end' &&
@@ -529,19 +530,18 @@ export function MatchView({
   };
 
   // "End match" is taken on the tablet (ruling 11), so the two refusals the
-  // server gives a level bout are given here first (`endRefusedOnPad`). A
-  // best-of bout is not judged here: the server ends its round or its series.
+  // server gives a level bout are given here first (`endRefusedOnPad`). No End
+  // of a best-of bout comes here: the controls and the resume warning end its
+  // ROUND (`rounds.endRound`), and the series ends by its rounds.
   function endMatch() {
-    const refused = isBestOf
-      ? null
-      : endRefusedOnPad({
-          matchFormat,
-          phaseType: match.phaseType ?? undefined,
-          matchNumberLabel: match.matchNumberLabel,
-          elapsedMs: elapsedActiveMs(clockState, Date.now()),
-          score: { redScore, blueScore },
-          levelStepsTaken: levelSteps,
-        });
+    const refused = endRefusedOnPad({
+      matchFormat,
+      phaseType: match.phaseType ?? undefined,
+      matchNumberLabel: match.matchNumberLabel,
+      elapsedMs: elapsedActiveMs(clockState, Date.now()),
+      score: { redScore, blueScore },
+      levelStepsTaken: levelSteps,
+    });
     if (refused) setClockError(endRefusalMessage(refused, t));
     // The End carries the score it is pressed on, for the result screen.
     else void onClockAction('end', false, { red: redScore, blue: blueScore });
@@ -851,15 +851,20 @@ export function MatchView({
           remaining / inside the soft zone — the operator decides. */}
       <ResumeGuardDialog
         open={pendingResume !== null}
+        endsRound={isBestOf}
         onClose={() => setPendingResume(null)}
         onContinue={() => {
           const action = pendingResume;
           setPendingResume(null);
           if (action) void onClockAction(action, true);
         }}
-        onEndMatch={() => {
+        onEnd={() => {
           setPendingResume(null);
-          endMatch();
+          if (isBestOf) {
+            rounds.endRound();
+          } else {
+            endMatch();
+          }
         }}
       />
 
