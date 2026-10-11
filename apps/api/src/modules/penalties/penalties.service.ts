@@ -985,9 +985,11 @@ export class PenaltiesService {
       occurred_at: dto.occurredAt,
       clock_time_ms: dto.clockTimeMs ?? null,
       // Stamped from the match, never sent by the client — the same rule
-      // `createExchange` follows. A card queued offline drains into the round it
-      // was recorded in because advancing a round is a server call, so an
-      // offline pad cannot have moved past it.
+      // `createExchange` follows: the round open on the server when the card
+      // ARRIVES. A pad with no network can move past a round ("Start round N"
+      // is a row of its queue). Its queue sends a bout's rows in the order
+      // they were tapped, so a card of round 1 arrives before the "Start round
+      // 2" behind it, and still lands in the round it was recorded in.
       round_number: match.currentRound,
       voided: false,
     };
