@@ -459,18 +459,41 @@ export function maxDoubleHitEndReason(config: MatchFormatConfig): MaxDoubleHitEn
   }
 }
 
+/** The two scores, and how far under zero each side went when the scorer said so. */
+export type CapScore = Pick<MatchScore, 'redScore' | 'blueScore'> &
+  Partial<Pick<MatchScore, 'redBelowZero' | 'blueBelowZero'>>;
+
+/**
+ * Who is ahead, for the two rules of the point cap.
+ *
+ * In a bout that counts down the board stops at zero, so two fighters out of
+ * points on one exchange both read 0. The fighter LESS FAR BELOW zero is ahead
+ * (operator, 2026-10-11), and both as far below is a true tie. A card's points
+ * are in the score already, so a card counts here as it counts on the board.
+ *
+ * A caller that holds the two scores alone gets the leader on the board, as
+ * before. So does every bout that counts up.
+ */
+export function capLeader(score: CapScore, config: MatchFormatConfig): 'red' | 'blue' | null {
+  if (config.scoringDirection !== 'reverse_zero_loses') return leadingColor(score);
+  return leadingColor({
+    redScore: score.redScore - (score.redBelowZero ?? 0),
+    blueScore: score.blueScore - (score.blueBelowZero ?? 0),
+  });
+}
+
 /**
  * Which side reached the point cap, as a colour (mirrors
  * {@link getPointCapWinnerRegistrationId} without needing the registration ids).
  */
 export function pointCapWinnerColor(
-  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
+  score: CapScore,
   config: MatchFormatConfig,
 ): 'red' | 'blue' | null {
   if (config.scoringDirection === 'reverse_zero_loses') {
-    // Both depleted: whoever is further from zero. Clamped at 0 by
-    // `applyScoringDirection`, so "both at zero" is level and answers nobody.
-    if (score.redScore <= 0 && score.blueScore <= 0) return leadingColor(score);
+    // Both out of points: the fighter less far below zero. Both as far below
+    // is level and answers nobody.
+    if (score.redScore <= 0 && score.blueScore <= 0) return capLeader(score, config);
     if (score.redScore <= 0) return 'blue';
     if (score.blueScore <= 0) return 'red';
     return null;
@@ -508,11 +531,11 @@ export function pointCapWinnerColor(
  */
 export function pointCapEndsBout(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
-  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
+  score: CapScore,
   config: MatchFormatConfig,
 ): boolean {
   if (!isPointCapReached(score as MatchScore, config)) return false;
-  if (leadingColor(score) !== null) return true;
+  if (capLeader(score, config) !== null) return true;
   return chainAllowsLevelEnd(config, match.phaseType, match.matchNumberLabel);
 }
 
@@ -715,6 +738,24 @@ export function computeMatchFormatScore(
     redTimesHit,
     blueTimesHit,
     doubles,
+    ...belowZero(config, redEarned, blueEarned),
+  };
+}
+
+/**
+ * How far under zero each side went, for a bout that counts down: a side loses
+ * what the OTHER side earned, and the board stops at zero. Nothing for a bout
+ * that counts up, whose score stays the object it was.
+ */
+export function belowZero(
+  config: Pick<MatchFormatConfig, 'pointCap' | 'scoringDirection'>,
+  redEarned: number,
+  blueEarned: number,
+): Pick<MatchScore, 'redBelowZero' | 'blueBelowZero'> {
+  if (config.scoringDirection !== 'reverse_zero_loses') return {};
+  return {
+    redBelowZero: Math.max(0, blueEarned - config.pointCap),
+    blueBelowZero: Math.max(0, redEarned - config.pointCap),
   };
 }
 
@@ -727,7 +768,7 @@ export function isPointCapReached(score: MatchScore, config: MatchFormatConfig):
 
 export function getPointCapWinnerRegistrationId(
   match: Match,
-  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
+  score: CapScore,
   config: MatchFormatConfig,
 ): string | null {
   // The registration-id shape of {@link pointCapWinnerColor}, delegating so the
@@ -804,7 +845,7 @@ export function evaluateRound(
  */
 export function roundOutcome(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
-  score: Pick<MatchScore, 'redScore' | 'blueScore' | 'doubles'>,
+  score: CapScore & Pick<MatchScore, 'doubles'>,
   config: MatchFormatConfig,
 ): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> {
   // A ROUND asks the cap exactly what a single bout asks it, through the same

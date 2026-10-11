@@ -841,7 +841,7 @@
     "eslint-rules/no-literal-string.mjs:69",
     "eslint-rules/no-server-api-url-leak.mjs:105",
     "infra/ops-runner/backup-core.mjs:154",
-    "packages/rules/src/match-format.ts:617",
+    "packages/rules/src/match-format.ts:640",
     "packages/rules/src/results/fighter-career.ts:152",
     "packages/rules/src/results/league-club-standings.ts:61",
     "packages/rules/src/results/league-scoring.ts:74",

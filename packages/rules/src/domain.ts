@@ -116,4 +116,12 @@ export interface MatchScore {
   redTimesHit: number;
   blueTimesHit: number;
   doubles: number;
+  /**
+   * How far under zero a side went, in a bout that counts down
+   * (`reverse_zero_loses`) and nowhere else. The board stops at zero; when
+   * both sides are at zero these two say who is less far below (`capLeader`).
+   * Derived at each count like the score: never stored on the bout.
+   */
+  redBelowZero?: number;
+  blueBelowZero?: number;
 }
