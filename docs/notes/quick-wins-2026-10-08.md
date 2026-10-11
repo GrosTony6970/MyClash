@@ -530,12 +530,56 @@ the doubles limit come before the point cap, as it does in effect when a bout co
 
 Four rulings on the evening of 2026-10-11, each a slice with its own recon and plan:
 
-| Asked with this story                                                                                                                                                                                                          | Ruling                                                                                                                                                                                                   | Done      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| A Pool bout that counts down, doubles limit 3. Red hits once, then three doubles: the board is wiped to 0 – 0, and the bout ends as a draw ("first to points"). Counting up, the same bout is a loss for both ("max doubles"). | **A loss for both**: in a bout that counts down the doubles limit is asked before the point cap, and the bout ends as the format's doubles outcome says.                                                 | not built |
-| An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | not built |
-| Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | not built |
-| A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | not built |
+| Asked with this story                                                                                                                                                                                                          | Ruling                                                                                                                                                                                                   | Done       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| A Pool bout that counts down, doubles limit 3. Red hits once, then three doubles: the board is wiped to 0 – 0, and the bout ends as a draw ("first to points"). Counting up, the same bout is a loss for both ("max doubles"). | **A loss for both**: in a bout that counts down the doubles limit is asked before the point cap, and the bout ends as the format's doubles outcome says.                                                 | `6b30e5bc` |
+| An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | not built  |
+| Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | not built  |
+| A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | not built  |
+
+**The doubles limit in a bout that counts down, and "End match" at the limit, are built**
+(2026-10-11 night): `6b30e5bc` the rule, `a49a6e07` the server's tests, `c081faa9` the tablet.
+
+One more ruling, asked with the plan of the first row above:
+
+| Asked with this story                                                                                                                                                                                                                               | Ruling                                                                                               | Done       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------- |
+| A Pool bout of one round, no wifi, doubles limit 3. The official taps the third double, then "End match". The tablet shows "blue wins 2 – 1, not confirmed"; with the wifi back the server says "loss for both, 0 – 0". Counting up and down alike. | **In this slice**: the tablet's End at the doubles limit says what the format says, "not confirmed". | `c081faa9` |
+
+- Server: a Pool or Swiss bout that counts down and reaches its doubles limit ends as the format
+  says (a loss for both, a draw, or the result stands), with that reason. A round of a best-of
+  bout the same. Before: a draw "first to points", or a WIN for the fighter a card had left
+  ahead on the wiped board. A bout that counts up is decided as before.
+- The order "point cap, then doubles limit" was written twice (a round, and a bout of one
+  round). It has one owner now, `roundOutcome`.
+- Tablet, a bout of one round at its doubles limit: "End match" ends it at once, with no
+  question and no refusal, and the result screen says "Double loss", 0 – 0, "not confirmed".
+  Before, a level board with time left was REFUSED ("the time is not finished"): with no
+  network that bout could not be ended at all. The plan's recon found it; the ruling's story
+  did not name it.
+- Tablet, the result screen of any bout the server ended as a loss for both says "Double loss".
+  It said "Draw", and with a card on the wiped board (-1 – 0) it named the leader as the winner.
+  The cold review found the second one.
+- The tablet still ends no bout of one round by itself, and does not stop hits after the last
+  double: it behaves as at the cap. This is my choice, said with the plan, not a ruling.
+
+Named while the doubles limit was built, and not fixed:
+
+- A card on a wiped board: the server's row reads 0 and -1, the tablet's own result reads
+  0 – 0 until the server confirms. Both say "Double loss".
+- A best-of series whose every round was a double loss, decided on the tablet: the result
+  screen says "Draw, 0 – 0" until the server confirms "Double loss".
+- Under the format "draw at the limit", a round the tablet closed keeps its points on the
+  round-break screen where the server writes 0 – 0 (`pad-series.ts`, the `wiped` test).
+- A tablet that has not read the bout's phase, or its Tournament's rules, judges the limit
+  with what it has: no limit, or the default limit of 4. The server decides.
+- Countdown with the format "result stands": after a correction that leaves both fighters at
+  zero AND the doubles at the limit, the bout is a draw, not "less far below zero". It cannot
+  happen in live play.
+- TF_v1 keeps version 1.0.0 though its end decision changed for bouts that count down. Bouts
+  stored with the old reason are not rewritten.
+- No cold review ran after the review's three fixes; the falsifier did (62 breaks, all red,
+  and one line it showed to change nothing was removed).
 
 Named while this was built, and not fixed (each one checked in code by a review):
 
