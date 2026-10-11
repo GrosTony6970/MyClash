@@ -1261,6 +1261,11 @@ export class MatchesService {
     return this.scoring.clockAction(...asked);
   }
 
+  /** A clock press from a tablet's queue: through the door that counts a bout that starts. */
+  async latePress(...asked: Parameters<ScoringService['latePress']>) {
+    return this.scoring.latePress(...asked);
+  }
+
   /** End the current round on time in a best-of match (operator-driven). */
   async endRoundOnTime(matchId: string, context?: MatchActor, late?: LateRoundPress | null) {
     return this.scoring.endRoundOnTime(matchId, context, late);

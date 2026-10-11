@@ -5,6 +5,7 @@ import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { STAFF_COOKIE_NAME, StaffService } from '../staff/staff.service';
 import { ClockService } from './clock.service';
 import { MatchesController } from './matches.controller';
+import { ScoringService } from './scoring.service';
 
 /**
  * The door of a clock press sent late: `POST /matches/:id/clock` with an id.
@@ -107,12 +108,21 @@ function setup(status: string, caller: Caller, piste = LICE) {
   vi.spyOn(inner, 'getSupabaseUserId').mockResolvedValue(caller === 'pin' ? null : USER);
   vi.spyOn(inner, 'isSuperAdmin').mockResolvedValue(caller === 'super admin');
 
+  const clock = new ClockService(db as never);
+  // The door of a press with an id is the REAL one: the scoring service over
+  // the real clock (`ScoringService.latePress`, which counts a bout that starts).
+  const scoring = new ScoringService(db as never, undefined as never, clock);
   /** The door of the pad of before: `MatchesService.clockAction`. */
-  const before = { clockAction: vi.fn().mockResolvedValue('the clock of before') };
+  const before = {
+    clockAction: vi.fn().mockResolvedValue('the clock of before'),
+    latePress: vi.fn((...asked: Parameters<ScoringService['latePress']>) =>
+      scoring.latePress(...asked),
+    ),
+  };
   const controller = new MatchesController(
     before as never,
     {} as never,
-    new ClockService(db as never),
+    clock,
     staff,
     {} as never,
     {} as never,
@@ -178,6 +188,16 @@ describe('a clock press from a pad’s queue, on a running Event', () => {
       by_user_id: null,
     });
     expect(before.clockAction).not.toHaveBeenCalled();
+    // Through the door that counts a bout that starts, not the clock itself:
+    // the tablet sends every Start this way.
+    expect(before.latePress.mock.calls).toEqual([
+      [
+        MATCH,
+        'resume',
+        expect.objectContaining({ clientUuid: NEW }),
+        expect.objectContaining({ staffAccountId: 'staff-1' }),
+      ],
+    ]);
   });
 
   it('a body with no id goes through the door of before, unchanged', async () => {

@@ -636,6 +636,6 @@ export class MatchesController {
     req: FastifyRequest,
   ) {
     const scorer = await this.staff.authorizeMatchScoring(req, id, 'leave-to-handler');
-    return this.clock.latePress(id, press.action, press, scorer);
+    return this.matches.latePress(id, press.action, press, scorer);
   }
 }

@@ -44,6 +44,7 @@ import { endedByForfeitRecord } from './forfeit-end-reason';
 import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
 import { advanceRound, writeRoundRow, type LateRoundPress } from './round-advance';
 import { placeLateRoundEnd, type RoundEndBout } from './round-end';
+import { countAtStart, type StartCountDeps } from './start-count';
 import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
@@ -1354,7 +1355,10 @@ export class ScoringService {
     const held =
       action !== 'end' && action !== 'reset_clock' ? await this.heldResult(matchId) : null;
     const state = await this.clock.clockAction(...asked);
-    if (!held) return state;
+    if (!held) {
+      if (action === 'start') await this.countAtStartBestEffort(matchId);
+      return state;
+    }
     try {
       if (held.found.status === 'completed') await this.putScoreBack(matchId, held);
       else await this.recomputeMatchScore(matchId);
@@ -1362,6 +1366,38 @@ export class ScoringService {
       this.logger.warn(`Match ${matchId} kept its record's score after clock ${action}`, err);
     }
     return this.clock.getClockState(matchId);
+  }
+
+  /**
+   * A press from a tablet's queue, over `ClockService.latePress`. A Start is
+   * followed by the count of a bout that starts (`start-count.ts`): every
+   * screen then reads cap to cap in a bout that counts down, not 0 - 0 until
+   * the first hit. The tablet sends EVERY Start through here.
+   *
+   * NOT best effort, unlike the door above: a count that did not land is an
+   * error. The press is saved by then, so the tablet's next send of it is
+   * answered by the clock and comes back to the count. Left at 0 - 0 in
+   * silence, the row would read as "both out of points" once the first hit is
+   * on the sheet, and a tablet would close that round as drawn.
+   */
+  async latePress(...asked: Parameters<ClockService['latePress']>): Promise<ClockState> {
+    const [matchId, action] = asked;
+    const state = await this.clock.latePress(...asked);
+    if (action === 'start') await countAtStart(this.startCount(), matchId);
+    return state;
+  }
+
+  private startCount(): StartCountDeps {
+    return { db: this.supabase.service, recompute: (id) => this.recomputeMatchScore(id) };
+  }
+
+  /** The count of a bout that starts, for a Start with no id: a person sees the screen. */
+  private async countAtStartBestEffort(matchId: string): Promise<void> {
+    try {
+      await countAtStart(this.startCount(), matchId);
+    } catch (err) {
+      this.logger.warn(`Match ${matchId} was started with its score not counted`, err);
+    }
   }
 
   /**
