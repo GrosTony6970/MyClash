@@ -39,11 +39,11 @@ import {
   type PenaltyRulesetEntry,
 } from './usePenalties';
 import { usePendingOutbox } from './usePendingOutbox';
+import { kindOf, type OutboxEntry } from '../offline/db';
 import { notTakenBack, useTakenBack } from './useTakenBack';
 import {
   cardCountFor,
   pendingRowsForMatch,
-  provisionalDeltas,
   queuedCardsFor as queuedCardsForRegistration,
 } from '../offline/pending-events';
 import { priorsWithQueued, resolveEntryCard } from '../offline/resolve-entry-card';
@@ -75,8 +75,11 @@ export interface MatchScoringData {
    * blue was announced under red's score too.
    */
   queuedCardsFor: (registrationId: string) => { priced: number; unpriced: number };
-  /** What the queue adds to each side's score. Display only, never stored. */
-  provisional: { red: number; blue: number };
+  /**
+   * The "Start round" and "End round" rows the tablet still holds of this bout,
+   * in the order they were made. `padSeries` reads the rounds from them.
+   */
+  queuedRoundPresses: OutboxEntry[];
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   countFor: (registrationId: string, card: PenaltyCard) => number;
@@ -98,8 +101,6 @@ export function useMatchScoringData(args: {
   matchId: string;
   refreshKey: number;
   config: TournamentScoringConfig;
-  redRegistrationId: string;
-  blueRegistrationId: string;
   /**
    * The SyncEngine's pending count, NOT a per-match one.
    *
@@ -114,7 +115,7 @@ export function useMatchScoringData(args: {
    */
   syncPendingCount: number;
 }): MatchScoringData {
-  const { apiUrl, matchId, refreshKey, config, redRegistrationId, blueRegistrationId } = args;
+  const { apiUrl, matchId, refreshKey, config } = args;
 
   const takenBack = useTakenBack(refreshKey, args.syncPendingCount);
   const { active: serverExchanges, refresh: refreshExchanges } = useExchanges(
@@ -148,15 +149,9 @@ export function useMatchScoringData(args: {
     [pendingEntries, config, activeExchanges, activePenalties, ruleset, priors],
   );
 
-  const provisional = useMemo(
-    () =>
-      provisionalDeltas({
-        exchanges: pending.exchanges,
-        penalties: pending.penalties,
-        redRegistrationId,
-        blueRegistrationId,
-      }),
-    [pending, redRegistrationId, blueRegistrationId],
+  const queuedRoundPresses = useMemo(
+    () => pendingEntries.filter((entry) => kindOf(entry) === 'round'),
+    [pendingEntries],
   );
 
   const countFor = (registrationId: string, card: PenaltyCard) =>
@@ -192,7 +187,7 @@ export function useMatchScoringData(args: {
     pendingPenalties: pending.penalties,
     unpricedCards: pending.unpricedCardUuids.length,
     queuedCardsFor,
-    provisional,
+    queuedRoundPresses,
     countFor,
     resolveCard,
     refreshExchanges,

@@ -180,7 +180,19 @@ async function undoOnTablet(
 export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
   // A press (the clock's, a round's) is no entry of the bout's list: the undo never takes one back.
   const queued = await getPendingForMatch(deps.matchId);
-  const waiting = queued.filter((entry) => !isTap(entry));
+  // The undo stops at a round the tablet closed. A queued "Start round" or
+  // "End round" closes the entries before it with their round: taking one back
+  // would make that press a lie (the round it closed is no longer over). So
+  // only the entries queued AFTER the bout's newest round press can be undone,
+  // and with none the undo says so, and asks the server for nothing.
+  const lastRoundPress = queued.reduce(
+    (last, row, at) => (kindOf(row) === 'round' ? at : last),
+    -1,
+  );
+  const waiting = queued.slice(lastRoundPress + 1).filter((entry) => !isTap(entry));
+  if (lastRoundPress >= 0 && waiting.length === 0) {
+    return { kind: 'failed', message: deps.t('scoring.rounds.undoStopsAtRound') };
+  }
   const takenBack = new Set((await listUndone()).map((entry) => entry.clientUuid));
   const read = await readServerEntries(deps.apiUrl, deps.matchId);
   const rows = 'rows' in read ? read.rows.filter((row) => !takenBack.has(row.clientUuid)) : null;

@@ -138,9 +138,36 @@ interface RoundBreakDialogProps {
   blueRoundWins: number;
   redColor: string;
   blueColor: string;
+  /** The TABLET closed this round: the server has not confirmed it (operator, 2026-10-10). */
+  unconfirmed: boolean;
   error: string | null;
-  busy: boolean;
   onStart: () => void;
+}
+
+/** The rounds each side has won, each in its side's colour. */
+function SeriesTally({ red, blue }: { red: [number, string]; blue: [number, string] }) {
+  const { t } = useI18n();
+  return (
+    <p className="text-sm font-semibold text-muted">
+      {t('scoring.rounds.seriesTally')} <span style={{ color: red[1] }}>{red[0]}</span>
+      {' – '}
+      <span style={{ color: blue[1] }}>{blue[0]}</span>
+    </p>
+  );
+}
+
+/** The TABLET closed the round: the server has not confirmed it (operator, 2026-10-10). */
+function ClosedOnTablet() {
+  const { t } = useI18n();
+  return (
+    <p
+      role="status"
+      data-testid="round-closed-on-tablet"
+      className="mb-4 rounded-lg bg-warning/15 px-3 py-2 text-sm font-bold text-warning"
+    >
+      {t('scoring.rounds.closedOnTablet')}
+    </p>
+  );
 }
 
 /**
@@ -148,10 +175,10 @@ interface RoundBreakDialogProps {
  * round's result and lets the official start the next round, which resets the
  * clock and the score to 0–0.
  *
- * While busy the button is `aria-disabled`, never `disabled`: the dialog gives
- * its focus to the first button that is not disabled, once, when it opens. A
- * screen that opened on a disabled button left the focus on "End round" behind
- * it, and Space pressed that.
+ * "Start round" is a row of the tablet's queue: the screen closes at the tap,
+ * with a network or with none, so the button is never disabled. (A disabled
+ * button here left the focus on "End round" behind the screen, and Space
+ * pressed that.)
  */
 export function RoundBreakDialog({
   open,
@@ -163,8 +190,8 @@ export function RoundBreakDialog({
   blueRoundWins,
   redColor,
   blueColor,
+  unconfirmed,
   error,
-  busy,
   onStart,
 }: RoundBreakDialogProps) {
   const { t } = useI18n();
@@ -176,9 +203,9 @@ export function RoundBreakDialog({
       footer={
         <button
           type="button"
-          aria-disabled={busy}
-          onClick={busy ? undefined : onStart}
-          className="min-h-[44px] rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30 aria-disabled:opacity-40"
+          data-testid="start-next-round"
+          onClick={onStart}
+          className="min-h-[44px] rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30"
         >
           {t('scoring.rounds.startRound', { round: String(round + 1) })} →
         </button>
@@ -193,11 +220,8 @@ export function RoundBreakDialog({
         <p className="mb-4 font-mono text-2xl font-bold text-foreground-secondary">
           {redScore} – {blueScore}
         </p>
-        <p className="text-sm font-semibold text-muted">
-          {t('scoring.rounds.seriesTally')} <span style={{ color: redColor }}>{redRoundWins}</span>
-          {' – '}
-          <span style={{ color: blueColor }}>{blueRoundWins}</span>
-        </p>
+        {unconfirmed && <ClosedOnTablet />}
+        <SeriesTally red={[redRoundWins, redColor]} blue={[blueRoundWins, blueColor]} />
         {error && <p className="mt-3 text-xs font-normal text-danger">{error}</p>}
       </div>
     </Modal>

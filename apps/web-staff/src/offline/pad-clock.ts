@@ -12,13 +12,64 @@
  */
 import { clockAfterPress, type ClockFold, type ClockStatus } from '@myclash/types';
 import type { ClockState } from '../components/scoreboard-clock';
-import { kindOf, type OutboxEntry } from './db';
+import { isTap, type OutboxEntry, type RoundPress } from './db';
 
 const IDLE: ClockFold = { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null };
 
-/** The clock presses of the queue's rows, in the order they were made. */
+/**
+ * The presses of the queue's rows that move the clock, in the order they were
+ * made: the clock's own, and the two round buttons.
+ */
 export function pressesOf(rows: readonly OutboxEntry[]): OutboxEntry[] {
-  return rows.filter((row) => kindOf(row) === 'press').sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+  return rows.filter(isTap).sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+}
+
+/**
+ * The clock after a round press, as the server leaves it. "Start round N" puts
+ * the round's time to zero, halted (the server's `reset_clock`): the first
+ * press of the new round is a Resume. "End round" stops the time that runs.
+ *
+ * An "End round" that decides the series ENDS the clock on the server. The pad
+ * shows it halted until the clock is read again: the screen says "decided"
+ * from the rounds (`padSeries`), not from this clock.
+ */
+export function clockAfterRound(clock: ClockFold, action: RoundPress, at: string): ClockFold {
+  if (action === 'end') return clockAfterPress(clock, 'halt', at);
+  return { ...clock, activeMs: 0, runningFrom: null, status: 'halted' };
+}
+
+/**
+ * The server's clock this screen holds, after a round press the server TOOK.
+ * The answer of a round door is no clock, so the screen takes the same step
+ * the queue showed for the press, and reads the server's clock behind it.
+ */
+export function serverClockAfterRound(
+  clock: ClockState,
+  round: { action: RoundPress; at: string },
+): ClockState {
+  const after = clockAfterRound(clock as ClockFold, round.action, round.at);
+  return {
+    ...clock,
+    ...after,
+    totalActiveMs: after.activeMs,
+    levelResolutionSteps: round.action === 'advance' ? 0 : clock.levelResolutionSteps,
+  };
+}
+
+/** One queued press applied to the clock, and to the level steps the round has taken. */
+function afterRow(
+  state: { clock: ClockFold; levelSteps: number | undefined },
+  row: OutboxEntry,
+): { clock: ClockFold; levelSteps: number | undefined } {
+  if (row.pressAction) {
+    return { ...state, clock: clockAfterPress(state.clock, row.pressAction, row.occurredAt) };
+  }
+  if (!row.roundAction) return state;
+  return {
+    clock: clockAfterRound(state.clock, row.roundAction, row.occurredAt),
+    // A new round works the level chain from its top.
+    levelSteps: row.roundAction === 'advance' ? 0 : state.levelSteps,
+  };
 }
 
 /**
@@ -43,14 +94,12 @@ export function padClock(
   const waiting = presses.filter((press) => !sent.has(press.clientUuid));
   if (waiting.length === 0) return server;
 
-  let clock: ClockFold = server ?? IDLE;
-  for (const press of waiting) {
-    if (press.pressAction) clock = clockAfterPress(clock, press.pressAction, press.occurredAt);
-  }
+  const start = { clock: (server ?? IDLE) as ClockFold, levelSteps: server?.levelResolutionSteps };
+  const { clock, levelSteps } = waiting.reduce(afterRow, start);
   return {
     matchId,
     events: server?.events,
-    levelResolutionSteps: server?.levelResolutionSteps,
+    levelResolutionSteps: levelSteps,
     status: clock.status,
     activeMs: clock.activeMs,
     runningFrom: clock.runningFrom,

@@ -191,6 +191,10 @@ export { pendingLevelStep } from '@myclash/rules/pad';
 /** The doubles limit a bout is fought under: none outside a pool and a Swiss round. */
 export { getEffectiveMaxDoubles } from '@myclash/rules/pad';
 
+/** The end of a round by itself, and the end of a best-of series: the pad runs a bout offline. */
+export { roundOutcome, seriesResult } from '@myclash/rules/pad';
+export type { SeriesResult } from '@myclash/rules/pad';
+
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 
 /**

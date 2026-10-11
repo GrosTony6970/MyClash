@@ -57,6 +57,21 @@ function localDeltas(
 }
 
 /**
+ * The round a queued hit or card is of on the tablet, or null when the tablet
+ * does not know (a row queued before rows kept their round): `padSeries` reads
+ * that as the server's open round.
+ *
+ * The row's own round (`OutboxEntry.round`), and never under the round a
+ * "Start round" queued BEFORE it opens: the queue goes out in order, so the
+ * server counts the row in that round at least. That covers a hit queued while
+ * its "Start round" was held in the inbox, and put behind it again by a Retry.
+ */
+function queuedRound(entry: OutboxEntry, opened: number): number | null {
+  const round = Math.max(entry.round ?? 0, opened);
+  return round > 0 ? round : null;
+}
+
+/**
  * One queued card as a timeline row.
  *
  * `priced` is null when the pad could not honestly say what the card is worth —
@@ -145,6 +160,8 @@ export function pendingRowsForMatch(args: {
   const exchanges: ExchangeRow[] = [];
   const penalties: Penalty[] = [];
   const unpricedCardUuids: string[] = [];
+  // The round the newest queued "Start round" before a row opens (0: none).
+  let opened = 0;
 
   for (const entry of entries) {
     // Ahead of the pricer on purpose. A card in the window between a successful
@@ -154,8 +171,13 @@ export function pendingRowsForMatch(args: {
     if (known.has(entry.clientUuid)) continue;
 
     // A press of the clock or of a round button is no line of the bout's list,
-    // and adds to no score.
-    if (isTap(entry)) continue;
+    // and adds to no score. A queued "Start round N" says which round the rows
+    // behind it are of.
+    if (isTap(entry)) {
+      if (entry.roundAction === 'advance') opened = Math.max(opened, entry.round ?? 0);
+      continue;
+    }
+    const round = queuedRound(entry, opened);
     if (kindOf(entry) === 'penalty') {
       const priced = pricer.price({
         registrationId: entry.registrationId ?? '',
@@ -163,7 +185,7 @@ export function pendingRowsForMatch(args: {
         directCard: entry.directCard,
       });
       if (!priced) unpricedCardUuids.push(entry.clientUuid);
-      penalties.push(pendingPenaltyRow(entry, priced));
+      penalties.push({ ...pendingPenaltyRow(entry, priced), round_number: round });
       continue;
     }
 
@@ -184,6 +206,7 @@ export function pendingRowsForMatch(args: {
       scoreDelta,
       defenderDelta,
       no_exchange_reason: entry.noExchangeReason ?? null,
+      round_number: round,
       pending: true,
     });
   }
@@ -250,12 +273,12 @@ export function queuedCardsFor(args: {
  * A card's delta lands on the CARDED fighter's own side, negative in the usual
  * case — the same arithmetic `recomputeMatchScore` does server-side.
  *
- * No round filter here, and none needed: these are OUTBOX rows, recorded in the
- * round that is open right now. Advancing a round is a server call, so a pad
- * holding a queue cannot have moved past the round its queue belongs to. The
- * server does filter by round (migration 0191 gave a card a `round_number`, and
- * `recomputeBestOfRounds` scores only the open round's cards) — it has to,
- * because it holds every round's rows and this only ever holds one round's.
+ * No round filter here: this adds up the rows it is given. A queue can hold the
+ * rows of more than one round since a best-of bout runs with no network (a
+ * queued "Start round 2" between them), so `padSeries` gives this the rows of
+ * ONE round (each queued row carries its `round_number`). The server filters by
+ * round the same way (`recomputeBestOfRounds` scores only the open round's
+ * hits and cards).
  *
  * An unpriced card carries `score_delta: 0` and so adds nothing here. That is
  * only honest if the caller shows the count `pendingRowsForMatch` returns

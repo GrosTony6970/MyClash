@@ -296,6 +296,10 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // `getEffectiveMaxDoubles` joined for the doubles chip: the limit applies in a
   // pool and a Swiss round only, and the pad showed it on every bout. It is a
   // lookup in config the pad already holds.
+  // `roundOutcome` and `seriesResult` joined when a best-of bout began to run on
+  // the tablet with no network: the pad closes a round and a series by the
+  // functions the server closes them with. They read a score the pad already
+  // shows; they derive none, and the server decides when the two disagree.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
     'clockAfterPress',
@@ -308,6 +312,8 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'pendingLevelStep',
     'pointCapWinnerColor',
     'resolveEntryCard',
+    'roundOutcome',
+    'seriesResult',
     'timeIsFinished',
     'winnerColorFrom',
   ]);

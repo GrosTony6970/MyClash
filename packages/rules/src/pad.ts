@@ -64,6 +64,16 @@ export { timeIsFinished } from './match-format';
  * Swiss round, none in a bracket. The pad shows the limit the server applies.
  */
 export { getEffectiveMaxDoubles } from './match-format';
+
+/**
+ * The two rules a best-of bout runs on with no network: is this round over by
+ * itself on this score (and for whom), and is the series over on these closed
+ * rounds. The server closes a round and a series by the same two functions;
+ * only the round's SCORE differs (the server's is the ruleset's own scorer's),
+ * and the server decides when the two disagree.
+ */
+export { roundOutcome, seriesResult } from './match-format';
+export type { SeriesResult } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';

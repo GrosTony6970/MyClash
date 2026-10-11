@@ -49,8 +49,9 @@ describe('the bout screen', () => {
 
   it('opens each one on the state it had', () => {
     expect(view).toContain('open={pendingResume !== null}');
+    // The round view's "a round waits for Start", the server's or the tablet's.
     expect(view).toContain(
-      "open={isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended'}",
+      "open={isBestOf && series.awaitingStart && boutClock?.status !== 'ended'}",
     );
   });
 });
@@ -112,13 +113,21 @@ describe('the round-break screen', () => {
 
   it('has one way out, the size of a finger', () => {
     expect(roundBreak.match(/<button/g)).toHaveLength(1);
-    expect(roundBreak).toMatch(
-      /onClick=\{busy \? undefined : onStart\}\s+className="min-h-\[44px\]/,
-    );
+    expect(roundBreak).toMatch(/onClick=\{onStart\}\s+className="min-h-\[44px\]/);
   });
 
-  it('keeps its button able to take the focus while a call runs', () => {
-    expect(roundBreak).toContain('aria-disabled={busy}');
-    expect(roundBreak).not.toMatch(/\sdisabled=/);
+  it('keeps its button able to take the focus: "Start round" waits for no call', () => {
+    expect(roundBreak).not.toMatch(/disabled/);
+  });
+
+  it('says so when the tablet closed the round, under the score', () => {
+    const score = roundBreak.indexOf('{redScore} – {blueScore}');
+    const line = roundBreak.indexOf('{unconfirmed && <ClosedOnTablet />}');
+    expect(score).toBeGreaterThan(0);
+    expect(line).toBeGreaterThan(score);
+    expect(dialogs).toMatch(
+      /function ClosedOnTablet\(\) \{[\s\S]{0,80}<p\s+role="status"\s+data-testid="round-closed-on-tablet"[^>]*>\s+\{t\('scoring\.rounds\.closedOnTablet'\)\}/,
+    );
+    expect(view).toContain("unconfirmed={closedRound?.by === 'tablet'}");
   });
 });

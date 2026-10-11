@@ -16,6 +16,7 @@ const view = read('components', 'MatchView.tsx');
 const controls = read('components', 'ScoringCenterControls.tsx');
 const overlay = read('components', 'MatchResultOverlay.tsx');
 const hook = read('hooks', 'usePadClock.ts');
+const rounds = read('hooks', 'usePadRounds.ts');
 
 describe('a press of the clock', () => {
   it('is written on the tablet and sent behind, as a hit is', () => {
@@ -72,8 +73,9 @@ describe('the clock on the screen', () => {
   });
 
   it('opens the tablet’s copy of the clock only when there is no network, and never over an answer', () => {
+    expect(hook).toMatch(/=== 'offline'\) \{\s+setAnswered\(await keptOr\(matchId\)\);\s+return;/);
     expect(hook).toMatch(
-      /=== 'offline'\) \{[^}]*const kept = await keptClock\(matchId\)\.catch\(\(\) => null\);\s+if \(kept\) setAnswered\(\(now\) => \(now\?\.matchId === matchId \? now : \{ matchId, clock: kept \}\)\);/,
+      /const kept = await keptClock\(matchId\)\.catch\(\(\) => null\);\s+return \(now\) => \(now\?\.matchId === matchId \|\| !kept \? now : \{ matchId, clock: kept \}\);/,
     );
   });
 
@@ -94,8 +96,16 @@ describe('the Space key', () => {
 describe('the scoring buttons', () => {
   it('follow the bout’s status on the pad, not the server’s row alone', () => {
     expect(view).toContain(
-      "const boutStatus = boutStatusOnPad(match.status, clockState?.status ?? 'idle');",
+      "const boutStatus = boutStatusOnPad(match.status, boutClock?.status ?? 'idle');",
     );
+    // The clock on screen is ended once a best-of series is decided, on the
+    // server or on this tablet: no Resume, no "End round", no Space after it.
+    expect(view).toMatch(
+      /const boutClock: ClockState \| null =\s+seriesDecided && clockState\s+\? \{ \.\.\.clockState, status: 'ended', runningFrom: null \}\s+: clockState;/,
+    );
+    expect(view).toContain("const status = boutClock?.status ?? 'idle';");
+    expect(view).toContain('clockState={boutClock}\n          clockLoading={clockLoading}');
+    expect(view).toContain("{boutClock?.status === 'ended' && !resultDismissed && (");
     expect(view).toMatch(
       /const scoringEnabled =\s+\(boutStatus === 'running' \|\| boutStatus === 'paused'\) &&/,
     );
@@ -119,20 +129,28 @@ describe('"End match" on the tablet', () => {
 
   it('judges the score on the screen, the tablet’s unsent hits included', () => {
     expect(view).toMatch(/endRefusedOnPad\(\{[^}]*score: \{ redScore, blueScore \},/);
-    expect(view).toContain('const redScore = match.redScore + provisional.red;');
+    // The score on the screen is the round view's: the server's part of the
+    // open round plus what the tablet holds of it (`padSeries`).
+    expect(view).toContain('const { redScore, blueScore } = series;');
+    expect(view).toContain('const { series, isBestOf, bestOf } = rounds;');
   });
 
   it('shows the tablet’s own result until the server’s row says completed, and says so', () => {
     expect(view).toContain(
-      "const unconfirmed = resultUnconfirmed(match.status, clockState?.status ?? 'idle');",
+      "const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');",
     );
     // The score the End was pressed on: the score on screen moves while the queue goes out.
     expect(view).toContain(
       'const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });',
     );
     expect(view).toContain('unconfirmed={unconfirmed}');
-    expect(view).toContain('redScore={unconfirmed ? ownResult.red : match.redScore}');
-    expect(view).toContain('blueScore={unconfirmed ? ownResult.blue : match.blueScore}');
+    // A decided series is said by its rounds won, confirmed or not; else the
+    // tablet's own result, else the server's row.
+    expect(view).toMatch(
+      /const shownResult = seriesDecided\s+\? \{ red: series\.redRoundWins, blue: series\.blueRoundWins \}\s+: unconfirmed\s+\? ownResult\s+: serverResult;/,
+    );
+    expect(view).toContain('redScore={shownResult.red}');
+    expect(view).toContain('blueScore={shownResult.blue}');
     expect(view).toContain(
       'winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}',
     );
@@ -159,11 +177,22 @@ describe('what needs the network while presses wait', () => {
     expect(controls).toContain('disabled={clockLoading || pressesWaiting}');
   });
 
-  it('so do the end of a round and a level bout’s remedy, which the server answers too', () => {
-    expect(controls).toContain(
-      'disabled={clockLoading || roundBusy || (isBestOf && pressesWaiting)}',
-    );
+  it('so does a level bout’s remedy, which the server answers too', () => {
     expect(controls).toContain('disabled={clockLoading || roundBusy || pressesWaiting}');
+  });
+
+  it('"End round" does not: it is a row of the queue, behind the presses before it', () => {
+    expect(controls).toMatch(
+      /data-testid="clock-end-button"\s+disabled=\{clockLoading \|\| roundBusy\}/,
+    );
+    // The screen asks for the bout when its memory of the rounds begins to
+    // stand over the server's view: the memory goes when that read lands.
+    expect(view).toContain('readBout: onRefresh,');
+    expect(rounds).toMatch(
+      /useEffect\(\(\) => \{\s+if \(standsOver\) readBout\(\);\s+\}, \[standsOver, readBout\]\);/,
+    );
+    expect(view).toContain('onEndRound={rounds.endRound}');
+    expect(view).toContain('onStart={rounds.startNextRound}');
   });
 });
 

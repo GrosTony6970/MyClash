@@ -9,6 +9,7 @@ import { MatchResultOverlay } from './MatchResultOverlay';
 import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
 import { usePadClock } from '../hooks/usePadClock';
+import { usePadRounds } from '../hooks/usePadRounds';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
@@ -29,7 +30,6 @@ import {
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
-import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
 import { endIsEarly, endRefusedOnPad } from './end-guard';
 import { apiRequest } from '@myclash/api-client';
@@ -189,10 +189,6 @@ export function MatchView({
   // End-of-match result overlay; dismiss resets whenever the clock leaves
   // 'ended' so Reopen → end shows it again.
   const [resultDismissed, setResultDismissed] = useState(false);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the dismiss flag when the clock leaves 'ended'.
-    if (clockState?.status !== 'ended') setResultDismissed(false);
-  }, [clockState?.status]);
 
   /**
    * The tournament's scoring rules — the buttons the referee presses.
@@ -232,6 +228,73 @@ export function MatchView({
     };
   }, [match.tournamentId, apiUrl]);
 
+  /**
+   * The score, plus what the tablet is still holding.
+   *
+   * The sum is `padSeries`' (`usePadRounds`, below): the open round's score.
+   * `match.redScore` is the server's (or the tablet's copy of it), and offline it stops moving — the read
+   * that refreshes it 503s. So a referee scoring three hits in a dead hall
+   * watched the number stand still with no way to tell whether the tablet had
+   * heard them. The queued hits are on disk; this adds them up.
+   *
+   * PROVISIONAL, AND SAID SO. The server remains the only thing that DERIVES a
+   * stored score — nothing here is written anywhere. This is the optimistic
+   * local apply ARCHITECTURE.md §10.2 has described since the sync engine was
+   * written and which was never implemented.
+   *
+   * THE DRAIN RACE IS NOW DEDUPED, and it used to be double-counted here. This
+   * block passed empty server lists to `pendingRowsForMatch`, so between a POST
+   * succeeding and `markSynced` deleting the outbox row the hit was added twice
+   * — the timeline and the double-count chip deduped, the score did not. Going
+   * through `useMatchScoringData` means the same `client_uuid` dedupe every
+   * other surface gets.
+   *
+   * It swaps one narrow transient for another rather than removing it: the
+   * score can now read one hit LOW for a tick if `/exchanges` lands before the
+   * page's `/matches/:id`. Both settle on the next read, and a number that
+   * briefly lags is a smaller lie than one that briefly double-counts. A hit
+   * the server took leaves the queue at once and the server is read at the
+   * end of the pass: while a long queue goes out, the score reads LOW by the
+   * hits already taken, and comes right when the pass ends.
+   */
+  const scoring = useMatchScoringData({
+    apiUrl,
+    matchId: match.id,
+    refreshKey,
+    config: scoringConfig,
+    syncPendingCount: syncState?.pendingCount ?? 0,
+  });
+  // The rounds: which is open, its score, who closed the ones before it. A
+  // bout of one round is one round here, so the numerals have ONE source.
+  const rounds = usePadRounds({
+    match,
+    matchFormat,
+    scoring,
+    clockState,
+    held: padClock.heldRows.length > 0,
+    syncEngine,
+    pressed: clockPressed,
+    setError: setClockError,
+    readBout: onRefresh,
+    t,
+  });
+  const { series, isBestOf, bestOf } = rounds;
+  const { redScore, blueScore } = series;
+  // A best-of series is decided by its rounds, on the server or on this tablet
+  // ahead of it. The clock on screen is then ENDED, whatever the tablet's fold
+  // says: the tablet's own "End round" only halts it (the server ends it), and
+  // a halted clock offers Resume, "End round" and the Space key. A Resume
+  // sent after the deciding round is refused by the server and held.
+  const seriesDecided = isBestOf && series.decided !== null;
+  const boutClock: ClockState | null =
+    seriesDecided && clockState
+      ? { ...clockState, status: 'ended', runningFrom: null }
+      : clockState;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the dismiss flag when the clock leaves 'ended'.
+    if (boutClock?.status !== 'ended') setResultDismissed(false);
+  }, [boutClock?.status]);
+
   // ── Level at time ──────────────────────────────────────────────────────────
   //
   // A bout that is LEVEL when the clock runs out follows the phase's chain of
@@ -246,9 +309,9 @@ export function MatchView({
   // `inSuddenDeath` — a bout in sudden death sits at 00:00 by design.
   const levelSteps = clockState?.levelResolutionSteps ?? 0;
   const chainApplies = levelChainApplies({
-    redScore: match.redScore,
-    blueScore: match.blueScore,
-    awaitingRoundAdvance: match.awaitingRoundAdvance,
+    redScore,
+    blueScore,
+    awaitingRoundAdvance: series.awaitingStart,
   });
   const levelPending: LevelStep | null = chainApplies
     ? pendingLevelStep(
@@ -383,58 +446,8 @@ export function MatchView({
     }
   }
 
-  // ── Best-of-N round lifecycle ──────────────────────────────────────────────
-  const bestOf = match.bestOf ?? 1;
-  const currentRound = match.currentRound ?? 1;
-  const redRoundWins = match.redRoundWins ?? 0;
-  const blueRoundWins = match.blueRoundWins ?? 0;
-  const isBestOf = bestOf > 1;
-  const awaitingRoundAdvance = !!match.awaitingRoundAdvance;
+  // The level remedy is a person's, with a network (slice 5 takes it offline).
   const [roundBusy, setRoundBusy] = useState(false);
-
-  // Start the next round (best-of). Resets the clock + open-round score server-side.
-  const onRoundAdvance = useCallback(async () => {
-    setRoundBusy(true);
-    setClockError(null);
-    try {
-      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/rounds/advance`, {
-        method: 'POST',
-        body: {},
-      });
-      if (!result.ok) {
-        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
-      }
-      await fetchClockState();
-      onRefresh();
-    } catch (err) {
-      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
-    } finally {
-      setRoundBusy(false);
-    }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
-
-  // End the current round on time (best-of). The server picks the leader as the
-  // round winner; a tied round is rejected so the operator plays a sudden-death point.
-  const onEndRound = useCallback(async () => {
-    setRoundBusy(true);
-    setClockError(null);
-    try {
-      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/rounds/end`, {
-        method: 'POST',
-        body: {},
-      });
-      if (!result.ok) {
-        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
-      }
-      await fetchClockState();
-      onRefresh();
-    } catch (err) {
-      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
-    } finally {
-      setRoundBusy(false);
-    }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
-
   const onAdvanceLevelResolution = useCallback(async () => {
     setRoundBusy(true);
     setClockError(null);
@@ -462,15 +475,17 @@ export function MatchView({
   // stopped at zero / inside the soft zone the operator keeps full control
   // (points, penalties, corrections) — the ruleset warning moved to the
   // Start/Resume action instead (resume guard below). Best-of also blocks
-  // scoring while a round is awaiting advance (the operator must start the next).
+  // scoring while a round waits for "Start round" (the official must start the
+  // next). A decided series has an ended clock on screen (`boutClock`), so its
+  // status here is "completed".
   // The bout's status is the pad's: a bout this tablet started with no
   // network is in play here before the server knows (`boutStatusOnPad`).
-  const boutStatus = boutStatusOnPad(match.status, clockState?.status ?? 'idle');
+  const boutStatus = boutStatusOnPad(match.status, boutClock?.status ?? 'idle');
   const scoringEnabled =
     (boutStatus === 'running' || boutStatus === 'paused') &&
     !match.lockedAt &&
-    !awaitingRoundAdvance;
-  const clockRunning = clockState?.status === 'running';
+    !series.awaitingStart;
+  const clockRunning = boutClock?.status === 'running';
   const canScore = scoringEnabled && !clockRunning;
   const clockTimeMs = clockState?.activeMs ?? null;
 
@@ -483,47 +498,6 @@ export function MatchView({
   );
   const limitMs =
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null;
-
-  /**
-   * The score, plus what the tablet is still holding.
-   *
-   * `match.redScore` is the server's (or the tablet's copy of it), and offline it stops moving — the read
-   * that refreshes it 503s. So a referee scoring three hits in a dead hall
-   * watched the number stand still with no way to tell whether the tablet had
-   * heard them. The queued hits are on disk; this adds them up.
-   *
-   * PROVISIONAL, AND SAID SO. The server remains the only thing that DERIVES a
-   * stored score — nothing here is written anywhere. This is the optimistic
-   * local apply ARCHITECTURE.md §10.2 has described since the sync engine was
-   * written and which was never implemented.
-   *
-   * THE DRAIN RACE IS NOW DEDUPED, and it used to be double-counted here. This
-   * block passed empty server lists to `pendingRowsForMatch`, so between a POST
-   * succeeding and `markSynced` deleting the outbox row the hit was added twice
-   * — the timeline and the double-count chip deduped, the score did not. Going
-   * through `useMatchScoringData` means the same `client_uuid` dedupe every
-   * other surface gets.
-   *
-   * It swaps one narrow transient for another rather than removing it: the
-   * score can now read one hit LOW for a tick if `/exchanges` lands before the
-   * page's `/matches/:id`. Both settle on the next read, and a number that
-   * briefly lags is a smaller lie than one that briefly double-counts. A hit
-   * the server took leaves the queue at once and the server is read at the
-   * end of the pass: while a long queue goes out, the score reads LOW by the
-   * hits already taken, and comes right when the pass ends.
-   */
-  const scoring = useMatchScoringData({
-    apiUrl,
-    matchId: match.id,
-    refreshKey,
-    config: scoringConfig,
-    redRegistrationId: match.redRegistrationId,
-    blueRegistrationId: match.blueRegistrationId,
-    syncPendingCount: syncState?.pendingCount ?? 0,
-  });
-  const provisional = scoring.provisional;
-  const redScore = match.redScore + provisional.red;
-  const blueScore = match.blueScore + provisional.blue;
 
   // Which side (if any) has won by reaching the point cap — drives the gold
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
@@ -576,8 +550,19 @@ export function MatchView({
   // The result is the tablet's own until the server's row says "completed":
   // the score the End was pressed on, and its leader. Never an old row of the
   // server, and never a score that moves while the queue goes out (ruling 11).
-  const unconfirmed = resultUnconfirmed(match.status, clockState?.status ?? 'idle');
+  const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
   const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });
+  // A series decided on this tablet is said by its rounds won (operator,
+  // 2026-10-10): the last round's score alone names no winner of the bout.
+  // A decided series is said by its ROUNDS WON, not confirmed and confirmed
+  // alike: the last round's points name no winner of the bout, and one screen
+  // must not change its number when the server confirms it.
+  const serverResult = { red: match.redScore, blue: match.blueScore };
+  const shownResult = seriesDecided
+    ? { red: series.redRoundWins, blue: series.blueRoundWins }
+    : unconfirmed
+      ? ownResult
+      : serverResult;
 
   // A row of this bout the server refused, a press, a hit or a card: said at
   // the clock, with the way out. The rows of this bout wait behind it until
@@ -592,10 +577,12 @@ export function MatchView({
 
   // Clearing (voiding) the last exchange also recomputes the score, but
   // must NOT advance the local sequence counter (no new exchange).
+  const forgetRounds = rounds.forget;
   const handleExchangeVoided = useCallback(() => {
+    forgetRounds();
     setRefreshKey((k) => k + 1);
     onRefresh();
-  }, [onRefresh]);
+  }, [onRefresh, forgetRounds]);
   // No press waits for the send (ruling 316): the lists are read again when it
   // has ended. The page reads the bout itself then.
   const readListsAgain = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -606,7 +593,7 @@ export function MatchView({
     nextSequence,
     clockTimeMs,
     bout: boutNames(match),
-    round: currentRound,
+    round: series.round,
     syncEngine,
     onExchangeRecorded: moveSequenceOn,
   });
@@ -638,7 +625,7 @@ export function MatchView({
       // primitive (Modal, ConfirmDialog, PromptDialog) portals to <body> with
       // this exact pair of attributes.
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-      const status = clockState?.status ?? 'idle';
+      const status = boutClock?.status ?? 'idle';
       const action: 'start' | 'halt' | 'resume' | null =
         status === 'idle'
           ? 'start'
@@ -653,15 +640,17 @@ export function MatchView({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clockState?.status, drawerOpen, match.lockedAt, onClockAction]);
+  }, [boutClock?.status, drawerOpen, match.lockedAt, onClockAction]);
 
   const redName = match.redFighterName ?? t('scoring.lice.red');
   const blueName = match.blueFighterName ?? t('scoring.lice.blue');
-  const roundWinnerSide = closedRoundWinner(match.roundsJson, currentRound);
-  const roundWinner = roundWinnerSide
+  // The closed round the bout stands on, at a round break: the server's own
+  // record of it (`rounds_json`), or the tablet's while the server has none.
+  const closedRound = series.closed.find((round) => round.round === series.round) ?? null;
+  const roundWinner = closedRound?.winnerColor
     ? {
-        name: roundWinnerSide === 'red' ? redName : blueName,
-        color: sideStyle(scoringConfig, roundWinnerSide).border,
+        name: closedRound.winnerColor === 'red' ? redName : blueName,
+        color: sideStyle(scoringConfig, closedRound.winnerColor).border,
       }
     : null;
 
@@ -685,9 +674,9 @@ export function MatchView({
         next={nextMatch}
         onOpenCorrections={() => setDrawerOpen(true)}
         bestOf={bestOf}
-        currentRound={currentRound}
-        redRoundWins={redRoundWins}
-        blueRoundWins={blueRoundWins}
+        currentRound={series.round}
+        redRoundWins={series.redRoundWins}
+        blueRoundWins={series.blueRoundWins}
       />
 
       {match.lockedAt && (
@@ -747,7 +736,7 @@ export function MatchView({
           fighterName={redName}
           club={match.redClub ?? null}
           score={redScore}
-          provisionalDelta={provisional.red}
+          provisionalDelta={series.redQueued}
           reachedCap={capWinnerSide === 'red'}
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && redScore > blueScore}
@@ -778,7 +767,7 @@ export function MatchView({
           redRegistrationId={match.redRegistrationId}
           blueRegistrationId={match.blueRegistrationId}
           canScore={canScore}
-          clockState={clockState}
+          clockState={boutClock}
           clockLoading={clockLoading}
           clockError={clockError}
           pressesWaiting={padClock.pressesWaiting > 0 || padClock.heldPresses.length > 0}
@@ -789,11 +778,13 @@ export function MatchView({
           syncEngine={syncEngine}
           onExchangeVoided={handleExchangeVoided}
           isBestOf={isBestOf}
-          currentRound={currentRound}
-          redRoundWins={redRoundWins}
-          blueRoundWins={blueRoundWins}
+          currentRound={series.round}
+          redRoundWins={series.redRoundWins}
+          blueRoundWins={series.blueRoundWins}
+          doubles={series.doubles}
+          doublesLimit={series.doublesLimit}
           roundBusy={roundBusy}
-          onEndRound={() => void onEndRound()}
+          onEndRound={rounds.endRound}
           levelPending={levelPending}
           inSuddenDeath={inSuddenDeath}
           onAdvanceLevelResolution={() => void onAdvanceLevelResolution()}
@@ -808,7 +799,7 @@ export function MatchView({
           fighterName={blueName}
           club={match.blueClub ?? null}
           score={blueScore}
-          provisionalDelta={provisional.blue}
+          provisionalDelta={series.blueQueued}
           reachedCap={capWinnerSide === 'blue'}
           unconfirmed={readFromTabletAt !== null}
           leading={!reverseScoring && blueScore > redScore}
@@ -885,40 +876,41 @@ export function MatchView({
           the round result and let the operator start the next round (resets the
           clock + score to 0–0). Mutually exclusive with the final-result overlay
           (a clinched round ends the clock instead of awaiting). The ROUND's
-          winner, from `rounds_json` — not the match's, and not the live score,
-          which is about to reset to 0-0. */}
+          winner, from the closed round — not the match's. The score is the
+          round view's: at a break it stands on the closed round. "Start round"
+          is a row of the queue: the screen closes at the tap. */}
       <RoundBreakDialog
-        open={isBestOf && awaitingRoundAdvance && clockState?.status !== 'ended'}
-        round={currentRound}
+        open={isBestOf && series.awaitingStart && boutClock?.status !== 'ended'}
+        round={series.round}
         winner={roundWinner}
-        redScore={match.redScore}
-        blueScore={match.blueScore}
-        redRoundWins={redRoundWins}
-        blueRoundWins={blueRoundWins}
+        redScore={redScore}
+        blueScore={blueScore}
+        redRoundWins={series.redRoundWins}
+        blueRoundWins={series.blueRoundWins}
         redColor={sideStyle(scoringConfig, 'red').border}
         blueColor={sideStyle(scoringConfig, 'blue').border}
+        unconfirmed={closedRound?.by === 'tablet'}
         error={clockError}
-        busy={roundBusy}
-        onStart={() => void onRoundAdvance()}
+        onStart={rounds.startNextRound}
       />
 
       {/* End-of-match review: winner, score, and how the bout got there. */}
-      {clockState?.status === 'ended' && !resultDismissed && (
+      {boutClock?.status === 'ended' && !resultDismissed && (
         <MatchResultOverlay
           redName={redName}
           blueName={blueName}
           redRegistrationId={match.redRegistrationId}
           blueRegistrationId={match.blueRegistrationId}
           unconfirmed={unconfirmed}
-          redScore={unconfirmed ? ownResult.red : match.redScore}
-          blueScore={unconfirmed ? ownResult.blue : match.blueScore}
+          redScore={shownResult.red}
+          blueScore={shownResult.blue}
           winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}
           endReason={match.endReason}
           bestOf={bestOf}
-          currentRound={currentRound}
+          currentRound={series.round}
           scoringConfig={scoringConfig}
           matchFormat={matchFormat}
-          clockState={clockState}
+          clockState={boutClock}
           scoring={scoring}
           nextMatchHref={
             nextMatch ? (buildMatchHref ?? ((id: string) => `/matches/${id}`))(nextMatch.id) : null

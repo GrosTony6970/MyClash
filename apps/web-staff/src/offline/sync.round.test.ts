@@ -167,7 +167,16 @@ describe('the send of a round press', () => {
     await engine.drain();
 
     expect(heard).toEqual([
-      { press: { matchId: 'm1', clientUuid: row.clientUuid }, answer: { currentRound: 2 } },
+      {
+        // A round press names its button and its time: its answer is no clock,
+        // and the screen steps the clock it holds by them.
+        press: {
+          matchId: 'm1',
+          clientUuid: row.clientUuid,
+          round: { action: 'advance', at: '2026-10-10T10:00:00.000Z' },
+        },
+        answer: { currentRound: 2 },
+      },
     ]);
     expect(await queuedWhenTold).toBe(1);
   });

@@ -460,6 +460,9 @@ export const scoring = {
     startRound: 'Démarrer la manche {round}',
     startNextRoundFirst: "Cette manche est terminée. Démarrez d'abord la manche suivante.",
     endRound: 'Terminer la manche',
+    closedOnTablet: 'Terminée sur cette tablette, non confirmée.',
+    undoStopsAtRound:
+      'Les saisies d’avant cette manche sont closes avec leur manche sur cette tablette. Il ne reste rien à annuler dans cette manche.',
   },
   level: {
     refusedExtraTime: 'Scores à égalité. Jouez {seconds}s de prolongation.',

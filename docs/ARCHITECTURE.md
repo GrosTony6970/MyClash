@@ -722,6 +722,8 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
 | `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
 | `getEffectiveMaxDoubles` (`@myclash/rules`)          | show the doubles limit the server applies to this bout: the format's in a pool and a Swiss round, none in a bracket                        |
+| `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: the cap, then the doubles limit, by the server's own function |
+| `seriesResult` (`@myclash/rules`)                    | say a best-of series is decided, and for whom, from the rounds closed on the server and on the tablet                                      |
 
 `packages/types/src/penalties.ts` argues this boundary at length in its own
 docblock and is the place to read next. Two rules keep the list honest: every
@@ -1321,8 +1323,34 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > (`boutStatusOnPad`), so a bout the tablet started is in play before the server knows. "End
 > match" is judged on the tablet first by the server's own two refusals of a level bout
 > (`endRefusedOnPad`), and the result screen then shows the tablet's own score and leader, marked
-> "not confirmed", until the server has answered the End. Reopen, Reset, the time adjustment, a
-> round's end and a level bout's remedy still wait for the server.
+> "not confirmed", until the server has answered the End. Reopen, Reset, the time adjustment and
+> a level bout's remedy still wait for the server.
+>
+> **The rounds on the tablet (operator, 2026-10-10 and 2026-10-11).** A best-of bout runs with
+> no network. "Start round N" and "End round" are a fourth kind of row of the queue (`round`,
+> `queueRoundPress`), kept and sent as a clock press is, to `POST /matches/:id/rounds/advance`
+> and `/rounds/end` with an id, the round and two times. The screen reads its rounds from ONE
+> pure function, `padSeries` (`offline/pad-series.ts`): the server's row, the server's hits, and
+> the rows the tablet holds, each with the round it was tapped in (`OutboxEntry.round`, never
+> sent: the server counts a hit in the round open when it arrives). The tablet closes a round by
+> itself at the cap or at the doubles limit, on the score it shows, with the two functions the
+> server closes a round and a series with (`roundOutcome`, `seriesResult`, §7.3). It is a
+> prediction: the server's score comes from the ruleset's own scorer, and the server decides. A
+> round the tablet closed, and a series it decided, are marked "not confirmed". The tablet goes
+> ahead of the server only while it holds something to send and no row of the bout is refused:
+> a refused "Start round" is held in the inbox with the bout behind it, and the screen goes
+> back to the server's round. The race is a send in progress: a row the server took leaves the
+> queue at once and the bout is read only when the send has ended, so a view computed in
+> between is behind. The screen keeps what it showed (`offline/pad-series-memory.ts`: a round
+> stays closed, on the score it was closed on). The memory goes when the server's row has caught
+> up, when a row of the bout is held, when the official takes an entry back, and at the first
+> read of the bout that lands after the queue is empty: the screen asks for that read, and the
+> server's answer stands, also when it counts another way and refused nothing. The clock's fold
+> knows the two round rows (`clockAfterRound`: a new round starts at zero, halted), and a
+> decided series has an ended clock on screen, so no press follows it. The undo stops at a
+> round the tablet closed. A level round at its time is refused on the tablet, in the server's
+> words, and nothing is queued. Under reverse scoring (`reverse_zero_loses`) the tablet
+> predicts nothing: it closes no round and opens none before the server does.
 >
 > **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
 > row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,

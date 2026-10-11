@@ -42,7 +42,6 @@ import {
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
-import { padSeries } from '../offline/pad-series';
 import { takeBack } from '../offline/take-back';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
@@ -105,9 +104,16 @@ interface ScoringCenterControlsProps {
   currentRound?: number;
   redRoundWins?: number;
   blueRoundWins?: number;
-  /** Round action POST in flight (advance / end-round). */
+  /** The doubles of the open round, and the limit the server applies (null: none). */
+  doubles: number;
+  doublesLimit: number | null;
+  /** The level remedy's request is out. */
   roundBusy?: boolean;
-  /** End the current round on time (best-of). Leader wins; tie → server rejects. */
+  /**
+   * End the current round (best-of): a row of the tablet's queue, so it never
+   * waits for a press before it. The leader wins; a level round is refused on
+   * the tablet, in the server's words.
+   */
   onEndRound?: () => void;
   // ── Level at time ──
   /**
@@ -164,6 +170,8 @@ export function ScoringCenterControls({
   currentRound = 1,
   redRoundWins = 0,
   blueRoundWins = 0,
+  doubles: doubleCount,
+  doublesLimit: maxDoubles,
   roundBusy = false,
   onEndRound,
   levelPending = null,
@@ -228,16 +236,9 @@ export function ScoringCenterControls({
 
   // Queued doubles count. Max-doubles is a rule the referee acts on — a bout
   // ends on it — so a chip that stops moving offline is worse than no chip.
-  // Of the open round, under the limit the server applies (`padSeries`). The
-  // DOUBLE LOSS banner does not read this count: it reads how the bout ended.
-  const { doubles: doubleCount, doublesLimit: maxDoubles } = padSeries({
-    isBestOf,
-    phaseType,
-    matchFormat,
-    currentRound,
-    exchanges: activeExchanges,
-    queued: pendingExchanges,
-  });
+  // Of the open round, under the limit the server applies: the bout screen
+  // gives both, from its one view of the rounds (`padSeries`). The DOUBLE LOSS
+  // banner does not read this count: it reads how the bout ended.
   const doubleLoss = isDoubleLoss(matchStatus, endReason);
 
   // Black card closed the match (per the penalty ruleset). Name the carded
@@ -473,7 +474,7 @@ export function ScoringCenterControls({
               <button
                 type="button"
                 data-testid="clock-end-button"
-                disabled={clockLoading || roundBusy || (isBestOf && pressesWaiting)}
+                disabled={clockLoading || roundBusy}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
                 className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
@@ -532,7 +533,12 @@ export function ScoringCenterControls({
               <span className="text-muted">
                 {t('scoring.rounds.label', { current: String(currentRound) })}
               </span>
-              <span className="rounded-full border border-border bg-surface px-3 py-0.5 tabular-nums text-foreground-secondary">
+              <span
+                data-testid="round-tally"
+                data-red={redRoundWins}
+                data-blue={blueRoundWins}
+                className="rounded-full border border-border bg-surface px-3 py-0.5 tabular-nums text-foreground-secondary"
+              >
                 <span style={{ color: sideStyle(config, 'red').border }}>{redRoundWins}</span>
                 <span className="mx-1 text-muted">–</span>
                 <span style={{ color: sideStyle(config, 'blue').border }}>{blueRoundWins}</span>
@@ -591,6 +597,7 @@ export function ScoringCenterControls({
               // last loaded, so on a fresh match it is empty while the outbox
               // holds real entries: those count, or the undo is dead exactly
               // when the referee needs it.
+              data-testid="undo-last-entry"
               disabled={events.length === 0 || clearBusy}
               onClick={() => void clearLastExchange()}
               // `info`, not `danger`: undoing the last entry is a routine

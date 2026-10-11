@@ -32,7 +32,7 @@ import {
   type CallerRefusal,
 } from './caller-refusal';
 import { canSendAgain } from './can-send-again';
-import { isTap, kindOf, type OutboxEntry } from './db';
+import { isTap, kindOf, type OutboxEntry, type RoundPress } from './db';
 import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
 import {
@@ -89,7 +89,12 @@ interface ExchangeResponse {
  * answered with. The bout's screen shows that clock at once, with no read.
  */
 export type PressSentListener = (
-  press: { matchId: string; clientUuid: string },
+  press: {
+    matchId: string;
+    clientUuid: string;
+    /** Of a round press: its button and the tablet's time of the tap. Its answer is no clock. */
+    round?: { action: RoundPress; at: string };
+  },
   clock: unknown,
 ) => void;
 
@@ -678,9 +683,11 @@ export class SyncEngine {
    */
   private async filePressSent(entry: OutboxEntry, res: Response): Promise<Filed> {
     const clock: unknown = await res.json().catch(() => null);
+    const round = entry.roundAction ? { action: entry.roundAction, at: entry.occurredAt } : null;
+    const press = { matchId: entry.matchId, clientUuid: entry.clientUuid, ...(round && { round }) };
     for (const sent of this.pressSent) {
       try {
-        sent({ matchId: entry.matchId, clientUuid: entry.clientUuid }, clock);
+        sent(press, clock);
       } catch (err) {
         console.error('[sync] a listener of a sent clock press threw', err);
       }

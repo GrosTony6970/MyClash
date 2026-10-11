@@ -12,7 +12,14 @@ import 'fake-indexeddb/auto';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { undoLastEntry } from '../lib/clear-last';
 import { db, kindOf } from './db';
-import { getAllPending, quarantine, requeueRejected, requeueRejectedEntry } from './outbox';
+import {
+  enqueue,
+  getAllPending,
+  quarantine,
+  queueCard,
+  requeueRejected,
+  requeueRejectedEntry,
+} from './outbox';
 import { pendingRowsForMatch, provisionalDeltas } from './pending-events';
 import { addHit, addRound, clearStore, queued } from './sync.press.fixtures';
 
@@ -48,34 +55,133 @@ describe('the bout’s list and its score', () => {
   });
 });
 
+describe('the round of a queued hit or card, as the bout’s list gives it', () => {
+  const roundsOf = async () => {
+    const rows = pendingRowsForMatch({
+      entries: await getAllPending(),
+      config: DEFAULT_SCORING_CONFIG,
+      serverExchanges: [],
+      serverPenalties: [],
+    });
+    return [...rows.exchanges, ...rows.penalties].map((row) => row.round_number);
+  };
+  const hitIn = (round?: number) =>
+    enqueue({
+      clientUuid: crypto.randomUUID(),
+      matchId: 'm1',
+      sequence: 1,
+      type: 'clean',
+      occurredAt: '2026-10-10T10:00:00.000Z',
+      firstStrikerColor: 'red',
+      firstStrikeValue: 1,
+      ...(round === undefined ? {} : { round }),
+    });
+
+  it('is the round the row was queued with', async () => {
+    await hitIn(1);
+    await addRound('advance', 2, 'm1', 60);
+    await hitIn(2);
+
+    expect(await roundsOf()).toEqual([1, 2]);
+  });
+
+  it('is never under the round a "Start round" queued BEFORE it opens', async () => {
+    // A hit queued while "Start round 2" was held in the inbox (round 1 on the
+    // screen), then put behind it again by a Retry: the server counts it in round 2.
+    await addRound('advance', 2);
+    await db.outbox.add({
+      clientUuid: 'late',
+      matchId: 'm1',
+      sequence: 1,
+      type: 'clean',
+      occurredAt: '2026-10-10T10:00:00.000Z',
+      round: 1,
+      createdAt: 0,
+      attempts: 0,
+    });
+
+    expect(await roundsOf()).toEqual([2]);
+  });
+
+  it('is unknown for a row queued with no round and behind no "Start round"', async () => {
+    await hitIn();
+    await addRound('end', 1, 'm1', 60);
+
+    expect(await roundsOf()).toEqual([null]);
+  });
+
+  it('is given to a queued card too', async () => {
+    await addRound('advance', 3);
+    await queueCard({
+      matchId: 'm1',
+      sequence: 1,
+      registrationId: 'reg-1',
+      directCard: 'yellow',
+      reason: 'late',
+    });
+
+    expect(await roundsOf()).toEqual([3]);
+  });
+});
+
 describe('the undo', () => {
   const undo = (takeBack: Parameters<typeof undoLastEntry>[0]['takeBack']) =>
     undoLastEntry({ apiUrl: 'http://localhost:4000', matchId: 'm1', t: (key) => key, takeBack });
 
-  it('takes back the hit before a round press, never the round press', async () => {
+  /** An undo that removes the row from the queue, and says which. */
+  function removing(taken: string[]): Parameters<typeof undo>[0] {
+    return async (entry) => {
+      taken.push(entry.clientUuid);
+      await db.outbox.delete(entry.id as number);
+      return { kind: 'removed' };
+    };
+  }
+
+  it('takes back a hit of the round in play, behind "Start round 2"', async () => {
     await addHit('m1', 'hit-1');
     await addRound('advance', 2, 'm1', 60);
+    await addHit('m1', 'hit-2');
     // No network: the undo works on the tablet alone.
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const taken: string[] = [];
 
-    const outcome = await undo(async (entry) => {
-      taken.push(entry.clientUuid);
-      await db.outbox.delete(entry.id as number);
-      return { kind: 'removed' };
-    });
+    expect(await undo(removing(taken))).toEqual({ kind: 'voided' });
 
-    expect(outcome).toEqual({ kind: 'voided' });
-    expect(taken).toEqual(['hit-1']);
-    expect(await queued(), '"Start round 2" still goes to the server').toEqual(['round advance 2']);
+    expect(taken).toEqual(['hit-2']);
+    expect(await queued()).toEqual(['hit', 'round advance 2']);
   });
 
-  it('finds nothing to undo in a bout that holds round presses only', async () => {
+  it.each(['advance', 'end'] as const)(
+    'stops at a round the tablet closed: a hit before a queued "%s" is not taken back',
+    async (action) => {
+      await addHit('m1', 'hit-1');
+      await addRound(action, action === 'advance' ? 2 : 1, 'm1', 60);
+      const fetched = vi.fn().mockRejectedValue(new Error('offline'));
+      vi.stubGlobal('fetch', fetched);
+      const taken: string[] = [];
+
+      const outcome = await undo(removing(taken));
+
+      // Taking it back would make the round press a lie: its round is no longer over.
+      expect(outcome).toEqual({ kind: 'failed', message: 'scoring.rounds.undoStopsAtRound' });
+      expect(taken).toEqual([]);
+      expect(
+        fetched,
+        'the server is asked for nothing: its newest entry is of that round too',
+      ).not.toHaveBeenCalled();
+      expect(await queued()).toHaveLength(2);
+    },
+  );
+
+  it('says the same in a bout that holds round presses only', async () => {
     await addRound('advance', 2);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const takeBack = vi.fn();
 
-    await undo(takeBack);
+    expect(await undo(takeBack)).toEqual({
+      kind: 'failed',
+      message: 'scoring.rounds.undoStopsAtRound',
+    });
 
     expect(takeBack).not.toHaveBeenCalled();
     expect(await queued()).toEqual(['round advance 2']);

@@ -486,6 +486,11 @@ export const scoring = {
     // The server refused the clock between two rounds: this tablet's screen was behind.
     startNextRoundFirst: 'This round is over. Start the next round first.',
     endRound: 'End round',
+    // The round-break screen of a round the TABLET closed (operator, 2026-10-10).
+    closedOnTablet: 'Closed on this tablet, not confirmed.',
+    // "Undo last entry" when the newest entry is of a round closed on the tablet.
+    undoStopsAtRound:
+      'The entries before this round are closed with their round on this tablet. Nothing of this round is left to undo.',
   },
   // What the referee does about a bout that is LEVEL when the clock runs out.
   // The phase's chain decides: a pool bout is simply a draw, an elimination

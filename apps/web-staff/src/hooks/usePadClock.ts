@@ -24,7 +24,13 @@ import { isTap, type OutboxEntry, type RejectedEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { keepClock, keptClock } from '../offline/kept-bout';
 import { getPendingForMatch } from '../offline/outbox';
-import { endScoreOf, padClock, pressesOf, type EndScore } from '../offline/pad-clock';
+import {
+  endScoreOf,
+  padClock,
+  pressesOf,
+  serverClockAfterRound,
+  type EndScore,
+} from '../offline/pad-clock';
 import { heldRowsOf } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
 
@@ -87,6 +93,31 @@ interface PadClockArgs {
 }
 
 /**
+ * With no network the tablet's copy of the clock opens, unless this screen
+ * holds a clock of the bout already. No network is no fault of the clock, and
+ * the screen already says the bout is not confirmed.
+ */
+async function keptOr(matchId: string): Promise<(now: Answered | null) => Answered | null> {
+  const kept = await keptClock(matchId).catch(() => null);
+  return (now) => (now?.matchId === matchId || !kept ? now : { matchId, clock: kept });
+}
+
+/**
+ * The clock this screen holds, after a round press the server took. It takes
+ * the step the queue showed for the press, so the screen does not fall back to
+ * the clock from before it. The server's own clock is read behind: an "End
+ * round" that decided the series ended it there.
+ */
+function afterRoundPress(
+  before: Answered | null,
+  matchId: string,
+  round: Parameters<typeof serverClockAfterRound>[1],
+): Answered | null {
+  if (before?.matchId !== matchId) return before;
+  return { matchId, clock: serverClockAfterRound(before.clock, round) };
+}
+
+/**
  * The server's clock of the bout: its reads, and the answers to the presses
  * the queue sent. `sent` names those presses.
  */
@@ -108,10 +139,7 @@ function useServerClock({ apiUrl, matchId, refreshKey, syncEngine, t }: PadClock
     }
     const status = result.kind === 'aborted' || result.kind === 'network' ? 0 : result.status;
     if (classifySyncFailure(status, { code: failureCode(result) }) === 'offline') {
-      // No network is no fault of the clock: the tablet's copy opens, and the
-      // screen already says the bout is not confirmed.
-      const kept = await keptClock(matchId).catch(() => null);
-      if (kept) setAnswered((now) => (now?.matchId === matchId ? now : { matchId, clock: kept }));
+      setAnswered(await keptOr(matchId));
       return;
     }
     const message = refusalMessage(result, t, 'scoring.clock.loadFailed');
@@ -128,11 +156,15 @@ function useServerClock({ apiUrl, matchId, refreshKey, syncEngine, t }: PadClock
       if (press.matchId !== matchId) return;
       pressAnswers.current += 1;
       setSent((before) => new Set(before).add(press.clientUuid));
-      if (!isClock(clock)) return;
-      setAnswered({ matchId, clock });
-      void keepClock(matchId, clock).catch(() => undefined);
+      // A round press is answered with no clock: the clock this screen holds
+      // takes its step (`afterRoundPress`), and the server's own clock is read.
+      const { round } = press;
+      if (isClock(clock)) setAnswered({ matchId, clock });
+      else if (round) setAnswered((before) => afterRoundPress(before, matchId, round));
+      if (isClock(clock)) void keepClock(matchId, clock).catch(() => undefined);
+      else if (round) void readClock();
     });
-  }, [syncEngine, matchId]);
+  }, [syncEngine, matchId, readClock]);
 
   // The clock of the bout before this one must not show for this one.
   const server = answered?.matchId === matchId ? answered.clock : null;
