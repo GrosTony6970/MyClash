@@ -724,6 +724,15 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `getEffectiveMaxDoubles` (`@myclash/rules`)          | show the doubles limit the server applies to this bout: the format's in a pool and a Swiss round, none in a bracket                        |
 | `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: the cap, then the doubles limit, by the server's own function |
 | `seriesResult` (`@myclash/rules`)                    | say a best-of series is decided, and for whom, from the rounds closed on the server and on the tablet                                      |
+| `belowZero` (`@myclash/rules`)                       | say how far under zero each side went in a bout that counts down, its unsent hits included, so both at zero names the same winner          |
+
+**Both fighters out of points in a bout that counts down.** A `reverse_zero_loses` board stops at
+zero, so one afterblow can leave both sides at 0. The scorer (`computeMatchFormatScore`) then says
+how far under zero each side went (`redBelowZero`, `blueBelowZero`, on the score of such a bout
+only, never stored), and `capLeader` gives the bout or the round to the fighter LESS FAR BELOW zero.
+Both as far below is a true tie: a phase whose level-at-time chain holds a `draw` ends level, and
+any other phase stays open until the next hit decides. `pointCapWinnerColor` and `pointCapEndsBout`
+ask `capLeader`; a caller that holds the two scores alone gets the leader on the board.
 
 `packages/types/src/penalties.ts` argues this boundary at length in its own
 docblock and is the place to read next. Two rules keep the list honest: every
@@ -1359,11 +1368,18 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > way. The pad adds what it holds to a round's score in one place (`scoreOnPad`,
 > `offline/pad-series.ts`): in earned points, turned into the score by `applyScoringDirection`
 > (§7.3), so a hit takes its points off the opponent and a side stops at zero before its cards,
-> as on the server. The server's row of a bout is 0-0 until its first hit, a card or "Start
-> round" computes a score: in a bout that counts down the pad reads 0-0 on a round in play as
-> "not scored yet", cap to cap. A round both fighters left at zero on one afterblow, in a phase
-> that cannot end level, reads cap to cap there too; the server holds that round open at 0-0,
-> where no later hit can make a leader, and the pad's numbers of that round are not the server's.
+> as on the server. The server counts the score of a bout when it STARTS (`start-count.ts`, behind
+> both doors of a clock Start) and of a round when it opens, so every screen reads cap to cap from
+> the Start of a bout that counts down. A row can still be 0-0 for a moment (made at 0-0, read
+> between the clock's write and the count), and the pad's copy of it can be older than its list of
+> hits (two reads). So the pad reads 0-0 on a round in play as "not scored yet", cap to cap, unless
+> the server's list of that round EXPLAINS a 0-0 (`serverScore`, `offline/pad-server-score.ts`):
+> both fighters earned the cap or more (a true tie under zero in a phase that cannot end level), or
+> its doubles reach the limit of a format that wipes the board (a wiped bout somebody put back in
+> play). One hit on the list is not enough: read as a real 0-0, a row from before the Start would
+> close the round on the tablet at its next unsent hit. With both fighters out of points the pad says how far
+> under zero each side went (`belowZero`, §7.3) and closes the round, or lets the official end the
+> bout, for the fighter less far below; the End carries that winner with its score (`pressedOn`).
 >
 > **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
 > row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,

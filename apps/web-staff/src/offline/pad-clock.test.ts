@@ -238,4 +238,20 @@ describe('the score of a result that is not confirmed', () => {
   it('falls back to the score on the screen for a result this screen did not see pressed', () => {
     expect(tabletResult(null, { red: 4, blue: 4 })).toEqual({ red: 4, blue: 4 });
   });
+
+  it('keeps the winner the End was pressed on, when the board itself names none', () => {
+    // A bout that counts down, both at zero: blue was less far below.
+    const pressedOn = { red: 0, blue: 0, winner: 'blue' as const };
+    const atZero = { ...press('end', '10:02:00', 'end-3'), endScore: pressedOn };
+
+    const seen = endScoreOf([atZero], null);
+    expect(seen).toEqual({ matchId: 'm1', ...pressedOn });
+    // The hits are sent and the screen reads the server's old row for a moment.
+    expect(tabletResult(endScoreOf([], seen), { red: 1, blue: 2 })).toMatchObject(pressedOn);
+  });
+
+  it('takes the winner of the screen with the score of the screen', () => {
+    const onScreen = { red: 0, blue: 0, winner: 'red' as const };
+    expect(tabletResult(null, onScreen)).toEqual(onScreen);
+  });
 });

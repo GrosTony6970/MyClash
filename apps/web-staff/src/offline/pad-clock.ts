@@ -12,7 +12,7 @@
  */
 import { clockAfterPress, type ClockFold, type ClockStatus } from '@myclash/types';
 import type { ClockState } from '../components/scoreboard-clock';
-import { isTap, type OutboxEntry, type RoundPress } from './db';
+import { isTap, type OutboxEntry, type PressedOn, type RoundPress } from './db';
 
 const IDLE: ClockFold = { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null };
 
@@ -144,10 +144,8 @@ export function resultUnconfirmed(serverStatus: string, clock: ClockStatus): boo
 }
 
 /** The score an End was pressed on, and the bout it ended. */
-export interface EndScore {
+export interface EndScore extends PressedOn {
   matchId: string;
-  red: number;
-  blue: number;
 }
 
 /**
@@ -168,11 +166,9 @@ export function endScoreOf(
  * pressed on, when this screen saw that press. The score on the screen moves
  * while the queue goes out (a hit the server took leaves the queue before the
  * bout is read again), so it is the fallback only, for a result this screen
- * did not see pressed.
+ * did not see pressed. The winner goes with its score: a board at 0 - 0 that
+ * a fighter won must not take the winner of another moment.
  */
-export function tabletResult(
-  pressedOn: { red: number; blue: number } | null,
-  onScreen: { red: number; blue: number },
-): { red: number; blue: number } {
+export function tabletResult(pressedOn: PressedOn | null, onScreen: PressedOn): PressedOn {
   return pressedOn ?? onScreen;
 }

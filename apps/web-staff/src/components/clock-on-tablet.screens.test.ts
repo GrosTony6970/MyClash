@@ -118,9 +118,10 @@ describe('"End match" on the tablet', () => {
     // No End of a best-of bout comes here: each one ends the ROUND (`usePadRounds`).
     expect(view).toContain('const refused = endRefusedOnPad({');
     expect(view).toContain('if (refused) setClockError(endRefusalMessage(refused, t));');
-    // The End carries the score it is pressed on, for the result screen.
+    // The End carries the score it is pressed on, for the result screen, and
+    // the winner of a board at 0 - 0 that a fighter won (`pressedOn`).
     expect(view).toContain(
-      "else void onClockAction('end', false, { red: redScore, blue: blueScore });",
+      "else void onClockAction('end', false, pressedOn(series, matchFormat));",
     );
     // The controls, the resume warning and the early-End question: no other End.
     expect(view.match(/onClockAction\('end'/g)).toHaveLength(1);
@@ -128,7 +129,19 @@ describe('"End match" on the tablet', () => {
   });
 
   it('judges the score on the screen, the tablet’s unsent hits included', () => {
-    expect(view).toMatch(/endRefusedOnPad\(\{[^}]*score: \{ redScore, blueScore \},/);
+    // The whole round view, not its two numbers alone: in a bout that counts
+    // down it says how far under zero each side went, and with both at zero
+    // the End, the early-End question and the gold numeral read a winner there.
+    expect(view).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
+    expect(view).toMatch(
+      /endIsEarly\([^)]*elapsedActiveMs\(clockState, Date\.now\(\)\),\s+series,/,
+    );
+    expect(view).toContain('const capWinnerSide = pointCapWinnerColor(series, matchFormat);');
+    expect(rounds).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
+    // "End round" carries the winner the cap names too, as "End match" does.
+    expect(rounds).toContain(
+      "else void press('end', series.round, pressedOn(series, matchFormat));",
+    );
     // The score on the screen is the round view's: the server's part of the
     // open round plus what the tablet holds of it (`padSeries`).
     expect(view).toContain('const { redScore, blueScore } = series;');
@@ -141,7 +154,7 @@ describe('"End match" on the tablet', () => {
     );
     // The score the End was pressed on: the score on screen moves while the queue goes out.
     expect(view).toContain(
-      'const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });',
+      'const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat));',
     );
     expect(view).toContain('unconfirmed={unconfirmed}');
     // A decided series is said by its rounds won, confirmed or not; else the
@@ -159,8 +172,14 @@ describe('"End match" on the tablet', () => {
     expect(overlay).toContain(
       "{rounds.map((round) => `${round.redScore} – ${round.blueScore}`).join(' · ')}",
     );
+    // Not confirmed: the winner the End was pressed on, where the board names
+    // none (both at zero in a bout that counts down). Never for a series.
+    expect(view).toContain('const ownWinner = seriesDecided ? undefined : ownResult.winner;');
+    expect(view).toMatch(
+      /const ownWinnerId =\s+ownWinner === 'red'\s+\? match\.redRegistrationId\s+: ownWinner === 'blue'\s+\? match\.blueRegistrationId\s+: null;/,
+    );
     expect(view).toContain(
-      'winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}',
+      'winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}',
     );
     expect(hook).toContain(
       'setRows((before) => ({ presses, held, endScore: endScoreOf(presses, before.endScore) }));',

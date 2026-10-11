@@ -300,8 +300,12 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // the tablet with no network: the pad closes a round and a series by the
   // functions the server closes them with. They read a score the pad already
   // shows; they derive none, and the server decides when the two disagree.
+  // `belowZero` joined for a bout that counts down with both fighters out of
+  // points: the board stops at zero, and the pad says how far under each side
+  // went by the scorer's own subtraction, beside `applyScoringDirection`.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
+    'belowZero',
     'clockAfterPress',
     'computeAfterblowDeltas',
     'computePenaltySanction',

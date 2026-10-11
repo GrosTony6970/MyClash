@@ -82,6 +82,19 @@ export interface BoutNames {
   blue: string;
 }
 
+/**
+ * What an End was pressed on: the score on the screen at the tap. `winner` is
+ * the fighter the point cap gave the bout or the round to, when it gave it
+ * (`pressedOn`): in a bout that counts down with both fighters out of points,
+ * the two numbers do not name that fighter. With none, the result reads its
+ * leader from the two numbers.
+ */
+export interface PressedOn {
+  red: number;
+  blue: number;
+  winner?: 'red' | 'blue';
+}
+
 export interface OutboxEntry {
   /** Auto-incremented local PK — determines drain order. */
   id?: number;
@@ -141,7 +154,7 @@ export interface OutboxEntry {
    * shows it until the server's own row says the bout is completed. Never
    * posted: the server derives its score from the hits.
    */
-  endScore?: { red: number; blue: number };
+  endScore?: PressedOn;
   // ── Round ──────────────────────────────────────────────────────────────────
   /** Round press only: "Start round N" or "End round". */
   roundAction?: RoundPress;

@@ -145,25 +145,35 @@ function answerHit(stub: Stub, route: Route) {
   return route.fulfill({ status: 201, json: { id: `saved-${stub.sent.length}` } });
 }
 
+/** What a story sets of the bout before it opens it. */
+interface Start {
+  row?: Partial<typeof ROW>;
+  clock?: Partial<ServerClock>;
+  phaseType?: string;
+  /** The Tournament's rules, as `GET tournaments/:id/match-config` gives them. None: the defaults. */
+  rules?: unknown;
+  /** The server's list of the bout's hits. None: an empty sheet. */
+  sheet?: unknown[];
+}
+
+const newStub = (start: Start): Stub => ({
+  network: 'up',
+  hold: null,
+  holdEnd: null,
+  readsFail: false,
+  arrived: [],
+  refuseNext: null,
+  refuseNextHit: null,
+  sent: [],
+  presses: [],
+  hits: [],
+  row: { ...ROW, ...start.row },
+  clock: { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null, ...start.clock },
+});
+
 /** Opens the bout with the network up. Returns the stub's switches and its record. */
-export async function openBout(
-  page: Page,
-  start: { row?: Partial<typeof ROW>; clock?: Partial<ServerClock>; phaseType?: string } = {},
-) {
-  const stub: Stub = {
-    network: 'up',
-    hold: null,
-    holdEnd: null,
-    readsFail: false,
-    arrived: [],
-    refuseNext: null,
-    refuseNextHit: null,
-    sent: [],
-    presses: [],
-    hits: [],
-    row: { ...ROW, ...start.row },
-    clock: { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null, ...start.clock },
-  };
+export async function openBout(page: Page, start: Start = {}) {
+  const stub = newStub(start);
   await page.route('**/api/**', async (route) => {
     const method = route.request().method();
     const path = new URL(route.request().url()).pathname;
@@ -175,11 +185,14 @@ export async function openBout(
     if (stub.readsFail) return route.fulfill(OFFLINE);
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: stub.row });
     if (path.endsWith('/summary')) {
-      return route.fulfill({ json: { ...SUMMARY, phaseType: start.phaseType ?? 'pool' } });
+      const rules = start.rules ? { tournamentId: 'tournament-1' } : {};
+      return route.fulfill({
+        json: { ...SUMMARY, ...rules, phaseType: start.phaseType ?? 'pool' },
+      });
     }
-    if (path.endsWith('/exchanges') || path.endsWith('/penalties')) {
-      return route.fulfill({ json: [] });
-    }
+    if (start.rules && path.endsWith('/match-config')) return route.fulfill({ json: start.rules });
+    if (path.endsWith('/exchanges')) return route.fulfill({ json: start.sheet ?? [] });
+    if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });
     return route.fulfill({ status: 404, json: {} });
   });

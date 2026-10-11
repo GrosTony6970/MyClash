@@ -15,6 +15,7 @@ import {
   isTap,
   type BoutNames,
   type OutboxEntry,
+  type PressedOn,
   type RejectedEntry,
   type RoundPress,
 } from './db';
@@ -26,8 +27,8 @@ export async function queuePress(
     matchId: string;
     action: ClockPress;
     bout: BoutNames;
-    /** Of an End: the score on the screen at the tap. */
-    endScore?: { red: number; blue: number };
+    /** Of an End: the score on the screen at the tap, and the winner it names. */
+    endScore?: PressedOn;
   },
   at: TabletTime = tabletTime(),
 ): Promise<OutboxEntry> {
@@ -58,8 +59,8 @@ export async function queueRoundPress(
     action: RoundPress;
     round: number;
     bout: BoutNames;
-    /** Of an end: the round's score on the screen at the tap. */
-    endScore?: { red: number; blue: number };
+    /** Of an end: the round's score on the screen at the tap, and the winner it names. */
+    endScore?: PressedOn;
   },
   at: TabletTime = tabletTime(),
 ): Promise<OutboxEntry> {

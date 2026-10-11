@@ -16,6 +16,7 @@ import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
+import type { PressedOn } from '../offline/db';
 import { queuePress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
@@ -32,7 +33,7 @@ import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
-import { endIsEarly, endRefusedOnPad } from './end-guard';
+import { endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
 import { apiRequest } from '@myclash/api-client';
 
 export interface MatchInfo {
@@ -347,7 +348,7 @@ export function MatchView({
   // the end of each send, as it does for a hit.
   const bout = boutNames(match);
   const pressClock = useCallback(
-    async (action: ClockPress, endScore?: { red: number; blue: number }) => {
+    async (action: ClockPress, endScore?: PressedOn) => {
       setClockError(null);
       const written = await writeHit(
         async () => {
@@ -399,7 +400,7 @@ export function MatchView({
     async (
       action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock',
       force = false,
-      endScore?: { red: number; blue: number },
+      endScore?: PressedOn,
     ) => {
       if (
         !force &&
@@ -508,8 +509,9 @@ export function MatchView({
   // Reads the provisional score on purpose: it only paints a numeral gold, and
   // a referee needs to see the cap coming while the tablet is offline. It
   // cannot end a bout: the result overlay opens on the CLOCK being ended, and
-  // only "End match" ends the clock.
-  const capWinnerSide = pointCapWinnerColor({ redScore, blueScore }, matchFormat);
+  // only "End match" ends the clock. `series` says how far under zero each
+  // side went in a bout that counts down: with both at zero, one has won.
+  const capWinnerSide = pointCapWinnerColor(series, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // The controls' clock buttons. "End match" before the cap or the time is asked
@@ -525,7 +527,7 @@ export function MatchView({
         match.phaseType ?? undefined,
         match.matchNumberLabel,
         elapsedActiveMs(clockState, Date.now()),
-        { redScore, blueScore },
+        series,
       );
     if (early) setPendingEnd(true);
     else if (action === 'end') endMatch();
@@ -542,19 +544,28 @@ export function MatchView({
       phaseType: match.phaseType ?? undefined,
       matchNumberLabel: match.matchNumberLabel,
       elapsedMs: elapsedActiveMs(clockState, Date.now()),
-      score: { redScore, blueScore },
+      score: series,
       levelStepsTaken: levelSteps,
     });
     if (refused) setClockError(endRefusalMessage(refused, t));
     // The End carries the score it is pressed on, for the result screen.
-    else void onClockAction('end', false, { red: redScore, blue: blueScore });
+    else void onClockAction('end', false, pressedOn(series, matchFormat));
   }
 
   // The result is the tablet's own until the server's row says "completed":
   // the score the End was pressed on, and its leader. Never an old row of the
   // server, and never a score that moves while the queue goes out (ruling 11).
   const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
-  const ownResult = tabletResult(padClock.endScore, { red: redScore, blue: blueScore });
+  const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat));
+  // A board at 0 - 0 that a fighter won (a bout that counts down): the
+  // tablet's own result names that fighter, as the server's row will.
+  const ownWinner = seriesDecided ? undefined : ownResult.winner;
+  const ownWinnerId =
+    ownWinner === 'red'
+      ? match.redRegistrationId
+      : ownWinner === 'blue'
+        ? match.blueRegistrationId
+        : null;
   // A series decided on this tablet is said by its rounds won (operator,
   // 2026-10-10): the last round's score alone names no winner of the bout.
   // A decided series is said by its ROUNDS WON, not confirmed and confirmed
@@ -928,7 +939,7 @@ export function MatchView({
           redScore={shownResult.red}
           blueScore={shownResult.blue}
           rounds={seriesDecided ? series.closed : undefined}
-          winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}
+          winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}
           endReason={match.endReason}
           bestOf={bestOf}
           currentRound={series.round}

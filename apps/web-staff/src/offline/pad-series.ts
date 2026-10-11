@@ -22,6 +22,7 @@
  */
 import {
   applyScoringDirection,
+  belowZero,
   getEffectiveMaxDoubles,
   roundOutcome,
   seriesResult,
@@ -30,6 +31,7 @@ import {
 } from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
+import { countsDown, serverScore } from './pad-server-score';
 import { provisionalDeltas } from './pending-events';
 
 type Color = 'red' | 'blue';
@@ -54,6 +56,12 @@ export interface PadSeries {
   /** The part of that score the tablet still holds: shown as provisional. */
   redQueued: number;
   blueQueued: number;
+  /**
+   * In a bout that counts down: how far under zero each side went (the board
+   * stops at zero). With both at zero, the fighter less far below has won.
+   */
+  redBelowZero?: number;
+  blueBelowZero?: number;
   /** The doubles of that round, the ones the tablet still holds included. */
   doubles: number;
   /** The doubles limit the server applies to this bout, or null for none. */
@@ -156,33 +164,6 @@ function standing(
   };
 }
 
-const countsDown = (args: PadSeriesArgs) =>
-  args.matchFormat.scoringDirection === 'reverse_zero_loses';
-
-/**
- * The server's score of its open round, or null when it has not scored that
- * round yet.
- *
- * A bout's row is made at 0-0 and only a hit, a card or "Start round" computes
- * its score. In a bout that counts down, 0-0 on a round in play is therefore
- * "not scored yet" (both fighters hold the cap), not "both out of points". The
- * row alone says so, not the list of hits: the two are separate reads, and
- * "the list holds a hit, the row is still 0-0" is an ordinary moment while the
- * first hit of a bout is sent. A round that waits for "Start round", and a bout
- * that is over, keep their 0-0: it is that round's result (the doubles limit
- * wiped it, or both fighters reached zero and the phase allows a draw).
- *
- * Read wrong, named: a round in play that IS at 0-0 on the server (both at
- * zero on one afterblow in a phase that cannot end level, or a wiped bout
- * somebody reopened) reads cap to cap here.
- */
-function serverScore(args: PadSeriesArgs): ServerRounds | null {
-  const { server } = args;
-  const inPlay = !server.awaitingRoundAdvance && !server.over;
-  const atZero = server.redScore === 0 && server.blueScore === 0;
-  return countsDown(args) && inPlay && atZero ? null : server;
-}
-
 /**
  * A round's score on the pad: the server's part plus what the tablet holds.
  * The ONE place the pad adds a queued hit or card to a score.
@@ -234,7 +215,16 @@ function scoreOnPad(
   const withHits = scored(hits);
   const redScore = withHits.red + cards.red;
   const blueScore = withHits.blue + cards.blue;
-  return { redScore, blueScore, redQueued: redScore - sent.red, blueQueued: blueScore - sent.blue };
+  return {
+    redScore,
+    blueScore,
+    redQueued: redScore - sent.red,
+    blueQueued: blueScore - sent.blue,
+    // A bout that counts down stops at zero: how far under each side went, for
+    // the rule of both at zero. Known limit: of a side the SERVER's row already
+    // holds at zero, the tablet knows only what its own unsent hits add.
+    ...belowZero(matchFormat, earned.red + hits.red, earned.blue + hits.blue),
+  };
 }
 
 /** How one round counts on the pad: the server's part, plus what the tablet holds of it. */
@@ -287,12 +277,16 @@ function tabletRound(args: PadSeriesArgs, count: ReturnType<typeof roundCount>):
   const score = end?.endScore
     ? { redScore: end.endScore.red, blueScore: end.endScore.blue }
     : { redScore: count.redScore, blueScore: count.blueScore };
-  const outcome = roundOutcome(args, { ...score, doubles: count.doubles }, args.matchFormat);
-  // "End round" gives the round to the leader. A round over by itself has the
+  // A round over by itself is judged on the whole count: with both at zero in
+  // a bout that counts down, how far under each side went names the winner.
+  const outcome = roundOutcome(args, count, args.matchFormat);
+  // "End round" gives the round to the leader, or to the fighter the cap had
+  // given it to at the tap (`pressedOn`). A round over by itself has the
   // winner its rule names: nobody, for a round the doubles limit wiped, and
   // the server then puts that round's board to 0-0.
   if (end || !outcome.autoOver) {
-    return { round: count.round, ...score, winnerColor: leader(score), by: 'tablet' };
+    const winnerColor = end?.endScore?.winner ?? leader(score);
+    return { round: count.round, ...score, winnerColor, by: 'tablet' };
   }
   const wiped = outcome.endReason === 'max_doubles';
   const shown = wiped ? { redScore: 0, blueScore: 0 } : score;

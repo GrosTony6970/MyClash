@@ -74,6 +74,15 @@ export { getEffectiveMaxDoubles } from './match-format';
  */
 export { roundOutcome, seriesResult } from './match-format';
 export type { SeriesResult } from './match-format';
+
+/**
+ * How far under zero each side went, in a bout that counts down. The board
+ * stops at zero; with both fighters out of points these two numbers say who is
+ * less far below, and `pointCapWinnerColor` and `roundOutcome` read them. The
+ * pad gives it the earned points it already adds for `applyScoringDirection`.
+ */
+export { belowZero } from './match-format';
+export type { CapScore } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';

@@ -195,6 +195,10 @@ export { getEffectiveMaxDoubles } from '@myclash/rules/pad';
 export { roundOutcome, seriesResult } from '@myclash/rules/pad';
 export type { SeriesResult } from '@myclash/rules/pad';
 
+/** How far under zero each side went in a bout that counts down: the pad's unsent hits count. */
+export { belowZero } from '@myclash/rules/pad';
+export type { CapScore } from '@myclash/rules/pad';
+
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 
 /**

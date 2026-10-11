@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest, failureCode } from '@myclash/api-client';
 import type { ClockState } from '../components/scoreboard-clock';
 import { refusalMessage } from '../lib/refusal-copy';
-import { isTap, type OutboxEntry, type RejectedEntry } from '../offline/db';
+import { isTap, type OutboxEntry, type PressedOn, type RejectedEntry } from '../offline/db';
 import { classifySyncFailure } from '../offline/failure-kind';
 import { keepClock, keptClock } from '../offline/kept-bout';
 import { getPendingForMatch } from '../offline/outbox';
@@ -76,7 +76,7 @@ export interface PadClock {
    * screen shows until the server's row says the bout is completed. Null when
    * this screen saw no End of this bout in the queue.
    */
-  endScore: { red: number; blue: number } | null;
+  endScore: PressedOn | null;
   /** This screen just wrote a press: read the queue now. */
   pressed: () => void;
 }

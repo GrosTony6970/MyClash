@@ -16,11 +16,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MatchFormatConfig } from '@myclash/types';
-import { endRefusedOnPad } from '../components/end-guard';
+import { endRefusedOnPad, pressedOn } from '../components/end-guard';
 import type { MatchInfo } from '../components/MatchView';
 import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock';
 import { boutNames } from '../lib/held-hit';
 import { endRefusalMessage } from '../lib/refusal-copy';
+import type { PressedOn } from '../offline/db';
 import { padSeries, type PadSeries, type ServerRounds } from '../offline/pad-series';
 import { forgotten, showSeries, type SeriesMemory } from '../offline/pad-series-memory';
 import { queueRoundPress } from '../offline/press-queue';
@@ -164,7 +165,7 @@ function useSeriesShown(now: PadSeries, args: PadRoundsArgs) {
 function useRoundPress({ match, syncEngine, pressed, setError, t }: PadRoundsArgs) {
   const bout = boutNames(match);
   return useCallback(
-    async (action: 'advance' | 'end', round: number, endScore?: { red: number; blue: number }) => {
+    async (action: 'advance' | 'end', round: number, endScore?: PressedOn) => {
       setError(null);
       const written = await writeHit(
         async () => {
@@ -198,12 +199,12 @@ export function usePadRounds(args: PadRoundsArgs): PadRounds {
       phaseType: match.phaseType ?? undefined,
       matchNumberLabel: match.matchNumberLabel,
       elapsedMs: elapsedActiveMs(clockState, Date.now()),
-      score: { redScore: series.redScore, blueScore: series.blueScore },
+      score: series,
       levelStepsTaken: clockState?.levelResolutionSteps ?? 0,
     });
     if (refused) setError(endRefusalMessage(refused, t));
     // The row carries the score it is pressed on: the round is closed on it.
-    else void press('end', series.round, { red: series.redScore, blue: series.blueScore });
+    else void press('end', series.round, pressedOn(series, matchFormat));
   };
 
   return { isBestOf: bestOf > 1, bestOf, series, startNextRound, endRound, forget };

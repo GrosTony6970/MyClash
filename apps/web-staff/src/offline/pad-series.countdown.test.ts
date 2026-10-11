@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Penalty } from '@myclash/ui';
 import { padSeries } from './pad-series';
-import { FORMAT, ROUND_1, bout, cardAgainstRed, hit } from './pad-series.fixtures';
+import { FORMAT, ROUND_1, bout, cardAgainstRed, hit, row } from './pad-series.fixtures';
 
 const COUNTDOWN = { ...FORMAT, scoringDirection: 'reverse_zero_loses' as const };
 
@@ -91,6 +91,106 @@ describe('a countdown round the server has not scored yet', () => {
   it('is not a bout that is over: that 0-0 is its result', () => {
     const server = { ...ROUND_1, over: true };
     expect(padSeries(oneRound(0, 0, { server }))).toMatchObject({ redScore: 0, blueScore: 0 });
+  });
+});
+
+/** A hit the SERVER's list holds: `points` to `side`, in `round`. */
+const listed = (side: 'red' | 'blue', points: number, round?: number) => ({
+  ...hit(side, points, round),
+  pending: false,
+});
+
+/**
+ * The server counts the score of a bout when it starts, and of a round when it
+ * opens. A round in play at 0-0 is then really at 0-0 when its sheet explains
+ * it: both fighters earned the cap or more (a true tie under zero in a bracket),
+ * or the doubles limit wiped it (a bout somebody put back in play). Before, the
+ * tablet read every 0-0 in play as "not scored" and showed such a bout cap to cap.
+ */
+describe('a countdown round in play at 0-0 that its sheet explains', () => {
+  it('reads 0-0 when both fighters earned the cap on the server’s list', () => {
+    const series = padSeries(oneRound(0, 0, { exchanges: [listed('red', 5), listed('blue', 6)] }));
+    expect(series).toMatchObject({ redScore: 0, blueScore: 0 });
+  });
+
+  it('reads 0-0 when the doubles of the list reach the limit: that bout was wiped', () => {
+    const wiped = [row('double'), row('double', 1), row('double', 1)];
+    expect(padSeries(oneRound(0, 0, { exchanges: wiped }))).toMatchObject({
+      redScore: 0,
+      blueScore: 0,
+    });
+  });
+
+  it('counts an unsent hit under a real 0-0, and says how far under', () => {
+    const series = padSeries(
+      oneRound(0, 0, {
+        exchanges: [listed('red', 5), listed('blue', 5)],
+        queued: [hit('blue', 1)],
+      }),
+    );
+    expect(series).toMatchObject({ redScore: 0, blueScore: 0, redBelowZero: 1, blueBelowZero: 0 });
+  });
+});
+
+/**
+ * The row and the list are separate reads. The tablet's row can be the one from
+ * before the Start while the list already holds the first hit: that 0-0 is a
+ * row not read again, not two fighters out of points. Read as real, it would
+ * close the round on the tablet at the next unsent hit.
+ */
+describe('a countdown round in play at 0-0 that its sheet does NOT explain', () => {
+  it('reads from the cap when the list holds a hit that takes nobody to zero', () => {
+    const stale = oneRound(0, 0, { exchanges: [listed('red', 2)], queued: [hit('red', 2)] });
+    // One hit behind the server (the listed hit is not counted) until the row lands.
+    expect(padSeries(stale)).toMatchObject({ redScore: 5, blueScore: 3 });
+  });
+
+  it('closes no round on such a row, with an entry of the tablet behind it', () => {
+    const stale = bout({
+      matchFormat: COUNTDOWN,
+      exchanges: [listed('red', 2, 1)],
+      queued: [hit('red', 2, 1)],
+    });
+    expect(padSeries(stale)).toMatchObject({ awaitingStart: false, closed: [], decided: null });
+  });
+
+  it('needs BOTH fighters out of points on the list: one is not a 0-0', () => {
+    const series = padSeries(oneRound(0, 0, { exchanges: [listed('red', 7)] }));
+    expect(series).toMatchObject({ redScore: 5, blueScore: 5 });
+  });
+
+  it('reads from the cap under the doubles limit, and where no limit wipes a bout', () => {
+    const two = [row('double'), row('double')];
+    expect(padSeries(oneRound(0, 0, { exchanges: two }))).toMatchObject({ redScore: 5 });
+
+    const three = [...two, row('double')];
+    // A bracket bout has no doubles limit.
+    const bracket = oneRound(0, 0, { exchanges: three, phaseType: 'single_elim' });
+    expect(padSeries(bracket)).toMatchObject({ redScore: 5, blueScore: 5 });
+    // "The result stands" at the limit: the board is not wiped.
+    const stands = { ...COUNTDOWN, maxDoubleHitOutcome: 'result_stands' as const };
+    expect(padSeries(oneRound(0, 0, { exchanges: three, matchFormat: stands }))).toMatchObject({
+      redScore: 5,
+      blueScore: 5,
+    });
+  });
+
+  it('counts the rows of the open round only, and a row with no round as round 1', () => {
+    // Round 2 is open at 0-0. Round 1 was fought to both at zero; round 2 holds nothing.
+    const server = { ...ROUND_1, currentRound: 2 };
+    const roundOne = [listed('red', 5, 1), listed('blue', 5)];
+    const inRoundTwo = bout({ matchFormat: COUNTDOWN, server, exchanges: roundOne, held: true });
+    expect(padSeries(inRoundTwo)).toMatchObject({ round: 2, redScore: 5, blueScore: 5 });
+    // The same rows explain a 0-0 of round 1.
+    const inRoundOne = bout({ matchFormat: COUNTDOWN, exchanges: roundOne, held: true });
+    expect(padSeries(inRoundOne)).toMatchObject({ round: 1, redScore: 0, blueScore: 0 });
+  });
+
+  it('reads a card of the list from the cap: a card can come before the Start', () => {
+    // A card is given to a bout not started yet, and the list of cards lands
+    // before the bout's row is read again: the row is not scored, the card counts.
+    const series = padSeries(oneRound(0, 0, { penalties: [serverCardAgainstRed(1)] }));
+    expect(series).toMatchObject({ redScore: 4, blueScore: 5 });
   });
 });
 
