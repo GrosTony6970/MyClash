@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
@@ -612,7 +612,13 @@ export function MatchView({
 
   // Spacebar shortcut: toggles the primary clock action when no input
   // is focused, the drawer isn't open, and no modal is up.
-  useEffect(() => {
+  //
+  // A LAYOUT effect: the listener that knows the new clock is on the window
+  // before the screen that shows it is painted. As a plain effect it was put
+  // there a moment after the paint, and a Space in that moment was judged by
+  // the clock from before: a Resume behind the result of a decided series, a
+  // Start on a bout whose halted clock had just been read.
+  useLayoutEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.code !== 'Space') return;
       if (e.repeat) return;

@@ -41,6 +41,12 @@ describe('the bout screen', () => {
     );
   });
 
+  it('puts the Space listener on the window before the paint: a key is never judged by the clock from before', () => {
+    expect(view).toMatch(
+      /useLayoutEffect\(\(\) => \{\s+function onKey\(e: KeyboardEvent\) \{[\s\S]+?window\.addEventListener\('keydown', onKey\);\s+return \(\) => window\.removeEventListener\('keydown', onKey\);\s+\}, \[boutClock\?\.status, drawerOpen, match\.lockedAt, onClockAction\]\);/,
+    );
+  });
+
   it('reads the bout again when the server refuses a Reopen or a Reset, so a late tablet catches up', () => {
     expect(view).toMatch(
       /method: 'POST',\s+body: \{ action \},\s+\}\);\s+if \(!result\.ok\) \{[^}]*onRefresh\(\);\s+throw new Error\(refusalMessage\(result, t, 'scoring\.clock\.actionFailed'\)/,
