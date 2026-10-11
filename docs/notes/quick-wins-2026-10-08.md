@@ -460,7 +460,7 @@ Two rulings on 2026-10-11, with the plan of the countdown:
 | Asked with this story                                                                                                                                                                | Ruling                                                                                                                                                | Done       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | A countdown bout, cap 10. Until the first hit the server's row says 0 – 0, so the tablet, the TV and the public page show 0 – 0; after red's first hit for 2 they jump to 10 – 8.    | **All screens read 10 – 10 from the Start, in a commit of its own**: the server computes the score when the bout starts. With its own recon and plan. | `19943e0c` |
-| Best-of-3, round 1 ends on "End round" at red 2 – 0. On the round-break screen, with a network, "Undo last entry" cancels one hit: the screen reads 1 – 0 and stays up with no word. | **Undo and say so**: the undo still cancels the hit, and the screen says which hit was cancelled and that the round stays closed. A slice of its own. | not built  |
+| Best-of-3, round 1 ends on "End round" at red 2 – 0. On the round-break screen, with a network, "Undo last entry" cancels one hit: the screen reads 1 – 0 and stays up with no word. | **Undo and say so**: the undo still cancels the hit, and the screen says which hit was cancelled and that the round stays closed. A slice of its own. | `641cccaf` |
 
 **A bug found while the countdown was planned, NOT fixed** (read in code, not run). Countdown,
 afterblow mode "full", a phase that cannot end level (a bracket). Red and blue each have 1 point
@@ -676,6 +676,26 @@ Named while the undo was built, and not fixed (each one checked in code by a rev
   under the controls' button behind it. A screen reader can say it twice.
 - A tablet that sends an earlier hit of the bout at the same moment as the undo can keep the
   round-break screen up until the next read of the bout. Read from the code, not seen.
+
+**The undo of a round "End round" closed says what it did: `641cccaf`** (2026-10-11). With a
+network, round 1 is ended with "End round" at red 2 – 1 and the official taps "Undo last entry".
+The entry is cancelled, the screen stays up on 2 – 0, and it now says: "Cancelled: #2 · Bo Blue ·
+Clean hit +1. Round 1 stays closed." The entry is worded as the bout's list words it, with its
+number there. Ruled with the plan: a second tap at the same round break cancels nothing more.
+This answers the first point of the list above. A round the cap closed goes back in play as
+before.
+
+Named while it was built, and not fixed:
+
+- An undo tapped in the moment after the server took "End round", before the bout is read
+  again, makes the round-break screen close and open again. It then shows no line, and its one
+  undo is given back, so a second tap cancels a second entry. Read from the code by the review,
+  not seen. The window is one read of the bout.
+- When the round on screen holds no entry, the undo cancels an entry of the round before. The
+  line then names that entry and says the round on screen stays closed.
+- A round the cap closed that one cancel does not take under the cap stays up with no word.
+- The line is my wording of "which hit": the entry as the corrections drawer writes it. A card
+  is named the same way. Not ruled.
 
 **A bug found while commit 3 was built, NOT fixed, and a question for the operator.** A bout
 keeps the ruleset it was generated with. An organiser generates the Pools of a Tournament under
