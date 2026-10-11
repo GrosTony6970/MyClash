@@ -37,6 +37,7 @@ import { isDrillActive } from './drill';
 import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
 import {
   boutsBehindHeldRow,
+  discardBoutOf,
   dropSentPress,
   freeToSend,
   holdsBack,
@@ -766,6 +767,17 @@ export class SyncEngine {
     await discardRejected(id);
     if (frees) await this.drain();
     else await this.emitResting();
+  }
+
+  /**
+   * Discard every row of the bout of a held row: the refused ones and the ones
+   * that wait behind them. Nothing is freed, so nothing is sent. The caller is
+   * responsible for having confirmed it. See `discardBoutOf`.
+   */
+  async discardRejectedBout(id: number): Promise<number> {
+    const gone = await discardBoutOf(id);
+    await this.emitResting();
+    return gone;
   }
 
   /**

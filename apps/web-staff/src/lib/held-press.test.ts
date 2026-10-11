@@ -5,9 +5,13 @@
  * A press is no hit. Before it had its own words, a held Start would have read
  * "Queued entry" with "Discard this hit?", and the bar "1 HIT NOT RECORDED".
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { canSendAgain } from '../offline/can-send-again';
 import {
+  boutEntryCount,
+  discardBoutQuestion,
   discardQuestion,
   heldPressLabel,
   heldRowNotice,
@@ -79,6 +83,56 @@ describe('the question before a discard', () => {
       cancelLabel: 'common.cancel',
       danger: true,
     });
+  });
+});
+
+describe('the question before every entry of a bout is discarded', () => {
+  it('is one question that says how many entries go, with both buttons worded', () => {
+    expect(discardBoutQuestion(12, t)).toEqual({
+      title: 'scoring.quarantine.discardBoutTitle {"count":12}',
+      description: 'scoring.quarantine.discardBoutBody {"count":12}',
+      confirmLabel: 'scoring.quarantine.discardConfirm',
+      cancelLabel: 'common.cancel',
+      danger: true,
+    });
+  });
+
+  it('counts the rows of the bout the inbox holds and the rows that wait behind them', () => {
+    const held = [{ matchId: 'm1' }, { matchId: 'm2' }, { matchId: 'm1' }];
+
+    expect(boutEntryCount({ matchId: 'm1' }, held, 11)).toBe(13);
+    expect(boutEntryCount({ matchId: 'm2' }, held, 1)).toBe(2);
+  });
+
+  it('is offered on a row with entries behind it, and goes through the engine', () => {
+    // The pad's vitest mounts no component: the inbox is pinned as text.
+    const inbox = readFileSync(join(__dirname, '..', 'components', 'QuarantineInbox.tsx'), 'utf8');
+    expect(inbox).toContain('discardBout={waiting > 0}');
+    expect(inbox).toContain('{discardBout && (');
+    expect(inbox).toContain(
+      'const count = boutEntryCount(entry, entries, behind.get(entry.id ?? -1) ?? 0);',
+    );
+    expect(inbox).toContain('if (!(await confirm(discardBoutQuestion(count, t)))) return;');
+    expect(inbox).toContain('await run(entry.id, (id) => syncEngine.discardRejectedBout(id));');
+    // 44px for a finger. Pinned here: in a browser the button beside it stretches this one.
+    expect(inbox).toMatch(/const DISCARD_BUTTON =\s+'min-h-\[44px\] /);
+    expect(inbox.match(/className=\{DISCARD_BUTTON\}/g)).toHaveLength(2);
+  });
+
+  it('the rounds read "a row is refused" with the queued rows, from one read', () => {
+    // Read by two hooks, "none refused" reached a draw before "the rows are
+    // gone": the screen closed a round on rows the Discard had just deleted.
+    const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
+    const hook = read('hooks', 'usePendingOutbox.ts');
+    expect(hook).toContain("db.transaction('r', db.outbox, db.rejected, () =>");
+    expect(hook).toContain('Promise.all([getPendingForMatch(matchId), heldRowsOf(matchId)]),');
+    expect(hook).toContain('setHolds({ entries, held: refused.length > 0 });');
+    expect(hook).toContain('}, [matchId, refreshKey, pendingCount, rejectedCount]);');
+    expect(read('hooks', 'useMatchScoringData.ts')).toContain('args.syncRejectedCount,');
+    const view = read('components', 'MatchView.tsx');
+    expect(view).toContain('syncRejectedCount: syncState?.rejectedCount ?? 0,');
+    expect(view).toContain('held: scoring.boutHeld,');
+    expect(view).not.toContain('held: padClock.heldRows.length > 0');
   });
 });
 

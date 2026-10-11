@@ -1194,7 +1194,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > `match_locked`, the one refusal of every door that asks the lock
 > (`apps/api/src/modules/matches/match-locked.ts`): a tap, the notice of a refused undo and the
 > inbox say it in the reader's language.
-> The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A 409 on
+> The bar stays red while one is held, and the refused-hits inbox offers Retry and Discard. A row
+> with entries of its bout waiting behind it also offers "Discard all of this match": one question
+> that says how many entries go, then every row of that bout leaves the tablet, the refused and
+> the waiting, and none is sent (`discardBoutOf`, `offline/press-queue.ts`). A 409 on
 > the two create routes is an Event that is over: the server answers a repeated `clientUuid` with the
 > saved row and a 2xx BEFORE it asks whether the Event is over, so a 409 is never a hit it holds. A
 > 403 the API words (it carries a `code`) is a caller who may not score that bout (a pad moved off
@@ -1401,7 +1404,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > and an End names the winner from the hits the server holds. So while a row of a bout is held
 > in the inbox (a press, a hit or a card), every row of that bout waits behind it, and other
 > bouts go on; a Retry puts the held row back at its own place, and a Discard frees the rows and
-> sends them. It was ruled for a press first, and for a hit and a card on 2026-10-10: sent on,
+> sends them. The Discard of the whole bout frees nothing: it deletes them with the held row,
+> in one write that first reads the held row again (a row of a bout is never out while that
+> bout holds a refused one, so a held row still there proves none is on its way). It was ruled for a press first, and for a hit and a card on 2026-10-10: sent on,
 > the rows behind a refused hit ended the bout on the server without it. A press that could
 > not be sent stops its bout's rows for that pass, and a press never passes a hit of its bout
 > that could not be sent; a hit behind a hit that could not be sent still goes. A refused row is

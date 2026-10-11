@@ -122,7 +122,8 @@ describe('heldReason', () => {
     const inbox = readFileSync(join(__dirname, '..', 'components', 'QuarantineInbox.tsx'), 'utf8');
     expect(inbox).toContain('{heldReason(entry, t)}');
     // The retry button of a row is drawn only for a hit a new send can save.
-    expect(inbox).toContain('{canSendAgain(entry) && (');
+    expect(inbox).toContain('retry={canSendAgain(entry)}');
+    expect(inbox).toContain('{retry && (');
     expect(inbox).not.toContain('{entry.rejectedReason}');
   });
 });

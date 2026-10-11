@@ -269,6 +269,7 @@ export function MatchView({
     refreshKey,
     config: scoringConfig,
     syncPendingCount: syncState?.pendingCount ?? 0,
+    syncRejectedCount: syncState?.rejectedCount ?? 0,
   });
   // The rounds: which is open, its score, who closed the ones before it. A
   // bout of one round is one round here, so the numerals have ONE source.
@@ -277,7 +278,8 @@ export function MatchView({
     matchFormat,
     scoring,
     clockState,
-    held: padClock.heldRows.length > 0,
+    // With the queued rows, from one read: never "none refused" over rows that are gone.
+    held: scoring.boutHeld,
     syncEngine,
     pressed: clockPressed,
     setError: setClockError,

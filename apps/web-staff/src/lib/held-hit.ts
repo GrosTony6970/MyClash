@@ -146,6 +146,33 @@ export function discardQuestion(held: Pick<RejectedEntry, 'kind'>, t: Translate)
   };
 }
 
+/**
+ * How many entries "Discard all of this match" takes off the tablet: the rows
+ * of the bout the inbox holds, and the rows that wait behind them.
+ */
+export function boutEntryCount(
+  entry: Pick<RejectedEntry, 'matchId'>,
+  held: readonly Pick<RejectedEntry, 'matchId'>[],
+  waiting: number,
+): number {
+  return held.filter((row) => row.matchId === entry.matchId).length + waiting;
+}
+
+/**
+ * The question before every entry of a bout is discarded: one question, with
+ * how many go. The button is offered only with a row waiting behind a held
+ * one, so the count is two or more and `t()` needs no sentence for one.
+ */
+export function discardBoutQuestion(count: number, t: Translate): ConfirmOptions {
+  return {
+    title: t('scoring.quarantine.discardBoutTitle', { count }),
+    description: t('scoring.quarantine.discardBoutBody', { count }),
+    confirmLabel: t('scoring.quarantine.discardConfirm'),
+    cancelLabel: t('common.cancel'),
+    danger: true,
+  };
+}
+
 /** The names the bout screen shows, for the row a hit of that bout is queued with. */
 export function boutNames(match: {
   roundCode?: string;

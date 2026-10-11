@@ -80,6 +80,11 @@ export interface MatchScoringData {
    * in the order they were made. `padSeries` reads the rounds from them.
    */
   queuedRoundPresses: OutboxEntry[];
+  /**
+   * The inbox holds a refused row of this bout. Read WITH the rows above, in
+   * one state: the rounds are computed from both (`usePendingOutbox`).
+   */
+  boutHeld: boolean;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   countFor: (registrationId: string, card: PenaltyCard) => number;
@@ -114,6 +119,8 @@ export function useMatchScoringData(args: {
    * drain — that copy is gone.
    */
   syncPendingCount: number;
+  /** The engine's count of refused rows: a Discard in the inbox moves it. */
+  syncRejectedCount: number;
 }): MatchScoringData {
   const { apiUrl, matchId, refreshKey, config } = args;
 
@@ -132,7 +139,12 @@ export function useMatchScoringData(args: {
   const activeExchanges = notTakenBack(serverExchanges, takenBack);
   const activePenalties = notTakenBack(serverPenalties, takenBack);
 
-  const pendingEntries = usePendingOutbox(matchId, refreshKey, args.syncPendingCount);
+  const { entries: pendingEntries, held: boutHeld } = usePendingOutbox(
+    matchId,
+    refreshKey,
+    args.syncPendingCount,
+    args.syncRejectedCount,
+  );
 
   const pending = useMemo(
     () =>
@@ -188,6 +200,7 @@ export function useMatchScoringData(args: {
     unpricedCards: pending.unpricedCardUuids.length,
     queuedCardsFor,
     queuedRoundPresses,
+    boutHeld,
     countFor,
     resolveCard,
     refreshExchanges,

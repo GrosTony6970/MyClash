@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
+  boutEntryCount,
+  discardBoutQuestion,
   discardQuestion,
   heldBoutLine,
   heldPressLabel,
@@ -79,6 +81,9 @@ async function countWaiting(held: RejectedEntry[]): Promise<Map<number, number>>
  * Both actions go through the SyncEngine rather than the Dexie store directly,
  * so the network bar's count and this list cannot disagree — the engine's
  * emit() re-derives 'error' from whatever is still held.
+ *
+ * "Discard all of this match" counts its entries from the list on screen: what
+ * the question names is kept from the tap.
  */
 function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
   const { t } = useI18n();
@@ -121,7 +126,13 @@ function useQuarantineActions(open: boolean, syncEngine: SyncEngine) {
     await run(entry.id, (id) => syncEngine.discardRejectedEntry(id));
   }
 
-  return { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard };
+  async function handleDiscardBout(entry: RejectedEntry) {
+    const count = boutEntryCount(entry, entries, behind.get(entry.id ?? -1) ?? 0);
+    if (!(await confirm(discardBoutQuestion(count, t)))) return;
+    await run(entry.id, (id) => syncEngine.discardRejectedBout(id));
+  }
+
+  return { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard, handleDiscardBout };
 }
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -171,14 +182,16 @@ function QuarantineRow({
   busy,
   onRetry,
   onDiscard,
+  onDiscardBout,
   t,
 }: {
   entry: RejectedEntry;
-  /** Of a held press: the rows of its bout that wait behind it. */
+  /** The rows of its bout that wait behind it. */
   waiting: number;
   busy: boolean;
   onRetry: () => void;
   onDiscard: () => void;
+  onDiscardBout: () => void;
   t: Translate;
 }) {
   return (
@@ -191,27 +204,72 @@ function QuarantineRow({
       </div>
       <HeldNames entry={entry} t={t} />
       <HeldReason entry={entry} waiting={waiting} t={t} />
-      <div className="mt-3 flex gap-2">
-        {canSendAgain(entry) && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onRetry}
-            className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
-            {t('scoring.quarantine.retry')}
-          </button>
-        )}
+      <RowActions
+        retry={canSendAgain(entry)}
+        discardBout={waiting > 0}
+        busy={busy}
+        onRetry={onRetry}
+        onDiscard={onDiscard}
+        onDiscardBout={onDiscardBout}
+        t={t}
+      />
+    </li>
+  );
+}
+
+const DISCARD_BUTTON =
+  'min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50';
+
+/**
+ * The ways out of a held row. Retry first: the shared dialog gives its focus
+ * to the first live button, and the two that delete stay behind it. "Discard
+ * all of this match" only with a row of the bout waiting behind this one:
+ * with none, Discard is the same act.
+ */
+function RowActions({
+  retry,
+  discardBout,
+  busy,
+  onRetry,
+  onDiscard,
+  onDiscardBout,
+  t,
+}: {
+  retry: boolean;
+  discardBout: boolean;
+  busy: boolean;
+  onRetry: () => void;
+  onDiscard: () => void;
+  onDiscardBout: () => void;
+  t: Translate;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {retry && (
         <button
           type="button"
           disabled={busy}
-          onClick={onDiscard}
-          className="min-h-[44px] rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
+          onClick={onRetry}
+          className="min-h-[44px] flex-1 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
-          {t('scoring.quarantine.discard')}
+          {t('scoring.quarantine.retry')}
         </button>
-      </div>
-    </li>
+      )}
+      <button type="button" disabled={busy} onClick={onDiscard} className={DISCARD_BUTTON}>
+        {t('scoring.quarantine.discard')}
+      </button>
+      {discardBout && (
+        <button
+          type="button"
+          data-testid="quarantine-discard-bout"
+          disabled={busy}
+          onClick={onDiscardBout}
+          className={DISCARD_BUTTON}
+        >
+          {t('scoring.quarantine.discardBout')}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -237,7 +295,7 @@ export function QuarantineInbox({
   syncEngine: SyncEngine;
 }) {
   const { t } = useI18n();
-  const { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard } =
+  const { entries, behind, busyId, confirmDialog, handleRetry, handleDiscard, handleDiscardBout } =
     useQuarantineActions(open, syncEngine);
 
   return (
@@ -261,6 +319,7 @@ export function QuarantineInbox({
                 busy={busyId === entry.id}
                 onRetry={() => void handleRetry(entry)}
                 onDiscard={() => void handleDiscard(entry)}
+                onDiscardBout={() => void handleDiscardBout(entry)}
                 t={t}
               />
             ))}

@@ -133,6 +133,28 @@ export function waitingBehind(held: Pick<RejectedEntry, 'matchId'>): Promise<num
 }
 
 /**
+ * Every row of the bout of a held row leaves the tablet: the refused ones and
+ * the ones that wait behind them ("Discard all of this match", operator,
+ * 2026-10-11). Answers how many went.
+ *
+ * The race is the send: a row whose POST is out must not be deleted, or the
+ * server holds an entry the tablet forgot. While a bout holds a refused row no
+ * row of it is sent (`BoutOrder`), so the proof is that the refused row is
+ * still held: it is read again here, in one write transaction with the
+ * deletes. Gone (a Retry put it back in the queue): nothing is deleted, and 0
+ * is the answer.
+ */
+export function discardBoutOf(heldId: number): Promise<number> {
+  return db.transaction('rw', db.outbox, db.rejected, async () => {
+    const held = await db.rejected.get(heldId);
+    if (!held) return 0;
+    const refused = await db.rejected.where('matchId').equals(held.matchId).delete();
+    const waiting = await db.outbox.where('matchId').equals(held.matchId).delete();
+    return refused + waiting;
+  });
+}
+
+/**
  * How many queued rows a send can try now: the ones of a bout that holds no
  * refused row. The bar offers Retry only while this, or a curable held row,
  * gives it something to do (ruling 291).

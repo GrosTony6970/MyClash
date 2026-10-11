@@ -206,6 +206,10 @@ export const scoring = {
     discardPressTitle: 'Supprimer cette action sur le chrono ?',
     discardPressBody:
       'L’action sur le chrono est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées sans elle.',
+    discardBout: 'Tout supprimer pour cet assaut',
+    discardBoutTitle: 'Supprimer les {count} saisies de cet assaut ?',
+    discardBoutBody:
+      'Cela supprime définitivement de cette tablette les {count} saisies de cet assaut qu’elle détient encore : celles que le serveur a refusées et celles qui attendent derrière. Aucune n’est envoyée, et aucune n’atteindra les résultats. Ne le faites que si vous les avez déjà ressaisies à la main, ou si elles ne doivent pas compter.',
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",

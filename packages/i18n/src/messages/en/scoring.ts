@@ -200,6 +200,11 @@ export const scoring = {
     discardPressTitle: 'Discard this clock press?',
     discardPressBody:
       'The clock press is deleted. The entries of this match that wait behind it are then sent without it.',
+    // Every entry of one match at once: the refused ones and the ones that wait behind them.
+    discardBout: 'Discard all of this match',
+    discardBoutTitle: 'Discard the {count} entries of this match?',
+    discardBoutBody:
+      'This permanently deletes from this tablet the {count} entries of this match it still holds: the ones the server refused and the ones that wait behind them. None of them is sent, and none will reach the results. Only do this if you have already entered them again by hand, or if they must not count.',
   },
   lice: {
     loadingMatch: 'Loading match...',
