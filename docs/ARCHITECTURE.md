@@ -1348,7 +1348,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > server's answer stands, also when it counts another way and refused nothing. The clock's fold
 > knows the two round rows (`clockAfterRound`: a new round starts at zero, halted), and a
 > decided series has an ended clock on screen, so no press follows it. The undo stops at a
-> round the tablet closed. A level round at its time is refused on the tablet, in the server's
+> queued round press ("Start round", "End round"): the entries before it are closed with their
+> round. A round the cap closed has no such press yet, so the round-break screen offers the
+> bout's undo (`useUndoLast`, one undo per break): the hit is taken back and the round is in
+> play again. A level round at its time is refused on the tablet, in the server's
 > words, and nothing is queued. Under reverse scoring (`reverse_zero_loses`) the tablet
 > predicts nothing: it closes no round and opens none before the server does.
 >

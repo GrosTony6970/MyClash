@@ -116,9 +116,55 @@ describe('voidOnServer', () => {
 describe('the bout screen', () => {
   const read = (...path: string[]) => readFileSync(join(__dirname, '..', ...path), 'utf8');
   const screen = read('components', 'ScoringCenterControls.tsx');
+  const view = read('components', 'MatchView.tsx');
+  const dialogs = read('components', 'MatchPauseDialogs.tsx');
+  /** The one undo of the bout screen: the controls and the round-break screen offer it. */
+  const hook = read('hooks', 'useUndoLast.ts');
+
+  it('has ONE undo, made by the bout screen and handed to both buttons', () => {
+    expect(view.match(/useUndoLast\(/g)).toHaveLength(1);
+    expect(view).toMatch(
+      /const undo = useUndoLast\(\{\s+apiUrl,\s+matchId: match\.id,\s+syncEngine,\s+t,\s+refreshExchanges: scoring\.refreshExchanges,\s+onUndone: handleExchangeVoided,/,
+    );
+    expect(view).toMatch(/<ScoringCenterControls[\s\S]*?\n {10}undo=\{undo\}/);
+    expect(view).toMatch(/<RoundBreakDialog[\s\S]*?\n {8}undo=\{undo\}/);
+    expect(screen).not.toMatch(/undoLastEntry|takeBack/);
+    expect(dialogs).not.toMatch(/undoLastEntry|takeBack/);
+  });
+
+  it('the round-break screen offers the undo second, behind "Start round", and says why it took nothing', () => {
+    const roundBreak = dialogs.slice(dialogs.indexOf('export function RoundBreakDialog('));
+    const start = roundBreak.indexOf('data-testid="start-next-round"');
+    const back = roundBreak.indexOf('data-testid="round-break-undo"');
+    expect(start).toBeGreaterThan(0);
+    expect(back).toBeGreaterThan(start);
+    expect(roundBreak).toMatch(
+      /data-testid="round-break-undo"\s+onClick=\{undo\.undo\}\s+className="min-h-\[44px\]/,
+    );
+    expect(roundBreak).toMatch(/\{undo\.error && \(\s+<p role="alert"/);
+    expect(roundBreak).toMatch(/\{undo\.notice && \(\s+<p role="status"/);
+  });
+
+  it('a tap while an undo is out does nothing', () => {
+    expect(hook).toMatch(/undo: \(\) => \{\s+if \(!busy && [^\n]+\) void run\(\);\s+\},/);
+  });
+
+  it('at a round break one undo lands, and no second one before the screen has closed', () => {
+    expect(hook).toContain('if (!busy && !(once && landedIn === scope)) void run();');
+    expect(hook).toMatch(/\n {6}setLandedIn\(scope\);\s+refreshExchanges\(\);/);
+    expect(hook).toContain('if (landedIn !== null && landedIn !== scope) setLandedIn(null);');
+    expect(view).toContain('once: series.awaitingStart,');
+  });
+
+  it('shows what an undo said only while the bout stands where it was said', () => {
+    expect(view).toContain('scope: `${series.round}/${String(series.awaitingStart)}`,');
+    expect(hook).toContain('if (said && said.scope !== scope) setSaid(null);');
+    expect(hook).toContain('const here = said?.scope === scope ? said : null;');
+    expect(hook).toMatch(/error: here\?\.error \?\? null,\s+notice: here\?\.notice \?\? null,/);
+  });
 
   it('hands the undo to the module, with the engine’s take-back', () => {
-    expect(screen).toMatch(
+    expect(hook).toMatch(
       /await undoLastEntry\(\{\s+apiUrl,\s+matchId,\s+t,\s+takeBack: \(entry\) => \(syncEngine \? syncEngine\.takeBack\(entry\) : takeBack\(entry\)\),\s+\}\);/,
     );
   });
@@ -128,24 +174,29 @@ describe('the bout screen', () => {
   });
 
   it('the button is off only while the bout’s list is empty, cards included', () => {
-    expect(screen).toMatch(/disabled=\{events\.length === 0 \|\| clearBusy\}/);
+    expect(screen).toMatch(/disabled=\{events\.length === 0 \|\| undo\.busy\}/);
+    expect(screen).toMatch(/data-testid="undo-last-entry"[\s\S]{0,80}onClick=\{undo\.undo\}/);
   });
 
   it('reads the bout again when the undo found nothing to take back', () => {
-    expect(screen).toMatch(
-      /if \(outcome\.message\) setClearError\(outcome\.message\);\s+else onExchangeVoided\?\.\(\);/,
+    expect(hook).toMatch(
+      /if \(outcome\.message\) setError\(outcome\.message\);\s+else onUndone\(\);/,
     );
   });
 
+  it('reads the hits and the bout again after an undo that took an entry back', () => {
+    expect(hook).toMatch(/\n {6}refreshExchanges\(\);\s+onUndone\(\);\s+\} finally \{/);
+  });
+
   it('says a request was sent, and does not report a void', () => {
-    expect(screen).toMatch(
-      /outcome\.kind === 'sent-for-review'\) \{\s+setClearNotice\(t\('scoring\.corrections\.clearLastSentForReview'\)\);\s+return;/,
+    expect(hook).toMatch(
+      /outcome\.kind === 'sent-for-review'\) \{\s+setNotice\(t\('scoring\.corrections\.clearLastSentForReview'\)\);\s+return;/,
     );
   });
 
   it('shows the notice as a status, not as an error', () => {
     expect(screen).toMatch(
-      /\{clearNotice && \(\s+<p className="[^"]*text-info[^"]*" role="status">/,
+      /\{undo\.notice && \(\s+<p className="[^"]*text-info[^"]*" role="status">/,
     );
   });
 

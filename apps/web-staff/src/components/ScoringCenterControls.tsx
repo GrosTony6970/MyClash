@@ -42,16 +42,12 @@ import {
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
-import { takeBack } from '../offline/take-back';
-import type { SyncEngine } from '../offline/sync';
+import type { UndoLast } from '../hooks/useUndoLast';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
-import { undoLastEntry } from '../lib/clear-last';
 
 interface ScoringCenterControlsProps {
-  matchId: string;
-  apiUrl: string;
   /** Match status (DB enum) — drives the DOUBLE LOSS banner once completed. */
   matchStatus: string;
   /** matches.end_reason — drives the BLACK CARD banner when 'black_card'. */
@@ -89,13 +85,8 @@ interface ScoringCenterControlsProps {
   submit: UseScoringSubmitResult;
   /** The match's events, read once by `MatchView`. */
   scoring: MatchScoringData;
-  /**
-   * The durable-sync engine. The undo asks it for the entry that waits on the
-   * tablet: it knows which row is out, and that one is never deleted here.
-   */
-  syncEngine?: SyncEngine | null;
-  /** Called after the undo took an entry back. */
-  onExchangeVoided?: () => void;
+  /** "Undo last entry" of this bout (`useUndoLast`): the round-break screen offers the same one. */
+  undo: UndoLast;
   /** Locked match → read-only: hide clock/scoring controls, keep timer + timeline. */
   readOnly?: boolean;
   // ── Best-of-N rounds ──
@@ -142,8 +133,6 @@ function ClockText({ ms }: { ms: number }) {
 }
 
 export function ScoringCenterControls({
-  matchId,
-  apiUrl,
   matchStatus,
   endReason,
   matchFormat,
@@ -163,8 +152,7 @@ export function ScoringCenterControls({
   onClockAction,
   submit,
   scoring,
-  syncEngine,
-  onExchangeVoided,
+  undo,
   readOnly,
   isBestOf = false,
   currentRound = 1,
@@ -186,11 +174,7 @@ export function ScoringCenterControls({
   const status = clockState?.status ?? 'idle';
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [noExchangeOpen, setNoExchangeOpen] = useState(false);
-  const [clearBusy, setClearBusy] = useState(false);
-  const [clearError, setClearError] = useState<string | null>(null);
-  const [clearNotice, setClearNotice] = useState<string | null>(null);
-  const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties, refreshExchanges } =
-    scoring;
+  const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
 
   // Live ticker — runs while running AND while halted so the wall-clock
   // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
@@ -286,43 +270,6 @@ export function ScoringCenterControls({
       config,
     ],
   );
-
-  /**
-   * Undo the newest hit or card of the bout (rulings 317, 318, 350). The order
-   * and every fault are `undoLastEntry`'s: the server is asked first, for a
-   * short time, and with no answer the undo works on the tablet alone, which
-   * is what makes this work offline.
-   *
-   * No local count to decrement: `onExchangeVoided` bumps the refresh key on
-   * the same tick and the lifted outbox read follows.
-   */
-  async function clearLastExchange() {
-    setClearBusy(true);
-    setClearError(null);
-    setClearNotice(null);
-    try {
-      const outcome = await undoLastEntry({
-        apiUrl,
-        matchId,
-        t,
-        takeBack: (entry) => (syncEngine ? syncEngine.takeBack(entry) : takeBack(entry)),
-      });
-      if (outcome.kind === 'failed') {
-        // No message: the bout holds no entry, so this list is old. Read it again.
-        if (outcome.message) setClearError(outcome.message);
-        else onExchangeVoided?.();
-        return;
-      }
-      if (outcome.kind === 'sent-for-review') {
-        setClearNotice(t('scoring.corrections.clearLastSentForReview'));
-        return;
-      }
-      refreshExchanges();
-      onExchangeVoided?.();
-    } finally {
-      setClearBusy(false);
-    }
-  }
 
   const primary = primaryAction(status);
 
@@ -598,8 +545,8 @@ export function ScoringCenterControls({
               // holds real entries: those count, or the undo is dead exactly
               // when the referee needs it.
               data-testid="undo-last-entry"
-              disabled={events.length === 0 || clearBusy}
-              onClick={() => void clearLastExchange()}
+              disabled={events.length === 0 || undo.busy}
+              onClick={undo.undo}
               // `info`, not `danger`: undoing the last entry is a routine
               // correction a referee makes constantly, and the cyan this
               // replaces existed only to read as "not one of the red actions".
@@ -607,14 +554,14 @@ export function ScoringCenterControls({
             >
               ↶ {t('scoring.corrections.clearLastExchange')}
             </button>
-            {clearError && (
+            {undo.error && (
               <p className="text-center text-xs text-danger" role="alert">
-                {clearError}
+                {undo.error}
               </p>
             )}
-            {clearNotice && (
+            {undo.notice && (
               <p className="text-center text-xs text-info" role="status">
-                {clearNotice}
+                {undo.notice}
               </p>
             )}
           </div>

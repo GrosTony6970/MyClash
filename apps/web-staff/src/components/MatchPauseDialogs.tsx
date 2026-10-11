@@ -2,6 +2,7 @@
 
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import type { UndoLast } from '../hooks/useUndoLast';
 
 /**
  * The screens that stand between the official and the clock: the question on
@@ -150,6 +151,8 @@ interface RoundBreakDialogProps {
   /** The TABLET closed this round: the server has not confirmed it (operator, 2026-10-10). */
   unconfirmed: boolean;
   error: string | null;
+  /** "Undo last entry" of the bout: the same undo as the controls' (`useUndoLast`). */
+  undo: UndoLast;
   onStart: () => void;
 }
 
@@ -188,6 +191,14 @@ function ClosedOnTablet() {
  * with a network or with none, so the button is never disabled. (A disabled
  * button here left the focus on "End round" behind the screen, and Space
  * pressed that.)
+ *
+ * "Undo last entry" comes SECOND (operator, 2026-10-11): a hit tapped on the
+ * wrong side that took a fighter to the cap is taken back here, and the round
+ * is open again. The focus stays on "Start round", the first button. The undo
+ * is never disabled either: a tap while one is out does nothing, and one undo
+ * lands per break (`useUndoLast`). A round "End round" closed is another case:
+ * while that press waits on the tablet the undo is refused, and once the server
+ * holds it the server judges the undo (the round stays closed).
  */
 export function RoundBreakDialog({
   open,
@@ -201,6 +212,7 @@ export function RoundBreakDialog({
   blueColor,
   unconfirmed,
   error,
+  undo,
   onStart,
 }: RoundBreakDialogProps) {
   const { t } = useI18n();
@@ -209,16 +221,7 @@ export function RoundBreakDialog({
       open={open}
       onClose={staysOpen}
       title={t('scoring.rounds.roundComplete', { round: String(round) })}
-      footer={
-        <button
-          type="button"
-          data-testid="start-next-round"
-          onClick={onStart}
-          className="min-h-[44px] rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30"
-        >
-          {t('scoring.rounds.startRound', { round: String(round + 1) })} →
-        </button>
-      }
+      footer={<RoundBreakButtons round={round} undo={undo} onStart={onStart} />}
     >
       <div className="text-center">
         {winner && (
@@ -232,7 +235,46 @@ export function RoundBreakDialog({
         {unconfirmed && <ClosedOnTablet />}
         <SeriesTally red={[redRoundWins, redColor]} blue={[blueRoundWins, blueColor]} />
         {error && <p className="mt-3 text-xs font-normal text-danger">{error}</p>}
+        {undo.error && (
+          <p role="alert" className="mt-3 text-xs font-normal text-danger">
+            {undo.error}
+          </p>
+        )}
+        {undo.notice && (
+          <p role="status" className="mt-3 text-xs font-normal text-info">
+            {undo.notice}
+          </p>
+        )}
       </div>
     </Modal>
+  );
+}
+
+/** The two buttons of the round break, "Start round" FIRST: the dialog gives it the focus. */
+function RoundBreakButtons({
+  round,
+  undo,
+  onStart,
+}: Pick<RoundBreakDialogProps, 'round' | 'undo' | 'onStart'>) {
+  const { t } = useI18n();
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="start-next-round"
+        onClick={onStart}
+        className="min-h-[44px] rounded-lg border-2 border-info bg-info/20 px-6 py-2 text-sm font-bold text-info hover:bg-info/30"
+      >
+        {t('scoring.rounds.startRound', { round: String(round + 1) })} →
+      </button>
+      <button
+        type="button"
+        data-testid="round-break-undo"
+        onClick={undo.undo}
+        className="min-h-[44px] rounded-lg border-2 border-border bg-surface px-4 py-2 text-sm font-bold text-foreground-secondary hover:bg-border"
+      >
+        ↶ {t('scoring.corrections.clearLastExchange')}
+      </button>
+    </>
   );
 }

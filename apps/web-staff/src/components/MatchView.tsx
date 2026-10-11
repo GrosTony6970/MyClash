@@ -11,6 +11,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { usePadClock } from '../hooks/usePadClock';
 import { usePadRounds } from '../hooks/usePadRounds';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
+import { useUndoLast } from '../hooks/useUndoLast';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
@@ -583,6 +584,17 @@ export function MatchView({
     setRefreshKey((k) => k + 1);
     onRefresh();
   }, [onRefresh, forgetRounds]);
+  // One undo for the controls and the round-break screen.
+  const undo = useUndoLast({
+    apiUrl,
+    matchId: match.id,
+    syncEngine,
+    t,
+    refreshExchanges: scoring.refreshExchanges,
+    onUndone: handleExchangeVoided,
+    scope: `${series.round}/${String(series.awaitingStart)}`,
+    once: series.awaitingStart,
+  });
   // No press waits for the send (ruling 316): the lists are read again when it
   // has ended. The page reads the bout itself then.
   const readListsAgain = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -753,8 +765,6 @@ export function MatchView({
         />
 
         <ScoringCenterControls
-          matchId={match.id}
-          apiUrl={apiUrl}
           matchStatus={match.status}
           readOnly={!!match.lockedAt}
           endReason={match.endReason ?? null}
@@ -775,8 +785,7 @@ export function MatchView({
           onClockAction={onControlsClockAction}
           submit={submit}
           scoring={scoring}
-          syncEngine={syncEngine}
-          onExchangeVoided={handleExchangeVoided}
+          undo={undo}
           isBestOf={isBestOf}
           currentRound={series.round}
           redRoundWins={series.redRoundWins}
@@ -896,6 +905,7 @@ export function MatchView({
         blueColor={sideStyle(scoringConfig, 'blue').border}
         unconfirmed={closedRound?.by === 'tablet'}
         error={clockError}
+        undo={undo}
         onStart={rounds.startNextRound}
       />
 

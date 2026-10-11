@@ -130,9 +130,12 @@ describe('the round-break screen', () => {
     expect(roundBreak).toMatch(/<Modal\s+open=\{open\}\s+onClose=\{staysOpen\}/);
   });
 
-  it('has one way out, the size of a finger', () => {
-    expect(roundBreak.match(/<button/g)).toHaveLength(1);
-    expect(roundBreak).toMatch(/onClick=\{onStart\}\s+className="min-h-\[44px\]/);
+  it('has two buttons the size of a finger, and "Start round" is the first: the focus lands on it', () => {
+    expect(roundBreak.match(/<button/g)).toHaveLength(2);
+    expect(roundBreak.match(/min-h-\[44px\]/g)).toHaveLength(2);
+    expect(roundBreak).toMatch(
+      /<>\s+<button\s+type="button"\s+data-testid="start-next-round"\s+onClick=\{onStart\}\s+className="min-h-\[44px\]/,
+    );
   });
 
   it('keeps its button able to take the focus: "Start round" waits for no call', () => {

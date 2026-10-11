@@ -19,6 +19,8 @@ interface ClosedRound {
   redScore: number;
   blueScore: number;
   winnerColor: 'red' | 'blue' | null;
+  /** `time_limit`: "End round" closed it. The server never puts such a round back in play. */
+  endReason: 'point_cap' | 'time_limit';
 }
 
 const ROW = {
@@ -104,7 +106,11 @@ const refusal = (route: Route, status: number, code: string) =>
   });
 
 /** The open round is over on the server: it is written down, and the bout waits or completes. */
-function closeRound(stub: Stub, winnerColor: 'red' | 'blue' | null) {
+function closeRound(
+  stub: Stub,
+  winnerColor: 'red' | 'blue' | null,
+  endReason: ClosedRound['endReason'] = 'point_cap',
+) {
   const { row } = stub;
   const rounds = [
     ...row.rounds_json,
@@ -113,6 +119,7 @@ function closeRound(stub: Stub, winnerColor: 'red' | 'blue' | null) {
       redScore: row.red_score,
       blueScore: row.blue_score,
       winnerColor,
+      endReason,
     },
   ];
   const red = rounds.filter((round) => round.winnerColor === 'red').length;
@@ -159,6 +166,7 @@ function answerHit(stub: Stub, route: Route) {
     type: hit.type,
     voided: false,
     occurredAt: new Date().toISOString(),
+    occurred_at: new Date().toISOString(),
     scoringSide: side,
     scoreDelta: points,
     round_number: stub.row.current_round,
@@ -167,6 +175,42 @@ function answerHit(stub: Stub, route: Route) {
   if (red >= stub.serverCap || blue >= stub.serverCap)
     closeRound(stub, red > blue ? 'red' : 'blue');
   return route.fulfill({ status: 201, json: { id: `hit-${stub.hits.length}` } });
+}
+
+/**
+ * A hit is cancelled. Its points leave the open round, and a round the CAP
+ * closed that is under the cap again goes back in play, as on the server
+ * (`roundShouldReopen`). A round "End round" closed stays closed. The server's
+ * refusal of a void that takes a closed round from its winner is not kept here.
+ */
+function answerVoid(stub: Stub, route: Route, path: string) {
+  stub.sent.push('PATCH /void');
+  const hit = stub.hits.find((row) => path.endsWith(`/exchanges/${String(row.id)}/void`));
+  if (!hit || hit.voided) return refusal(route, 404, 'not_found');
+  hit.voided = true;
+  const { row } = stub;
+  const points = hit.scoreDelta as number;
+  const red = row.red_score - (hit.scoringSide === 'red' ? points : 0);
+  const blue = row.blue_score - (hit.scoringSide === 'blue' ? points : 0);
+  const byCap = row.rounds_json.some(
+    (round) => round.round === row.current_round && round.endReason === 'point_cap',
+  );
+  const underCap = red < stub.serverCap && blue < stub.serverCap;
+  const reopens =
+    row.awaiting_round_advance && hit.round_number === row.current_round && byCap && underCap;
+  const rounds = reopens
+    ? row.rounds_json.filter((round) => round.round !== row.current_round)
+    : row.rounds_json;
+  stub.row = {
+    ...row,
+    red_score: red,
+    blue_score: blue,
+    rounds_json: rounds,
+    red_round_wins: rounds.filter((round) => round.winnerColor === 'red').length,
+    blue_round_wins: rounds.filter((round) => round.winnerColor === 'blue').length,
+    awaiting_round_advance: reopens ? false : row.awaiting_round_advance,
+  };
+  return route.fulfill({ json: {} });
 }
 
 function answerRound(stub: Stub, route: Route, door: 'advance' | 'end') {
@@ -194,7 +238,7 @@ function answerRound(stub: Stub, route: Route, door: 'advance' | 'end') {
   if (closed) return route.fulfill({ json: closed });
   if (row.current_round !== body.round) return refusal(route, 409, 'round_not_open');
   const { red_score: red, blue_score: blue } = row;
-  closeRound(stub, red === blue ? null : red > blue ? 'red' : 'blue');
+  closeRound(stub, red === blue ? null : red > blue ? 'red' : 'blue', 'time_limit');
   return route.fulfill({ json: { redScore: red, blueScore: blue } });
 }
 
@@ -273,7 +317,10 @@ export async function openBestOf(page: Page, start: Start = {}) {
     if (method === 'POST' && path.endsWith('/rounds/end')) return answerRound(stub, route, 'end');
     if (method === 'POST' && path.endsWith('/clock')) return answerClock(stub, route);
     if (method === 'POST' && path.endsWith('/exchanges')) return answerHit(stub, route);
+    if (method === 'PATCH' && path.endsWith('/void')) return answerVoid(stub, route, path);
     if (method !== 'GET') return route.fulfill({ json: {} });
+    // The undo asks this first: the caller may score the bout.
+    if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: null });
     if (path.endsWith(`/matches/${BOUT}`)) {
       if (stub.holdRow) await stub.holdRow;
       return route.fulfill({ json: stub.row });
