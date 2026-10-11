@@ -1355,8 +1355,15 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > round. A round the cap closed has no such press yet, so the round-break screen offers the
 > bout's undo (`useUndoLast`, one undo per break): the hit is taken back and the round is in
 > play again. A level round at its time is refused on the tablet, in the server's
-> words, and nothing is queued. Under reverse scoring (`reverse_zero_loses`) the tablet
-> predicts nothing: it closes no round and opens none before the server does.
+> words, and nothing is queued. A bout that counts down (`reverse_zero_loses`) runs the same
+> way. The pad adds what it holds to a round's score in one place (`scoreOnPad`,
+> `offline/pad-series.ts`): in earned points, turned into the score by `applyScoringDirection`
+> (§7.3), so a hit takes its points off the opponent and a side stops at zero before its cards,
+> as on the server. The server's row of a bout is 0-0 until its first hit, a card or "Start
+> round" computes a score: in a bout that counts down the pad reads 0-0 on a round in play as
+> "not scored yet", cap to cap. A round both fighters left at zero on one afterblow, in a phase
+> that cannot end level, reads cap to cap there too; the server holds that round open at 0-0,
+> where no later hit can make a leader, and the pad's numbers of that round are not the server's.
 >
 > **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
 > row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,

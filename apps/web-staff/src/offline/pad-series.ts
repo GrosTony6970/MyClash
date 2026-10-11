@@ -169,7 +169,12 @@ const countsDown = (args: PadSeriesArgs) =>
  * row alone says so, not the list of hits: the two are separate reads, and
  * "the list holds a hit, the row is still 0-0" is an ordinary moment while the
  * first hit of a bout is sent. A round that waits for "Start round", and a bout
- * that is over, keep their 0-0: the doubles limit wiped that round.
+ * that is over, keep their 0-0: it is that round's result (the doubles limit
+ * wiped it, or both fighters reached zero and the phase allows a draw).
+ *
+ * Read wrong, named: a round in play that IS at 0-0 on the server (both at
+ * zero on one afterblow in a phase that cannot end level, or a wiped bout
+ * somebody reopened) reads cap to cap here.
  */
 function serverScore(args: PadSeriesArgs): ServerRounds | null {
   const { server } = args;
@@ -190,7 +195,8 @@ function serverScore(args: PadSeriesArgs): ServerRounds | null {
  * after. In a bout that counts up this is the server's score plus the queue.
  *
  * `base` is null for a round the server has not scored: nobody has earned
- * anything in it.
+ * anything in it. A card of that round the server's list already holds counts
+ * (the list of cards can land before the bout's row).
  */
 function scoreOnPad(
   args: PadSeriesArgs,
@@ -318,11 +324,7 @@ export function padSeries(args: PadSeriesArgs): PadSeries {
   const { server } = args;
   const fromServer = serverRounds(server.roundsJson);
   const waits = args.queued.length + args.queuedPenalties.length + args.roundPresses.length > 0;
-  // Under reverse scoring (a round starts at the cap and counts down) the pad's
-  // sum is not the server's score, so the tablet predicts nothing there: it
-  // closes no round and opens none before the server does.
-  const predicts = args.matchFormat.scoringDirection !== 'reverse_zero_loses';
-  if (args.held || !waits || !predicts || server.over) {
+  if (args.held || !waits || server.over) {
     return serverView(args, fromServer);
   }
 

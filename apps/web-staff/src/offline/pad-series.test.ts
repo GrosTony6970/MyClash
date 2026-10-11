@@ -281,12 +281,6 @@ describe('round 2 on the tablet, before the server knows of it', () => {
 describe('where the tablet predicts nothing', () => {
   const ahead = { queued: [hit('red', 5, 1), hit('blue', 2, 2)], roundPresses: [start(2)] };
 
-  it('under reverse scoring: a round starts at the cap there, and the pad’s sum is not the server’s score', () => {
-    const matchFormat = { ...FORMAT, scoringDirection: 'reverse_zero_loses' as const };
-    const series = padSeries(bout({ ...ahead, matchFormat }));
-    expect(series).toMatchObject({ round: 1, awaitingStart: false, closed: [], by: 'server' });
-  });
-
   it('on a bout the server has completed or voided: a forfeit at a round break waits for no round', () => {
     const server = { ...ROUND_1, awaitingRoundAdvance: true, over: true };
     const series = padSeries(bout({ ...ahead, server }));

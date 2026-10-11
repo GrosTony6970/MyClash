@@ -112,4 +112,10 @@ describe('a bout that counts up reads as before', () => {
   it('keeps a row at 0-0 at 0-0', () => {
     expect(padSeries(bout({ bestOf: 1 }))).toMatchObject({ redScore: 0, blueScore: 0 });
   });
+
+  it('keeps a row at 0-0 at 0-0 when the list holds a card: the row is the server’s score', () => {
+    // The list of cards landed before the bout's row was read again.
+    const series = padSeries(bout({ bestOf: 1, penalties: [serverCardAgainstRed(1)] }));
+    expect(series).toMatchObject({ redScore: 0, blueScore: 0 });
+  });
 });

@@ -57,7 +57,10 @@ const SUMMARY = {
 
 interface Stub {
   network: 'up' | 'down';
-  /** The cap the SERVER closes a round at: above 2, it counts another way than the tablet. */
+  /**
+   * The cap the SERVER closes a round at: above 2, it counts another way than the tablet.
+   * In a bout that counts down it is also where the server starts a round.
+   */
   serverCap: number;
   /** The bout counts down: a fighter starts at the cap, and loses at zero. */
   countdown: boolean;

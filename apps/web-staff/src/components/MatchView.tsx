@@ -896,7 +896,7 @@ export function MatchView({
 
       {/* Best-of round break: a round ended without clinching the match — show
           the round result and let the operator start the next round (resets the
-          clock + score to 0–0). Mutually exclusive with the final-result overlay
+          clock, and the score to the round's start). Mutually exclusive with the final-result overlay
           (a clinched round ends the clock instead of awaiting). The ROUND's
           winner, from the closed round — not the match's. The score is the
           round view's: at a break it stands on the closed round. "Start round"

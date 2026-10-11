@@ -216,3 +216,9 @@ describe('a row of the bout the server refused', () => {
     );
   });
 });
+
+describe('the score of a round', () => {
+  it('is counted with the server’s cards: a side stops at zero before them', () => {
+    expect(rounds).toContain('penalties: activePenalties,');
+  });
+});
