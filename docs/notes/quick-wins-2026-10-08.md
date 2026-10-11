@@ -432,12 +432,55 @@ Four rulings on 2026-10-11, at the start of the session:
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | `e3316812` |
 | A best-of-3 ends, red won two rounds, the last one 5-3. The result screen shows the rounds won (2 – 0); before `d43507ed` a confirmed bout showed the last round's points (5 – 3). | **Both**: the rounds won as the large number, and the points of each round in a small line under it.                                                                               | `a008f197` |
-| Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | not built  |
+| Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | `cf490fbb` |
 | Red is at 4 of 5; the official means blue and taps red. "Round 1 complete" opens with one button, and the wrong hit cannot be taken back there.                                    | **The round-break screen gets "Undo last entry".** "Start round N" stays its first button.                                                                                         | `d9076f71` |
 
 The "create a match" route (`POST /phases/:phaseId/matches`) has no button in any of the three
 apps: only a direct call of the API reaches it. It stamped `TF_v1` unless the caller named a
 ruleset; since `e3316812` it stamps the ruleset of its Tournament and takes none from the caller.
+
+**The countdown on the tablet is built: `04269986` and `cf490fbb`** (2026-10-11). A bout that
+counts down starts each fighter at the cap, a hit takes its points off the opponent, and the
+fighter at zero loses.
+
+- `04269986`, every countdown bout, of one round too: an unsent hit takes its points off the
+  opponent's number at once. Before, with no network, red hit for 2 at 10 – 10 and the tablet
+  read 12 – 10 until the hit was sent, where the server says 10 – 8. "End match" and the result
+  screen read that wrong score. The small line under a number now says what the tablet holds of
+  THAT number ("includes -2 not yet sent", under the opponent of the hitter).
+- `04269986`: a countdown bout nobody has hit yet reads 10 – 10 on the tablet. Before it read
+  0 – 0, as the TV and the public page still do (ruling below).
+- `cf490fbb`: a best-of countdown bout runs with no network. A fighter reaches zero and the
+  round-break screen opens, "Closed on this tablet, not confirmed." "Start round 2" puts both
+  numbers back to the cap. The series is decided on the tablet, and the bout goes to the server
+  in its own order when the network is back.
+
+Two rulings on 2026-10-11, with the plan of the countdown:
+
+| Asked with this story                                                                                                                                                                | Ruling                                                                                                                                                | Done      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| A countdown bout, cap 10. Until the first hit the server's row says 0 – 0, so the tablet, the TV and the public page show 0 – 0; after red's first hit for 2 they jump to 10 – 8.    | **All screens read 10 – 10 from the Start, in a commit of its own**: the server computes the score when the bout starts. With its own recon and plan. | not built |
+| Best-of-3, round 1 ends on "End round" at red 2 – 0. On the round-break screen, with a network, "Undo last entry" cancels one hit: the screen reads 1 – 0 and stays up with no word. | **Undo and say so**: the undo still cancels the hit, and the screen says which hit was cancelled and that the round stays closed. A slice of its own. | not built |
+
+**A bug found while the countdown was planned, NOT fixed** (read in code, not run). Countdown,
+afterblow mode "full", a phase that cannot end level (a bracket). Red and blue each have 1 point
+left, and one afterblow takes both to zero. The round stays open, and no later hit can make a
+leader: both scores are held at zero (`packages/rules/src/match-format.ts:611-614`, `:473`).
+Only a card moves the score. On the tablet that round reads cap to cap, and each later hit shows
+for a moment and goes back.
+
+Named while the countdown was built, and not fixed (each one checked in code by a review):
+
+- A bout that the doubles limit ended at 0 – 0, or a Pool bout drawn at 0 – 0, that somebody
+  reopens: the server's row is 0 – 0 and in play until the next hit. A countdown bout then reads
+  cap to cap on the tablet.
+- When the server opens a round and then fails to count the score again, the bout's row holds
+  the closed round's score in the new round. A tablet that holds an entry of that round then
+  closes it at once. It is so for a bout that counts up too.
+- The server's own comment says a tablet with no network cannot have moved past a round
+  (`apps/api/src/modules/penalties/penalties.service.ts:987-991`). That is no longer true.
+- `Generic_PointsCap` and a club's formula ruleset give every hit one fixed value on the server;
+  the tablet adds the value of the button. The tablet predicts, the server decides.
 
 **The bouts not yet started take their Tournament's ruleset: `e3316812`** (2026-10-11). When an
 organiser changes a Tournament's ruleset (the Tournament form, the audited change during an
