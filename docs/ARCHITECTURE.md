@@ -722,7 +722,7 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
 | `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
 | `getEffectiveMaxDoubles` (`@myclash/rules`)          | show the doubles limit the server applies to this bout: the format's in a pool and a Swiss round, none in a bracket                        |
-| `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: the cap, then the doubles limit, by the server's own function |
+| `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: at the cap or the doubles limit, by the server's own function |
 | `seriesResult` (`@myclash/rules`)                    | say a best-of series is decided, and for whom, from the rounds closed on the server and on the tablet                                      |
 | `belowZero` (`@myclash/rules`)                       | say how far under zero each side went in a bout that counts down, its unsent hits included, so both at zero names the same winner          |
 
@@ -1380,6 +1380,18 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > close the round on the tablet at its next unsent hit. With both fighters out of points the pad says how far
 > under zero each side went (`belowZero`, §7.3) and closes the round, or lets the official end the
 > bout, for the fighter less far below; the End carries that winner with its score (`pressedOn`).
+>
+> **A bout of one round at its doubles limit (operator, 2026-10-11).** The server ends that bout
+> on the double that reaches the limit; the tablet ends no bout of one round by itself, so with
+> no network the official presses "End match", as at the cap. That press is judged by the
+> server's own function (`limitEnd` in `components/end-guard.ts` asks `roundOutcome`, §7.3): at
+> the limit it is never early and never refused, and it carries the format's outcome with its
+> board (`PressedOn.endReason`: 0 - 0 and nobody where the format wipes the board, the board and
+> its leader where the result stands). The result screen says "Double loss" for the reason
+> `max_doubles`, from the tablet's own End while it is not confirmed and from the server's row
+> after, and names nobody then, whatever the board reads. Known limit: a card on a wiped board
+> shows on the server's row (0 and -1) and not on the tablet's own result (0 - 0). The review's
+> chart keeps the server's reason, because it draws the server's rows.
 >
 > **The order of a bout's rows** (`BoutOrder`, `offline/press-send.ts`). The server judges each
 > row against the bout as it is when the row arrives: a hit is refused on a bout nobody started,

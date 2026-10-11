@@ -11,7 +11,7 @@
 
 import type { ApiFailure } from '@myclash/api-client';
 import Dexie, { type Table } from 'dexie';
-import type { ClockPress, PenaltyCard } from '@myclash/types';
+import type { ClockPress, PenaltyCard, roundOutcome } from '@myclash/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,12 +88,23 @@ export interface BoutNames {
  * (`pressedOn`): in a bout that counts down with both fighters out of points,
  * the two numbers do not name that fighter. With none, the result reads its
  * leader from the two numbers.
+ *
+ * `endReason`: the End was pressed on a bout at its doubles limit, and this is
+ * what the format makes of it (`max_doubles` is a loss for both). The two
+ * numbers are then the board the format leaves: 0 - 0 where it wipes it.
  */
 export interface PressedOn {
   red: number;
   blue: number;
   winner?: 'red' | 'blue';
+  endReason?: LimitReason;
 }
+
+/** The reasons a bout ends for at its doubles limit, one per outcome of the format. */
+export type LimitReason = Exclude<
+  NonNullable<ReturnType<typeof roundOutcome>['endReason']>,
+  'first_to_points'
+>;
 
 export interface OutboxEntry {
   /** Auto-incremented local PK — determines drain order. */

@@ -29,6 +29,7 @@ import { useScoringTheme } from '../theme/ThemeProvider';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
+import { isDoubleLoss } from './is-double-loss';
 
 export interface MatchResultOverlayProps {
   redName: string;
@@ -52,7 +53,13 @@ export interface MatchResultOverlayProps {
    * the screen says the server has not confirmed it (operator ruling 11).
    */
   unconfirmed?: boolean;
+  /** Why the bout ended on the SERVER: the review's chart draws the server's rows. */
   endReason?: string | null;
+  /**
+   * Why the result above is what it is: the server's reason, or the tablet's
+   * own while an End at the doubles limit is not confirmed.
+   */
+  resultReason: string | null;
   bestOf?: number;
   currentRound?: number;
   scoringConfig: TournamentScoringConfig;
@@ -64,7 +71,30 @@ export interface MatchResultOverlayProps {
   onClose: () => void;
 }
 
-/** Winner (in their own side colour) or draw, then the score. */
+/**
+ * A bout nobody won: a loss for both, or a draw.
+ *
+ * The two read alike on the board (0 - 0, no winner), so the reason says which
+ * (`isDoubleLoss`). The reason is the server's, or the tablet's own while an
+ * End at the doubles limit is not confirmed. This screen said "Draw" for both.
+ */
+function NoWinner({ resultReason }: Pick<MatchResultOverlayProps, 'resultReason'>) {
+  const { t } = useI18n();
+  if (isDoubleLoss('completed', resultReason)) {
+    return (
+      <p data-testid="match-result-double-loss" className="mb-2 text-3xl font-black text-danger">
+        {t('scoring.liveMatch.doubleLoss')}
+      </p>
+    );
+  }
+  return (
+    <p data-testid="match-result-draw" className="mb-2 text-3xl font-black text-foreground">
+      {t('scoring.result.draw')}
+    </p>
+  );
+}
+
+/** Winner (in their own side colour), a loss for both or a draw, then the score. */
 function ResultHeadline({
   redName,
   blueName,
@@ -74,9 +104,11 @@ function ResultHeadline({
   blueRegistrationId,
   winnerRegistrationId,
   rounds,
+  resultReason,
   scoringConfig,
 }: Pick<
   MatchResultOverlayProps,
+  | 'resultReason'
   | 'redName'
   | 'blueName'
   | 'redScore'
@@ -88,7 +120,10 @@ function ResultHeadline({
   | 'scoringConfig'
 >) {
   const { t } = useI18n();
-  const winner = resolveMatchWinner({
+  // A loss for both names nobody, whatever the board reads: a card on a wiped
+  // board leaves 0 and -1, and its leader is not a winner.
+  const lossForBoth = isDoubleLoss('completed', resultReason);
+  const resolved = resolveMatchWinner({
     status: 'completed', // the overlay only renders once the clock has ended
     winnerRegistrationId,
     redRegistrationId,
@@ -96,6 +131,7 @@ function ResultHeadline({
     redScore,
     blueScore,
   });
+  const winner = lossForBoth ? null : resolved;
   const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
 
   return (
@@ -117,9 +153,7 @@ function ResultHeadline({
           <span aria-hidden>🏆</span> {winnerName}
         </p>
       ) : (
-        <p data-testid="match-result-draw" className="mb-2 text-3xl font-black text-foreground">
-          {t('scoring.result.draw')}
-        </p>
+        <NoWinner resultReason={resultReason} />
       )}
       <p
         data-testid="match-result-score"
@@ -256,6 +290,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
           blueRegistrationId={props.blueRegistrationId}
           winnerRegistrationId={props.winnerRegistrationId}
           rounds={props.rounds}
+          resultReason={props.resultReason}
           scoringConfig={scoringConfig}
         />
         {props.unconfirmed && <NotConfirmed />}

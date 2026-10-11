@@ -4,8 +4,9 @@
  *
  * The button sits just under Pause. An official who means Pause and hits it
  * ends the bout, and Re-open needs the network: with the wifi down the bout
- * stays ended. A normal end is not slowed: once a fighter is at the cap, or the
- * time is reached, the press ends the bout at once.
+ * stays ended. A normal end is not slowed: once a fighter is at the cap, the
+ * doubles limit is reached, or the time is reached, the press ends the bout at
+ * once.
  *
  * A phase with no time limit has no time to wait for (`timeIsFinished` answers
  * true there), so its End is never early.
@@ -13,21 +14,56 @@
 import {
   pendingLevelStep,
   pointCapWinnerColor,
+  roundOutcome,
   type CapScore,
   type LevelStep,
   type MatchFormatConfig,
 } from '@myclash/types';
-import type { PressedOn } from '../offline/db';
+import type { LimitReason, PressedOn } from '../offline/db';
 import { timeIsFinished, type PhaseType } from './scoreboard-clock';
+
+/** The score an End is judged on: the board, and the doubles of the bout or the round. */
+export type EndBoard = CapScore & { doubles: number };
+
+/** The two things of a bout that say which rules of the format it is under. */
+interface BoutPhase {
+  phaseType?: PhaseType | null;
+  matchNumberLabel?: string | null;
+}
+
+/**
+ * The bout stands at its doubles limit: the reason it ends for, one per outcome
+ * of the format, or null under the limit and where the bout has none (a bracket).
+ *
+ * The server ends a bout of one round at its limit by `roundOutcome`, on the
+ * double that reaches it. The tablet ends no bout of one round by itself: the
+ * official presses "End match", as at the cap. With no network that press is
+ * all there is, so it must say what the server will say (operator,
+ * 2026-10-11). Before, it named the leader on the board, and it refused a
+ * level board "until the time is finished".
+ *
+ * A board at the cap AND at the limit is the cap's in a bout that counts up:
+ * `roundOutcome` owns that order, and this answers null there.
+ */
+export function limitEnd(
+  score: EndBoard,
+  bout: BoutPhase,
+  matchFormat: MatchFormatConfig,
+): LimitReason | null {
+  const phase = { phaseType: bout.phaseType ?? undefined, matchNumberLabel: bout.matchNumberLabel };
+  const { endReason } = roundOutcome(phase, score, matchFormat);
+  return endReason === 'first_to_points' ? null : endReason;
+}
 
 export function endIsEarly(
   matchFormat: MatchFormatConfig,
   phaseType: PhaseType | undefined,
   matchNumberLabel: string | null | undefined,
   elapsedMs: number,
-  score: CapScore,
+  score: EndBoard,
 ): boolean {
   if (pointCapWinnerColor(score, matchFormat) !== null) return false;
+  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat) !== null) return false;
   return !timeIsFinished(elapsedMs, matchFormat, phaseType, matchNumberLabel);
 }
 
@@ -54,8 +90,22 @@ export function levelBoardWinner(
  * with both fighters out of points the board does not name that fighter: it
  * reads 0 - 0, or 0 and -1 after a card, for the one who is less far below.
  * With no winner here, the result reads its leader from the two numbers.
+ *
+ * At the doubles limit it is the format's outcome: the reason, and the board
+ * that outcome leaves. A format that wipes the board leaves 0 - 0 and nobody;
+ * "the result stands" leaves the board, whose leader the result reads from the
+ * two numbers as for any End.
  */
-export function pressedOn(score: CapScore, matchFormat: MatchFormatConfig): PressedOn {
+export function pressedOn(
+  score: EndBoard,
+  matchFormat: MatchFormatConfig,
+  bout: BoutPhase,
+): PressedOn {
+  const endReason = limitEnd(score, bout, matchFormat);
+  if (endReason) {
+    const wiped = endReason !== 'max_doubles_result_stands';
+    return { red: wiped ? 0 : score.redScore, blue: wiped ? 0 : score.blueScore, endReason };
+  }
   const winner = pointCapWinnerColor(score, matchFormat);
   return { red: score.redScore, blue: score.blueScore, ...(winner ? { winner } : {}) };
 }
@@ -76,6 +126,9 @@ export type EndRefusedOnPad =
  * Without this an official at a level bracket bout would see a result, and
  * then see it taken back.
  *
+ * A bout at its doubles limit ends, level or not: the limit is the result
+ * (`limitEnd`), and the server has ended that bout on its last double.
+ *
  * `score` is the score on the screen, the tablet's unsent hits included: it is
  * the score the End is pressed on, and the queue sends those hits first.
  */
@@ -84,10 +137,11 @@ export function endRefusedOnPad(args: {
   phaseType: PhaseType | undefined;
   matchNumberLabel: string | null | undefined;
   elapsedMs: number;
-  score: CapScore;
+  score: EndBoard;
   levelStepsTaken: number;
 }): EndRefusedOnPad | null {
   const { matchFormat, phaseType, matchNumberLabel, score } = args;
+  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat) !== null) return null;
   if (score.redScore !== score.blueScore) return null;
   if (levelBoardWinner(score, matchFormat) !== null) return null;
   if (!timeIsFinished(args.elapsedMs, matchFormat, phaseType, matchNumberLabel)) {

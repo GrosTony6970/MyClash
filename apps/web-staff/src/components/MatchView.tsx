@@ -549,17 +549,22 @@ export function MatchView({
     });
     if (refused) setClockError(endRefusalMessage(refused, t));
     // The End carries the score it is pressed on, for the result screen.
-    else void onClockAction('end', false, pressedOn(series, matchFormat));
+    else void onClockAction('end', false, pressedOn(series, matchFormat, match));
   }
 
   // The result is the tablet's own until the server's row says "completed":
   // the score the End was pressed on, and its leader. Never an old row of the
   // server, and never a score that moves while the queue goes out (ruling 11).
   const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
-  const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat));
+  const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match));
   // A board at 0 - 0 that a fighter won (a bout that counts down): the
   // tablet's own result names that fighter, as the server's row will.
   const ownWinner = seriesDecided ? undefined : ownResult.winner;
+  // Why the bout ended, for the result screen: the tablet's own reason while
+  // its result is not confirmed (an End at the doubles limit), then the
+  // server's. A decided series says its rounds, never its last round's reason.
+  const ownReason = seriesDecided ? null : (ownResult.endReason ?? null);
+  const resultReason = unconfirmed ? ownReason : (match.endReason ?? null);
   const ownWinnerId =
     ownWinner === 'red'
       ? match.redRegistrationId
@@ -941,6 +946,7 @@ export function MatchView({
           rounds={seriesDecided ? series.closed : undefined}
           winnerRegistrationId={unconfirmed ? ownWinnerId : (match.winnerRegistrationId ?? null)}
           endReason={match.endReason}
+          resultReason={resultReason}
           bestOf={bestOf}
           currentRound={series.round}
           scoringConfig={scoringConfig}

@@ -121,7 +121,7 @@ describe('"End match" on the tablet', () => {
     // The End carries the score it is pressed on, for the result screen, and
     // the winner of a board at 0 - 0 that a fighter won (`pressedOn`).
     expect(view).toContain(
-      "else void onClockAction('end', false, pressedOn(series, matchFormat));",
+      "else void onClockAction('end', false, pressedOn(series, matchFormat, match));",
     );
     // The controls, the resume warning and the early-End question: no other End.
     expect(view.match(/onClockAction\('end'/g)).toHaveLength(1);
@@ -140,7 +140,7 @@ describe('"End match" on the tablet', () => {
     expect(rounds).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
     // "End round" carries the winner the cap names too, as "End match" does.
     expect(rounds).toContain(
-      "else void press('end', series.round, pressedOn(series, matchFormat));",
+      "else void press('end', series.round, pressedOn(series, matchFormat, match));",
     );
     // The score on the screen is the round view's: the server's part of the
     // open round plus what the tablet holds of it (`padSeries`).
@@ -154,7 +154,7 @@ describe('"End match" on the tablet', () => {
     );
     // The score the End was pressed on: the score on screen moves while the queue goes out.
     expect(view).toContain(
-      'const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat));',
+      'const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match));',
     );
     expect(view).toContain('unconfirmed={unconfirmed}');
     // A decided series is said by its rounds won, confirmed or not; else the
@@ -189,6 +189,33 @@ describe('"End match" on the tablet', () => {
     );
     expect(overlay).toContain('{props.unconfirmed && <NotConfirmed />}');
     expect(overlay).toContain('data-testid="match-result-unconfirmed"');
+  });
+
+  it('says why the bout ended by the same rule: the tablet’s reason, then the server’s', () => {
+    // An End at the doubles limit carries its reason (`pressedOn`). A decided
+    // series says its rounds, never the reason of its last round.
+    expect(view).toContain(
+      'const ownReason = seriesDecided ? null : (ownResult.endReason ?? null);',
+    );
+    expect(view).toContain(
+      'const resultReason = unconfirmed ? ownReason : (match.endReason ?? null);',
+    );
+    // The headline gets that reason. The review's chart draws the SERVER's rows,
+    // so it keeps the server's reason: with the tablet's it would put the
+    // wiped board on the last hit the server holds.
+    expect(view).toContain('endReason={match.endReason}\n          resultReason={resultReason}');
+    expect(overlay).toContain('resultReason={props.resultReason}');
+    expect(overlay).not.toContain('endReason={props.endReason}');
+    // A bout nobody won is a loss for both or a draw: the reason says which.
+    expect(overlay).toContain('<NoWinner resultReason={resultReason} />');
+    expect(overlay).toContain("if (isDoubleLoss('completed', resultReason)) {");
+    // A loss for both names nobody, also with a card on its wiped board.
+    expect(overlay).toContain("const lossForBoth = isDoubleLoss('completed', resultReason);");
+    expect(overlay).toContain('const winner = lossForBoth ? null : resolved;');
+    expect(overlay).toMatch(
+      /data-testid="match-result-double-loss"[^>]*>\s+\{t\('scoring\.liveMatch\.doubleLoss'\)\}/,
+    );
+    expect(overlay.match(/data-testid="match-result-draw"/g)).toHaveLength(1);
   });
 });
 

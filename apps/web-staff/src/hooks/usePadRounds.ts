@@ -204,7 +204,7 @@ export function usePadRounds(args: PadRoundsArgs): PadRounds {
     });
     if (refused) setError(endRefusalMessage(refused, t));
     // The row carries the score it is pressed on: the round is closed on it.
-    else void press('end', series.round, pressedOn(series, matchFormat));
+    else void press('end', series.round, pressedOn(series, matchFormat, match));
   };
 
   return { isBestOf: bestOf > 1, bestOf, series, startNextRound, endRound, forget };
