@@ -466,6 +466,8 @@ export const scoring = {
     closedOnTablet: 'Terminée sur cette tablette, non confirmée.',
     undoStopsAtRound:
       'Les saisies d’avant cette manche sont closes avec leur manche sur cette tablette. Il ne reste rien à annuler dans cette manche.',
+    undoneStaysClosed: 'Annulé : {entry}. La manche {round} reste terminée.',
+    undoneUnnamedStaysClosed: 'La dernière saisie est annulée. La manche {round} reste terminée.',
   },
   level: {
     refusedExtraTime: 'Scores à égalité. Jouez {seconds}s de prolongation.',

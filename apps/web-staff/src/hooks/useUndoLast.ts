@@ -12,7 +12,7 @@
  * tick and the lifted outbox read follows.
  */
 import { useState } from 'react';
-import { undoLastEntry } from '../lib/clear-last';
+import { undoLastEntry, type UndoneEntry } from '../lib/clear-last';
 import type { SyncEngine } from '../offline/sync';
 import { takeBack } from '../offline/take-back';
 
@@ -25,6 +25,12 @@ export interface UndoLast {
   error: string | null;
   /** The undo went for review (the Event is over): nothing was voided. */
   notice: string | null;
+  /**
+   * The last undo took an entry back: that entry, worded, or with no word
+   * when the screen's list did not hold it. For a screen that stays up after
+   * the undo (a round "End round" closed) and must say what happened.
+   */
+  took: { label: string | null } | null;
   undo: () => void;
 }
 
@@ -55,16 +61,36 @@ interface UndoLastArgs {
    * back the hit BEFORE the wrong one.
    */
   once: boolean;
+  /** Words an entry as the bout's list words it, or null when the list does not hold it. */
+  describe: (entry: UndoneEntry) => string | null;
+}
+
+/** What the last undo said, and where the bout stood when it said it. */
+interface Said {
+  scope: string;
+  error?: string;
+  notice?: string;
+  took?: { label: string | null };
+}
+
+/**
+ * What the last undo said, shown only while the bout stands where it was said.
+ * The bout moved on: what was said is of a place it left. Dropped, not only
+ * hidden: the same round can close a second time.
+ */
+function useSaid(scope: string) {
+  const [said, setSaid] = useState<Said | null>(null);
+  if (said && said.scope !== scope) setSaid(null);
+  const here = said?.scope === scope ? said : null;
+  return { here, setSaid };
 }
 
 export function useUndoLast(args: UndoLastArgs): UndoLast {
   const { apiUrl, matchId, syncEngine, t, refreshExchanges, onUndone, scope, once } = args;
   const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<{ scope: string; error?: string; notice?: string } | null>(null);
+  const { here, setSaid } = useSaid(scope);
   const [landedIn, setLandedIn] = useState<string | null>(null);
-  // The bout moved on: what was said and what landed are of a place it left.
-  // Dropped, not only hidden: the same round can close a second time.
-  if (said && said.scope !== scope) setSaid(null);
+  // What landed is dropped the same way when the bout moves on.
   if (landedIn !== null && landedIn !== scope) setLandedIn(null);
   const setError = (error: string) => setSaid({ scope, error });
   const setNotice = (notice: string) => setSaid({ scope, notice });
@@ -89,6 +115,8 @@ export function useUndoLast(args: UndoLastArgs): UndoLast {
         setNotice(t('scoring.corrections.clearLastSentForReview'));
         return;
       }
+      // Worded BEFORE the lists are read again: the lists of the tap still hold the entry.
+      setSaid({ scope, took: { label: args.describe(outcome.entry) } });
       setLandedIn(scope);
       refreshExchanges();
       onUndone();
@@ -97,11 +125,11 @@ export function useUndoLast(args: UndoLastArgs): UndoLast {
     }
   }
 
-  const here = said?.scope === scope ? said : null;
   return {
     busy,
     error: here?.error ?? null,
     notice: here?.notice ?? null,
+    took: here?.took ?? null,
     undo: () => {
       if (!busy && !(once && landedIn === scope)) void run();
     },

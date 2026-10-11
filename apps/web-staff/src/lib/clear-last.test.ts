@@ -200,6 +200,31 @@ describe('the bout screen', () => {
     );
   });
 
+  // Operator, 2026-10-11: a round "End round" closed stays closed after an undo, and the
+  // round-break screen says which entry was cancelled.
+  it('words the entry an undo took before the lists are read again, from the lists of the tap', () => {
+    expect(hook).toMatch(
+      /\n {6}setSaid\(\{ scope, took: \{ label: args\.describe\(outcome\.entry\) \} \}\);\s+setLandedIn\(scope\);\s+refreshExchanges\(\);/,
+    );
+    expect(hook).toContain('took: here?.took ?? null,');
+    expect(view).toContain(
+      'describe: (entry) => entryLine(entry, { scoring, match, config: scoringConfig, t }),',
+    );
+  });
+
+  it('says "the round stays closed" only of a round closed on time, and only in the round-break screen', () => {
+    expect(view).toContain(
+      'undo.took && closedRound?.onTime ? roundStaysClosed(undo.took.label, series.round, t) : null;',
+    );
+    expect(view).toMatch(/<RoundBreakDialog[\s\S]*?\n {8}undone=\{undone\}/);
+    expect(dialogs.match(/\{undone && \(/g)).toHaveLength(1);
+    expect(dialogs).toMatch(
+      /\{undone && \(\s+<p\s+role="status"\s+data-testid="round-break-undone"/,
+    );
+    // A guard: drawn under the controls too, a screen reader would say it twice.
+    expect(screen).not.toMatch(/undo\.took|undone/);
+  });
+
   it('holds no second copy of the calls', () => {
     expect(screen).not.toMatch(/exchanges\/\$\{|match-penalties/);
   });

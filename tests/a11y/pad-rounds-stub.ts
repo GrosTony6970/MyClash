@@ -21,7 +21,7 @@ interface ClosedRound {
   blueScore: number;
   winnerColor: 'red' | 'blue' | null;
   /** `time_limit`: "End round" closed it. The server never puts such a round back in play. */
-  endReason: 'point_cap' | 'time_limit';
+  endReason: 'first_to_points' | 'time_limit';
 }
 
 const ROW = {
@@ -57,6 +57,8 @@ const SUMMARY = {
 
 interface Stub {
   network: 'up' | 'down';
+  /** The cap of a round, as the Tournament's rules give it to the tablet. */
+  cap: number;
   /**
    * The cap the SERVER closes a round at: above 2, it counts another way than the tablet.
    * In a bout that counts down it is also where the server starts a round.
@@ -86,7 +88,7 @@ const refusal = (route: Route, status: number, code: string) =>
 function closeRound(
   stub: Stub,
   winnerColor: 'red' | 'blue' | null,
-  endReason: ClosedRound['endReason'] = 'point_cap',
+  endReason: ClosedRound['endReason'] = 'first_to_points',
 ) {
   const { row } = stub;
   const rounds = [
@@ -169,7 +171,7 @@ function answerVoid(stub: Stub, route: Route, path: string) {
   const score = rescore(stub);
   const { row } = stub;
   const byCap = row.rounds_json.some(
-    (round) => round.round === row.current_round && round.endReason === 'point_cap',
+    (round) => round.round === row.current_round && round.endReason === 'first_to_points',
   );
   const underCap = !roundOver(score, stub.countdown, stub.serverCap);
   const reopens =
@@ -245,6 +247,8 @@ const clockBody = (stub: Stub) => ({
 });
 
 interface Start {
+  /** The cap of a round, for the tablet and the server alike: 2 when not given. */
+  cap?: number;
   serverCap?: number;
   countdown?: boolean;
   /** The bout was started before, and its clock is halted at this time. */
@@ -255,7 +259,8 @@ function newStub(start: Start): Stub {
   const halted = start.haltedAtMs !== undefined;
   return {
     network: 'up',
-    serverCap: start.serverCap ?? 2,
+    cap: start.cap ?? 2,
+    serverCap: start.serverCap ?? start.cap ?? 2,
     countdown: start.countdown ?? false,
     holdRow: null,
     sent: [],
@@ -296,7 +301,8 @@ export async function openBestOf(page: Page, start: Start = {}) {
       return route.fulfill({ json: stub.row });
     }
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
-    if (path.endsWith('/match-config')) return route.fulfill({ json: rulesOf(stub.countdown) });
+    if (path.endsWith('/match-config'))
+      return route.fulfill({ json: rulesOf(stub.countdown, stub.cap) });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });

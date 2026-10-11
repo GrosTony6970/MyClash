@@ -26,6 +26,8 @@ import {
 } from './pad-rounds-stub';
 
 const undo = (page: Parameters<typeof roundBreak>[0]) => page.getByTestId('round-break-undo');
+/** What the screen says of an undo that left its round closed. */
+const undone = (page: Parameters<typeof roundBreak>[0]) => page.getByTestId('round-break-undone');
 
 test('with no network, the hit that closed the round by mistake is taken back on the round-break screen', async ({
   page,
@@ -116,6 +118,9 @@ test('one undo lands per round break: a second tap before the screen has closed 
   await page.keyboard.press('Space');
   await page.waitForTimeout(400);
   await expect(roundBreak(page)).toBeVisible();
+  // The cap closed this round: the cancel puts it back in play, so the screen that is
+  // still up must not say "stays closed", not even until the bout is read again.
+  await expect(undone(page)).toHaveCount(0);
 
   read.open();
 
@@ -174,4 +179,89 @@ test('with no network, a round closed by "End round" is not undone there: the sc
   await startNextRound(page).click();
   await expect(roundBreak(page)).toHaveCount(0);
   await expect(page.getByText(/round 2/i).first()).toBeVisible();
+});
+
+/**
+ * A round "End round" closed, with the network up (operator, 2026-10-11). The
+ * cap is 3: red 2 - 1 is under it, and red still leads after blue's hit is
+ * cancelled, so the server keeps the round for red.
+ */
+async function endedOnTime(page: Parameters<typeof roundBreak>[0]) {
+  const stub = await openBestOf(page, { cap: 3 });
+  await startAndHalt(page);
+  await plusTwo(page, 'red').click();
+  await plusOne(page, 'blue').click();
+  await expect.poll(() => stub.sent).toHaveLength(4);
+  await page.getByTestId('clock-end-button').click();
+  // The server closed the round: the screen is the server's, confirmed.
+  await expect(roundBreak(page)).toContainText('2 – 1');
+  await expect.poll(() => stub.sent.at(-1)).toBe('POST /rounds/end 1');
+  await expect(notConfirmedRound(page)).toHaveCount(0);
+  expect(stub.row.rounds_json).toMatchObject([{ round: 1, endReason: 'time_limit' }]);
+  return stub;
+}
+
+test('a round "End round" closed: the undo cancels the entry, the screen stays and says which entry and that the round stays closed', async ({
+  page,
+}) => {
+  const stub = await endedOnTime(page);
+  await expect(undone(page)).toHaveCount(0);
+
+  await undo(page).click();
+
+  await expect(undone(page)).toHaveText(
+    'Cancelled: #2 · Bo Blue · Clean hit +1. Round 1 stays closed.',
+  );
+  await expect(undone(page)).toHaveAttribute('role', 'status');
+  await expect(roundBreak(page)).toContainText('2 – 0');
+  await expect(roundBreak(page)).toContainText(/round 1 complete/i);
+  expect(stub.sent).toEqual([
+    'POST /clock start',
+    'POST /clock halt',
+    'POST /exchanges',
+    'POST /exchanges',
+    'POST /rounds/end 1',
+    'PATCH /void',
+  ]);
+  expect(stub.row).toMatchObject({
+    awaiting_round_advance: true,
+    red_round_wins: 1,
+    blue_score: 0,
+  });
+
+  // The round is closed: its next round starts.
+  await startNextRound(page).click();
+  await expect(roundBreak(page)).toHaveCount(0);
+  await expect(page.getByText(/round 2/i).first()).toBeVisible();
+  await expect.poll(() => stub.sent.at(-1)).toBe('POST /rounds/advance 2');
+
+  // Round 2 is ended on time too, for blue: its screen says nothing of round 1's undo.
+  await plusTwo(page, 'blue').click();
+  await expect.poll(() => stub.sent.at(-1)).toBe('POST /exchanges');
+  await page.getByTestId('clock-end-button').click();
+  await expect(roundBreak(page)).toContainText(/round 2 complete/i);
+  await expect.poll(() => stub.sent.at(-1)).toBe('POST /rounds/end 2');
+  await expect(notConfirmedRound(page)).toHaveCount(0);
+  await expect(undone(page)).toHaveCount(0);
+});
+
+test('a round "End round" closed: a second tap on the undo cancels nothing more, and the line stays', async ({
+  page,
+}) => {
+  const stub = await endedOnTime(page);
+  await undo(page).click();
+  await expect(undone(page)).toContainText('Bo Blue');
+  await expect(roundBreak(page)).toContainText('2 – 0');
+
+  // A second tap, and the Space key on the button that kept the focus.
+  await undo(page).click();
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(400);
+
+  // Red's hit, the one before, is still there.
+  expect(stub.sent.filter((call) => call === 'PATCH /void')).toHaveLength(1);
+  expect(stub.row).toMatchObject({ red_score: 2, awaiting_round_advance: true });
+  await expect(undone(page)).toHaveText(
+    'Cancelled: #2 · Bo Blue · Clean hit +1. Round 1 stays closed.',
+  );
 });

@@ -1363,7 +1363,10 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > queued round press ("Start round", "End round"): the entries before it are closed with their
 > round. A round the cap closed has no such press yet, so the round-break screen offers the
 > bout's undo (`useUndoLast`, one undo per break): the hit is taken back and the round is in
-> play again. A level round at its time is refused on the tablet, in the server's
+> play again. A round "End round" closed is never put back in play by the server: after the
+> undo its screen stays up, and says which entry was cancelled and that the round stays closed
+> (`lib/undone-line.ts`; `PadRound.onTime` is the server's own reason for the closure). A level
+> round at its time is refused on the tablet, in the server's
 > words, and nothing is queued. A bout that counts down (`reverse_zero_loses`) runs the same
 > way. The pad adds what it holds to a round's score in one place (`scoreOnPad`,
 > `offline/pad-series.ts`): in earned points, turned into the score by `applyScoringDirection`

@@ -45,6 +45,12 @@ export interface PadRound {
   winnerColor: Color | null;
   /** `tablet`: the server has not confirmed it. */
   by: 'server' | 'tablet';
+  /**
+   * "End round" closed it, on the server: a cancelled entry moves its score
+   * and the round stays closed. A round the engine closed by itself goes back
+   * in play when its sheet no longer ends it.
+   */
+  onTime?: true;
 }
 
 export interface PadSeries {
@@ -120,14 +126,19 @@ function serverRounds(roundsJson: unknown): PadRound[] {
   if (!Array.isArray(roundsJson)) return [];
   const rounds: PadRound[] = [];
   for (const raw of roundsJson) {
-    const row = raw as Partial<Record<'round' | 'redScore' | 'blueScore' | 'winnerColor', unknown>>;
+    const row = raw as Partial<
+      Record<'round' | 'redScore' | 'blueScore' | 'winnerColor' | 'endReason', unknown>
+    >;
     if (typeof row?.round !== 'number') continue;
+    // The server's own test of "closed by the official" (`roundShouldReopen`).
+    const onTime = row.endReason == null || row.endReason === 'time_limit';
     rounds.push({
       round: row.round,
       redScore: typeof row.redScore === 'number' ? row.redScore : 0,
       blueScore: typeof row.blueScore === 'number' ? row.blueScore : 0,
       winnerColor: row.winnerColor === 'red' || row.winnerColor === 'blue' ? row.winnerColor : null,
       by: 'server',
+      ...(onTime ? { onTime: true as const } : {}),
     });
   }
   return rounds.sort((a, b) => a.round - b.round);

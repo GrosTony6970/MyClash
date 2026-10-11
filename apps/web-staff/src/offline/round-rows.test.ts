@@ -145,7 +145,10 @@ describe('the undo', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const taken: string[] = [];
 
-    expect(await undo(removing(taken))).toEqual({ kind: 'voided' });
+    expect(await undo(removing(taken))).toEqual({
+      kind: 'voided',
+      entry: { clientUuid: 'hit-2' },
+    });
 
     expect(taken).toEqual(['hit-2']);
     expect(await queued()).toEqual(['hit', 'round advance 2']);

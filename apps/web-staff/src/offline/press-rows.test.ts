@@ -70,7 +70,7 @@ describe('the undo', () => {
       },
     });
 
-    expect(outcome).toEqual({ kind: 'voided' });
+    expect(outcome).toEqual({ kind: 'voided', entry: { clientUuid: 'hit-1' } });
     expect(taken).toEqual(['hit-1']);
     expect(await queued()).toEqual(['press start', 'press halt']);
   });

@@ -91,14 +91,18 @@ const writtenDown = async () => (await db.undone.toArray()).map((entry) => entry
 const undo = (take: (entry: OutboxEntry) => Promise<TakenBack> = takeBack) =>
   undoLastEntry({ apiUrl: API_URL, matchId: 'm1', t, takeBack: take });
 const BOUT_READ = ['/matches/m1/penalty-ruleset', '/matches/m1/exchanges', '/matches/m1/penalties'];
-const VOIDED = { kind: 'voided' };
+/** The undo's answer names the entry it took: by the server's id when the server held it. */
+const voided = (minute: number, id?: string) => ({
+  kind: 'voided',
+  entry: id ? { id, clientUuid: uuid(minute) } : { clientUuid: uuid(minute) },
+});
 
 describe('story A: the entry that waits on the tablet is on the server', () => {
   it('voids it on the server once, and the tablet’s copy goes', async () => {
     await waits(5);
     const { asked } = server({ hits: [[held('ex-4', 4), held('ex-5', 5)]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(5, 'ex-5'));
 
     expect(asked('PATCH')).toEqual(['/exchanges/ex-5/void']);
     expect(await waiting()).toEqual([]);
@@ -112,7 +116,7 @@ describe('story A: the entry that waits on the tablet is on the server', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     await expect(undo(() => Promise.reject(new Error('the store failed')))).resolves.toEqual(
-      VOIDED,
+      voided(5, 'ex-5'),
     );
     expect(logged).toHaveBeenCalledOnce();
   });
@@ -129,7 +133,7 @@ describe('story A: the entry that waits on the tablet is on the server', () => {
     await waits(6);
     const { asked } = server({ hits: [[held('ex-5', 5)], [held('ex-5', 5), held('ex-6', 6)]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(6));
 
     expect(asked('PATCH')).toEqual(['/exchanges/ex-6/void']);
     expect(await writtenDown()).toEqual([]);
@@ -141,7 +145,7 @@ describe('story B: an older entry waits, the server holds the newest', () => {
     await waits(4);
     const { asked } = server({ hits: [[held('ex-5', 5)]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(5, 'ex-5'));
 
     expect(asked('PATCH')).toEqual(['/exchanges/ex-5/void']);
     expect(await waiting()).toEqual([uuid(4)]);
@@ -171,7 +175,7 @@ describe('the newest entry waits on the tablet only', () => {
     await waits(6);
     const { asked } = server({ hits: [[held('ex-5', 5)]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(6));
 
     expect(await waiting()).toEqual([]);
     expect(asked('PATCH')).toEqual([]);
@@ -183,7 +187,7 @@ describe('the newest entry waits on the tablet only', () => {
     await queueCard({ matchId: 'm1', sequence: 7, registrationId: 'reg-red', directCard: 'red' });
     server({ hits: [[held('ex-5', 5)]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toMatchObject({ kind: 'voided' });
     expect(await waiting()).toEqual([]);
   });
 
@@ -192,7 +196,7 @@ describe('the newest entry waits on the tablet only', () => {
     await waits(5);
     const { asked } = server({ hits: [[held('ex-4', 4), held('ex-5', 5, { voided: true })]] });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(5));
 
     expect(await waiting()).toEqual([]);
     expect(asked('PATCH')).toEqual([]);
@@ -246,7 +250,7 @@ describe('the server cannot be asked', () => {
     await waits(6);
     const { asked } = server({ mayScore: offline });
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(6));
 
     expect(await waiting()).toEqual([uuid(4)]);
     expect(await writtenDown()).toEqual([uuid(6)]);
@@ -296,7 +300,7 @@ describe('the entry was on its way when the undo was tapped', () => {
     await waits(6);
     const { asked } = server({});
 
-    await expect(undo(landed('srv-6'))).resolves.toEqual(VOIDED);
+    await expect(undo(landed('srv-6'))).resolves.toEqual(voided(6));
 
     expect(asked('PATCH')).toEqual(['/exchanges/srv-6/void']);
     expect(asked('GET')).toEqual(BOUT_READ);
@@ -307,7 +311,7 @@ describe('the entry was on its way when the undo was tapped', () => {
     await waits(6);
     const { asked } = server({ hits: [[], [held('ex-7', 7), held('ex-6', 6)]] });
 
-    await expect(undo(landed(serverId))).resolves.toEqual(VOIDED);
+    await expect(undo(landed(serverId))).resolves.toEqual(voided(6));
 
     expect(asked('PATCH')).toEqual(['/exchanges/ex-6/void']);
   });
@@ -373,7 +377,7 @@ describe('the undo names the entry it takes off the tablet to the settle', () =>
     server({ hits: [[]] });
     const settled = vi.spyOn(settle, 'settleUndone');
 
-    await expect(undo()).resolves.toEqual(VOIDED);
+    await expect(undo()).resolves.toEqual(voided(5));
 
     expect(settled.mock.calls).toEqual([[API_URL, 'm1', uuid(5)]]);
   });

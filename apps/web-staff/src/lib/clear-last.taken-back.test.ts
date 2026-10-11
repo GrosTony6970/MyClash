@@ -64,7 +64,10 @@ describe('an entry an earlier undo took off the tablet', () => {
     await tookBack(5);
     const voided = server([held(4), held(5)]);
 
-    await expect(undo()).resolves.toEqual({ kind: 'voided' });
+    await expect(undo()).resolves.toEqual({
+      kind: 'voided',
+      entry: { id: 'ex-4', clientUuid: 'uuid-4' },
+    });
 
     expect(voided).toEqual(['/exchanges/ex-4/void']);
     expect(await writtenDown()).toEqual(['uuid-5']);
@@ -75,7 +78,10 @@ describe('an entry an earlier undo took off the tablet', () => {
     await tookBack(5);
     const voided = server([held(4), held(5)], () => db.undone.clear());
 
-    await expect(undo()).resolves.toEqual({ kind: 'voided' });
+    await expect(undo()).resolves.toEqual({
+      kind: 'voided',
+      entry: { id: 'ex-4', clientUuid: 'uuid-4' },
+    });
 
     expect(voided).toEqual(['/exchanges/ex-4/void']);
   });

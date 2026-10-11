@@ -62,11 +62,12 @@ const CONFIG = {
   },
 };
 
-/** The rules, in the direction the bout counts. */
-export const rulesOf = (countdown: boolean) => ({
+/** The rules, in the direction the bout counts, with the cap of a round. */
+export const rulesOf = (countdown: boolean, pointCap: number) => ({
   ...CONFIG,
   matchFormat: {
     ...CONFIG.matchFormat,
+    pointCap,
     scoringDirection: countdown ? 'reverse_zero_loses' : 'normal',
   },
 });

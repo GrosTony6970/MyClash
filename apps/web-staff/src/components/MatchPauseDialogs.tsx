@@ -153,6 +153,8 @@ interface RoundBreakDialogProps {
   error: string | null;
   /** "Undo last entry" of the bout: the same undo as the controls' (`useUndoLast`). */
   undo: UndoLast;
+  /** An undo cancelled an entry and this round stays closed: the sentence that says so. */
+  undone: string | null;
   onStart: () => void;
 }
 
@@ -198,7 +200,8 @@ function ClosedOnTablet() {
  * is never disabled either: a tap while one is out does nothing, and one undo
  * lands per break (`useUndoLast`). A round "End round" closed is another case:
  * while that press waits on the tablet the undo is refused, and once the server
- * holds it the server judges the undo (the round stays closed).
+ * holds it the server judges the undo: the round stays closed, the screen stays
+ * up, and it says which entry was cancelled (`undone`).
  */
 export function RoundBreakDialog({
   open,
@@ -213,6 +216,7 @@ export function RoundBreakDialog({
   unconfirmed,
   error,
   undo,
+  undone,
   onStart,
 }: RoundBreakDialogProps) {
   const { t } = useI18n();
@@ -235,18 +239,36 @@ export function RoundBreakDialog({
         {unconfirmed && <ClosedOnTablet />}
         <SeriesTally red={[redRoundWins, redColor]} blue={[blueRoundWins, blueColor]} />
         {error && <p className="mt-3 text-xs font-normal text-danger">{error}</p>}
-        {undo.error && (
-          <p role="alert" className="mt-3 text-xs font-normal text-danger">
-            {undo.error}
-          </p>
-        )}
-        {undo.notice && (
-          <p role="status" className="mt-3 text-xs font-normal text-info">
-            {undo.notice}
-          </p>
-        )}
+        <UndoSaid undo={undo} undone={undone} />
       </div>
     </Modal>
+  );
+}
+
+/** What the undo said: why it took nothing, or what it took from a round that stays closed. */
+function UndoSaid({ undo, undone }: Pick<RoundBreakDialogProps, 'undo' | 'undone'>) {
+  return (
+    <>
+      {undo.error && (
+        <p role="alert" className="mt-3 text-xs font-normal text-danger">
+          {undo.error}
+        </p>
+      )}
+      {undo.notice && (
+        <p role="status" className="mt-3 text-xs font-normal text-info">
+          {undo.notice}
+        </p>
+      )}
+      {undone && (
+        <p
+          role="status"
+          data-testid="round-break-undone"
+          className="mt-3 text-xs font-normal text-info"
+        >
+          {undone}
+        </p>
+      )}
+    </>
   );
 }
 

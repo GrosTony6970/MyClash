@@ -24,13 +24,23 @@ export type ClearLastOutcome =
   /** `message` is null when there is nothing to say (the bout holds no entry). */
   | { kind: 'failed'; message: string | null };
 
+/** The entry an undo took: by the server's id when the server held it, by the tablet's always. */
+export interface UndoneEntry {
+  id?: string;
+  clientUuid: string;
+}
+
+/** What "Undo last entry" answers: an entry that is gone is named, for the screen to say which. */
+export type UndoOutcome =
+  Exclude<ClearLastOutcome, { kind: 'voided' }> | { kind: 'voided'; entry: UndoneEntry };
+
 /**
  * Still the classifier the outbox drain uses, so the pad keeps ONE failure
  * vocabulary: the service worker's synthetic 503 reads as offline, not as the
  * server having an opinion. A `network` failure is the same event one layer
  * down, which is the status 0 it already took.
  */
-function failed(failure: ApiFailure, t: Translate): ClearLastOutcome {
+function failed(failure: ApiFailure, t: Translate): Extract<ClearLastOutcome, { kind: 'failed' }> {
   const status = failure.kind === 'aborted' || failure.kind === 'network' ? 0 : failure.status;
   // The code tells read-only mode's 503 from a dead network: `refusalMessage` says it.
   const offline = classifySyncFailure(status, { code: failureCode(failure) }) === 'offline';
@@ -177,7 +187,7 @@ async function undoOnTablet(
  * reads. So what is written down is read BEFORE the server: an entry forgotten
  * during the read is still left out, and it is voided by then.
  */
-export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
+export async function undoLastEntry(deps: UndoDeps): Promise<UndoOutcome> {
   // A press (the clock's, a round's) is no entry of the bout's list: the undo never takes one back.
   const queued = await getPendingForMatch(deps.matchId);
   // The undo stops at a round the tablet closed. A queued "Start round" or
@@ -200,6 +210,14 @@ export async function undoLastEntry(deps: UndoDeps): Promise<ClearLastOutcome> {
   if (!newest) {
     return 'failure' in read ? failed(read.failure, deps.t) : { kind: 'failed', message: null };
   }
-  if (newest.where === 'server') return undoOnServer(deps, newest.row, waiting);
-  return undoOnTablet(deps, newest.entry, 'rows' in read);
+  const outcome =
+    newest.where === 'server'
+      ? await undoOnServer(deps, newest.row, waiting)
+      : await undoOnTablet(deps, newest.entry, 'rows' in read);
+  if (outcome.kind !== 'voided') return outcome;
+  const entry: UndoneEntry =
+    newest.where === 'server'
+      ? { id: newest.row.id, clientUuid: newest.row.clientUuid }
+      : { clientUuid: newest.entry.clientUuid };
+  return { kind: 'voided', entry };
 }

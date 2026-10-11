@@ -12,6 +12,7 @@ import { usePadClock } from '../hooks/usePadClock';
 import { usePadRounds } from '../hooks/usePadRounds';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
 import { useUndoLast } from '../hooks/useUndoLast';
+import { entryLine, roundStaysClosed } from '../lib/undone-line';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
@@ -612,6 +613,7 @@ export function MatchView({
     onUndone: handleExchangeVoided,
     scope: `${series.round}/${String(series.awaitingStart)}`,
     once: series.awaitingStart,
+    describe: (entry) => entryLine(entry, { scoring, match, config: scoringConfig, t }),
   });
   // No press waits for the send (ruling 316): the lists are read again when it
   // has ended. The page reads the bout itself then.
@@ -683,6 +685,9 @@ export function MatchView({
   // The closed round the bout stands on, at a round break: the server's own
   // record of it (`rounds_json`), or the tablet's while the server has none.
   const closedRound = series.closed.find((round) => round.round === series.round) ?? null;
+  // A round "End round" closed stays closed after an undo: the screen stays up, and says so.
+  const undone =
+    undo.took && closedRound?.onTime ? roundStaysClosed(undo.took.label, series.round, t) : null;
   const roundWinner = closedRound?.winnerColor
     ? {
         name: closedRound.winnerColor === 'red' ? redName : blueName,
@@ -930,6 +935,7 @@ export function MatchView({
         unconfirmed={closedRound?.by === 'tablet'}
         error={clockError}
         undo={undo}
+        undone={undone}
         onStart={rounds.startNextRound}
       />
 

@@ -494,6 +494,10 @@ export const scoring = {
     // "Undo last entry" when the newest entry is of a round closed on the tablet.
     undoStopsAtRound:
       'The entries before this round are closed with their round on this tablet. Nothing of this round is left to undo.',
+    // The round-break screen of a round "End round" closed, after an undo (operator, 2026-10-11).
+    undoneStaysClosed: 'Cancelled: {entry}. Round {round} stays closed.',
+    // The same, when this tablet's list did not hold the entry.
+    undoneUnnamedStaysClosed: 'The last entry was cancelled. Round {round} stays closed.',
   },
   // What the referee does about a bout that is LEVEL when the clock runs out.
   // The phase's chain decides: a pool bout is simply a draw, an elimination
