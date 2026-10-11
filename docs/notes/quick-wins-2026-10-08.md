@@ -457,10 +457,10 @@ fighter at zero loses.
 
 Two rulings on 2026-10-11, with the plan of the countdown:
 
-| Asked with this story                                                                                                                                                                | Ruling                                                                                                                                                | Done      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| A countdown bout, cap 10. Until the first hit the server's row says 0 – 0, so the tablet, the TV and the public page show 0 – 0; after red's first hit for 2 they jump to 10 – 8.    | **All screens read 10 – 10 from the Start, in a commit of its own**: the server computes the score when the bout starts. With its own recon and plan. | not built |
-| Best-of-3, round 1 ends on "End round" at red 2 – 0. On the round-break screen, with a network, "Undo last entry" cancels one hit: the screen reads 1 – 0 and stays up with no word. | **Undo and say so**: the undo still cancels the hit, and the screen says which hit was cancelled and that the round stays closed. A slice of its own. | not built |
+| Asked with this story                                                                                                                                                                | Ruling                                                                                                                                                | Done       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| A countdown bout, cap 10. Until the first hit the server's row says 0 – 0, so the tablet, the TV and the public page show 0 – 0; after red's first hit for 2 they jump to 10 – 8.    | **All screens read 10 – 10 from the Start, in a commit of its own**: the server computes the score when the bout starts. With its own recon and plan. | `19943e0c` |
+| Best-of-3, round 1 ends on "End round" at red 2 – 0. On the round-break screen, with a network, "Undo last entry" cancels one hit: the screen reads 1 – 0 and stays up with no word. | **Undo and say so**: the undo still cancels the hit, and the screen says which hit was cancelled and that the round stays closed. A slice of its own. | not built  |
 
 **A bug found while the countdown was planned, NOT fixed** (read in code, not run). Countdown,
 afterblow mode "full", a phase that cannot end level (a bracket). Red and blue each have 1 point
@@ -475,10 +475,10 @@ open, and two more hits leave it open at 0 – 0.
 
 Two rulings on the afternoon of 2026-10-11, on that bug:
 
-| Asked with this story                                                                                                                                          | Ruling                                                                                                                                                                                                                | Done      |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Countdown from 5. Red has 1 point left, blue has 2. Red strikes for 3 and blue answers with an afterblow of 3: both are out of points (red at -2, blue at -1). | **The fighter less far below zero wins** (blue), in a Pool and in a bracket. The screens still stop at 0 – 0. A true tie (both as far below): a Pool bout is a draw, a bracket bout goes on and the next hit decides. | not built |
-| Which of the faults named with the countdown go into the same work?                                                                                            | **Three**: the reopened 0 – 0 bout, the round opened with its score not counted, the server's stale comment. With the ruling above on 0 – 0 before the first hit.                                                     | not built |
+| Asked with this story                                                                                                                                          | Ruling                                                                                                                                                                                                                | Done                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Countdown from 5. Red has 1 point left, blue has 2. Red strikes for 3 and blue answers with an afterblow of 3: both are out of points (red at -2, blue at -1). | **The fighter less far below zero wins** (blue), in a Pool and in a bracket. The screens still stop at 0 – 0. A true tie (both as far below): a Pool bout is a draw, a bracket bout goes on and the next hit decides. | `c7cedc92`, `538b0e96`             |
+| Which of the faults named with the countdown go into the same work?                                                                                            | **Three**: the reopened 0 – 0 bout, the round opened with its score not counted, the server's stale comment. With the ruling above on 0 – 0 before the first hit.                                                     | `538b0e96`, `b416adc0`, `b0d511d6` |
 
 **The plan** of these rulings and of "all screens read 10 – 10 from the Start" is
 `C:\Users\Tony\.claude\plans\countdown-zero-plan.md` (on the operator's machine, not in the
@@ -488,6 +488,63 @@ for the reopened 0 – 0 bout I offered "the server counts the score again at Re
 wrong. The server's 0 – 0 is right for such a bout, and a recount would end it again at once.
 The fault is on the tablet, which reads every 0 – 0 in play as "not scored yet"; the plan fixes
 it there, once the server counts the score at Start.
+
+**Both at zero, and the score at Start, are built** (2026-10-11 evening): `c7cedc92` the rule,
+`cff49b85` the server's tests, `19943e0c` the count at Start, `b416adc0` a resent "Start round",
+`538b0e96` the tablet, `b0d511d6` the comment.
+
+- Countdown, both fighters out of points on one afterblow: the bout, or the round, ends at once
+  for the fighter less far below zero. The screens read 0 – 0 and name the winner. A true tie is a
+  draw in a Pool; in a bracket the bout goes on and the next hit ends it. Before: a draw in a Pool
+  whatever the points, and a bracket bout that could not end.
+- The tablet does the same with no network. A round of a best-of bout closes for that fighter. A
+  bout of one round is ended by the official: "End match" no longer asks "end now?" and no longer
+  answers "the time is not finished", and the result screen names the winner, not "Draw".
+- The TV and the public page read 10 – 10 from the Start of a countdown bout, not 0 – 0.
+- A bout that ended 0 – 0 at the doubles limit and is reopened reads 0 – 0 on the tablet, not
+  10 – 10.
+- A "Start round 2" whose count failed on the server is repaired when the tablet sends it again.
+
+Four things differ from the plan. Say so if one is wrong:
+
+- The two tablet commits of the plan are ONE commit (`538b0e96`): they share one file and one doc.
+- The plan review of the build session found that the plan did not cover a bout of ONE round on
+  the tablet (the most common bout). It is built, with a browser story for a Pool and a bracket.
+- The plan said: the tablet reads a 0 – 0 in play as real "when the server's list holds a hit of
+  that round". The review found a hall story where that is wrong: the tablet's copy of the bout
+  is from before the Start, the list already holds the first hit, and the tablet would close the
+  round at its next unsent hit. The rule built is narrower: a 0 – 0 in play is real when the list
+  of that round EXPLAINS it (both fighters earned the cap or more, or the doubles reach a limit
+  that wipes the board).
+- The plan said: a resent "Start round" counts again when the bout is in that round. The review
+  found that this could complete a series a referee had just reopened. It counts again only
+  while that round holds no hit and no card.
+
+**A bug found beside this work, NOT fixed, and a question for the operator.** I ran the built
+engine. A Pool bout that counts down reaches the doubles limit: both scores are wiped to 0 – 0.
+The engine asks the point cap first, and under countdown 0 – 0 reads as "both at zero", so the
+bout ends as a DRAW with the reason "first to points". The same bout counting up ends as a LOSS
+FOR BOTH with the reason "max doubles". The Pool table then gives each fighter a draw where the
+format says a double loss. It was so before this work. Question: in a bout that counts down, does
+the doubles limit come before the point cap, as it does in effect when a bout counts up?
+
+Named while this was built, and not fixed (each one checked in code by a review):
+
+- A bout decided "less far below zero", reopened with no correction, then ended with "End match":
+  the End reads the bout's row, which is 0 – 0 with no winner. A Pool bout is then a draw. The
+  first correction of the sheet counts it right again.
+- The tablet cannot know how far under zero a side went for points the server already holds at
+  zero. It knows only what its own unsent hits add.
+- A Start with no id (no tablet sends one) whose count fails leaves the TV at 0 – 0 until the
+  first hit. The failure is in the server's log.
+- A card given before the Start whose own count failed: the row stays 0 – 0 and the Start does
+  not count it (the sheet is not empty). The first hit repairs it.
+- `PATCH /matches/:id/status` puts a bout to "running" with no clock and no count. Only the
+  deployed-stack tests use it.
+- The tablet adds up the server's list of a round as it adds its own hits. A ruleset that gives
+  every hit one fixed value counts another way, and the server decides.
+- When the tablet's list of hits is older than its copy of the bout, a real 0 – 0 reads cap to
+  cap until the list lands.
 
 Named while the countdown was built, and not fixed (each one checked in code by a review):
 
