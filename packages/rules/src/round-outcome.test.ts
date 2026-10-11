@@ -99,6 +99,66 @@ describe('roundOutcome', () => {
     });
   });
 
+  /**
+   * A bout that counts down asks the doubles limit FIRST (operator,
+   * 2026-10-11). The limit wipes the board to 0 - 0, and there 0 - 0 reads as
+   * "both out of points": asked first, the cap ended that bout as a draw.
+   */
+  describe('in a bout that counts down', () => {
+    const down = (over: Partial<MatchFormatConfig> = {}) =>
+      config({ scoringDirection: 'reverse_zero_loses', ...over });
+    const wiped = { redScore: 0, blueScore: 0, doubles: 3 };
+
+    it('ends a wiped board at the doubles limit as a loss for both, not as a draw at the cap', () => {
+      expect(roundOutcome(POOL, wiped, down())).toEqual({
+        autoOver: true,
+        winnerColor: null,
+        endReason: 'max_doubles',
+      });
+    });
+
+    it('ends it as the draw the format asks for, under that reason', () => {
+      const draw = down({ maxDoubleHitOutcome: 'draw_zero_scores' });
+      expect(roundOutcome(POOL, wiped, draw)).toEqual({
+        autoOver: true,
+        winnerColor: null,
+        endReason: 'max_doubles_draw',
+      });
+    });
+
+    it('gives a wiped board with a card on it to nobody', () => {
+      // 0 and -1: asked first, the cap named blue the winner of a double loss.
+      expect(roundOutcome(POOL, { ...wiped, redScore: -1 }, down())).toEqual({
+        autoOver: true,
+        winnerColor: null,
+        endReason: 'max_doubles',
+      });
+    });
+
+    it('fence: gives a board that stands at the limit to its leader', () => {
+      const stands = down({ maxDoubleHitOutcome: 'result_stands' });
+      expect(roundOutcome(POOL, { redScore: 3, blueScore: 1, doubles: 3 }, stands)).toEqual({
+        autoOver: true,
+        winnerColor: 'red',
+        endReason: 'max_doubles_result_stands',
+      });
+    });
+
+    it('fence: under the limit, the fighter at zero still loses at the cap', () => {
+      expect(roundOutcome(POOL, { redScore: 0, blueScore: 2, doubles: 2 }, down())).toEqual({
+        autoOver: true,
+        winnerColor: 'blue',
+        endReason: 'first_to_points',
+      });
+    });
+
+    it('fence: a bracket has no doubles limit, so its doubles end nothing', () => {
+      expect(roundOutcome(BRACKET, { redScore: 3, blueScore: 1, doubles: 3 }, down())).toEqual(
+        OPEN,
+      );
+    });
+  });
+
   it('is what `evaluateRound` answers, on the score its scorer gives', () => {
     const match = { ...BRACKET, redRegistrationId: 'r', blueRegistrationId: 'b' } as Match;
     const score = { redScore: 5, blueScore: 3, doubles: 1 };

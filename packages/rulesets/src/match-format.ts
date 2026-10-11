@@ -21,6 +21,7 @@ import {
   maxDoubleHitZeroesScores,
   pendingLevelStep,
   pointCapWinnerColor,
+  roundOutcome,
   roundWinTarget,
   seriesResult,
   timeIsFinished,
@@ -296,7 +297,9 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
 
 /**
  * The end decision for a ruleset that HAS a doubles ceiling: first to the point
- * cap, then max-doubles.
+ * cap, then max-doubles. In a bout that counts down, max-doubles first: the
+ * order, and why, is `roundOutcome` in `@myclash/rules`, which a round of a
+ * best-of bout asks too. This used to be a second copy of it.
  *
  * One owner, because two rulesets need exactly this and they used not to agree.
  * TF_v1 implemented it; `createFormulaRuleset` delegated to `Generic_PointsCap`,
@@ -308,27 +311,21 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
  * must resolve to a winner, and `getEffectiveMaxDoubles` returns null there.
  * `score.doubles` is the count of non-voided `double` exchanges.
  *
- * The cap goes through `pointCapEndsBout` rather than `isPointCapReached`: both
- * fighters can cross it on one afterblow, and a phase that cannot end level must
- * keep the bout open for its remedies instead of completing it with no winner.
- * The label is read for the same reason the time limit reads it — a medal match
- * has its own chain.
+ * The cap is asked through `pointCapEndsBout` rather than `isPointCapReached`:
+ * both fighters can cross it on one afterblow, and a phase that cannot end level
+ * must keep the bout open for its remedies instead of completing it with no
+ * winner. The label is read for the same reason the time limit reads it — a
+ * medal match has its own chain.
  */
 export function endOnPointCapOrMaxDoubles(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: MatchScore,
   matchFormat: MatchFormatConfig,
 ): MatchEndDecision {
-  if (pointCapEndsBout(match, score, matchFormat)) {
-    return { isOver: true, reason: 'first_to_points' };
-  }
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
-  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    // The organiser's chosen outcome is resolved into the REASON here, once.
-    // Every later reader of the finished bout then has the answer on the row —
-    // which the SQL stats function and the cross-event fighter stats need,
-    // because neither can reach the tournament's match format.
-    return { isOver: true, reason: maxDoubleHitEndReason(matchFormat) };
-  }
-  return { isOver: false, reason: null };
+  // The organiser's chosen outcome is resolved into the REASON there, once.
+  // Every later reader of the finished bout then has the answer on the row —
+  // which the SQL stats function and the cross-event fighter stats need,
+  // because neither can reach the tournament's match format.
+  const { autoOver, endReason } = roundOutcome(match, score, matchFormat);
+  return { isOver: autoOver, reason: endReason };
 }

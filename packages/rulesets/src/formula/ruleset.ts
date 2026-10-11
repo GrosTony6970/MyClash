@@ -129,7 +129,8 @@ export function createFormulaRuleset(
     },
 
     /**
-     * Cap first, then the doubles ceiling — the same decision TF_v1 makes.
+     * The cap and the doubles ceiling — the same decision TF_v1 makes, in the
+     * same order (the ceiling first in a bout that counts down).
      *
      * This used to delegate to `Generic_PointsCap.isMatchOver`, which has no
      * `max_doubles` branch because that ruleset has no ceiling. Scoring zeroed

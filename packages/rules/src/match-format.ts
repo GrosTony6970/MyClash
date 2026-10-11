@@ -821,9 +821,9 @@ export type RoundScorer = (match: Match, roundExchanges: Exchange[]) => MatchSco
  * `scoreRound` is that reason removed.
  *
  * The cap goes through {@link pointCapEndsBout} and the doubles ceiling
- * deliberately does not — the same split, and for the same reasons, as the
- * single-bout path in `endOnPointCapOrMaxDoubles`. Guarding the ceiling would
- * leave a round at it with no way to end.
+ * deliberately does not: guarding the ceiling would leave a round at it with
+ * no way to end. The single-bout path (`endOnPointCapOrMaxDoubles`) asks the
+ * same {@link roundOutcome}.
  */
 export function evaluateRound(
   match: Match,
@@ -842,12 +842,32 @@ export function evaluateRound(
  * scoring pad asks it too: with no network the pad closes a round on the score
  * it shows, and the server closes it on the score of the ruleset's scorer, by
  * this one function. The server decides when the two scores differ.
+ *
+ * A bout of ONE round asks it too (`endOnPointCapOrMaxDoubles` in
+ * `@myclash/rulesets`): the order of the cap and the doubles ceiling has this
+ * one owner. The cap first, except in a bout that counts down.
  */
 export function roundOutcome(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: CapScore & Pick<MatchScore, 'doubles'>,
   config: MatchFormatConfig,
 ): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> {
+  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
+  const atTheCeiling = effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles;
+  // Pool only. A wiped board is a drawn round (no round win for either side);
+  // under `result_stands` the board still holds a leader, so the round is won.
+  const ceiling = {
+    autoOver: true,
+    winnerColor: maxDoubleHitZeroesScores(config) ? null : leadingColor(score),
+    endReason: maxDoubleHitEndReason(config),
+  };
+
+  // A bout that counts DOWN asks the ceiling first (operator, 2026-10-11). The
+  // ceiling wipes the board to 0-0, and there 0-0 reads as "both out of
+  // points": asked first, the cap ended that bout as a draw, or for whoever a
+  // card had left ahead, where the same bout counting up is a loss for both.
+  if (atTheCeiling && config.scoringDirection === 'reverse_zero_loses') return ceiling;
+
   // A ROUND asks the cap exactly what a single bout asks it, through the same
   // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
   // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
@@ -861,16 +881,5 @@ export function roundOutcome(
     };
   }
 
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
-  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    // Pool only. A wiped board is a drawn round (no round win for either side);
-    // under `result_stands` the board still holds a leader, so the round is won.
-    return {
-      autoOver: true,
-      winnerColor: maxDoubleHitZeroesScores(config) ? null : leadingColor(score),
-      endReason: maxDoubleHitEndReason(config),
-    };
-  }
-
-  return { autoOver: false, winnerColor: null, endReason: null };
+  return atTheCeiling ? ceiling : { autoOver: false, winnerColor: null, endReason: null };
 }

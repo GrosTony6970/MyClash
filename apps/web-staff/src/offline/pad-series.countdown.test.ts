@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Penalty } from '@myclash/ui';
 import { padSeries } from './pad-series';
-import { FORMAT, ROUND_1, bout, cardAgainstRed, hit, row } from './pad-series.fixtures';
+import { FORMAT, ROUND_1, bout, cardAgainstRed, double, hit, row } from './pad-series.fixtures';
 
 const COUNTDOWN = { ...FORMAT, scoringDirection: 'reverse_zero_loses' as const };
 
@@ -191,6 +191,30 @@ describe('a countdown round in play at 0-0 that its sheet does NOT explain', () 
     // before the bout's row is read again: the row is not scored, the card counts.
     const series = padSeries(oneRound(0, 0, { penalties: [serverCardAgainstRed(1)] }));
     expect(series).toMatchObject({ redScore: 4, blueScore: 5 });
+  });
+});
+
+/**
+ * In a bout that counts down the doubles limit is asked before the point cap
+ * (operator, 2026-10-11; `roundOutcome`). The one board where the tablet's
+ * answer shows it: a round the limit wiped, with a card on it, put back in
+ * play. It reads 0 and -1, and the cap alone would give that round to blue.
+ */
+describe('a countdown round at the doubles limit with a card on its wiped board', () => {
+  it('is closed for nobody, at 0-0: the limit comes before the cap', () => {
+    const series = padSeries(
+      bout({
+        matchFormat: COUNTDOWN,
+        server: { ...ROUND_1, redScore: -1, blueScore: 0 },
+        exchanges: [row('double', 1), row('double', 1), row('double', 1)],
+        penalties: [serverCardAgainstRed(1, 1)],
+        queued: [double(1)],
+      }),
+    );
+    expect(series.closed).toEqual([
+      { round: 1, redScore: 0, blueScore: 0, winnerColor: null, by: 'tablet' },
+    ]);
+    expect(series).toMatchObject({ redRoundWins: 0, blueRoundWins: 0, awaitingStart: true });
   });
 });
 

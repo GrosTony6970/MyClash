@@ -73,7 +73,8 @@ export function computeMatchScore(
 // ── Match end decision ────────────────────────────────────────────────────────
 
 /**
- * Decide if a TF_v1 match has ended: first-to-points, then max-doubles.
+ * Decide if a TF_v1 match has ended: first-to-points, then max-doubles
+ * (max-doubles first in a bout that counts down).
  *
  * Reads the SCORE the caller already holds instead of re-deriving it from the
  * exchanges. Two things came out of the old shape. It scored every bout twice,
