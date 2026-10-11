@@ -368,13 +368,47 @@ Named while the doubles chip was fixed, and not fixed (each one checked in code 
 **Commits 3 and 4 of slice 4b are built** (2026-10-11). `35c028b2`: the route that gives the pad
 its rules answers the doubles limit the server scores with. For the points-cap ruleset, and for a
 club's own copy of it, the pad shows no limit now, as the server applies none. The route and the
-scorer build the match format with the same two functions. `688a9747` (not pushed: it goes out
-with the next commit): "Start round N" and "End round" are a fourth kind of row in the tablet's
+scorer build the match format with the same two functions. `688a9747` (pushed with commit 5):
+"Start round N" and "End round" are a fourth kind of row in the tablet's
 queue. Such a row is kept and sent as a clock press is: it takes no number of the bout's
 sequence, it never passes a hit of its bout that was not sent, and no row of its bout passes it.
 A refusal holds it in the inbox with its button, its round and its reason, and the rest of its
-bout waits behind it. Each hit and card is queued with the round open on the tablet. No screen
-writes a round row yet: the two round buttons still need the network until the next commit.
+bout waits behind it. Each hit and card is queued with the round open on the tablet.
+
+**Commit 5 of slice 4b is built: `d43507ed`** (2026-10-11). A best-of bout runs on the tablet
+with no network. Red reaches the cap in round 1: the round-break screen opens at once, from the
+score on the tablet, with the line "Closed on this tablet, not confirmed." "Start round 2" works:
+the score and the clock go to zero and round 2 is played. "End round" gives the round to the
+leader the same way. When the series is decided on the tablet the result screen opens, not
+confirmed, with the rounds won. When the network is back the tablet sends the bout in the order
+it happened. When the server counts another way, the screen goes back to the server's round: a
+refused "Start round 2" is held in the inbox with the bout behind it, and with nothing refused
+the screen takes the server's answer at the next read of the bout. The undo stops at a round the
+tablet closed. A level round at its time still needs the network: the tablet says why.
+
+Two choices in commit 5 are MINE, not the operator's. Say so if either is wrong:
+
+- The result screen of a best-of bout shows the ROUNDS WON (2 – 0), before and after the server
+  confirms it. Before, a confirmed best-of bout showed the points of its last round there (5 – 3).
+  Ruling 2 of the night of 2026-10-10 said "with the rounds won" for the tablet's own result; one
+  screen must not change its number when the server confirms it.
+- Under reverse scoring (a bout that counts down from the cap) the tablet closes no round and
+  opens none by itself. The score the tablet adds up there is not the server's score. With no
+  network such a bout stops at the end of its round, as every best-of bout did before.
+
+Named while commit 5 was built, and not fixed (each one checked in code by a review):
+
+- The round-break screen cannot be closed. A hit tapped by mistake that takes a fighter to the
+  cap cannot be undone there. After "Start round 2", with no network the undo stops at the closed
+  round, and with a network it asks the server to cancel that hit. Question for the operator:
+  does the round-break screen get an "Undo last entry" button?
+- A tablet reloaded while it sends a bout of several rounds shows the rounds it had closed as
+  0 – 0 with no winner until the bout is read again.
+- With a queue of several bouts, the screen of one bout can stay for a moment on what it showed
+  after its own rows are sent. It takes the server's answer at the next read.
+- The corrections drawer still takes a card on a bout whose series is decided.
+- Left for the next commit of the plan: the resume warning's "End match" on a best-of bout still
+  ends the bout with no winner. It will read "End round" (ruling 3 of 2026-10-10).
 
 **A bug found while commit 3 was built, NOT fixed, and a question for the operator.** A bout
 keeps the ruleset it was generated with. An organiser generates the Pools of a Tournament under
