@@ -430,14 +430,53 @@ Four rulings on 2026-10-11, at the start of the session:
 
 | Asked with this story                                                                                                                                                              | Ruling                                                                                                                                                                             | Done       |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | not built  |
+| An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | `e3316812` |
 | A best-of-3 ends, red won two rounds, the last one 5-3. The result screen shows the rounds won (2 – 0); before `d43507ed` a confirmed bout showed the last round's points (5 – 3). | **Both**: the rounds won as the large number, and the points of each round in a small line under it.                                                                               | `a008f197` |
 | Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | not built  |
 | Red is at 4 of 5; the official means blue and taps red. "Round 1 complete" opens with one button, and the wrong hit cannot be taken back there.                                    | **The round-break screen gets "Undo last entry".** "Start round N" stays its first button.                                                                                         | `d9076f71` |
 
 The "create a match" route (`POST /phases/:phaseId/matches`) has no button in any of the three
-apps: only a direct call of the API reaches it. It stamps `TF_v1` unless the caller names a
-ruleset.
+apps: only a direct call of the API reaches it. It stamped `TF_v1` unless the caller named a
+ruleset; since `e3316812` it stamps the ruleset of its Tournament and takes none from the caller.
+
+**The bouts not yet started take their Tournament's ruleset: `e3316812`** (2026-10-11). When an
+organiser changes a Tournament's ruleset (the Tournament form, the audited change during an
+Event, "Customise this format", the penalty rules), the server writes the new ruleset on every
+bout of that Tournament that has not started. A bout that started, or is finished, keeps the one
+it was fought under. A bout put back to "not started" by a reset, or by a bracket result taken
+back, takes the Tournament's ruleset of that moment.
+
+Named while this was built, and not fixed (each one checked in code by a review):
+
+- A forfeit taken back on a bout that was never started puts it back to "not started" with the
+  ruleset it had. After an audited change of ruleset, that one bout is fought under the old one.
+  The reset and the bracket revert are fixed; this door is not.
+- A bout started on a tablet with no network is "not started" for the server. A change of the
+  Tournament's rules at that moment moves it, and its hits are scored with the new ruleset when
+  they arrive.
+- The engine is read from the bout, and the settings of the ruleset (win bonus, match format) are
+  read from the Tournament at the moment of each hit. After an audited change during an Event, a
+  bout started before it is scored with the old engine and the new settings. It was so before.
+- Every save of the scoring pad's settings or of the match format writes each bout not yet started
+  again, also when nothing changed for it. With 150 such bouts, every tablet, board and public
+  page gets 150 change notices.
+- Pools generated in the same seconds as a change of ruleset can land on the old ruleset. The
+  next save of the Tournament's rules repairs them.
+- A change of an Event's default penalty rules gives its Tournaments a new fingerprint, and their
+  bouts not yet started keep the old fingerprint. Nothing reads a bout's fingerprint today.
+- A club's own ruleset can be edited or deleted once no Tournament uses it, while finished bouts
+  still carry its name. The server then scores a correction of such a bout with TF_v1, and warns
+  in its log.
+- A read of a Tournament that fails while a bout is generated still gives that bout TF_v1, in
+  silence. The new stamp refuses such a read; the older helper it sits beside does not.
+
+**The Space key on the tablet: `f14f8156`** (2026-10-11). Three browser tests failed now and then
+(`pad-space-behind-dialogs.spec.ts:100` and `:150`, `pad-best-of-server-disagrees.spec.ts:92`, red
+on CI once this session). The tests were right. For a moment after the screen changed, Space was
+judged by the clock from before: it sent a Resume behind the result of a decided series, and a
+Start on a halted clock. The listener is now in place before the screen is painted. All the Space
+stories passed 320 times out of 320 after the fix. `tests/drag/schedule-grid.spec.ts:241`
+(web-admin) is the one unstable test left, and it was not looked at.
 
 **The points of each round are on the result screen: `a008f197`** (2026-10-11). Under the rounds
 won ("2 – 0") the tablet writes one small line, "Points per round: 5 – 3 · 5 – 2", before and
