@@ -18,6 +18,7 @@ import {
   comeBackOnline,
   gate,
   held,
+  hitIsOnScreen,
   notConfirmedRound,
   openBestOf,
   plusOne,
@@ -113,6 +114,7 @@ test('"End round" with no network gives the round to the leader, and is sent bef
   stub.network = 'down';
   await startAndHalt(page);
   await plusOne(page, 'blue').click();
+  await hitIsOnScreen(page);
 
   await page.getByTestId('clock-end-button').click();
 
@@ -165,6 +167,7 @@ test('at the end of the time, the resume warning of a best-of bout ends the ROUN
   stub.network = 'down';
   await expect(primary(page)).toHaveAttribute('data-action', 'resume');
   await plusOne(page, 'red').click();
+  await hitIsOnScreen(page);
 
   await primary(page).click();
 

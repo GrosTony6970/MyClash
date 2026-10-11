@@ -178,10 +178,9 @@ function answerHit(stub: Stub, route: Route) {
 }
 
 /**
- * A hit is cancelled. Its points leave the open round, and a round the CAP
- * closed that is under the cap again goes back in play, as on the server
- * (`roundShouldReopen`). A round "End round" closed stays closed. The server's
- * refusal of a void that takes a closed round from its winner is not kept here.
+ * A hit is cancelled. A round the CAP closed that is under the cap again goes
+ * back in play, as on the server; a round "End round" closed stays closed. The
+ * server's refusal of a void that takes a round from its winner is not kept.
  */
 function answerVoid(stub: Stub, route: Route, path: string) {
   stub.sent.push('PATCH /void');
@@ -319,7 +318,6 @@ export async function openBestOf(page: Page, start: Start = {}) {
     if (method === 'POST' && path.endsWith('/exchanges')) return answerHit(stub, route);
     if (method === 'PATCH' && path.endsWith('/void')) return answerVoid(stub, route, path);
     if (method !== 'GET') return route.fulfill({ json: {} });
-    // The undo asks this first: the caller may score the bout.
     if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: null });
     if (path.endsWith(`/matches/${BOUT}`)) {
       if (stub.holdRow) await stub.holdRow;
@@ -346,6 +344,10 @@ export async function startAndHalt(page: Page) {
   await primary(page).click();
   await expect(status(page)).toHaveAttribute('data-status', 'halted');
 }
+
+/** A queued hit is drawn. Waited for before "End round": pressed sooner, it judges a level round. */
+export const hitIsOnScreen = (page: Page) =>
+  expect(page.getByTestId('provisional-score').first()).toBeVisible();
 
 /** The network is back: the browser tells the page. */
 export async function comeBackOnline(page: Page, stub: Stub) {

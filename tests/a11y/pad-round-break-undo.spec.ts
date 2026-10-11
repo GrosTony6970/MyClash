@@ -14,6 +14,7 @@ import { test, expect } from '@playwright/test';
 import {
   comeBackOnline,
   gate,
+  hitIsOnScreen,
   notConfirmedRound,
   openBestOf,
   plusOne,
@@ -156,6 +157,7 @@ test('with no network, a round closed by "End round" is not undone there: the sc
   stub.network = 'down';
   await startAndHalt(page);
   await plusOne(page, 'blue').click();
+  await hitIsOnScreen(page);
   await page.getByTestId('clock-end-button').click();
   await expect(roundBreak(page)).toContainText(/round 1 complete/i);
 
