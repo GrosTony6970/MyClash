@@ -9,6 +9,7 @@
  * answer the pad's service worker gives: a 503 with `{ error: 'offline' }`.
  */
 import { expect, type Page, type Route } from '@playwright/test';
+import { roundOver, roundScore, rulesOf } from './pad-rounds-score';
 
 const PAD = 'http://localhost:3002';
 const BOUT = 'match-1';
@@ -53,40 +54,13 @@ const SUMMARY = {
   bestOf: 3,
   tournamentId: 'tournament-1',
 };
-/** The Tournament's rules as `GET tournaments/:id/match-config` gives them: first to 2. */
-const CONFIG = {
-  scoringConfig: {
-    afterblowMode: 'deductive',
-    buttons: {
-      clean: [
-        { label: '+2', value: 2, visible: true },
-        { label: '+1', value: 1, visible: true },
-      ],
-      afterblow: [],
-    },
-    display: { sideColors: { red: 'red', blue: 'blue' } },
-  },
-  matchFormat: {
-    pointCap: 2,
-    scoringDirection: 'normal',
-    timerMode: 'countdown',
-    timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
-    softClockLimitSeconds: 5,
-    maxDoubleHits: 4,
-    maxDoubleHitOutcome: 'double_loss_zero_scores',
-    bestOf: { pool: 3, bracket: 1, finals: 1 },
-    levelAtTime: {
-      pool: [{ kind: 'draw' }],
-      bracket: [{ kind: 'sudden_death' }],
-      finals: [{ kind: 'sudden_death' }],
-    },
-  },
-};
 
 interface Stub {
   network: 'up' | 'down';
   /** The cap the SERVER closes a round at: above 2, it counts another way than the tablet. */
   serverCap: number;
+  /** The bout counts down: a fighter starts at the cap, and loses at zero. */
+  countdown: boolean;
   /** Every read of the bout's row waits until this resolves. */
   holdRow: Promise<void> | null;
   /** Every write the server took or refused, in order: `POST /clock start`, `POST /rounds/advance 2`. */
@@ -143,6 +117,14 @@ function closeRound(
   };
 }
 
+/** The open round's score, counted again from its hits, as the server does. */
+function rescore(stub: Stub) {
+  const { hits, row, countdown, serverCap } = stub;
+  const score = roundScore(hits, row.current_round, countdown, serverCap);
+  stub.row = { ...row, red_score: score.red, blue_score: score.blue };
+  return score;
+}
+
 function answerHit(stub: Stub, route: Route) {
   const hit = route.request().postDataJSON() as {
     clientUuid: string;
@@ -152,13 +134,6 @@ function answerHit(stub: Stub, route: Route) {
   };
   stub.sent.push('POST /exchanges');
   if (stub.row.awaiting_round_advance) return refusal(route, 400, 'round_awaits_advance');
-  const side = hit.firstStrikerColor;
-  const points = hit.firstStrikeValue ?? 0;
-  stub.row = {
-    ...stub.row,
-    red_score: stub.row.red_score + (side === 'red' ? points : 0),
-    blue_score: stub.row.blue_score + (side === 'blue' ? points : 0),
-  };
   stub.hits.push({
     id: `hit-${stub.hits.length + 1}`,
     client_uuid: hit.clientUuid,
@@ -167,13 +142,14 @@ function answerHit(stub: Stub, route: Route) {
     voided: false,
     occurredAt: new Date().toISOString(),
     occurred_at: new Date().toISOString(),
-    scoringSide: side,
-    scoreDelta: points,
+    scoringSide: hit.firstStrikerColor,
+    scoreDelta: hit.firstStrikeValue ?? 0,
     round_number: stub.row.current_round,
   });
-  const { red_score: red, blue_score: blue } = stub.row;
-  if (red >= stub.serverCap || blue >= stub.serverCap)
+  const { red, blue } = rescore(stub);
+  if (roundOver({ red, blue }, stub.countdown, stub.serverCap)) {
     closeRound(stub, red > blue ? 'red' : 'blue');
+  }
   return route.fulfill({ status: 201, json: { id: `hit-${stub.hits.length}` } });
 }
 
@@ -187,14 +163,12 @@ function answerVoid(stub: Stub, route: Route, path: string) {
   const hit = stub.hits.find((row) => path.endsWith(`/exchanges/${String(row.id)}/void`));
   if (!hit || hit.voided) return refusal(route, 404, 'not_found');
   hit.voided = true;
+  const score = rescore(stub);
   const { row } = stub;
-  const points = hit.scoreDelta as number;
-  const red = row.red_score - (hit.scoringSide === 'red' ? points : 0);
-  const blue = row.blue_score - (hit.scoringSide === 'blue' ? points : 0);
   const byCap = row.rounds_json.some(
     (round) => round.round === row.current_round && round.endReason === 'point_cap',
   );
-  const underCap = red < stub.serverCap && blue < stub.serverCap;
+  const underCap = !roundOver(score, stub.countdown, stub.serverCap);
   const reopens =
     row.awaiting_round_advance && hit.round_number === row.current_round && byCap && underCap;
   const rounds = reopens
@@ -202,8 +176,6 @@ function answerVoid(stub: Stub, route: Route, path: string) {
     : row.rounds_json;
   stub.row = {
     ...row,
-    red_score: red,
-    blue_score: blue,
     rounds_json: rounds,
     red_round_wins: rounds.filter((round) => round.winnerColor === 'red').length,
     blue_round_wins: rounds.filter((round) => round.winnerColor === 'blue').length,
@@ -223,13 +195,8 @@ function answerRound(stub: Stub, route: Route, door: 'advance' | 'end') {
     }
     const waits = row.awaiting_round_advance && row.current_round === body.round - 1;
     if (!waits) return refusal(route, 409, 'round_not_waiting');
-    stub.row = {
-      ...row,
-      current_round: body.round,
-      awaiting_round_advance: false,
-      red_score: 0,
-      blue_score: 0,
-    };
+    stub.row = { ...row, current_round: body.round, awaiting_round_advance: false };
+    rescore(stub);
     stub.clock = { ...stub.clock, status: 'halted', activeMs: 0, runningFrom: null };
     return route.fulfill({ json: { currentRound: body.round } });
   }
@@ -276,6 +243,7 @@ const clockBody = (stub: Stub) => ({
 
 interface Start {
   serverCap?: number;
+  countdown?: boolean;
   /** The bout was started before, and its clock is halted at this time. */
   haltedAtMs?: number;
 }
@@ -285,6 +253,7 @@ function newStub(start: Start): Stub {
   return {
     network: 'up',
     serverCap: start.serverCap ?? 2,
+    countdown: start.countdown ?? false,
     holdRow: null,
     sent: [],
     roundBodies: [],
@@ -324,7 +293,7 @@ export async function openBestOf(page: Page, start: Start = {}) {
       return route.fulfill({ json: stub.row });
     }
     if (path.endsWith('/summary')) return route.fulfill({ json: SUMMARY });
-    if (path.endsWith('/match-config')) return route.fulfill({ json: CONFIG });
+    if (path.endsWith('/match-config')) return route.fulfill({ json: rulesOf(stub.countdown) });
     if (path.endsWith('/exchanges')) return route.fulfill({ json: stub.hits });
     if (path.endsWith('/penalties')) return route.fulfill({ json: [] });
     if (path.endsWith('/clock')) return route.fulfill({ json: clockBody(stub) });

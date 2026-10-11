@@ -112,6 +112,7 @@ export function bout(over: Partial<PadSeriesArgs> = {}): PadSeriesArgs {
     redRegistrationId: 'red',
     blueRegistrationId: 'blue',
     exchanges: [],
+    penalties: [],
     queued: [],
     queuedPenalties: [],
     roundPresses: [],

@@ -237,7 +237,9 @@ export function MatchView({
    * `match.redScore` is the server's (or the tablet's copy of it), and offline it stops moving — the read
    * that refreshes it 503s. So a referee scoring three hits in a dead hall
    * watched the number stand still with no way to tell whether the tablet had
-   * heard them. The queued hits are on disk; this adds them up.
+   * heard them. The queued hits are on disk; this adds them up, in the
+   * direction the bout counts (`scoreOnPad`: a countdown hit takes its points
+   * off the opponent).
    *
    * PROVISIONAL, AND SAID SO. The server remains the only thing that DERIVES a
    * stored score — nothing here is written anywhere. This is the optimistic

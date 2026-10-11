@@ -21,6 +21,7 @@
  * Pure: no store, no React. The caller gives the rows.
  */
 import {
+  applyScoringDirection,
   getEffectiveMaxDoubles,
   roundOutcome,
   seriesResult,
@@ -92,6 +93,8 @@ export interface PadSeriesArgs {
   blueRegistrationId: string;
   /** The server's hits, not voided. Each carries its round (`round_number`). */
   exchanges: readonly ExchangeRow[];
+  /** The server's cards, not voided, each with its round. Its row's score holds their points. */
+  penalties: readonly Penalty[];
   /** The hits and cards the tablet still holds, each with its round (`pendingRowsForMatch`). */
   queued: readonly ExchangeRow[];
   queuedPenalties: readonly Penalty[];
@@ -153,6 +156,81 @@ function standing(
   };
 }
 
+const countsDown = (args: PadSeriesArgs) =>
+  args.matchFormat.scoringDirection === 'reverse_zero_loses';
+
+/**
+ * The server's score of its open round, or null when it has not scored that
+ * round yet.
+ *
+ * A bout's row is made at 0-0 and only a hit, a card or "Start round" computes
+ * its score. In a bout that counts down, 0-0 on a round in play is therefore
+ * "not scored yet" (both fighters hold the cap), not "both out of points". The
+ * row alone says so, not the list of hits: the two are separate reads, and
+ * "the list holds a hit, the row is still 0-0" is an ordinary moment while the
+ * first hit of a bout is sent. A round that waits for "Start round", and a bout
+ * that is over, keep their 0-0: the doubles limit wiped that round.
+ */
+function serverScore(args: PadSeriesArgs): ServerRounds | null {
+  const { server } = args;
+  const inPlay = !server.awaitingRoundAdvance && !server.over;
+  const atZero = server.redScore === 0 && server.blueScore === 0;
+  return countsDown(args) && inPlay && atZero ? null : server;
+}
+
+/**
+ * A round's score on the pad: the server's part plus what the tablet holds.
+ * The ONE place the pad adds a queued hit or card to a score.
+ *
+ * It adds in EARNED points and turns them into the score with the server's own
+ * function (`applyScoringDirection`): in a bout that counts down a hit takes
+ * its points off the OPPONENT, and a side stops at zero. A card's points land
+ * after that, on the carded fighter's own side (`recomputeMatchScore`), so the
+ * server's cards of the round are taken out before the turn and put back
+ * after. In a bout that counts up this is the server's score plus the queue.
+ *
+ * `base` is null for a round the server has not scored: nobody has earned
+ * anything in it.
+ */
+function scoreOnPad(
+  args: PadSeriesArgs,
+  base: Pick<ServerRounds, 'redScore' | 'blueScore'> | null,
+  rows: {
+    serverCards: readonly Penalty[];
+    queued: readonly ExchangeRow[];
+    queuedCards: readonly Penalty[];
+  },
+) {
+  const { redRegistrationId, blueRegistrationId, matchFormat } = args;
+  const sum = (exchanges: readonly ExchangeRow[], penalties: readonly Penalty[]) =>
+    provisionalDeltas({ exchanges, penalties, redRegistrationId, blueRegistrationId });
+  const carded = sum([], rows.serverCards);
+  const hits = sum(rows.queued, []);
+  const cards = sum([], rows.queuedCards);
+
+  // What each side has earned on the server, read back from its row.
+  const part = base
+    ? { red: base.redScore - carded.red, blue: base.blueScore - carded.blue }
+    : { red: 0, blue: 0 };
+  const earned =
+    base && countsDown(args)
+      ? { red: matchFormat.pointCap - part.blue, blue: matchFormat.pointCap - part.red }
+      : part;
+  const scored = (plus: { red: number; blue: number }) => {
+    const score = applyScoringDirection(
+      matchFormat,
+      earned.red + plus.red,
+      earned.blue + plus.blue,
+    );
+    return { red: score.redScore + carded.red, blue: score.blueScore + carded.blue };
+  };
+  const sent = scored({ red: 0, blue: 0 });
+  const withHits = scored(hits);
+  const redScore = withHits.red + cards.red;
+  const blueScore = withHits.blue + cards.blue;
+  return { redScore, blueScore, redQueued: redScore - sent.red, blueQueued: blueScore - sent.blue };
+}
+
 /** How one round counts on the pad: the server's part, plus what the tablet holds of it. */
 function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
   // A queued row with no round, or with a round the server has passed, is
@@ -160,24 +238,18 @@ function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
   const queuedIn = (row: { round_number?: number | null }) =>
     Math.max(row.round_number ?? serverRound, serverRound) === round;
   const queued = args.queued.filter(queuedIn);
-  const added = provisionalDeltas({
-    exchanges: queued,
-    penalties: args.queuedPenalties.filter(queuedIn),
-    redRegistrationId: args.redRegistrationId,
-    blueRegistrationId: args.blueRegistrationId,
-  });
-  const base = round === serverRound ? args.server : { redScore: 0, blueScore: 0 };
-  const double = (row: ExchangeRow) => row.type === 'double';
   // A server row with no round is of round 1: the server reads it so (`?? 1`).
-  const serverDoubles = args.exchanges.filter(
-    (row) => (row.round_number ?? 1) === round && double(row),
-  ).length;
+  const ofRound = (row: { round_number?: number | null }) => (row.round_number ?? 1) === round;
+  const double = (row: ExchangeRow) => row.type === 'double';
+  const serverDoubles = args.exchanges.filter((row) => ofRound(row) && double(row)).length;
   return {
     round,
-    redScore: base.redScore + added.red,
-    blueScore: base.blueScore + added.blue,
-    redQueued: added.red,
-    blueQueued: added.blue,
+    // A round the tablet opened itself is one the server has not scored.
+    ...scoreOnPad(args, round === serverRound ? serverScore(args) : null, {
+      serverCards: args.penalties.filter(ofRound),
+      queued,
+      queuedCards: args.queuedPenalties.filter(queuedIn),
+    }),
     doubles: serverDoubles + queued.filter(double).length,
   };
 }
@@ -185,18 +257,13 @@ function roundCount(args: PadSeriesArgs, round: number, serverRound: number) {
 /** A single-round bout: one round, never closed here. The clock ends the bout. */
 function singleRound(args: PadSeriesArgs): PadSeries {
   const double = (row: ExchangeRow) => row.type === 'double';
-  const added = provisionalDeltas({
-    exchanges: args.queued,
-    penalties: args.queuedPenalties,
-    redRegistrationId: args.redRegistrationId,
-    blueRegistrationId: args.blueRegistrationId,
-  });
   const on = {
     round: 1,
-    redScore: args.server.redScore + added.red,
-    blueScore: args.server.blueScore + added.blue,
-    redQueued: added.red,
-    blueQueued: added.blue,
+    ...scoreOnPad(args, serverScore(args), {
+      serverCards: args.penalties,
+      queued: args.queued,
+      queuedCards: args.queuedPenalties,
+    }),
     doubles: args.exchanges.filter(double).length + args.queued.filter(double).length,
   };
   return {

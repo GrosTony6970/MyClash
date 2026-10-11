@@ -21,7 +21,7 @@ import type { MatchInfo } from '../components/MatchView';
 import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock';
 import { boutNames } from '../lib/held-hit';
 import { endRefusalMessage } from '../lib/refusal-copy';
-import { padSeries, type PadSeries } from '../offline/pad-series';
+import { padSeries, type PadSeries, type ServerRounds } from '../offline/pad-series';
 import { forgotten, showSeries, type SeriesMemory } from '../offline/pad-series-memory';
 import { queueRoundPress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
@@ -48,7 +48,11 @@ interface PadRoundsArgs {
   matchFormat: MatchFormatConfig;
   scoring: Pick<
     MatchScoringData,
-    'activeExchanges' | 'pendingExchanges' | 'pendingPenalties' | 'queuedRoundPresses'
+    | 'activeExchanges'
+    | 'activePenalties'
+    | 'pendingExchanges'
+    | 'pendingPenalties'
+    | 'queuedRoundPresses'
   >;
   clockState: ClockState | null;
   /** A row of this bout is held in the inbox. */
@@ -62,12 +66,10 @@ interface PadRoundsArgs {
   t: Translate;
 }
 
-/** The rounds computed from what the server and the tablet hold now (`padSeries`). */
-function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): PadSeries {
-  const bestOf = match.bestOf ?? 1;
-  const phaseType = match.phaseType ?? undefined;
+/** The server's row of the bout, as far as the rounds read it. */
+function useServerRounds(match: MatchInfo): ServerRounds {
   const { currentRound, awaitingRoundAdvance, status, roundsJson, redScore, blueScore } = match;
-  const server = useMemo(
+  return useMemo(
     () => ({
       currentRound: currentRound ?? 1,
       awaitingRoundAdvance: !!awaitingRoundAdvance,
@@ -78,8 +80,16 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
     }),
     [currentRound, awaitingRoundAdvance, status, roundsJson, redScore, blueScore],
   );
+}
+
+/** The rounds computed from what the server and the tablet hold now (`padSeries`). */
+function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): PadSeries {
+  const bestOf = match.bestOf ?? 1;
+  const phaseType = match.phaseType ?? undefined;
+  const server = useServerRounds(match);
   const { matchNumberLabel, redRegistrationId, blueRegistrationId } = match;
-  const { activeExchanges, pendingExchanges, pendingPenalties, queuedRoundPresses } = scoring;
+  const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
+  const { queuedRoundPresses } = scoring;
   return useMemo(
     () =>
       padSeries({
@@ -91,6 +101,7 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
         redRegistrationId,
         blueRegistrationId,
         exchanges: activeExchanges,
+        penalties: activePenalties,
         queued: pendingExchanges,
         queuedPenalties: pendingPenalties,
         roundPresses: queuedRoundPresses,
@@ -105,6 +116,7 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
       redRegistrationId,
       blueRegistrationId,
       activeExchanges,
+      activePenalties,
       pendingExchanges,
       pendingPenalties,
       queuedRoundPresses,
