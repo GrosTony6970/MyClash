@@ -42,6 +42,12 @@ export interface MatchResultOverlayProps {
    *  `referee_decision` override can put the winner on the lower score. */
   winnerRegistrationId: string | null;
   /**
+   * A decided best-of series: its closed rounds, in order. The score above is
+   * then the ROUNDS WON, and the points of each round are said in a small line
+   * under it (operator, 2026-10-11). None for a bout of one round.
+   */
+  rounds?: ReadonlyArray<{ round: number; redScore: number; blueScore: number }>;
+  /**
    * "End match" is still on the tablet: the result is the tablet's own, and
    * the screen says the server has not confirmed it (operator ruling 11).
    */
@@ -67,6 +73,7 @@ function ResultHeadline({
   redRegistrationId,
   blueRegistrationId,
   winnerRegistrationId,
+  rounds,
   scoringConfig,
 }: Pick<
   MatchResultOverlayProps,
@@ -77,6 +84,7 @@ function ResultHeadline({
   | 'redRegistrationId'
   | 'blueRegistrationId'
   | 'winnerRegistrationId'
+  | 'rounds'
   | 'scoringConfig'
 >) {
   const { t } = useI18n();
@@ -115,10 +123,18 @@ function ResultHeadline({
       )}
       <p
         data-testid="match-result-score"
-        className="mb-4 font-mono text-2xl font-bold text-foreground-secondary"
+        className={`${rounds?.length ? 'mb-1' : 'mb-4'} font-mono text-2xl font-bold text-foreground-secondary`}
       >
         {redScore} – {blueScore}
       </p>
+      {rounds && rounds.length > 0 && (
+        <p data-testid="match-result-rounds" className="mb-4 text-sm text-muted">
+          {t('scoring.result.roundPoints')}{' '}
+          <span className="font-mono">
+            {rounds.map((round) => `${round.redScore} – ${round.blueScore}`).join(' · ')}
+          </span>
+        </p>
+      )}
     </>
   );
 }
@@ -145,7 +161,7 @@ function BoutReview({
   scoring,
 }: Omit<
   MatchResultOverlayProps,
-  'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose' | 'unconfirmed'
+  'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose' | 'unconfirmed' | 'rounds'
 >) {
   const { t } = useI18n();
   // The chart picks its own side colours in JS via sideColorsFor(config,
@@ -239,6 +255,7 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
           redRegistrationId={props.redRegistrationId}
           blueRegistrationId={props.blueRegistrationId}
           winnerRegistrationId={props.winnerRegistrationId}
+          rounds={props.rounds}
           scoringConfig={scoringConfig}
         />
         {props.unconfirmed && <NotConfirmed />}

@@ -62,6 +62,10 @@ test('with no network a best-of-3 runs to its end on the tablet, and goes to the
   await expect(page.getByTestId('match-result-winner')).toContainText('Ana Red');
   // The rounds won, not the last round's points.
   await expect(page.getByTestId('match-result-score')).toHaveText('2 – 0');
+  // Under it, the points of each round.
+  await expect(page.getByTestId('match-result-rounds')).toHaveText(
+    'Points per round: 2 – 0 · 2 – 1',
+  );
   expect(stub.sent, 'nothing reached the server').toEqual([]);
 
   await comeBackOnline(page, stub);
@@ -96,6 +100,9 @@ test('with no network a best-of-3 runs to its end on the tablet, and goes to the
   await expect(result(page)).toBeVisible();
   // The same number confirmed: the rounds won, not the last round's points.
   await expect(page.getByTestId('match-result-score')).toHaveText('2 – 0');
+  await expect(page.getByTestId('match-result-rounds')).toHaveText(
+    'Points per round: 2 – 0 · 2 – 1',
+  );
   await expect(held(page)).toHaveCount(0);
 });
 

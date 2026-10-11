@@ -442,6 +442,7 @@ export const scoring = {
     draw: 'Egalite',
     close: 'Fermer',
     notConfirmed: 'Terminé sur cette tablette. Le serveur ne l’a pas encore confirmé.',
+    roundPoints: 'Points par manche :',
   },
   boutFlow: {
     title: 'Déroulé du combat',

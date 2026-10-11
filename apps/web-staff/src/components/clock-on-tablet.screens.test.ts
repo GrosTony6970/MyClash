@@ -151,6 +151,14 @@ describe('"End match" on the tablet', () => {
     );
     expect(view).toContain('redScore={shownResult.red}');
     expect(view).toContain('blueScore={shownResult.blue}');
+    // Under the rounds won, the points of each round (operator, 2026-10-11).
+    expect(view).toContain('rounds={seriesDecided ? series.closed : undefined}');
+    expect(overlay).toMatch(
+      /\{rounds && rounds\.length > 0 && \(\s+<p data-testid="match-result-rounds"[^>]*>\s+\{t\('scoring\.result\.roundPoints'\)\}/,
+    );
+    expect(overlay).toContain(
+      "{rounds.map((round) => `${round.redScore} – ${round.blueScore}`).join(' · ')}",
+    );
     expect(view).toContain(
       'winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}',
     );

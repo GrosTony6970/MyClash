@@ -75,6 +75,8 @@ test('with no network, a bout runs from Start to End on the tablet, and goes to 
   await expect(page.getByTestId('match-result-unconfirmed')).toContainText(/not confirmed/i);
   await expect(page.getByTestId('match-result-winner')).toContainText('Ana Red');
   await expect(page.getByTestId('match-result-score')).toHaveText('2 – 0');
+  // A bout of one round: no line of points per round.
+  await expect(page.getByTestId('match-result-rounds')).toHaveCount(0);
   // Re-open is a person's, with the network: it waits for the queue.
   await expect(primary(page)).toHaveAttribute('data-action', 'reopen');
   await expect(primary(page)).toBeDisabled();

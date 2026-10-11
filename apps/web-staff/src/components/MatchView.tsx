@@ -919,6 +919,7 @@ export function MatchView({
           unconfirmed={unconfirmed}
           redScore={shownResult.red}
           blueScore={shownResult.blue}
+          rounds={seriesDecided ? series.closed : undefined}
           winnerRegistrationId={unconfirmed ? null : (match.winnerRegistrationId ?? null)}
           endReason={match.endReason}
           bestOf={bestOf}

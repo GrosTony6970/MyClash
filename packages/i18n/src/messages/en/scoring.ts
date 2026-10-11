@@ -467,6 +467,7 @@ export const scoring = {
     close: 'Close',
     // End match was pressed and the server has not answered it yet (ruling 11).
     notConfirmed: 'Ended on this tablet. The server has not confirmed it yet.',
+    roundPoints: 'Points per round:',
   },
   boutFlow: {
     title: 'Bout flow',
