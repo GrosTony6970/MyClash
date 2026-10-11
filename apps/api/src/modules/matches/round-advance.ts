@@ -15,6 +15,7 @@ import {
   pressTooOld,
   type LatePress,
 } from './late-press';
+import { nothingOnTheSheet } from './start-count';
 
 type Database = SupabaseService['service'];
 
@@ -252,7 +253,10 @@ async function advanceNow(
  *      answered. No rule below may answer it: the pad reads a refusal as
  *      "never taken" and sends it for ever. A completed bout waits for
  *      nothing, and nothing is finished on an over Event: an advance cut short
- *      there stays cut short, and writes nothing more.
+ *      there stays cut short, and writes nothing more. A bout that is in the
+ *      round this press opened, with nothing on that round's sheet yet, has
+ *      its score counted once more: the count is the one step of an advance
+ *      that can fail after the round is open.
  *   2. A new one: an over Event refuses it, to everybody. A round that is
  *      already open is done, and writes nothing (another tablet opened it). A
  *      completed bout takes none, and a press older than one day is not applied.
@@ -281,7 +285,20 @@ async function advanceLate(
   const over = isOver(eventStatusOf(bout));
   // A forfeit completes a bout and leaves `awaiting_round_advance` as it was.
   const waits = bout['awaiting_round_advance'] === true && current === late.round - 1 && !completed;
-  if (saved && (!waits || over)) return { currentRound: current };
+  if (saved && (!waits || over)) {
+    // The count is the last step of `openRound`. When it failed, the round is
+    // open with the score of the round before on the bout's row, and this
+    // press came back as an error: its next send finishes the count here.
+    // Only while that round holds nothing: the tablet's own hits of it wait
+    // behind this press. A round that was fought is left alone. Its sheet may
+    // be at the cap, and a count would close it again under a referee who has
+    // just put it back in play (as `ScoringService.clockAction` says).
+    const unfinished = !over && !completed && current === late.round;
+    if (unfinished && (await nothingOnTheSheet(db, matchId, late.round))) {
+      await deps.recompute(matchId);
+    }
+    return { currentRound: current };
+  }
 
   const nowMs = Date.now();
   const pressedMs = pressedAtServer(late, nowMs);

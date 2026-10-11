@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { filtersFor, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import {
   BOUT,
   HALTED,
@@ -104,12 +104,70 @@ describe('a late "Start round 2" on a bout that waits for it', () => {
 });
 
 describe('a late "Start round 2" the server already holds', () => {
-  it('is answered and writes nothing when the round is open', async () => {
+  it('is answered and writes no row when the round is open, and counts the score again', async () => {
+    // The first send opened round 2 and its count failed: the bout's row still
+    // holds the score of round 1, and the tablet got an error. This send
+    // finishes the count.
     const { db, scoring, recompute } = series([...HALTED, SAVED], OPEN);
 
     await expect(scoring.advanceRound(BOUT, STAFF, advance('10:05:00'))).resolves.toEqual({
       currentRound: 2,
     });
+    wroteNothing(db);
+    expect(recompute.mock.calls).toEqual([[BOUT]]);
+    // The sheet it asked about is round 2's, of this bout, live rows only.
+    for (const table of ['exchanges', 'match_penalties']) {
+      expect(filtersFor(db.from, table, 'eq')).toEqual([
+        ['match_id', BOUT],
+        ['voided', false],
+        ['round_number', 2],
+      ]);
+    }
+  });
+
+  it('counts nothing again once round 2 holds a hit: that round was fought', async () => {
+    // Another tablet scored round 2 to the cap, the series was completed, and
+    // the referee put it back in play to correct it. A count here would
+    // complete the series again under the referee.
+    const fought = [{ id: 'x1', match_id: BOUT, round_number: 2, voided: false }];
+    const { db, scoring, recompute } = series([...HALTED, SAVED], OPEN, 'running', fought);
+
+    await expect(scoring.advanceRound(BOUT, STAFF, advance('10:05:00'))).resolves.toEqual({
+      currentRound: 2,
+    });
+    wroteNothing(db);
+    expect(recompute).not.toHaveBeenCalled();
+  });
+
+  it('does not take a hit of round 1, or a voided hit, for a hit of round 2', async () => {
+    const others = [
+      { id: 'x1', match_id: BOUT, round_number: 1, voided: false },
+      { id: 'x2', match_id: BOUT, round_number: 2, voided: true },
+    ];
+    const { scoring, recompute } = series([...HALTED, SAVED], OPEN, 'running', others);
+
+    await scoring.advanceRound(BOUT, STAFF, advance('10:05:00'));
+
+    expect(recompute).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a count that fails again through: the tablet keeps the press', async () => {
+    const { scoring, recompute } = series([...HALTED, SAVED], OPEN);
+    recompute.mockRejectedValue(new Error('Could not read the sheet'));
+
+    await expect(scoring.advanceRound(BOUT, STAFF, advance('10:05:00'))).rejects.toThrow(
+      'Could not read the sheet',
+    );
+  });
+
+  it.each([
+    ['a bout that was completed in that round', { ...OPEN, status: 'completed' }],
+    ['a bout that is in a later round', { ...OPEN, current_round: 3 }],
+  ])('counts nothing again on %s', async (_, bout) => {
+    const { db, scoring, recompute } = series([...HALTED, SAVED], bout);
+
+    await scoring.advanceRound(BOUT, STAFF, advance('10:05:00'));
+
     wroteNothing(db);
     expect(recompute).not.toHaveBeenCalled();
   });
@@ -120,6 +178,7 @@ describe('a late "Start round 2" the server already holds', () => {
       currentRound: 2,
     });
     wroteNothing(over.db);
+    expect(over.recompute).not.toHaveBeenCalled();
 
     const reset = series([...HALTED, SAVED, row(4, 'reset_match', '10:30:00')], {
       status: 'scheduled',
@@ -130,6 +189,7 @@ describe('a late "Start round 2" the server already holds', () => {
       currentRound: 1,
     });
     wroteNothing(reset.db);
+    expect(reset.recompute).not.toHaveBeenCalled();
   });
 
   it('is finished when its bout still waits: no second row, the clock and the bout', async () => {

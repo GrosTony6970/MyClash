@@ -40,7 +40,12 @@ export const RUNNING = [row(1, 'start', '10:00:00')];
 export const HALTED = [...RUNNING, row(2, 'halt', '10:00:30')];
 export const ENDED = [...HALTED, row(3, 'end', '10:00:40')];
 
-export function setup(events: SupabaseRow[], bout: SupabaseRow = {}, eventStatus = 'running') {
+export function setup(
+  events: SupabaseRow[],
+  bout: SupabaseRow = {},
+  eventStatus = 'running',
+  sheet: SupabaseRow[] = [],
+) {
   const rows = [...events];
   const db = mockSupabase({
     matches: {
@@ -68,6 +73,9 @@ export function setup(events: SupabaseRow[], bout: SupabaseRow = {}, eventStatus
       ],
     },
     match_events: { rows },
+    // The bout's sheet: its hits. No card.
+    exchanges: { rows: sheet },
+    match_penalties: { rows: [] },
   });
   const completion = { onMatchCompleted: vi.fn(), onMatchUncompleted: vi.fn() };
   return { db, rows, completion, clock: new ClockService(db as never, completion as never) };

@@ -27,8 +27,9 @@ export function series(
   events = HALTED,
   bout: Record<string, unknown> = WAITS,
   eventStatus = 'running',
+  sheet: Array<Record<string, unknown>> = [],
 ) {
-  const { db, rows, clock } = setup(events, bout, eventStatus);
+  const { db, rows, clock } = setup(events, bout, eventStatus, sheet);
   const scoring = new ScoringService(db as never, undefined as never, clock as never);
   const recompute = vi
     .spyOn(scoring, 'recomputeMatchScore')
