@@ -533,7 +533,7 @@ Four rulings on the evening of 2026-10-11, each a slice with its own recon and p
 | Asked with this story                                                                                                                                                                                                          | Ruling                                                                                                                                                                                                   | Done       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | A Pool bout that counts down, doubles limit 3. Red hits once, then three doubles: the board is wiped to 0 – 0, and the bout ends as a draw ("first to points"). Counting up, the same bout is a loss for both ("max doubles"). | **A loss for both**: in a bout that counts down the doubles limit is asked before the point cap, and the bout ends as the format's doubles outcome says.                                                 | `6b30e5bc` |
-| An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | not built  |
+| An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | `8dab2ce0` |
 | Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | not built  |
 | A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | not built  |
 
@@ -580,6 +580,42 @@ Named while the doubles limit was built, and not fixed:
   stored with the old reason are not rewritten.
 - No cold review ran after the review's three fixes; the falsifier did (62 breaks, all red,
   and one line it showed to change nothing was removed).
+
+**"Discard all of this match" in the inbox is built** (2026-10-11 late): `8dab2ce0`.
+
+- A line of the inbox with entries of its bout waiting behind it has a third button, "Discard
+  all of this match". One question says how many entries go ("Discard the 12 entries of this
+  match?"). On yes the refused entries and the waiting entries of that bout leave the tablet in
+  one step, and none is sent. Retry and Discard of one entry work as before.
+- A line with nothing behind it does not have the button: its Discard is the same act.
+- The cold review found one fault, fixed in the same commit. The bout's screen read "an entry
+  is refused" and the waiting entries through two reads. After the discard, a best-of bout
+  could close a round on entries the tablet no longer held, and keep that round-break screen
+  with no network. The two are one read now (`usePendingOutbox`).
+
+My choices, said with the plan, not rulings:
+
+- The tablet deletes and asks the server nothing. An entry that met a server fault earlier, and
+  that the server did take, stays on the server; the bout's list shows it at the next read.
+  The 12 single Discards re-sent it and learned that.
+- The deleted entries are not written to the tablet's list of undos: the tablet voids nothing
+  on the server for them.
+
+Named while "Discard all" was built, and not fixed:
+
+- The score of an "End match" that was discarded stays in the screen's memory. It shows for a
+  moment if the server then ends the bout by itself (a deciding hit), until the bout is read
+  again (`endScoreOf`, `offline/pad-clock.ts`). The Discard of one held End has the same fault.
+- Two tabs of the pad on one tablet: each has its own send, so one tab can delete an entry the
+  other is sending. It was so before, for every action of the inbox.
+- A listener of the engine's state that throws right after a refusal makes the send file that
+  entry as "no network", and the next entry of the bout passes the refused one
+  (`sync.ts`, `sendEntry`). Far-fetched; found by the review, older than this work.
+- A confirmed "Discard all" whose line another tab already dealt with deletes nothing and says
+  nothing: the list is read again and the line is gone.
+- No browser story runs a best-of bout through "Discard all": the fault the review found is
+  held by a text pin of the one read, not by a story (the order of two reads cannot be forced
+  in a browser).
 
 Named while this was built, and not fixed (each one checked in code by a review):
 
