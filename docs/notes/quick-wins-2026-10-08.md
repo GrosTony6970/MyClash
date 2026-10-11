@@ -428,16 +428,36 @@ Named while commit 6 was built, and not fixed (each one checked in code by a rev
 
 Four rulings on 2026-10-11, at the start of the session:
 
-| Asked with this story                                                                                                                                                              | Ruling                                                                                                                                                                             | Done      |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | not built |
-| A best-of-3 ends, red won two rounds, the last one 5-3. The result screen shows the rounds won (2 – 0); before `d43507ed` a confirmed bout showed the last round's points (5 – 3). | **Both**: the rounds won as the large number, and the points of each round in a small line under it.                                                                               | not built |
-| Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | not built |
-| Red is at 4 of 5; the official means blue and taps red. "Round 1 complete" opens with one button, and the wrong hit cannot be taken back there.                                    | **The round-break screen gets "Undo last entry".** "Start round N" stays its first button.                                                                                         | not built |
+| Asked with this story                                                                                                                                                              | Ruling                                                                                                                                                                             | Done       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | not built  |
+| A best-of-3 ends, red won two rounds, the last one 5-3. The result screen shows the rounds won (2 – 0); before `d43507ed` a confirmed bout showed the last round's points (5 – 3). | **Both**: the rounds won as the large number, and the points of each round in a small line under it.                                                                               | not built  |
+| Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | not built  |
+| Red is at 4 of 5; the official means blue and taps red. "Round 1 complete" opens with one button, and the wrong hit cannot be taken back there.                                    | **The round-break screen gets "Undo last entry".** "Start round N" stays its first button.                                                                                         | `d9076f71` |
 
 The "create a match" route (`POST /phases/:phaseId/matches`) has no button in any of the three
 apps: only a direct call of the API reaches it. It stamps `TF_v1` unless the caller names a
 ruleset.
+
+**"Undo last entry" on the round-break screen is built: `d9076f71`** (2026-10-11). The screen has
+a second button behind "Start round N". It takes the wrong hit back, with a network or with none,
+and the round is in play again. One undo lands per round break: a second tap while the screen
+closes takes back nothing more. The undo of the bout screen is one piece of code now, for the
+controls and for this screen.
+
+Named while the undo was built, and not fixed (each one checked in code by a review):
+
+- A round closed by "End round" gives two answers. While that press waits on the tablet (no
+  network) the undo is refused, and the screen says why. Once the server holds it, the server
+  judges: with red 2 – 0, the undo cancels one hit, the screen then reads 1 – 0 and stays up with
+  no word; a second undo is refused because 0 – 0 names no winner. Question for the operator:
+  does the undo on the round-break screen refuse every round that "End round" closed?
+- A tap on "End round" by mistake cannot be taken back on the round-break screen: the undo takes
+  back a hit or a card, never a press.
+- While the round-break screen is up, a reason the undo gave is drawn twice: in the screen, and
+  under the controls' button behind it. A screen reader can say it twice.
+- A tablet that sends an earlier hit of the bout at the same moment as the undo can keep the
+  round-break screen up until the next read of the bout. Read from the code, not seen.
 
 **A bug found while commit 3 was built, NOT fixed, and a question for the operator.** A bout
 keeps the ruleset it was generated with. An organiser generates the Pools of a Tournament under
