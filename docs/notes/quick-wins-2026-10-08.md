@@ -469,6 +469,26 @@ leader: both scores are held at zero (`packages/rules/src/match-format.ts:611-61
 Only a card moves the score. On the tablet that round reads cap to cap, and each later hit shows
 for a moment and goes back.
 
+I then ran the engine on that story: red has 1 point left, blue has 2, one afterblow of 3 each
+way. Both read 0 – 0. A Pool bout ends as a draw, whatever the points. A bracket bout stays
+open, and two more hits leave it open at 0 – 0.
+
+Two rulings on the afternoon of 2026-10-11, on that bug:
+
+| Asked with this story                                                                                                                                          | Ruling                                                                                                                                                                                                                | Done      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Countdown from 5. Red has 1 point left, blue has 2. Red strikes for 3 and blue answers with an afterblow of 3: both are out of points (red at -2, blue at -1). | **The fighter less far below zero wins** (blue), in a Pool and in a bracket. The screens still stop at 0 – 0. A true tie (both as far below): a Pool bout is a draw, a bracket bout goes on and the next hit decides. | not built |
+| Which of the faults named with the countdown go into the same work?                                                                                            | **Three**: the reopened 0 – 0 bout, the round opened with its score not counted, the server's stale comment. With the ruling above on 0 – 0 before the first hit.                                                     | not built |
+
+**The plan** of these rulings and of "all screens read 10 – 10 from the Start" is
+`C:\Users\Tony\.claude\plans\countdown-zero-plan.md` (on the operator's machine, not in the
+repo): seven commits, reviewed, NOT built. The operator asked for a handover with it; the next
+session shows it and builds on "go". One thing in it differs from what the operator was told:
+for the reopened 0 – 0 bout I offered "the server counts the score again at Reopen". That is
+wrong. The server's 0 – 0 is right for such a bout, and a recount would end it again at once.
+The fault is on the tablet, which reads every 0 – 0 in play as "not scored yet"; the plan fixes
+it there, once the server counts the score at Start.
+
 Named while the countdown was built, and not fixed (each one checked in code by a review):
 
 - A bout that the doubles limit ended at 0 – 0, or a Pool bout drawn at 0 – 0, that somebody
