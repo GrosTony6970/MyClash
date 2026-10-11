@@ -97,7 +97,7 @@ beforeEach(() => {
     },
     // Tournament create reads a custom scoring ruleset's defaults; TF_v1 has none.
     custom_rulesets: { rows: [] },
-    phases: { rows: [] },
+    phases: { rows: [{ id: 'phase-a', tournament_id: TOURNAMENT_A }] },
     matches: { rows: [] },
     organization_members: {
       rows: [
@@ -185,6 +185,27 @@ describe('penalty ruleset pin doors', () => {
       }
     },
   );
+
+  it.each(DOORS.filter(({ door }) => door === 'the Tournament pin' || door === 'Tournament edit'))(
+    '$door stamps the bouts not yet started again: their stamp follows the new penalty rules',
+    async ({ pin }) => {
+      // The pin's own comment said "the match stamps track the new penalty";
+      // nothing wrote a bout (operator, 2026-10-11).
+      await pin(PRIVATE_A, 'u-admin-a');
+
+      const stamped = writesTo(db, 'matches');
+      expect(stamped.map((write) => write.op)).toEqual(['update']);
+      expect(stamped[0]?.filters.map((filter) => [filter.method, ...filter.args])).toEqual([
+        ['in', 'phase_id', ['phase-a']],
+        ['eq', 'status', 'scheduled'],
+      ]);
+    },
+  );
+
+  it.each(DOORS)('$door stamps no bout when the pin is refused', async ({ pin }) => {
+    await expect(pin(PRIVATE_B, 'u-admin-a')).rejects.toBeInstanceOf(BadRequestException);
+    expect(writesTo(db, 'matches')).toEqual([]);
+  });
 
   it('Tournament edit lets an unchanged pin through: every settings save re-sends it', async () => {
     // The settings tab sends the pin with every save. A ruleset its owner

@@ -32,6 +32,7 @@ import { unplayedMatchColumns } from './unplayed-match-columns';
 // @Optional() param silently resolves to `undefined`, and every completion side
 // effect stops firing without a word. Keep it a value import.
 import { MatchCompletionService } from '../phases/match-completion.service';
+import { matchRulesetForBout, matchRulesetForPhase } from '../phases/match-ruleset';
 // Value import too: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService } from '../referees/assignment-board.service';
 import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
@@ -392,8 +393,8 @@ export class MatchesService {
         red_registration_id: dto.redRegistrationId,
         blue_registration_id: dto.blueRegistrationId,
         scheduled_at: dto.scheduledAt ?? null,
-        ruleset_code: dto.rulesetCode ?? 'TF_v1',
-        ruleset_version: dto.rulesetVersion ?? '1.0.0',
+        // Its own Tournament's pair, as a generated bout (this door stamped TF_v1).
+        ...(await matchRulesetForPhase(this.supabase.service, dto.phaseId)),
         match_number_label: dto.matchNumberLabel ?? null,
         status: 'scheduled',
         red_score: 0,
@@ -1205,6 +1206,9 @@ export class MatchesService {
       throw new BadRequestException('Confirmation phrase must be RESET MATCH');
     }
     await this.assertMatchUnlocked(matchId, context);
+    // A bout that goes back to "not started" takes its Tournament's ruleset of
+    // now (a re-pin may have passed since it was fought). Read before any write.
+    const ruleset = await matchRulesetForBout(this.supabase.service, matchId);
     const reason = dto.reason ?? 'match reset';
     // BEFORE the writes below, so a refusal leaves the bout untouched and the
     // bracket still names the result that is about to be undone — which is what
@@ -1231,7 +1235,7 @@ export class MatchesService {
       await this.insertMatchEvent(matchId, 'reset_match', reason, context);
       const { data, error } = await this.supabase.service
         .from('matches')
-        .update(unplayedMatchColumns())
+        .update({ ...unplayedMatchColumns(), ...ruleset })
         .eq('id', matchId)
         .select('*')
         .single();

@@ -28,6 +28,7 @@ import {
   type RulesetExportEnvelope,
 } from '../../common/ruleset-export';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
+import { restampUnstartedMatches } from '../phases/match-ruleset';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
@@ -876,9 +877,11 @@ export class PenaltiesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
-    // The penalty pin changed — restamp the tournament's content hash so the
-    // fingerprint + match stamps track the new penalty (best-effort).
+    // The penalty pin changed — restamp the tournament's content hash (best
+    // effort), then the bouts not yet started, so their stamp tracks the new
+    // penalty. The comment here said the match stamps followed; nothing did it.
     await this.rulesetHash?.stampTournamentContentHash(tournamentId);
+    await restampUnstartedMatches(this.supabase.service, tournamentId);
     return data;
   }
 

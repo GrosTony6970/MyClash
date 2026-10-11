@@ -15,6 +15,17 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { restampUnstartedMatches } from '../phases/match-ruleset';
+import type * as MatchRuleset from '../phases/match-ruleset';
+
+// The restamp of the bouts not yet started has its own tests
+// (`match-ruleset.restamp.test.ts`). Here: which door calls it, and when.
+vi.mock('../phases/match-ruleset', async (original) => ({
+  ...(await original<typeof MatchRuleset>()),
+  restampUnstartedMatches: vi.fn(() => Promise.resolve()),
+}));
+/** The Tournaments whose bouts not yet started were stamped again, in order. */
+const restamped = () => vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1]);
 
 const assertOrgRole = vi.fn();
 const EVENT_ROW = { id: 'e1', organization_id: 'org-1' };
@@ -210,6 +221,44 @@ describe('repinTournamentRuleset', () => {
 
     expect(assertOrgRole).not.toHaveBeenCalled();
     expect(cap.repinInsert?.['to_code']).toBe('Generic_PointsCap');
+  });
+});
+
+describe('repinTournamentRuleset: the bouts not yet started take the new ruleset (operator, 2026-10-11)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    assertOrgRole.mockResolvedValue(undefined);
+  });
+
+  it('stamps them again after the re-pin, once the audit is written', async () => {
+    const { svc, cap } = harness({ current: RUNNING_TF });
+    vi.mocked(restampUnstartedMatches).mockImplementationOnce(() => {
+      // An unaudited re-pin must not move a bout.
+      expect(cap.repinInsert).not.toBeNull();
+      return Promise.resolve();
+    });
+
+    await svc.repinTournamentRuleset('t1', DTO, 'u1');
+
+    expect(restamped()).toEqual(['t1']);
+  });
+
+  it('stamps nothing when the re-pin is refused', async () => {
+    const { svc } = harness({ current: { ...RUNNING_TF, status: 'completed' } });
+
+    await expect(svc.repinTournamentRuleset('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(restamped()).toEqual([]);
+  });
+
+  it('a preview stamps nothing', async () => {
+    const { svc } = harness({ current: RUNNING_TF });
+
+    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'Generic_PointsCap' }, 'u1');
+
+    expect(restamped()).toEqual([]);
   });
 });
 

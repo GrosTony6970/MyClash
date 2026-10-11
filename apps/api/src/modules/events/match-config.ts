@@ -41,10 +41,10 @@ interface MatchConfigRow {
  * stores it: a ruleset with no doubles rule has no doubles limit. The pad shows
  * that limit, and with no network closes a round on it.
  *
- * It is the format of a bout generated NOW. The scorer reads the pair stamped
- * on each bout at its generation, and a change of the Tournament's ruleset
- * leaves the bouts already generated on the old pair: for those this answer
- * and the scorer can differ.
+ * It is the format of a bout not yet started. The scorer reads the pair stamped
+ * on each bout, and a change of the Tournament's ruleset moves only the bouts
+ * that have not started (`restampUnstartedMatches`): for a bout started before
+ * an audited re-pin, this answer and the scorer can differ.
  */
 export async function readMatchConfig(
   deps: EventAuthzDeps & { rulesets: RulesetResolver },

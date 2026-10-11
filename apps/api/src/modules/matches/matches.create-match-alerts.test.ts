@@ -18,7 +18,11 @@ const DTO = {
 };
 
 function makeService(matches: TableSeed) {
-  const supabase = mockSupabase({ matches });
+  // The new bout takes the ruleset of its phase's Tournament: the phase is read.
+  const supabase = mockSupabase({
+    matches,
+    phases: { rows: [{ id: 'phase-1', tournaments: { ruleset_code: 'TF_v1' } }] },
+  });
   /** The writes of bouts that had landed when the seam was asked. */
   const boutWritesWhenAsked: string[][] = [];
   const matchAlerts = {

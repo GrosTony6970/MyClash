@@ -17,7 +17,17 @@ const RESET = { confirmation: 'RESET MATCH', reason: 'replay the bout' };
 
 function setup(status: string, over: Record<string, TableSeed> = {}) {
   const supabase = mockSupabase({
-    matches: { rows: [{ id: 'match-1', locked_at: null, status }] },
+    // The reset reads the ruleset of the bout's Tournament before it writes.
+    matches: {
+      rows: [
+        {
+          id: 'match-1',
+          locked_at: null,
+          status,
+          phases: { tournaments: { ruleset_code: 'TF_v1' } },
+        },
+      ],
+    },
     exchanges: { rows: [] },
     match_penalties: { rows: [] },
     match_events: { rows: [] },

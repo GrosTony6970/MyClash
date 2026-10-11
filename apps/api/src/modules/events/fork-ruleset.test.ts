@@ -15,6 +15,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { buildCodedForkRow } from './ruleset-defaults';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { restampUnstartedMatches } from '../phases/match-ruleset';
+import type * as MatchRuleset from '../phases/match-ruleset';
+
+// The restamp of the bouts not yet started has its own tests
+// (`match-ruleset.restamp.test.ts`). Here: which door calls it, and when.
+vi.mock('../phases/match-ruleset', async (original) => ({
+  ...(await original<typeof MatchRuleset>()),
+  restampUnstartedMatches: vi.fn(() => Promise.resolve()),
+}));
+/** The Tournaments whose bouts not yet started were stamped again, in order. */
+const restamped = () => vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1]);
 
 const assertOrgRole = vi.fn();
 
@@ -167,6 +178,23 @@ describe('forkCodedRulesetForTournament', () => {
       ruleset_version: '1.0.0',
     });
     await expect(svc.forkCodedRulesetForTournament('t1', 'u1')).rejects.toThrow(/built-in/i);
+    expect(restamped()).toEqual([]);
+  });
+
+  it('points the bouts not yet started at the fork too, once the Tournament points at it', async () => {
+    // The organisation edits the fork from here on: a bout left on the built-in
+    // would not follow (operator, 2026-10-11).
+    const { svc, captured } = forkHarness(TF_TOURNAMENT);
+    vi.mocked(restampUnstartedMatches).mockImplementationOnce(() => {
+      expect(captured.repoint).not.toBeNull();
+      // After the audit: a restamp that fails leaves no fork nobody logged.
+      expect(captured.audit).not.toBeNull();
+      return Promise.resolve();
+    });
+
+    await svc.forkCodedRulesetForTournament('t1', 'u1');
+
+    expect(restamped()).toEqual(['t1']);
   });
 });
 

@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { unplayedMatchColumns } from '../matches/unplayed-match-columns';
+import { matchRulesetForBout } from './match-ruleset';
 
 /**
  * Put one bout back to unplayed, from outside MatchesService.
@@ -43,6 +44,9 @@ export async function revertMatchToUnplayed(
   reason: string,
   actor: RevertActor = {},
 ): Promise<void> {
+  // Back to "not started": the bout takes its Tournament's ruleset of now.
+  // Read before any write, so a failed read leaves the bout whole.
+  const ruleset = await matchRulesetForBout(supabase, matchId);
   const voidedExchanges = await supabase
     .from('exchanges')
     .update({ voided: true, voided_reason: reason })
@@ -59,7 +63,10 @@ export async function revertMatchToUnplayed(
 
   await insertResetEvent(supabase, matchId, reason, actor);
 
-  const { error } = await supabase.from('matches').update(unplayedMatchColumns()).eq('id', matchId);
+  const { error } = await supabase
+    .from('matches')
+    .update({ ...unplayedMatchColumns(), ...ruleset })
+    .eq('id', matchId);
   if (error) throw new BadRequestException(error.message);
 }
 

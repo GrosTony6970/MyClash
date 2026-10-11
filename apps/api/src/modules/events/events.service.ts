@@ -60,6 +60,7 @@ import type {
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
+import { restampUnstartedMatches } from '../phases/match-ruleset';
 import { diffRulesetBuckets, projectRulesetBuckets, RulesetRegistry } from '@myclash/rulesets';
 import type { BucketDiff, RulesetBucketInputs } from '@myclash/rulesets';
 import {
@@ -3347,17 +3348,22 @@ export class EventsService {
       await freezePenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId, userId);
     }
     // Restamp the content hash when anything score-determining changed.
-    if (
+    const scoringChanged =
       codeChanged ||
       versionChanged ||
       penaltyChanged ||
       dto.rulesetConfig !== undefined ||
-      dto.scoringConfig !== undefined
-    ) {
-      await this.stampTournamentContentHash(tournamentId);
-    }
+      dto.scoringConfig !== undefined;
+    if (scoringChanged) await this.stampTournamentContentHash(tournamentId);
     const before = current as { id: string; event_id: string; status: string };
     await this.afterTournamentStatus(before, dto.status);
+    // The bouts not yet started follow (operator, 2026-10-11). Also when the
+    // PATCH names the ruleset the Tournament already has: a second send of the
+    // same form then repairs a restamp that failed. LAST: it can throw, and
+    // the steps of a status change above must not be skipped by it.
+    if (scoringChanged || dto.rulesetCode !== undefined || dto.rulesetVersion !== undefined) {
+      await restampUnstartedMatches(this.supabase.service, tournamentId);
+    }
     return data;
   }
 
@@ -3410,6 +3416,10 @@ export class EventsService {
       toCode: fork['code'],
       forkId: fork['id'],
     });
+    // The bouts not yet started point at the fork too: the organisation edits
+    // the fork from here on, and a bout left on the built-in would not follow.
+    // After the audit: a restamp that fails must not leave a fork nobody logged.
+    await restampUnstartedMatches(this.supabase.service, tournamentId);
     return { ruleset: fork, tournament: updated };
   }
 
@@ -3582,10 +3592,12 @@ export class EventsService {
       before,
       after,
     });
-    // Restamp the tournament's current hash. Already-generated matches keep their
-    // generation-time hash, so match.hash != tournament.hash now signals the
-    // re-pin drift (which the public event page also discloses).
+    // Restamp the tournament's current hash, then the bouts NOT YET STARTED
+    // (operator, 2026-10-11): they are fought under the new ruleset. A bout that
+    // started keeps its pair and its hash, so match.hash != tournament.hash
+    // still marks the bouts fought before the re-pin.
     await this.stampTournamentContentHash(tournamentId);
+    await restampUnstartedMatches(this.supabase.service, tournamentId);
     return { tournament: updated, rulesetChange: { fromCode, toCode, diff } };
   }
 

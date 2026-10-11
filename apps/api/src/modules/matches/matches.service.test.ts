@@ -935,7 +935,25 @@ describe('MatchesService', () => {
      * final `.select('*').single()` needs.
      */
     const resettableMatch = (over: Record<string, unknown> = {}): Record<string, TableSeed> => ({
-      matches: { rows: [{ id: 'match-1', locked_at: null, status: 'scheduled', ...over }] },
+      matches: {
+        rows: [
+          {
+            id: 'match-1',
+            locked_at: null,
+            status: 'scheduled',
+            // The bout's Tournament was re-pinned since the bout was fought.
+            ruleset_code: 'TF_v1',
+            phases: {
+              tournaments: {
+                ruleset_code: 'Generic_PointsCap',
+                ruleset_version: '1',
+                ruleset_content_hash: 'hash-now',
+              },
+            },
+            ...over,
+          },
+        ],
+      },
       exchanges: { rows: [] },
       match_penalties: { rows: [] },
       match_events: { rows: [] },
@@ -988,6 +1006,34 @@ describe('MatchesService', () => {
       // Which bout. The old assertion could not say, so resetting the wrong one
       // satisfied it.
       expect(scopedTo(reset, 'id')).toBe('match-1');
+    });
+
+    it("resetMatch gives the bout its Tournament's ruleset of now: it is fought again under it", async () => {
+      // Fought under TF_v1, then the Tournament was re-pinned. A bout that is
+      // not started takes the Tournament's ruleset (operator, 2026-10-11).
+      const { service: resetService, supabase } = makeService(resettableMatch());
+
+      await resetService.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' });
+
+      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
+        status: 'scheduled',
+        ruleset_code: 'Generic_PointsCap',
+        ruleset_version: '1.0.0',
+        ruleset_content_hash: 'hash-now',
+      });
+      expect(selectsFor(supabase.from, 'matches')).toContain(
+        'phases(tournaments(ruleset_code, ruleset_version, ruleset_content_hash))',
+      );
+    });
+
+    it('resetMatch writes nothing when the ruleset of the bout cannot be read', async () => {
+      // Not "no ruleset": that would put the bout on TF_v1.
+      const { service: resetService, supabase } = makeService(resettableMatch({ phases: null }));
+
+      await expect(
+        resetService.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' }),
+      ).rejects.toThrow('The ruleset of bout match-1 was not read: no Tournament');
+      expect(supabase.writes).toEqual([]);
     });
 
     /**
@@ -1093,8 +1139,16 @@ describe('MatchesService', () => {
     const seed = (): Record<string, TableSeed> => ({
       phases: {
         rows: [
-          { id: 'phase-elsewhere', tournaments: { event_id: 'event-2' } },
-          { id: 'phase-1', tournaments: { event_id: 'event-1' } },
+          { id: 'phase-elsewhere', tournaments: { event_id: 'event-2', ruleset_code: 'TF_v1' } },
+          {
+            id: 'phase-1',
+            tournaments: {
+              event_id: 'event-1',
+              ruleset_code: 'Generic_PointsCap',
+              ruleset_version: '1',
+              ruleset_content_hash: 'hash-1',
+            },
+          },
         ],
       },
       lices: { rows: LICES },
@@ -1121,7 +1175,25 @@ describe('MatchesService', () => {
         { checkOnly: true },
       );
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
-      expect(selectsFor(supabase.from, 'phases')).toEqual(['id, tournaments!inner(event_id)']);
+      expect(selectsFor(supabase.from, 'phases')).toEqual([
+        'id, tournaments!inner(event_id)',
+        'tournaments(ruleset_code, ruleset_version, ruleset_content_hash)',
+      ]);
+    });
+
+    it("stamps the new bout with its own Tournament's ruleset, as a generated bout", async () => {
+      // This door stamped TF_v1 on every bout: a bout made by hand in a
+      // points-cap Tournament was scored with the wrong engine (operator,
+      // 2026-10-11). The route takes no ruleset from the caller any more.
+      const { service, supabase } = makeService(seed());
+
+      await service.createMatch(dto('lice-1'));
+
+      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
+        ruleset_code: 'Generic_PointsCap',
+        ruleset_version: '1.0.0',
+        ruleset_content_hash: 'hash-1',
+      });
     });
 
     it('inserts nothing when the placement owner refuses', async () => {

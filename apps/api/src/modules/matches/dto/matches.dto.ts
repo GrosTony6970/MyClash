@@ -10,8 +10,6 @@ const createMatchSchema = z
     redRegistrationId: z.uuid(),
     blueRegistrationId: z.uuid(),
     scheduledAt: z.iso.datetime().optional(),
-    rulesetCode: z.string().optional(),
-    rulesetVersion: z.string().optional(),
     matchNumberLabel: z.string().optional(),
   })
   .strict();

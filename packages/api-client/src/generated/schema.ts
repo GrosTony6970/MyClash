@@ -10189,8 +10189,6 @@ export interface components {
       blueRegistrationId: string;
       /** Format: date-time */
       scheduledAt?: string;
-      rulesetCode?: string;
-      rulesetVersion?: string;
       matchNumberLabel?: string;
     };
     UpdateMatchStatusDto: {

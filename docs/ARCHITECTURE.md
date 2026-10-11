@@ -819,13 +819,16 @@ flowchart TD
   P["penalty_ruleset_version<br/>(immutable snapshot)"] --> EFF
   EFF --> H["sha256 → ruleset_content_hash"]
   H --> TH["tournaments.ruleset_content_hash<br/>current — recomputed on any pin change"]
-  H --> MH["matches.ruleset_content_hash<br/>FROZEN at match generation"]
+  H --> MH["matches.ruleset_content_hash<br/>FROZEN when the match starts"]
 ```
 
 `(code, version)` identifies the _definition_; the content hash identifies the _effective behaviour_.
-Two TF_v1 tournaments with different `winBonus` resolve to the same engine but hash differently. The
-match-level copy is frozen when the match is generated, so a scored match permanently records which
-behaviour produced it.
+Two TF_v1 tournaments with different `winBonus` resolve to the same engine but hash differently. A
+match carries its own copy of the pair and of the hash, and is scored with that pair. The copy is
+written when the match is generated, and again at each change of the Tournament's rules while the
+match has not started (`restampUnstartedMatches`; a match put back to "not started" takes the
+Tournament's pair of that moment). From its start the copy is frozen, so a scored match
+permanently records which behaviour produced it.
 
 Because a live pointer change rewrites recorded standings, mid-event re-pinning is not a plain update —
 it is an audited ceremony (typed confirmation, mandatory justification, org-owner or super-admin,

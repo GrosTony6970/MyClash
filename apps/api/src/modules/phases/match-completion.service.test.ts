@@ -203,7 +203,13 @@ function uncompleteSupabase(fixture: {
 }) {
   return mockSupabase({
     bracket_slots: { rows: fixture.slots },
-    matches: { rows: fixture.matches },
+    // A bout that is reverted takes the ruleset of its Tournament: the read needs one.
+    matches: {
+      rows: fixture.matches.map((row) => ({
+        phases: { tournaments: { ruleset_code: 'Generic_PointsCap', ruleset_version: '1' } },
+        ...row,
+      })),
+    },
     vw_tournament_query_matches: { rows: fixture.matches },
     phases: { rows: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }] },
     match_forfeits: { rows: fixture.match_forfeits ?? [] },
@@ -308,6 +314,12 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
         (w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled',
       ),
     ).toBe(true);
+    // …under its Tournament's ruleset of now: a bout not started takes it
+    // (operator, 2026-10-11), and a re-pin may have passed since it was fought.
+    expect(
+      supabase.writes.find((w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled')
+        ?.row,
+    ).toMatchObject({ ruleset_code: 'Generic_PointsCap', ruleset_version: '1.0.0' });
     // …with the event that returns its clock to idle, without which the pad
     // could not start the replay.
     expect(
