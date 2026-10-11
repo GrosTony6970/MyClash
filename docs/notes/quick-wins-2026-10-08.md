@@ -407,8 +407,37 @@ Named while commit 5 was built, and not fixed (each one checked in code by a rev
 - With a queue of several bouts, the screen of one bout can stay for a moment on what it showed
   after its own rows are sent. It takes the server's answer at the next read.
 - The corrections drawer still takes a card on a bout whose series is decided.
-- Left for the next commit of the plan: the resume warning's "End match" on a best-of bout still
-  ends the bout with no winner. It will read "End round" (ruling 3 of 2026-10-10).
+- ~~Left for the next commit of the plan: the resume warning's "End match" on a best-of bout still
+  ends the bout with no winner.~~ Done `ef32a780`: it reads "End round" and ends the round.
+
+**Commit 6 of slice 4b is built: `ef32a780`** (2026-10-11). Best-of-3, the clock at 0:00, red
+leads. The official taps Resume and the warning "the clock should not restart" opens. Its second
+button now reads "End round" and gives the round to the leader, as the "End round" button does;
+its sentence asks "or end the round?". Before, it read "End match" and completed the bout with no
+winner and no round closed, with wifi too. A bout of one round keeps "End match".
+
+Named while commit 6 was built, and not fixed (each one checked in code by a review):
+
+- The warning opens in the last seconds of the time too (the soft zone), and "the time is
+  finished" starts at 0:00 only. A LEVEL round halted at 0:03: Resume, the warning, "End round",
+  and the pad answers "level, but the time is not finished". A bout of one round does the same.
+- The unstable Space test `tests/a11y/pad-space-behind-dialogs.spec.ts:100` failed once here with
+  a new sign: the button read "Resume", Space was pressed, and the pad sent a clock START. The
+  key handler read a clock from before the read of the bout. That is a fault of the pad, not of
+  the test: for the work on the unstable tests.
+
+Four rulings on 2026-10-11, at the start of the session:
+
+| Asked with this story                                                                                                                                                              | Ruling                                                                                                                                                                             | Done      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| An organiser generates the Pools under ruleset A, then switches the Tournament to ruleset B before the first bout. The table is computed with B and every bout is scored with A.   | **The bouts not yet started take the Tournament's new ruleset.** Bouts started or finished keep theirs. A bout made through the "create a match" route takes its Tournament's too. | not built |
+| A best-of-3 ends, red won two rounds, the last one 5-3. The result screen shows the rounds won (2 – 0); before `d43507ed` a confirmed bout showed the last round's points (5 – 3). | **Both**: the rounds won as the large number, and the points of each round in a small line under it.                                                                               | not built |
+| Reverse scoring (a bout that counts down from the cap), best-of-3, no wifi. The tablet closes no round and opens none by itself there.                                             | **Build the countdown on the tablet**: such a bout runs with no network as any best-of bout does. A slice of its own, with its plan.                                               | not built |
+| Red is at 4 of 5; the official means blue and taps red. "Round 1 complete" opens with one button, and the wrong hit cannot be taken back there.                                    | **The round-break screen gets "Undo last entry".** "Start round N" stays its first button.                                                                                         | not built |
+
+The "create a match" route (`POST /phases/:phaseId/matches`) has no button in any of the three
+apps: only a direct call of the API reaches it. It stamps `TF_v1` unless the caller names a
+ruleset.
 
 **A bug found while commit 3 was built, NOT fixed, and a question for the operator.** A bout
 keeps the ruleset it was generated with. An organiser generates the Pools of a Tournament under
