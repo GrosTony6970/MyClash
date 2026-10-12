@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`38` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`40` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -114,6 +114,8 @@ the pass/fail record.
 | `36` | uncomplete cascade       | `E2E_UNCOMPLETE`                                                                                                                                                                                                         |
 | `37` | api failure seam (admin) | `E2E_SUPERADMIN_EMAIL` / `E2E_SUPERADMIN_PASSWORD` — every test in it skips without them                                                                                                                                 |
 | `38` | api failure seam (org)   | none                                                                                                                                                                                                                     |
+| `39` | late presses             | `E2E_SCORING_PAD`                                                                                                                                                                                                        |
+| `40` | offline bout             | — always runs                                                                                                                                                                                                            |
 
 </div>
 
@@ -469,6 +471,17 @@ composes its own request bodies. What was missing is proof the **pad** composes
 them correctly. So this spec clicks — double, no exchange, afterblow, a penalty
 card, and the clock through `start → halt → resume → end` — and asserts what the
 server ended up holding after each one.
+
+Since the clock runs on the tablet, that last part needs care. A Start, a Pause, a
+Resume and an End act on the screen at the tap and are sent behind, through the
+tablet's queue, each with an id. So `clock-status` on screen is the TABLET's clock:
+it turns to `running` before any request leaves. The spec asks the server's own
+clock (`GET matches/:id/clock`) after each press. The bodies with no id that `10`
+sends are no longer the pad's for those doors; the pad's bodies, and a press sent
+twice with one id, are `39-late-presses.spec.ts` (same flag as `10`). A whole bout
+with no network, a reload on the tablet's copy included, is `40-offline-bout.spec.ts`.
+`39` and `40` were written by reading the code on 2026-10-12, when the deployed build
+was older than these doors: read their first run as a first run.
 
 Things worth knowing before touching it:
 
@@ -1216,6 +1229,8 @@ of the bracket says afterwards:
 | 36  | Un-completing a bracket match           | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above   |
 | 37  | The api-failure seam, `/admin` consoles | `37-api-failure-seam.spec.ts`       | needs super-admin; skips without it      |
 | 38  | The api-failure seam, org + public      | `38-api-failure-seam-org.spec.ts`   | always                                   |
+| 39  | The tablet's presses, sent twice        | `39-late-presses.spec.ts`           | opt-in (`E2E_SCORING_PAD=1`); see `16`   |
+| 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                         |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The nightly does **not** set all of

@@ -13,6 +13,8 @@ import { createBracketTournament, ensureRoster, personName } from './_bracket';
  * `10-scoring-pad.spec.ts` cannot close that gap: it composes its own request
  * bodies, and the bug was in how the PAD composes them. So every action here is
  * a real click, and every assertion is on what the server ended up holding.
+ * The clock needs that said twice: since it runs on the tablet, the status on
+ * screen moves on the tap, so each clock step also asks the server's clock.
  *
  * The invariant threaded through it is AGENTS.md rule #1: score is DERIVED from
  * exchanges, never stored as the source of truth.
@@ -84,6 +86,8 @@ test.describe('scoring pad UI', () => {
     const readPenalties = async (): Promise<PenaltyRow[]> =>
       api.json<PenaltyRow[]>(await api.get(`matches/${match.matchId}/penalties`));
     const exchangeCount = async (): Promise<number> => (await readExchanges()).length;
+    const serverClock = async (): Promise<string> =>
+      (await api.json<{ status: string }>(await api.get(`matches/${match.matchId}/clock`))).status;
 
     /**
      * AGENTS.md rule #1, after every click: the persisted score must be BOTH the
@@ -313,6 +317,9 @@ test.describe('scoring pad UI', () => {
     // referee is watching the bout, not the tablet. Nothing covered this rule.
     await primaryClock.click();
     await expect(clockStatus).toHaveAttribute('data-status', 'running', { timeout: 20_000 });
+    // The clock on screen is the TABLET's: it moves on the tap, before any
+    // request leaves. The server's own clock is asked after each press.
+    await expect.poll(serverClock, { timeout: 20_000 }).toBe('running');
     await expect(
       cleanHit('red', '+2'),
       'scoring must be locked while the clock runs',
@@ -325,6 +332,7 @@ test.describe('scoring pad UI', () => {
     // ── 7) halt — and scoring comes back ──────────────────────────────────────
     await primaryClock.click();
     await expect(clockStatus).toHaveAttribute('data-status', 'halted', { timeout: 20_000 });
+    await expect.poll(serverClock, { timeout: 20_000 }).toBe('halted');
     await expect(primaryClock).toHaveAttribute('data-action', 'resume');
     await expect(cleanHit('blue', '+1')).toBeEnabled({ timeout: 20_000 });
 
@@ -337,6 +345,7 @@ test.describe('scoring pad UI', () => {
     // ── 8) resume ─────────────────────────────────────────────────────────────
     await primaryClock.click();
     await expect(clockStatus).toHaveAttribute('data-status', 'running', { timeout: 20_000 });
+    await expect.poll(serverClock, { timeout: 20_000 }).toBe('running');
 
     // ── 9) End the match ──────────────────────────────────────────────────────
     // Ending the clock is one of only two ways a pad-scored match ever finishes

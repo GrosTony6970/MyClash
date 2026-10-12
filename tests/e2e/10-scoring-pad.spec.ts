@@ -1,8 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { runContext } from './_context';
-import { apiFor, type Api } from './_api';
-import { createBracketTournament, ensurePersons, openForScoring, type Person } from './_bracket';
+import { apiFor } from './_api';
+import { openForScoring } from './_bracket';
+import {
+  POINT_CAP,
+  aMatch,
+  clockMs,
+  expectScore,
+  hit,
+  nextSequence,
+  readMatch,
+  type MatchRow,
+} from './_pad';
 
 /**
  * The scoring pad's server contract, end to end against a real database.
@@ -19,6 +28,14 @@ import { createBracketTournament, ensurePersons, openForScoring, type Person } f
  * that endpoint was dead for real users while the tests stayed green. Driving
  * the pad's OWN endpoints is the point.
  *
+ * The routes are the pad's; most bodies here are no longer its own. Since the
+ * clock runs on the tablet, the pad sends Start, Pause, Resume, End, the two
+ * round buttons and the step of a level bout with an id and two times, through
+ * its queue. The bodies with no id used here are the form a person's press
+ * takes with a network (Reopen and Reset still do), and the server keeps it
+ * for the three other doors. The pad's own bodies, and a press sent twice,
+ * are `39-late-presses.spec.ts`.
+ *
  * API-driven by choice. The browser work that genuinely needs a client — the
  * IndexedDB outbox and reconnect sync — already has `06`/`08`; what is missing
  * is exact, fast assertions on the server contract underneath.
@@ -32,26 +49,6 @@ import { createBracketTournament, ensurePersons, openForScoring, type Person } f
 const SCORING_PAD = ['1', 'true', 'yes'].includes(
   (process.env.E2E_SCORING_PAD ?? '').toLowerCase(),
 );
-
-/** Low cap so a match completes in few exchanges; also a realistic HEMA value. */
-const POINT_CAP = 5;
-
-interface MatchRow {
-  id: string;
-  status: string;
-  red_score: number | null;
-  blue_score: number | null;
-  winner_registration_id: string | null;
-  end_reason: string | null;
-  red_registration_id: string | null;
-  blue_registration_id: string | null;
-  /** Best-of state. `red_score`/`blue_score` track the OPEN round, not the series. */
-  current_round?: number | null;
-  rounds_json?: unknown;
-  red_round_wins?: number | null;
-  blue_round_wins?: number | null;
-  awaiting_round_advance?: boolean | null;
-}
 
 /** Closed rounds from the `rounds_json` cache, tolerating null/non-array. */
 const closedRounds = (match: MatchRow): unknown[] =>
@@ -165,7 +162,20 @@ test.describe('scoring pad', () => {
     expect(atTime['code']).toBe('level_at_time_unresolved');
     expect(atTime['details']).toMatchObject({ remedy: 'extra_time', seconds: 60 });
 
-    await api.ok(await advance());
+    const first = await api.json<{
+      applied: { kind: string };
+      clock: { status: string; events: Array<{ type: string; adjustmentMs: number | null }> };
+    }>(await advance());
+    expect(first.applied.kind).toBe('extra_time');
+    expect(first.clock.status, 'the step leaves the clock halted').toBe('halted');
+    // The step is ONE line of the bout's timeline, and the minute is on that
+    // line. It was two (the step, then a time adjustment): when the second
+    // write failed, the step was counted and the minute was not given. The one
+    // time adjustment here is `runTimeOut`'s.
+    const typed = (type: string) => first.clock.events.filter((e) => e.type === type);
+    expect(typed('level_resolution')).toHaveLength(1);
+    expect(typed('level_resolution')[0]?.adjustmentMs, 'the minute, on the step').toBeLessThan(0);
+    expect(typed('adjust_time'), 'no second line for the minute').toHaveLength(1);
     // Anchored on the DISPLAY, not a flat −60s: whatever overshoot elapsed had
     // accumulated, the clock now reads exactly a minute of the 90s limit left.
     expect(await clockMs(api, matchId), 'a minute back on the clock').toBe(30_000);
@@ -360,7 +370,7 @@ test.describe('scoring pad', () => {
     const stray = await api.post(`matches/${matchId}/exchanges`, {
       data: {
         clientUuid: randomUUID(),
-        sequence: ++sequence,
+        sequence: nextSequence(),
         type: 'clean',
         firstStrikerColor: 'red',
         firstStrikeValue: 1,
@@ -368,6 +378,8 @@ test.describe('scoring pad', () => {
       },
     });
     expect(stray.status(), 'scoring while awaiting advance must be refused').toBe(400);
+    // The code is what the tablet holds the hit by, with its bout behind it.
+    expect((await stray.json())['code']).toBe('round_awaits_advance');
 
     // ── Round 2 ───────────────────────────────────────────────────────────
     const advanced = await api.json<{ currentRound: number }>(
@@ -539,122 +551,3 @@ test.describe('scoring pad', () => {
     );
   });
 });
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * A single playable match to score against.
- *
- * Built as a 2-fighter double-elim bracket: the smallest shape that yields one
- * real match row wired to a phase and a ruleset, with no pools to finish first.
- * Each test gets its own so a completed match never leaks into the next case.
- */
-async function aMatch(
-  api: Api,
-  key: string,
-  opts: {
-    afterblowMode?: 'full' | 'deductive';
-    bestOf?: { pool: number; bracket: number; finals: number };
-    /** 0 = no limit, so `timeIsFinished` is true at once and the level-at-time
-     *  chain can be driven without waiting out a real phase clock. */
-    timeLimitsSeconds?: { pool: number; bracket: number; finals: number };
-  } = {},
-): Promise<{
-  tournamentId: string;
-  matchId: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
-}> {
-  const { eventId } = runContext();
-  const roster: Person[] = await ensurePersons(api, eventId, 2);
-  const token = `${key}-${Date.now().toString(36)}`;
-
-  const tournament = await createBracketTournament(api, eventId, {
-    name: `Pad ${key}`,
-    slug: `pad-${token}`,
-    fighters: roster.slice(0, 2),
-  });
-
-  // pointCap must go through a PATCH: createTournament only started honouring
-  // rulesetConfig recently, and afterblowMode lives on scoringConfig.
-  await api.ok(
-    await api.patch(`tournaments/${tournament.id}`, {
-      data: {
-        rulesetConfig: {
-          matchFormat: {
-            pointCap: POINT_CAP,
-            ...(opts.bestOf ? { bestOf: opts.bestOf } : {}),
-            ...(opts.timeLimitsSeconds ? { timeLimitsSeconds: opts.timeLimitsSeconds } : {}),
-          },
-        },
-        ...(opts.afterblowMode ? { scoringConfig: { afterblowMode: opts.afterblowMode } } : {}),
-      },
-    }),
-  );
-
-  await api.ok(
-    await api.post(`tournaments/${tournament.id}/generate-bracket`, {
-      data: { phaseType: 'double_elim', qualifyCount: 2 },
-    }),
-  );
-  await api.ok(await api.post(`tournaments/${tournament.id}/populate-bracket`, { data: {} }));
-
-  const bracket = await api.json<{
-    slots: Array<{
-      round: number;
-      matchId: string | null;
-      redRegistrationId: string | null;
-      blueRegistrationId: string | null;
-    }>;
-  }>(await api.get(`tournaments/${tournament.id}/bracket`));
-
-  const slot = bracket.slots.find(
-    (s) => s.round === 1 && s.matchId && s.redRegistrationId && s.blueRegistrationId,
-  );
-  expect(slot, `no playable round-1 match for ${key}`).toBeDefined();
-
-  return {
-    tournamentId: tournament.id,
-    matchId: slot!.matchId as string,
-    redRegistrationId: slot!.redRegistrationId as string,
-    blueRegistrationId: slot!.blueRegistrationId as string,
-  };
-}
-
-let sequence = 0;
-
-/** Post one exchange the way the pad does, and return the created row. */
-async function hit(
-  api: Api,
-  matchId: string,
-  body: Record<string, unknown>,
-): Promise<{ id: string }> {
-  await openForScoring(api, matchId);
-  return api.json<{ id: string }>(
-    await api.post(`matches/${matchId}/exchanges`, {
-      data: {
-        clientUuid: randomUUID(),
-        sequence: ++sequence,
-        occurredAt: new Date().toISOString(),
-        clockTimeMs: sequence * 5_000,
-        ...body,
-      },
-    }),
-  );
-}
-
-const readMatch = async (api: Api, matchId: string): Promise<MatchRow> =>
-  api.json<MatchRow>(await api.get(`matches/${matchId}`));
-
-/** Assert the PERSISTED score equals what the engine should have derived. */
-async function expectScore(api: Api, matchId: string, red: number, blue: number): Promise<void> {
-  const match = await api.json<MatchRow>(await api.get(`matches/${matchId}`));
-  expect({ red: match.red_score, blue: match.blue_score }).toEqual({ red, blue });
-}
-
-async function clockMs(api: Api, matchId: string): Promise<number> {
-  const state = await api.json<{ totalActiveMs: number }>(
-    await api.get(`matches/${matchId}/clock`),
-  );
-  return state.totalActiveMs;
-}
