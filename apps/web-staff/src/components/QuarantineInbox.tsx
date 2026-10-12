@@ -9,6 +9,7 @@ import {
   discardQuestion,
   heldBoutLine,
   heldPressLabel,
+  heldLevelLabel,
   heldRoundLabel,
   heldWaitingLine,
   heldWhoLine,
@@ -58,6 +59,8 @@ function entryLabel(
       return heldPressLabel(entry.pressAction, t);
     case 'round':
       return heldRoundLabel(entry, t);
+    case 'level':
+      return heldLevelLabel(entry.level, t);
     case 'penalty':
       return t('scoring.quarantine.typePenalty');
     case 'exchange':

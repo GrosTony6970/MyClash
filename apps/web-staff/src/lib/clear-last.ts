@@ -127,7 +127,9 @@ async function undoLanded(
   const { apiUrl, t } = deps;
   const kind = kindOf(entry);
   // `undoLastEntry` lists hits and cards only: a press here is a bug of this file.
-  if (kind === 'press' || kind === 'round') throw new Error('A press is never undone');
+  if (kind === 'press' || kind === 'round' || kind === 'level') {
+    throw new Error('A press is never undone');
+  }
   // No id (the store kept none, or the entry's own uuid after a second try).
   if (serverId && serverId !== entry.clientUuid) {
     return voidOnServer(apiUrl, { kind, id: serverId }, t);
@@ -187,6 +189,16 @@ async function undoOnTablet(
  * reads. So what is written down is read BEFORE the server: an entry forgotten
  * during the read is still left out, and it is voided by then.
  */
+/** A queued round press, or a queued step of a level bout: the undo stops there. */
+const closesEntriesBefore = (row: OutboxEntry): boolean =>
+  kindOf(row) === 'round' || kindOf(row) === 'level';
+
+/** Why the undo stops at that row, in the words of what it is. */
+const undoStops = (row: OutboxEntry | undefined): string =>
+  row && kindOf(row) === 'level'
+    ? 'scoring.level.undoStopsAtStep'
+    : 'scoring.rounds.undoStopsAtRound';
+
 export async function undoLastEntry(deps: UndoDeps): Promise<UndoOutcome> {
   // A press (the clock's, a round's) is no entry of the bout's list: the undo never takes one back.
   const queued = await getPendingForMatch(deps.matchId);
@@ -194,14 +206,17 @@ export async function undoLastEntry(deps: UndoDeps): Promise<UndoOutcome> {
   // "End round" closes the entries before it with their round: taking one back
   // would make that press a lie (the round it closed is no longer over). So
   // only the entries queued AFTER the bout's newest round press can be undone,
-  // and with none the undo says so, and asks the server for nothing.
+  // and with none the undo says so, and asks the server for nothing. A queued
+  // step of a level bout ("Extra time", "Sudden death") closes the entries
+  // before it the same way: they made the board level, and one taken back
+  // would make the step a lie.
   const lastRoundPress = queued.reduce(
-    (last, row, at) => (kindOf(row) === 'round' ? at : last),
+    (last, row, at) => (closesEntriesBefore(row) ? at : last),
     -1,
   );
   const waiting = queued.slice(lastRoundPress + 1).filter((entry) => !isTap(entry));
   if (lastRoundPress >= 0 && waiting.length === 0) {
-    return { kind: 'failed', message: deps.t('scoring.rounds.undoStopsAtRound') };
+    return { kind: 'failed', message: deps.t(undoStops(queued[lastRoundPress])) };
   }
   const takenBack = new Set((await listUndone()).map((entry) => entry.clientUuid));
   const read = await readServerEntries(deps.apiUrl, deps.matchId);

@@ -207,6 +207,19 @@ export const scoring = {
     discardRoundTitle: 'Supprimer cette action sur la manche ?',
     discardRoundBody:
       'L’action sur la manche est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées, et le serveur les compte dans la manche qu’il a en cours.',
+    levelNotLevel:
+      'Pour le serveur, les scores de cet assaut ne sont pas à égalité : il n’a pas appliqué cette étape. Supprimez-la, puis vérifiez le score avec la table.',
+    levelStepNotPending:
+      'Le serveur n’attend pas cette étape : pour lui, l’assaut n’a pas cette étape à jouer, ou en est à une autre. Supprimez-la, puis vérifiez le chrono avec la table.',
+    levelTimeNotFinished:
+      'Pour le serveur, le temps de cet assaut n’était pas écoulé à cet appui : il n’a pas appliqué cette étape. Supprimez-la, puis vérifiez le chrono.',
+    levelNotApplied:
+      'Le serveur n’a pas appliqué cette étape : l’assaut a été terminé, réinitialisé, corrigé ou a avancé entre-temps. Supprimez-la, puis vérifiez l’assaut avec la table.',
+    endLevel:
+      'Pour le serveur, les scores étaient à égalité à cet appui : il n’a pas terminé. Supprimez cette action, puis vérifiez le score avec la table.',
+    discardLevelTitle: 'Supprimer cette étape ?',
+    discardLevelBody:
+      'L’étape de prolongation ou de mort subite est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées.',
     discardPressTitle: 'Supprimer cette action sur le chrono ?',
     discardPressBody:
       'L’action sur le chrono est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées sans elle.',
@@ -428,6 +441,8 @@ export const scoring = {
     pressHeld:
       'Le serveur a refusé une action sur le chrono de cet assaut. Le chrono affiche ce que le serveur a.',
     roundHeld: 'Le serveur a refusé une action sur une manche de cet assaut.',
+    levelHeld:
+      'Le serveur a refusé une étape de prolongation ou de mort subite de cet assaut. Le chrono affiche ce que le serveur a.',
     entryHeld: 'Le serveur a refusé une saisie de cet assaut.',
     pressHeldWaits:
       'Ce que vous saisissez maintenant sur cet assaut attend derrière. Ouvrez Examiner en haut de l’écran.',
@@ -483,6 +498,8 @@ export const scoring = {
     refusedTimeNotFinished: 'Scores à égalité, mais le temps n’est pas écoulé. Continuez l’assaut.',
     playExtraTime: 'Prolongation {seconds}s',
     playSuddenDeath: 'Mort subite',
+    undoStopsAtStep:
+      'Les saisies d’avant cette prolongation ou cette mort subite sont closes sur cette tablette. Il ne reste rien à annuler après elle.',
     suddenDeathBanner: 'MORT SUBITE',
     suddenDeathHint: 'Se termine quand un tireur mène',
   },

@@ -721,6 +721,7 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `pendingLevelStep` (`@myclash/rules`)                | name the remedy a LEVEL bout is waiting on — extra time, sudden death — on the button that applies it and the clock face that announces it |
 | `timeIsFinished` (`@myclash/rules`)                  | withhold that remedy button until the bout's time has actually run out — the same comparison the server refuses the End on                 |
 | `clockAfterPress` (`@myclash/rules`)                 | show the clock after a press the tablet still holds, by the rules the server replays the bout's clock rows with                            |
+| `extraTimeAdjustmentMs` (`@myclash/rules`)           | put the extra time on the clock for a step of a level bout the tablet still holds, by the correction the server writes on the step's row   |
 | `getEffectiveMaxDoubles` (`@myclash/rules`)          | show the doubles limit the server applies to this bout: the format's in a pool and a Swiss round, none in a bracket                        |
 | `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: at the cap or the doubles limit, by the server's own function |
 | `seriesResult` (`@myclash/rules`)                    | say a best-of series is decided, and for whom, from the rounds closed on the server and on the tablet                                      |
@@ -1338,8 +1339,29 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > (`boutStatusOnPad`), so a bout the tablet started is in play before the server knows. "End
 > match" is judged on the tablet first by the server's own two refusals of a level bout
 > (`endRefusedOnPad`), and the result screen then shows the tablet's own score and leader, marked
-> "not confirmed", until the server has answered the End. Reopen, Reset, the time adjustment and
-> a level bout's remedy still wait for the server.
+> "not confirmed", until the server has answered the End. Reopen, Reset and the time adjustment
+> still wait for the server.
+>
+> **A level bout on the tablet (quick-win ruling 13, and the operator's ruling of 2026-10-12).**
+> A bout, or a round of a best-of bout, that is level when its time ends follows its phase's
+> chain: extra time, then sudden death. The step is a fifth kind of row of the queue (`level`,
+> `queueLevelPress`), kept and sent as a clock press is, to
+> `POST /matches/:id/level-resolution/advance` with an id, the round, the steps the round had
+> taken before it, and two times. The step acts on the screen at once (`hooks/useLevelStep.ts`):
+> the clock's fold counts it, pauses a clock that runs, and puts the extra time on the clock
+> (`clockAfterLevel`, `offline/pad-clock.ts`; the correction is `extraTimeAdjustmentMs`, §7.3), so the button, the skull of sudden death and the
+> End's own two refusals follow the tablet's clock with no word from the server. On the server
+> the step is ONE row of the bout's timeline (`level_resolution`, `matches/level-step.ts`): the
+> position in the chain is the count of those rows, and a step of extra time carries the
+> correction of the clock on that same row (`adjustment_ms`; `clockStep` of `@myclash/rules`
+> folds it as it folds a time adjustment). A clock that runs is halted first, at the time of the
+> step: the official taps Resume when the fighters are ready. A step sent late is taken once, at
+> the time of the tap, and judged on the time the clock had run THEN; one another tablet took
+> already is answered as done; one the server refuses (a board that is not level there, another
+> count of the steps) is held in the inbox with the bout behind it, and the clock goes back to
+> the server's. Sudden death is no state of the server's engine: the bout ends when the official
+> presses "End match" on a board with a leader, as with a network. The undo stops at a step the
+> tablet still holds, as at a round press: the entries before it made the board level.
 >
 > **A press made before the bout was put back in play (operator, 2026-10-11 and 2026-10-12).**
 > While a tablet holds its presses, somebody with a network can end the bout and put it back in
@@ -1385,8 +1407,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > play again. A round "End round" closed is never put back in play by the server: after the
 > undo its screen stays up, and says which entry was cancelled and that the round stays closed
 > (`lib/undone-line.ts`; `PadRound.onTime` is the server's own reason for the closure). A level
-> round at its time is refused on the tablet, in the server's
-> words, and nothing is queued. A bout that counts down (`reverse_zero_loses`) runs the same
+> round at its time is not ended on the tablet: "End round" is refused in the server's words,
+> nothing is queued, and the round plays its chain ("A level bout on the tablet", above). A bout
+> that counts down (`reverse_zero_loses`) runs the same
 > way. The pad adds what it holds to a round's score in one place (`scoreOnPad`,
 > `offline/pad-series.ts`): in earned points, turned into the score by `applyScoringDirection`
 > (§7.3), so a hit takes its points off the opponent and a side stops at zero before its cards,

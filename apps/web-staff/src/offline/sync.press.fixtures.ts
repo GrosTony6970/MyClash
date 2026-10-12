@@ -6,9 +6,9 @@
  */
 import { vi } from 'vitest';
 import type { ClockPress } from '@myclash/types';
-import { db, type OutboxEntry, type RoundPress } from './db';
+import { db, type LevelPress, type OutboxEntry, type RoundPress } from './db';
 import { enqueue } from './outbox';
-import { queuePress, queueRoundPress } from './press-queue';
+import { queueLevelPress, queuePress, queueRoundPress } from './press-queue';
 
 export const API_URL = 'http://localhost:4000';
 export const BOUT = { label: 'P1', red: 'Ana Red', blue: 'Bo Blue' };
@@ -48,6 +48,29 @@ export function addRound(
   );
 }
 
+/** A minute of extra time, the first step of a round whose limit is 90 seconds. */
+export const EXTRA_TIME: LevelPress = {
+  step: 0,
+  kind: 'extra_time',
+  seconds: 60,
+  limitMs: 90_000,
+};
+export const SUDDEN_DEATH: LevelPress = { step: 1, kind: 'sudden_death' };
+
+/** A step of a level bout, tapped in round `round`, `secondsAfterTen` after 10:00. */
+export function addLevel(
+  level: LevelPress = EXTRA_TIME,
+  matchId = 'm1',
+  secondsAfterTen = 0,
+  round = 1,
+): Promise<OutboxEntry> {
+  const ms = secondsAfterTen * 1000;
+  return queueLevelPress(
+    { matchId, round, level, bout: BOUT },
+    { wall: AT_TEN.wall + ms, page: AT_TEN.page + ms, origin: AT_TEN.origin },
+  );
+}
+
 export function addHit(matchId = 'm1', clientUuid = crypto.randomUUID()): Promise<number> {
   return enqueue({
     clientUuid,
@@ -83,11 +106,16 @@ export interface Answer {
   body?: unknown;
 }
 
+const LEVEL_DOOR = 'level-resolution/advance';
+
 /** How the server answers a write it takes: a clock, the open round, or the saved row's id. */
 function taken(door: string, matchId: string, nth: number): Answer {
   if (door === 'clock') return { status: 200, body: { status: 'running', matchId } };
   if (door === 'rounds/advance') return { status: 200, body: { currentRound: 2 } };
   if (door === 'rounds/end') return { status: 200, body: { redScore: 0, blueScore: 0 } };
+  if (door === LEVEL_DOOR) {
+    return { status: 200, body: { status: 'halted', matchId, levelResolutionSteps: 1 } };
+  }
   return { status: 201, body: { id: `saved-${nth}` } };
 }
 
@@ -95,6 +123,7 @@ function taken(door: string, matchId: string, nth: number): Answer {
 function callOf(door: string, matchId: string, body: Record<string, unknown>): string {
   if (door === 'clock') return `clock ${matchId} ${String(body['action'])}`;
   if (door.startsWith('rounds/')) return `${door} ${matchId} ${String(body['round'])}`;
+  if (door === LEVEL_DOOR) return `level ${matchId} ${String(body['step'])}`;
   return `${door} ${matchId}`;
 }
 
@@ -114,7 +143,7 @@ export function mockServer(
       if ((init?.method ?? 'GET') === 'GET') {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
       }
-      const [, matchId, door] = /matches\/([^/]+)\/([\w/]+)$/.exec(url) ?? [];
+      const [, matchId, door] = /matches\/([^/]+)\/([\w/-]+)$/.exec(url) ?? [];
       const body = JSON.parse(init?.body ?? '{}') as Record<string, unknown>;
       const call = callOf(String(door), String(matchId), body);
       calls.push(call);
@@ -142,6 +171,7 @@ export const OFFLINE: Answer = { status: 503, body: { error: 'offline', status: 
 function named(row: OutboxEntry): string {
   if (row.kind === 'press') return `press ${row.pressAction}`;
   if (row.kind === 'round') return `round ${row.roundAction} ${row.round}`;
+  if (row.kind === 'level') return `level ${row.level?.kind} ${row.level?.step}`;
   return 'hit';
 }
 

@@ -43,7 +43,14 @@ import {
   holdsBack,
   holdsPress,
 } from './press-queue';
-import { BoutOrder, CLOCK_ROW_COLLIDED, postPress, postRoundPress, sentAtOf } from './press-send';
+import {
+  BoutOrder,
+  CLOCK_ROW_COLLIDED,
+  postLevelPress,
+  postPress,
+  postRoundPress,
+  sentAtOf,
+} from './press-send';
 import { takeBack, type TakenBack } from './take-back';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -247,12 +254,14 @@ export class SyncEngine {
     // any of that would be teaching the crew a screen they will never see.
     if (isDrillActive()) return Promise.resolve(offlineResponse());
 
-    // Four kinds of row, four doors. No `default`: a fifth kind does not compile.
+    // Five kinds of row, five doors. No `default`: a sixth kind does not compile.
     switch (kindOf(entry)) {
       case 'press':
         return postPress(this.apiUrl, entry);
       case 'round':
         return postRoundPress(this.apiUrl, entry);
+      case 'level':
+        return postLevelPress(this.apiUrl, entry);
       case 'penalty':
         return this.postCard(entry, sequence);
       case 'exchange':

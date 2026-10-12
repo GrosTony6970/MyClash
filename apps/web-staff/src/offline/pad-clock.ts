@@ -10,15 +10,21 @@
  *
  * Pure: no store, no React. The caller gives the rows.
  */
-import { clockAfterPress, type ClockFold, type ClockStatus } from '@myclash/types';
+import {
+  clockAfterPress,
+  extraTimeAdjustmentMs,
+  type ClockFold,
+  type ClockStatus,
+  type LevelStep,
+} from '@myclash/types';
 import type { ClockState } from '../components/scoreboard-clock';
-import { isTap, type OutboxEntry, type PressedOn, type RoundPress } from './db';
+import { isTap, type LevelPress, type OutboxEntry, type PressedOn, type RoundPress } from './db';
 
 const IDLE: ClockFold = { status: 'idle', activeMs: 0, runningFrom: null, startedAt: null };
 
 /**
  * The presses of the queue's rows that move the clock, in the order they were
- * made: the clock's own, and the two round buttons.
+ * made: the clock's own, the two round buttons, and the step of a level bout.
  */
 export function pressesOf(rows: readonly OutboxEntry[]): OutboxEntry[] {
   return rows.filter(isTap).sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
@@ -56,6 +62,39 @@ export function serverClockAfterRound(
   };
 }
 
+/**
+ * The clock after a step of a level bout, as the server leaves it
+ * (`level-step.ts` there). A clock that runs is paused at the tap (operator,
+ * 2026-10-12): the official taps Resume when the fighters are ready. A step of
+ * extra time then moves the time by the correction the server writes on the
+ * step's row (`extraTimeAdjustmentMs`, never under zero, as the server's fold):
+ * the clock reads the seconds given. Sudden death, and extra time in a phase
+ * with no limit, leave the time as it is.
+ */
+export function clockAfterLevel(clock: ClockFold, level: LevelPress, at: string): ClockFold {
+  const paused = clock.status === 'running' ? clockAfterPress(clock, 'halt', at) : clock;
+  if (level.kind !== 'extra_time') return paused;
+  const given = extraTimeAdjustmentMs(level.seconds ?? 0, paused.activeMs, level.limitMs ?? null);
+  return { ...paused, activeMs: Math.max(0, paused.activeMs + given) };
+}
+
+/**
+ * The row of the step a level bout waits for, or null when it waits for none
+ * (no step left, or a chain that ends in a draw). `stepsTaken`: the steps the
+ * round has taken on this screen. `limitSeconds`: the phase's time limit,
+ * which the fold needs to give the seconds of extra time (`clockAfterLevel`).
+ */
+export function levelPressOf(
+  step: LevelStep | null,
+  stepsTaken: number,
+  limitSeconds: number | null,
+): LevelPress | null {
+  if (!step || step.kind === 'draw') return null;
+  if (step.kind === 'sudden_death') return { step: stepsTaken, kind: 'sudden_death' };
+  const limitMs = limitSeconds === null ? null : limitSeconds * 1000;
+  return { step: stepsTaken, kind: 'extra_time', seconds: step.seconds, limitMs };
+}
+
 /** One queued press applied to the clock, and to the level steps the round has taken. */
 function afterRow(
   state: { clock: ClockFold; levelSteps: number | undefined },
@@ -63,6 +102,17 @@ function afterRow(
 ): { clock: ClockFold; levelSteps: number | undefined } {
   if (row.pressAction) {
     return { ...state, clock: clockAfterPress(state.clock, row.pressAction, row.occurredAt) };
+  }
+  if (row.level) {
+    return {
+      clock: clockAfterLevel(state.clock, row.level, row.occurredAt),
+      // One more step than the round had taken. With no count of the server
+      // (a bout opened with no network and no copy of its clock), the step's
+      // own place in the chain says how many came before it. Not that place
+      // always: a step that waits behind a HELD one must not count the held
+      // one, which the server never took.
+      levelSteps: (state.levelSteps ?? row.level.step) + 1,
+    };
   }
   if (!row.roundAction) return state;
   return {

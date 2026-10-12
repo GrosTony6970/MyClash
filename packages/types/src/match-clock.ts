@@ -32,6 +32,7 @@ import {
   clockAfterPress,
   displayClockMs,
   effectiveTimeLimitSeconds,
+  extraTimeAdjustmentMs,
   timeIsFinished,
   type ClockFold,
   type ClockPress,
@@ -40,7 +41,13 @@ import {
   type PhaseType,
 } from '@myclash/rules/pad';
 
-export { clockAfterPress, displayClockMs, effectiveTimeLimitSeconds, timeIsFinished };
+export {
+  clockAfterPress,
+  displayClockMs,
+  effectiveTimeLimitSeconds,
+  extraTimeAdjustmentMs,
+  timeIsFinished,
+};
 export type { ClockFold, ClockPress, ClockStatus, PhaseType };
 
 /**

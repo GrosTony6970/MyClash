@@ -311,6 +311,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'computePenaltySanction',
     'displayClockMs',
     'effectiveTimeLimitSeconds',
+    'extraTimeAdjustmentMs',
     'getEffectiveMaxDoubles',
     'penaltyScoreDelta',
     'pendingLevelStep',

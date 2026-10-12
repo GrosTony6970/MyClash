@@ -231,14 +231,34 @@ describe('what needs the network while presses wait', () => {
     expect(controls).toContain('disabled={clockLoading || pressesWaiting}');
   });
 
-  it('so does a level bout’s remedy, which the server answers too', () => {
-    expect(controls).toContain('disabled={clockLoading || roundBusy || pressesWaiting}');
+  it('a level bout’s step does not: it is a row of the queue, behind the presses before it', () => {
+    expect(controls).toMatch(
+      /data-remedy=\{offeredRemedy\.kind\}\s+disabled=\{clockLoading\}\s+onClick=\{onAdvanceLevelResolution\}/,
+    );
+    expect(view).toContain('onAdvanceLevelResolution={takeLevelStep}');
+    expect(view).toMatch(
+      /useLevelStep\(\{\s+match,\s+matchFormat,\s+pending: levelPending,\s+stepsTaken: levelSteps,\s+round: series\.round,/,
+    );
+    // No direct call of the step's door is left on the screen.
+    expect(view).not.toContain('level-resolution');
+  });
+
+  it('the step is written with its bout, its round and its place in the chain, and sent behind', () => {
+    const step = read('hooks', 'useLevelStep.ts');
+    expect(step).toContain('const level = levelPressOf(pending, stepsTaken, limitSeconds);');
+    expect(step).toMatch(
+      /void writeHit\(\s+async \(\) => \{\s+await queueLevelPress\(\{ matchId: match\.id, round, level, bout \}\);\s+\},\s+syncEngine,\s+pressed,\s+\)/,
+    );
+    expect(step).toContain("if (written === 'not_saved') setError(t('scoring.lice.hitNotSaved'));");
+  });
+
+  it('the inbox names a held step by its own label', () => {
+    const inbox = read('components', 'QuarantineInbox.tsx');
+    expect(inbox).toMatch(/case 'level':\s+return heldLevelLabel\(entry\.level, t\);/);
   });
 
   it('"End round" does not: it is a row of the queue, behind the presses before it', () => {
-    expect(controls).toMatch(
-      /data-testid="clock-end-button"\s+disabled=\{clockLoading \|\| roundBusy\}/,
-    );
+    expect(controls).toMatch(/data-testid="clock-end-button"\s+disabled=\{clockLoading\}/);
     // The screen asks for the bout when its memory of the rounds begins to
     // stand over the server's view: the memory goes when that read lands.
     expect(view).toContain('readBout: onRefresh,');

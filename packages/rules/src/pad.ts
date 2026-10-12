@@ -92,6 +92,13 @@ export type { PhaseType } from './domain';
  * and the pad shows the clock the server will have once the queue is sent.
  */
 export { clockAfterPress } from './clock';
+
+/**
+ * The correction of the clock a step of extra time gives. The server writes it
+ * on the step's row; the pad folds a step it still holds by the same function,
+ * so the clock on the tablet is the one the server will have.
+ */
+export { extraTimeAdjustmentMs } from './clock';
 export type { ClockFold, ClockPress, ClockStatus } from './clock';
 
 /**

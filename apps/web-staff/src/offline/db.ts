@@ -41,8 +41,11 @@ export type PenaltyCardColor = PenaltyCard;
  * A `round` is a tap on "Start round N" or "End round" of a best-of bout (the
  * offline bout, slice 4b). It is a tap as a press is ({@link isTap}), and it
  * goes to its own two doors, not to the clock's.
+ *
+ * A `level` is a tap on the step of a level bout: "Extra time 60s" or "Sudden
+ * death" (the offline bout, slice 5). A tap too, with its own door.
  */
-export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round';
+export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round' | 'level';
 
 /**
  * What kind of row this is. The one reader of `kind`: a caller switches on the
@@ -51,8 +54,9 @@ export type OutboxKind = 'exchange' | 'penalty' | 'press' | 'round';
 export const kindOf = (entry: { kind?: OutboxKind }): OutboxKind => entry.kind ?? 'exchange';
 
 /**
- * Is this row a tap on a button of the bout (a clock press, a round press),
- * and not an entry of its sheet (a hit, a card)? A tap takes no number of the
+ * Is this row a tap on a button of the bout (a clock press, a round press, a
+ * step of a level bout), and not an entry of its sheet (a hit, a card)? A tap
+ * takes no number of the
  * bout's sequence, no other sequence cures it, it is in no list of the bout,
  * and the undo never takes it back. It keeps its place among the bout's rows.
  */
@@ -60,6 +64,7 @@ export function isTap(entry: { kind?: OutboxKind }): boolean {
   switch (kindOf(entry)) {
     case 'press':
     case 'round':
+    case 'level':
       return true;
     case 'penalty':
     case 'exchange':
@@ -69,6 +74,20 @@ export function isTap(entry: { kind?: OutboxKind }): boolean {
 
 /** Which of the two round buttons a `round` row is. */
 export type RoundPress = 'advance' | 'end';
+
+/**
+ * The step of a level bout a `level` row takes: its place in the round's chain
+ * (the steps taken before it, 0 for the first), and what it is. `limitMs` is
+ * the phase's time limit as the tablet knew it at the tap (null: none), which
+ * the clock's fold needs to give the seconds of extra time. Only `step` is
+ * posted: the server works out the time by itself.
+ */
+export interface LevelPress {
+  step: number;
+  kind: 'extra_time' | 'sudden_death';
+  seconds?: number;
+  limitMs?: number | null;
+}
 
 /**
  * The bout a queued hit or card belongs to, in words (ruling 243): its label
@@ -172,12 +191,15 @@ export interface OutboxEntry {
   /**
    * The round this row belongs to on the tablet. Of a hit or a card: the round
    * open on the pad at the tap. Of a round press: the round an advance OPENS,
-   * or the round an end ENDS (the server's `RoundPressDto.round`). Posted for a
-   * round press only: the server counts a hit in the round open when it
-   * arrives. Absent on a row queued before 2026-10-11, which reads as the
-   * server's open round.
+   * or the round an end ENDS (the server's `RoundPressDto.round`). Of a step of
+   * a level bout: the round it was tapped in. Posted for a round press and a
+   * step only: the server counts a hit in the round open when it arrives.
+   * Absent on a row queued before 2026-10-11, which reads as the server's open
+   * round.
    */
   round?: number;
+  /** Step of a level bout only: which step of the chain. */
+  level?: LevelPress;
   /** Match-clock position (active ms) at record time — display metadata carried
    *  through sync so an offline exchange keeps its timeline clock label. */
   clockTimeMs?: number | null;

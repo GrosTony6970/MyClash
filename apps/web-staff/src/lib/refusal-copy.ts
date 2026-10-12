@@ -73,6 +73,7 @@ const START_NEXT_ROUND_FIRST = 'scoring.rounds.startNextRoundFirst';
 const HELD_PRESS_BOUT_COMPLETED = 'scoring.quarantine.pressBoutCompleted';
 const HELD_PRESS_OUT_OF_ORDER = 'scoring.quarantine.pressOutOfOrder';
 const HELD_PRESS_TOO_OLD = 'scoring.quarantine.pressTooOld';
+const HELD_END_LEVEL = 'scoring.quarantine.endLevel';
 
 /**
  * The API's code on the 401 of an organiser's door asked by a live PIN session
@@ -138,6 +139,9 @@ const HELD_PRESS = new Map([
   ['pressed_before_reopen', 'scoring.quarantine.pressBeforeReopen'],
   ['round_awaits_advance', START_NEXT_ROUND_FIRST],
   ['time_not_finished', TIME_NOT_FINISHED],
+  // An "End match" on a board the server reads as level, at its time. An "End
+  // round" too: a round row with no words of its own for a code reads this map.
+  ['level_at_time_unresolved', HELD_END_LEVEL],
 ]);
 
 /**
@@ -155,6 +159,32 @@ const HELD_ROUND = new Map([
   ['clock_press_too_old', 'scoring.quarantine.roundTooOld'],
   ['scored_before_reset', 'scoring.quarantine.roundBeforeReset'],
   ['pressed_before_reopen', 'scoring.quarantine.roundBeforeReopen'],
+]);
+
+/**
+ * Why the server holds back a step of a level bout sent late ("Extra time",
+ * "Sudden death"; `level-step.ts` on the server). Read BEFORE the other maps
+ * for a level row, as `HELD_ROUND` is for a round row and for the same reason.
+ * The codes of a bout that moved on meanwhile share one sentence: each ends in
+ * "discard it, then check the match with the table".
+ */
+const LEVEL_NOT_APPLIED = 'scoring.quarantine.levelNotApplied';
+const HELD_LEVEL = new Map([
+  ['bout_not_level', 'scoring.quarantine.levelNotLevel'],
+  ['level_step_not_pending', 'scoring.quarantine.levelStepNotPending'],
+  ['time_not_finished', 'scoring.quarantine.levelTimeNotFinished'],
+  ['round_not_open', LEVEL_NOT_APPLIED],
+  ['round_awaits_advance', LEVEL_NOT_APPLIED],
+  ['bout_completed', LEVEL_NOT_APPLIED],
+  ['clock_press_too_old', LEVEL_NOT_APPLIED],
+  ['scored_before_reset', LEVEL_NOT_APPLIED],
+  ['pressed_before_reopen', LEVEL_NOT_APPLIED],
+]);
+
+/** The map read first for a held row of this kind: its own words for a code others share. */
+const HELD_BY_KIND = new Map([
+  ['round', HELD_ROUND],
+  ['level', HELD_LEVEL],
 ]);
 
 /**
@@ -179,8 +209,8 @@ export function heldReason(
   held: { rejectedReason: string; rejectedCode?: string; kind?: string },
   t: Translate,
 ): string {
-  const round = held.kind === 'round' ? HELD_ROUND.get(held.rejectedCode ?? '') : undefined;
-  if (round) return t(round);
+  const own = HELD_BY_KIND.get(held.kind ?? '')?.get(held.rejectedCode ?? '');
+  if (own) return t(own);
   if (held.rejectedCode === 'event_results_frozen') return t(HELD_EVENT_OVER);
   // Ruling 286: the bout was put back to unplayed after this hit was scored.
   if (held.rejectedCode === 'bout_not_started') return t(HELD_NOT_STARTED);

@@ -14,6 +14,7 @@ import {
   db,
   isTap,
   type BoutNames,
+  type LevelPress,
   type OutboxEntry,
   type PressedOn,
   type RejectedEntry,
@@ -76,6 +77,31 @@ export async function queueRoundPress(
     pressOrigin: at.origin,
     bout: press.bout,
     ...(press.endScore ? { endScore: press.endScore } : {}),
+    createdAt: at.wall,
+    attempts: 0,
+  };
+  return { ...row, id: await db.outbox.add(row) };
+}
+
+/**
+ * Writes one tap on the step of a level bout on the tablet: "Extra time 60s"
+ * or "Sudden death". `round` is the round it is tapped in. Returns its row.
+ */
+export async function queueLevelPress(
+  press: { matchId: string; round: number; level: LevelPress; bout: BoutNames },
+  at: TabletTime = tabletTime(),
+): Promise<OutboxEntry> {
+  const row: OutboxEntry = {
+    kind: 'level',
+    clientUuid: crypto.randomUUID(),
+    matchId: press.matchId,
+    sequence: 0,
+    occurredAt: new Date(at.wall).toISOString(),
+    level: press.level,
+    round: press.round,
+    pressedPerf: at.page,
+    pressOrigin: at.origin,
+    bout: press.bout,
     createdAt: at.wall,
     attempts: 0,
   };

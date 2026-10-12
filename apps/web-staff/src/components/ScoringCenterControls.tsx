@@ -98,8 +98,6 @@ interface ScoringCenterControlsProps {
   /** The doubles of the open round, and the limit the server applies (null: none). */
   doubles: number;
   doublesLimit: number | null;
-  /** The level remedy's request is out. */
-  roundBusy?: boolean;
   /**
    * End the current round (best-of): a row of the tablet's queue, so it never
    * waits for a press before it. The leader wins; a level round is refused on
@@ -115,7 +113,7 @@ interface ScoringCenterControlsProps {
   levelPending?: LevelStep | null;
   /** Sudden death is live: the clock wears a skull and counts up. */
   inSuddenDeath?: boolean;
-  /** Take the bout one step down its chain and apply the remedy. */
+  /** Take the bout one step down its chain: a row of the tablet's queue. */
   onAdvanceLevelResolution?: () => void;
 }
 
@@ -160,7 +158,6 @@ export function ScoringCenterControls({
   blueRoundWins = 0,
   doubles: doubleCount,
   doublesLimit: maxDoubles,
-  roundBusy = false,
   onEndRound,
   levelPending = null,
   inSuddenDeath = false,
@@ -421,7 +418,7 @@ export function ScoringCenterControls({
               <button
                 type="button"
                 data-testid="clock-end-button"
-                disabled={clockLoading || roundBusy}
+                disabled={clockLoading}
                 onClick={() => (isBestOf && onEndRound ? onEndRound() : onClockAction('end'))}
                 className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
@@ -431,14 +428,15 @@ export function ScoringCenterControls({
             {/* The remedy this LEVEL bout is waiting on. Shown only when the
                 phase's chain offers one AND the bout's time has run out — a pool
                 bout, whose chain is a single draw, keeps the two buttons it has
-                always had, and no bout offers its remedy early. The SERVER still
-                decides whether it applies; this only names it. */}
+                always had, and no bout offers its remedy early. The step is a
+                row of the tablet's queue, so it never waits for a press before
+                it. The SERVER still decides whether it applies. */}
             {offeredRemedy && onAdvanceLevelResolution && (
               <button
                 type="button"
                 data-testid="level-resolution-button"
                 data-remedy={offeredRemedy.kind}
-                disabled={clockLoading || roundBusy || pressesWaiting}
+                disabled={clockLoading}
                 onClick={onAdvanceLevelResolution}
                 className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
               >

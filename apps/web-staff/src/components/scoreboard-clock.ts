@@ -97,9 +97,9 @@ export function suddenDeathElapsedMs(elapsedMs: number, limitMs: number | null):
 /**
  * Does the phase's level-at-time chain apply to this bout RIGHT NOW?
  *
- * Levelness is the SERVER's scores, never the provisional ones: a queued hit
- * has not landed, and offering to resolve a bout the tablet alone thinks is
- * level would be a worse lie than offering nothing.
+ * Levelness is the score ON THE SCREEN, the tablet's unsent hits included: it
+ * is the score the step is tapped on, and the queue sends those hits before
+ * the step. The server judges the step on its own count when it arrives.
  *
  * A best-of match used to be excluded outright, which left the referee stranded:
  * the server refused a tied round and named sudden death, and the pad showed no

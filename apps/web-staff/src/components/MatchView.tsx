@@ -8,6 +8,7 @@ import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
 import { EndEarlyDialog, ResumeGuardDialog, RoundBreakDialog } from './MatchPauseDialogs';
 import { useI18n } from '@myclash/next-i18n/client';
+import { useLevelStep } from '../hooks/useLevelStep';
 import { usePadClock } from '../hooks/usePadClock';
 import { usePadRounds } from '../hooks/usePadRounds';
 import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
@@ -454,28 +455,20 @@ export function MatchView({
     }
   }
 
-  // The level remedy is a person's, with a network (slice 5 takes it offline).
-  const [roundBusy, setRoundBusy] = useState(false);
-  const onAdvanceLevelResolution = useCallback(async () => {
-    setRoundBusy(true);
-    setClockError(null);
-    try {
-      const result = await apiRequest(
-        apiUrl,
-        `/api/v1/matches/${match.id}/level-resolution/advance`,
-        { method: 'POST', body: {} },
-      );
-      if (!result.ok) {
-        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
-      }
-      await fetchClockState();
-      onRefresh();
-    } catch (err) {
-      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
-    } finally {
-      setRoundBusy(false);
-    }
-  }, [apiUrl, match.id, fetchClockState, onRefresh, setClockError, t]);
+  // The step of a level bout ("Extra time", "Sudden death") acts on this
+  // screen at once and is sent behind, as a clock press is: a row of the
+  // bout's queue (`useLevelStep`).
+  const takeLevelStep = useLevelStep({
+    match,
+    matchFormat,
+    pending: levelPending,
+    stepsTaken: levelSteps,
+    round: series.round,
+    syncEngine,
+    pressed: clockPressed,
+    setError: setClockError,
+    t,
+  });
 
   // Scoring gate — DB status enum is 'scheduled' | 'running' | 'paused'
   // | 'completed' | 'voided'. Active scoring requires running OR paused.
@@ -823,11 +816,10 @@ export function MatchView({
           blueRoundWins={series.blueRoundWins}
           doubles={series.doubles}
           doublesLimit={series.doublesLimit}
-          roundBusy={roundBusy}
           onEndRound={rounds.endRound}
           levelPending={levelPending}
           inSuddenDeath={inSuddenDeath}
-          onAdvanceLevelResolution={() => void onAdvanceLevelResolution()}
+          onAdvanceLevelResolution={takeLevelStep}
         />
 
         <ScoringColumn

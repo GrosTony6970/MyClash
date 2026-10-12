@@ -62,6 +62,43 @@ export function postRoundPress(
   });
 }
 
+/** The body of the level step's door, as the API's own schema types it. */
+export type LevelPressBody = components['schemas']['LevelPressDto'];
+
+/**
+ * What a queued step of a level bout says to the server: its id, the round it
+ * was tapped in, the steps the round had taken before it, and its two times,
+ * built at every send. What the step is, and the time it gives, are the
+ * server's to work out: they stay on the tablet.
+ */
+export function levelPressBody(entry: OutboxEntry, now: TabletTime = tabletTime()): LevelPressBody {
+  return {
+    clientUuid: entry.clientUuid,
+    round: entry.round,
+    step: entry.level?.step,
+    ...pressTimes(entry, now),
+  };
+}
+
+/**
+ * How a queued "Extra time" or "Sudden death" goes to the server:
+ * `POST /matches/:id/level-resolution/advance`. The server takes each step
+ * once, answers one another tablet took as done, and answers with the clock.
+ */
+export function postLevelPress(
+  apiUrl: string,
+  entry: OutboxEntry,
+  now: TabletTime = tabletTime(),
+): Promise<Response> {
+  const door = `/api/v1/matches/${entry.matchId}/level-resolution/advance`;
+  return fetchRenewingLogin(apiUrl, door, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(levelPressBody(entry, now)),
+  });
+}
+
 /**
  * The send time a queued hit or card carries beside its own time
  * (`occurredAt`): that time plus its age. The server reads the age and nothing

@@ -201,6 +201,21 @@ export const scoring = {
     discardRoundTitle: 'Discard this round action?',
     discardRoundBody:
       'The round action is deleted. The entries of this match that wait behind it are then sent, and the server counts them in the round it has in play.',
+    // A step of a level match the server refused: extra time, sudden death (the offline bout, slice 5).
+    levelNotLevel:
+      'For the server the scores of this match are not level, so it did not apply this step. Discard it, then check the score with the table.',
+    levelStepNotPending:
+      'The server does not wait for this step: for the server the match has no such step to play, or is at another one. Discard it, then check the clock with the table.',
+    levelTimeNotFinished:
+      'For the server the time of this match was not finished at this press, so it did not apply this step. Discard it, then check the clock.',
+    levelNotApplied:
+      'The server did not apply this step: the match was ended, reset, corrected or moved on meanwhile. Discard it, then check the match with the table.',
+    // "End match" or "End round" the server refused because the scores were level.
+    endLevel:
+      'For the server the scores were level at this press, so it did not end. Discard it, then check the score with the table.',
+    discardLevelTitle: 'Discard this step?',
+    discardLevelBody:
+      'The extra time or sudden death step is deleted. The entries of this match that wait behind it are then sent.',
     discardPressTitle: 'Discard this clock press?',
     discardPressBody:
       'The clock press is deleted. The entries of this match that wait behind it are then sent without it.',
@@ -452,6 +467,9 @@ export const scoring = {
       'The server refused a clock press of this match. The clock shows what the server has.',
     // The same notice for "Start round N" or "End round".
     roundHeld: 'The server refused a round action of this match.',
+    // The same notice for a step of a level match: extra time, sudden death.
+    levelHeld:
+      'The server refused an extra time or sudden death step of this match. The clock shows what the server has.',
     // The same notice for a hit or a card the server refused.
     entryHeld: 'The server refused an entry of this match.',
     pressHeldWaits:
@@ -519,6 +537,9 @@ export const scoring = {
     refusedTimeNotFinished: 'Scores are level, but time is not finished. Keep fighting.',
     playExtraTime: 'Extra time {seconds}s',
     playSuddenDeath: 'Sudden death',
+    // "Undo last entry" when the newest entry is from before a step this tablet still holds.
+    undoStopsAtStep:
+      'The entries before this extra time or sudden death are closed on this tablet. Nothing after it is left to undo.',
     suddenDeathBanner: 'SUDDEN DEATH',
     // Never "the next point decides": one exchange can score both fighters.
     suddenDeathHint: 'Ends when one fighter leads',

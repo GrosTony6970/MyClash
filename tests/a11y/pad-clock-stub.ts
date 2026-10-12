@@ -61,6 +61,14 @@ interface Stub {
   refuseNext: string | null;
   /** The server refuses the next hit with this code, once. */
   refuseNextHit: string | null;
+  /** The server's answer to a step of a level bout waits until this resolves. */
+  holdLevel: Promise<void> | null;
+  /** The server refuses the next step of a level bout with this code, once. */
+  refuseNextLevel: string | null;
+  /** The steps of its level chain the bout has taken on the server. */
+  levelSteps: number;
+  /** The time on the clock after the step of extra time (the limit less the seconds given). */
+  afterExtraTimeMs: number;
   /** Every write the server TOOK or refused, in order: `POST /clock start`, `POST /exchanges`. */
   sent: string[];
   /** The body of each clock press that arrived. */
@@ -99,9 +107,34 @@ const clockBody = (stub: Stub) => ({
   ...stub.clock,
   matchId: BOUT,
   totalActiveMs: stub.clock.activeMs,
-  levelResolutionSteps: 0,
+  levelResolutionSteps: stub.levelSteps,
   events: [],
 });
+
+/**
+ * The server's answer to a step of a level bout: held back, refused once, or
+ * taken. Taken, the clock is paused, the first step puts the extra time on it,
+ * and the answer is the clock alone.
+ */
+async function answerLevel(stub: Stub, route: Route) {
+  const body = route.request().postDataJSON() as { step: number };
+  stub.arrived.push('level');
+  if (stub.holdLevel) await stub.holdLevel;
+  stub.sent.push(`POST /level ${body.step}`);
+  if (stub.refuseNextLevel) {
+    const code = stub.refuseNextLevel;
+    stub.refuseNextLevel = null;
+    return route.fulfill({
+      status: 400,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ status: 400, code, detail: 'API words', message: 'API words' }),
+    });
+  }
+  if (stub.clock.status === 'running') press(stub, 'halt');
+  if (stub.levelSteps === 0) stub.clock = { ...stub.clock, activeMs: stub.afterExtraTimeMs };
+  stub.levelSteps += 1;
+  return route.fulfill({ json: clockBody(stub) });
+}
 
 /** The server's answer to a clock press: held back, refused once, or taken. */
 async function answerPress(stub: Stub, route: Route) {
@@ -154,6 +187,10 @@ interface Start {
   rules?: unknown;
   /** The server's list of the bout's hits. None: an empty sheet. */
   sheet?: unknown[];
+  /** The rounds of the bout. None: one. */
+  bestOf?: number;
+  /** The time on the clock after the step of extra time. None: 30 s (90 s less a minute). */
+  afterExtraTimeMs?: number;
 }
 
 const newStub = (start: Start): Stub => ({
@@ -164,6 +201,10 @@ const newStub = (start: Start): Stub => ({
   arrived: [],
   refuseNext: null,
   refuseNextHit: null,
+  holdLevel: null,
+  refuseNextLevel: null,
+  levelSteps: 0,
+  afterExtraTimeMs: start.afterExtraTimeMs ?? 30_000,
   sent: [],
   presses: [],
   hits: [],
@@ -181,13 +222,21 @@ export async function openBout(page: Page, start: Start = {}) {
     if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
     if (method === 'POST' && path.endsWith('/clock')) return answerPress(stub, route);
     if (method === 'POST' && path.endsWith('/exchanges')) return answerHit(stub, route);
+    if (method === 'POST' && path.endsWith('/level-resolution/advance')) {
+      return answerLevel(stub, route);
+    }
     if (method !== 'GET') return route.fulfill({ json: {} });
     if (stub.readsFail) return route.fulfill(OFFLINE);
     if (path.endsWith(`/matches/${BOUT}`)) return route.fulfill({ json: stub.row });
     if (path.endsWith('/summary')) {
       const rules = start.rules ? { tournamentId: 'tournament-1' } : {};
       return route.fulfill({
-        json: { ...SUMMARY, ...rules, phaseType: start.phaseType ?? 'pool' },
+        json: {
+          ...SUMMARY,
+          ...rules,
+          phaseType: start.phaseType ?? 'pool',
+          bestOf: start.bestOf ?? 1,
+        },
       });
     }
     if (start.rules && path.endsWith('/match-config')) return route.fulfill({ json: start.rules });
@@ -235,5 +284,6 @@ export const primary = (page: Page) => page.getByTestId('clock-primary-button');
 export const status = (page: Page) => page.getByTestId('clock-status');
 export const held = (page: Page) => page.getByTestId('clock-press-held');
 export const result = (page: Page) => page.getByTestId('match-result-overlay');
+export const levelStep = (page: Page) => page.getByTestId('level-resolution-button');
 export const redHit = (page: Page) =>
   page.locator('[data-testid="scoring-column"][data-side="red"]').getByTestId('clean-hit-button');

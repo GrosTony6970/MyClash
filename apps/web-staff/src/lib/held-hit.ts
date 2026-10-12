@@ -71,6 +71,22 @@ export function heldRoundLabel(
 }
 
 /**
+ * Which step of a level bout a held row is, in the words of its button:
+ * "Extra time 60s", "Sudden death". A row that names none (a broken row) reads
+ * as any entry the pad cannot name. No `default`: a third step does not compile.
+ */
+export function heldLevelLabel(level: RejectedEntry['level'], t: Translate): string {
+  switch (level?.kind) {
+    case 'extra_time':
+      return t('scoring.level.playExtraTime', { seconds: level.seconds ?? 0 });
+    case 'sudden_death':
+      return t('scoring.level.playSuddenDeath');
+    case undefined:
+      return t('scoring.quarantine.typeUnknown');
+  }
+}
+
+/**
  * What the bout's screen says at the clock while the inbox holds a row of this
  * bout: what was refused, why, and that what is pressed now waits behind it.
  * Null with no held row. A hit and a card stop their bout as a press does
@@ -83,6 +99,8 @@ function heldWhat(held: Pick<RejectedEntry, 'kind'>, t: Translate): string {
       return t('scoring.clock.pressHeld');
     case 'round':
       return t('scoring.clock.roundHeld');
+    case 'level':
+      return t('scoring.clock.levelHeld');
     case 'penalty':
     case 'exchange':
       return t('scoring.clock.entryHeld');
@@ -132,6 +150,10 @@ const DISCARD_WORDS: Record<OutboxKind, { title: string; body: string }> = {
   round: {
     title: 'scoring.quarantine.discardRoundTitle',
     body: 'scoring.quarantine.discardRoundBody',
+  },
+  level: {
+    title: 'scoring.quarantine.discardLevelTitle',
+    body: 'scoring.quarantine.discardLevelBody',
   },
 };
 
