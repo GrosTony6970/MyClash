@@ -41,7 +41,7 @@ export function startWakeLock(
   let stopped = false;
 
   const ask = () => {
-    if (stopped || asking || held || page.visibilityState !== 'visible' || !host.wakeLock) return;
+    if (asking || held || page.visibilityState !== 'visible' || !host.wakeLock) return;
     asking = true;
     host.wakeLock.request('screen').then(
       (sentinel) => {
