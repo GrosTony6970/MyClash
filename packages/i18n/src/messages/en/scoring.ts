@@ -594,7 +594,7 @@ export const scoring = {
   // web-staff only: this app is the one hybrid surface (light chrome over a
   // dark pad), so `hybrid` has no meaning in web-admin or web-public.
   theme: {
-    switcher: 'Colour theme',
+    change: 'Colour theme: {current}. Change to {next}.',
     hybrid: 'Hybrid',
     dark: 'Dark',
     light: 'Light',

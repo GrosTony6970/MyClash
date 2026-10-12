@@ -549,7 +549,7 @@ export const scoring = {
     },
   },
   theme: {
-    switcher: 'Thème de couleur',
+    change: 'Thème de couleur : {current}. Passer à {next}.',
     hybrid: 'Hybride',
     dark: 'Sombre',
     light: 'Clair',

@@ -43,7 +43,7 @@ export function LiceHeader({ liceName }: { liceName: string | null }) {
         <h1 data-testid="lice-title" className="text-base font-bold uppercase tracking-wide">
           {liceName ?? '—'}
         </h1>
-        <div className="flex w-20 justify-end">
+        <div className="flex min-w-20 justify-end">
           <ThemeSwitcher />
         </div>
       </div>

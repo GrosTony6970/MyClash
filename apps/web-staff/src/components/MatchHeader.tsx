@@ -123,7 +123,7 @@ export function MatchHeader({
   // stays a <Link> for SPA navigation.
   const backIsExternal = isExternalHref(resolvedBackHref);
   const backClassName =
-    'inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background';
+    'inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background';
   const redStyle = sideStyle(config, 'red');
   const blueStyle = sideStyle(config, 'blue');
   const gear = useMatchGear(matchId);
@@ -203,7 +203,7 @@ export function MatchHeader({
             type="button"
             data-testid="open-corrections"
             onClick={onOpenCorrections}
-            className="mt-1 inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
+            className="mt-1 inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
           >
             ⋯ {t('scoring.lice.matchActions')}
           </button>
@@ -217,7 +217,7 @@ export function MatchHeader({
               <button
                 type="button"
                 onClick={() => openScoreboardPopup(displayUrl)}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background"
               >
                 ↗ {t('scoring.lice.externalDisplay')}
               </button>

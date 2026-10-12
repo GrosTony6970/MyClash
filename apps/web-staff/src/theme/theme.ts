@@ -35,6 +35,12 @@ export const SCORING_THEMES = [
 
 export const defaultScoringTheme: ScoringTheme = 'hybrid';
 
+/** The mode one tap of the switcher goes to: the next in its order, then round again. */
+export function nextScoringTheme(mode: ScoringTheme): ScoringTheme {
+  const at = SCORING_THEMES.indexOf(mode);
+  return SCORING_THEMES[(at + 1) % SCORING_THEMES.length] ?? defaultScoringTheme;
+}
+
 /**
  * The value of the `data-theme` attribute — i.e. which block in
  * packages/ui/src/theme.css wins. Not every mode has its own token set: dark
