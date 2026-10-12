@@ -65,6 +65,7 @@ describe('why a round press is held', () => {
     ['bout_completed', 'scoring.quarantine.roundBoutCompleted'],
     ['clock_press_too_old', 'scoring.quarantine.roundTooOld'],
     ['scored_before_reset', 'scoring.quarantine.roundBeforeReset'],
+    ['pressed_before_reopen', 'scoring.quarantine.roundBeforeReopen'],
     ['time_not_finished', 'scoring.level.refusedTimeNotFinished'],
     ['event_results_frozen', 'scoring.quarantine.eventOver'],
   ])('%s is said in the pad’s words, as of a round', (code, key) => {
@@ -82,6 +83,9 @@ describe('why a round press is held', () => {
       'scoring.quarantine.scoredBeforeReset',
     );
     expect(heldReason(held('scored_before_reset'), t)).toBe('scoring.quarantine.scoredBeforeReset');
+    expect(heldReason(held('pressed_before_reopen', 'press'), t)).toBe(
+      'scoring.quarantine.pressBeforeReopen',
+    );
   });
 
   it('a round code on a row that is no round press keeps the server’s words', () => {

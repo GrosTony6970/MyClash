@@ -143,6 +143,7 @@ describe('why a press is held', () => {
     ['bout_completed', 'scoring.quarantine.pressBoutCompleted'],
     ['clock_press_out_of_order', 'scoring.quarantine.pressOutOfOrder'],
     ['clock_press_too_old', 'scoring.quarantine.pressTooOld'],
+    ['pressed_before_reopen', 'scoring.quarantine.pressBeforeReopen'],
     ['round_awaits_advance', 'scoring.rounds.startNextRoundFirst'],
     ['time_not_finished', 'scoring.level.refusedTimeNotFinished'],
     ['event_results_frozen', 'scoring.quarantine.eventOver'],
@@ -162,6 +163,10 @@ describe('a held press and Retry', () => {
   it('is not offered for a press made more than a day before its send', () => {
     expect(canSendAgain({ rejectedReason: '', rejectedCode: 'clock_press_too_old' })).toBe(false);
     expect(canSendAgain({ rejectedReason: '', rejectedCode: 'scored_before_reset' })).toBe(false);
+  });
+
+  it('is not offered for a press made before the bout was put back in play', () => {
+    expect(canSendAgain({ rejectedReason: '', rejectedCode: 'pressed_before_reopen' })).toBe(false);
   });
 
   it.each(['time_not_finished', 'level_at_time_unresolved'])(

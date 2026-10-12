@@ -188,6 +188,8 @@ export const scoring = {
       'Le chrono de cet assaut n’était pas dans l’état que cette action demande : il a été modifié ailleurs. Supprimez-la, puis vérifiez le chrono.',
     pressTooOld:
       'Cette action sur le chrono a été faite plus d’un jour avant son envoi : le serveur ne l’a pas appliquée. Supprimez-la.',
+    pressBeforeReopen:
+      'Cette action sur le chrono a été faite avant la remise en jeu de l’assaut : le serveur ne l’a pas appliquée. Supprimez-la, puis vérifiez le chrono.',
     typeRoundAdvance: 'Démarrer la manche {round}',
     typeRoundEnd: 'Terminer la manche {round}',
     roundNotWaiting:
@@ -200,6 +202,8 @@ export const scoring = {
       'Cette action sur la manche a été faite plus d’un jour avant son envoi : le serveur ne l’a pas appliquée. Supprimez-la.',
     roundBeforeReset:
       'Cette action sur la manche a été faite avant la remise à zéro de l’assaut : le serveur ne l’a pas appliquée. Elle appartient au combat annulé. Supprimez-la.',
+    roundBeforeReopen:
+      'Cette action sur la manche a été faite avant la remise en jeu de l’assaut : le serveur ne l’a pas appliquée. Supprimez-la, puis vérifiez la manche avec la table.',
     discardRoundTitle: 'Supprimer cette action sur la manche ?',
     discardRoundBody:
       'L’action sur la manche est supprimée. Les saisies de cet assaut qui attendent derrière sont alors envoyées, et le serveur les compte dans la manche qu’il a en cours.',

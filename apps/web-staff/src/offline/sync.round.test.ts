@@ -252,6 +252,8 @@ describe('a round press the server refuses', () => {
   it.each([
     ['advance', 409, 'round_not_waiting'],
     ['end', 409, 'round_not_open'],
+    ['end', 409, 'pressed_before_reopen'],
+    ['advance', 409, 'pressed_before_reopen'],
     ['end', 400, 'time_not_finished'],
   ] as const)(
     '"%s" answered %i %s is held at once, with its code',

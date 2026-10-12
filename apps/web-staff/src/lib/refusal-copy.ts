@@ -134,6 +134,8 @@ const HELD_PRESS = new Map([
   ['bout_completed', HELD_PRESS_BOUT_COMPLETED],
   ['clock_press_out_of_order', HELD_PRESS_OUT_OF_ORDER],
   ['clock_press_too_old', HELD_PRESS_TOO_OLD],
+  // Made before somebody put the bout back in play (`press-before-reopen.ts`).
+  ['pressed_before_reopen', 'scoring.quarantine.pressBeforeReopen'],
   ['round_awaits_advance', START_NEXT_ROUND_FIRST],
   ['time_not_finished', TIME_NOT_FINISHED],
 ]);
@@ -141,7 +143,7 @@ const HELD_PRESS = new Map([
 /**
  * Why the server holds back "Start round N" or "End round" sent late
  * (`round-advance.ts`, `round-end.ts` on the server). Read BEFORE the other
- * maps for a round row: three of these codes are also a clock press's and a
+ * maps for a round row: four of these codes are also a clock press's or a
  * hit's, whose sentences say "this clock press" and "enter it again by hand".
  * The first two stay curable by a Retry: another device may close or open the
  * round meanwhile.
@@ -152,6 +154,7 @@ const HELD_ROUND = new Map([
   ['bout_completed', 'scoring.quarantine.roundBoutCompleted'],
   ['clock_press_too_old', 'scoring.quarantine.roundTooOld'],
   ['scored_before_reset', 'scoring.quarantine.roundBeforeReset'],
+  ['pressed_before_reopen', 'scoring.quarantine.roundBeforeReopen'],
 ]);
 
 /**

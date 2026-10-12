@@ -181,6 +181,8 @@ export const scoring = {
       'The clock of this match was not in the state this press needs: it was moved from somewhere else. Discard it, then check the clock.',
     pressTooOld:
       'This clock press was made more than a day before it was sent, so the server did not apply it. Discard it.',
+    pressBeforeReopen:
+      'This clock press was made before the match was put back in play, so the server did not apply it. Discard it, then check the clock.',
     // A round press the server refused (the offline bout, slice 4b).
     typeRoundAdvance: 'Start round {round}',
     typeRoundEnd: 'End round {round}',
@@ -194,6 +196,8 @@ export const scoring = {
       'This round action was made more than a day before it was sent, so the server did not apply it. Discard it.',
     roundBeforeReset:
       'This round action was made before the match was reset, so the server did not apply it. It belongs to the fight that was cancelled. Discard it.',
+    roundBeforeReopen:
+      'This round action was made before the match was put back in play, so the server did not apply it. Discard it, then check the round with the table.',
     discardRoundTitle: 'Discard this round action?',
     discardRoundBody:
       'The round action is deleted. The entries of this match that wait behind it are then sent, and the server counts them in the round it has in play.',

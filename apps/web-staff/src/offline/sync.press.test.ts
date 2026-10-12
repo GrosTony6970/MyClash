@@ -149,6 +149,7 @@ describe('a press the server refuses', () => {
     [409, 'event_results_frozen'],
     [409, 'scored_before_reset'],
     [409, 'clock_press_too_old'],
+    [409, 'pressed_before_reopen'],
     [400, 'round_awaits_advance'],
     [400, 'match_locked'],
     [400, 'time_not_finished'],
