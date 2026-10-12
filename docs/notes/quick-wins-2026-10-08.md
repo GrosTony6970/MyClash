@@ -1128,6 +1128,43 @@ Named while P5, P6, P10 and P18 were built, and not fixed (each one checked in c
 - The deployed-stack tests `tests/e2e/06-offline-sync.spec.ts` and `tests/e2e/16-pad-ui.spec.ts`
   now answer the card question. That suite was not run for this change.
 
+### Rulings — operator, 2026-10-12, on the pad rows P7 to P9, P11 to P17, P19 and P20
+
+The operator picked these twelve rows. Each was read again against the code of that day: all
+twelve are still true. Eight had two reasonable behaviours and were asked. **None is built and
+committed yet.** P8 and P9 are written on the operator's machine, not reviewed and not committed.
+
+| Row | Asked with this story                                                                                                                             | Ruling                                                                                                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P8  | A finger drags down from the top during a bout and the browser reloads the page. On the piste list that swipe is the only refresh by hand.        | **Off on every screen of the tablet.** The piste list refreshes by itself, as today.                                                                                                                                                         |
+| P9  | A French official must type RESET MATCH in exact capitals. Small letters, or a space after, leave the button dead with no word why.               | **Same words, typed loosely.** Capitals and spaces do not matter. A line says why the button is disabled. The field is emptied after a Reset and when the drawer closes. The server keeps its exact check; the tablet sends the exact words. |
+| P11 | A hit is refused; the bar turns red with "Review" and "Retry", each about 20px tall.                                                              | **The bar grows to 44px only when it has a button.** It stays 24px when all is well. The screen moves once when a refusal lands; the operator accepted that.                                                                                 |
+| P12 | The bout header has three theme symbols of about 16px each. Back, "Match actions" and "External display" are under 44px too.                      | **One 44px button that cycles** dark, light, auto, on the three screens that show it. The three other buttons get 44px.                                                                                                                      |
+| P13 | A Pool bout, 90 seconds. At 0:00 the numeral is red and nothing else happens. A bracket bout can reach 0:00 twice, a best-of bout once per round. | **A beep and a vibration each time a running clock crosses 0:00**: regulation, extra time, each round. Never when the screen opens on a bout already past its time. A hit written on the tablet gives a 10 ms vibration. No mute setting.    |
+| P16 | Bout 4 ends with 3 entries not sent. The official goes back to the piste list, which shows no count and sends nothing.                            | **The full bar on the piste list**: it counts unsent and refused entries, sends the queue when the screen opens and when the network is back, tries again by itself, and offers Retry and the refused-entries inbox.                         |
+| P17 | The tablet of piste 3 is closed at lunch. At 14:00 the app shows the list of pistes again.                                                        | **Open the last piste at once**, when it is still one of the pistes of this sign-in. The back link still shows the list and never bounces. A tablet with ONE assigned piste opens it at once too. Sign-out forgets the piste.                |
+| P19 | A laptop table wants Double and Undo without the mouse. French laptops are AZERTY.                                                                | **D = Double, U = Undo, no question.** D works only when the Double button is live. U does what the Undo button does. Both are ignored while a dialog is open or a field has the focus. The hint under the clock lists the three keys.       |
+
+Four choices are MINE, said to the operator on 2026-10-12, not ruled. Say so if one is wrong:
+
+- P7: the tablet stays awake while a bout screen is open, and says nothing when the browser
+  refuses.
+- P14: the lines "not yet sent" and "not confirmed", and the messages of the clock and of the
+  undo, go to 14px. Other captions stay.
+- P15: the penalty search empties when the card is written on the tablet, also for a quick-pick
+  card; it keeps its text when the official cancels the red-card question. The field gets a name
+  for screen readers, 44px, and a true "no penalty matches" sentence.
+- P20: a visible word "Doubles" beside the count, with "this round" in a best-of bout. The hover
+  text is corrected.
+
+Three things the recon of these rows found, that the rows did not say (each read in code):
+
+- P9: after a Reset, "RESET MATCH" stays typed in the drawer: the button is armed the next time
+  the drawer opens.
+- P20: the hover text says "per match"; in a best-of bout the count is per round.
+- P16: with no network, the piste list's bar says "exchanges queued locally" whether or not the
+  tablet holds anything.
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
