@@ -70,10 +70,18 @@ const clockReads = (page: Page, time: string) =>
   expect(page.locator('main').getByText(time, { exact: false }).first()).toBeVisible();
 const skull = (page: Page) => page.getByTestId('sudden-death');
 
-/** The rules are read: the step the chain names is on its button. */
+/**
+ * The rules are read: the step the chain names is on its button, WITH ITS TWO
+ * SECONDS. The kind alone proves nothing: the default chain of a bracket bout
+ * is extra time too, of one minute, and the button shows it until the
+ * Tournament's rules land. A tap in that moment put a minute on the tablet's
+ * clock, and the story then waited for 00:02 (red once in CI, 2026-10-12, and
+ * once here; the page showed 01:00).
+ */
 async function open(page: Page, bestOf = 1) {
   const stub = await openBout(page, levelAtTime(bestOf));
   await expect(levelStep(page)).toHaveAttribute('data-remedy', 'extra_time');
+  await expect(levelStep(page)).toHaveText(/(^|\D)2s/);
   return stub;
 }
 
