@@ -9,6 +9,21 @@ import {
   type RecordedWrite,
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
+import type * as MatchRuleset from '../phases/match-ruleset';
+
+// A bout put back to "not started" reads its Tournament's ruleset. That read
+// has its own tests (`match-forfeits.service.restamp.test.ts`); the bouts of
+// this file carry no Tournament, so it answers a fixed one here.
+vi.mock('../phases/match-ruleset', async (original) => ({
+  ...(await original<typeof MatchRuleset>()),
+  matchRulesetForBout: vi.fn(() =>
+    Promise.resolve({
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_content_hash: null,
+    }),
+  ),
+}));
 
 /**
  * Views over the shared double's write log.

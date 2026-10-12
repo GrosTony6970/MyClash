@@ -17,6 +17,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // silently injects undefined (see di-wiring.regression.test.ts).
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { BracketAdvanceService } from '../phases/bracket-advance.service';
+import { matchRulesetForBout, type MatchRulesetStamp } from '../phases/match-ruleset';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
@@ -385,15 +386,7 @@ export class MatchForfeitsService {
    * `forfeit-void.ts`.
    */
   async voidForfeit(forfeitId: string, actor: Actor = {}) {
-    const { data } = await this.supabase.service
-      .from('match_forfeits')
-      .select('*')
-      .eq('id', forfeitId)
-      .maybeSingle();
-    if (!data) throw new NotFoundException(`Forfeit ${forfeitId} not found`);
-    const forfeit = data as Row;
-    if (forfeit['voided_at']) throw new BadRequestException('Forfeit is already voided');
-
+    const forfeit = await this.standingForfeit(forfeitId);
     const matchId = forfeit['match_id'] as string;
     await this.assertVoidable(matchId, actor);
     await this.assertMatchStillHoldsRecordedResult(matchId, forfeit);
@@ -406,6 +399,15 @@ export class MatchForfeitsService {
       'Cannot void forfeit after a dependent match has started',
     );
 
+    const previousMatch = (forfeit['previous_match_state'] as Row | null) ?? {};
+    const children = await this.activeChildren(forfeitId);
+    // Every read that can fail comes BEFORE the first write: a take-back cut
+    // short after its own bout is restored is refused at the next try.
+    const rulesets = await this.rulesetsOfBoutsPutBack([
+      { match_id: matchId, previous_match_state: previousMatch },
+      ...children,
+    ]);
+
     // Un-advance BEFORE restoring the match, while the winner this forfeit
     // propagated is still on the row that names it — `downstreamSlots` reads the
     // match to resolve its slot. Clearing the fed sides is what lets the replayed
@@ -413,21 +415,33 @@ export class MatchForfeitsService {
     // (The header says why this is hand-rolled rather than routed through the owner.)
     await this.bracketAdvance?.clearDownstreamOf(matchId);
 
-    const previousMatch = (forfeit['previous_match_state'] as Row | null) ?? {};
-    await this.restoreMatchState(matchId, previousMatch);
+    await this.restoreMatchState(matchId, previousMatch, rulesets);
     await this.readvanceIfDecided(matchId, previousMatch);
 
     await this.restoreRegistrationStatus(forfeit);
 
     // Children second-to-last, the parent LAST. A crash between them leaves the
     // parent record active, so a re-run converges: the children already voided
-    // drop out of `cascadeVoidChildren`'s query. Stamping the parent first would
+    // drop out of `activeChildren`'s query. Stamping the parent first would
     // strand them forfeited with no reachable remedy, because `existingRecord`
     // would no longer block a fresh record on the parent match.
-    const cascaded = await this.cascadeVoidChildren(forfeitId, actor);
+    const cascaded = await this.cascadeVoidChildren(children, actor, rulesets);
     const updated = await this.stampVoided(forfeitId, actor);
     await this.readSheetAgain(matchId, previousMatch);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
+  }
+
+  /** The record a take-back names, when it still stands. */
+  private async standingForfeit(forfeitId: string): Promise<Row> {
+    const { data } = await this.supabase.service
+      .from('match_forfeits')
+      .select('*')
+      .eq('id', forfeitId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException(`Forfeit ${forfeitId} not found`);
+    const forfeit = data as Row;
+    if (forfeit['voided_at']) throw new BadRequestException('Forfeit is already voided');
+    return forfeit;
   }
 
   /** The Fighter's status as the record found it. A record that captured none restores none. */
@@ -504,17 +518,11 @@ export class MatchForfeitsService {
    * refusing the parent void over it would reinstate the bug being fixed here.
    * That predicate is also what makes a re-run after a mid-way crash converge.
    */
-  private async cascadeVoidChildren(parentForfeitId: string, actor: Actor): Promise<number> {
-    const { data } = await this.supabase.service
-      .from('match_forfeits')
-      // `resulting_match_state` is what `recordedResultDiverged` compares
-      // against. Leaving it out of the select does not make that check strict,
-      // it makes it INERT: the column reads back undefined, the comparison has
-      // nothing to compare, and it answers `null` for every child forever.
-      .select('id, match_id, previous_match_state, resulting_match_state')
-      .eq('parent_forfeit_id', parentForfeitId)
-      .is('voided_at', null);
-    const children = (data ?? []) as Row[];
+  private async cascadeVoidChildren(
+    children: Row[],
+    actor: Actor,
+    rulesets: ReadonlyMap<string, MatchRulesetStamp>,
+  ): Promise<number> {
     if (children.length === 0) return 0;
 
     const live = await this.liveMatchIds(children.map((child) => child['match_id'] as string));
@@ -527,12 +535,47 @@ export class MatchForfeitsService {
       const diverged = await this.recordedResultDiverged(matchId, child);
       const previous = (child['previous_match_state'] as Row | null) ?? {};
       const restored = !live.has(matchId) && diverged !== true;
-      if (restored) await this.restoreMatchState(matchId, previous);
+      if (restored) await this.restoreMatchState(matchId, previous, rulesets);
       await this.stampVoided(child['id'] as string, actor);
       // Ruling 330: what was saved on its sheet while it was forfeited counts now.
       if (restored) await this.readSheetAgain(matchId, previous);
     }
     return children.length;
+  }
+
+  /** The sub-forfeits of a record that still stand: the ones its take-back voids. */
+  private async activeChildren(parentForfeitId: string): Promise<Row[]> {
+    const { data } = await this.supabase.service
+      .from('match_forfeits')
+      // `resulting_match_state` is what `recordedResultDiverged` compares
+      // against. Leaving it out of the select does not make that check strict,
+      // it makes it INERT: the column reads back undefined, the comparison has
+      // nothing to compare, and it answers `null` for every child forever.
+      .select('id, match_id, previous_match_state, resulting_match_state')
+      .eq('parent_forfeit_id', parentForfeitId)
+      .is('voided_at', null);
+    return (data ?? []) as Row[];
+  }
+
+  /**
+   * The ruleset each bout takes when a take-back puts it back to "not started":
+   * its Tournament's of now, as a reset does (`matchRulesetForBout`). The
+   * Tournament's rules may have changed while the forfeit stood, and the bout
+   * would be fought under the old ones. A bout the forfeit found started is not
+   * in the answer: it keeps its own.
+   *
+   * Read for every such bout before the take-back writes anything. A child the
+   * cascade then leaves alone (it is in play again) was read for nothing.
+   */
+  private async rulesetsOfBoutsPutBack(records: Row[]): Promise<Map<string, MatchRulesetStamp>> {
+    const rulesets = new Map<string, MatchRulesetStamp>();
+    for (const record of records) {
+      const previous = (record['previous_match_state'] as Row | null) ?? {};
+      if ((previous['status'] ?? 'scheduled') !== 'scheduled') continue;
+      const matchId = record['match_id'] as string;
+      rulesets.set(matchId, await matchRulesetForBout(this.supabase.service, matchId));
+    }
+    return rulesets;
   }
 
   /**
@@ -653,12 +696,20 @@ export class MatchForfeitsService {
    * stay in step: a field the snapshot captures but this does not write stays
    * at whatever the forfeit set it to, silently. `end_reason` was exactly that
    * — see the note on `matchSnapshot`.
+   *
+   * `rulesets` holds the bouts that go back to "not started", each with the
+   * ruleset it takes in this same write (`rulesetsOfBoutsPutBack`).
    */
-  private async restoreMatchState(matchId: string, previous: Row): Promise<void> {
+  private async restoreMatchState(
+    matchId: string,
+    previous: Row,
+    rulesets: ReadonlyMap<string, MatchRulesetStamp>,
+  ): Promise<void> {
     await this.supabase.service
       .from('matches')
       .update({
         status: previous['status'] ?? 'scheduled',
+        ...(rulesets.get(matchId) ?? {}),
         red_score: previous['red_score'] ?? 0,
         blue_score: previous['blue_score'] ?? 0,
         winner_registration_id: previous['winner_registration_id'] ?? null,
