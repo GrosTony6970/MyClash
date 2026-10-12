@@ -368,7 +368,7 @@ export function ScoringCenterControls({
         </p>
       )}
 
-      {clockError && <p className="text-center text-xs text-danger">{clockError}</p>}
+      {clockError && <p className="text-center text-sm text-danger">{clockError}</p>}
 
       {heldPressNotice && (
         <p
@@ -553,12 +553,12 @@ export function ScoringCenterControls({
               ↶ {t('scoring.corrections.clearLastExchange')}
             </button>
             {undo.error && (
-              <p className="text-center text-xs text-danger" role="alert">
+              <p className="text-center text-sm text-danger" role="alert">
                 {undo.error}
               </p>
             )}
             {undo.notice && (
-              <p className="text-center text-xs text-info" role="status">
+              <p className="text-center text-sm text-info" role="status">
                 {undo.notice}
               </p>
             )}

@@ -238,7 +238,7 @@ export function RoundBreakDialog({
         </p>
         {unconfirmed && <ClosedOnTablet />}
         <SeriesTally red={[redRoundWins, redColor]} blue={[blueRoundWins, blueColor]} />
-        {error && <p className="mt-3 text-xs font-normal text-danger">{error}</p>}
+        {error && <p className="mt-3 text-sm font-normal text-danger">{error}</p>}
         <UndoSaid undo={undo} undone={undone} />
       </div>
     </Modal>
@@ -250,12 +250,12 @@ function UndoSaid({ undo, undone }: Pick<RoundBreakDialogProps, 'undo' | 'undone
   return (
     <>
       {undo.error && (
-        <p role="alert" className="mt-3 text-xs font-normal text-danger">
+        <p role="alert" className="mt-3 text-sm font-normal text-danger">
           {undo.error}
         </p>
       )}
       {undo.notice && (
-        <p role="status" className="mt-3 text-xs font-normal text-info">
+        <p role="status" className="mt-3 text-sm font-normal text-info">
           {undo.notice}
         </p>
       )}
@@ -263,7 +263,7 @@ function UndoSaid({ undo, undone }: Pick<RoundBreakDialogProps, 'undo' | 'undone
         <p
           role="status"
           data-testid="round-break-undone"
-          className="mt-3 text-xs font-normal text-info"
+          className="mt-3 text-sm font-normal text-info"
         >
           {undone}
         </p>

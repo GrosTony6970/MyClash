@@ -253,7 +253,7 @@ export function ScoringColumn({
       {unconfirmed && (
         <p
           data-testid="score-unconfirmed"
-          className="mt-1 text-center text-xs font-bold uppercase tracking-wide text-warning"
+          className="mt-1 text-center text-sm font-bold uppercase tracking-wide text-warning"
         >
           {t('scoring.match.scoreUnconfirmed')}
         </p>
@@ -269,7 +269,7 @@ export function ScoringColumn({
           data-provisional-delta={provisionalDelta}
           data-queued-cards={queuedCards.priced}
           data-unpriced-cards={queuedCards.unpriced}
-          className="mt-1 text-center text-[11px] font-semibold leading-tight text-warning"
+          className="mt-1 text-center text-sm font-semibold leading-tight text-warning"
         >
           {provisionalDelta !== 0 &&
             t('scoring.lice.provisionalScore', { delta: String(provisionalDelta) })}
