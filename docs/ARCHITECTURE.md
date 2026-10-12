@@ -1115,8 +1115,16 @@ HEMA events happen in sports halls, basements, and convention centers with hosti
 
 ### 10.2 Architecture
 
-Implemented in [`apps/web-staff/src/offline/`](../apps/web-staff/src/offline/) — `db.ts` (Dexie
-schema: `outbox` + `synced`), `outbox.ts`, `sync.ts` (`SyncEngine`), `reconcile.ts`.
+Implemented in [`apps/web-staff/src/offline/`](../apps/web-staff/src/offline/) — `db.ts` (the
+Dexie store, six tables: `outbox` the queue, `synced`, `rejected` the refused rows the inbox
+shows, `reads` the copies of setup data and of bouts, `undone` and `undoNotices` for the undo),
+`outbox.ts`, `sync.ts` (`SyncEngine`), `press-queue.ts` and `press-send.ts` (the presses, and the
+order of a bout's rows), `pad-clock.ts` and `pad-series.ts` (the clock and the rounds on the
+tablet), `kept-bout.ts`, `drill.ts`.
+
+A row of the queue is one of five kinds (`OutboxKind` in `db.ts`): a hit (`exchange`), a card
+(`penalty`), a clock press (`press`), a round press (`round`) and a step of a level bout
+(`level`). Each kind has its door on the server and its paragraph below. The diagram shows a hit.
 
 The write is **durable-first**: the exchange lands in the IndexedDB outbox before any network call, so
 closing the tab or losing wifi mid-bout cannot lose it. A card rides the same queue, a card of the
@@ -1143,7 +1151,7 @@ sequenceDiagram
       E->>O: markSynced() → moves to `synced` table
     else 409 or 403 refused
       A-->>E: the Event is over, or this caller may not score this bout
-      E->>O: quarantine() — held in `rejected` with its code, never marked synced
+      E->>O: quarantine() — held in `rejected` with its code, and the rows of its bout wait
     else 400 refused
       A-->>E: rejected (stale sequence, round awaiting advance, …)
       E->>O: one re-send under a fresh sequence, else quarantine() — held, never deleted
@@ -1167,14 +1175,17 @@ stateDiagram-v2
   [*] --> idle
   idle --> syncing: outbox has entries
   syncing --> idle: queue fully drained
-  syncing --> offline: consecutive NETWORK failures hit the cap
-  syncing --> error: consecutive SERVER failures hit the cap
-  syncing --> error: drain finished with entries still pending
+  syncing --> offline: three NETWORK failures in a row
+  syncing --> offline: the pass ended with entries left, and each met no network
+  syncing --> error: three SERVER failures in a row
+  syncing --> error: the pass ended with entries left, and the server answered one with a fault
+  syncing --> maintenance: the server answers read-only mode
+  maintenance --> syncing: retry
   syncing --> signed_out: the server answers 401
   syncing --> caller_refused: the server refuses the person
   idle --> caller_refused: a press sent at once is refused for the person
   caller_refused --> idle: the account is signed out with no hit waiting
-  offline --> syncing: connectivity returns
+  offline --> syncing: the network is back, the next try every 5 s, or the end of a drill
   error --> syncing: retry
   signed_out --> syncing: retry, or the bout screen opens
   caller_refused --> syncing: retry, or the account is signed out
@@ -1182,10 +1193,21 @@ stateDiagram-v2
 
 The split between `offline` and `error` is deliberate: a network failure means "keep waiting, this will
 resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
+The rule is one for one entry as for ten (operator, 2026-10-12). A pass that left entries on the
+tablet says `offline` when at least one met no network (the service worker's 503, a fetch that
+threw), none met a fault of the server, and the inbox holds nothing (`emitWalked`). It says `error`
+when the server answered one with a fault, while a refused row is held, or when the pass tried
+nothing. Before, only three failures in a row said `offline`, so one or two entries behind a dead
+uplink read as a red sync error with a Retry. Nothing tells the engine that the network is back when
+the browser never left "online" (a tablet that keeps its access point while the uplink drops gets
+no `online` event). So while the status is `offline` and entries wait, the bout page sends again
+every 5 seconds (`useSendWhileOffline`, `offline/use-sync-state.ts`), on a browser that says it is
+online; a browser that says offline is left to its `online` event, and a drill to its end (§10.5).
 
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
 > saved**. A 400 is re-sent once under a fresh sequence; if that is answered 400 too, and for every 409 and
-> 403, the entry leaves the outbox for the `rejected` store, so the queue behind it keeps draining.
+> 403, the entry leaves the outbox for the `rejected` store. The rows of other bouts keep going; the
+> rows of its own bout wait behind it ("The order of a bout's rows", below).
 > A second try answered 401, or 403 about the person, makes the hit wait as below, and a 409 is
 > held with its own code (`answerBadRequest`). A second try that met no verdict (no network,
 > read-only mode, a server fault, or a read of the next free sequence that was not answered) leaves
@@ -1407,7 +1429,8 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > play again. A round "End round" closed is never put back in play by the server: after the
 > undo its screen stays up, and says which entry was cancelled and that the round stays closed
 > (`lib/undone-line.ts`; `PadRound.onTime` is the server's own reason for the closure). A level
-> round at its time is not ended on the tablet: "End round" is refused in the server's words,
+> round at its time is not ended on the tablet: "End round" is refused there by the server's own
+> two refusals of a level bout, in the pad's words (`endRefusedOnPad`),
 > nothing is queued, and the round plays its chain ("A level bout on the tablet", above). A bout
 > that counts down (`reverse_zero_loses`) runs the same
 > way. The pad adds what it holds to a round's score in one place (`scoreOnPad`,
@@ -1469,9 +1492,9 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 
 ### 10.3 Conflict resolution
 
-- Each exchange carries a **client-generated UUID** (`exchange_id`) and a monotonic **client sequence number**.
+- Each hit and each card carries a **client-generated UUID** (`client_uuid`) and a monotonic **client sequence number**. A press (of the clock, of a round, a step of a level bout) carries its UUID and no sequence.
 - Server is idempotent: inserting an exchange with an existing UUID is a no-op.
-- If server has a newer exchange list (e.g. another scorekeeper edited via admin), the local app reconciles by replaying server state and re-applying any local pending exchanges. Since exchanges are append-only with explicit sequence, conflicts are bounded.
+- The server's lists are what the screen shows. The bout screen reads the bout and its two lists again at the end of each send and when the network is back, and draws the rows the tablet still holds on top of them (`offline/pending-events.ts`, `padSeries`); a row the server already holds is counted once, by its `client_uuid`. Since entries are append-only with an explicit sequence, conflicts are bounded. (`offline/reconcile.ts`, an older merge of the server's list into the tablet's store, has no caller.)
 - **Voids** are never destructive: a voided exchange remains in the table with `voided=true`. Replays do not lose data.
 
 ### 10.4 PWA requirements
@@ -1507,7 +1530,40 @@ resolve", whereas a server failure means "something needs a human". Both leave t
   (`keepClock`), so a copy opens at the time the bout had, and the presses the
   tablet holds are added to it (§10.2, "The clock on the tablet").
 - Manifest installs as standalone tablet app.
-- The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The implemented states are `idle | syncing | offline | error` (see the state machine in §10.2).
+- The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The states are `SyncStatus` in `offline/sync.ts`: `idle`, `syncing`, `offline`, `maintenance`, `error`, `signed-out` and the three refusals of the caller (see the state machine in §10.2).
+
+### 10.5 The offline drill
+
+The piste list offers "Practice going offline" (`components/StartOfflineDrill.tsx`): for two
+minutes the tablet behaves as if the hall's wifi were gone, so a crew meets the offline screen
+before it matters. A banner on every screen says so, counts down and ends it
+(`components/OfflineDrillBanner.tsx`). A drill is refused while the tablet holds a queued or a
+refused row: a drill over a real problem cannot be read.
+
+It stops every WRITE of a bout, at two seams (`offline/drill.ts`; operator, 2026-10-12):
+
+- **The queue.** `SyncEngine.postExchange` answers each row, of the five kinds, with the response
+  the service worker gives with no network (`offlineResponse`, `offline/failure-kind.ts`). The
+  classification, the count of tries and the bar are then the real ones, and no row can be held:
+  a 503 is never a refusal.
+- **The presses that go straight to the server**: Reopen and Reset of the clock, Unlock, a
+  forfeit, the corrections, the void of an undo and the undo's read of the server. They go
+  through `padRequest` (`offline/drill-request.ts`), which answers as `apiRequest` answers that
+  same response. Each says "no connection" by the path a real outage takes, and the undo works
+  on the tablet alone (§10.2).
+
+`offline/drill-census.test.ts` counts every request of the pad, call by call, as stopped by the
+drill or left open with its reason. A new direct press fails it until it is named.
+
+The drill ends at its time, on "End drill", or at the first tick of a tablet that slept through
+it. The banner then sends the queue (`sendAfterReconnect`): the entries of the drill reach the
+server in their order, with no tap. The 5-second retry of §10.2 stands still during a drill: a try
+that can only meet the drill would count against each row, and the organiser's board reads a row
+tried three times as a tablet that is stuck.
+
+What it does not do: READS still reach the server (the bout, its lists, the piste's list), so the
+screen "from the tablet's copy" (§10.4) does not show; and the heartbeat still goes, so the
+organiser's board reads the tablet's waiting entries. It is not a network partition.
 
 ---
 

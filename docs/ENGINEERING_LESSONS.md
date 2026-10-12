@@ -57,7 +57,9 @@ here.
 - Sports halls have hostile wifi. Anything running at the piste must work fully offline, verified
   on real tablets in real venues — not only in CI.
 - The scoring app must always show explicit network state (online / syncing / offline /
-  sync_error). The scorekeeper must never have to guess.
+  sync_error, and who is refused: `SyncStatus`, ARCHITECTURE §10.2). The scorekeeper must never
+  have to guess. Red is for an answer of the server; a send that met only "no network" is
+  offline, with one entry as with ten.
 - Realtime broadcast piggybacks on Postgres row changes (Supabase Realtime). Never broadcast as a
   separate publish step — that creates a "what's stored vs what's sent" split.
 - **`!res.ok` on the scoring pad is the OFFLINE path, not the not-found path.** The service worker
@@ -73,8 +75,10 @@ here.
   outbox row count, the pending badge and the server count, and every one of those passed with the
   scoring surface gone, because the network bar renders outside the guard that cleared it. When the
   thing under test is "the referee can keep working", assert that the controls are still there.
-- Cache setup data (a tournament's scoring rules, the penalty catalogue) in IndexedDB, never live
-  match state. The pad's buttons default to the federal `+2`/`+1`, so a config fetch that fails
+- Cache setup data (a tournament's scoring rules, the penalty catalogue) in IndexedDB. A bout is
+  kept there too since the offline bout (ARCHITECTURE §10.4), under one rule: its copy is shown
+  only when the server cannot be reached, and the screen always says so. Never serve a copy of a
+  bout as the server's. The pad's buttons default to the federal `+2`/`+1`, so a config fetch that fails
   silently arms the wrong values on a custom ruleset and the queued hit is permanently wrong. A
   stale button beats a defaulted one — but only if the surface says which it is showing.
 
