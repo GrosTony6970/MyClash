@@ -49,10 +49,16 @@ const SINGLE_READER = [
   { hook: 'useExchanges', module: 'useExchanges', owner: 'src/hooks/useMatchScoringData.ts' },
   // Same fault, different shape: `MatchView` and `MatchHeader` both called this
   // with the same arguments, so `/neighbors` was fetched twice per hit. It is
-  // imported from `@myclash/ui`, so the owner here is the component, not a hook.
+  // imported from `@myclash/ui`. Its one reader is the pad's own hook, which
+  // adds the neighbours the tablet keeps; `usePadNeighbours` has one reader too.
   {
     hook: 'useAdjacentMatches',
     module: '@myclash/ui',
+    owner: 'src/hooks/usePadNeighbours.ts',
+  },
+  {
+    hook: 'usePadNeighbours',
+    module: 'usePadNeighbours',
     owner: 'src/components/MatchView.tsx',
   },
 ] as const;

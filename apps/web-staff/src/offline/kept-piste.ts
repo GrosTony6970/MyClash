@@ -9,7 +9,10 @@
  *
  * In the `reads` table, under a key of its own, as the copies are.
  */
+import type { NextMatchInfo } from '@myclash/ui';
+import type { MatchInfo } from '../components/MatchView';
 import { db } from './db';
+import { keptBout } from './kept-bout';
 
 const keyOf = (liceId: string) => `piste/${liceId}`;
 
@@ -38,4 +41,60 @@ export async function keepPiste(liceId: string, order: string[], askedAt: number
 export async function keptPiste(liceId: string): Promise<KeptPiste | null> {
   const row = await db.reads.get(keyOf(liceId));
   return row ? { order: row.body as string[], readAt: row.fetchedAt } : null;
+}
+
+/** The bouts on each side of one bout, as the Next and Previous tiles name them. */
+export interface KeptNeighbours {
+  previous: NextMatchInfo | null;
+  next: NextMatchInfo | null;
+}
+
+/**
+ * The neighbours of `matchId` in a kept order.
+ *
+ * The neighbour is the bout NEXT IN THE ORDER, with or without a copy. A bout
+ * with no copy (it had no names when the piste was read) gets a tile with no
+ * names, and opens "not loaded" with no network. Stepping over it to the next
+ * bout that has a copy would send the table to fight the wrong bout.
+ */
+export function neighboursFromPiste(
+  order: readonly string[],
+  matchId: string,
+  copyOf: (id: string) => MatchInfo | null,
+): KeptNeighbours {
+  const at = order.indexOf(matchId);
+  if (at === -1) return { previous: null, next: null };
+  const tile = (id: string | undefined): NextMatchInfo | null => {
+    if (!id) return null;
+    const copy = copyOf(id);
+    return {
+      id,
+      matchNumberLabel: copy?.matchNumberLabel || null,
+      roundCode: copy?.roundCode || null,
+      redName: copy?.redFighterName ?? '',
+      blueName: copy?.blueFighterName ?? '',
+      redClub: copy?.redClub ?? null,
+      blueClub: copy?.blueClub ?? null,
+    };
+  };
+  return { previous: tile(order[at - 1]), next: tile(order[at + 1]) };
+}
+
+/** The neighbours of a bout from what the tablet holds of its piste, or null when it holds none. */
+export async function keptNeighbours(
+  liceId: string,
+  matchId: string,
+): Promise<KeptNeighbours | null> {
+  const piste = await keptPiste(liceId);
+  if (!piste) return null;
+  const at = piste.order.indexOf(matchId);
+  const beside = [piste.order[at - 1], piste.order[at + 1]].filter(
+    (id): id is string => at !== -1 && Boolean(id),
+  );
+  const copies = new Map<string, MatchInfo>();
+  for (const id of beside) {
+    const kept = await keptBout(id);
+    if (kept) copies.set(id, kept.match);
+  }
+  return neighboursFromPiste(piste.order, matchId, (id) => copies.get(id) ?? null);
 }

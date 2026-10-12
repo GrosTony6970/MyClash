@@ -6,6 +6,8 @@ import type { NextMatchInfo } from './useNextMatch';
 interface UseAdjacentMatchesResult {
   previous: NextMatchInfo | null;
   next: NextMatchInfo | null;
+  /** The server has answered for THIS bout, now or at an earlier read. */
+  answered: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -46,13 +48,17 @@ interface HeldNeighbours {
  * A read that fails keeps them, so a hit scored with no network does not take
  * the way to the next bout off the screen. Another bout's neighbours are never
  * shown: the Next of the bout before is this bout.
+ *
+ * `answered` tells "the server said this bout has no neighbour" from "the
+ * server has said nothing yet": a caller that holds the piste itself shows its
+ * own neighbours only in the second case.
  */
 export function neighboursOf(
   held: HeldNeighbours | null,
   matchId: string | null | undefined,
-): Pick<HeldNeighbours, 'previous' | 'next'> {
-  if (!held || held.matchId !== matchId) return { previous: null, next: null };
-  return { previous: held.previous, next: held.next };
+): Pick<HeldNeighbours, 'previous' | 'next'> & { answered: boolean } {
+  if (!held || held.matchId !== matchId) return { previous: null, next: null, answered: false };
+  return { previous: held.previous, next: held.next, answered: true };
 }
 
 /**

@@ -25,6 +25,7 @@ import type { SyncEngine } from '../offline/sync';
 import { readMatchConfig } from '../lib/match-config-read';
 import { useSendEnded, useSyncState } from '../offline/use-sync-state';
 import { useMatchScoringData } from '../hooks/useMatchScoringData';
+import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
@@ -32,7 +33,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   pointCapWinnerColor,
 } from '@myclash/types';
-import { sideStyle, useAdjacentMatches, useWakeLock } from '@myclash/ui';
+import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
@@ -184,11 +185,7 @@ export function MatchView({
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   // Next bout in the lice queue — powers the "Next match →" action on the result overlay.
-  const { previous: previousMatch, next: nextMatch } = useAdjacentMatches(
-    apiUrl,
-    match.id,
-    refreshKey,
-  );
+  const { previous: previousMatch, next: nextMatch } = usePadNeighbours(apiUrl, match, refreshKey);
   // Resume guard: when the operator starts/resumes at zero / in the soft
   // zone, hold the action here and ask first (continue anyway / end the
   // match, or the round of a best-of bout).

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './db';
 import { keepBout, keepBoutsAskedAt, keptBout } from './kept-bout';
-import { keepPiste, keptPiste } from './kept-piste';
+import { keepPiste, keptNeighbours, keptPiste, neighboursFromPiste } from './kept-piste';
 import type { MatchInfo } from '../components/MatchView';
 
 const bout = (id: string, redScore = 0): MatchInfo => ({
@@ -52,6 +52,77 @@ describe('the order of a piste the tablet keeps', () => {
 
     expect((await keptBout('lice-1'))?.match.id).toBe('lice-1');
     expect((await keptPiste('lice-1'))?.order).toEqual(['a']);
+  });
+});
+
+describe('the neighbours of a bout, from the piste the tablet keeps', () => {
+  const named = (id: string): MatchInfo => ({
+    ...bout(id),
+    matchNumberLabel: `L1-P1-${id}`,
+    roundCode: `LSW-P1-${id}`,
+    redFighterName: `Red ${id}`,
+    blueFighterName: `Blue ${id}`,
+    redClub: 'Club A',
+  });
+  const copies = (ids: string[]) => (id: string) => (ids.includes(id) ? named(id) : null);
+  const tile = (id: string) => ({
+    id,
+    matchNumberLabel: `L1-P1-${id}`,
+    roundCode: `LSW-P1-${id}`,
+    redName: `Red ${id}`,
+    blueName: `Blue ${id}`,
+    redClub: 'Club A',
+    blueClub: null,
+  });
+
+  it('are the bouts before and after it in the order', () => {
+    expect(neighboursFromPiste(['a', 'b', 'c'], 'b', copies(['a', 'b', 'c']))).toEqual({
+      previous: tile('a'),
+      next: tile('c'),
+    });
+  });
+
+  it('are nothing past the two ends, and nothing for a bout that is not of the piste', () => {
+    const all = copies(['a', 'b', 'c']);
+
+    expect(neighboursFromPiste(['a', 'b', 'c'], 'a', all)).toEqual({
+      previous: null,
+      next: tile('b'),
+    });
+    expect(neighboursFromPiste(['a', 'b', 'c'], 'c', all)).toEqual({
+      previous: tile('b'),
+      next: null,
+    });
+    // Not found is -1: the bout "after" it would be the first of the piste.
+    expect(neighboursFromPiste(['a', 'b', 'c'], 'z', all)).toEqual({ previous: null, next: null });
+    expect(neighboursFromPiste([], 'a', all)).toEqual({ previous: null, next: null });
+  });
+
+  // Stepping over it would send the table to fight bout c in place of bout b.
+  it('name the next bout of the order even when the tablet holds no copy of it', () => {
+    expect(neighboursFromPiste(['a', 'b', 'c'], 'a', copies(['a', 'c'])).next).toEqual({
+      id: 'b',
+      matchNumberLabel: null,
+      roundCode: null,
+      redName: '',
+      blueName: '',
+      redClub: null,
+      blueClub: null,
+    });
+  });
+
+  it('are read from the kept order and the kept bouts', async () => {
+    await keepPiste('lice-1', ['a', 'b', 'c'], 1_000);
+    await keepBoutsAskedAt([named('a'), named('c')], 1_000);
+
+    expect(await keptNeighbours('lice-1', 'b')).toEqual({ previous: tile('a'), next: tile('c') });
+    expect((await keptNeighbours('lice-1', 'a'))?.next?.redName).toBe('');
+  });
+
+  it('are null for a piste the tablet holds nothing of', async () => {
+    await keepBoutsAskedAt([named('a')], 1_000);
+
+    expect(await keptNeighbours('lice-9', 'a')).toBeNull();
   });
 });
 
