@@ -535,7 +535,7 @@ Four rulings on the evening of 2026-10-11, each a slice with its own recon and p
 | A Pool bout that counts down, doubles limit 3. Red hits once, then three doubles: the board is wiped to 0 – 0, and the bout ends as a draw ("first to points"). Counting up, the same bout is a loss for both ("max doubles"). | **A loss for both**: in a bout that counts down the doubles limit is asked before the point cap, and the bout ends as the format's doubles outcome says.                                                 | `6b30e5bc` |
 | An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | `8dab2ce0` |
 | Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | `f2da59d8` |
-| A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | not built  |
+| A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | `79757c14` |
 
 **The doubles limit in a bout that counts down, and "End match" at the limit, are built**
 (2026-10-11 night): `6b30e5bc` the rule, `a49a6e07` the server's tests, `c081faa9` the tablet.
@@ -719,20 +719,53 @@ back, takes the Tournament's ruleset of that moment.
 
 Named while this was built, and not fixed (each one checked in code by a review):
 
-- A forfeit taken back on a bout that was never started puts it back to "not started" with the
-  ruleset it had. After an audited change of ruleset, that one bout is fought under the old one.
-  The reset and the bracket revert are fixed; this door is not.
+- ~~A forfeit taken back on a bout that was never started puts it back to "not started" with the
+  ruleset it had.~~ Fixed, `6e96acc1`.
 - A bout started on a tablet with no network is "not started" for the server. A change of the
   Tournament's rules at that moment moves it, and its hits are scored with the new ruleset when
   they arrive.
 - The engine is read from the bout, and the settings of the ruleset (win bonus, match format) are
   read from the Tournament at the moment of each hit. After an audited change during an Event, a
   bout started before it is scored with the old engine and the new settings. It was so before.
-- Every save of the scoring pad's settings or of the match format writes each bout not yet started
-  again, also when nothing changed for it. With 150 such bouts, every tablet, board and public
-  page gets 150 change notices.
+- ~~Every save of the scoring pad's settings or of the match format writes each bout not yet
+  started again, also when nothing changed for it.~~ Fixed, `79757c14`.
 - Pools generated in the same seconds as a change of ruleset can land on the old ruleset. The
   next save of the Tournament's rules repairs them.
+
+**A save writes only the bouts that differ: `79757c14`** (2026-10-12), with four more pieces the
+operator added that day ("all four").
+
+- A save of a Tournament's rules that changes nothing for its bouts writes no bout. Before, it
+  wrote every bout not started: one change notice per bout on every screen. It also made a league
+  read as "results changed since the ranking", because every write moves a bout's last-changed
+  time and the league reads that time. The ruling's story did not name the league.
+- Two doors gave a Tournament a new hash and left its bouts not started on the old one:
+  "acknowledge the rules changed" on the settings page, and a change of the Event's default
+  penalty rules. Both move the bouts now (`a9cdf706`).
+- A forfeit taken back gives a bout that goes back to "not started" its Tournament's ruleset of
+  that moment, as a reset does. A bout the forfeit found started keeps its own (`6e96acc1`).
+- A Tournament's own hash is written only when it changed. A write of it that the database
+  refuses is logged; the save still answers "saved" (ruled 2026-10-12). The settings page then
+  shows its "rules changed" banner, and "acknowledge" writes the hash again (`6fef9f6a`).
+- The filter was proved once against the real PostgREST (v14.16), with the real function: the
+  API's test double cannot prove a filter string. The database of that run held the three tables
+  with their real columns, not the whole set of migrations.
+
+The cold review found one fault in my forfeit piece, fixed before the commit. A ruleset read that
+failed for a later Pool bout of a withdrawal left the first bout restored, and every next try was
+refused ("the match has been replayed"). Every ruleset is now read before the take-back writes
+anything.
+
+Named while this was built, and not fixed:
+
+- "Acknowledge the rules changed" answers "done" also when the write of the hash failed. The
+  failure is in the log now, and the banner comes back at the next read of the page.
+- When the Tournament's row cannot be read at the moment its hash is computed, the hash is
+  written as empty over a good one. Older than this work.
+- Two saves of one Tournament's rules at the same moment: each writes the stamp it read, and the
+  later write wins. Older than this work.
+- A take-back of a withdrawal reads the ruleset of every Pool bout that goes back to "not
+  started", also of a bout it then leaves alone because it is in play again.
 - A change of an Event's default penalty rules gives its Tournaments a new fingerprint, and their
   bouts not yet started keep the old fingerprint. Nothing reads a bout's fingerprint today.
 - A club's own ruleset can be edited or deleted once no Tournament uses it, while finished bouts
