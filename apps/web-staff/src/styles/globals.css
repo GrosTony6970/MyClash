@@ -10,3 +10,17 @@
  * TournamentColorDot, etc.) make it into the generated CSS.
  */
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+/*
+ * No pull-to-refresh on the tablet (quick win P8; operator, 2026-10-12: every
+ * screen of the pad). A finger that drags down from the top of the bout
+ * screen reloaded the page in the middle of a bout. The rule is on the root:
+ * the document is what scrolls here, and the browser reads this property off
+ * the root scroller alone. The lists that scroll inside the page (the penalty
+ * list, the timeline, the drawer) still chain to the document; it is the
+ * document that no longer hands the swipe to the browser.
+ */
+html,
+body {
+  overscroll-behavior-y: none;
+}
