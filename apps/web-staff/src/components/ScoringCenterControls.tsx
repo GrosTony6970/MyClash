@@ -42,6 +42,7 @@ import {
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { useTimeUpCue } from '../hooks/useTimeUpCue';
 import type { UndoLast } from '../hooks/useUndoLast';
 import { PAD_KEYS } from '../lib/pad-keys';
 import { isDoubleLoss } from './is-double-loss';
@@ -197,6 +198,9 @@ export function ScoringCenterControls({
     elapsedMs,
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null,
   );
+  // The beep of "time is up", from the one live time of the screen. At the
+  // limit whatever the clock counts: the bout ends there in both modes.
+  useTimeUpCue(status, elapsedMs, limitSeconds === null ? null : limitSeconds * 1000);
   // The remedy button, or nothing. Resolved HERE rather than where the chain is
   // read, because this is the only place holding the LIVE elapsed time: the
   // fetched clock is refreshed after a successful action, and a refused End is

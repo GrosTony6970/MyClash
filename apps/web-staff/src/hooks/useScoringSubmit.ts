@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AfterblowButton, CleanButton } from '@myclash/types';
+import { tapCue } from '../lib/pad-cue';
 import type { BoutNames } from '../offline/db';
 import { enqueue } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
@@ -93,6 +94,8 @@ export function useScoringSubmit({
         syncEngine,
         onExchangeRecorded,
       );
+      // The official feels that the hit is on the tablet, eyes on the fighters.
+      if (written === 'saved') tapCue();
       // The one writer: the alert stays until a press is written.
       setNotSaved(written === 'not_saved');
       setSubmitting(false);
