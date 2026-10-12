@@ -13,8 +13,8 @@
  * assertions.
  *
  * ── What is modelled, and what throws ───────────────────────────────────────
- * `eq`, `neq`, `is`, `in` and `ilike`, plus `not` in front of `is`. Everything
- * else throws, in the same spirit as UNSIMULATED: a filter that quietly matched
+ * `eq`, `neq`, `is`, `in` and `ilike`, plus `not` in front of `is`, and a
+ * double-quoted value under `eq` and `neq`. Everything else throws, in the same spirit as UNSIMULATED: a filter that quietly matched
  * more rows than Postgres would lets a test assert less than it appears to.
  *
  * The three shapes deliberately left out are the three no target needs yet —
@@ -33,13 +33,24 @@
  * list. Depth counting is the whole trick: `in.(…)` and `and(…)` are the only
  * things that nest, and both are parenthesised.
  */
+/** `column.operator.` or `column.not.operator.`: what stands before a value. */
+const VALUE_STARTS = /^[^.,()"]+\.(?:not\.)?[a-z]+\.$/;
+
 function splitSiblings(source: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let start = 0;
+  let quoted = false;
   for (let i = 0; i < source.length; i += 1) {
     const char = source[i];
-    if (char === '(') depth += 1;
+    // Inside double quotes nothing is syntax, and a backslash takes the next
+    // character with it (`\"` does not close the value). A quote OPENS only as
+    // the first character of a value: anywhere else it is text, as in a name
+    // search for `a"b`.
+    if (quoted && char === '\\') i += 1;
+    else if (quoted) quoted = char !== '"';
+    else if (char === '"') quoted = VALUE_STARTS.test(source.slice(start, i));
+    else if (char === '(') depth += 1;
     else if (char === ')') depth -= 1;
     else if (char === ',' && depth === 0) {
       parts.push(source.slice(start, i));
@@ -89,7 +100,25 @@ function isKeyword(term: string, raw: string): boolean | null {
 function inList(term: string, raw: string): string[] {
   if (!raw.startsWith('(') || !raw.endsWith(')')) throw refuse(term, `in without a (list)`);
   const body = raw.slice(1, -1);
+  if (body.includes('"')) throw refuse(term, 'a quoted value in a list');
   return body === '' ? [] : body.split(',');
+}
+
+/** A whole double-quoted value: its text, with each escaping backslash taken off. */
+const QUOTED = /^"((?:[^"\\]|\\.)*)"$/;
+
+/**
+ * The text of a quoted value.
+ *
+ * PostgREST's own rule: a value that may hold `,` `.` `:` `(` `)` goes in
+ * double quotes, and `"` and `\` inside it take a backslash. Only `eq` and
+ * `neq` read one here, because only they have a caller that writes one.
+ */
+function unquoted(term: string, operator: string, raw: string): string {
+  if (operator !== 'eq' && operator !== 'neq') throw refuse(term, 'a quoted value');
+  const whole = QUOTED.exec(raw);
+  if (!whole) throw refuse(term, 'a quoted value that does not close');
+  return (whole[1] ?? '').replace(/\\(.)/g, '$1');
 }
 
 /**
@@ -99,7 +128,12 @@ function inList(term: string, raw: string): string[] {
  * patterns both carry them, so only the first two segments may be split off.
  */
 function parseTerm(term: string): OrTerm {
-  if (term.includes('(') && !term.includes('.in.')) throw refuse(term, 'a nested and()/or() group');
+  // A parenthesis inside a quoted value is text, not a group.
+  const quotedAt = term.indexOf('"');
+  const group = quotedAt > 0 && VALUE_STARTS.test(term.slice(0, quotedAt)) ? '' : term;
+  if (group.includes('(') && !group.includes('.in.')) {
+    throw refuse(term, 'a nested and()/or() group');
+  }
 
   const firstDot = term.indexOf('.');
   if (firstDot < 1) throw refuse(term, 'not column.operator.value');
@@ -116,7 +150,14 @@ function parseTerm(term: string): OrTerm {
 
   if (!OPERATORS.has(operator)) throw refuse(term, `operator "${operator}"`);
   if (negated && operator !== 'is') throw refuse(term, `not.${operator}`);
-  if (raw.startsWith('"')) throw refuse(term, 'a quoted value');
+  if (raw.startsWith('"')) {
+    return {
+      column,
+      operator: operator as OrOperator,
+      negated,
+      value: unquoted(term, operator, raw),
+    };
+  }
 
   const value =
     operator === 'is' ? isKeyword(term, raw) : operator === 'in' ? inList(term, raw) : raw;
