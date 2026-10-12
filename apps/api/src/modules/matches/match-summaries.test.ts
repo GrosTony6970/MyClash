@@ -182,4 +182,18 @@ describe('matchSummaries', () => {
       'tournaments: connection lost',
     );
   });
+
+  // The first read too: a database fault is the server's (a 5xx), not the
+  // caller's. It was answered as a 400.
+  it('throws a plain error when the read of the view fails', async () => {
+    const supabase = mockSupabase({
+      vw_tournament_query_matches: { data: null, error: { message: 'connection lost' } },
+    });
+
+    const failure = await matchSummaries(supabase.service as never, ['pool']).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toEqual(new Error('vw_tournament_query_matches: connection lost'));
+    expect(failure).not.toHaveProperty('getStatus');
+  });
 });

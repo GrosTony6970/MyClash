@@ -20,6 +20,7 @@ import {
   roundCodeFromMatchRow,
   type LiceMatchesPayload,
 } from './lice-matches';
+import { liceBouts } from './lice-bouts';
 import { bracketToken, isWeakPin, parseStaffRole } from '@myclash/types';
 import type { PhaseType, StaffRole } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
@@ -1267,6 +1268,15 @@ export class StaffService {
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return this.getMatchesForLiceId(liceId);
+  }
+
+  /**
+   * Every bout of an assigned piste, each as the pad reads one bout, for the
+   * tablet to keep (`lice-bouts.ts`). The bar of the piste list.
+   */
+  async getAssignedLiceBouts(req: FastifyRequest, liceId: string) {
+    await this.requireLiceAccess(req, liceId);
+    return liceBouts(this.supabase.service, liceId);
   }
 
   /**

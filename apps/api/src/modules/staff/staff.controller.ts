@@ -259,6 +259,19 @@ export class StaffController {
     return this.staff.getAssignedLiceMatches(req, liceId);
   }
 
+  @Get('staff/lices/:liceId/bouts')
+  @ApiOperation({
+    summary:
+      'Every bout of an assigned Lice, each with its row and its summary, for the tablet to keep',
+  })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  async assignedLiceBouts(
+    @Param('liceId', ParseUUIDPipe) liceId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.staff.getAssignedLiceBouts(req, liceId);
+  }
+
   // The piste screen's pool + bracket views. Staff-scoped rather than reusing
   // /tournaments/:id/* directly: those are for members of the tournament's club
   // (ruling 79), and a staff session is not one.

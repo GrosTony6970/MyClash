@@ -5001,6 +5001,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/lices/{liceId}/bouts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Every bout of an assigned Lice, each with its row and its summary, for the tablet to keep */
+    get: operations['StaffController_assignedLiceBouts'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff/lices/{liceId}/tournaments/{tournamentId}/pools': {
     parameters: {
       query?: never;
@@ -19103,6 +19120,25 @@ export interface operations {
     };
   };
   StaffController_assignedLiceMatches: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        liceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_assignedLiceBouts: {
     parameters: {
       query?: never;
       header?: never;
