@@ -9,7 +9,7 @@
  *   - Swap fighter color / side
  *   - Time adjust (+/- seconds)
  *   - Exchange edit (select-from-list + "Edit as no exchange")
- *   - RESET MATCH (text-confirmation gate)
+ *   - RESET MATCH (text-confirmation gate, `ResetMatchZone`)
  *
  * "Clear last exchange" is NOT here — it lives inline in the centre
  * column so the operator doesn't have to open a drawer for the most
@@ -31,6 +31,8 @@ import { AskFirstDialog } from './AskFirstDialog';
 import { DirectCardPanel, NO_DIRECT_CARD_DRAFT } from './DirectCardPanel';
 import { ForfeitPanel } from './ForfeitPanel';
 import { padRequest } from '../offline/drill-request';
+import { RESET_PHRASE } from '../lib/reset-phrase';
+import { ResetMatchZone } from './ResetMatchZone';
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -105,7 +107,6 @@ export function MatchCorrectionsDrawer({
   const { chromeScope } = useScoringTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetText, setResetText] = useState('');
   const [reason, setReason] = useState('');
   const [adjustSeconds, setAdjustSeconds] = useState(10);
   const [selectedExchangeId, setSelectedExchangeId] = useState('');
@@ -174,10 +175,11 @@ export function MatchCorrectionsDrawer({
     setBusy(false);
     if (result.ok) {
       onDone();
-      return;
+      return true;
     }
     const refusal = refusalMessage(result, t, 'scoring.corrections.actionFailed');
     if (refusal) setError(refusal);
+    return false;
   }
 
   async function editAsNoExchange(exchangeId: string) {
@@ -405,31 +407,15 @@ export function MatchCorrectionsDrawer({
           />
 
           {/* Danger zone */}
-          <div className="rounded-lg border border-danger/40 bg-danger/10 p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-danger">
-              {t('scoring.corrections.resetMatch')}
-            </p>
-            <input
-              value={resetText}
-              onChange={(e) => setResetText(e.target.value)}
-              placeholder={t('scoring.corrections.resetConfirmation')}
-              aria-label={t('scoring.corrections.resetConfirmation')}
-              className="mb-2 w-full rounded-lg border border-danger/50 bg-surface px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              disabled={disabled || resetText !== 'RESET MATCH'}
-              onClick={() =>
-                void post(`/api/v1/matches/${matchId}/reset`, {
-                  confirmation: resetText,
-                  reason: reason || t('scoring.corrections.defaultReason'),
-                })
-              }
-              className="w-full rounded-lg border border-danger bg-danger px-3 py-2 text-sm font-bold text-danger-foreground hover:bg-danger-hover disabled:opacity-40"
-            >
-              {t('scoring.corrections.resetMatch')}
-            </button>
-          </div>
+          <ResetMatchZone
+            disabled={disabled}
+            onReset={() =>
+              post(`/api/v1/matches/${matchId}/reset`, {
+                confirmation: RESET_PHRASE,
+                reason: reason || t('scoring.corrections.defaultReason'),
+              })
+            }
+          />
         </div>
       </aside>
     </div>

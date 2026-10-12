@@ -416,6 +416,8 @@ export const scoring = {
       'The entry {entry} is voided, and a "no exchange" takes its place. Its points no longer count.',
     reason: 'Correction reason',
     resetConfirmation: 'Type RESET MATCH to reset',
+    resetPhraseMissing:
+      'Type the two words RESET MATCH to make the button work. Capitals do not matter.',
     dependentsBlockedOne:
       'A later bout has already been fought. Only an organiser can undo this — ask one.',
     dependentsBlockedMany:

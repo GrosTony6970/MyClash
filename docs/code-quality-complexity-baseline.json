@@ -826,7 +826,7 @@
     "apps/web-staff/app/matches/[matchId]/page.tsx:41",
     "apps/web-staff/src/components/ForfeitPanel.tsx:33",
     "apps/web-staff/src/components/MatchClock.tsx:51",
-    "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:79",
+    "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:81",
     "apps/web-staff/src/components/MatchHeader.tsx:74",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:184",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:98",
