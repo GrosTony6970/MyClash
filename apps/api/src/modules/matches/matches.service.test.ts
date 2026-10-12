@@ -71,9 +71,10 @@ function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean 
  * Everything `getMatchSummary` reads for one bout.
  *
  * Nine tables, not the three the old fixture named. `events`,
- * `referee_assignments` and the two `matches` reads were all answered by a
+ * `referee_assignments` and the `matches` read were all answered by a
  * blanket `{ data: null }` fallback that no one chose — the shared double throws
- * on an undeclared table, which is how this became the real surface.
+ * on an undeclared table, which is how this became the real surface. The reads
+ * themselves are `matchSummaries`' (`match-summaries.test.ts`).
  *
  * `matches.lice_id` is null on purpose: a piste id here would send the summary
  * on to `lices`, and that table would then have to be declared too.
@@ -178,6 +179,18 @@ describe('MatchesService', () => {
       const result = (await summaryService.getMatchSummary('m-r16-1')) as { roundCode: string };
 
       expect(result.roundCode).toBe('LSW-B-R16-M1');
+    });
+
+    // The builder answers a map; "no entry" is this route's 404, word for word
+    // the one `getMatch` gives.
+    it('answers a bout the view does not hold with the 404 of an unknown bout', async () => {
+      const { service: summaryService } = makeService({
+        vw_tournament_query_matches: { rows: [] },
+      });
+
+      await expect(summaryService.getMatchSummary('nowhere')).rejects.toEqual(
+        new NotFoundException('Match nowhere not found'),
+      );
     });
   });
 

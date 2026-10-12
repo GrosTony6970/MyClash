@@ -7,16 +7,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { bracketToken, computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
+import { computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
 import { DEFAULT_EVENT_TIMEZONE, dayStartUtcIso } from '@myclash/time';
-import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
-import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
-import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
-import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
+import { matchSummaries } from './match-summaries';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { assertBoutTakes } from './bout-not-started';
@@ -128,241 +124,15 @@ export class MatchesService {
   }
 
   /**
-   * Compact header summary for the scoreboard page.
-   * Returns fighter names, club abbreviations, pool name, match label, and weapon.
+   * Compact header summary for the scoreboard page: fighter names, clubs, Pool,
+   * round code, weapon, referees, the rounds. Built by `matchSummaries`, the one
+   * builder, which the pad's read of a whole piste asks for many bouts.
    * Public endpoint — no auth required (same as getMatch).
    */
   async getMatchSummary(matchId: string) {
-    const { data, error } = await this.supabase.service
-      .from('vw_tournament_query_matches')
-      .select(
-        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
-      )
-      .eq('match_id', matchId)
-      .maybeSingle();
-
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
-
-    const row = data as {
-      match_id: string;
-      match_number_label: string | null;
-      status: string;
-      pool_id: string | null;
-      pool_name: string | null;
-      bracket_round: number | null;
-      swiss_round: number | null;
-      red_name: string | null;
-      blue_name: string | null;
-      red_club: string | null;
-      blue_club: string | null;
-      tournament_id: string;
-      event_id: string;
-      phase_id: string | null;
-      phase_type: string | null;
-    };
-
-    // Fetch weapon + ruleset_config from tournament (not in view). ruleset_config
-    // drives the effective best-of for this match's phase.
-    const { data: tournament } = await this.supabase.service
-      .from('tournaments')
-      .select('weapon, name, ruleset_config, scoring_config_json')
-      .eq('id', row.tournament_id)
-      .maybeSingle();
-    const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
-    const tournamentName = (tournament as { name?: string | null } | null)?.name ?? null;
-    // The operator's configured side colours live here. Returned so the PUBLIC
-    // match page paints the tournament's real colours instead of falling back
-    // to generic red/blue — the pad and the projector already do.
-    const scoringConfig =
-      (tournament as { scoring_config_json?: unknown } | null)?.scoring_config_json ?? null;
-    const rulesetConfig = (tournament as { ruleset_config?: unknown } | null)?.ruleset_config ?? {};
-    const matchFormat = normalizeMatchFormatConfig(
-      (rulesetConfig as { matchFormat?: unknown }).matchFormat ?? {},
-    );
-    const summaryPhaseType =
-      row.phase_type === 'pool' ||
-      row.phase_type === 'single_elim' ||
-      row.phase_type === 'double_elim' ||
-      row.phase_type === 'swiss'
-        ? row.phase_type
-        : undefined;
-    const bestOf = getEffectiveBestOf(
-      {
-        id: matchId,
-        redRegistrationId: '',
-        blueRegistrationId: '',
-        rulesetCode: 'TF_v1',
-        rulesetVersion: '1.0.0',
-        status: 'running',
-        phaseType: summaryPhaseType,
-        matchNumberLabel: row.match_number_label,
-      } satisfies RulesetMatch,
-      matchFormat,
-    );
-
-    // For bracket matches, fetch the phase's bracketSize so the
-    // formatter resolves bracket_round → R16/QF/SF/F instead of
-    // falling back to B{round}. Stored at bracket-generation time in
-    // phases.config_json.
-    let bracketSize: number | null = null;
-    // Double-elim split, from the same config blob — without it the winners
-    // final, the grand final and its reset would all render the same label.
-    let wbRounds: number | null = null;
-    let lbRounds: number | null = null;
-    if (row.bracket_round !== null && row.phase_id) {
-      const { data: phaseRow } = await this.supabase.service
-        .from('phases')
-        .select('config_json')
-        .eq('id', row.phase_id)
-        .maybeSingle();
-      const cfg = (phaseRow as { config_json?: Record<string, unknown> } | null)?.config_json;
-      const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
-      if (typeof size === 'number') bracketSize = size;
-      ({ wbRounds, lbRounds } = bracketCodeConfig(cfg));
-    }
-
-    // Pool sort_order isn't projected by vw_tournament_query_matches, so
-    // we fetch it here when the match belongs to a pool — needed to feed
-    // formatRoundCode's poolNumber (1-indexed).
-    let poolNumber: number | null = null;
-    if (row.pool_id) {
-      const { data: pool } = await this.supabase.service
-        .from('pools')
-        .select('sort_order')
-        .eq('id', row.pool_id)
-        .maybeSingle();
-      const sortOrder = (pool as { sort_order?: number | null } | null)?.sort_order;
-      if (typeof sortOrder === 'number') poolNumber = sortOrder + 1;
-    }
-
-    const roundCode = buildRoundCode({
-      weapon,
-      poolNumber,
-      bracketRound: row.bracket_round,
-      swissRound: row.swiss_round,
-      bracketSize,
-      wbRounds,
-      lbRounds,
-      matchNumberLabel: row.match_number_label,
-      roundNumber: null,
-    });
-
-    // The round on its own, for the pad's "Tournament · Phase · Piste" line.
-    // That line only ever carried poolName, so a bracket or Swiss bout named no
-    // phase at all. Built from the same inputs as the code above so the header
-    // and the code on the same screen cannot disagree.
-    const roundToken =
-      row.swiss_round !== null && row.swiss_round !== undefined
-        ? `S${row.swiss_round}`
-        : bracketToken({ bracketRound: row.bracket_round, bracketSize, wbRounds, lbRounds });
-
-    // Event timezone — so the public match view can format started/ended
-    // times in the venue's wall clock (default Europe/Paris).
-    const { data: eventRow } = await this.supabase.service
-      .from('events')
-      .select('timezone')
-      .eq('id', row.event_id)
-      .maybeSingle();
-    const eventTimezone =
-      (eventRow as { timezone?: string | null } | null)?.timezone ?? 'Europe/Paris';
-
-    const referees = await this.resolveMatchRefereesForSummary(row.event_id, matchId, row.pool_id);
-
-    // Piste/lice display name for the scoreboard header context line
-    // (Tournament · Pool · Piste). lice_id lives on the match row, not the view.
-    const { data: matchLiceRow } = await this.supabase.service
-      .from('matches')
-      .select(
-        'lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance',
-      )
-      .eq('id', matchId)
-      .maybeSingle();
-    const matchRoundRow = matchLiceRow as {
-      lice_id?: string | null;
-      current_round?: number | null;
-      red_round_wins?: number | null;
-      blue_round_wins?: number | null;
-      rounds_json?: unknown;
-      awaiting_round_advance?: boolean | null;
-    } | null;
-    const summaryLiceId = matchRoundRow?.lice_id ?? null;
-    let liceName: string | null = null;
-    if (summaryLiceId) {
-      const { data: lice } = await this.supabase.service
-        .from('lices')
-        .select('name')
-        .eq('id', summaryLiceId)
-        .maybeSingle();
-      liceName = (lice as { name?: string | null } | null)?.name ?? null;
-    }
-
-    return {
-      matchLabel: row.match_number_label ?? '',
-      roundCode,
-      roundToken,
-      status: row.status,
-      poolName: row.pool_name ?? '',
-      tournamentName: tournamentName ?? '',
-      liceName: liceName ?? '',
-      redName: row.red_name ?? '',
-      redClub: row.red_club ?? null,
-      blueName: row.blue_name ?? '',
-      blueClub: row.blue_club ?? null,
-      eventTimezone,
-      referees,
-      weapon: weapon ?? '',
-      // Surface tournamentId + phaseType so the cross-app scoring
-      // pad can fetch the right scoring config + drive phase-specific
-      // ScoringPad behaviour when deep-linking to a match directly
-      // (per-match route, no lice context).
-      tournamentId: row.tournament_id,
-      phaseType: row.phase_type ?? null,
-      // The scoring rules the page needs to render a score correctly:
-      // matchFormat carries the point cap, the scoring direction and the double
-      // cap (already resolved above for bestOf), scoringConfig the operator's
-      // side colours. Both were computed/fetched here and thrown away.
-      matchFormat,
-      scoringConfig,
-      // Best-of-N round state. bestOf = 1 (single round) for unconfigured
-      // tournaments, so the scoreboard hides the round counter by default.
-      bestOf,
-      currentRound: matchRoundRow?.current_round ?? 1,
-      redRoundWins: matchRoundRow?.red_round_wins ?? 0,
-      blueRoundWins: matchRoundRow?.blue_round_wins ?? 0,
-      roundsJson: Array.isArray(matchRoundRow?.rounds_json) ? matchRoundRow?.rounds_json : null,
-      awaitingRoundAdvance: matchRoundRow?.awaiting_round_advance ?? false,
-    };
-  }
-
-  /**
-   * Referee name(s) officiating a match, by scope precedence
-   * match → pool → lice (see resolveMatchReferees). Post-0063 assignments
-   * key on `person_id`, resolved to a display name via `global_persons`.
-   *
-   * The event-wide load lives in `fetchRefereeAssignmentIndex` so the per-lice
-   * list can resolve a whole day off one copy of it. Names are composed the
-   * same way there as they were inline here, so this payload is unchanged.
-   */
-  private async resolveMatchRefereesForSummary(
-    eventId: string,
-    matchId: string,
-    poolId: string | null,
-  ): Promise<string[]> {
-    // The match's lice — for lice-scope assignments (last-resort tier).
-    const { data: matchRow } = await this.supabase.service
-      .from('matches')
-      .select('lice_id')
-      .eq('id', matchId)
-      .maybeSingle();
-    const liceId = (matchRow as { lice_id?: string | null } | null)?.lice_id ?? null;
-
-    const assignments = await fetchRefereeAssignmentIndex(this.supabase.service, eventId);
-    // `referees: string[]` is a PUBLIC field on GET /matches/:id/summary, joined
-    // straight into a sentence by the public match page. `refereeNamesOnly`
-    // re-dedupes by name — the resolver now keys on (name, role), so a person
-    // with two roles would otherwise appear twice in that sentence.
-    return refereeNamesOnly(resolveMatchReferees(assignments, { matchId, poolId, liceId }));
+    const summary = (await matchSummaries(this.supabase.service, [matchId])).get(matchId);
+    if (!summary) throw new NotFoundException(`Match ${matchId} not found`);
+    return summary;
   }
 
   async createMatch(dto: CreateMatchDto) {
