@@ -8,7 +8,7 @@ import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { apiRequest, failureFromError, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
-import { isArrival, pisteToOpen, rememberedPiste, rememberPiste } from '../../src/lib/last-piste';
+import { isArrival, pisteToOpen, rememberedPiste } from '../../src/lib/last-piste';
 import { answeredFault, resolveStaffSession } from '../../src/lib/staff-session-decision';
 import { EventBanner } from '../../src/components/EventBanner';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
@@ -188,10 +188,7 @@ export default function LicePickerPage() {
             <button
               key={assignment.liceId}
               data-testid="piste-card"
-              onClick={() => {
-                rememberPiste(assignment.liceId);
-                router.push(`/lices/${assignment.liceId}`);
-              }}
+              onClick={() => router.push(`/lices/${assignment.liceId}`)}
               className="bg-surface hover:bg-border border border-border rounded-xl p-5 text-left transition-colors"
             >
               <div className="flex items-center justify-between">

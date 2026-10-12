@@ -75,6 +75,20 @@ test('the app opens the last piste at once, and the link still shows the list', 
   expect(path(page)).toBe('/lices');
 });
 
+test('a piste reached without the list is remembered too', async ({ page }) => {
+  await stubPad(page, [1, 2, 3]);
+  await openApp(page);
+  await cards(page).filter({ hasText: 'Piste 3' }).click();
+  await expect(title(page)).toHaveText('Piste 3');
+
+  // The Back of a bout, or an organiser's link: piste 1, by its address.
+  await page.goto(`${PAD}/lices/piste-1`);
+  await expect(title(page)).toHaveText('Piste 1');
+
+  await openApp(page);
+  await expect(title(page)).toHaveText('Piste 1');
+});
+
 test('a piste that is no longer one of the pistes of the sign-in is not opened', async ({
   page,
 }) => {

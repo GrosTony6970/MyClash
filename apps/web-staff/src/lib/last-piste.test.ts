@@ -140,10 +140,12 @@ describe('the screens of the pad', () => {
     expect(list).toContain('if (!leaving) setLoading(false);');
   });
 
-  it('the list remembers the piste the official taps', () => {
-    expect(list).toMatch(
-      /rememberPiste\(assignment\.liceId\);\s+router\.push\(`\/lices\/\$\{assignment\.liceId\}`\);/,
+  // Not at the tap of a card alone: the Back of a bout and a link open a piste too.
+  it('a piste is remembered by its own screen, however the official got there', () => {
+    expect(read('app', 'lices', '[liceId]', 'page.tsx')).toMatch(
+      /params\.then\(\(\{ liceId: id \}\) => \{\s+setLiceId\(id\);[^}]*rememberPiste\(id\);\s+\}\);/,
     );
+    expect(list).not.toContain('rememberPiste');
   });
 
   it('the link of a piste goes to the plain list', () => {

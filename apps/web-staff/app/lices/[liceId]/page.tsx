@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../src/theme/ThemeProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
+import { rememberPiste } from '../../../src/lib/last-piste';
 import { useLiceMatches } from '../../../src/hooks/useLiceMatches';
 import { usePisteQueue } from '../../../src/hooks/usePisteQueue';
 import { partitionLiceMatches } from '../../../src/components/partition-lice-matches';
@@ -83,7 +84,12 @@ export default function LiceMatchListPage({ params }: Props) {
   const [liceId, setLiceId] = useState<string | null>(null);
 
   useEffect(() => {
-    void params.then(({ liceId: id }) => setLiceId(id));
+    void params.then(({ liceId: id }) => {
+      setLiceId(id);
+      // The piste this tablet works on, however it got here: a card of the
+      // list, the Back of a bout, a link (`last-piste.ts`).
+      rememberPiste(id);
+    });
   }, [params]);
 
   const apiUrl = getApiUrl();
