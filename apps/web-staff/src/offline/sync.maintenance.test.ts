@@ -122,7 +122,9 @@ describe('drain — read-only mode is on (a 503 coded read_only_mode)', () => {
 
     const last = await drainWatched(new SyncEngine(API_URL));
 
-    expect(last?.status).toBe('error');
+    // Not `maintenance`. A 503 reads as a server out of reach (`classifySyncFailure`),
+    // and a send that met only that waits as `offline` (operator, 2026-10-12).
+    expect(last?.status).toBe('offline');
     expect((await db.outbox.toArray()).map((row) => row.attempts)).toEqual([1]);
   });
 });

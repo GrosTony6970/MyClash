@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { isDrillActive } from './drill';
 import type { SyncState } from './sync';
 
 /**
@@ -36,4 +37,35 @@ export function useSendEnded(
   ended: () => void,
 ): void {
   useEffect(() => engine?.onSendEnded(ended), [engine, ended]);
+}
+
+/** How often the queue is tried again while it waits for a network. */
+export const SEND_WHILE_OFFLINE_MS = 5_000;
+
+/**
+ * Try the queue again while the engine says `offline` and entries wait
+ * (operator, 2026-10-12). Nothing else did: the engine leaves `offline` on a
+ * tap, on a bout screen that opens, and on the browser's `online` event, and a
+ * tablet that kept its access point while the uplink dropped gets no event.
+ * A browser that says it is offline is left to that event. So is the offline
+ * drill: its end sends the queue (`OfflineDrillBanner`), and a try that can
+ * only meet the drill would count against each row, which the heartbeat
+ * reports to the organiser's board as a tablet that is stuck.
+ *
+ * One interval at a time, and a try asked for while a send runs is one more
+ * pass of that send. Each try that had a row to send ends as every send does:
+ * the bout screen reads the bout again (`useSendEnded`).
+ */
+export function useSendWhileOffline(
+  engine: { sendBehind: () => void },
+  state: SyncState | null,
+): void {
+  const waits = state?.status === 'offline' && state.pendingCount > 0;
+  useEffect(() => {
+    if (!waits) return;
+    const timer = window.setInterval(() => {
+      if (navigator.onLine && !isDrillActive()) engine.sendBehind();
+    }, SEND_WHILE_OFFLINE_MS);
+    return () => window.clearInterval(timer);
+  }, [waits, engine]);
 }

@@ -63,6 +63,17 @@ describe('the end of a pass of the send', () => {
   });
 });
 
+describe('a queue that waits for a network', () => {
+  it('is tried again by the bout page, on a browser that says it is online, outside a drill', () => {
+    expect(page()).toContain('useSendWhileOffline(syncEngine, syncState);');
+    const hook = read('offline', 'use-sync-state.ts');
+    expect(hook).toContain("state?.status === 'offline' && state.pendingCount > 0;");
+    expect(hook).toContain('if (navigator.onLine && !isDrillActive()) engine.sendBehind();');
+    expect(hook).toContain('}, SEND_WHILE_OFFLINE_MS);');
+    expect(hook).toContain('export const SEND_WHILE_OFFLINE_MS = 5_000;');
+  });
+});
+
 describe('the page’s reads of the bout', () => {
   it('nobody waits for the sends the page starts', () => {
     const source = page();

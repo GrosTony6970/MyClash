@@ -148,6 +148,8 @@ export class SyncEngine {
   private sendingId: number | null = null;
   private filed: Promise<unknown> = Promise.resolve();
   private aborted = false;
+  /** A row of the pass that runs met a fault of the server, and not a dead network. */
+  private metFault = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
   /**
@@ -245,7 +247,8 @@ export class SyncEngine {
    * "tidy" these into omissions.
    */
   private postExchange(entry: OutboxEntry, sequence: number): Promise<Response> {
-    // The offline drill intercepts here, and ONLY here.
+    // The offline drill meets the queue here, and ONLY here: every kind of row.
+    // (A press that goes straight to the server meets it in `padRequest`.)
     //
     // It answers with the exact response the service worker produces during a
     // real outage, so everything downstream — the classification, the outbox,
@@ -575,6 +578,7 @@ export class SyncEngine {
 
   /** Walks the queue as it is now. `stopped`: an answer ended the send, and the bar says which. */
   private async sendPass(): Promise<'empty' | 'walked' | 'stopped'> {
+    this.metFault = false;
     const pending = await getAllPending();
     if (pending.length === 0) return 'empty';
 
@@ -594,6 +598,7 @@ export class SyncEngine {
       if (outcome === 'gone' || outcome === 'behind-held') continue;
       if (outcome === 'stopped') return 'stopped';
       order.note(entry, outcome);
+      if (outcome === 'failed') this.metFault = true;
       // A row that waits behind a server fault of its own bout says nothing
       // about the network: other bouts go on. Behind a dead network it counts,
       // so three rows of one bout still end the send as "offline".
@@ -610,10 +615,19 @@ export class SyncEngine {
     return 'walked';
   }
 
-  /** The end of a send that walked the whole queue: green, or what still waits. */
+  /**
+   * The end of a send that walked the whole queue: green, or what still waits.
+   * Rows that met no network and nothing else wait as `offline`, one row as
+   * ten (operator, 2026-10-12): a hall with wifi and no internet is no fault
+   * of the server. Red stays for an answer of the server, and while the inbox
+   * holds a refused row: the rows behind it are tried by no send. A row left
+   * by a pass that walked the queue, with nothing held, met one or the other.
+   */
   private async emitWalked(): Promise<void> {
-    if ((await totalPendingCount()) === 0) await this.emit('idle');
-    else await this.emit('error', 'Some exchanges could not be synced');
+    if ((await totalPendingCount()) === 0) return this.emit('idle');
+    const noNetworkAlone = !this.metFault && (await rejectedCount()) === 0;
+    if (noNetworkAlone) return this.emit('offline');
+    return this.emit('error', 'Some exchanges could not be synced');
   }
 
   /**

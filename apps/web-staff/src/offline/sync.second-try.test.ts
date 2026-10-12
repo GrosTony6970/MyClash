@@ -158,11 +158,12 @@ describe('the second try meets no verdict (ruling 344)', () => {
   const TAKEN: Answer = { status: 201, body: { id: 'srv' } };
   const attempts = async () => (await db.outbox.toArray()).map((row) => row.attempts);
 
-  it.each<[string, Answer]>([
-    ['no network', NO_NETWORK],
-    ['a server fault', { status: 500, body: { message: 'Internal server error' } }],
-    ['a throttled request', { status: 429, body: { message: 'Too Many Requests' } }],
-  ])('%s: the hit waits in the queue, and the queue goes on', async (_what, second) => {
+  // No network alone waits as `offline`; an answer of the server is `error`.
+  it.each<[string, Answer, string]>([
+    ['no network', NO_NETWORK, 'offline'],
+    ['a server fault', { status: 500, body: { message: 'Internal server error' } }, 'error'],
+    ['a throttled request', { status: 429, body: { message: 'Too Many Requests' } }, 'error'],
+  ])('%s: the hit waits in the queue, and the queue goes on', async (_what, second, status) => {
     await addHit(1, 'uuid-bad');
     await addHit(2, 'uuid-behind');
     const { posted } = mockApi((sequence) =>
@@ -175,7 +176,7 @@ describe('the second try meets no verdict (ruling 344)', () => {
     expect(await waiting()).toEqual(['uuid-bad']);
     expect(await db.rejected.count(), 'nobody refused it a second time').toBe(0);
     expect(await attempts(), 'one failed try, as a first answer counts').toEqual([1]);
-    expect(last).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 0 });
+    expect(last).toMatchObject({ status, pendingCount: 1, rejectedCount: 0 });
   });
 
   it('read-only mode: the queue waits there, and no try is counted', async () => {
@@ -191,16 +192,17 @@ describe('the second try meets no verdict (ruling 344)', () => {
     expect(last).toMatchObject({ status: 'maintenance', pendingCount: 2, rejectedCount: 0 });
   });
 
-  it.each<[string, () => Answer]>([
-    ['finds no network', () => NO_NETWORK],
-    ['is answered a server fault', () => ({ status: 500, body: {} })],
+  it.each<[string, () => Answer, string]>([
+    ['finds no network', () => NO_NETWORK, 'offline'],
+    ['is answered a server fault', () => ({ status: 500, body: {} }), 'error'],
     [
       'throws',
       () => {
         throw new TypeError('Failed to fetch');
       },
+      'offline',
     ],
-  ])('the read of the next free number %s: the hit waits', async (_what, read) => {
+  ])('the read of the next free number %s: the hit waits', async (_what, read, status) => {
     await addHit(1, 'uuid-bad');
     await addHit(2, 'uuid-behind');
     const { posted } = mockApi((sequence) => (sequence === 1 ? BAD_SEQUENCE : TAKEN), read);
@@ -211,7 +213,7 @@ describe('the second try meets no verdict (ruling 344)', () => {
     expect(await waiting()).toEqual(['uuid-bad']);
     expect(await db.rejected.count()).toBe(0);
     expect(await attempts()).toEqual([1]);
-    expect(last).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 0 });
+    expect(last).toMatchObject({ status, pendingCount: 1, rejectedCount: 0 });
   });
 
   it('three in a row with no network end the send as offline, not as refused', async () => {

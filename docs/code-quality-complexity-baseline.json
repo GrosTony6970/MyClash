@@ -823,7 +823,7 @@
     "apps/web-staff/app/lices/[liceId]/_components/PoolsDisclosure.tsx:110",
     "apps/web-staff/app/lices/[liceId]/page.tsx:75",
     "apps/web-staff/app/lices/page.tsx:33",
-    "apps/web-staff/app/matches/[matchId]/page.tsx:37",
+    "apps/web-staff/app/matches/[matchId]/page.tsx:41",
     "apps/web-staff/src/components/ForfeitPanel.tsx:33",
     "apps/web-staff/src/components/MatchClock.tsx:51",
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:79",
