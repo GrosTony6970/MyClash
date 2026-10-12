@@ -22,7 +22,7 @@ import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad
 import type { PressedOn } from '../offline/db';
 import { queuePress } from '../offline/press-queue';
 import type { SyncEngine } from '../offline/sync';
-import { fetchWithCache } from '../offline/cached-reads';
+import { readMatchConfig } from '../lib/match-config-read';
 import { useSendEnded, useSyncState } from '../offline/use-sync-state';
 import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import type { ClockState } from './MatchClock';
@@ -220,12 +220,10 @@ export function MatchView({
     if (!match.tournamentId) return;
     const controller = new AbortController();
     let cancelled = false;
-    void fetchWithCache<{
+    void readMatchConfig<{
       scoringConfig: TournamentScoringConfig;
       matchFormat: MatchFormatConfig;
-    }>(apiUrl, `/api/v1/tournaments/${match.tournamentId}/match-config`, {
-      signal: controller.signal,
-    }).then((result) => {
+    }>(apiUrl, match.tournamentId, controller.signal).then((result) => {
       if (cancelled || !result) return;
       setScoringConfig(result.body.scoringConfig);
       setMatchFormat(result.body.matchFormat);
@@ -271,6 +269,7 @@ export function MatchView({
   const scoring = useMatchScoringData({
     apiUrl,
     matchId: match.id,
+    tournamentId: match.tournamentId,
     refreshKey,
     config: scoringConfig,
     syncPendingCount: syncState?.pendingCount ?? 0,

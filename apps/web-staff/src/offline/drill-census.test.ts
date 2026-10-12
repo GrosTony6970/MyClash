@@ -84,6 +84,8 @@ const EXPECTED: Record<string, string> = {
   // open: the reads of a bout and of its lists.
   'src/lib/bout-list-read.ts': 'fetchFn 1',
   'src/lib/bout-read.ts': 'fetchFn 2',
+  // open: the read of a whole piste, which the tablet keeps for a cut of the network.
+  'src/lib/piste-read.ts': 'fetchFn 1',
   // drill: the undo's read of the server, so the undo works on the tablet alone.
   'src/lib/server-entries.ts': 'padRequest 3',
   // open: the read of the bout's status. Its void is `askVoid`, below.

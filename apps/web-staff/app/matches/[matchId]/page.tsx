@@ -10,6 +10,7 @@ import {
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { RememberedUndos } from '../../../src/components/RememberedUndos';
 import { SyncBar } from '../../../src/components/SyncBar';
+import { useKeepPiste } from '../../../src/hooks/useKeepPiste';
 import { useSignInWhenSessionEnded } from '../../../src/hooks/useSignInWhenSessionEnded';
 import {
   useSendEnded,
@@ -111,6 +112,8 @@ export default function MatchScoringPage({ params }: Props) {
   useSendEnded(syncEngine, readBoutAgain);
   useSendWhileOffline(syncEngine, syncState);
   useSignInWhenSessionEnded();
+  // The bouts after this one, for a "Next match" with no network (ruling 4).
+  useKeepPiste(apiUrl, match?.liceId);
 
   useEffect(() => {
     const handleOnline = () => {

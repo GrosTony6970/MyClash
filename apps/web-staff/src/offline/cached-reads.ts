@@ -53,23 +53,28 @@ export async function writeCached(path: string, body: unknown): Promise<void> {
  * A non-ok response counts as a failure here on purpose: the worker resolves a
  * synthetic 503 offline rather than throwing, so `ok` is the only signal that
  * separates a real answer from a manufactured one.
+ *
+ * `key` is where the answer is kept. It is the path, but for an answer that
+ * several paths give: the penalty catalogue is asked by bout and is the same
+ * for every bout of a Tournament (`lib/penalty-catalogue.ts`).
  */
 export async function fetchWithCache<T>(
   apiUrl: string,
   path: string,
   init?: RequestInit,
+  key: string = path,
 ): Promise<{ body: T; fetchedAt: number; fresh: boolean } | null> {
   try {
     const res = await fetch(`${apiUrl}${path}`, init);
     if (res.ok) {
       const body = (await res.json()) as T;
-      await writeCached(path, body);
+      await writeCached(key, body);
       return { body, fetchedAt: Date.now(), fresh: true };
     }
   } catch {
     // Fall through to the cache. An abort lands here too, and returning the
     // cached copy for one is harmless: the caller has already moved on.
   }
-  const cached = await readCached<T>(path);
+  const cached = await readCached<T>(key);
   return cached ? { ...cached, fresh: false } : null;
 }

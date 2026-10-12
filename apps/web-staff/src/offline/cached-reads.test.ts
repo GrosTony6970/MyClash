@@ -96,6 +96,24 @@ describe('cached reads', () => {
     expect((await readCached<typeof BODY>(PATH))?.body).toEqual(BODY);
   });
 
+  // The penalty catalogue: asked by bout, the same for a whole Tournament.
+  it('keeps an answer under the key it is given, and reads that key back', async () => {
+    const byBout = '/api/v1/matches/bout-1/penalty-ruleset';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok(BODY)));
+    await fetchWithCache<typeof BODY>('', byBout, undefined, 'catalogue/t-1');
+
+    expect(await readCached(byBout)).toBeNull();
+    expect((await readCached<typeof BODY>('catalogue/t-1'))?.body).toEqual(BODY);
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(swOffline()));
+    const other = '/api/v1/matches/bout-2/penalty-ruleset';
+    expect(await fetchWithCache<typeof BODY>('', other, undefined, 'catalogue/t-1')).toMatchObject({
+      body: BODY,
+      fresh: false,
+    });
+    expect(await fetchWithCache<typeof BODY>('', other)).toBeNull();
+  });
+
   it('keys by path, so two tournaments do not share a config', async () => {
     await writeCached('/api/v1/tournaments/t-1/match-config', { scoringConfig: 'one' });
     await writeCached('/api/v1/tournaments/t-2/match-config', { scoringConfig: 'two' });

@@ -37,6 +37,30 @@ export async function keepBout(match: MatchInfo): Promise<void> {
   await db.reads.put({ path: keyOf(match.id), body: match, fetchedAt: Date.now() });
 }
 
+/**
+ * Keeps bouts that ONE earlier read gave: the read of a whole piste
+ * (`lib/keep-piste.ts`), asked at `askedAt`. Answers how many were written.
+ *
+ * THE RACE. That read and the bout screen's own read both write a bout's copy,
+ * and the piste read is the slow one: its answer can land after the screen
+ * kept a NEWER bout (a hit was taken in between). So an answer never replaces
+ * a copy written after it was asked. Read and written in one transaction, or
+ * the screen's write could land between the two.
+ *
+ * The copy takes the time of the ask: that is how old its word is.
+ */
+export async function keepBoutsAskedAt(matches: MatchInfo[], askedAt: number): Promise<number> {
+  return db.transaction('rw', db.reads, async () => {
+    const paths = matches.map((match) => keyOf(match.id));
+    const held = await db.reads.bulkGet(paths);
+    const rows = matches
+      .map((match, i) => ({ path: paths[i]!, body: match, fetchedAt: askedAt }))
+      .filter((_row, i) => !held[i] || held[i].fetchedAt <= askedAt);
+    await db.reads.bulkPut(rows);
+    return rows.length;
+  });
+}
+
 /** The copy of that bout, or null when the tablet never read it. */
 export async function keptBout(matchId: string): Promise<KeptBout | null> {
   const row = await db.reads.get(keyOf(matchId));

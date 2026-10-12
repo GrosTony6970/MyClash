@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../src/theme/ThemeProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { rememberPiste } from '../../../src/lib/last-piste';
+import { useKeepPiste } from '../../../src/hooks/useKeepPiste';
 import { useLiceMatches } from '../../../src/hooks/useLiceMatches';
 import { usePisteQueue } from '../../../src/hooks/usePisteQueue';
 import { partitionLiceMatches } from '../../../src/components/partition-lice-matches';
@@ -96,6 +97,8 @@ export default function LiceMatchListPage({ params }: Props) {
   const { data, loading, sessionExpired, unreachable, refresh } = useLiceMatches(apiUrl, liceId);
   // Between two bouts is where the entries not sent are seen, and sent.
   const { syncEngine, syncState } = usePisteQueue(apiUrl, refresh);
+  // Every bout of the piste, kept for a cut of the network (ruling 4).
+  useKeepPiste(apiUrl, liceId);
   const [inboxOpen, setInboxOpen] = useState(false);
 
   useEffect(() => {

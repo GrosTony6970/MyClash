@@ -5,6 +5,7 @@ import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
 import type { ExistingPenaltyForSanction } from '@myclash/types';
 import { listAfterRead, readBoutList, type ShownList } from '../lib/bout-list-read';
 import { fetchWithCache } from '../offline/cached-reads';
+import { readPenaltyCatalogue } from '../lib/penalty-catalogue';
 
 // The card union and the `match_penalties` wire row are declared once in
 // @myclash/ui (packages/ui/src/types/match-events.ts) because the shared
@@ -92,6 +93,8 @@ export function usePenalties(
   apiUrl: string,
   matchId: string | null | undefined,
   refreshKey: number,
+  /** The bout's Tournament: the catalogue is kept by it (`penalty-catalogue.ts`). */
+  tournamentId?: string | null,
 ): UsePenaltiesResult {
   const [ruleset, setRuleset] = useState<PenaltyRuleset | null>(null);
   const [scope, setScope] = useState<PenaltyScope | null>(null);
@@ -108,10 +111,7 @@ export function usePenalties(
       // The catalogue is SETUP data — which entries exist and what card each
       // one carries — so it is cached on the tablet. Without it an offline pad
       // shows an empty penalty picker and no referee can card anyone.
-      fetchWithCache<PenaltyRuleset | null>(apiUrl, `/api/v1/matches/${matchId}/penalty-ruleset`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
+      readPenaltyCatalogue<PenaltyRuleset | null>(apiUrl, matchId, tournamentId, controller.signal),
       // The cards themselves are live match state. With no network the read
       // gives the rows the tablet kept, under the bout's own rule: a copy is
       // shown only when the server cannot be reached (`bout-list-read.ts`).
@@ -143,7 +143,7 @@ export function usePenalties(
         setLoading(false);
       });
     return () => controller.abort();
-  }, [apiUrl, matchId]);
+  }, [apiUrl, matchId, tournamentId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the fetch (sets loading); intentional on mount/refresh.

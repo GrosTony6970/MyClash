@@ -30,7 +30,7 @@ export type BoutRead =
   | { kind: 'unreachable' };
 
 /** `GET /matches/:id` is a `select('*')`: the columns the pad reads. */
-interface BoutRow {
+export interface BoutRow {
   id: string;
   match_number_label: string | null;
   status: string;
@@ -52,7 +52,7 @@ interface BoutRow {
   awaiting_round_advance: boolean | null;
 }
 
-interface BoutSummary {
+export interface BoutSummary {
   roundCode: string;
   redName: string;
   blueName: string;
@@ -85,10 +85,11 @@ export async function readBout(
       return { kind: rawRes.status === 404 ? 'gone' : 'failed' };
     }
     const raw = (await rawRes.json()) as BoutRow;
-    // Soft requirement: the summary is labels only. The most common 404 here is
-    // a placeholder bracket slot with TBD fighters that
-    // vw_tournament_query_matches refuses to project. The scoreboard opens with
-    // blank labels rather than blocking the whole page on a name lookup.
+    // Soft requirement: the summary is labels only. It can fail alone (a fault
+    // of one of its reads, a bout deleted between the two requests). The
+    // scoreboard opens with blank labels rather than blocking the whole page on
+    // a name lookup. A bracket slot with no fighters yet HAS a summary, with
+    // blank names.
     const summary = summaryRes.ok ? ((await summaryRes.json()) as BoutSummary) : null;
     return { kind: 'bout', match: boutOf(raw, summary), labelled: summary !== null };
   } catch {
@@ -96,7 +97,12 @@ export async function readBout(
   }
 }
 
-function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
+/**
+ * The bout as the screen holds it. The ONE builder: the read of a whole piste
+ * (`piste-read.ts`) gives the same row and the same summary per bout, so a copy
+ * read ahead and a copy read by the bout screen have one shape.
+ */
+export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
   return {
     id: raw.id,
     matchNumberLabel: raw.match_number_label ?? '',
