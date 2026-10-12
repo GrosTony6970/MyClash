@@ -126,7 +126,7 @@ export function roundCodeFromMatchRow(row: Record<string, unknown>): string {
 
 /**
  * Schedule order: `scheduled_at` ascending with unscheduled bouts last, then
- * the match number.
+ * the match number, then the label, then the id.
  *
  * The tie-break is done here rather than in PostgREST because PostgREST sorts
  * `match_number_label` as a string, which puts M10 ahead of M2 as soon as a
@@ -144,10 +144,18 @@ export function compareLiceMatchOrder(
     if (bt === null) return -1;
     return at < bt ? -1 : 1;
   }
-  return (
-    poolMatchSortKey((a['match_number_label'] as string | null) ?? null) -
-    poolMatchSortKey((b['match_number_label'] as string | null) ?? null)
-  );
+  const al = (a['match_number_label'] as string | null) ?? '';
+  const bl = (b['match_number_label'] as string | null) ?? '';
+  const byNumber = poolMatchSortKey(al) - poolMatchSortKey(bl);
+  if (byNumber !== 0) return byNumber;
+  // A TOTAL order: a tie left here falls to the order SQL gave the rows, and
+  // the three reads that walk a piste each ask SQL in their own way. A bracket
+  // bout's label is its bare slot ("2", "10"), which has no bout number: the
+  // label is compared with its digits as numbers, then the id settles the rest.
+  const byLabel = al.localeCompare(bl, 'en', { numeric: true });
+  if (byLabel !== 0) return byLabel;
+  const [aid, bid] = [String(a['id'] ?? ''), String(b['id'] ?? '')];
+  return aid === bid ? 0 : aid < bid ? -1 : 1;
 }
 
 export function mapLiceMatchRow(

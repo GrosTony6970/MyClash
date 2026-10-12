@@ -72,6 +72,32 @@ describe('compareLiceMatchOrder', () => {
       'L1-P1-M10',
     ]);
   });
+
+  // Three reads walk a piste (the list, the pad's tiles, the bouts the tablet
+  // keeps), and each gets its rows from SQL in its own order. A tie left to
+  // that order gave the list A, B and the kept piste B, A.
+  it('orders bracket bouts of one time by their slot, whatever order they arrive in', () => {
+    const slot = (label: string) => row({ id: `slot-${label}`, match_number_label: label });
+    const labels = (rows: Array<Record<string, unknown>>) =>
+      rows.sort(compareLiceMatchOrder).map((r) => r['match_number_label']);
+
+    expect(labels([slot('10'), slot('2'), slot('1')])).toEqual(['1', '2', '10']);
+    expect(labels([slot('2'), slot('1'), slot('10')])).toEqual(['1', '2', '10']);
+  });
+
+  it('orders two bouts of one time and one number by their id, both ways round', () => {
+    const a = row({ id: 'bout-a', match_number_label: 'L1-P1-M3' });
+    const b = row({
+      id: 'bout-b',
+      match_number_label: 'L1-P2-M3',
+      scheduled_at: a['scheduled_at'],
+    });
+    const same = row({ id: 'bout-c', match_number_label: 'L1-P1-M3' });
+
+    expect([b, a].sort(compareLiceMatchOrder)).toEqual([a, b]);
+    expect([same, a].sort(compareLiceMatchOrder)).toEqual([a, same]);
+    expect(compareLiceMatchOrder(a, a)).toBe(0);
+  });
 });
 
 describe('roundCodeFromMatchRow', () => {
