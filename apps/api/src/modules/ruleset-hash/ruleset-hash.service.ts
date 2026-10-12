@@ -71,12 +71,18 @@ export class RulesetHashService {
     // Best-effort: a hash-compute failure (e.g. an out-of-domain stored config
     // the canonical normalizer rejects) must never fail the write that triggered
     // the stamp — the hash is metadata, not the source of truth for scoring.
+    // A write the database refuses is logged the same way: its answer was never
+    // read, so the old hash stayed in place and nothing said so. The settings
+    // page then shows its drift banner, and "acknowledge" writes the hash again.
     try {
-      const hash = await this.computeTournamentContentHash(tournamentId);
-      await this.supabase.service
+      const { current, drifted } = await this.describeTournamentDrift(tournamentId);
+      // Only a hash that changed is written: most saves change nothing here.
+      if (!drifted) return;
+      const { error } = await this.supabase.service
         .from('tournaments')
-        .update({ ruleset_content_hash: hash })
+        .update({ ruleset_content_hash: current })
         .eq('id', tournamentId);
+      if (error) throw new Error(error.message);
     } catch (err) {
       this.logger.warn(
         `Failed to stamp content hash for tournament ${tournamentId}: ${String(err)}`,
@@ -87,9 +93,10 @@ export class RulesetHashService {
   /**
    * Restamp every tournament that INHERITS an event's default penalty (its own
    * penalty_ruleset_id is NULL) — their effective penalty changed with the event
-   * default, so their content hash must be refreshed too.
+   * default, so their content hash must be refreshed too. Answers their ids:
+   * the caller moves the bouts not started of each one.
    */
-  async stampEventInheritingTournaments(eventId: string): Promise<void> {
+  async stampEventInheritingTournaments(eventId: string): Promise<string[]> {
     const { data } = await this.supabase.service
       .from('tournaments')
       .select('id')
@@ -99,6 +106,7 @@ export class RulesetHashService {
     for (const id of ids) {
       await this.stampTournamentContentHash(id);
     }
+    return ids;
   }
 
   /**
