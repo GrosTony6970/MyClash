@@ -10,10 +10,11 @@
  * WHICH BOUTS ARE KEPT. A copy read ahead is the bout's row and its names,
  * with no clock, no hits and no cards. That is the whole truth of a bout NOT
  * STARTED, and of no other. So a bout is kept when:
- *   - it has its names (the bout screen does not keep a bout without them);
  *   - the tablet holds the scoring rules of its Tournament. A copy with no
  *     rules opens with the default buttons and says nothing: a +2 tapped where
- *     the Tournament says +3 is stored as a 2;
+ *     the Tournament says +3 is stored as a 2. A bout with no summary names no
+ *     Tournament, so it has no rules, and no names either: the bout screen
+ *     does not keep such a bout;
  *   - it is not started, or the tablet holds its clock (its own screen opened
  *     it, and keeps its clock and its lists). A bout in play on another tablet,
  *     read ahead, would open here at 0:00 with Start and no double counted.
@@ -66,17 +67,16 @@ export async function keepPisteOf(
   const read = await readPiste(apiUrl, liceId, fetchFn);
   if (read.kind !== 'piste') return read.kind;
 
-  const named = read.bouts.filter((bout) => bout.labelled).map((bout) => bout.match);
-  const ruled = await tournamentsWithRules(apiUrl, named);
-  const opened = await clocksHeld(named.map((bout) => bout.id));
-  const whole = named.filter(
+  const ruled = await tournamentsWithRules(apiUrl, read.bouts);
+  const opened = await clocksHeld(read.bouts.map((bout) => bout.id));
+  const whole = read.bouts.filter(
     (bout) =>
       ruled.has(bout.tournamentId ?? '') && (bout.status === 'scheduled' || opened.has(bout.id)),
   );
   await keepBoutsAskedAt(whole, askedAt);
   await keepPiste(
     liceId,
-    read.bouts.map((bout) => bout.match.id),
+    read.bouts.map((bout) => bout.id),
     askedAt,
   );
   return 'piste';

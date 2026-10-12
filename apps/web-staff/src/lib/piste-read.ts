@@ -17,15 +17,12 @@ import type { MatchInfo } from '../components/MatchView';
 import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
 import { boutOf, type BoutRow, type BoutSummary } from './bout-read';
 
-/** A bout of the piste. `labelled` is false when it has no summary: no names. */
-export interface PisteBout {
-  match: MatchInfo;
-  labelled: boolean;
-}
-
 export type PisteRead =
-  /** The bouts of the piste, in the order of the piste list. */
-  | { kind: 'piste'; bouts: PisteBout[] }
+  /**
+   * The bouts of the piste, in the order of the piste list. A bout with no
+   * summary has no names and no Tournament id, as on the bout screen.
+   */
+  | { kind: 'piste'; bouts: MatchInfo[] }
   /** No network: nothing is known. */
   | { kind: 'unreachable' }
   /** This session may not read the piste (401, 403). */
@@ -59,10 +56,10 @@ export async function readPiste(
   }
   const body = (await res.json().catch(() => null)) as PisteBody | null;
   if (!body || !Array.isArray(body.bouts)) return { kind: 'failed' };
-  const bouts: PisteBout[] = [];
+  const bouts: MatchInfo[] = [];
   for (const { match, summary } of body.bouts) {
     if (!match?.id) return { kind: 'failed' };
-    bouts.push({ match: boutOf(match, summary ?? null), labelled: Boolean(summary) });
+    bouts.push(boutOf(match, summary ?? null));
   }
   return { kind: 'piste', bouts };
 }

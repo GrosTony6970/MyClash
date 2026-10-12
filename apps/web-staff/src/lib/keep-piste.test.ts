@@ -43,7 +43,7 @@ function server(answers: Answers = {}) {
 async function boutOne() {
   const read = await readPiste('', 'lice-1', (() => Promise.resolve(json(PISTE))) as typeof fetch);
   if (read.kind !== 'piste') throw new Error('the fixture is no piste');
-  return read.bouts[0]!.match;
+  return read.bouts[0]!;
 }
 
 const at = (time: string) => new Date(`2026-10-13T${time}Z`).getTime();

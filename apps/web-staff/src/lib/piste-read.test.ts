@@ -24,19 +24,19 @@ describe('readPiste', () => {
     ]);
   });
 
-  it('gives the bouts in the order of the answer, and says which have their names', async () => {
+  it('gives the bouts in the order of the answer, one with no summary with no names', async () => {
     const { fetchFn } = answering(() => json(PISTE));
 
     const read = await readPiste('https://api.test', 'lice-1', fetchFn);
 
     expect(read.kind).toBe('piste');
     if (read.kind !== 'piste') return;
-    expect(read.bouts.map((bout) => [bout.match.id, bout.labelled])).toEqual([
-      ['bout-1', true],
-      ['bout-2', true],
-      ['bout-3', false],
+    expect(read.bouts.map((bout) => [bout.id, bout.redFighterName, bout.tournamentId])).toEqual([
+      ['bout-1', 'Red bout-1', 'tournament-1'],
+      ['bout-2', 'Red bout-2', 'tournament-2'],
+      ['bout-3', '', undefined],
     ]);
-    expect(read.bouts[1]?.match).toMatchObject({
+    expect(read.bouts[1]).toMatchObject({
       redFighterName: 'Red bout-2',
       tournamentId: 'tournament-2',
       liceId: 'lice-1',
@@ -54,9 +54,7 @@ describe('readPiste', () => {
         json(url.endsWith('/summary') ? summary('bout-1') : PISTE.bouts[0]!.match),
       )) as typeof fetch);
 
-    expect(one.kind === 'bout' && one.match).toEqual(
-      piste.kind === 'piste' && piste.bouts[0]?.match,
-    );
+    expect(one.kind === 'bout' && one.match).toEqual(piste.kind === 'piste' && piste.bouts[0]);
   });
 
   it('is "refused" for a session that may not read the piste', async () => {
