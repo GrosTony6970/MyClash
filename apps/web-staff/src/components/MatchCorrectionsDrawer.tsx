@@ -30,7 +30,7 @@ import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
 import { DirectCardPanel, NO_DIRECT_CARD_DRAFT } from './DirectCardPanel';
 import { ForfeitPanel } from './ForfeitPanel';
-import { apiRequest } from '@myclash/api-client';
+import { padRequest } from '../offline/drill-request';
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -170,7 +170,7 @@ export function MatchCorrectionsDrawer({
   async function post(path: string, body: Record<string, unknown> = {}) {
     setBusy(true);
     setError(null);
-    const result = await apiRequest(apiUrl, path, { method: 'POST', body });
+    const result = await padRequest(apiUrl, path, { method: 'POST', body });
     setBusy(false);
     if (result.ok) {
       onDone();
@@ -183,7 +183,7 @@ export function MatchCorrectionsDrawer({
   async function editAsNoExchange(exchangeId: string) {
     setBusy(true);
     setError(null);
-    const result = await apiRequest(apiUrl, `/api/v1/exchanges/${exchangeId}/edit`, {
+    const result = await padRequest(apiUrl, `/api/v1/exchanges/${exchangeId}/edit`, {
       method: 'PATCH',
       body: noExchangeRewrite(reason || t('scoring.corrections.defaultReason')),
     });

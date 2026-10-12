@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest } from '@myclash/api-client';
+import { padRequest } from '../offline/drill-request';
 import { refusalMessage } from '../lib/refusal-copy';
 
 type ForfeitReason = 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
@@ -56,7 +56,7 @@ export function ForfeitPanel({
   async function submit() {
     setSubmitting(true);
     setError(null);
-    const result = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
+    const result = await padRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
       method: 'POST',
       body: {
         forfeitingRegistrationId: fighter === 'red' ? redRegistrationId : blueRegistrationId,

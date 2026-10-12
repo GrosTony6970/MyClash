@@ -1,6 +1,7 @@
-import { apiRequest, type ApiResult } from '@myclash/api-client';
+import type { ApiResult } from '@myclash/api-client';
 import { createTranslator } from '@myclash/i18n/runtime';
 import { messages } from '@myclash/i18n/staff';
+import { padRequest } from '../offline/drill-request';
 
 /**
  * Saved on the hit or the card, and on the request for review when the Event
@@ -29,7 +30,7 @@ export function askVoid(
   entry: ServerEntry,
   signal?: AbortSignal,
 ): Promise<ApiResult<{ pendingReview?: boolean } | null>> {
-  return apiRequest(apiUrl, VOID_PATH[entry.kind](entry.id), {
+  return padRequest(apiUrl, VOID_PATH[entry.kind](entry.id), {
     method: 'PATCH',
     body: { reason: CLEAR_LAST_REASON },
     signal,

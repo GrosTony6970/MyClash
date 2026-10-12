@@ -8,25 +8,39 @@ import { useSyncExternalStore } from 'react';
  *
  * ── What it simulates, exactly ──────────────────────────────────────────────
  *
- * The scoring WRITE path, and nothing else. `SyncEngine.postExchange` returns
- * the same synthetic `503 { error: 'offline' }` the service worker produces
- * during a real outage — so the drill exercises the real classification, the
- * real outbox, the real retry accounting and the real bar. It does not patch
- * `window.fetch`, so reads (the lice queue, the heartbeat) keep working.
+ * Every WRITE of a bout, and nothing else (operator, 2026-10-12). Two seams:
  *
- * That scope is deliberate and it is a limitation worth stating plainly: during
- * a drill the organiser's Live board still sees this tablet as healthy, because
- * the heartbeat is still POSTing. The drill teaches the referee what their own
- * screen does when hits stop leaving; it is not a full network partition and
- * must not be described as one.
+ *   - The queue: `SyncEngine.postExchange` answers every row, of all five
+ *     kinds (a hit, a card, a clock press, a round press, a step of a level
+ *     bout), with the same synthetic `503 { error: 'offline' }` the service
+ *     worker produces during a real outage. So the drill exercises the real
+ *     classification, the real outbox, the real retry accounting and the
+ *     real bar.
+ *   - The presses that go straight to the server (Reopen and Reset of the
+ *     clock, Unlock, a forfeit, the corrections, the void of an undo and the
+ *     undo's read): `padRequest` (`drill-request.ts`) answers them the same
+ *     way, so they say "no connection" and the undo works on the tablet alone.
+ *
+ * It does not patch `window.fetch`, so READS keep working: the bout, its
+ * lists, the piste's list. That is a limitation worth stating plainly. The
+ * screen "from the tablet's copy" does not show in a drill, and the heartbeat
+ * still goes: the organiser's Live board reads this tablet's waiting entries.
+ * The drill teaches the referee what their own screen does when entries stop
+ * leaving; it is not a full network partition and must not be described as
+ * one. `drill-census.test.ts` lists every request of the pad on one side or
+ * the other.
  *
  * ── Why it cannot corrupt anything ──────────────────────────────────────────
  *
  * A 503 is a RETRYABLE failure. It never reaches the 400 branch, so it can
  * never quarantine — a drill must not put a fake refusal in the operator's
  * inbox, and `requeueRejected` re-derives sequence numbers, which has no
- * business happening because of a practice run. Every hit scored during the
- * drill is a genuine queued hit and drains for real when the window ends.
+ * business happening because of a practice run. Every entry made during the
+ * drill is a genuine queued entry. It goes for real when the drill ends: the
+ * banner sends the queue then (`OfflineDrillBanner`). The bout screen's own
+ * retry of a queue that waits for a network (`useSendWhileOffline`) stands
+ * still during a drill: a try that can only meet the drill would count
+ * against each row, and the organiser's board reads three as "stuck".
  *
  * ── Why localStorage and useSyncExternalStore ───────────────────────────────
  *

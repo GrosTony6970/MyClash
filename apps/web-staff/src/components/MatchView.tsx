@@ -37,6 +37,7 @@ import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
 import { endIsEarly, endRefusedOnPad, pressedOn } from './end-guard';
 import { apiRequest } from '@myclash/api-client';
+import { padRequest } from '../offline/drill-request';
 
 export interface MatchInfo {
   id: string;
@@ -375,7 +376,7 @@ export function MatchView({
       setClockLoading(true);
       setClockError(null);
       try {
-        const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`, {
+        const result = await padRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`, {
           method: 'POST',
           body: { action },
         });
@@ -440,7 +441,7 @@ export function MatchView({
     setUnlockBusy(true);
     setUnlockError(null);
     try {
-      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/unlock`, {
+      const result = await padRequest(apiUrl, `/api/v1/matches/${match.id}/unlock`, {
         method: 'POST',
         body: {},
       });

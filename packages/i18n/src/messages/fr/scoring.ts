@@ -94,11 +94,11 @@ export const scoring = {
   drill: {
     start: "S'entrainer hors ligne",
     explain:
-      "Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches saisies sont réellement mises en file et partent à la fin.",
+      "Lance un exercice de deux minutes pendant lequel cette tablette n'envoie aucune saisie de match, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches, les cartons et les actions sur le chrono, les manches et la prolongation sont réellement mis en file et partent à la fin. Une correction qui a besoin du serveur reçoit « pas de connexion ».",
     blocked:
       "Terminez d'abord la synchronisation - un exercice par-dessus un vrai problème est illisible.",
     banner:
-      "Exercice hors ligne - {seconds}s restantes. Les touches sont en file, rien n'est perdu.",
+      "Exercice hors ligne - {seconds}s restantes. Les saisies sont en file, rien n'est perdu.",
     end: "Terminer l'exercice",
   },
   scan: {

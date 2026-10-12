@@ -1,4 +1,5 @@
-import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import type { ApiFailure } from '@myclash/api-client';
+import { padRequest } from '../offline/drill-request';
 import { heldTo, SERVER_LIMIT_MS } from './time-limit';
 
 /** One hit or card of a bout, as the server holds it. */
@@ -41,11 +42,11 @@ const rowsOf = (kind: ServerRow['kind'], raw: RawRow[]): ServerRow[] =>
  */
 async function readAll(apiUrl: string, matchId: string, signal: AbortSignal): Promise<ServerRead> {
   const bout = `/api/v1/matches/${matchId}`;
-  const mayScore = await apiRequest<unknown>(apiUrl, `${bout}/penalty-ruleset`, { signal });
+  const mayScore = await padRequest<unknown>(apiUrl, `${bout}/penalty-ruleset`, { signal });
   if (!mayScore.ok) return { failure: mayScore };
   const [hits, cards] = await Promise.all([
-    apiRequest<RawRow[]>(apiUrl, `${bout}/exchanges`, { signal }),
-    apiRequest<RawRow[]>(apiUrl, `${bout}/penalties`, { signal }),
+    padRequest<RawRow[]>(apiUrl, `${bout}/exchanges`, { signal }),
+    padRequest<RawRow[]>(apiUrl, `${bout}/penalties`, { signal }),
   ]);
   if (!hits.ok) return { failure: hits };
   if (!cards.ok) return { failure: cards };

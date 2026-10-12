@@ -90,9 +90,9 @@ export const scoring = {
   drill: {
     start: 'Practice going offline',
     explain:
-      'Runs a two-minute drill where this tablet cannot send hits, so you meet the offline screen before it matters. Hits you score are queued for real and send when it ends.',
+      'Runs a two-minute drill where this tablet sends no entry of a match, so you meet the offline screen before it matters. Hits, cards, and clock, round and extra-time presses are queued for real and are sent when it ends. A correction that needs the server gets "no connection".',
     blocked: 'Finish syncing first — a drill on top of a real problem is impossible to read.',
-    banner: 'Offline drill — {seconds}s left. Hits are queued, not lost.',
+    banner: 'Offline drill — {seconds}s left. Entries are queued, not lost.',
     end: 'End drill',
   },
   scan: {

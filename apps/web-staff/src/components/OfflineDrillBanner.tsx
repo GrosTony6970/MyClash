@@ -8,6 +8,21 @@ import {
   isDrillActiveAt,
   useOfflineDrillEndsAt,
 } from '../offline/drill';
+import { getApiUrl } from '../lib/api-url';
+import { getSyncEngine } from '../offline/sync';
+
+/**
+ * The end of a drill: on "End drill", and when its time has passed (also on a
+ * tablet that slept through it). The queue is sent then, with no tap
+ * (operator, 2026-10-12): nothing else did, and a drill left the bar on
+ * "OFFLINE" over entries until the next press. The race is a send that met
+ * the drill and is still being filed: this waits it out, then sends
+ * (`sendAfterReconnect`, what the `online` event asks).
+ */
+function endDrillAndSend(): void {
+  endOfflineDrill();
+  getSyncEngine(getApiUrl()).sendAfterReconnect();
+}
 
 /**
  * The drill's on-screen presence: unmistakable, and always abortable.
@@ -41,7 +56,7 @@ export function OfflineDrillBanner() {
       </span>
       <button
         type="button"
-        onClick={() => endOfflineDrill()}
+        onClick={endDrillAndSend}
         className="min-h-[36px] shrink-0 rounded-lg border border-warning-foreground/40 px-3 text-xs font-bold uppercase"
       >
         {t('scoring.drill.end')}
@@ -56,7 +71,7 @@ export function OfflineDrillBanner() {
  * The drill self-expires on read — `isDrillActive` compares timestamps and
  * needs no timer — but the COUNTDOWN has to re-render to move, and the banner
  * has to disappear when the window closes without anyone touching the screen.
- * `endOfflineDrill` on expiry rather than just hiding: it clears the stored
+ * The drill is ENDED on expiry rather than just hidden: that clears the stored
  * timestamp too, so the next mount does not resurrect a finished drill.
  */
 function useCountdown(endsAt: number): number {
@@ -67,7 +82,7 @@ function useCountdown(endsAt: number): number {
     const id = setInterval(() => {
       const tick = Date.now();
       setNow(tick);
-      if (!isDrillActiveAt(endsAt, tick)) endOfflineDrill();
+      if (!isDrillActiveAt(endsAt, tick)) endDrillAndSend();
     }, 1_000);
     return () => clearInterval(id);
   }, [endsAt]);
