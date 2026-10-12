@@ -33,9 +33,9 @@ describe('StaffService.getMatchNeighbors: what an outsider may see', () => {
     bout('after', 14, 'completed'),
   ];
 
-  function service() {
+  function service(rows: SupabaseRow[] = ROWS) {
     const supabase = mockSupabase({
-      matches: { rows: ROWS },
+      matches: { rows },
       lices: {
         rows: [
           { id: LICE, event_id: 'event-1', events: { id: 'event-1', organization_id: 'org-1' } },
@@ -81,6 +81,19 @@ describe('StaffService.getMatchNeighbors: what an outsider may see', () => {
       .staff.getMatchNeighbors('nowhere', ANON)
       .catch((error: unknown) => (error as NotFoundException).getResponse());
     expect(refusal).toEqual(new NotFoundException('Match not found').getResponse());
+  });
+
+  // The piste list sorts the bout number as a number (`compareLiceMatchOrder`).
+  // The tiles sorted it as text in SQL, so in a Pool of ten bouts the Next of
+  // bout 9 was nothing and the Next of bout 1 was bout 10.
+  it('walks the bouts of one hour in the order of the piste list', async () => {
+    const numbered = (n: number): SupabaseRow => ({
+      ...bout(`m${n}`, 10, 'running'),
+      match_number_label: `L1-P1-M${n}`,
+    });
+    const { staff } = service([10, 2, 9].map(numbered));
+
+    expect(ids(await staff.getMatchNeighbors('m9', ANON))).toEqual(['m2', 'm10']);
   });
 
   it('reads the Tournament status through inner embeds', async () => {

@@ -1109,12 +1109,15 @@ export class StaffService {
       )
       .eq('lice_id', liceId)
       .in('status', ['scheduled', 'running', 'paused', 'completed']);
-    const { data, error } = await (publicOnly ? onlyPublicTournaments(onLice) : onLice)
-      .order('scheduled_at', { ascending: true, nullsFirst: false })
-      .order('match_number_label', { ascending: true });
+    const { data, error } = await (publicOnly ? onlyPublicTournaments(onLice) : onLice).order(
+      'scheduled_at',
+      { ascending: true, nullsFirst: false },
+    );
     if (error) throw new BadRequestException(error.message);
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // The order of the piste list, so the tiles and the list walk one piste the
+    // same way. SQL sorts the bout number as text: M10 before M2.
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).sort(compareLiceMatchOrder);
     const idx = rows.findIndex((r) => (r['id'] as string) === matchId);
     if (idx === -1) return { previous: null, next: null };
     return {
