@@ -4,24 +4,6 @@ import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ThemeSwitcher } from '../../../../src/theme/ThemeSwitcher';
 
-/** Connectivity strip. The pad queues exchanges locally when this reads offline. */
-export function NetworkBar({ status }: { status: 'online' | 'offline' }) {
-  const { t } = useI18n();
-  return (
-    <div
-      data-testid="network-bar"
-      data-network={status}
-      className={`px-4 py-1 text-xs font-bold text-center ${
-        status === 'online' ? 'bg-success/15 text-success' : 'bg-muted/20 text-muted animate-pulse'
-      }`}
-    >
-      {status === 'online'
-        ? `● ${t('scoring.lice.online')}`
-        : `● ${t('scoring.lice.offlineQueued')}`}
-    </div>
-  );
-}
-
 /**
  * Light-chrome header for a piste.
  *

@@ -6,11 +6,14 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../src/theme/ThemeProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { useLiceMatches } from '../../../src/hooks/useLiceMatches';
+import { usePisteQueue } from '../../../src/hooks/usePisteQueue';
 import { partitionLiceMatches } from '../../../src/components/partition-lice-matches';
 import type { LiceMatch } from '../../../src/components/lice-match-types';
+import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
+import { SyncBar } from '../../../src/components/SyncBar';
 import { AllMatchesDisclosure } from './_components/AllMatchesDisclosure';
 import { GroupedMatchList } from './_components/GroupedMatchList';
-import { LiceHeader, NetworkBar } from './_components/LiceHeader';
+import { LiceHeader } from './_components/LiceHeader';
 import { TournamentSections } from './_components/TournamentSections';
 
 interface Props {
@@ -85,6 +88,9 @@ export default function LiceMatchListPage({ params }: Props) {
 
   const apiUrl = getApiUrl();
   const { data, loading, sessionExpired, unreachable } = useLiceMatches(apiUrl, liceId);
+  // Between two bouts is where the entries not sent are seen, and sent.
+  const { syncEngine, syncState } = usePisteQueue(apiUrl);
+  const [inboxOpen, setInboxOpen] = useState(false);
 
   useEffect(() => {
     if (sessionExpired) router.replace('/login');
@@ -121,11 +127,16 @@ export default function LiceMatchListPage({ params }: Props) {
       {/* Sticky, not fixed: the operator scrolls a 60-bout day and still has to
           know which piste this is, but fixed chrome leaves the flow and paints
           over whatever the root layout puts above it. */}
-      {/* `bg-background` on the wrapper is load-bearing: NetworkBar's tint is
-          `bg-success/15`, so without an opaque backdrop the match list would
-          scroll visibly through it. */}
+      {/* `bg-background` on the wrapper is load-bearing: the bar's tint is
+          see-through (`bg-success/25`), so without an opaque backdrop the match
+          list would scroll visibly through it. */}
       <div className="sticky top-0 z-sticky bg-background">
-        <NetworkBar status={networkStatus} />
+        <SyncBar
+          networkStatus={networkStatus}
+          syncState={syncState}
+          syncEngine={syncEngine}
+          onReview={() => setInboxOpen(true)}
+        />
         <LiceHeader liceName={data?.liceName ?? null} />
       </div>
 
@@ -159,6 +170,12 @@ export default function LiceMatchListPage({ params }: Props) {
           </>
         )}
       </div>
+
+      <QuarantineInbox
+        open={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        syncEngine={syncEngine}
+      />
     </main>
   );
 }
