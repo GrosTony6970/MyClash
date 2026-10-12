@@ -844,6 +844,84 @@ Named while slice 5 was built, and not fixed (each one checked in code by a revi
 - The deployed-stack tests were not run for this change. Their assertions on the level chain
   were read and still hold.
 
+**Slice 6 is built: the offline drill, the tests against the deployed stack, the written rules**
+(2026-10-12): `c5477a8d` the bar and the retry, `8949b7cc` the drill, `7c386e80` the tests, `562c3e07` the documents.
+The plan is on the operator's machine
+(`C:\Users\Tony\.claude\plans\pasted-content-id-170d-repo-f-github-quiet-castle.md`).
+
+Three rulings on 2026-10-12, asked with the plan:
+
+| Asked with this story                                                                                                                                                                                                                                                                                  | Ruling                                                                                                                                                                                                      | Done                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| An official taps "Practice going offline", opens a bout, taps Start, two hits and Pause. The banner says only "hits". With 1 or 2 entries the bar is red "SYNC ERROR"; with 3 it is grey. When the drill ends nothing is sent. An Undo, a Reopen, a forfeit or a correction really reaches the server. | **All of it**: the words name every entry; the queue is sent when the drill ends; a send that met only "no network" says OFFLINE, in a real hall too; the direct presses answer "no connection" in a drill. | `c5477a8d`, `8949b7cc` |
+| The build at the address of the deployed-stack tests is from 2026-08-25. No test starts or ends a bout with no network, and none sends a press twice.                                                                                                                                                  | **Repair them and add both, written by reading.** The operator redeploys, then the tests are run and what is red is fixed.                                                                                  | `7c386e80`, not run    |
+| The level step, "Start round" and "End round" still take a press with no id. No screen sends that form.                                                                                                                                                                                                | **They stay.** It is named here.                                                                                                                                                                            | no change              |
+
+- A hall with wifi and no internet, one unsent hit: the bar is grey "OFFLINE", as with ten. It was
+  red "SYNC ERROR" with a Retry. Red is for a fault the server answered, and while the inbox holds
+  a refused entry.
+- The tablet tries again by itself: while the bar says OFFLINE and entries wait, the bout screen
+  sends again every 5 seconds. Before, the queue went at the next tap, at the browser's "online"
+  event, or when a bout screen opened; a tablet that keeps its access point gets no such event.
+- The drill's words say "entries", and name hits, cards, and the clock, round and extra-time
+  presses, in English and in French.
+- When the drill ends (its time, "End drill", or a tablet that wakes after it) the queue goes to
+  the server in its order, with no tap.
+- During a drill an Undo takes the entry off the tablet and asks the server nothing. Reopen,
+  Reset, Unlock, a forfeit and each correction answer "No connection" and send nothing.
+- A test counts every request the tablet's app makes, call by call, as stopped by the drill or
+  left open with its reason. A new one fails it until it is named.
+- The deployed-stack tests: a new one fights a whole bout with no network, a reload included
+  (`tests/e2e/40-offline-bout.spec.ts`); a new one sends a Start, a "Start round 2" and a level
+  step twice with one id (`39-late-presses.spec.ts`); test 10 checks that the level step is one
+  line with its minute on it; test 16 asks the server's clock after each clock press. **None was
+  run**: they were typechecked and collected.
+- `docs/ARCHITECTURE.md` section 10 was read whole against the code. Stale: the list of the
+  tablet's tables, the send diagram, the status list, 10.3. New: 10.5, the drill.
+
+Things that are MINE, said with the plan or found by the review, not rulings. Say so if one is
+wrong:
+
+- **The 5-second retry.** Ruling 1 took the Retry button away from a tablet with 1 or 2 entries
+  and wifi with no internet; the retry gives the send back. It stands still during a drill: the
+  review found that each try that meets the drill counts against the entry, and the organiser's
+  board shows an entry tried three times as a tablet that is stuck.
+- **The bar stays red while the inbox holds a refused entry**, also when other entries met no
+  network. The review found the other side of it: with three or more unsent entries the same
+  tablet reads grey, because three failures in a row say OFFLINE whatever the inbox holds (older
+  than this work). Question for the operator: with a refused entry in the inbox and no network,
+  is the bar red or grey?
+- Unlock is stopped in a drill with the other direct presses.
+- The two new deployed-stack tests are files of their own (39 and 40), not a second test of 06:
+  06 would have crossed the 400-line budget.
+- A 503 the server itself sends (not read-only mode) reads as OFFLINE with one entry, as it
+  already did with three: the tablet reads any 503 as "the server is out of reach".
+
+Named while slice 6 was built, and not fixed (each one checked in code, by me or by a review):
+
+- During a drill the reads still reach the server (the bout, its lists, the piste's list). The
+  screen "from the tablet's copy" does not show in a drill.
+- The heartbeat still goes in a drill: the organiser's board reads the tablet's waiting entries.
+- "End drill" in one tab leaves a second tab of the same tablet in the drill until its time.
+- While the corrections drawer is open, a tap on "End drill" does not land: close the drawer
+  first. Seen in the browser story.
+- Each try of the retry that had an entry to send makes the bout screen read the bout again.
+- No retry runs away from a bout screen: a queue left waiting on the piste list goes when a bout
+  is opened, as before.
+- The end of a drill by its TIME, and after sleep, has a text pin and no story: the story ends
+  the drill by its button.
+- Does a bout page the tablet already opened reload with no network under the real service
+  worker? Not verified here (the browser stories block service workers). Test 40 settles it on
+  the deployed stack.
+- `apps/web-staff/src/components/MatchClock.tsx` is rendered nowhere, and
+  `reconcileFromServer` (`offline/reconcile.ts`) has no caller. Both older than this work.
+- The nightly run of the deployed-stack suite fails every night before any test: the public
+  host serves a staging certificate.
+- Test 16 confirms a card by the first sanction of the list's entry; the tablet asks on the card
+  it resolved. With an earlier offence in scope the two differ.
+- A French typo older than this work: "reconnecte" for "reconnecté" in the "no connection"
+  sentence (`packages/i18n/src/messages/fr/scoring.ts`).
+
 **The Space key on the tablet: `f14f8156`** (2026-10-11). Three browser tests failed now and then
 (`pad-space-behind-dialogs.spec.ts:100` and `:150`, `pad-best-of-server-disagrees.spec.ts:92`, red
 on CI once this session). The tests were right. For a moment after the screen changed, Space was
