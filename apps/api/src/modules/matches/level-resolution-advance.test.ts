@@ -1,229 +1,271 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ClockService } from './clock.service';
+import { foldClock } from '@myclash/rules';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { BOUT, NOW, at, collide, refusalOf, wroteNothing } from './clock-late-press.fixtures';
+import {
+  EARLY,
+  RUNS,
+  SPENT,
+  STAFF,
+  keepsItsRows,
+  level,
+  taken,
+  written,
+} from './level-step.fixtures';
 
 /**
- * Taking a LEVEL bout one step down its phase's chain of remedies.
+ * Taking a LEVEL bout one step down its phase's chain of remedies, pressed with
+ * a network: the body with no id.
  *
  * `end` refuses a level bout and NAMES what it is waiting on; this is the route
- * where the referee says they have played it. Its own file rather than
- * `clock-end-result.test.ts` because the read/write queue is a different one:
- *   matches → match_events (replay) → match_events (next sequence)
- *   → match_events (insert) → [adjust_time, for extra time only]
- *   → match_events (replay again)
+ * where the referee says they play it. The step sent late by a tablet is
+ * `level-step.late.test.ts`.
  */
-function thenable(data: unknown) {
-  const result = { data, error: null };
-  const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'in', 'order', 'limit', 'insert', 'update']) {
-    chain[m] = vi.fn(() => chain);
-  }
-  chain['maybeSingle'] = vi.fn().mockResolvedValue(result);
-  (chain as { then?: unknown })['then'] = (resolve: (v: unknown) => unknown) => resolve(result);
-  return chain;
-}
-
-/** A running bout with 90s of the phase's 90s limit already spent — 00:00. */
-const SPENT = [
-  { id: 'e1', type: 'start', reason: null, occurred_at: '2026-04-25T09:00:00.000Z' },
-  { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:01:30.000Z' },
-];
-
-/** The same bout 30s in — a minute of the 90s still to fight. */
-const EARLY = [
-  { id: 'e1', type: 'start', reason: null, occurred_at: '2026-04-25T09:00:00.000Z' },
-  { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:00:30.000Z' },
-];
-
-const step = (id: string) => ({
-  id,
-  type: 'level_resolution',
-  reason: null,
-  occurred_at: '2026-04-25T09:02:00.000Z',
+beforeEach(() => {
+  vi.useFakeTimers({ now: new Date(NOW) });
+});
+afterEach(() => {
+  vi.useRealTimers();
 });
 
-function levelBracket(over: Record<string, unknown> = {}) {
-  return {
-    id: 'm1',
-    status: 'running',
-    locked_at: null,
-    red_registration_id: 'red',
-    blue_registration_id: 'blue',
-    winner_registration_id: null,
-    red_score: 2,
-    blue_score: 2,
-    match_number_label: 'QF1',
-    phases: { type: 'single_elim', tournaments: { ruleset_config: {} } },
-    ...over,
-  };
-}
-
 describe('ClockService.advanceLevelResolution', () => {
-  const fromMock = vi.fn();
-  const supabase = { service: { from: fromMock } };
-  let service: ClockService;
-  let inserted: Array<Record<string, unknown>>;
-  let matchProjection: string;
+  it('applies extra time: ONE row, which counts the step and carries its time', async () => {
+    const { db, clock } = level(SPENT);
 
-  function wire(match: Record<string, unknown> | null, events: unknown[] = SPENT) {
-    fromMock.mockReset();
-    inserted = [];
-    matchProjection = '';
-    const matchChain = thenable(match);
-    (matchChain['select'] as ReturnType<typeof vi.fn>).mockImplementation((cols: string) => {
-      // FIRST only: `adjustTime` reads `matches` again for its own lock check,
-      // with a two-column projection that would otherwise overwrite this.
-      if (!matchProjection) matchProjection = cols;
-      return matchChain;
-    });
-    const capture = (data: unknown) => {
-      const chain = thenable(data);
-      (chain['insert'] as ReturnType<typeof vi.fn>).mockImplementation(
-        (row: Record<string, unknown>) => {
-          inserted.push(row);
-          return chain;
-        },
-      );
-      return chain;
-    };
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'matches') return matchChain;
-      // Every `match_events` read answers with the timeline; the sequence read
-      // takes `.maybeSingle()` off the same array, which is null-safe here
-      // because the insert path only needs `sequence ?? 0`.
-      return capture(events);
-    });
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    service = new ClockService(supabase as never);
-  });
-
-  it('applies extra time, recording the step and putting the seconds back', async () => {
-    wire(levelBracket());
-
-    const result = await service.advanceLevelResolution('m1');
+    const result = await clock.advanceLevelResolution(BOUT, STAFF);
 
     expect(result.applied).toEqual({ kind: 'extra_time', seconds: 60 });
-    const levelRows = inserted.filter((r) => r['type'] === 'level_resolution');
-    expect(levelRows).toHaveLength(1);
-    // NEGATIVE: `adjust_time` mutates elapsed, and a countdown shows
+    // NEGATIVE: the correction moves ELAPSED time, and a countdown shows
     // `limit − elapsed`. 90s spent of a 90s limit, plus 60s of extra time,
-    // means 30s elapsed — an adjustment of −60s.
-    const adjust = inserted.find((r) => r['type'] === 'adjust_time');
-    expect(adjust?.['adjustment_ms']).toBe(-60_000);
+    // means 30s elapsed: a correction of −60s.
+    expect(db.writes.map((write) => write.row)).toEqual([
+      {
+        match_id: BOUT,
+        sequence: 3,
+        type: 'level_resolution',
+        reason: 'extra time 60s',
+        by_user_id: null,
+        staff_account_id: 'staff-1',
+        occurred_at: NOW,
+        adjustment_ms: -60_000,
+      },
+    ]);
   });
 
   it('applies sudden death without touching the clock', async () => {
     // There is no per-match limit to lift: the countdown simply sits at 00:00
     // and the pad shows a skull with a count-up instead of a numeral.
-    wire(levelBracket(), [...SPENT, step('lr1')]);
+    const { db, clock } = level([...SPENT, taken(3, '10:01:40')]);
 
-    const result = await service.advanceLevelResolution('m1');
+    const result = await clock.advanceLevelResolution(BOUT, STAFF);
 
     expect(result.applied).toEqual({ kind: 'sudden_death' });
-    expect(inserted.filter((r) => r['type'] === 'level_resolution')).toHaveLength(1);
-    expect(inserted.some((r) => r['type'] === 'adjust_time')).toBe(false);
+    expect(written(db)).toEqual(['match_events level_resolution']);
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({ reason: 'sudden death' });
+    expect(writesTo(db, 'match_events')[0]?.row).not.toHaveProperty('adjustment_ms');
+  });
+
+  it('answers the step it took, and the clock as it is AFTER its row', async () => {
+    const bout = level(SPENT);
+    keepsItsRows(bout);
+
+    const result = await bout.clock.advanceLevelResolution(BOUT, STAFF);
+
+    expect(result.clock).toMatchObject({
+      status: 'halted',
+      activeMs: 30_000,
+      levelResolutionSteps: 1,
+    });
+  });
+
+  it('writes no correction in a phase with no time limit: there is nothing to extend', async () => {
+    const { db, clock } = level(SPENT, {
+      phases: {
+        type: 'single_elim',
+        tournaments: {
+          ruleset_config: {
+            matchFormat: { timeLimitsSeconds: { pool: null, bracket: null, finals: null } },
+          },
+          events: { status: 'running' },
+        },
+      },
+    });
+
+    const result = await clock.advanceLevelResolution(BOUT, STAFF);
+
+    expect(result.applied).toEqual({ kind: 'extra_time', seconds: 60 });
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({ reason: 'extra time 60s' });
+    expect(writesTo(db, 'match_events')[0]?.row).not.toHaveProperty('adjustment_ms');
+  });
+
+  it('is not tried again by itself when another writer took its sequence: it has no id', async () => {
+    // The row that won could be this very step from another device. A second
+    // try would then take the NEXT step, sudden death, with nobody asked.
+    const { db, rows, clock } = level(SPENT);
+    collide(db, 1, () => rows.push(taken(3, '10:59:59')));
+
+    const sent = clock.advanceLevelResolution(BOUT, STAFF);
+
+    expect(await refusalOf(sent)).toEqual({ status: 409, code: 'clock_row_collided' });
+    wroteNothing(db);
+  });
+
+  it('pauses a clock that runs, at the time of the step, before it gives the time', async () => {
+    // Nobody paused the clock: it ran from 10:00:00 to the step, at 11:00:00.
+    // Before, the clock kept running and the minute came off the closed part of
+    // the clock, which was empty: the extra time was lost at once.
+    const { db, rows, clock } = level(RUNS, { status: 'running' });
+
+    await clock.advanceLevelResolution(BOUT, STAFF);
+
+    expect(written(db)).toEqual([
+      'match_events halt',
+      'matches update',
+      'match_events level_resolution',
+    ]);
+    const [halt, step] = writesTo(db, 'match_events').map((write) => write.row);
+    expect(halt).toMatchObject({ type: 'halt', sequence: 2, occurred_at: NOW });
+    expect(halt).not.toHaveProperty('client_uuid');
+    expect(step).toMatchObject({ occurred_at: NOW });
+    const [bout] = writesTo(db, 'matches');
+    expect(bout?.row).toEqual({ status: 'paused' });
+    expect(bout?.filters).toContainEqual({ method: 'eq', args: ['id', BOUT] });
+
+    // The clock those rows add up to: paused, with exactly a minute to fight.
+    const timeline = [...rows, halt, step] as Array<Record<string, unknown>>;
+    const moves = timeline.map((one) => ({
+      type: one['type'] as 'start',
+      occurredAt: one['occurred_at'] as string,
+      adjustmentMs: (one['adjustment_ms'] as number | undefined) ?? null,
+    }));
+    expect(foldClock(moves)).toMatchObject({ status: 'halted', activeMs: 30_000 });
   });
 
   it('refuses once the chain is spent', async () => {
-    wire(levelBracket(), [...SPENT, step('lr1'), step('lr2')]);
+    const { db, clock } = level([...SPENT, taken(3, '10:01:40'), taken(4, '10:02:50')]);
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/No further remedy/);
-    expect(inserted).toEqual([]);
+    const sent = clock.advanceLevelResolution(BOUT, STAFF);
+
+    await expect(sent).rejects.toThrow(/No further remedy/);
+    expect(await refusalOf(sent)).toEqual({ status: 400, code: 'level_step_not_pending' });
+    wroteNothing(db);
   });
 
   it('refuses a POOL bout, whose chain is a draw', async () => {
     // Nothing to play out: a drawn pool bout is a real result, so the referee
     // simply ends it.
-    wire(
-      levelBracket({
-        match_number_label: 'L1-P1-M01',
-        phases: { type: 'pool', tournaments: { ruleset_config: {} } },
-      }),
-    );
+    const { db, clock } = level(SPENT, {
+      match_number_label: 'L1-P1-M01',
+      phases: { type: 'pool', tournaments: { ruleset_config: {}, events: { status: 'running' } } },
+    });
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/No further remedy/);
+    await expect(clock.advanceLevelResolution(BOUT, STAFF)).rejects.toThrow(/No further remedy/);
+    wroteNothing(db);
   });
 
   it('refuses when the scores are NOT level', async () => {
-    wire(levelBracket({ red_score: 3, blue_score: 1 }));
+    const { db, clock } = level(SPENT, { red_score: 3, blue_score: 1 });
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/not level/);
-    expect(inserted).toEqual([]);
+    const sent = clock.advanceLevelResolution(BOUT, STAFF);
+
+    await expect(sent).rejects.toThrow(/not level/);
+    expect(await refusalOf(sent)).toEqual({ status: 400, code: 'bout_not_level' });
+    wroteNothing(db);
   });
 
   it('refuses a bout that already carries a winner', async () => {
     // 0-0 with a recorded winner is a forfeit under a zeroing score policy. It
     // looks level and is decided; the ladder is what says so.
-    wire(levelBracket({ red_score: 0, blue_score: 0, winner_registration_id: 'blue' }));
+    const { clock } = level(SPENT, {
+      red_score: 0,
+      blue_score: 0,
+      winner_registration_id: 'blue',
+    });
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/not level/);
+    await expect(clock.advanceLevelResolution(BOUT, STAFF)).rejects.toThrow(/not level/);
   });
 
   it('refuses a completed bout, and a locked one', async () => {
-    wire(levelBracket({ status: 'completed' }));
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/already completed/);
+    const completed = level(SPENT, { status: 'completed' });
+    await expect(completed.clock.advanceLevelResolution(BOUT, STAFF)).rejects.toThrow(
+      /already completed/,
+    );
+    wroteNothing(completed.db);
 
-    wire(levelBracket({ locked_at: '2026-04-25T10:00:00.000Z' }));
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/locked/);
+    const locked = level(SPENT, { locked_at: at('10:30:00') });
+    expect(await refusalOf(locked.clock.advanceLevelResolution(BOUT, STAFF))).toEqual({
+      status: 400,
+      code: 'match_locked',
+    });
+    wroteNothing(locked.db);
+  });
+
+  it('takes a locked bout from a caller who passes the lock', async () => {
+    const { db, clock } = level(SPENT, { locked_at: at('10:30:00') });
+
+    await clock.advanceLevelResolution(BOUT, { ...STAFF, canOverrideLocked: true });
+
+    expect(written(db)).toEqual(['match_events level_resolution']);
   });
 
   it('refuses while the bout still has time to run', async () => {
     // The other door onto the chain. Without this a referee could collect the
     // extra time at 2-2 with a minute still to fight, and the chain would be
     // spent before the bout was.
-    wire(levelBracket(), EARLY);
+    const { db, clock } = level(EARLY);
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/Time is not finished/);
-    expect(inserted).toEqual([]);
+    const sent = clock.advanceLevelResolution(BOUT, STAFF);
+
+    await expect(sent).rejects.toThrow(/Time is not finished/);
+    expect(await refusalOf(sent)).toEqual({ status: 400, code: 'time_not_finished' });
+    wroteNothing(db);
   });
 
   it('puts the seconds back in COUNT-UP too', async () => {
     // `timerMode` is display only — the bout ends at the limit either way — so a
     // count-up bout that did not rewind could have its End accepted the instant
     // the extra time was granted, and the minute would exist only as advice.
-    wire(
-      levelBracket({
-        phases: {
-          type: 'single_elim',
-          tournaments: { ruleset_config: { matchFormat: { timerMode: 'countup' } } },
+    const { db, clock } = level(SPENT, {
+      phases: {
+        type: 'single_elim',
+        tournaments: {
+          ruleset_config: { matchFormat: { timerMode: 'countup' } },
+          events: { status: 'running' },
         },
-      }),
-    );
+      },
+    });
 
-    await service.advanceLevelResolution('m1');
+    await clock.advanceLevelResolution(BOUT, STAFF);
 
-    expect(inserted.find((r) => r['type'] === 'adjust_time')?.['adjustment_ms']).toBe(-60_000);
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({ adjustment_ms: -60_000 });
   });
 
   it('refuses between the rounds of a best-of match', async () => {
     // The scores on the row are the CLOSED round's then — frozen, and often
     // level, because a drawn round is exactly what puts them there. A remedy
     // played against them burns a chain step on a round that is over.
-    wire(levelBracket({ awaiting_round_advance: true }));
+    const { db, clock } = level(SPENT, { awaiting_round_advance: true });
 
-    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/advance to the next round/);
-    expect(inserted).toEqual([]);
+    const sent = clock.advanceLevelResolution(BOUT, STAFF);
+
+    await expect(sent).rejects.toThrow(/advance to the next round/);
+    expect(await refusalOf(sent)).toEqual({ status: 400, code: 'round_awaits_advance' });
+    wroteNothing(db);
   });
 
   it('asks for the columns it decides on', async () => {
-    // The chain answers with the whole fixture whatever the query asked for, so
+    // The double answers with the whole row whatever the query asked for, so
     // every assertion above survives deleting these from the select while the
     // real read would return none of them.
-    wire(levelBracket());
+    const { db, clock } = level(SPENT);
 
-    await service.advanceLevelResolution('m1');
+    await clock.advanceLevelResolution(BOUT, STAFF);
 
-    for (const column of [
-      'red_score',
-      'blue_score',
-      'winner_registration_id',
-      'match_number_label',
-      'awaiting_round_advance',
-      'phases(',
-    ]) {
-      expect(matchProjection).toContain(column);
-    }
+    expect(selectsFor(db.from, 'matches')[0]).toBe(
+      'id, status, locked_at, current_round, red_registration_id, blue_registration_id, ' +
+        'winner_registration_id, red_score, blue_score, match_number_label, ' +
+        'awaiting_round_advance, back_in_play_at, ' +
+        'phases(type, tournaments(ruleset_config, events(status)))',
+    );
   });
 });

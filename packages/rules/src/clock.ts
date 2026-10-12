@@ -19,13 +19,17 @@ export type ClockAction = 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'rese
 /** The four presses a pad may make with no network, and send later (ruling 13). */
 export type ClockPress = 'start' | 'halt' | 'resume' | 'end';
 
-/** Every row that moves the clock: a press, a time correction, a reset of the bout. */
-export type ClockMoveType = ClockAction | 'adjust_time' | 'reset_match';
+/**
+ * Every row that moves the clock: a press, a time correction, a reset of the
+ * bout, and a step of a level bout (`level_resolution`), which carries the
+ * time its extra time gives back.
+ */
+export type ClockMoveType = ClockAction | 'adjust_time' | 'reset_match' | 'level_resolution';
 
 export interface ClockMove {
   type: ClockMoveType;
   occurredAt: string;
-  /** Of an `adjust_time` row only. */
+  /** Of an `adjust_time` row, and of a `level_resolution` row that gives extra time. */
   adjustmentMs?: number | null;
 }
 
@@ -92,7 +96,10 @@ export function clockStep(clock: ClockFold, move: ClockMove): ClockFold {
       return { ...clock, runningFrom: null, status: 'halted' };
     case 'reset_clock':
       return { ...clock, activeMs: 0, runningFrom: null, status: 'halted' };
+    // A level step is written on a clock that does not run (the server halts
+    // it first), so its extra time is one correction of the time, like any other.
     case 'adjust_time':
+    case 'level_resolution':
       return { ...clock, activeMs: Math.max(0, clock.activeMs + (move.adjustmentMs ?? 0)) };
     case 'reset_match':
       return { ...IDLE_CLOCK };
@@ -141,4 +148,33 @@ export function clockAfterPress(clock: ClockFold, press: ClockPress, at: string)
   if (pressAlreadyTrue(press, clock.status)) return clock;
   if (!listed<ClockAction>(CLOCK_ACTIONS_FROM, clock.status).includes(press)) return clock;
   return clockStep(clock, { type: press, occurredAt: at });
+}
+
+/**
+ * The correction of the time that puts exactly `seconds` back on a bout's
+ * clock: what a step of extra time carries (`level_resolution`).
+ *
+ * THE SIGN IS THE TRAP. A correction moves ELAPSED active time, and a countdown
+ * shows `limit − elapsed`, so GRANTING time is a NEGATIVE correction. Anchoring
+ * on the limit, not a flat `−seconds`, also handles the bout that ran past
+ * zero: elapsed carries a hidden overshoot, and a flat delta would give a
+ * clock that read 00:00 rather less than a minute.
+ *
+ * Zero only with NO PHASE LIMIT: there is nothing to extend, so extra time is
+ * an instruction to the referee, not a change of the clock.
+ *
+ * A bout that counts UP moves too: the timer mode is display only, and the
+ * bout ends at the limit either way. The numeral reads 03:00 → 02:00 and
+ * climbs back, which is what a minute of extra time is.
+ *
+ * `elapsedMs` is the time of a clock that does NOT run: the server halts the
+ * clock before the step, and the pad's fold does the same.
+ */
+export function extraTimeAdjustmentMs(
+  seconds: number,
+  elapsedMs: number,
+  limitMs: number | null,
+): number {
+  if (limitMs === null) return 0;
+  return limitMs - seconds * 1000 - elapsedMs;
 }

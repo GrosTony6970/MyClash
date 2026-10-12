@@ -44,8 +44,10 @@ import {
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { lateRoundPressOf } from './round-advance';
+import { lateLevelPressOf } from './level-step';
 import {
   AdjustClockDto,
+  LevelPressDto,
   RoundPressDto,
   CreateExchangeDto,
   CreateMatchForfeitDto,
@@ -453,12 +455,25 @@ export class MatchesController {
    * off the resolver's provider graph.
    */
   @Post('matches/:id/level-resolution/advance')
+  @AllowOnArchivedEvent() // as a clock press sent late: a saved one is answered; a new one is refused
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Apply the next level-at-time remedy to a level bout (scorekeeper+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async advanceLevelResolution(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.clock.advanceLevelResolution(id, actor);
+  async advanceLevelResolution(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LevelPressDto,
+    @Req() req: FastifyRequest,
+  ) {
+    // A step with an id comes from a pad's queue (`level-step.ts`): the over
+    // Event is left to its handler, which answers a step the server holds. The
+    // empty body is refused on an over Event here, as it was.
+    const late = lateLevelPressOf(dto);
+    if (!late) {
+      const actor = await this.staff.authorizeMatchScoring(req, id);
+      return this.clock.advanceLevelResolution(id, actor);
+    }
+    const actor = await this.staff.authorizeMatchScoring(req, id, 'leave-to-handler');
+    return this.clock.advanceLevelResolution(id, actor, late);
   }
 
   /**

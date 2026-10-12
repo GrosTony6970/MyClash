@@ -103,7 +103,11 @@ export function lateRoundPressOf(body: {
  */
 export async function savedRoundPress(
   db: Database,
-  press: { clientUuid: string; matchId: string; type: 'round_advance' | 'round_end' },
+  press: {
+    clientUuid: string;
+    matchId: string;
+    type: 'round_advance' | 'round_end' | 'level_resolution';
+  },
 ): Promise<{ sequence: number } | null> {
   const { data, error } = await db
     .from('match_events')
@@ -139,13 +143,21 @@ const advanceTo = (round: number) =>
  * carries the id of its press, which is what answers the second send. A late
  * one that loses its sequence, or its own id, to another writer says so with
  * `ClockRowCollided`.
+ *
+ * A step of a level bout writes its rows here too (`level-step.ts`): the Halt
+ * of a clock that runs, which has a time and no id, and the step itself, with
+ * the correction of the clock its extra time gives.
  */
 export async function writeRoundRow(
   db: Database,
   matchId: string,
-  written: { type: 'round_advance' | 'round_end'; reason: string },
+  written: {
+    type: 'round_advance' | 'round_end' | 'halt' | 'level_resolution';
+    reason: string;
+    adjustmentMs?: number;
+  },
   actor: Actor | undefined,
-  late?: { clientUuid: string; at: string },
+  late?: { clientUuid?: string; at: string },
 ): Promise<void> {
   const { data: last } = await db
     .from('match_events')
@@ -162,7 +174,8 @@ export async function writeRoundRow(
     by_user_id: actor?.userId ?? null,
     staff_account_id: actor?.staffAccountId ?? null,
     occurred_at: late?.at ?? new Date().toISOString(),
-    ...(late ? { client_uuid: late.clientUuid } : {}),
+    ...(written.adjustmentMs !== undefined ? { adjustment_ms: written.adjustmentMs } : {}),
+    ...(late?.clientUuid ? { client_uuid: late.clientUuid } : {}),
   });
   if (!error) return;
   if (late && error.code === UNIQUE_VIOLATION) throw new ClockRowCollided();

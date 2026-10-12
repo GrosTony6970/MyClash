@@ -26,12 +26,8 @@ import {
   popClinchingRoundColumns,
   reopenedResultColumns,
 } from './reopen-match-columns';
-import {
-  extraTimeAdjustmentMs,
-  isLevelBout,
-  matchFormatContext,
-  timeLimitResult,
-} from './time-limit-result';
+import { timeLimitResult } from './time-limit-result';
+import { takeLevelStep, type LateLevelPress } from './level-step';
 import { endRefusal } from './level-at-time-refusal';
 import { isOver } from '../../common/live-status';
 import { eventResultsFrozen } from './event-results-frozen';
@@ -49,16 +45,26 @@ import {
 } from './late-press';
 import { matchLocked } from './match-locked';
 import { roundAwaitsAdvance } from './round-awaits-advance';
-import {
-  effectiveTimeLimitSeconds,
-  pendingLevelStep,
-  timeIsFinished,
-  type LevelStep,
-} from '@myclash/rulesets';
+import type { LevelStep } from '@myclash/rulesets';
 import { CLOCK_ACTIONS_FROM, foldClock } from '@myclash/rules';
 
 export type ClockAction =
-  'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
+  | 'start'
+  | 'halt'
+  | 'resume'
+  | 'end'
+  | 'reopen'
+  | 'reset_clock'
+  | 'adjust_time'
+  | 'reset_match'
+  | 'level_resolution';
+
+/** Who takes a step of a level bout, and whether they pass the lock. */
+interface LevelActor {
+  userId?: string;
+  staffAccountId?: string;
+  canOverrideLocked?: boolean;
+}
 
 export interface ClockState {
   matchId: string;
@@ -76,9 +82,10 @@ export interface ClockState {
    * the count of `level_resolution` events since the last `reset_match`.
    *
    * It rides on the clock because the pad reads the clock after every action
-   * and the rows are in the same timeline, so it costs no extra query. It is
-   * NOT a clock event: the rows are excluded from `events` below, so neither
-   * the `ClockAction` union nor the pad's unified timeline widens for it.
+   * and the rows are in the same timeline, so it costs no extra query. A step
+   * is in `events` too: a step of extra time carries the correction of the
+   * clock that gives the time, and a reader that folds `events` by itself (the
+   * chart of a bout) must see it.
    */
   levelResolutionSteps: number;
   events: Array<{
@@ -149,10 +156,10 @@ export class ClockService {
       .from('match_events')
       .select('id, type, reason, occurred_at, adjustment_ms')
       .eq('match_id', matchId)
-      // `level_resolution` is read here and NOT folded into the clock: it is
-      // how far down the phase's level-at-time chain the bout has been taken,
-      // and `computeClockState` counts it out of the list before replaying.
-      // One query rather than two, on the read the pad makes after every action.
+      // `level_resolution` is how far down the phase's level-at-time chain the
+      // bout has been taken: `computeClockState` counts it, and folds the time
+      // a step of extra time gives. One query rather than two, on the read the
+      // pad makes after every action.
       .in('type', [
         'start',
         'halt',
@@ -470,104 +477,27 @@ export class ClockService {
   // ── Level at time ─────────────────────────────────────────────────────────
 
   /**
-   * Take a LEVEL bout one step down its phase's chain of remedies, and apply it.
-   *
-   * The step is the referee's, not the engine's: `end` refuses a level bout and
-   * NAMES the remedy, and this is where the operator says they have played it.
-   * Recorded as a `level_resolution` row on the match timeline, so the position
-   * replays like the clock does and a `reset_match` puts it back to the start.
-   *
-   * The insert's error is CHECKED, unlike the best-effort round events: here the
-   * event IS the state. A swallowed failure would leave the chain where it was
-   * and hand the referee the same remedy again, having already granted the time.
-   *
-   * REFUSED WHILE THE BOUT STILL HAS TIME, exactly as the End is. This is the
-   * other door onto the chain, and a chain that can be walked down before the
-   * clock runs out is advice rather than a rule.
-   *
-   * `extra_time` puts the seconds back on the clock and leaves it halted — the
-   * referee restarts when the fighters are ready, in EITHER timer mode, because
-   * the limit is what the bout ends on and `timerMode` only says how it is
-   * shown. `sudden_death` does not touch the clock at all: there is no per-match
-   * limit to lift, the countdown simply sits at 00:00, and the pad shows a skull
-   * with a count-up instead of a numeral.
+   * Take a LEVEL bout one step down its phase's chain of remedies: extra time,
+   * then sudden death. `level-step.ts` owns the step, for a press of now and
+   * for one a pad sends late (`late`), which is answered with the clock alone,
+   * as a clock press sent late is.
    */
-  async advanceLevelResolution(
+  advanceLevelResolution(
     matchId: string,
-    actor?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
-  ): Promise<{ applied: LevelStep; clock: ClockState }> {
-    const { data: match } = await this.supabase.service
-      .from('matches')
-      .select(
-        'id, status, locked_at, red_registration_id, blue_registration_id, ' +
-          'winner_registration_id, red_score, blue_score, match_number_label, ' +
-          'awaiting_round_advance, phases(type, tournaments(ruleset_config))',
-      )
-      .eq('id', matchId)
-      .maybeSingle();
-    if (!match) throw new NotFoundException(`Match ${matchId} not found`);
-    const row = match as unknown as Record<string, unknown>;
-    if ((row['locked_at'] as string | null) && !actor?.canOverrideLocked) {
-      throw matchLocked();
-    }
-    if (row['status'] === 'completed') throw new BadRequestException('Match is already completed');
-    // Between rounds of a best-of match the scores on the row are the CLOSED
-    // round's, frozen and often level. A remedy played against them would
-    // burn a chain step on a round that is already over.
-    if (row['awaiting_round_advance']) {
-      throw new BadRequestException('Round already ended — advance to the next round');
-    }
-    if (!isLevelBout(row)) {
-      throw new BadRequestException('Scores are not level — end the bout on the clock');
-    }
-
-    const before = await this.getClockState(matchId);
-    const { matchFormat, phaseType, matchNumberLabel } = matchFormatContext(row);
-    // The same guard the End carries, on the other door. Without it a referee
-    // could collect extra time at 2-2 with thirty seconds still to fight, and
-    // the chain would be spent before the bout was.
-    if (!timeIsFinished(before.totalActiveMs, matchFormat, phaseType, matchNumberLabel)) {
-      throw endRefusal({ reason: 'time_not_finished' });
-    }
-    const step = pendingLevelStep(
-      matchFormat,
-      phaseType,
-      matchNumberLabel,
-      before.levelResolutionSteps,
-    );
-    if (step === null || step.kind === 'draw') {
-      throw new BadRequestException('No further remedy for a level bout in this phase');
-    }
-
-    const sequence = await this.nextSequence(matchId);
-    const { error: insertErr } = await this.supabase.service.from('match_events').insert({
-      match_id: matchId,
-      sequence,
-      type: 'level_resolution',
-      reason: step.kind === 'extra_time' ? `extra time ${step.seconds}s` : 'sudden death',
-      by_user_id: actor?.userId ?? null,
-      staff_account_id: actor?.staffAccountId ?? null,
-      occurred_at: new Date().toISOString(),
-    });
-    if (insertErr) throw new BadRequestException(insertErr.message);
-
-    if (step.kind === 'extra_time') {
-      const limitSeconds = effectiveTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-      const adjustment = extraTimeAdjustmentMs(
-        step.seconds,
-        before.totalActiveMs,
-        limitSeconds !== null ? limitSeconds * 1000 : null,
-      );
-      if (adjustment !== 0) {
-        await this.adjustTime(matchId, adjustment, `extra time ${step.seconds}s`, {
-          ...actor,
-          canOverrideLocked: true,
-        });
-      }
-    }
-
-    this.logger.log(`Match ${matchId}: level resolution → ${step.kind}`);
-    return { applied: step, clock: await this.getClockState(matchId) };
+    actor?: LevelActor,
+  ): Promise<{ applied: LevelStep; clock: ClockState }>;
+  advanceLevelResolution(
+    matchId: string,
+    actor: LevelActor | undefined,
+    late: LateLevelPress,
+  ): Promise<ClockState>;
+  advanceLevelResolution(
+    matchId: string,
+    actor?: LevelActor,
+    late?: LateLevelPress,
+  ): Promise<{ applied: LevelStep; clock: ClockState } | ClockState> {
+    const deps = { db: this.supabase.service, clock: this };
+    return late ? takeLevelStep(deps, matchId, actor, late) : takeLevelStep(deps, matchId, actor);
   }
 
   async adjustTime(
@@ -614,19 +544,15 @@ export class ClockService {
       adjustment_ms?: number | null;
     }>,
   ): ClockState {
-    // Split the level-at-time steps out before replaying. They share the
-    // timeline and the query, and they must not reach the clock: `ClockAction`
-    // stays the six transitions plus the two adjustments, and the pad's unified
-    // timeline keeps showing only what moved the clock. Counting them here
-    // rather than in their own read is also what keeps the ordered six-read
-    // queue in `clock-end-result.test.ts` intact.
+    // Count the level-at-time steps while replaying. They share the timeline
+    // and the query, and a step stays in the clock's rows: the one of extra
+    // time carries the correction that gives the time (`level-step.ts`).
+    // Counting them here rather than in their own read is also what keeps the
+    // ordered six-read queue in `clock-end-result.test.ts` intact.
     const clockRows: typeof rawEvents = [];
     let levelResolutionSteps = 0;
     for (const e of rawEvents) {
-      if (e.type === 'level_resolution') {
-        levelResolutionSteps += 1;
-        continue;
-      }
+      if (e.type === 'level_resolution') levelResolutionSteps += 1;
       // Starting the next round of a best-of match puts the chain back to the
       // top: each round is its OWN bout, so it plays its own extra time and its
       // own sudden death. Dropped from `clockRows` rather than merely counted,

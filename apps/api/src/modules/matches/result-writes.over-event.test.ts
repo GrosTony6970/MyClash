@@ -349,7 +349,7 @@ const CLOSED_DOORS: Door[] = [
   ['a forfeit voided', (d) => d.matches.voidForfeit('forfeit-1', d.req)],
   ['a bout unlocked', (d) => d.matches.unlockMatch(MATCH, d.req)],
   ['the clock adjusted', (d) => d.matches.adjustClock(MATCH, {} as never, d.req)],
-  ['a level bout resolved', (d) => d.matches.advanceLevelResolution(MATCH, d.req)],
+  ['a level bout resolved', (d) => d.matches.advanceLevelResolution(MATCH, {}, d.req)],
   ['the sides swapped', (d) => d.matches.swapFighterSide(MATCH, d.req)],
 ];
 /** The doors of an organiser alone: a pad is refused there for having no account. */

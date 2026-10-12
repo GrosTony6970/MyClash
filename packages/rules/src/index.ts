@@ -82,6 +82,7 @@ export {
   IDLE_CLOCK,
   clockAfterPress,
   clockStep,
+  extraTimeAdjustmentMs,
   foldClock,
   pressAlreadyTrue,
 } from './clock';

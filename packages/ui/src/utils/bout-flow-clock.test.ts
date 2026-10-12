@@ -51,6 +51,20 @@ describe('buildBoutFlow — pause markers', () => {
     ).toEqual([10_000, 35_000]);
   });
 
+  it('honours the time a step of extra time gives: a level bout’s later pauses stay aligned', () => {
+    // 90s fought, a minute of extra time on the step's own row (−60s), then
+    // 20s more: the second pause is at 50s of match time, not at 110s.
+    expect(
+      pauses([
+        clock('start', at(0, 0)),
+        clock('halt', at(1, 30)),
+        clock('level_resolution', at(1, 40), -60_000),
+        clock('resume', at(2, 0)),
+        clock('halt', at(2, 20)),
+      ]).map((p) => p.elapsedMs),
+    ).toEqual([90_000, 50_000]);
+  });
+
   it('drops every marker when the clock is reset', () => {
     expect(
       pauses([clock('start', at(0, 0)), clock('halt', at(0, 10)), clock('reset_clock', at(0, 20))]),

@@ -313,7 +313,8 @@ function replayDuration(events: RefereeMatchEventInput[]): number {
         activeMs += Math.max(0, occurredAt - runningFrom);
         runningFrom = null;
       }
-    } else if (event.type === 'adjust_time') {
+    } else if (event.type === 'adjust_time' || event.type === 'level_resolution') {
+      // A step of extra time carries the correction that gives the time.
       activeMs = Math.max(0, activeMs + (event.adjustmentMs ?? 0));
     } else if (event.type === 'reset_clock' || event.type === 'reset_match') {
       activeMs = 0;

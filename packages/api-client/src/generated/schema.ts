@@ -10260,6 +10260,16 @@ export interface components {
       /** Format: date-time */
       sentAt?: string;
     };
+    LevelPressDto: {
+      /** Format: uuid */
+      clientUuid?: string;
+      round?: number;
+      step?: number;
+      /** Format: date-time */
+      pressedAt?: string;
+      /** Format: date-time */
+      sentAt?: string;
+    };
     VoidExchangeDto: {
       reason?: string;
     };
@@ -15671,7 +15681,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['LevelPressDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

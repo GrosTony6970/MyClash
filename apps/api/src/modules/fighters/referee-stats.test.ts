@@ -210,4 +210,32 @@ describe('buildRefereeStats', () => {
 
     expect(stats.averageRefereeTimeMs).toBe(125_000);
   });
+
+  it('replays the time a step of extra time gives: it is on the step’s own row', () => {
+    const stats = buildRefereeStats({
+      userId: 'user-ref',
+      assignments: [{ matchId: 'match-1', userId: 'user-ref', role: 'arbitre_assesseur' }],
+      durations: [
+        {
+          matchId: 'match-1',
+          durationActiveMs: null,
+          events: [
+            { type: 'start', occurredAt: '2026-03-01T10:00:00.000Z' },
+            { type: 'halt', occurredAt: '2026-03-01T10:01:30.000Z' },
+            // A minute of extra time on a limit of 90 s: the clock goes back to 30 s.
+            {
+              type: 'level_resolution',
+              occurredAt: '2026-03-01T10:01:40.000Z',
+              adjustmentMs: -60_000,
+            },
+            { type: 'resume', occurredAt: '2026-03-01T10:02:00.000Z' },
+            { type: 'end', occurredAt: '2026-03-01T10:03:00.000Z' },
+          ],
+        },
+      ],
+      penalties: [],
+    });
+
+    expect(stats.averageRefereeTimeMs).toBe(90_000);
+  });
 });

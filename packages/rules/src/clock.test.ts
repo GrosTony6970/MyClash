@@ -4,6 +4,7 @@ import {
   IDLE_CLOCK,
   clockAfterPress,
   clockStep,
+  extraTimeAdjustmentMs,
   foldClock,
   pressAlreadyTrue,
   type ClockFold,
@@ -132,11 +133,33 @@ describe('clockStep', () => {
 
   it('a row of a type it does not know leaves the clock as it is, and the fold goes on', () => {
     // The rows come from a database: the old fold on the server ignored such a row.
-    const stray = { type: 'level_resolution', occurredAt: at('10:00:10') } as unknown as ClockMove;
+    const stray = { type: 'round_advance', occurredAt: at('10:00:10') } as unknown as ClockMove;
 
     const clock = foldClock([move('start', '10:00:00'), stray, move('halt', '10:00:30')]);
 
     expect(clock).toMatchObject({ status: 'halted', activeMs: 30_000 });
+  });
+
+  it('a step of a level bout gives the time it carries, and none when it carries none', () => {
+    const fought = [move('start', '10:00:00'), move('halt', '10:01:30')];
+
+    // A minute of extra time on a limit of 90 s: 30 s on the clock.
+    const extra = foldClock([...fought, move('level_resolution', '10:01:30', -60_000)]);
+    expect(extra).toMatchObject({ status: 'halted', activeMs: 30_000 });
+    // Sudden death, and a step written before a step carried its time.
+    const sudden = foldClock([...fought, move('level_resolution', '10:01:30')]);
+    expect(sudden).toMatchObject({ status: 'halted', activeMs: 90_000 });
+  });
+});
+
+describe('extraTimeAdjustmentMs', () => {
+  it('puts exactly the seconds back, also on a clock that ran past its limit', () => {
+    expect(extraTimeAdjustmentMs(60, 90_000, 90_000)).toBe(-60_000);
+    expect(extraTimeAdjustmentMs(60, 150_000, 90_000)).toBe(-120_000);
+  });
+
+  it('moves nothing when the phase has no limit', () => {
+    expect(extraTimeAdjustmentMs(60, 90_000, null)).toBe(0);
   });
 });
 

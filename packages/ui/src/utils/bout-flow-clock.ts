@@ -68,7 +68,9 @@ function step(fold: Fold, ev: ClockEvent): void {
       fold.open = null;
       fold.pauses.length = 0;
       break;
+    // A step of a level bout: its extra time is a correction of the clock too.
     case 'adjust_time':
+    case 'level_resolution':
       // Honoured deliberately: skip it and these offsets drift away from the
       // `clockTimeMs` stamped on the exchanges, landing markers in the wrong
       // place on the very chart they are meant to explain.

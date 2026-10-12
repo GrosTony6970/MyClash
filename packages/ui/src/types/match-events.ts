@@ -100,7 +100,8 @@ export interface ExchangeRow {
 /**
  * One clock transition from `GET /matches/:id/clock` — the `match_events` rows
  * the clock state is folded from, which the endpoint returns alongside the
- * computed state. Start/halt/resume/end/reopen/reset_clock/adjust_time.
+ * computed state. Start/halt/resume/end/reopen/reset_clock/adjust_time, and
+ * `level_resolution`: a step of a level bout, with the time its extra time gives.
  *
  * Replaying them is the only way to know WHERE in match time the clock was
  * stopped: the computed `activeMs` is a total and keeps no history.
@@ -109,7 +110,7 @@ export interface ClockEvent {
   type: string;
   occurredAt: string;
   reason?: string | null;
-  /** Signed correction applied by an `adjust_time` event. */
+  /** Signed correction applied by an `adjust_time` event, or by a step of extra time. */
   adjustmentMs?: number | null;
 }
 

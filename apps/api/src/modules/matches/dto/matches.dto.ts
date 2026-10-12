@@ -203,6 +203,24 @@ export const roundPressSchema = z
   .strict();
 export class RoundPressDto extends createZodDto(roundPressSchema) {}
 
+/**
+ * `POST /matches/:id/level-resolution/advance`. `{}` is the step of a level
+ * bout pressed with a network: now. The five fields are the same press kept in
+ * a pad's queue and sent later: its id, the round it was tapped in, the steps
+ * the round had taken before it (0 for the first), and the pad's times of the
+ * press and of this send. All five or none (`lateLevelPressOf`).
+ */
+export const levelPressSchema = z
+  .object({
+    clientUuid: z.uuid().optional(),
+    round: z.number().int().min(1).optional(),
+    step: z.number().int().min(0).optional(),
+    pressedAt: z.iso.datetime().optional(),
+    sentAt: z.iso.datetime().optional(),
+  })
+  .strict();
+export class LevelPressDto extends createZodDto(levelPressSchema) {}
+
 const updateMatchSchema = z
   .object({
     liceId: z.uuid().nullish(),

@@ -56,36 +56,6 @@ export function isLevelBout(match: Record<string, unknown>): boolean {
 }
 
 /**
- * The `adjust_time` value that puts exactly `seconds` back on a countdown.
- *
- * THE SIGN IS THE TRAP. `adjust_time` mutates ELAPSED active time, and a
- * countdown shows `limit − elapsed`, so GRANTING time is a NEGATIVE adjustment.
- * Anchoring on the display rather than applying a flat `−seconds` also handles
- * the bout that ran past zero: elapsed carries a hidden overshoot, and a flat
- * delta would give a clock that read 00:00 rather less than a minute.
- *
- * Zero only with NO PHASE LIMIT: there is nothing to extend, so extra time is an
- * instruction to the referee rather than a clock mutation.
- *
- * COUNT-UP MOVES TOO, and this used to say the opposite. `timerMode` is display
- * only — the bout ends at the limit either way — so a count-up bout that did not
- * rewind could have its End accepted the instant the extra time was granted, and
- * the minute would exist only as advice. The numeral reads 03:00 → 02:00 and
- * climbs back, which is what a minute of extra time is.
- *
- * Deliberately NOT `clock-adjustment.ts`'s `clockAdjustmentMs`, which is a ±
- * delta from the shown remaining, clamped to the limit, and lives on the pad.
- */
-export function extraTimeAdjustmentMs(
-  seconds: number,
-  elapsedMs: number,
-  limitMs: number | null,
-): number {
-  if (limitMs === null) return 0;
-  return limitMs - seconds * 1000 - elapsedMs;
-}
-
-/**
  * Why the clock will not stop this bout.
  *
  * Two refusals, and telling them apart is the whole point: a bout still has

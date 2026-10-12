@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClockService } from './clock.service';
-import { extraTimeAdjustmentMs, timeLimitResult } from './time-limit-result';
+import { timeLimitResult } from './time-limit-result';
 
 /**
  * What the `end` clock action RECORDS.
@@ -496,9 +496,10 @@ describe('timeLimitResult', () => {
 /**
  * How far down the chain a bout has been taken, replayed from its timeline.
  *
- * It rides on the clock's own read and must not reach the clock: the rows are
- * counted out of the list before `computeClockState` replays it, so neither the
- * `ClockAction` union nor the pad's unified timeline widens for them.
+ * It rides on the clock's own read. A step is counted, and it is a row of the
+ * clock too: a step of extra time carries the correction that gives the time
+ * (`level-step.ts`), and a step with none (sudden death, a row of before)
+ * leaves the clock as it is.
  */
 describe('computeClockState — level resolution steps', () => {
   const service = new ClockService(null as never);
@@ -509,7 +510,7 @@ describe('computeClockState — level resolution steps', () => {
     occurred_at: occurred,
   });
 
-  it('counts the steps and keeps them out of the clock', () => {
+  it('counts the steps, and a step with no time leaves the clock as it is', () => {
     const state = service.computeClockState('m1', [
       row('e1', 'start'),
       row('lr1', 'level_resolution'),
@@ -518,10 +519,27 @@ describe('computeClockState — level resolution steps', () => {
     ]);
 
     expect(state.levelResolutionSteps).toBe(2);
-    // Neither the totals nor the timeline may notice them.
-    expect(state.events.map((e) => e.type)).toEqual(['start', 'halt']);
     expect(state.status).toBe('halted');
     expect(state.activeMs).toBe(60_000);
+  });
+
+  it('gives the time a step of extra time carries, and lists the step with the clock’s rows', () => {
+    // 90 s fought, then a minute of extra time: 30 s on the clock that counts up.
+    const state = service.computeClockState('m1', [
+      row('e1', 'start'),
+      row('e2', 'halt', '2026-04-25T09:01:30.000Z'),
+      { ...row('lr1', 'level_resolution', '2026-04-25T09:01:30.000Z'), adjustment_ms: -60_000 },
+    ]);
+
+    expect(state.levelResolutionSteps).toBe(1);
+    expect(state.activeMs).toBe(30_000);
+    expect(state.status).toBe('halted');
+    // The chart of a bout folds this list by itself: it must see the step.
+    expect(state.events.map((e) => [e.type, e.adjustmentMs])).toEqual([
+      ['start', null],
+      ['halt', null],
+      ['level_resolution', -60_000],
+    ]);
   });
 
   it('starts the chain over on a reset_match', () => {
@@ -562,33 +580,5 @@ describe('computeClockState — level resolution steps', () => {
 
     expect(state.events.map((e) => e.type)).toEqual(['start', 'halt']);
     expect(state.activeMs).toBe(60_000);
-  });
-});
-
-/**
- * Putting extra time back on a countdown.
- *
- * THE SIGN IS THE TRAP: `adjust_time` mutates ELAPSED and a countdown shows
- * `limit − elapsed`, so granting time is a NEGATIVE adjustment.
- */
-describe('extraTimeAdjustmentMs', () => {
-  it('lands the clock on exactly the seconds granted', () => {
-    // 90s limit, 90s elapsed — the bout is at 00:00. A minute of extra time
-    // means 60s remaining, i.e. 30s elapsed: an adjustment of −60s.
-    expect(extraTimeAdjustmentMs(60, 90_000, 90_000)).toBe(-60_000);
-  });
-
-  it('absorbs a clock that ran PAST zero', () => {
-    // Elapsed carries a hidden overshoot while the display sits pinned at 00:00,
-    // so a flat −60s would give a referee rather less than a minute. Anchoring
-    // on the display is what makes the granted time the time actually granted.
-    expect(extraTimeAdjustmentMs(60, 150_000, 90_000)).toBe(-120_000);
-  });
-
-  it('does nothing when there is no limit to extend', () => {
-    // Count-up, or a phase configured with no time limit: extra time is an
-    // instruction to the referee, not a clock mutation. Rewinding the numeral
-    // would be a lie about how long the bout has run.
-    expect(extraTimeAdjustmentMs(60, 90_000, null)).toBe(0);
   });
 });
