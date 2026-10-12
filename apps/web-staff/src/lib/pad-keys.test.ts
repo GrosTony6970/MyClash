@@ -78,6 +78,13 @@ describe('the bout screen', () => {
     );
   });
 
+  // The result screen covers the pad, and the Undo button under it is live.
+  it('finds the result screen when it asks the page for a dialog', () => {
+    expect(component('MatchResultOverlay.tsx')).toMatch(
+      /role="dialog"\s+aria-modal="true"\s+aria-label=\{t\('scoring\.result\.finalResult'\)\}\s+data-testid="match-result-overlay"/,
+    );
+  });
+
   it('lists the three keys under the clock, in both languages', () => {
     expect(controls).toContain("{t('scoring.lice.keysHint')}");
     for (const hint of [en.scoring.lice.keysHint, fr.scoring.lice.keysHint]) {

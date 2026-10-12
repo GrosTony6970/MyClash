@@ -13,7 +13,7 @@
  * slipped through would show there.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { openBout, primary } from './pad-clock-stub';
+import { openBout, primary, redHit, result } from './pad-clock-stub';
 
 const doubles = (page: Page) => page.getByTestId('double-count');
 const count = (page: Page, n: number) =>
@@ -57,6 +57,34 @@ test('D gives a double and U takes the last entry back, when their buttons are l
   await expect(primary(page)).toHaveAttribute('data-action', 'resume');
   await key(page, 'KeyD');
   await count(page, 1);
+});
+
+test('U does nothing under the result screen of a bout that has ended', async ({ page }) => {
+  await haltedWithNoNetwork(page);
+  await redHit(page).first().click();
+  // The hit is written: the Double button is live again, and so is its key.
+  await expect(page.getByTestId('provisional-score')).toBeVisible();
+  await expect(page.getByTestId('double-button')).toBeEnabled();
+  await key(page, 'KeyD');
+  await count(page, 1);
+
+  await page.getByTestId('clock-end-button').click();
+  await page.getByTestId('end-early-confirm').click();
+  await expect(result(page)).toBeVisible();
+  await expect(result(page)).toHaveAttribute('aria-modal', 'true');
+
+  // The Undo button is under the result screen, and live: the key must not reach it.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await key(page, 'KeyU');
+  await result(page)
+    .getByRole('button', { name: /^close$/i })
+    .click();
+  await expect(result(page)).toHaveCount(0);
+
+  // The double is still there. With the screen closed, U takes it back.
+  await count(page, 1);
+  await key(page, 'KeyU');
+  await count(page, 0);
 });
 
 test('the keys do nothing in a field, behind a dialog, behind the drawer, or with Ctrl', async ({
