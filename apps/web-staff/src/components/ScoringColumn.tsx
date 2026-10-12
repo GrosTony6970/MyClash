@@ -204,6 +204,9 @@ export function ScoringColumn({
       // refused scored artefact. The press does not wait for it (ruling 316).
       syncEngine?.sendBehind();
       onPenaltyRecorded?.();
+      // The card is written on the tablet: the next penalty starts from the
+      // whole list (quick win P15). A write that failed keeps the search.
+      setPenaltyQuery('');
     } catch (err) {
       setPenaltyError(err instanceof Error ? err.message : 'Network error');
     } finally {
@@ -482,16 +485,23 @@ export function ScoringColumn({
           )}
 
           <input
+            data-testid="penalty-search"
             value={penaltyQuery}
             onChange={(e) => setPenaltyQuery(e.target.value)}
             placeholder={t('scoring.lice.penaltySearch')}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-warning"
+            aria-label={t('scoring.lice.penaltySearch')}
+            className="min-h-[44px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-warning"
           />
 
           <div className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
-            {filteredEntries.length === 0 && (
+            {entries.length === 0 && (
               <p className="text-center text-xs text-muted py-3">
                 {t('scoring.lice.penaltiesNone')}
+              </p>
+            )}
+            {entries.length > 0 && filteredEntries.length === 0 && (
+              <p data-testid="penalty-no-match" className="text-center text-xs text-muted py-3">
+                {t('scoring.lice.penaltiesNoMatch', { query: penaltyQuery.trim() })}
               </p>
             )}
             {filteredEntries.slice(0, 30).map((entry) => (

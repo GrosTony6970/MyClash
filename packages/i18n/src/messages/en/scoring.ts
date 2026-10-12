@@ -344,6 +344,7 @@ export const scoring = {
     penaltiesHeader: 'Penalties',
     penaltySearch: 'Search penalties',
     penaltiesNone: 'No penalty entries configured.',
+    penaltiesNoMatch: 'No penalty matches "{query}".',
     directCardSection: 'Direct card',
     directCardReason: 'Reason for direct card',
     directCardConfirmTitle: 'Issue this card?',
