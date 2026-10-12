@@ -119,13 +119,13 @@ test('the keys do nothing in a field, behind a dialog, behind the drawer, or wit
   await key(page, 'Escape');
   await expect(page.getByTestId('reset-match')).toHaveCount(0);
 
-  // Ctrl+D is the browser's own.
+  // With Ctrl the key is the browser's own.
   await key(page, 'Control+KeyD');
 
-  // One double was given before, and none since: D makes it two, U one again.
-  await count(page, 1);
-  await key(page, 'KeyD');
-  await count(page, 2);
+  // One double was given before, and none since. U first: a double that
+  // slipped through is still being written, and would be left on the count.
   await key(page, 'KeyU');
+  await count(page, 0);
+  await key(page, 'KeyD');
   await count(page, 1);
 });
