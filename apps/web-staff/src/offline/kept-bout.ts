@@ -32,20 +32,23 @@ export interface KeptBout {
   readAt: number;
 }
 
-/** Keeps the bout a read of the server just gave. Overwrites the copy before it. */
-export async function keepBout(match: MatchInfo): Promise<void> {
-  await db.reads.put({ path: keyOf(match.id), body: match, fetchedAt: Date.now() });
+/**
+ * Keeps the bout a read of the server gave, asked at `askedAt`. One bout of
+ * `keepBoutsAskedAt`, under its rule.
+ */
+export async function keepBout(match: MatchInfo, askedAt: number = Date.now()): Promise<void> {
+  await keepBoutsAskedAt([match], askedAt);
 }
 
 /**
- * Keeps bouts that ONE earlier read gave: the read of a whole piste
- * (`lib/keep-piste.ts`), asked at `askedAt`. Answers how many were written.
+ * Keeps bouts that ONE read of the server gave, asked at `askedAt`: the bout
+ * screen's read of its bout, or the read of a whole piste
+ * (`lib/keep-piste.ts`). Answers how many were written.
  *
- * THE RACE. That read and the bout screen's own read both write a bout's copy,
- * and the piste read is the slow one: its answer can land after the screen
- * kept a NEWER bout (a hit was taken in between). So an answer never replaces
- * a copy written after it was asked. Read and written in one transaction, or
- * the screen's write could land between the two.
+ * THE RACE. Both reads write a bout's copy, and either answer can land last:
+ * the piste read is slow, and the screen reads its bout again after every
+ * send. So an answer never replaces a copy of a LATER ask. Read and written
+ * in one transaction, or another write could land between the two.
  *
  * The copy takes the time of the ask: that is how old its word is.
  */
@@ -104,6 +107,15 @@ export async function keptList<T>(matchId: string, list: BoutListName): Promise<
  */
 export async function keepClock(matchId: string, clock: ClockState): Promise<void> {
   await db.reads.put({ path: clockKeyOf(matchId), body: clock, fetchedAt: Date.now() });
+}
+
+/**
+ * Which of these bouts the tablet holds the clock of: the bouts its own screen
+ * opened with a network. A bout in play with no kept clock would open at 0:00.
+ */
+export async function clocksHeld(matchIds: string[]): Promise<Set<string>> {
+  const rows = await db.reads.bulkGet(matchIds.map(clockKeyOf));
+  return new Set(matchIds.filter((_id, i) => rows[i] !== undefined));
 }
 
 /** The copy of that bout's clock, or null when the tablet never read it. */

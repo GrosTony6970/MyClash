@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { nextKeepIn } from './useKeepPiste';
 
 /**
  * The pad has no React test setup, so the wiring of "the tablet keeps its
@@ -20,14 +21,27 @@ describe('the tablet keeps its piste', () => {
     );
   });
 
-  it('asks nothing with no network, while the tab is hidden, or while a read is out', () => {
+  it('asks nothing while the tab is hidden or a read is out, and does not ask the browser for the network', () => {
     const hook = read('src', 'hooks', 'useKeepPiste.ts');
 
-    expect(hook).toContain('if (busy || document.hidden || !navigator.onLine) return;');
-    expect(hook).toContain('window.setInterval(keep, KEEP_PISTE_EVERY_MS)');
+    expect(hook).toContain('if (busy || stopped || document.hidden) return;');
+    // A tablet whose `navigator.onLine` is stuck at false would keep nothing.
+    expect(hook.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('onLine');
     expect(hook).toContain("window.addEventListener('online', keep);");
     expect(hook).toContain("document.addEventListener('visibilitychange', keep);");
-    expect(hook).toContain('export const KEEP_PISTE_EVERY_MS = 5 * 60_000;');
+  });
+
+  it('asks again after each read, sooner when the read got no answer', () => {
+    const hook = read('src', 'hooks', 'useKeepPiste.ts');
+
+    expect(hook).toContain('if (!stopped) timer = window.setTimeout(keep, nextKeepIn(kind));');
+    expect(hook).toContain(".catch(() => 'threw' as const)");
+    expect(nextKeepIn('piste')).toBe(5 * 60_000);
+    // An answer: this session may not read the piste. Thirty seconds changes nothing.
+    expect(nextKeepIn('refused')).toBe(5 * 60_000);
+    for (const kind of ['unreachable', 'failed', 'threw'] as const) {
+      expect(nextKeepIn(kind)).toBe(30_000);
+    }
   });
 
   // The catalogue is kept by Tournament: a hook that asks without the bout's

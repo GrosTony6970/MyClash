@@ -8,6 +8,7 @@
  * 503 with `{ error: 'offline' }`.
  */
 import { expect, type Page, type Route } from '@playwright/test';
+import { rulesOf } from './pad-rounds-score';
 
 export const PAD = 'http://localhost:3002';
 export const LICE = 'lice-1';
@@ -74,6 +75,8 @@ export interface PisteStub {
   pisteRedScore: number | null;
   /** Every request that is not a read, by method and path. */
   sent: string[];
+  /** Whether the server gives the Tournament's rules. */
+  rules: boolean;
   /** How many times the whole piste was asked. */
   pisteReads: number;
   /** Set to hold the answer of the piste read; call it to let the answer go. */
@@ -100,6 +103,11 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
     return undefined;
   }
   if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
+  // The Tournament's rules: the tablet keeps no bout of a Tournament whose
+  // rules it does not hold. A story may take them away.
+  if (path.endsWith('/match-config')) {
+    return stub.rules ? route.fulfill({ json: rulesOf(false, 5) }) : route.fulfill(OFFLINE);
+  }
   if (!bout) return route.fulfill({ status: 404, json: {} });
   if (path.endsWith('/neighbors')) {
     const at = ORDER.indexOf(bout);
@@ -121,6 +129,7 @@ export async function stubPiste(page: Page): Promise<PisteStub> {
     redScore: 3,
     pisteRedScore: null,
     sent: [],
+    rules: true,
     pisteReads: 0,
     holdPiste: false,
     releasePiste: () => undefined,
@@ -179,8 +188,12 @@ export function queuedFor(page: Page, matchId: string): Promise<number> {
 }
 
 /** Opens bout 1 with the network up, and waits until the tablet holds its piste. */
-export async function openFirstBout(page: Page): Promise<PisteStub> {
+export async function openFirstBout(
+  page: Page,
+  start: { rules?: boolean } = {},
+): Promise<PisteStub> {
   const stub = await stubPiste(page);
+  stub.rules = start.rules ?? true;
   await page.goto(`${PAD}/matches/match-1`);
   await expect(page.getByTestId('double-button')).toBeEnabled();
   await expect.poll(() => keptRow(page, `piste/${LICE}`)).toEqual(ORDER);

@@ -176,6 +176,9 @@ export default function MatchScoringPage({ params }: Props) {
       return true;
     };
     void (async () => {
+      // A copy is as old as its ask: the read of the whole piste keeps this
+      // bout too, and the answer of the later ask stays (`keepBoutsAskedAt`).
+      const askedAt = Date.now();
       const answer = await readBout(apiUrl, matchId);
       // UNREACHABLE is marked, not only skipped, and it does not ask
       // `isNewestAnswer`: that would drop an earlier good answer still on its
@@ -206,7 +209,7 @@ export default function MatchScoringPage({ params }: Props) {
       // Kept for the next read that finds no network. A store that refuses the
       // write costs that convenience only. A bout read without its names (the
       // summary did not land) does not replace a copy that has them.
-      if (answer.labelled) void keepBout(answer.match).catch(() => undefined);
+      if (answer.labelled) void keepBout(answer.match, askedAt).catch(() => undefined);
     })();
   }, [matchId, apiUrl, refreshKey]);
 

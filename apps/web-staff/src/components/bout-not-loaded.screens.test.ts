@@ -59,7 +59,7 @@ describe('the page’s read of the bout', () => {
     );
     // A bout with no names is shown, and not kept over a copy that has them.
     expect(page).toContain(
-      'if (answer.labelled) void keepBout(answer.match).catch(() => undefined);',
+      'if (answer.labelled) void keepBout(answer.match, askedAt).catch(() => undefined);',
     );
   });
 

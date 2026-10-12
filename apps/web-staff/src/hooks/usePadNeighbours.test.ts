@@ -52,7 +52,7 @@ describe('usePadNeighbours', () => {
   const hook = readFileSync(join(__dirname, 'usePadNeighbours.ts'), 'utf8');
 
   it('holds what the tablet gave with the bout it gave it for', () => {
-    expect(hook).toContain('if (!cancelled && kept) setTablet({ matchId, ...kept });');
+    expect(hook).toContain('if (!cancelled) setTablet(kept ? { matchId, ...kept } : null);');
     expect(hook).toContain('return neighboursOnPad(server, tablet, matchId);');
   });
 

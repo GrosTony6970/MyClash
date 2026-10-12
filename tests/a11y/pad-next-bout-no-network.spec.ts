@@ -84,6 +84,24 @@ test('a bout opened from the tablet names its own next bout, to the end of the p
   await expect(page.getByRole('link', { name: /Ana Red|Eli Third/ })).toHaveCount(0);
 });
 
+// A copy with no rules would open with the default buttons and say nothing: a
+// +2 tapped where the Tournament says +3 is stored as a 2. So the tablet keeps
+// no bout of a Tournament whose rules it does not hold, and says "not loaded".
+test('a bout whose rules the tablet does not hold is not opened from the tablet', async ({
+  page,
+}) => {
+  const stub = await openFirstBout(page, { rules: false });
+  expect(await keptRow(page, 'bout/match-2')).toBeNull();
+
+  stub.network = 'down';
+  // The order is kept, so the way to the next bout is still on screen.
+  await nextTile(page, /Cy After/).click();
+
+  await expect(page).toHaveURL(/\/matches\/match-2$/);
+  await expect(page.getByTestId('bout-not-loaded')).toBeVisible();
+  await expect(fromTablet(page)).toHaveCount(0);
+});
+
 // The race: the read of the piste is the slow one. The bout screen keeps a
 // newer bout 1 while that read is on its way; its answer must not put the
 // older bout 1 back.

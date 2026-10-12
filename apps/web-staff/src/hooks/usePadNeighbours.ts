@@ -54,7 +54,8 @@ export function usePadNeighbours(
     let cancelled = false;
     void keptNeighbours(liceId, matchId)
       .then((kept) => {
-        if (!cancelled && kept) setTablet({ matchId, ...kept });
+        // Null too: the piste it had the neighbours from may be gone.
+        if (!cancelled) setTablet(kept ? { matchId, ...kept } : null);
       })
       // A store that cannot be read costs the tiles with no network only.
       .catch(() => undefined);
