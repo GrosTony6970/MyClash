@@ -534,7 +534,7 @@ Four rulings on the evening of 2026-10-11, each a slice with its own recon and p
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | A Pool bout that counts down, doubles limit 3. Red hits once, then three doubles: the board is wiped to 0 – 0, and the bout ends as a draw ("first to points"). Counting up, the same bout is a loss for both ("max doubles"). | **A loss for both**: in a bout that counts down the doubles limit is asked before the point cap, and the bout ends as the format's doubles outcome says.                                                 | `6b30e5bc` |
 | An Event closes with 12 unsent entries of one bout on a tablet. The inbox shows one line, "11 wait behind it", and the official confirms 12 Discards, one after the other.                                                     | **Add "Discard all of this bout"**: one more button on that line, with one question that says how many entries go. One entry at a time stays possible.                                                   | `8dab2ce0` |
-| Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | not built  |
+| Best-of-3, no wifi. "End round" is tapped on round 2 at 10:05. At 10:10 a referee reopens round 2 on another device. At 10:20 the first tablet sends its old "End round", and the server closes round 2 again.                 | **Refuse it**: the server refuses an "End round" and a "Start round" tapped before the bout's last Reopen, as it does for a press from before a Reset. The tablet holds it in the inbox with its reason. | `f2da59d8` |
 | A Tournament has 150 bouts not started. The organiser saves the scoring pad's settings with nothing changed for the bouts: the server writes the 150 bouts again, and every screen gets 150 change notices.                    | **Write only the bouts that differ**: a bout not started is written only when its ruleset stamp differs from its Tournament's.                                                                           | not built  |
 
 **The doubles limit in a bout that counts down, and "End match" at the limit, are built**
@@ -616,6 +616,68 @@ Named while "Discard all" was built, and not fixed:
 - No browser story runs a best-of bout through "Discard all": the fault the review found is
   held by a text pin of the one read, not by a story (the order of two reads cannot be forced
   in a browser).
+
+**A press made before the bout was put back in play is refused: built** (2026-10-12):
+`f2da59d8` the server, `183123f3` the tablet's words.
+
+Two rulings on 2026-10-12, asked with the plan of that row:
+
+| Asked with this story                                                                                                                                                                                                            | Ruling                                                                                                       | Done       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------- |
+| A Pool bout of one round, a tablet with no wifi. "End match" is tapped at 10:05. Another tablet had ended the bout, and a referee reopens it at 10:10. At 10:20 the old "End match" arrives, and the server ends the bout again. | **The clock's presses too**: Start, Pause, Resume and "End match" follow the same rule, in this slice.       | `f2da59d8` |
+| Best-of-3. A hit at the cap closes round 2 on tablet B. Tablet A taps "End round 2" with no wifi. The referee on B undoes that hit: the server puts round 2 back in play by itself. A's old "End round 2" then closes it again.  | **The undo too, now**: a round or a bout the server puts back in play after a correction counts as a Reopen. | `f2da59d8` |
+
+- The server notes on the bout the moment it was last put back in play. Three things write
+  it: a Reopen, a Start, a Pause or a Resume that takes the bout out of "completed"; a
+  correction that hands a finished bout back to the referee; a correction that takes away what
+  closed a round.
+- A clock press or a round press that a tablet made before that moment, and sends after it, is
+  refused. The tablet holds it in the inbox with its reason, in English and in French, and
+  offers Discard alone: no new send can cure it.
+- A press the server already holds is answered as before. A press that asks for what is
+  already true is "done" as before. A hit or a card is never refused by this rule: the bout
+  keeps its fight.
+
+Four things differ from the ruling's words, or from what I told the operator. Say so if one is
+wrong:
+
+- **A field on the bout, not a line in the timeline.** The option the operator picked said "the
+  server writes a line". The field is written in the same write that puts the bout back in
+  play, so it cannot be lost between two writes. It needs migration `0222`, and the time shows
+  in the public read of a bout.
+- **A forfeit taken back does not count.** It puts the bout back as it was before the forfeit.
+  A tablet that fought the bout with no wifi, under a forfeit recorded by mistake, keeps its
+  presses. The plan review found this.
+- **A Reopen on a bout that is not completed does not count.** It moves the clock alone. It is
+  the Reopen that "Start round N+1" makes itself, and the Reopen a referee presses on a clock
+  a forfeit ended, once the forfeit is taken back. The cold review found the second case.
+- A forfeit recorded by mistake and undone with the clock's own Reopen, on the completed bout,
+  does count: that door cannot tell it from a Reopen to correct a hit. Use "take the forfeit
+  back" for a forfeit recorded by mistake.
+
+Named while this was built, and not fixed:
+
+- A tablet whose time of day is corrected forwards between a press and its send says a press
+  older than it is. After a Reopen, such a press can read as "before" and be refused. The rule
+  for a Reset has the same limit.
+- The moment can move back. A tablet's late card (scored at 10:06) that puts a round back in
+  play overwrites the moment of a Reopen made after it (10:10). A stale press of 10:08 from a
+  third device then passes. It needs two tablets with no wifi on one bout.
+- The corrections drawer can undo a hit, with a network, while an older round press of the same
+  tablet still waits. That press is then held with Discard alone; before, it was held with
+  Retry.
+- A press and a Reopen in the same moment: the server reads the bout, the Reopen lands, the
+  server writes the press. Every rule of a late press has this window of some milliseconds.
+- The clock can put a bout back in play with its winner kept: a bout completed between the
+  clock's read and its write of a Start, a Pause or a Resume (`ClockService.writeBout` has no
+  "not completed" filter; `setStatus` has one). Older than this work.
+- A forfeit taken back can leave a bout "running" with an ended clock. Older than this work.
+- A person's Start, Pause or Resume on a completed best-of bout does not put back the round
+  that ended the series; only Reopen does. Older than this work.
+- The comment of `reopenClosedRound` says the clock stays halted. For a series the round had
+  won, the clock is ended.
+- No browser story holds a refused CLOCK press with this reason: the round press has one, the
+  clock press has the unit tests.
 
 Named while this was built, and not fixed (each one checked in code by a review):
 
