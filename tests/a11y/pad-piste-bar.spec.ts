@@ -65,7 +65,9 @@ test('the piste list counts the entries not sent, and sends them when the networ
   stub.network = 'up';
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
 
-  await expect.poll(() => stub.sent).toEqual(HIT_SENT);
+  // Within 2 seconds: the try the list makes by itself comes 5 seconds after
+  // the first send, and must not be what sends this.
+  await expect.poll(() => stub.sent, { timeout: 2_000 }).toEqual(HIT_SENT);
   await expect(bar(page)).toHaveAttribute('data-pending', '0');
   await expect(bar(page)).toHaveAttribute('data-sync', 'online');
 });

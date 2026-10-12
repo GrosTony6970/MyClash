@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { getSyncEngine, type SyncEngine, type SyncState } from '../offline/sync';
-import { useSendWhileOffline, useSyncState } from '../offline/use-sync-state';
+import { useSendEnded, useSendWhileOffline, useSyncState } from '../offline/use-sync-state';
 
 /**
  * The tablet's queue, on the piste list (quick win P16; operator, 2026-10-12).
@@ -20,13 +20,21 @@ import { useSendWhileOffline, useSyncState } from '../offline/use-sync-state';
  * state only when it sends, so a screen that only listened would show a green
  * bar over a full queue.
  */
-export function usePisteQueue(apiUrl: string): {
+export function usePisteQueue(
+  apiUrl: string,
+  /** Reads the piste's list again: a send that ended may have ended a bout of it. */
+  readList: () => Promise<void>,
+): {
   syncEngine: SyncEngine;
   syncState: SyncState | null;
 } {
   const syncEngine = useMemo(() => getSyncEngine(apiUrl), [apiUrl]);
   const syncState = useSyncState(syncEngine);
   useSendWhileOffline(syncEngine, syncState);
+  // Without it the bar turns green and the bout whose End just went still
+  // reads as live, until the list's own poll.
+  const readListAgain = useCallback(() => void readList(), [readList]);
+  useSendEnded(syncEngine, readListAgain);
 
   useEffect(() => {
     // Not `sendBehind`: a send that left before the network came back would

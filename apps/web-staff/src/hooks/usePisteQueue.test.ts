@@ -24,7 +24,7 @@ describe('the piste list', () => {
   });
 
   it('gives the bar the queue of the tablet, and the inbox its Review opens', () => {
-    expect(page).toContain('const { syncEngine, syncState } = usePisteQueue(apiUrl);');
+    expect(page).toContain('const { syncEngine, syncState } = usePisteQueue(apiUrl, refresh);');
     expect(page).toMatch(
       /<SyncBar\s+networkStatus=\{networkStatus\}\s+syncState=\{syncState\}\s+syncEngine=\{syncEngine\}\s+onReview=\{\(\) => setInboxOpen\(true\)\}\s+\/>/,
     );
@@ -42,6 +42,14 @@ describe('the queue on the piste list', () => {
 
   it('is tried again while it waits for a network', () => {
     expect(hook).toContain('useSendWhileOffline(syncEngine, syncState);');
+  });
+
+  // The End of a bout just went: the list must not show that bout as live for 20 s more.
+  it('has the list read again when a send has ended', () => {
+    expect(hook).toContain('useSendEnded(syncEngine, readListAgain);');
+    expect(page).toContain(
+      'const { data, loading, sessionExpired, unreachable, refresh } = useLiceMatches(apiUrl, liceId);',
+    );
   });
 
   // An engine tells its state only when it sends: without the send at the

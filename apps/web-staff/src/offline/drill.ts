@@ -37,8 +37,8 @@ import { useSyncExternalStore } from 'react';
  * inbox, and `requeueRejected` re-derives sequence numbers, which has no
  * business happening because of a practice run. Every entry made during the
  * drill is a genuine queued entry. It goes for real when the drill ends: the
- * banner sends the queue then (`OfflineDrillBanner`). The bout screen's own
- * retry of a queue that waits for a network (`useSendWhileOffline`) stands
+ * banner sends the queue then (`OfflineDrillBanner`). The retry by the
+ * bout screen and the piste list of a queue that waits for a network (`useSendWhileOffline`) stands
  * still during a drill: a try that can only meet the drill would count
  * against each row, and the organiser's board reads three as "stuck".
  *

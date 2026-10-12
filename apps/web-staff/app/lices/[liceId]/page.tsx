@@ -93,9 +93,9 @@ export default function LiceMatchListPage({ params }: Props) {
   }, [params]);
 
   const apiUrl = getApiUrl();
-  const { data, loading, sessionExpired, unreachable } = useLiceMatches(apiUrl, liceId);
+  const { data, loading, sessionExpired, unreachable, refresh } = useLiceMatches(apiUrl, liceId);
   // Between two bouts is where the entries not sent are seen, and sent.
-  const { syncEngine, syncState } = usePisteQueue(apiUrl);
+  const { syncEngine, syncState } = usePisteQueue(apiUrl, refresh);
   const [inboxOpen, setInboxOpen] = useState(false);
 
   useEffect(() => {

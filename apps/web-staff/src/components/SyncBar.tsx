@@ -112,8 +112,8 @@ function SyncBarActions({ phase, rejected, sendable, pending, syncEngine, onRevi
 }
 
 /**
- * The bout screen's sync bar: what the queue is doing, and the way out when it
- * needs the operator. Every decision is in `lib/sync-bar.ts`; this draws them.
+ * The sync bar of the bout screen and of the piste list: what the queue is
+ * doing, and the way out when it needs the operator. Every decision is in `lib/sync-bar.ts`; this draws them.
  */
 export function SyncBar({
   networkStatus,

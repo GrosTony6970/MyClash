@@ -1187,7 +1187,7 @@ stateDiagram-v2
   caller_refused --> idle: the account is signed out with no hit waiting
   offline --> syncing: the network is back, the next try every 5 s, or the end of a drill
   error --> syncing: retry
-  signed_out --> syncing: retry, or the bout screen opens
+  signed_out --> syncing: retry, or the bout screen or the piste list opens
   caller_refused --> syncing: retry, or the account is signed out
 ```
 
@@ -1203,6 +1203,10 @@ the browser never left "online" (a tablet that keeps its access point while the 
 no `online` event). So while the status is `offline` and entries wait, the bout page sends again
 every 5 seconds (`useSendWhileOffline`, `offline/use-sync-state.ts`), on a browser that says it is
 online; a browser that says offline is left to its `online` event, and a drill to its end (§10.5).
+The piste list does the same for the queue as the bout page (`usePisteQueue`, operator, 2026-10-12):
+it draws the same bar and the same inbox, sends the queue when it opens and when the network is
+back, tries again every 5 seconds, and reads its bouts again when a send has ended. Between two
+bouts is where an official sees that entries still wait.
 
 > One behaviour worth knowing at the pad: a **refused hit is held, never dropped and never read as
 > saved**. A 400 is re-sent once under a fresh sequence; if that is answered 400 too, and for every 409 and
@@ -1240,7 +1244,7 @@ online; a browser that says offline is left to its `online` event, and a drill t
 > drain ends at the first 401 and every hit waits, in order. The pad sends nothing and says so: the
 > bout screen's bar names the ended session (`src/lib/sync-bar.ts`), and the sign-in screen, where
 > such a tablet lands and which has no bar, counts the hits the tablet holds
-> (`app/login/UnsentHitsNotice.tsx`). The bout screen drains when it opens, so a tablet opened again
+> (`app/login/UnsentHitsNotice.tsx`). The bout screen and the piste list drain when they open, so a tablet opened again
 > while online does not show a green bar over waiting hits. An account's login is renewed once before a
 > 401 stands: the drain posts through `fetchRenewingLogin`, so an organiser who scores for more than
 > an hour is not told to sign in again; a PIN session cannot be renewed. An action in the refused-hits
