@@ -353,7 +353,7 @@ export const scoring = {
     listCardConfirmBody: '{card} card for {fighter}: {penalty}.',
     directCardOffline:
       'A card given now is kept on this tablet and sent when the connection is back.',
-    spacebarHint: 'Press space to start or pause',
+    keysHint: 'Keys: Space starts or pauses the clock · D double · U undo last entry',
     doublesCaption: 'Doubles',
     doublesCaptionRound: 'Doubles, this round',
     doubleLimitTooltip: 'Doubles so far, and the limit of the match',

@@ -15,6 +15,7 @@ import { useScoringSubmit, writeHit } from '../hooks/useScoringSubmit';
 import { useUndoLast } from '../hooks/useUndoLast';
 import { entryLine, roundStaysClosed } from '../lib/undone-line';
 import { boutNames, heldRowNotice } from '../lib/held-hit';
+import { isPadLetter, pressButtonOf } from '../lib/pad-keys';
 import { endRefusalMessage, refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import { boutStatusOnPad, resultUnconfirmed, tabletResult } from '../offline/pad-clock';
@@ -627,7 +628,8 @@ export function MatchView({
   });
 
   // Spacebar shortcut: toggles the primary clock action when no input
-  // is focused, the drawer isn't open, and no modal is up.
+  // is focused, the drawer isn't open, and no modal is up. D and U press the
+  // Double and the Undo buttons under the same guards (`lib/pad-keys.ts`).
   //
   // A LAYOUT effect: the listener that knows the new clock is on the window
   // before the screen that shows it is painted. As a plain effect it was put
@@ -636,7 +638,7 @@ export function MatchView({
   // Start on a bout whose halted clock had just been read.
   useLayoutEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.code !== 'Space') return;
+      if (e.code !== 'Space' && !isPadLetter(e)) return;
       if (e.repeat) return;
       const target = e.target as HTMLElement | null;
       if (
@@ -659,6 +661,10 @@ export function MatchView({
       // primitive (Modal, ConfirmDialog, PromptDialog) portals to <body> with
       // this exact pair of attributes.
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (isPadLetter(e)) {
+        if (pressButtonOf(e.code, document)) e.preventDefault();
+        return;
+      }
       const status = boutClock?.status ?? 'idle';
       const action: 'start' | 'halt' | 'resume' | null =
         status === 'idle'

@@ -43,6 +43,7 @@ import {
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import type { UndoLast } from '../hooks/useUndoLast';
+import { PAD_KEYS } from '../lib/pad-keys';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
@@ -519,6 +520,7 @@ export function ScoringCenterControls({
               data-testid="double-button"
               disabled={!canScore || submit.submitting}
               onClick={() => submit.submitDouble()}
+              data-pad-key={PAD_KEYS.double}
               className="w-full max-w-[280px] min-h-[48px] rounded-xl border-2 border-warning bg-warning/15 px-4 py-2 text-sm font-bold text-warning hover:bg-warning/25 active:bg-warning/35 disabled:opacity-40"
             >
               ⚔ {t('scoring.lice.eventRowDouble')}
@@ -558,6 +560,7 @@ export function ScoringCenterControls({
               data-testid="undo-last-entry"
               disabled={events.length === 0 || undo.busy}
               onClick={undo.undo}
+              data-pad-key={PAD_KEYS.undo}
               // `info`, not `danger`: undoing the last entry is a routine
               // correction a referee makes constantly, and the cyan this
               // replaces existed only to read as "not one of the red actions".
@@ -587,9 +590,11 @@ export function ScoringCenterControls({
         <MatchTimeline events={events} ariaLabel={t('scoring.lice.eventsHeader')} t={t} />
       </div>
 
-      {/* Spacebar hint (when idle) */}
+      {/* The keys of the bout screen: Space, D, U (when idle) */}
       {!readOnly && status === 'idle' && (
-        <p className="mt-2 text-[10px] text-muted">{t('scoring.lice.spacebarHint')}</p>
+        <p data-testid="keys-hint" className="mt-2 text-center text-xs text-muted">
+          {t('scoring.lice.keysHint')}
+        </p>
       )}
     </div>
   );

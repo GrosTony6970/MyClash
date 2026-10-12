@@ -332,7 +332,8 @@ export const scoring = {
     listCardConfirmBody: '{card} pour {fighter} : {penalty}.',
     directCardOffline:
       'Un carton donné maintenant est gardé sur cette tablette et envoyé au retour de la connexion.',
-    spacebarHint: 'Appuyez sur espace pour démarrer ou pauser',
+    keysHint:
+      'Touches : Espace démarre ou met en pause le chrono · D double · U annuler la dernière saisie',
     doublesCaption: 'Doubles',
     doublesCaptionRound: 'Doubles, cette manche',
     doubleLimitTooltip: "Doubles jusqu'ici, et la limite de l'assaut",
