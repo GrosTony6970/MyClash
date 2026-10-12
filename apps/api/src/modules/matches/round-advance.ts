@@ -15,6 +15,7 @@ import {
   pressTooOld,
   type LatePress,
 } from './late-press';
+import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { nothingOnTheSheet } from './start-count';
 
 type Database = SupabaseService['service'];
@@ -53,7 +54,8 @@ export interface AdvanceDeps {
 
 /** The Event's status is for an advance sent late: an over Event takes no new one. */
 const BOUT_COLUMNS =
-  'id, status, awaiting_round_advance, current_round, phases(tournaments(events(status)))';
+  'id, status, awaiting_round_advance, current_round, back_in_play_at, ' +
+  'phases(tournaments(events(status)))';
 
 /** Postgres: a unique key refused the row. */
 const UNIQUE_VIOLATION = '23505';
@@ -260,6 +262,9 @@ async function advanceNow(
  *   2. A new one: an over Event refuses it, to everybody. A round that is
  *      already open is done, and writes nothing (another tablet opened it). A
  *      completed bout takes none, and a press older than one day is not applied.
+ *      One from before the bout was last put back in play is for the bout as
+ *      it was before somebody corrected it (`press-before-reopen.ts`). Not one
+ *      the server holds: its bout still waits for that round.
  *   3. A press from before the bout's last reset is for the fight that was
  *      cancelled. Also for one the server holds: the bout may wait at the same
  *      round again, in its new fight.
@@ -307,15 +312,13 @@ async function advanceLate(
     if (current >= late.round) return { currentRound: current };
     if (completed) throw boutCompleted();
     if (nowMs - pressedMs > OLDEST_PRESS_MS) throw pressTooOld();
+    assertPressedAfterBackInPlay(matchId, bout['back_in_play_at'], pressedMs);
   }
   await assertScoredAfterLastReset(db, matchId, new Date(pressedMs).toISOString());
   if (!saved && !waits) throw roundNotWaiting(late.round);
 
   const at = await placedInTimeline(db, matchId, pressedMs);
-  if (!saved) {
-    const press = { clientUuid: late.clientUuid, at };
-    await writeRoundRow(db, matchId, advanceTo(late.round), actor, press);
-  }
+  if (!saved) await writeRoundRow(db, matchId, advanceTo(late.round), actor, { ...late, at });
   return openRound(deps, matchId, late.round, actor, at);
 }
 

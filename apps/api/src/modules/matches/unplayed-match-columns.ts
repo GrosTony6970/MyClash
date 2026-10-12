@@ -59,6 +59,7 @@ export function unplayedMatchColumns(now = new Date().toISOString()): Record<str
     blue_round_wins: 0,
     rounds_json: null,
     awaiting_round_advance: false,
+    back_in_play_at: null,
     updated_at: now,
   };
 }

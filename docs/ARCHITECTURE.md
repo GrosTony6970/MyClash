@@ -1341,6 +1341,22 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 > "not confirmed", until the server has answered the End. Reopen, Reset, the time adjustment and
 > a level bout's remedy still wait for the server.
 >
+> **A press made before the bout was put back in play (operator, 2026-10-11 and 2026-10-12).**
+> While a tablet holds its presses, somebody with a network can end the bout and put it back in
+> play: the clock's Reopen, a Start, Halt or Resume on a completed bout, or a correction that
+> hands a finished bout or a closed round back to the referee. Each of these writes
+> `matches.back_in_play_at` (migration 0222) in the same update as the bout's row
+> (`backInPlayColumns`, `matches/reopen-match-columns.ts`), with the server's time of it. A clock
+> press or a round press that is new to the server, and whose own server time is not after that
+> mark, is refused with the code `pressed_before_reopen`
+> (`matches/press-before-reopen.ts`, asked by `placeLatePress`, `placeLateRoundEnd` and
+> `advanceLate` beside the reset rule). The tablet holds it with Discard alone
+> (`offline/can-send-again.ts`). A hit or a card is not asked: the bout keeps its fight. Two
+> writes leave no mark: a forfeit taken back, which puts the bout back as it was BEFORE the
+> forfeit, and a Reopen on a bout that is not completed, which moves the clock alone
+> (the Reopen "Start round N+1" makes itself, and the one pressed on a clock a forfeit ended,
+> once the forfeit is taken back). A reset writes the mark empty, and so does the archive's copy.
+>
 > **The rounds on the tablet (operator, 2026-10-10 and 2026-10-11).** A best-of bout runs with
 > no network. "Start round N" and "End round" are a fourth kind of row of the queue (`round`,
 > `queueRoundPress`), kept and sent as a clock press is, to `POST /matches/:id/rounds/advance`

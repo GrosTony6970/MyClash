@@ -64,7 +64,8 @@ describe('a late "Start round 2" on a bout that waits for it', () => {
     await scoring.advanceRound(BOUT, STAFF, advance('10:05:00'));
 
     expect(selectsFor(db.from, 'matches')[0]).toBe(
-      'id, status, awaiting_round_advance, current_round, phases(tournaments(events(status)))',
+      'id, status, awaiting_round_advance, current_round, back_in_play_at, ' +
+        'phases(tournaments(events(status)))',
     );
   });
 

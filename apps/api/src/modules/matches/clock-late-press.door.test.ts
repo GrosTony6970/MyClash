@@ -66,6 +66,7 @@ function database(status: string, piste: string) {
           red_score: 3,
           blue_score: 1,
           awaiting_round_advance: false,
+          back_in_play_at: null,
           phases: {
             type: 'pool',
             tournaments: {

@@ -64,6 +64,7 @@ export function setup(
           blue_score: 1,
           match_number_label: 'P1M1',
           awaiting_round_advance: false,
+          back_in_play_at: null,
           phases: {
             type: 'pool',
             tournaments: { ruleset_config: {}, events: { status: eventStatus } },

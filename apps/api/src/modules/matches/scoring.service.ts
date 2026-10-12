@@ -38,7 +38,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
 import { ClockService, type ClockState } from './clock.service';
-import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
+import {
+  backInPlayColumns,
+  popLastClosedRoundColumns,
+  reopenedResultColumns,
+} from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
 import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
@@ -196,7 +200,7 @@ export class ScoringService {
     // `onMatchUncompleted` can REFUSE and there is no transaction to undo a
     // half-applied reopen. Only once it has agreed do the result columns move.
     if (outcome.kind === 'reopen' && (await this.uncompleteBestEffort(matchId))) {
-      Object.assign(matchUpdates, reopenedResultColumns());
+      Object.assign(matchUpdates, reopenedResultColumns(), backInPlayColumns(causedAt));
     }
     if (outcome.kind === 'redecide') {
       matchUpdates['winner_registration_id'] = outcome.winnerRegistrationId;
@@ -890,7 +894,8 @@ export class ScoringService {
     let justCompleted = false;
 
     if (snapshots.reopens) {
-      return this.reopenClosedRound({ matchId, match, matchRow, updates, openRed, openBlue });
+      const at = args.causedAt;
+      return this.reopenClosedRound({ matchId, match, matchRow, updates, openRed, openBlue, at });
     }
 
     if (!currentAlreadyClosed && ev.autoOver) {
@@ -970,6 +975,8 @@ export class ScoringService {
     updates: Record<string, unknown>;
     openRed: number;
     openBlue: number;
+    /** The mark of the round put back in play (`backInPlayColumns`): none is now. */
+    at?: string;
   }): Promise<{ redScore: number; blueScore: number }> {
     const { matchId, match, matchRow, updates, openRed, openBlue } = args;
     const popped = popLastClosedRoundColumns(
@@ -978,7 +985,7 @@ export class ScoringService {
     );
     const seriesWasClinched = match.status === 'completed';
     if (popped && (!seriesWasClinched || (await this.uncompleteBestEffort(matchId)))) {
-      Object.assign(updates, popped);
+      Object.assign(updates, popped, backInPlayColumns(args.at));
       if (seriesWasClinched) Object.assign(updates, reopenedResultColumns());
     }
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);
@@ -1112,7 +1119,8 @@ export class ScoringService {
     closed: ClosedRound[],
   ): RoundEndBout {
     const eventStatus = eventStatusOf(ctx.matchRow);
-    return { status: ctx.match.status, currentRound, closed, eventStatus };
+    const backInPlayAt = ctx.matchRow['back_in_play_at'];
+    return { status: ctx.match.status, currentRound, closed, eventStatus, backInPlayAt };
   }
 
   /**
@@ -1208,7 +1216,7 @@ export class ScoringService {
     const { data: matchData } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json, events(status)))',
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(ruleset_config, scoring_config_json, events(status)))',
       )
       .eq('id', matchId)
       .maybeSingle();

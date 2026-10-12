@@ -21,6 +21,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
 import {
+  backInPlayColumns,
   noResultColumns,
   popClinchingRoundColumns,
   reopenedResultColumns,
@@ -122,7 +123,7 @@ interface ClockStep {
 const BOUT_COLUMNS =
   'id, status, locked_at, started_at, rounds_json, current_round, ' +
   'red_registration_id, blue_registration_id, winner_registration_id, ' +
-  'red_score, blue_score, match_number_label, awaiting_round_advance, ' +
+  'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(ruleset_config, events(status)))';
 
 /** Postgres: a unique key refused the row. */
@@ -400,7 +401,8 @@ export class ClockService {
     await this.insertRow(matchId, step, now);
 
     // Ruling 331: out of `completed`, no result. An End read the old winner first.
-    const noResult = uncompletes ? noResultColumns() : {};
+    // And the mark of a bout put back in play, in the same write.
+    const noResult = uncompletes ? { ...noResultColumns(), ...backInPlayColumns(now) } : {};
     if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
       await this.writeBout(matchId, { status: 'running', ...started, ...noResult });
@@ -422,6 +424,11 @@ export class ClockService {
       // correction. A series a forfeit ended keeps its closed rounds.
       const poppedRound = popClinchingRoundColumns(match);
       if (poppedRound) Object.assign(reopenUpdates, poppedRound);
+      // A Reopen on a bout that is not completed moves the clock alone, and
+      // leaves no mark: the Reopen "Start round N+1" makes itself
+      // (`round-advance.ts`), and the one a referee presses on a clock a
+      // forfeit ended, after the forfeit was taken back.
+      if (uncompletes) Object.assign(reopenUpdates, backInPlayColumns(now));
       await this.writeBout(matchId, reopenUpdates);
     }
 

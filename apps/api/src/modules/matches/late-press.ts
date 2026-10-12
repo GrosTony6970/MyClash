@@ -4,6 +4,7 @@ import type { SupabaseService } from '../supabase/supabase.service';
 import type { ClockAction, ClockState } from './clock.service';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 import { matchLocked } from './match-locked';
+import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import { asRow } from './time-limit-result';
 
@@ -253,6 +254,8 @@ export interface AskedPress {
  *   - A press older than one day is not applied.
  *   - A press from before the bout's last reset is for the fight that was
  *     cancelled. Read on the server's time of the press, not the pad's.
+ *   - A press from before the bout was last put back in play is for the bout
+ *     as it was before somebody corrected it (`press-before-reopen.ts`).
  *   - The rules of every press: the lock, what the clock can do from where it
  *     is, a round that waits for "Start round N+1".
  */
@@ -264,6 +267,7 @@ export async function placeLatePress(supabase: Database, asked: AskedPress): Pro
   const pressedMs = pressedAtServer(asked.press, nowMs);
   if (nowMs - pressedMs > OLDEST_PRESS_MS) throw pressTooOld();
   await assertScoredAfterLastReset(supabase, matchId, new Date(pressedMs).toISOString());
+  assertPressedAfterBackInPlay(matchId, match['back_in_play_at'], pressedMs);
   if (match['locked_at'] && !asked.mayPassLock) throw matchLocked();
   if (!asked.fits) throw pressOutOfOrder(action, asked.clockStatus);
   if ((action === 'start' || action === 'resume') && match['awaiting_round_advance']) {

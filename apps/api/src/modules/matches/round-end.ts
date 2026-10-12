@@ -11,6 +11,7 @@ import {
   pressedAtServer,
   pressTooOld,
 } from './late-press';
+import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { savedRoundPress, type LateRoundPress } from './round-advance';
 
 type Database = SupabaseService['service'];
@@ -42,6 +43,8 @@ export interface RoundEndBout {
   currentRound: number;
   closed: ClosedRound[];
   eventStatus: string;
+  /** `matches.back_in_play_at` as it was read: `press-before-reopen.ts` judges it. */
+  backInPlayAt: unknown;
 }
 
 /** Nothing is left to do, or the round is to be closed at `at`. */
@@ -79,7 +82,8 @@ async function endsTimeline(db: Database, matchId: string, sequence: number): Pr
  *      press older than one day is not applied.
  *   3. A new one from before the bout's last reset is for the fight that was
  *      cancelled. (One the server holds is answered there: the reset's row is
- *      behind its own.)
+ *      behind its own.) And a new one from before the bout was last put back
+ *      in play is for the round as it was before somebody corrected it.
  *   4. A new one: the bout must be in exactly this round.
  *
  * A press the server holds, whose round is still open and whose row is the
@@ -110,6 +114,7 @@ export async function placeLateRoundEnd(
     if (completed) throw boutCompleted();
     if (nowMs - pressedMs > OLDEST_PRESS_MS) throw pressTooOld();
     await assertScoredAfterLastReset(db, matchId, new Date(pressedMs).toISOString());
+    assertPressedAfterBackInPlay(matchId, bout.backInPlayAt, pressedMs);
     if (!open) throw roundNotOpen(late.round);
   }
   return { at: await placedInTimeline(db, matchId, pressedMs), saved };

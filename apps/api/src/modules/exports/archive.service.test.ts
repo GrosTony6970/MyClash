@@ -433,6 +433,8 @@ describe('ArchiveService', () => {
         tournament_id: 't-1',
         status: 'completed',
         red_registration_id: 'r-1',
+        // Reopened once at the source (0222).
+        back_in_play_at: '2026-01-01T10:10:00Z',
       },
     ],
     referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
@@ -678,6 +680,15 @@ describe('ArchiveService', () => {
       const { inserted, matchId } = await restoreScoped();
       expect(inserted.match_events).toEqual([
         expect.objectContaining({ match_id: matchId, type: 'start', client_uuid: null }),
+      ]);
+    });
+
+    it('copies a bout with no mark of when it was put back in play', async () => {
+      // The mark refuses the presses a tablet made before it. No tablet holds
+      // a press for the copy.
+      const { inserted, matchId } = await restoreScoped();
+      expect(inserted.matches).toEqual([
+        expect.objectContaining({ id: matchId, status: 'completed', back_in_play_at: null }),
       ]);
     });
 

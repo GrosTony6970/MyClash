@@ -113,6 +113,9 @@ describe('MatchForfeitsService.voidForfeit — the sheet after a take-back (ruli
     });
     const restore = writesTo(db, 'matches')[0];
     expect(restore?.row).toMatchObject({ status: 'running', red_score: 3, blue_score: 2 });
+    // The bout is as it was before the forfeit: a press a tablet made before
+    // the take-back is not stale, so no mark (`backInPlayColumns`).
+    expect(restore?.row).not.toHaveProperty('back_in_play_at');
     expect(scopedTo(restore, 'id')).toBe(BOUT);
   });
 

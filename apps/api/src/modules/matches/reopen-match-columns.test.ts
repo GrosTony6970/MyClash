@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  backInPlayColumns,
+  popLastClosedRoundColumns,
+  reopenedResultColumns,
+} from './reopen-match-columns';
+import { unplayedMatchColumns } from './unplayed-match-columns';
 
 /**
  * The round pop moved here out of `ClockService` so the penalty-void reopen in
@@ -46,6 +51,29 @@ describe('popLastClosedRoundColumns', () => {
     // `reopenedResultColumns` alone.
     expect(popLastClosedRoundColumns(null, 1)).toBeNull();
     expect(popLastClosedRoundColumns([], 1)).toBeNull();
+  });
+});
+
+describe('backInPlayColumns', () => {
+  it('is the mark alone, at the time it is given', () => {
+    expect(backInPlayColumns('2026-04-25T10:10:00.000Z')).toEqual({
+      back_in_play_at: '2026-04-25T10:10:00.000Z',
+    });
+  });
+
+  it('is now when no row sent late caused it', () => {
+    vi.useFakeTimers({ now: new Date('2026-04-25T11:00:00.000Z') });
+    try {
+      expect(backInPlayColumns()).toEqual({ back_in_play_at: '2026-04-25T11:00:00.000Z' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('unplayedMatchColumns', () => {
+  it('writes the mark empty: a bout put back to unplayed was never put back in play', () => {
+    expect(unplayedMatchColumns()).toMatchObject({ status: 'scheduled', back_in_play_at: null });
   });
 });
 

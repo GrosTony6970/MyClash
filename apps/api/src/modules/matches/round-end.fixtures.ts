@@ -67,6 +67,7 @@ export const boutRow = (bout: SupabaseRow, eventStatus: string) => ({
   red_score: 1,
   blue_score: 2,
   awaiting_round_advance: false,
+  back_in_play_at: null,
   phases: {
     type: 'single_elim',
     tournaments: {

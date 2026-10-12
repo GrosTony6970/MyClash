@@ -89,6 +89,7 @@ const boutRow = (round: number, ofEvent: Record<string, unknown>) => ({
   blue_round_wins: 0,
   current_round: round,
   awaiting_round_advance: round === 1,
+  back_in_play_at: null,
   phases: {
     type: 'single_elim',
     tournaments: {

@@ -54,6 +54,9 @@ const WON = {
   ended_at: AT(1),
 };
 
+/** The mark of a bout put back in play (`backInPlayColumns`): a time. */
+const MARK = expect.any(String);
+
 /** The one write to the bout's row, whole. */
 function rowWrite(db: ReturnType<typeof setup>['db']) {
   const writes = writesTo(db, 'matches');
@@ -76,6 +79,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       ended_at: null,
       locked_at: null,
       duration_total_ms: null,
+      back_in_play_at: MARK,
     });
   });
 
@@ -102,6 +106,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       winner_registration_id: null,
       end_reason: null,
       ended_at: null,
+      back_in_play_at: MARK,
     });
   });
 
@@ -119,6 +124,7 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       winner_registration_id: null,
       end_reason: null,
       ended_at: null,
+      back_in_play_at: MARK,
     });
   });
 
@@ -133,7 +139,19 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       winner_registration_id: null,
       end_reason: null,
       ended_at: null,
+      back_in_play_at: MARK,
     });
+  });
+
+  it('marks the bout at the time of its clock row, not at the time the row arrives', async () => {
+    // The server's own Halt, for a hit a tablet scored at 09:00:30 and sent later.
+    const scoredAt = '2026-04-25T09:00:30.000Z';
+    const { db, clock } = setup(WON, STARTED);
+
+    await clock.clockAction(BOUT, 'halt', 'auto: round over', undefined, false, scoredAt);
+
+    expect(writesTo(db, 'match_events')[0]?.row).toMatchObject({ occurred_at: scoredAt });
+    expect(rowWrite(db)).toMatchObject({ back_in_play_at: scoredAt });
   });
 
   it('a Halt on a bout being fought writes its status alone', async () => {

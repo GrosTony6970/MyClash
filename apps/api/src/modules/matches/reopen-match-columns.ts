@@ -39,6 +39,27 @@ export function reopenedResultColumns(): Record<string, unknown> {
 }
 
 /**
+ * The mark of a write that puts a completed bout, or a closed round, back in
+ * play: the server's time of it. It goes into that SAME update, so it cannot be
+ * lost between two writes. A press a tablet made before it and sends after it
+ * is refused (`press-before-reopen.ts`).
+ *
+ * Three writers: the clock (`ClockService.record`), a correction that leaves a
+ * finished bout not ended, and one that takes away what closed a round
+ * (`ScoringService`). NOT a forfeit taken back: it puts the bout back as it was
+ * BEFORE the forfeit, so a press made before it is not stale. NOT a Reopen
+ * that only moves the clock either (`ClockService.record`). A forfeit recorded
+ * by mistake and undone with the clock's own Reopen, on the completed bout,
+ * does mark: that door cannot tell it from a Reopen to correct a hit.
+ *
+ * `at`: the time of the row that caused it, when a tablet sent that row late
+ * (the clock's own row, or `causedAt` of a recompute). None is now.
+ */
+export function backInPlayColumns(at = new Date().toISOString()): Record<string, unknown> {
+  return { back_in_play_at: at };
+}
+
+/**
  * Pop the last closed round of a best-of match so it reopens for correction,
  * and clear the series result the closure may have set.
  *

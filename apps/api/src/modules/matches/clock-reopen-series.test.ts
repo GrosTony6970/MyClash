@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { ClockService } from './clock.service';
 
@@ -63,7 +63,8 @@ function rowWrite(db: ReturnType<typeof setup>['db']) {
   return writes[0]?.row;
 }
 
-const BACK_IN_PLAY = {
+/** What a Reopen writes when it moves the clock alone. */
+const CLOCK_ALONE = {
   status: 'paused',
   winner_registration_id: null,
   end_reason: null,
@@ -71,6 +72,8 @@ const BACK_IN_PLAY = {
   locked_at: null,
   duration_total_ms: null,
 };
+/** With the mark of a bout put back in play (`backInPlayColumns`). */
+const BACK_IN_PLAY = { ...CLOCK_ALONE, back_in_play_at: expect.any(String) };
 
 describe('ClockService.clockAction — the round a Reopen puts back', () => {
   it('a series a forfeit ended in round 2 keeps its closed round 1', async () => {
@@ -115,6 +118,43 @@ describe('ClockService.clockAction — the round a Reopen puts back', () => {
       current_round: 2,
       awaiting_round_advance: false,
     });
+  });
+
+  it('marks the bout as put back in play at the time of its own row', async () => {
+    const { db, clock } = setup({ rounds_json: null, current_round: 1 });
+    vi.useFakeTimers({ now: new Date('2026-04-25T10:10:00.000Z') });
+    onTestFinished(() => void vi.useRealTimers());
+
+    await clock.clockAction(BOUT, 'reopen');
+
+    const line = writesTo(db, 'match_events')[0]?.row as { type: string; occurred_at: string };
+    expect(line).toMatchObject({ type: 'reopen', occurred_at: '2026-04-25T10:10:00.000Z' });
+    expect(rowWrite(db)).toMatchObject({ back_in_play_at: '2026-04-25T10:10:00.000Z' });
+  });
+
+  it('leaves no mark on a bout that is not completed: only the clock moves', async () => {
+    // A forfeit ended the clock and was taken back: the bout is as it was
+    // before, and a tablet's presses from before this Reopen are not stale.
+    const { db, clock } = setup({ status: 'running', winner_registration_id: null });
+
+    await clock.clockAction(BOUT, 'reopen');
+
+    expect(rowWrite(db)).toEqual(CLOCK_ALONE);
+  });
+
+  it('leaves no mark on a bout that waits for its next round: only the clock moves', async () => {
+    // The Reopen "Start round 2" makes itself, on a clock somebody ended.
+    const { db, clock } = setup({
+      status: 'paused',
+      winner_registration_id: null,
+      rounds_json: [round(1, 'red')],
+      current_round: 1,
+      awaiting_round_advance: true,
+    });
+
+    await clock.clockAction(BOUT, 'reopen', 'round advance');
+
+    expect(rowWrite(db)).toEqual(CLOCK_ALONE);
   });
 
   it('reads whether the series waits for its next round', async () => {

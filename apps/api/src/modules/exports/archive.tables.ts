@@ -330,6 +330,9 @@ const TABLES = {
       tournament: { from: 'phases', local: 'phase_id', include: 'scoring' },
     },
     idMap: 'matches',
+    // When the source bout was last put back in play (0222) says nothing of
+    // the copy: no tablet holds a press for it.
+    set: { back_in_play_at: null },
   },
   referee_assignments: {
     key: 'refereeAssignments',
