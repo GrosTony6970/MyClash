@@ -85,6 +85,15 @@ describe('compareLiceMatchOrder', () => {
     expect(labels([slot('2'), slot('1'), slot('10')])).toEqual(['1', '2', '10']);
   });
 
+  // Two Pools fight on one piste at one time: bout 3 of each comes before bout
+  // 10 of either. The label alone would put all of Pool 1 first.
+  it('puts the bout number before the Pool, across two Pools of one time', () => {
+    const p1m10 = row({ id: 'a', match_number_label: 'L1-P1-M10' });
+    const p2m3 = row({ id: 'b', match_number_label: 'L1-P2-M3' });
+
+    expect([p1m10, p2m3].sort(compareLiceMatchOrder)).toEqual([p2m3, p1m10]);
+  });
+
   it('orders two bouts of one time and one number by their id, both ways round', () => {
     const a = row({ id: 'bout-a', match_number_label: 'L1-P1-M3' });
     const b = row({

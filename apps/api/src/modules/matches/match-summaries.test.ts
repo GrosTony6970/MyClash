@@ -126,9 +126,24 @@ describe('matchSummaries', () => {
     ]);
   });
 
+  it('names a bracket round by the size of its main bracket', async () => {
+    const seed = summarySeed();
+    const supabase = mockSupabase({
+      ...seed,
+      phases: { rows: [{ id: 'phase-de', config_json: { mainBracketSize: 8 } }] },
+    });
+
+    const summaries = await matchSummaries(supabase.service as never, ['bracket']);
+
+    // Round 2 of eight is the semi-final. With no size it is "round 2".
+    expect(summaries.get('bracket')).toMatchObject({ roundCode: 'SBR-B-SF-M2', roundToken: 'SF' });
+  });
+
   it('reads the phase of a bracket bout only, and no Pool or piste that no bout names', async () => {
     const { from } = await read();
     expect(filtersFor(from, 'phases', 'in')).toEqual([['id', ['phase-de']]]);
+    // Three of the four bouts are of one Tournament: its id is asked once.
+    expect(filtersFor(from, 'tournaments', 'in')).toEqual([['id', ['t1', 't2']]]);
 
     // The double refuses a table that is not seeded: these reads are not made.
     const { pools: _pools, phases: _phases, ...noPoolNoPhase } = summarySeed();

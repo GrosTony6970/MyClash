@@ -159,7 +159,9 @@ function roundOf(row: ViewRow, context: SummaryContext, weapon: string | null) {
     : undefined;
   const size = cfg?.['bracketSize'] ?? cfg?.['mainBracketSize'];
   const bracketSize = typeof size === 'number' ? size : null;
-  const split = cfg ? bracketCodeConfig(cfg) : { wbRounds: null, lbRounds: null };
+  // Only the split: `bracketCodeConfig` also answers a size, and it does not
+  // read `mainBracketSize`.
+  const { wbRounds, lbRounds } = bracketCodeConfig(cfg);
   const sortOrder = row.pool_id ? context.pools.get(row.pool_id)?.['sort_order'] : undefined;
   const roundCode = buildRoundCode({
     weapon,
@@ -167,15 +169,15 @@ function roundOf(row: ViewRow, context: SummaryContext, weapon: string | null) {
     bracketRound: row.bracket_round,
     swissRound: row.swiss_round,
     bracketSize,
-    wbRounds: split.wbRounds,
-    lbRounds: split.lbRounds,
+    wbRounds,
+    lbRounds,
     matchNumberLabel: row.match_number_label,
     roundNumber: null,
   });
   const roundToken =
     row.swiss_round !== null && row.swiss_round !== undefined
       ? `S${row.swiss_round}`
-      : bracketToken({ bracketRound: row.bracket_round, bracketSize, ...split });
+      : bracketToken({ bracketRound: row.bracket_round, bracketSize, wbRounds, lbRounds });
   return { roundCode, roundToken };
 }
 
