@@ -271,15 +271,17 @@ function NotConfirmed() {
   );
 }
 
+/**
+ * The result of a bout, over the whole pad. A dialog by its role too: the keys
+ * of the bout screen ask the page for a modal dialog before they press a
+ * button (`MatchView`). Without the role, U pressed "Undo last entry" under
+ * this screen, and took a hit off a bout that had ended.
+ */
 export function MatchResultOverlay(props: MatchResultOverlayProps) {
   const { t } = useI18n();
   const { redName, blueName, redScore, blueScore, scoringConfig, nextMatchHref, onClose } = props;
 
   return (
-    // A dialog by name too: the screen covers the whole pad, and the keys of
-    // the bout screen ask the page for a modal dialog before they press a
-    // button (`MatchView`). Without the role, U pressed "Undo last entry"
-    // under this screen, and took a hit off a bout that had ended.
     <div
       role="dialog"
       aria-modal="true"
