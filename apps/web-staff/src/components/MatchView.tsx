@@ -32,7 +32,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   pointCapWinnerColor,
 } from '@myclash/types';
-import { sideStyle, useAdjacentMatches } from '@myclash/ui';
+import { sideStyle, useAdjacentMatches, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { resumeBlockedByRuleset } from './resume-guard';
@@ -124,6 +124,8 @@ export function MatchView({
   readFromTabletAt = null,
 }: MatchViewProps) {
   const { t, locale } = useI18n();
+  // The tablet does not sleep while a bout is on its screen (quick win P7).
+  useWakeLock();
   // Drives the outbox re-read below: a BACKGROUND drain empties the queue with
   // no mutation to notice it, and the provisional score would otherwise linger
   // after the server had already accepted the hits.
