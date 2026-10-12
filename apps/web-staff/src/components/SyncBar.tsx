@@ -15,10 +15,13 @@ import {
 } from '../lib/sync-bar';
 import type { SyncEngine, SyncState } from '../offline/sync';
 
-const SOLID =
-  'rounded bg-danger px-2 py-0.5 text-danger-foreground transition-colors hover:bg-danger-hover';
-const OUTLINE =
-  'rounded border border-danger px-2 py-0.5 text-danger transition-colors hover:bg-danger/10';
+// The pad's touch target, 44px (docs/design/web-staff.md). The negative margin
+// takes back the bar's own padding: a bar with a button is 44px tall, and a bar
+// with none stays a thin line (quick win P11).
+const TARGET =
+  '-my-1 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded px-3 transition-colors';
+const SOLID = `${TARGET} bg-danger text-danger-foreground hover:bg-danger-hover`;
+const OUTLINE = `${TARGET} border border-danger text-danger hover:bg-danger/10`;
 
 interface Actions {
   phase: SyncPhase;
@@ -136,7 +139,7 @@ export function SyncBar({
       data-sync={phase}
       data-pending={pending}
       data-rejected={rejected}
-      className={`flex items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase)}`}
+      className={`flex flex-wrap items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase)}`}
     >
       <span>
         {syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}
