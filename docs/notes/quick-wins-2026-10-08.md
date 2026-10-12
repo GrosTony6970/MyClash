@@ -774,6 +774,76 @@ Named while this was built, and not fixed:
 - A read of a Tournament that fails while a bout is generated still gives that bout TF_v1, in
   silence. The new stamp refuses such a read; the older helper it sits beside does not.
 
+**Slice 5 is built: a level bout runs with no network** (2026-10-12): `b6e3083c` the server,
+`cd6ce459` the tablet. The plan is on the operator's machine
+(`C:\Users\Tony\.claude\plans\pasted-content-id-02bb-repo-f-github-wild-yeti.md`).
+
+One ruling on 2026-10-12, asked with the plan:
+
+| Asked with this story                                                                                                                                                                                                                          | Ruling                                                                                                                        | Done       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| A bracket bout, limit 3:00, fought with no pause, 3 – 3. The clock runs past 0:00 and the official taps "Extra time 60s" without Pause. The clock kept running, and (read in code, not run) the minute could be lost at once: "time finished". | **Pause, 1:00 on it**: the tap pauses the clock with the extra time on it. The official taps Resume. With wifi and with none. | `b6e3083c` |
+
+- No wifi, a bracket bout at 3 – 3 and 0:00. "Extra time 60s" works: the clock reads 1:00,
+  paused. After the minute, "Sudden death" works and the skull shows. A hit, then "End match":
+  the result screen, "not confirmed". A level round of a best-of bout does the same, then "End
+  round". Before, the button was greyed while a press waited, or it answered "No connection",
+  and the bout could not go on.
+- With wifi the button is the same: it acts on the tap and is sent behind.
+- When the wifi is back, the tablet sends the bout in its own order. The server takes each step
+  once, at the time of the tap. A step another tablet took already is "done".
+- A step the server refuses is held in the inbox with its reason, in English and in French, and
+  the rest of its bout waits behind it. The clock goes back to the server's.
+- Server: a step is one line of the bout's timeline, and the extra time is on that same line.
+  Before, the time was a second line: when that second write failed, the step was counted and
+  the time was not given.
+- A held "End match" or "End round" that the server refused on a level board is now said in the
+  tablet's words. It was the server's English.
+
+Things that differ from the plan. Say so if one is wrong:
+
+- The two server commits of the plan are ONE commit: they share one file.
+- The plan said: the bout's list on the tablet draws the step as a line. No list on the tablet
+  draws a clock line, so nothing is drawn. The chart of a finished bout reads the step's time.
+- The two new refusals ("the board is not level", "the server counts another step") answer 400,
+  not 409. The tablet holds both the same way.
+- The cold review changed four things. The tablet works out the extra time with the server's own
+  function. A step that waits behind a refused step does not count the refused one. A refused
+  step of a completed bout, or of a round that is over, offers Discard alone. The press with no
+  id (no tablet sends it now) is no longer tried again by the server after another device wrote
+  at the same moment: a second try could take the NEXT step.
+- No red-first run: the code went in with its tests. The falsifier is the proof (77 breaks, 76
+  red; the green one showed a line that changed nothing, removed).
+
+My choices, said with the plan, not rulings:
+
+- The undo stops at a step the tablet still holds, as at "Start round": the entries before it
+  made the board level.
+- The bar counts a refused step as a refused clock press.
+- In sudden death the tablet ends no bout by itself: the official presses "End match".
+
+Named while slice 5 was built, and not fixed (each one checked in code by a review, or said so):
+
+- The server judges "is the time finished" on its own count of the clock. A Start whose send was
+  slow (a login renewed first) is placed late, so the server's clock is behind the tablet's by
+  that delay. A step tapped one second after 0:00 can then be refused "time not finished", with
+  Discard alone. A late "End match" on a level bout has the same limit. Suspected, not seen.
+- The press with no id is still on the server, and only the deployed-stack test
+  (`tests/e2e/10-scoring-pad.spec.ts`) sends it. It could be removed.
+- A row another device writes in the few milliseconds between the server's read of the bout's
+  last line and its own write can sort after a late step. Every late press has this window.
+- With wifi a step leaves the queue at once, so the undo then can cancel the hit that made the
+  board level. That is a correction a referee may make.
+- In a phase with NO time limit the time is always "finished": after the step the button shows
+  the next step at once, and a second tap takes it.
+- A Reset of the clock and a Reopen do not put the chain back to its first step. Only a reset of
+  the bout and "Start round" do. Older than this work.
+- A chain that is spent refuses "End match" on a level board with the sudden-death sentence.
+- No browser story holds a refused step in the INBOX (its label, its Discard question): the unit
+  tests and a text pin hold them. The story holds the notice at the clock.
+- The deployed-stack tests were not run for this change. Their assertions on the level chain
+  were read and still hold.
+
 **The Space key on the tablet: `f14f8156`** (2026-10-11). Three browser tests failed now and then
 (`pad-space-behind-dialogs.spec.ts:100` and `:150`, `pad-best-of-server-disagrees.spec.ts:92`, red
 on CI once this session). The tests were right. For a moment after the screen changed, Space was
