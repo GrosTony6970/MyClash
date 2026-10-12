@@ -397,7 +397,7 @@ export const scoring = {
     reason: 'Raison de correction',
     resetConfirmation: 'Taper RESET MATCH pour réinitialiser',
     resetPhraseMissing:
-      'Tapez les deux mots RESET MATCH pour activer le bouton. Les majuscules ne comptent pas.',
+      'Taper les deux mots RESET MATCH pour activer le bouton. Les majuscules ne comptent pas.',
     dependentsBlockedOne:
       'Un assaut suivant a déjà été combattu. Seul un organisateur peut annuler — demandez-lui.',
     dependentsBlockedMany:

@@ -44,6 +44,9 @@ test('the reset words are read loosely, sent exactly, and gone at the next openi
   await button(page).click();
   await expect.poll(() => sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({ confirmation: 'RESET MATCH' });
+  // The drawer stays open after a reset: the field is emptied there and then.
+  await expect(field(page)).toHaveValue('');
+  await expect(button(page)).toBeDisabled();
 
   // The drawer is opened again, later: nothing is typed, and the button is not armed.
   await page.keyboard.press('Escape');
