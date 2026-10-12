@@ -491,16 +491,29 @@ export function ScoringCenterControls({
             </div>
           )}
 
-          {/* Double-count X/Y chip + Double button */}
+          {/* Double-count X/Y chip + Double button. The word beside the chip
+              says what it counts: a touch screen has no hover (quick win P20).
+              In a best-of bout the count and the limit are of the open round. */}
           <div className="flex flex-col items-center gap-1 mt-2 w-full">
-            <span
-              data-testid="double-count"
-              data-count={doubleCount}
-              title={t('scoring.lice.doubleLimitTooltip')}
-              className={`rounded-full px-3 py-0.5 text-xs font-bold tabular-nums ${doubleChipTone}`}
-            >
-              {doubleCount}/{maxDoubles ?? '∞'}
-            </span>
+            <div className="flex items-center justify-center gap-2 text-xs font-bold">
+              <span data-testid="double-count-caption" className="text-muted">
+                {isBestOf
+                  ? t('scoring.lice.doublesCaptionRound')
+                  : t('scoring.lice.doublesCaption')}
+              </span>
+              <span
+                data-testid="double-count"
+                data-count={doubleCount}
+                title={
+                  isBestOf
+                    ? t('scoring.lice.doubleLimitTooltipRound')
+                    : t('scoring.lice.doubleLimitTooltip')
+                }
+                className={`rounded-full px-3 py-0.5 tabular-nums ${doubleChipTone}`}
+              >
+                {doubleCount}/{maxDoubles ?? '∞'}
+              </span>
+            </div>
             <button
               type="button"
               data-testid="double-button"

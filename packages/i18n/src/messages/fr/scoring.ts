@@ -332,7 +332,10 @@ export const scoring = {
     directCardOffline:
       'Un carton donné maintenant est gardé sur cette tablette et envoyé au retour de la connexion.',
     spacebarHint: 'Appuyez sur espace pour démarrer ou pauser',
-    doubleLimitTooltip: 'Maximum de doubles par match',
+    doublesCaption: 'Doubles',
+    doublesCaptionRound: 'Doubles, cette manche',
+    doubleLimitTooltip: "Doubles jusqu'ici, et la limite de l'assaut",
+    doubleLimitTooltipRound: "Doubles jusqu'ici dans cette manche, et la limite d'une manche",
     cardCounterTooltip: 'Cartons {card} pour {fighter}',
     eventRowClean: 'Touche propre',
     eventRowDouble: 'Double',

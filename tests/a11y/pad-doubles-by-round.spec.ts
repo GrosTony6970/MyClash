@@ -91,6 +91,8 @@ async function openBout(page: Page, bout: { phaseType: string; bestOf: number; h
 }
 
 const chip = (page: Page) => page.getByTestId('double-count');
+// The word beside the count (quick win P20): a touch screen has no hover.
+const caption = (page: Page) => page.getByTestId('double-count-caption');
 
 test('in round 2 of a best-of bout the chip counts the doubles of round 2', async ({ page }) => {
   await openBout(page, {
@@ -103,6 +105,8 @@ test('in round 2 of a best-of bout the chip counts the doubles of round 2', asyn
   await expect(page.getByText(/round 2/i).first()).toBeVisible();
   await expect(chip(page)).toHaveAttribute('data-count', '1');
   await expect(chip(page)).toHaveText('1/4');
+  await expect(caption(page)).toHaveText('Doubles, this round');
+  await expect(chip(page)).toHaveAttribute('title', /in this round/);
 
   // A double tapped now is of round 2 as well.
   await page.getByTestId('double-button').click();
@@ -113,6 +117,8 @@ test('a single-round pool bout counts every double, under the limit', async ({ p
   await openBout(page, { phaseType: 'pool', bestOf: 1, hits: [double(1, 1), double(2, 1)] });
 
   await expect(chip(page)).toHaveText('2/4');
+  await expect(caption(page)).toHaveText('Doubles');
+  await expect(chip(page)).toHaveAttribute('title', /of the match/);
 });
 
 test('a bracket bout shows no doubles limit: the server applies none', async ({ page }) => {
