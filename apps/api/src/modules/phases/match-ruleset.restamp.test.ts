@@ -12,8 +12,10 @@ import { describe, expect, it } from 'vitest';
 import {
   mockSupabase,
   selectsFor,
+  supabaseFrom,
   writesTo,
   type RecordedWrite,
+  type SupabaseRow,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { restampUnstartedMatches } from './match-ruleset';
@@ -41,6 +43,60 @@ const seed = (over: Record<string, TableSeed> = {}): Record<string, TableSeed> =
 
 const filterOf = (write: RecordedWrite, method: string) =>
   write.filters.filter((filter) => filter.method === method).map((filter) => filter.args);
+
+const STAMPED = {
+  ruleset_code: 'Generic_PointsCap',
+  ruleset_version: '1.0.0',
+  ruleset_content_hash: 'hash-of-the-new-rules',
+};
+
+/** Seven bouts: what each one holds says whether the save may write it. */
+const BOUTS = [
+  { id: 'same-stamp', phase_id: 'pools', status: 'scheduled', ...STAMPED },
+  { id: 'other-code', phase_id: 'pools', status: 'scheduled', ...STAMPED, ruleset_code: 'TF_v1' },
+  { id: 'other-version', phase_id: 'pools', status: 'scheduled', ...STAMPED, ruleset_version: '1' },
+  {
+    id: 'no-hash',
+    phase_id: 'bracket',
+    status: 'scheduled',
+    ...STAMPED,
+    ruleset_content_hash: null,
+  },
+  {
+    id: 'other-hash',
+    phase_id: 'bracket',
+    status: 'scheduled',
+    ...STAMPED,
+    ruleset_content_hash: 'old',
+  },
+  { id: 'started', phase_id: 'pools', status: 'running', ...STAMPED, ruleset_code: 'TF_v1' },
+  {
+    id: 'elsewhere',
+    phase_id: 'phase-other',
+    status: 'scheduled',
+    ...STAMPED,
+    ruleset_code: 'TF_v1',
+  },
+];
+
+/**
+ * The bouts the write hits: its recorded filters, in order, on a seeded table.
+ * The double does not carry a write out, so the filters ARE the write's reach.
+ */
+async function boutsWritten(
+  write: RecordedWrite,
+  bouts: readonly SupabaseRow[],
+): Promise<string[]> {
+  let query = supabaseFrom({ matches: { rows: bouts } })('matches').select() as unknown as Record<
+    string,
+    (...args: readonly unknown[]) => unknown
+  >;
+  for (const filter of write.filters) {
+    query = query[filter.method]!(...filter.args) as typeof query;
+  }
+  const { data } = (await query) as unknown as { data: Array<{ id: string }> };
+  return data.map((bout) => bout.id);
+}
 
 describe('restampUnstartedMatches', () => {
   it("writes the Tournament's pair and hash on its bouts, the version normalized", async () => {
@@ -73,6 +129,83 @@ describe('restampUnstartedMatches', () => {
     // Asked in the write itself: a bout that starts meanwhile is not moved.
     expect(filterOf(write!, 'eq')).toEqual([['status', 'scheduled']]);
     expect(selectsFor(supabase.from, 'phases')).toEqual(['id']);
+  });
+
+  /**
+   * A Tournament has 150 bouts not started. The organiser saves a setting of
+   * the scoring pad that changes nothing for the bouts. The server wrote the
+   * 150 bouts again: 150 change notices, and a league that read as out of date
+   * (a trigger moves `matches.updated_at` on every write).
+   */
+  it('asks in the write itself whether a bout holds another stamp', async () => {
+    const supabase = mockSupabase(seed());
+
+    await restampUnstartedMatches(supabase.service as never, 't1');
+
+    expect(filterOf(writesTo(supabase, 'matches')[0]!, 'or')).toEqual([
+      [
+        'ruleset_code.neq."Generic_PointsCap",ruleset_version.neq."1.0.0",' +
+          'ruleset_content_hash.is.null,ruleset_content_hash.neq."hash-of-the-new-rules"',
+      ],
+    ]);
+  });
+
+  it('writes the bouts not started that differ, and no other bout', async () => {
+    const supabase = mockSupabase(seed());
+
+    await restampUnstartedMatches(supabase.service as never, 't1');
+
+    // A bout with no hash differs too: `<>` never matches a NULL by itself.
+    expect(await boutsWritten(writesTo(supabase, 'matches')[0]!, BOUTS)).toEqual([
+      'other-code',
+      'other-version',
+      'no-hash',
+      'other-hash',
+    ]);
+  });
+
+  it('a Tournament with no hash yet: a bout that holds one differs, a bout with none does not', async () => {
+    const unhashed = { ...TOURNAMENT, ruleset_content_hash: null };
+    const supabase = mockSupabase(seed({ tournaments: { rows: [unhashed] } }));
+
+    await restampUnstartedMatches(supabase.service as never, 't1');
+
+    const write = writesTo(supabase, 'matches')[0]!;
+    expect(filterOf(write, 'or')).toEqual([
+      [
+        'ruleset_code.neq."Generic_PointsCap",ruleset_version.neq."1.0.0",' +
+          'ruleset_content_hash.not.is.null',
+      ],
+    ]);
+    // 'no-hash' holds the Tournament's pair and no hash: it is the same stamp now.
+    expect(await boutsWritten(write, BOUTS)).toEqual([
+      'same-stamp',
+      'other-code',
+      'other-version',
+      'other-hash',
+    ]);
+  });
+
+  it('quotes a ruleset code, so a comma or a parenthesis in it is not read as a filter', async () => {
+    const odd = { ...TOURNAMENT, ruleset_code: 'cap(5),"x"\\y', ruleset_content_hash: null };
+    const supabase = mockSupabase(seed({ tournaments: { rows: [odd] } }));
+
+    await restampUnstartedMatches(supabase.service as never, 't1');
+
+    const write = writesTo(supabase, 'matches')[0]!;
+    expect(filterOf(write, 'or')).toEqual([
+      [
+        'ruleset_code.neq."cap(5),\\"x\\"\\\\y",ruleset_version.neq."1.0.0",' +
+          'ruleset_content_hash.not.is.null',
+      ],
+    ]);
+    const holdsIt = { id: 'holds-it', phase_id: 'pools', status: 'scheduled', ...STAMPED };
+    expect(
+      await boutsWritten(write, [
+        { ...holdsIt, ruleset_code: odd.ruleset_code, ruleset_content_hash: null },
+        { ...holdsIt, id: 'holds-another', ruleset_content_hash: null },
+      ]),
+    ).toEqual(['holds-another']);
   });
 
   it('writes nothing for a Tournament with no phase yet', async () => {

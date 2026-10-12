@@ -69,7 +69,11 @@ export async function matchRulesetForTournament(
  * bout, gave bouts scored by the old engine under a table of the new one.
  *
  * Every door that changes a Tournament's ruleset calls this after its write.
- * It can be called again: a second call writes the same pair.
+ * It can be called again: a second call finds no bout that differs and writes
+ * nothing. "Differs" is asked in the write itself (`holdsAnotherStamp`): a save
+ * that changes nothing for the bouts wrote every one of them again, with a
+ * change notice each and a new `updated_at`, which a league reads as "results
+ * changed".
  *
  * The race is a bout that starts while this runs. "Not started" is asked in
  * the write itself (`status = 'scheduled'`), so a bout the SERVER has as
@@ -101,14 +105,37 @@ export async function restampUnstartedMatches(
   const phaseIds = ((phases.data ?? []) as Array<{ id: string }>).map((phase) => phase.id);
   if (phaseIds.length === 0) return;
 
+  const stamp = toStamp(tournament.data);
   const { error } = await supabase
     .from('matches')
-    .update(toStamp(tournament.data))
+    .update(stamp)
     .in('phase_id', phaseIds)
-    .eq('status', 'scheduled');
+    .eq('status', 'scheduled')
+    .or(holdsAnotherStamp(stamp));
   if (error) {
     throw new Error(`The bouts of ${tournamentId} did not take its ruleset: ${error.message}`);
   }
+}
+
+/** A value of a PostgREST filter string: quoted, so `,` `.` `(` `)` in it are text. */
+const quoted = (value: string): string => `"${value.replace(/[\\"]/g, '\\$&')}"`;
+
+/**
+ * "This bout holds another stamp than `stamp`", as a PostgREST `or` filter.
+ *
+ * The hash is nullable on both tables and `<>` never matches a NULL: a bout
+ * with no hash differs from a Tournament that has one, and says so through
+ * `is.null`.
+ */
+function holdsAnotherStamp(stamp: MatchRulesetStamp): string {
+  const hash = stamp.ruleset_content_hash;
+  return [
+    `ruleset_code.neq.${quoted(stamp.ruleset_code)}`,
+    `ruleset_version.neq.${quoted(stamp.ruleset_version)}`,
+    hash === null
+      ? 'ruleset_content_hash.not.is.null'
+      : `ruleset_content_hash.is.null,ruleset_content_hash.neq.${quoted(hash)}`,
+  ].join(',');
 }
 
 /**

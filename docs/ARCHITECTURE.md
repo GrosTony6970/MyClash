@@ -835,8 +835,8 @@ flowchart TD
 Two TF_v1 tournaments with different `winBonus` resolve to the same engine but hash differently. A
 match carries its own copy of the pair and of the hash, and is scored with that pair. The copy is
 written when the match is generated, and again at each change of the Tournament's rules while the
-match has not started (`restampUnstartedMatches`; a match put back to "not started" takes the
-Tournament's pair of that moment). From its start the copy is frozen, so a scored match
+match has not started (`restampUnstartedMatches`, which writes only a match whose copy differs; a
+match put back to "not started" takes the Tournament's pair of that moment). From its start the copy is frozen, so a scored match
 permanently records which behaviour produced it.
 
 Because a live pointer change rewrites recorded standings, mid-event re-pinning is not a plain update —

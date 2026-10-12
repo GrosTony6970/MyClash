@@ -198,6 +198,8 @@ describe('penalty ruleset pin doors', () => {
       expect(stamped[0]?.filters.map((filter) => [filter.method, ...filter.args])).toEqual([
         ['in', 'phase_id', ['phase-a']],
         ['eq', 'status', 'scheduled'],
+        // Only a bout that holds another stamp (`match-ruleset.restamp.test.ts`).
+        ['or', expect.stringContaining('ruleset_code.neq.')],
       ]);
     },
   );
