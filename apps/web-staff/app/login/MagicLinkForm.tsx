@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { api } from '../../src/lib/api';
+import { PISTES_ON_ARRIVAL } from '../../src/lib/last-piste';
 import { FormError, LabelledInput, SubmitButton } from './fields';
 
 /**
@@ -30,7 +31,11 @@ export function MagicLinkForm() {
     setError(null);
     try {
       // ApiClientError carries the problem+json detail in its message.
-      await api.post('/api/v1/auth/magic-link', { email, type: 'login', redirectTo: '/lices' });
+      await api.post('/api/v1/auth/magic-link', {
+        email,
+        type: 'login',
+        redirectTo: PISTES_ON_ARRIVAL,
+      });
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

@@ -6,7 +6,7 @@ import { api } from '../../src/lib/api';
 import { resolveSelectedEvent, type PickerEvent } from '../../src/components/picker-events';
 import { usePickerEvents } from '../../src/lib/usePickerEvents';
 import { rememberEvent, useRememberedEvent } from '../../src/lib/last-event';
-import { landingPathForRole } from '../../src/lib/landing';
+import { arrivalPathForRole } from '../../src/lib/landing';
 
 /**
  * Everything the PIN sign-in form does, so the component itself is markup.
@@ -47,7 +47,7 @@ export function useStaffPinLogin(linkedEvent: string, linkedUsername: string) {
       const me = await signIn(event.eventSlugOrCode, event.selected, username, pin);
       // The role decides the destination, and it comes off the login response
       // because the mc_staff token carries none.
-      window.location.href = landingPathForRole(me?.account?.role);
+      window.location.href = arrivalPathForRole(me?.account?.role);
     } catch {
       setError(t('scoring.login.localLoginError'));
     } finally {

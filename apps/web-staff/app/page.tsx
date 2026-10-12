@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, fetchMe } from '@myclash/api-client';
 import { getApiUrl } from '../src/lib/api-url';
+import { PISTES_ON_ARRIVAL } from '../src/lib/last-piste';
 import { answeredFault, resolveStaffSession } from '../src/lib/staff-session-decision';
 
 /**
  * Root page - checks auth and redirects:
- * - a staff PIN session, or a claimed account -> /lices
+ * - a staff PIN session, or a claimed account -> /lices, as an arrival: the
+ *   piste list opens the last piste at once (`last-piste.ts`)
  * - anything else -> /login
  *
  * This is the PWA's `start_url` (public/manifest.json), so it is the first
@@ -50,7 +52,7 @@ export default function RootPage() {
       // Offline lands here too: neither session can be verified, and /login is
       // what this page has always done about that. The running pad at
       // /matches/[matchId] is not gated by any of this.
-      router.replace(decision.kind === 'allow' ? '/lices' : '/login');
+      router.replace(decision.kind === 'allow' ? PISTES_ON_ARRIVAL : '/login');
     })();
   }, [apiUrl, router]);
 

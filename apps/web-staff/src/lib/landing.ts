@@ -1,4 +1,5 @@
 import { parseStaffRole, type StaffRole } from '@myclash/types';
+import { PISTES_ON_ARRIVAL } from './last-piste';
 
 /**
  * Where a staff account lands after signing in.
@@ -21,4 +22,15 @@ export function landingPathForRole(role: unknown): string {
   if (parsed === 'checkin') return '/desk';
   if (parsed === 'gear') return '/gear';
   return '/lices';
+}
+
+/**
+ * Where a staff account lands right AFTER it signed in. The same screen as
+ * `landingPathForRole`; the piste list is told that this is an arrival, so it
+ * opens the last piste at once (`last-piste.ts`). A redirect of a wrong screen
+ * is not an arrival, and keeps the plain path.
+ */
+export function arrivalPathForRole(role: unknown): string {
+  const landing = landingPathForRole(role);
+  return landing === '/lices' ? PISTES_ON_ARRIVAL : landing;
 }

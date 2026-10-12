@@ -8,6 +8,7 @@ import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { apiRequest, failureFromError, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
+import { isArrival, pisteToOpen, rememberedPiste, rememberPiste } from '../../src/lib/last-piste';
 import { answeredFault, resolveStaffSession } from '../../src/lib/staff-session-decision';
 import { EventBanner } from '../../src/components/EventBanner';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
@@ -47,6 +48,7 @@ export default function LicePickerPage() {
 
   useEffect(() => {
     void (async () => {
+      let leaving = false;
       try {
         // Staff PIN session, or fall back to a claimed account session.
         // This asked for `me.type !== 'user'` until 2026-08-20, behind a
@@ -86,6 +88,22 @@ export default function LicePickerPage() {
           router.replace('/login');
           return;
         }
+        // On arrival the last piste opens at once, when it is still one of
+        // these. `replace`: Back does not come back to an address that leaves.
+        const arriving = isArrival(window.location.search);
+        const open = pisteToOpen(
+          arriving,
+          lices.map((lice) => lice.id),
+          rememberedPiste(),
+        );
+        if (open) {
+          leaving = true;
+          router.replace(`/lices/${open}`);
+          return;
+        }
+        // The list is shown, and its address is no longer an arrival: the
+        // browser's Back from a piste shows the list, as the link does.
+        if (arriving) router.replace('/lices');
         setAssignments(
           lices.map((lice) => ({
             liceId: lice.id,
@@ -98,7 +116,8 @@ export default function LicePickerPage() {
       } catch {
         setError(t('scoring.lice.loadAssignmentsError'));
       } finally {
-        setLoading(false);
+        // On its way to a piste the screen keeps "Loading": the list is not flashed.
+        if (!leaving) setLoading(false);
       }
     })();
   }, [router, t]);
@@ -168,7 +187,11 @@ export default function LicePickerPage() {
           {assignments.map((assignment) => (
             <button
               key={assignment.liceId}
-              onClick={() => router.push(`/lices/${assignment.liceId}`)}
+              data-testid="piste-card"
+              onClick={() => {
+                rememberPiste(assignment.liceId);
+                router.push(`/lices/${assignment.liceId}`);
+              }}
               className="bg-surface hover:bg-border border border-border rounded-xl p-5 text-left transition-colors"
             >
               <div className="flex items-center justify-between">
