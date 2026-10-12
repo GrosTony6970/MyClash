@@ -1,6 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { restampUnstartedMatches } from '../phases/match-ruleset';
+import type * as MatchRuleset from '../phases/match-ruleset';
 import { PenaltiesService } from './penalties.service';
 import { freezePenaltyRulesetVersion } from './penalty-version.util';
+
+// The restamp of the bouts not yet started has its own tests
+// (`match-ruleset.restamp.test.ts`). Here: which door calls it, and for whom.
+vi.mock('../phases/match-ruleset', async (original) => ({
+  ...(await original<typeof MatchRuleset>()),
+  restampUnstartedMatches: vi.fn(() => Promise.resolve()),
+}));
+/** The Tournaments whose bouts not yet started were stamped again, in order. */
+const restamped = () => vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1]);
+
+beforeEach(() => {
+  vi.mocked(restampUnstartedMatches).mockReset().mockResolvedValue(undefined);
+});
 
 // Thenable harness: bare `.select().eq()` / `.in().neq()` resolve via `then`
 // (per-table `select` → data, `count` → count); `.single()`/`.maybeSingle()`
@@ -212,7 +227,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
       matches: { count: 0 },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
-    const stampEventInheritingTournaments = vi.fn();
+    const stampEventInheritingTournaments = vi.fn(() => Promise.resolve([]));
     const service = new PenaltiesService(
       supabase as never,
       undefined,
@@ -224,5 +239,42 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
 
     await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
     expect(stampEventInheritingTournaments).toHaveBeenCalledWith('ev-1');
+    expect(restamped()).toEqual([]);
+  });
+
+  /**
+   * An Event's default penalty rules change before its first bout. Each
+   * Tournament that takes the default got the new hash; its bouts not yet
+   * started kept the hash of the default the Event no longer has.
+   */
+  it('moves the bouts not yet started of each Tournament that takes the Event default', async () => {
+    const supabase = fakeSupabase({
+      events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
+      tournaments: { select: [] },
+      matches: { count: 0 },
+      penalty_rulesets: { maybeSingle: penaltyRow() },
+    });
+    const order: string[] = [];
+    const stampEventInheritingTournaments = vi.fn(() => {
+      order.push('hashes');
+      return Promise.resolve(['t-sabre', 't-longsword']);
+    });
+    vi.mocked(restampUnstartedMatches).mockImplementation((_client, tournamentId) => {
+      order.push(tournamentId);
+      return Promise.resolve();
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { stampEventInheritingTournaments } as never,
+    );
+
+    await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
+
+    // The Tournaments' hashes first: the bouts copy them. No other Tournament.
+    expect(order).toEqual(['hashes', 't-sabre', 't-longsword']);
   });
 });

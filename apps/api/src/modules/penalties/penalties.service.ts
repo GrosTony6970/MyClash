@@ -839,8 +839,13 @@ export class PenaltiesService {
     // Pin-time freeze: capture the pinned definition immutably (best-effort).
     if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
     // The event default changed, so every tournament that inherits it needs its
-    // content hash restamped (best-effort; @Optional in unit tests).
-    await this.rulesetHash?.stampEventInheritingTournaments(eventId);
+    // content hash restamped (best-effort; @Optional in unit tests). Their
+    // bouts not yet started follow, as after a Tournament's own pin: without
+    // it a bout kept the hash of the default the Event no longer has.
+    const inheriting = (await this.rulesetHash?.stampEventInheritingTournaments(eventId)) ?? [];
+    for (const tournamentId of inheriting) {
+      await restampUnstartedMatches(this.supabase.service, tournamentId);
+    }
     return data;
   }
 

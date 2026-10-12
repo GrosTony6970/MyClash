@@ -4258,6 +4258,9 @@ export class EventsService {
   ): Promise<{ drifted: boolean }> {
     await this.assertTournamentAdmin(tournamentId, userId);
     await this.stampTournamentContentHash(tournamentId);
+    // The bouts not yet started take the new hash too, as at every other door
+    // that changes it: a bout left behind recorded rules it will not be fought under.
+    await restampUnstartedMatches(this.supabase.service, tournamentId);
     return { drifted: false };
   }
 }
