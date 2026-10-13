@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { afterSignIn, loginHref } from './sign-in-return';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterSignIn, loginHref, signInAgainHere } from './sign-in-return';
 
 describe('loginHref', () => {
   it('carries the page the door is on', () => {
@@ -79,6 +79,22 @@ describe('afterSignIn', () => {
     const from = '/e/open-2027/people/p-1';
     const next = new URL(loginHref(from), 'https://x.test').searchParams.get('next');
     expect(afterSignIn(next)).toBe(from);
+  });
+});
+
+describe('signInAgainHere', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('leaves for the sign-in page, which returns to the page it left', () => {
+    const replace = vi.fn();
+    vi.stubGlobal('window', { location: { pathname: '/me/instructor', replace } });
+
+    signInAgainHere();
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith('/login?next=%2Fme%2Finstructor');
   });
 });
 

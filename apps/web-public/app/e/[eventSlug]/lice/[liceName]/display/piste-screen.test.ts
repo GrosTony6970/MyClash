@@ -90,6 +90,15 @@ describe('pisteScreen', () => {
     expect(screen).toMatchObject({ shown: 'm-2', hold: 'none', holds: 0 });
   });
 
+  // The screen asks about m-2 while an answer about m-1, asked earlier, is
+  // still on its way. That late answer must not hold m-2.
+  it('drops a late answer about the bout before, while it asks about the bout on screen', () => {
+    const asking = after(read('m-1'), read('m-2'), CARD_DONE, read('m-2'), read('m-3'));
+    expect(asking).toMatchObject({ shown: 'm-2', hold: 'asking' });
+    expect(pisteScreen(asking, judged('m-1', true))).toEqual(asking);
+    expect(pisteScreen(asking, judged('m-1', false))).toEqual(asking);
+  });
+
   it('keeps the bout when its card is done, until the piste is read again', () => {
     const held = after(read('m-1'), read('m-2'), judged('m-1', true), CARD_DONE);
     expect(held).toMatchObject({ shown: 'm-1', hold: 'leaving' });

@@ -113,7 +113,7 @@ export async function readBoutOver(
   try {
     for (let reads = 1; ; reads += 1) {
       const read = await readLiveMatch(getPublicApiUrl(), matchId);
-      if (!read.ok || !read.match) return false;
+      if (!read.ok) return false;
       if (boutIsOver(read.match.status, read.clock?.status)) return true;
       if (read.match.status !== 'completed' || reads > CLOCK_END_RETRIES) return false;
       await pause(CLOCK_END_WAIT_MS);
