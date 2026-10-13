@@ -1,6 +1,7 @@
 'use client';
 
 import type { TournamentScoringConfig } from '@myclash/types';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { sideStyle } from '../utils/side-color';
 
 /**
@@ -46,6 +47,8 @@ export function LiceWaitingDisplay({
   mirror = false,
   className,
 }: LiceWaitingDisplayProps) {
+  // The hall's TV sits on this card longer than on any bout: it must not sleep.
+  useWakeLock();
   const matchCode = nextMatch?.roundCode ?? nextMatch?.matchNumberLabel ?? null;
   const red = {
     name: nextMatch?.redFighterName ?? null,

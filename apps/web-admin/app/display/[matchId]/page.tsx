@@ -24,9 +24,12 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { TVScoreboard, useDisplayMirror } from '@myclash/ui';
+import { TVScoreboard, useDisplayMirror, useFullscreen } from '@myclash/ui';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
+
+const STAGE_TOGGLE =
+  'cursor-pointer rounded-md border border-white/20 bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/70 backdrop-blur hover:bg-black/60 hover:text-white';
 
 export default function DisplayPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { t } = useI18n();
@@ -41,17 +44,27 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
   const router = useRouter();
   const toNextBout = useCallback((id: string) => router.replace(`/display/${id}`), [router]);
 
+  // It holds from bout to bout, because the popup loads no page between them.
+  const fullscreen = useFullscreen();
+
   return (
     <>
-      {/* Subtle toggle over the cursor-none stage; cursor-auto so it's
-          clickable. Small + translucent so it doesn't distract on the TV. */}
-      <button
-        type="button"
-        onClick={toggleMirror}
-        className="fixed left-3 top-3 z-50 cursor-pointer rounded-md border border-white/20 bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/70 backdrop-blur hover:bg-black/60 hover:text-white"
-      >
-        {t('scoring.scoreboard.swapSides')}
-      </button>
+      {/* Subtle toggles over the cursor-none stage; cursor-pointer so they're
+          clickable. Small + translucent so they don't distract on the TV. */}
+      <div className="fixed left-3 top-3 z-50 flex gap-2">
+        <button type="button" onClick={toggleMirror} className={STAGE_TOGGLE}>
+          {t('scoring.scoreboard.swapSides')}
+        </button>
+        {fullscreen.supported && (
+          <button type="button" onClick={fullscreen.toggle} className={STAGE_TOGGLE}>
+            {t(
+              fullscreen.active
+                ? 'scoring.scoreboard.exitFullscreen'
+                : 'scoring.scoreboard.fullscreen',
+            )}
+          </button>
+        )}
+      </div>
       <TVScoreboard
         // A new bout is a new mount: nothing of the bout before it is left.
         key={matchId}

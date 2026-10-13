@@ -34,6 +34,7 @@ import {
 } from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
 import { isFreshnessAlarming } from '../hooks/realtime-freshness';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { FreshnessChip } from './FreshnessChip';
 import type { ClockEvent, ClockSnapshot, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
@@ -114,6 +115,8 @@ export function TVScoreboard({
   className,
   t,
 }: TVScoreboardProps): React.ReactElement | null {
+  // A TV runs all day with nobody at its keyboard: the screen must not sleep.
+  useWakeLock();
   // `connected` deliberately not read: it is a boolean about the SOCKET, and
   // this board asks about the DATA. A polling surface reports connected:false
   // while being perfectly fresh, which is exactly the ambiguity that let a dead

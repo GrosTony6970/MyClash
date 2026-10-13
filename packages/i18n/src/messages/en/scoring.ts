@@ -6,6 +6,8 @@ export const scoring = {
     loadError: 'Could not load scoreboard data ({status}).',
     retry: 'Retry',
     swapSides: '⇄ Swap sides',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit fullscreen',
     // The TV scoreboard, read across a hall: the clock's state, and a bout's end.
     clockStatus: {
       idle: 'Not started',

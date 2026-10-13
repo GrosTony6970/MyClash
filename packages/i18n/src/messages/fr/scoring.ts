@@ -9,6 +9,8 @@ export const scoring = {
     loadError: 'Impossible de charger les données du tableau de score ({status}).',
     retry: 'Réessayer',
     swapSides: '⇄ Inverser les côtés',
+    fullscreen: 'Plein écran',
+    exitFullscreen: 'Quitter le plein écran',
     clockStatus: {
       idle: 'Pas commencé',
       running: 'En cours',

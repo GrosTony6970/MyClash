@@ -1,5 +1,6 @@
 'use client';
 
+import { useFullscreen } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 
 interface Props {
@@ -7,6 +8,12 @@ interface Props {
   mirror: boolean;
   onToggleMirror: () => void;
 }
+
+/** One look for a setting that is on and one for a setting that is off. */
+const settingClass = (on: boolean) =>
+  `min-h-[44px] rounded-md border px-3 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent ${
+    on ? 'border-accent bg-accent/10 text-accent' : 'border-border text-foreground-secondary'
+  }`;
 
 /**
  * The settings of THIS screen, in the kiosk's hidden bar (`DisplayControls`):
@@ -16,18 +23,31 @@ interface Props {
  */
 export function ScreenSettings({ mirror, onToggleMirror }: Props) {
   const { t } = useI18n();
+  const fullscreen = useFullscreen();
   return (
-    <button
-      type="button"
-      onClick={onToggleMirror}
-      aria-pressed={mirror}
-      className={`min-h-[44px] rounded-md border px-3 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent ${
-        mirror
-          ? 'border-accent bg-accent/10 text-accent'
-          : 'border-border text-foreground-secondary'
-      }`}
-    >
-      {t('scoring.scoreboard.swapSides')}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={onToggleMirror}
+        aria-pressed={mirror}
+        className={settingClass(mirror)}
+      >
+        {t('scoring.scoreboard.swapSides')}
+      </button>
+      {fullscreen.supported && (
+        <button
+          type="button"
+          onClick={fullscreen.toggle}
+          aria-pressed={fullscreen.active}
+          className={settingClass(fullscreen.active)}
+        >
+          {t(
+            fullscreen.active
+              ? 'scoring.scoreboard.exitFullscreen'
+              : 'scoring.scoreboard.fullscreen',
+          )}
+        </button>
+      )}
+    </>
   );
 }

@@ -290,6 +290,7 @@ export { useLiveMatch } from './hooks/useLiveMatch';
 export { useLoginKeepAlive } from './hooks/useLoginKeepAlive';
 export { useWakeLock } from './hooks/useWakeLock';
 export { useDisplayMirror } from './hooks/useDisplayMirror';
+export { useFullscreen } from './hooks/useFullscreen';
 export type {
   DisplayMatch,
   MatchStatus,
