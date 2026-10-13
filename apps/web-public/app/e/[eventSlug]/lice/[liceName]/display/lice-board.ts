@@ -1,5 +1,11 @@
 import { apiRequest } from '@myclash/api-client';
-import { LIVE_POLL_MS, livePollMs, type LiceWaitingDisplayNextMatch } from '@myclash/ui';
+import {
+  LIVE_POLL_MS,
+  boutIsOver,
+  livePollMs,
+  readLiveMatch,
+  type LiceWaitingDisplayNextMatch,
+} from '@myclash/ui';
 import { getPublicApiUrl } from '../../../../../../src/lib/api-url';
 
 /** What the piste screen shows: the bout it hands to `DisplayView`, or its waiting card. */
@@ -79,6 +85,17 @@ export async function readLiceBoard(
       : null,
     hiddenFromPublic: body.hiddenFromPublic === true,
   };
+}
+
+/**
+ * Is the bout on screen over? Asked once when the piste stops naming it: a bout
+ * that is over keeps the screen for its card's time, a bout that was moved or
+ * reset does not. The bout's read and the rule are the scoreboard's own. A read
+ * that fails says "not over": a failed read never holds a screen.
+ */
+export async function readBoutOver(matchId: string): Promise<boolean> {
+  const read = await readLiveMatch(getPublicApiUrl(), matchId);
+  return read.ok && boutIsOver(read.match.status, read.clock?.status);
 }
 
 /**

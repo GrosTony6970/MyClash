@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EMPTY_BOARD, liceBoardPollMs, liceDisplayHref, readLiceBoard } from './lice-board';
+import {
+  EMPTY_BOARD,
+  liceBoardPollMs,
+  liceDisplayHref,
+  readBoutOver,
+  readLiceBoard,
+} from './lice-board';
 
 /**
  * The piste screen's board (ruling 92). Its live channel is anonymous and RLS
@@ -84,6 +90,48 @@ describe('readLiceBoard', () => {
       }),
     );
     expect(await readLiceBoard('slug-1', 'Piste 1')).toBeNull();
+  });
+});
+
+describe('readBoutOver', () => {
+  /** The bout's four reads: its row, its clock, and two lists. */
+  function bout(status: string, clock: string, rowStatus = 200) {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (/\/display$/.test(url))
+        return new Response(JSON.stringify({ status }), { status: rowStatus });
+      if (/\/clock$/.test(url)) return new Response(JSON.stringify({ status: clock }));
+      return new Response('[]');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('says over for a completed bout whose clock ended', async () => {
+    const fetchMock = bout('completed', 'ended');
+    expect(await readBoutOver('m-1')).toBe(true);
+    expect(fetchMock.mock.calls.every(([url]) => /\/v1\/matches\/m-1\//.test(url))).toBe(true);
+  });
+
+  it('says not over for a bout still in play: it was moved to another piste', async () => {
+    bout('paused', 'halted');
+    expect(await readBoutOver('m-1')).toBe(false);
+  });
+
+  it('says not over for a bout a correction reopened, its clock still ended', async () => {
+    bout('paused', 'ended');
+    expect(await readBoutOver('m-1')).toBe(false);
+  });
+
+  it('says not over when the read is refused or never lands: it never holds a screen', async () => {
+    bout('completed', 'ended', 404);
+    expect(await readBoutOver('m-1')).toBe(false);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed');
+      }),
+    );
+    expect(await readBoutOver('m-1')).toBe(false);
   });
 });
 

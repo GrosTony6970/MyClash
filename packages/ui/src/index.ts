@@ -287,6 +287,8 @@ export type { NextMatchInfo } from './hooks/useNextMatch';
 export { useAdjacentMatches } from './hooks/useAdjacentMatches';
 
 export { useLiveMatch } from './hooks/useLiveMatch';
+export { readLiveMatch } from './hooks/live-match-read';
+export { boutIsOver } from './utils/bout-is-over';
 export { useLoginKeepAlive } from './hooks/useLoginKeepAlive';
 export { useWakeLock } from './hooks/useWakeLock';
 export { useDisplayMirror } from './hooks/useDisplayMirror';

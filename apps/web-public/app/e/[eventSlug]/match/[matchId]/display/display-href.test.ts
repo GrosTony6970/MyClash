@@ -27,3 +27,36 @@ describe('the single-bout TV moves to the next bout without a page load', () => 
     expect(view).toContain('onBoutOver={onBoutOver ?? toNextBout}');
   });
 });
+
+/**
+ * Only the piste TV keeps a bout its piste no longer names, so only it tells
+ * the scoreboard to read its bout again. The two screens that follow a bout's
+ * own address take no bout off the screen, and send no such word.
+ */
+describe('who tells the scoreboard to read its bout again', () => {
+  const read = (...path: string[]) => readFileSync(join(__dirname, ...path), 'utf8');
+
+  it('the view hands the word on, and the piste TV gives it', () => {
+    expect(read('display-view.tsx')).toContain('rereadSignal={rereadSignal}');
+    const piste = read(
+      '..',
+      '..',
+      '..',
+      'lice',
+      '[liceName]',
+      'display',
+      'lice-display-client.tsx',
+    );
+    expect(piste).toContain('rereadSignal={rereadSignal}');
+    expect(piste).toContain('onBoutOver={cardDone}');
+    expect(piste).toContain('matchId={shown}');
+  });
+
+  it('the single-bout TV and the organiser popup do not', () => {
+    const popup = join(__dirname, ...Array(7).fill('..'), 'web-admin', 'app', 'display');
+    expect(read('page.tsx')).not.toContain('rereadSignal');
+    expect(readFileSync(join(popup, '[matchId]', 'page.tsx'), 'utf8')).not.toContain(
+      'rereadSignal',
+    );
+  });
+});

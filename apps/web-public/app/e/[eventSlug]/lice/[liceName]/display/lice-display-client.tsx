@@ -1,13 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { LiceWaitingDisplay, useDisplayMirror } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 import { DisplayControls } from './DisplayControls';
 import { ScreenSettings } from './ScreenSettings';
-import { EMPTY_BOARD, liceBoardPollMs, readLiceBoard, type LiceBoard } from './lice-board';
+import { liceBoardPollMs } from './lice-board';
+import { usePisteScreen } from './use-piste-screen';
 
 interface Props {
   eventSlug: string;
@@ -20,29 +21,22 @@ interface Props {
  * ending, or being reassigned — refetches the current+queue payload
  * in sub-second time. Falls back to `<LiceWaitingDisplay>` between
  * matches with the next-up card; delegates to `<DisplayView>` for
- * the per-match TVScoreboard once a current match exists.
+ * the per-match TVScoreboard once a current match exists. A match that
+ * is over stays for its winner's card (`usePisteScreen`).
  *
  * The channel is anonymous, so an Event that hides anything from the
  * public reaches a signed-in screen by a 5 s poll instead (ruling 92).
  */
 export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   const { t } = useI18n();
-  const [board, setBoard] = useState<LiceBoard>(EMPTY_BOARD);
-  const [lastReadFailed, setLastReadFailed] = useState(false);
-
-  // Single refetch path shared by the initial mount load, every realtime
-  // event, the fallback poll and the hidden-board poll. A failed read keeps
-  // the last good picture on screen.
-  const refresh = useCallback(async () => {
-    const next = await readLiceBoard(eventSlug, liceName);
-    if (next) setBoard(next);
-    setLastReadFailed(next === null);
-  }, [eventSlug, liceName]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the fetch; intentional on mount.
-    void refresh();
-  }, [refresh]);
+  // Single refetch path (`refresh`) shared by the initial mount load, every
+  // realtime event, the fallback poll and the hidden-board poll. The bout on
+  // screen (`shown`) is not always the bout the piste names: a bout that is
+  // over keeps the screen for its card's time.
+  const { board, shown, rereadSignal, lastReadFailed, refresh, cardDone } = usePisteScreen(
+    eventSlug,
+    liceName,
+  );
 
   // Realtime subscription: any matches row on this lice changing —
   // status flip (scheduled→running→completed), schedule/reassignment
@@ -67,12 +61,6 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     return () => window.clearInterval(timer);
   }, [pollMs, refresh]);
 
-  // When a bout is over the screen reads its piste again, and shows what the
-  // piste holds: the next bout, or the waiting card. It does not follow the
-  // bout's own "next" (a bout moved to another piste took the TV with it), and
-  // it loads no page (a load ends fullscreen).
-  const readPisteAgain = useCallback(() => void refresh(), [refresh]);
-
   // Not swapped until somebody swaps it: the public piste TV opens as it always did.
   const [mirror, toggleMirror] = useDisplayMirror(false);
 
@@ -86,7 +74,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     />
   );
 
-  if (!board.matchId) {
+  if (!shown) {
     return (
       <>
         <LiceWaitingDisplay
@@ -104,9 +92,10 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   return (
     <>
       <DisplayView
-        matchId={board.matchId}
+        matchId={shown}
         eventSlug={eventSlug}
-        onBoutOver={readPisteAgain}
+        onBoutOver={cardDone}
+        rereadSignal={rereadSignal}
         mirror={mirror}
       />
       {controls}

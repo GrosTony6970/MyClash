@@ -18,6 +18,8 @@ interface Props {
    * bout's own address.
    */
   onBoutOver?: (nextMatchId: string) => void;
+  /** The piste TV's word to the scoreboard: read the bout again now. */
+  rereadSignal?: number;
   /** Blue on the left, for a screen that faces the public. */
   mirror?: boolean;
 }
@@ -31,7 +33,7 @@ interface Props {
  * fullscreen surface + cursor hide so a forgotten mouse doesn't show
  * on the projection.
  */
-export function DisplayView({ matchId, eventSlug, onBoutOver, mirror }: Props) {
+export function DisplayView({ matchId, eventSlug, onBoutOver, rereadSignal, mirror }: Props) {
   const { t } = useI18n();
   const router = useRouter();
   const toNextBout = useCallback(
@@ -47,6 +49,7 @@ export function DisplayView({ matchId, eventSlug, onBoutOver, mirror }: Props) {
         apiBaseUrl={API_URL}
         supabaseClient={supabase}
         onBoutOver={onBoutOver ?? toNextBout}
+        rereadSignal={rereadSignal}
         mirror={mirror}
         // This screen runs unattended on a projector for a whole day, so it
         // cannot depend on the websocket alone: when the channel failed to

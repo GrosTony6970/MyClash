@@ -77,31 +77,57 @@ export const NEXT_BOUT = {
 
 export const IDLE = { status: 'idle', activeMs: 0, runningFrom: null, events: [] };
 
+/** What a bout's reads answer. A story can change both while the screen is up. */
+export interface LiveBout {
+  bout: object;
+  clock: object;
+}
+
 /** One bout's four reads. */
 export async function stubBout(page: Page, id: string, bout: object, clock: object) {
-  await page.route(`**/api/v1/matches/${id}/display`, (route) => route.fulfill({ json: bout }));
-  await page.route(`**/api/v1/matches/${id}/clock`, (route) => route.fulfill({ json: clock }));
+  await stubLiveBout(page, id, { bout, clock });
+}
+
+async function stubLiveBout(page: Page, id: string, live: LiveBout) {
+  await page.route(`**/api/v1/matches/${id}/display`, (route) =>
+    route.fulfill({ json: live.bout }),
+  );
+  await page.route(`**/api/v1/matches/${id}/clock`, (route) => route.fulfill({ json: live.clock }));
   for (const list of ['penalties', 'exchanges']) {
     await page.route(`**/api/v1/matches/${id}/${list}`, (route) => route.fulfill({ json: [] }));
   }
 }
 
 /** The piste's read, as a story can change it and count it while the screen is up. */
-export interface PisteBoard {
+export interface PisteBoard extends LiveBout {
   /** What the next read of the piste answers. */
   answer: object;
   /** How many times the screen read its piste. */
   reads: number;
+  /**
+   * Run once, at the next read of the piste, before it is answered: what
+   * happened on the piste just before that read. A story that changes the bout
+   * here knows the scoreboard's own poll did not see the change first.
+   */
+  atNextRead: (() => void) | null;
 }
 
 export async function stubPisteTv(page: Page, tv: PisteTv = {}): Promise<PisteBoard> {
-  const board: PisteBoard = { answer: tv.board ?? BOARD, reads: 0 };
+  const board: PisteBoard = {
+    answer: tv.board ?? BOARD,
+    reads: 0,
+    bout: tv.bout ?? BOUT,
+    clock: tv.clock ?? HALTED,
+    atNextRead: null,
+  };
   await stubPublicApi(page);
   await page.route('**/api/v1/events/test-event/lices/*/current', (route) => {
+    board.atNextRead?.();
+    board.atNextRead = null;
     board.reads += 1;
     return route.fulfill({ json: board.answer });
   });
-  await stubBout(page, 'm-1', tv.bout ?? BOUT, tv.clock ?? HALTED);
+  await stubLiveBout(page, 'm-1', board);
   await stubBout(page, 'm-2', NEXT_BOUT, IDLE);
   return board;
 }

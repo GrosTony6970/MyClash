@@ -21,7 +21,7 @@
  */
 
 import * as React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Translator } from '../types/translator';
 import {
@@ -40,6 +40,7 @@ import type { ClockEvent, ClockSnapshot, ExchangeRow } from '../types/match-even
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
+import { boutIsOver } from '../utils/bout-is-over';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
@@ -65,6 +66,12 @@ export interface TVScoreboardProps {
    * mounted again by the router, and shows the spinner for one read.
    */
   onBoutOver: (nextMatchId: string) => void;
+  /**
+   * A number the screen changes to have the bout read again at once. The piste
+   * TV changes it when its piste stops naming a bout that is over: with the live
+   * channel down the scoreboard would hear of the end only at its next poll.
+   */
+  rereadSignal?: number;
   /**
    * Fallback poll interval (ms) for surfaces whose realtime WebSocket may
    * not connect (e.g. the cross-origin admin external display under
@@ -105,12 +112,27 @@ const CLOCK_STATUS_KEY: Record<ClockSnapshot['status'], string> = {
 const STAGE_AVATAR = 'h-[clamp(3rem,6.67vw,8rem)] w-[clamp(3rem,6.67vw,8rem)]';
 const STAGE_CLUB_LOGO = 'h-[clamp(2rem,4.17vw,5rem)] w-[clamp(2rem,4.17vw,5rem)]';
 
+/**
+ * The screen learned from elsewhere that its bout changed (the piste TV: its
+ * piste names another bout). Read the bout now, not at the next poll. A new
+ * bout on the same screen is no signal: only a change of the number is.
+ */
+function useRereadOn(signal: number | undefined, refresh: () => Promise<void>) {
+  const seen = useRef(signal);
+  useEffect(() => {
+    if (signal === seen.current) return;
+    seen.current = signal;
+    void refresh();
+  }, [signal, refresh]);
+}
+
 export function TVScoreboard({
   matchId,
   apiBaseUrl,
   supabaseClient,
   rolloverDelaySeconds = 5,
   onBoutOver,
+  rereadSignal,
   pollMs,
   mirror = false,
   className,
@@ -122,12 +144,8 @@ export function TVScoreboard({
   // this board asks about the DATA. A polling surface reports connected:false
   // while being perfectly fresh, which is exactly the ambiguity that let a dead
   // websocket look healthy here for weeks.
-  const { match, penalties, exchanges, clock, elapsedMs, loadError, freshness } = useLiveMatch(
-    apiBaseUrl,
-    matchId,
-    supabaseClient,
-    pollMs,
-  );
+  const { match, penalties, exchanges, clock, elapsedMs, loadError, freshness, refresh } =
+    useLiveMatch(apiBaseUrl, matchId, supabaseClient, pollMs);
 
   // ── Auto-rollover state machine ────────────────────────────────
   // When the clock transitions INTO 'ended', start a countdown.
@@ -138,12 +156,13 @@ export function TVScoreboard({
   const clockStatus = clock?.status ?? 'idle';
   const nextMatchId = match?.nextMatchId ?? null;
 
-  // A bout a correction reopened is `paused` again while its clock still reads
-  // `ended`: it is not over, and the screen stays on it.
-  const boutIsOver = clockStatus === 'ended' && match?.status === 'completed';
+  // A bout a correction reopened is not over, and the screen stays on it.
+  const boutOver = boutIsOver(match?.status, clockStatus);
+
+  useRereadOn(rereadSignal, refresh);
 
   useEffect(() => {
-    if (!boutIsOver) {
+    if (!boutOver) {
       setCountdownRemaining(null);
       return;
     }
@@ -164,16 +183,16 @@ export function TVScoreboard({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [boutIsOver, nextMatchId, rolloverDelaySeconds]);
+  }, [boutOver, nextMatchId, rolloverDelaySeconds]);
 
   // At zero the screen is told, once, and the countdown line goes away. Told
   // from an effect, not from the updater above: React may run an updater twice.
-  // `boutIsOver` is asked again: a reopen can land in the render of the last tick.
+  // `boutOver` is asked again: a reopen can land in the render of the last tick.
   useEffect(() => {
-    if (countdownRemaining !== 0 || !boutIsOver || !nextMatchId) return;
+    if (countdownRemaining !== 0 || !boutOver || !nextMatchId) return;
     setCountdownRemaining(null);
     onBoutOver(nextMatchId);
-  }, [countdownRemaining, boutIsOver, nextMatchId, onBoutOver]);
+  }, [countdownRemaining, boutOver, nextMatchId, onBoutOver]);
 
   // Alarm debounce. The channel acks SUBSCRIBED on a handshake that lands
   // AFTER the initial HTTP fetch, so a realtime-only surface is briefly
