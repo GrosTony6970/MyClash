@@ -266,6 +266,7 @@ export const scoring = {
     pressRefused: 'A CLOCK PRESS WAS REFUSED - ITS MATCH WAITS. REVIEW IT',
     // Said after one of the two lines above when there is no network either.
     noConnectionToo: 'NO CONNECTION',
+    maintenanceToo: 'MAINTENANCE',
     // The server answered 401: nothing is refused, the queue waits (ruling 241).
     sessionEnded:
       'SESSION ENDED - ENTRIES NOT SENT. SIGN IN AGAIN. IF THE EVENT IS OVER, TELL AN ORGANISER',

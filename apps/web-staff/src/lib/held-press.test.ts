@@ -252,10 +252,26 @@ describe('the bar over a refused entry with no network', () => {
     expect(offersRetry('offline', { rejected: 1, sendable: 1, pending: 3 })).toBe(false);
   });
 
-  // Not ruled: read-only mode keeps its own words and its tone.
-  it('leaves read-only mode as it was', () => {
-    expect(syncBarTone('maintenance', 1)).toBe(grey);
-    expect(syncBarLabel('maintenance', 1, t, 3, 0)).toBe('● scoring.lice.maintenanceQueued');
+  // Operator, 2026-10-13: the same in read-only mode. It was grey.
+  it('is red in read-only mode too, and says the refusal and "maintenance"', () => {
+    expect(syncBarTone('maintenance', 1)).toBe(red);
+    expect(syncBarLabel('maintenance', 1, t, 3, 0)).toBe(
+      `⚠ ${t('scoring.lice.hitsRefused', { count: '1', plural: '' })} · scoring.lice.maintenanceToo`,
+    );
+    expect(syncBarLabel('maintenance', 2, t, 0, 1)).toBe(
+      '⚠ scoring.lice.pressRefused · scoring.lice.maintenanceToo',
+    );
+  });
+
+  it('read-only mode with no refused entry stays grey, with its own words', () => {
+    expect(syncBarTone('maintenance', 0)).toBe(grey);
+    expect(syncBarLabel('maintenance', 0, t, 3, 0)).toBe('● scoring.lice.maintenanceQueued');
+  });
+
+  // Nothing tells the pad that read-only mode ended: its Retry stays while a hit waits.
+  it('keeps the Retry of read-only mode over a refused entry, while a hit waits', () => {
+    expect(offersRetry('maintenance', { rejected: 1, sendable: 0, pending: 2 })).toBe(true);
+    expect(offersRetry('maintenance', { rejected: 1, sendable: 1, pending: 0 })).toBe(false);
   });
 
   it('the bar hands the count of refused entries to its tone', () => {

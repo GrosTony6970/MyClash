@@ -65,23 +65,26 @@ export function offersAccountSignOut(phase: SyncPhase): boolean {
 }
 
 /**
- * A refused entry in the inbox while there is no network (operator,
- * 2026-10-13): it needs the official, with or without wifi. The bar is red and
- * says both. The phase stays `offline`: nothing can be sent, so no Retry.
+ * A refused entry in the inbox while the queue waits, for the network or for
+ * the end of read-only mode (operator, 2026-10-13, both): it needs the
+ * official whatever the queue waits for. The bar is red and says both. The
+ * phase stays what it is, and so does its Retry: none with no network, and
+ * the one of read-only mode while a hit waits.
  */
-function refusedWithNoNetwork(phase: SyncPhase, rejected: number): boolean {
-  return phase === 'offline' && rejected > 0;
+function refusedWhileWaiting(phase: SyncPhase, rejected: number): boolean {
+  return (phase === 'offline' || phase === 'maintenance') && rejected > 0;
 }
 
 /**
  * Offline is neutral, not red: in a sports hall it is the expected state and
- * the outbox is doing its job. That frees danger for the states that need the
- * operator, and for a refused entry the inbox holds (`refusedWithNoNetwork`).
+ * the outbox is doing its job. Read-only mode is neutral too. That frees
+ * danger for the states that need the operator, and for a refused entry the
+ * inbox holds (`refusedWhileWaiting`).
  */
 export function syncBarTone(phase: SyncPhase, rejected: number): string {
   if (phase === 'online') return 'bg-success/25 text-success';
   if (phase === 'syncing') return 'bg-warning/25 text-warning animate-pulse';
-  if (needsOperator(phase) || refusedWithNoNetwork(phase, rejected)) {
+  if (needsOperator(phase) || refusedWhileWaiting(phase, rejected)) {
     return 'bg-danger/25 text-danger';
   }
   return 'bg-muted/25 text-muted animate-pulse';
@@ -109,6 +112,7 @@ function refusedWords(rejected: number, heldPresses: number, t: Translate): stri
  * rows of its bout behind it, so the bar says that first, whatever else is held.
  *
  * With no network a refused entry is still said, and "no connection" after it.
+ * In read-only mode too, and "maintenance" after it.
  */
 export function syncBarLabel(
   phase: SyncPhase,
@@ -132,11 +136,13 @@ export function syncBarLabel(
     case 'pin-role-refused':
       return `⚠ ${waits ? t('scoring.lice.pinRoleCannotScore') : t('scoring.lice.pinRoleCannotScoreNoHits')}`;
     case 'offline':
-      return refusedWithNoNetwork(phase, rejected)
+      return refusedWhileWaiting(phase, rejected)
         ? `⚠ ${refusedWords(rejected, heldPresses, t)} · ${t('scoring.lice.noConnectionToo')}`
         : `● ${t('scoring.lice.offlineQueued')}`;
     case 'maintenance':
-      return `● ${t('scoring.lice.maintenanceQueued')}`;
+      return refusedWhileWaiting(phase, rejected)
+        ? `⚠ ${refusedWords(rejected, heldPresses, t)} · ${t('scoring.lice.maintenanceToo')}`
+        : `● ${t('scoring.lice.maintenanceQueued')}`;
     case 'error':
       // A held press is one of the refused entries: `rejected` counts it.
       return rejected > 0

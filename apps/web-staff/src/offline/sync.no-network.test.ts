@@ -24,6 +24,7 @@ import {
 } from './sync.press.fixtures';
 
 const FAULT: Answer = { status: 500, body: { message: 'boom' } };
+const READ_ONLY: Answer = { status: 503, body: { code: 'read_only_mode' } };
 
 beforeEach(clearStore);
 
@@ -150,5 +151,21 @@ describe('a refused entry in the inbox, and another bout met no network', () => 
     await engine.drain();
 
     expect(states.at(-1)).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 1 });
+  });
+});
+
+// Operator, 2026-10-13: red there too. The engine already said `maintenance`
+// with the refused entry counted; the bar drew it grey.
+describe('a refused entry in the inbox, and another bout met read-only mode', () => {
+  it('says maintenance, with the refused entry counted: the bar is red over it', async () => {
+    await quarantine(await addHit('m1'), 'Match is locked');
+    await addHit('m2');
+
+    const last = await sent(() => READ_ONLY);
+
+    expect(last).toMatchObject({ status: 'maintenance', pendingCount: 1, rejectedCount: 1 });
+    const phase = syncPhaseOf('online', last?.status);
+    expect(syncBarTone(phase, last?.rejectedCount ?? 0)).toBe(syncBarTone('error', 0));
+    expect(syncBarTone(phase, 0), 'grey with no refused entry').toBe(syncBarTone('offline', 0));
   });
 });
