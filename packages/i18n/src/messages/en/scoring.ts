@@ -26,6 +26,16 @@ export const scoring = {
     signInWithPin: 'Sign in with PIN',
     signingIn: 'Signing in...',
     localLoginError: 'Could not sign in with this event, username, and PIN.',
+    // One sentence per cause (quick win S1): each asks something else of the volunteer.
+    errors: {
+      noEvent: 'Choose your event first.',
+      wrongPin: 'Wrong username or PIN. Check both and try again.',
+      tooManyTries:
+        'Too many tries for this account. Do not type the PIN again: wait, up to one hour, or ask an organiser.',
+      eventNotFound: 'This event was not found. Check the event, or ask an organiser.',
+      closed: 'This account or this event is closed for staff sign-in. Ask an organiser.',
+      serverFault: 'The server has a problem. Your PIN was not checked. Try again in a minute.',
+    },
     // Hits the tablet still holds, said where a session that ended lands.
     unsentOne:
       'This tablet holds 1 entry that was not sent. It is sent once you sign in and open a match. If the event is over, tell an organiser.',

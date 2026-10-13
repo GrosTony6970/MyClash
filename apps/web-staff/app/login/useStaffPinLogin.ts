@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { failureFromError } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { resolveSelectedEvent, type PickerEvent } from '../../src/components/picker-events';
 import { usePickerEvents } from '../../src/lib/usePickerEvents';
 import { rememberEvent, useRememberedEvent } from '../../src/lib/last-event';
 import { arrivalPathForRole } from '../../src/lib/landing';
+import { missingBeforeSignIn, pinLoginFailureKey } from '../../src/lib/sign-in-failure';
 
 /**
  * Everything the PIN sign-in form does, so the component itself is markup.
@@ -41,6 +43,11 @@ export function useStaffPinLogin(linkedEvent: string, linkedUsername: string) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const missing = missingBeforeSignIn(event.eventSlugOrCode);
+    if (missing) {
+      setError(t(missing));
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -48,8 +55,8 @@ export function useStaffPinLogin(linkedEvent: string, linkedUsername: string) {
       // The role decides the destination, and it comes off the login response
       // because the mc_staff token carries none.
       window.location.href = arrivalPathForRole(me?.account?.role);
-    } catch {
-      setError(t('scoring.login.localLoginError'));
+    } catch (err) {
+      setError(t(pinLoginFailureKey(failureFromError(err))));
     } finally {
       setLoading(false);
     }

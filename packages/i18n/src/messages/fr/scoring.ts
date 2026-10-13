@@ -29,6 +29,18 @@ export const scoring = {
     signInWithPin: 'Connexion PIN',
     signingIn: 'Connexion...',
     localLoginError: 'Connexion impossible avec cet événement, cet identifiant et ce PIN.',
+    errors: {
+      noEvent: "Choisissez d'abord votre événement.",
+      wrongPin: 'Identifiant ou PIN incorrect. Vérifiez les deux et réessayez.',
+      tooManyTries:
+        "Trop d'essais pour ce compte. Ne retapez pas le PIN : attendez, jusqu'à une heure, ou demandez à un organisateur.",
+      eventNotFound:
+        "Cet événement est introuvable. Vérifiez l'événement, ou demandez à un organisateur.",
+      closed:
+        'Ce compte ou cet événement est fermé à la connexion staff. Demandez à un organisateur.',
+      serverFault:
+        "Le serveur a un problème. Votre PIN n'a pas été vérifié. Réessayez dans une minute.",
+    },
     unsentOne:
       "Cette tablette contient 1 saisie non envoyée. Elle sera envoyée dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
     unsentMany:
