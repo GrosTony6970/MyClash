@@ -45,6 +45,39 @@ test("a draft Event's lists refuse a read that carries no login", () => {
   }
 });
 
+test("a Tournament's page read answers its row, by the Event's slug and its own", () => {
+  const path = '/api/v1/events/test-event/tournaments/longsword-open/standings';
+  const { tournament, pools } = answerFor('GET', path, undefined).json;
+  assert.equal(tournament.name, 'Longsword Open');
+  assert.equal(tournament.status, 'running');
+  assert.deepEqual(pools, []);
+});
+
+test('a draft Tournament, and a Tournament of a draft Event, need a login', () => {
+  for (const path of [
+    '/api/v1/events/test-event/tournaments/sabre-draft/standings',
+    '/api/v1/events/draft-event/tournaments/longsword-open/standings',
+  ]) {
+    assert.equal(answerFor('GET', path, undefined).status, 404, path);
+    assert.equal(answerFor('GET', path, LOGIN).status, 200, path);
+  }
+  const draft = answerFor(
+    'GET',
+    '/api/v1/events/test-event/tournaments/sabre-draft/standings',
+    LOGIN,
+  );
+  assert.equal(draft.json.tournament.status, 'draft');
+});
+
+test('a Tournament the stub does not know gets no answer', () => {
+  const unknown = '/api/v1/events/test-event/tournaments/no-such/standings';
+  assert.equal(answerFor('GET', unknown, undefined), null);
+  assert.equal(
+    answerFor('GET', '/api/v1/events/test-event/tournaments/longsword-open/other', undefined),
+    null,
+  );
+});
+
 test("a public Event's lists answer anybody", () => {
   const tournaments = answerFor('GET', '/api/v1/events/ev-test/tournaments', undefined);
   assert.equal(tournaments.json[0].name, 'Longsword Open');

@@ -72,6 +72,30 @@ function tournament(eventId) {
   };
 }
 
+/** The Tournaments whose page opens. A draft one is shown to a member of its club only. */
+const TOURNAMENTS = {
+  'longsword-open': { name: 'Longsword Open', status: 'running' },
+  'sabre-draft': { name: 'Sabre', status: 'draft', membersOnly: true },
+};
+
+/** The read of a Tournament's page: its row, with no Pool and no bracket yet. */
+function tournamentPage(eventSlug, tournamentSlug) {
+  const { name, status } = TOURNAMENTS[tournamentSlug];
+  return {
+    tournament: {
+      id: `${EVENTS[eventSlug].id}-${tournamentSlug}`,
+      name,
+      weapon: 'longsword',
+      rulesetCode: 'TF_v1',
+      status,
+    },
+    pools: [],
+    bracketSlots: [],
+    bracketSize: 0,
+    bracketRounds: 0,
+  };
+}
+
 const ok = (json) => ({ status: 200, json });
 const NOT_FOUND = { status: 404, json: { statusCode: 404, detail: 'not found' } };
 const BROKEN = { status: 500, json: { statusCode: 500, detail: 'Internal server error' } };
@@ -200,6 +224,14 @@ export function answerFor(method, url, cookie) {
   if (rest.length === 3 && rest[0] === 'slug' && rest[2] === 'venues') {
     const slug = readable(rest[1], cookie);
     return typeof slug === 'string' ? ok([]) : slug;
+  }
+  // GET /events/:slug/tournaments/:tournamentSlug/standings
+  if (rest.length === 4 && rest[1] === 'tournaments' && rest[3] === 'standings') {
+    const found = TOURNAMENTS[rest[2]];
+    if (!found) return null;
+    const slug = readable(rest[0], cookie);
+    if (typeof slug !== 'string') return slug;
+    return found.membersOnly && !signedIn(cookie) ? NOT_FOUND : ok(tournamentPage(slug, rest[2]));
   }
   if (rest.length !== 2) return null;
   // GET /events/:id/tournaments is asked by the Event's id, the other lists by its slug.

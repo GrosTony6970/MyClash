@@ -623,8 +623,6 @@ export const publicApp = {
     weaponStylePlaceholder: 'ex. KDF, épée longue italienne…',
     shareProfile: 'Partager le profil',
     scanQr: 'Scannez pour ouvrir ce profil',
-    copyLink: 'Copier le lien',
-    copied: 'Copie !',
     visibilityTitle: 'Visibilité publique',
     visibilityHint: 'Choisissez les champs affiches sur votre profil public.',
     visibilityPublic: 'Public',
@@ -1226,6 +1224,11 @@ export const publicApp = {
   notFound: {
     title: 'Page introuvable',
     body: 'Cette adresse ne mène nulle part sur MyClash. Vérifiez le lien ou le QR code.',
+  },
+  share: {
+    share: 'Partager',
+    copied: 'Copié !',
+    copyFailed: 'Impossible de copier le lien',
   },
   titles: {
     home: 'Accueil',

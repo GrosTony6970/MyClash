@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isOwnSitePath } from '@myclash/types';
-import { backLabelKey, boutPageHref } from './bout-page';
+import { backLabelKey, boutPageHref, boutPagePath } from './bout-page';
 
 describe('boutPageHref', () => {
   it("is the bout's page, with where its Back link returns", () => {
@@ -21,6 +21,18 @@ describe('boutPageHref', () => {
   it('gives a return the bout page keeps', () => {
     const href = boutPageHref('open-2027', 'm-1', '/e/open-2027/my-schedule');
     expect(isOwnSitePath(new URL(href, 'https://x.test').searchParams.get('return'))).toBe(true);
+  });
+});
+
+describe('boutPagePath', () => {
+  it("is the bout's plain address: what Share sends, with no way back in it", () => {
+    expect(boutPagePath('open-2027', 'm-1')).toBe('/e/open-2027/match/m-1');
+  });
+
+  it('is where boutPageHref starts', () => {
+    expect(boutPageHref('open-2027', 'm-1', '/x').split('?')[0]).toBe(
+      boutPagePath('open-2027', 'm-1'),
+    );
   });
 });
 
@@ -59,6 +71,15 @@ describe('one builder and one wording', () => {
     );
     expect(read(app, 'match', '[matchId]', 'match-live-view.tsx')).toContain(
       'label={t(backLabelKey)}',
+    );
+  });
+
+  it('the bout page shares its plain address, and not a bout the public cannot read', () => {
+    expect(read(app, 'match', '[matchId]', 'page.tsx')).toContain(
+      'sharePath={boutPagePath(eventSlug, matchId)}',
+    );
+    expect(read(app, 'match', '[matchId]', 'match-live-view.tsx')).toContain(
+      '{!match.hiddenFromPublic && <ShareButton path={sharePath} />}',
     );
   });
 

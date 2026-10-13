@@ -17,6 +17,9 @@ import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { BackLink } from '@/components/BackLink';
+import { ShareButton } from '@/components/ShareButton';
+import { publicCanOpenTournament } from '@/lib/share-link';
+import { readEventOnce } from '../../_lib/event-or-not-found';
 import { MedalPodium } from '@myclash/ui';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
@@ -204,6 +207,12 @@ export default async function TournamentPage({ params }: Props) {
   // A draft tournament reaches this page only for a club member (the API answers anyone else as
   // an unknown one), and still exposes nothing structural: the API returns empty pools for it.
   const isDraft = tournament.status === 'draft';
+  // Share only what the public can open. The Event is the layout's read, asked again at no cost.
+  const eventRead = await readEventOnce(eventSlug);
+  const shareable = publicCanOpenTournament(
+    eventRead.kind === 'found' ? eventRead.event : null,
+    tournament.status,
+  );
   const poolsTabVisible = pools.length > 0;
   const swissTabVisible = !isDraft && Boolean(swissPhaseId);
   // A Swiss phase has standings too. This used to be `pools.length > 0`, which
@@ -292,6 +301,7 @@ export default async function TournamentPage({ params }: Props) {
               ` · ${t('publicApp.tournament.fighterCount', { count: fighterCount })}`}
           </p>
         </div>
+        {shareable && <ShareButton path={`/e/${eventSlug}/t/${tournamentSlug}`} />}
       </div>
 
       {tournament.rulesetRepin && (

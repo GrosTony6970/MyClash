@@ -1,10 +1,18 @@
 /**
+ * The plain address of a bout's public page: what its Share button sends. A
+ * person who gets the link has no page to go back to.
+ */
+export function boutPagePath(eventSlug: string, matchId: string): string {
+  return `/e/${eventSlug}/match/${matchId}`;
+}
+
+/**
  * The address of a bout's public page, with the page its Back link returns to.
  * The ONE builder: the pool's list of bouts, the signed-in schedule and the
  * guest schedule all send a spectator there and want them back.
  */
 export function boutPageHref(eventSlug: string, matchId: string, returnTo: string): string {
-  return `/e/${eventSlug}/match/${matchId}?return=${encodeURIComponent(returnTo)}`;
+  return `${boutPagePath(eventSlug, matchId)}?return=${encodeURIComponent(returnTo)}`;
 }
 
 /**

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { isOwnSitePath } from '@myclash/types';
 import { getServerApiUrl } from '@/lib/api-url';
-import { backLabelKey } from '@/lib/bout-page';
+import { backLabelKey, boutPagePath } from '@/lib/bout-page';
 import { loginCookieHeader } from '@/lib/login-cookie';
 import { boutTitle } from '@/lib/page-title';
 import { getServerT } from '@myclash/next-i18n/server';
@@ -120,6 +120,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
       initialPenalties={penalties}
       backHref={backHref}
       backLabelKey={backLabelKey(validReturn, eventSlug)}
+      sharePath={boutPagePath(eventSlug, matchId)}
     />
   );
 }

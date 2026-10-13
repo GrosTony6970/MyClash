@@ -14,6 +14,7 @@ import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
+import { ShareButton } from '@/components/ShareButton';
 import { useI18n } from '@myclash/next-i18n/client';
 import { resolveMatchWinner } from '@myclash/types';
 import { useMatchLiveChannel } from './use-match-live-channel';
@@ -276,6 +277,8 @@ interface Props {
   backHref: string;
   /** What the back-link says, as a key: `backLabelKey` of `@/lib/bout-page` decides. */
   backLabelKey: string;
+  /** The bout's plain address, for its Share button: `boutPagePath` of `@/lib/bout-page`. */
+  sharePath: string;
 }
 
 export function MatchLiveView({
@@ -286,6 +289,7 @@ export function MatchLiveView({
   initialPenalties,
   backHref,
   backLabelKey,
+  sharePath,
 }: Props) {
   // Resolved here, not handed down from the server page: a server-resolved URL
   // is the docker-internal host, which the browser can't reach — the polling
@@ -358,7 +362,14 @@ export function MatchLiveView({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
-      <BackLink href={backHref} label={t(backLabelKey)} className="mb-4" />
+      <div className="mb-4 flex items-center justify-between gap-3">
+        {/* In a box of its own: the link aligns itself to the top of a row. */}
+        <div>
+          <BackLink href={backHref} label={t(backLabelKey)} />
+        </div>
+        {/* Not on a bout the public cannot read: the link would say "not found". */}
+        {!match.hiddenFromPublic && <ShareButton path={sharePath} />}
+      </div>
 
       {/* Freshness — the shared chip, so this page and the TV board can no
           longer disagree about what is true. A finished match is static and has

@@ -621,8 +621,6 @@ export const publicApp = {
     weaponStylePlaceholder: 'e.g. KDF, Italian longsword…',
     shareProfile: 'Share profile',
     scanQr: 'Scan to open this profile',
-    copyLink: 'Copy link',
-    copied: 'Copied!',
     visibilityTitle: 'Public visibility',
     visibilityHint: 'Choose which fields appear on your public profile.',
     visibilityPublic: 'Public',
@@ -1219,6 +1217,12 @@ export const publicApp = {
   notFound: {
     title: 'Page not found',
     body: 'This address leads nowhere on MyClash. Check the link or the QR code.',
+  },
+  // The Share button of a public page (apps/web-public/src/lib/share-link.ts).
+  share: {
+    share: 'Share',
+    copied: 'Copied!',
+    copyFailed: 'Could not copy the link',
   },
   // What a browser tab reads. A page gives its own words only: the layout above
   // it adds the Event's name, or the site's (apps/web-public/src/lib/page-title.ts).
