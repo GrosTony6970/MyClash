@@ -126,6 +126,7 @@ export async function openLiveBoard(page: Page, state: object, query = ''): Prom
       : route.fulfill({ json: board.answer });
   });
   await page.goto(`${PUBLIC}/e/test-event/live${query}`);
-  await page.locator('main h1').waitFor();
+  // Its first read landed: the page is no longer its spinner.
+  await page.locator('main a').first().waitFor();
   return board;
 }

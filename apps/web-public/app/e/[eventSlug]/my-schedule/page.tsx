@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
   detectConflicts,
@@ -292,6 +293,11 @@ export default function MySchedulePage() {
 
   return (
     <main id="main-content" className="px-4 py-6 max-w-lg mx-auto">
+      <BackLink
+        href={`/e/${eventSlug}/home`}
+        label={t('publicApp.eventHome.backToHome')}
+        className="mb-4"
+      />
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1

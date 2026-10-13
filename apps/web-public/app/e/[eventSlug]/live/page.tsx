@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
 import { isLiveStatus } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { BackLink } from '@/components/BackLink';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
 
@@ -96,7 +97,6 @@ export default function LivePage() {
   const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { eventSlug } = params;
   const focusLiceId = searchParams.get('lice');
 
@@ -186,12 +186,11 @@ export default function LivePage() {
         <main className="flex min-h-screen items-center justify-center px-4 text-center">
           <div>
             <p className="text-muted text-sm">{t('publicApp.live.liceNotFound')}</p>
-            <button
-              onClick={() => router.push(`/e/${eventSlug}/live`)}
-              className="mt-4 text-sm text-accent hover:underline"
-            >
-              ← {t('publicApp.live.backToOverview')}
-            </button>
+            <BackLink
+              href={`/e/${eventSlug}/live`}
+              label={t('publicApp.live.backToOverview')}
+              className="mt-4"
+            />
           </div>
         </main>
       );
@@ -199,12 +198,7 @@ export default function LivePage() {
 
     return (
       <main className="flex flex-col min-h-screen px-4 py-6 max-w-md mx-auto gap-4">
-        <button
-          onClick={() => router.push(`/e/${eventSlug}/live`)}
-          className="text-sm text-muted hover:text-foreground flex items-center gap-1 self-start"
-        >
-          ← {t('publicApp.live.allPistes')}
-        </button>
+        <BackLink href={`/e/${eventSlug}/live`} label={t('publicApp.live.allPistes')} />
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1">
@@ -247,6 +241,7 @@ export default function LivePage() {
 
   return (
     <main className="flex flex-col min-h-screen px-4 py-6 max-w-2xl mx-auto gap-6">
+      <BackLink href={`/e/${eventSlug}/home`} label={t('publicApp.eventHome.backToHome')} />
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>

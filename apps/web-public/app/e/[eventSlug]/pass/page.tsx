@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
+import { BackLink } from '@/components/BackLink';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { readStoredPass, writeStoredPass, type StoredPass } from '@/lib/event-pass';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -33,6 +34,11 @@ export default function EventPassPage() {
 
   return (
     <main id="main-content" className="mx-auto max-w-md px-4 py-8">
+      <BackLink
+        href={`/e/${eventSlug}/home`}
+        label={t('publicApp.eventHome.backToHome')}
+        className="mb-4"
+      />
       <h1
         className="mb-1 font-display text-2xl font-bold sm:text-3xl"
         style={{ color: 'var(--color-accent)' }}

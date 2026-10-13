@@ -21,6 +21,7 @@ import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47 } from '@myclash/ti
 import { isLiveStatus } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
+import { BackLink } from '@/components/BackLink';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 import { followRefusal } from './follow-answer';
 import { ThisIsMeCard } from './ThisIsMeCard';
@@ -210,6 +211,11 @@ export default function PersonProfilePage() {
               ? t('publicApp.following.personLoadError')
               : t('publicApp.following.personNotFound')}
           </h1>
+          <BackLink
+            href={`/e/${eventSlug}/home`}
+            label={t('publicApp.eventHome.backToHome')}
+            className="mt-4"
+          />
         </div>
       </main>
     );
@@ -227,6 +233,11 @@ export default function PersonProfilePage() {
 
   return (
     <main className="px-4 py-6 max-w-lg mx-auto">
+      <BackLink
+        href={`/e/${eventSlug}/home`}
+        label={t('publicApp.eventHome.backToHome')}
+        className="mb-4"
+      />
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
