@@ -7,7 +7,7 @@
  *   - `network`: `down` is the answer the pad's service worker gives a dead
  *     network, `cut` a request that fails, as with no service worker.
  */
-import type { Page, Request } from '@playwright/test';
+import { expect, type Page, type Request } from '@playwright/test';
 
 export const PAD = 'http://localhost:3002';
 
@@ -73,8 +73,17 @@ export async function stubSignIn(page: Page): Promise<SignInStub> {
 
 /** The sign-in screen, as a volunteer with no link gets it: the list of Events. */
 export const openSignIn = (page: Page) => page.goto(`${PAD}/login`);
-/** The sign-in screen behind the organiser's printed link: the Event is named. */
-export const openLinked = (page: Page) => page.goto(`${PAD}/login?event=spring-open&u=marie`);
+/**
+ * The sign-in screen behind the organiser's printed link: the Event is named.
+ *
+ * Such a page puts the cursor in the PIN field once it has loaded. A story
+ * that types before that sees its text land in the PIN field: the wait is for
+ * that cursor.
+ */
+export async function openLinked(page: Page): Promise<void> {
+  await page.goto(`${PAD}/login?event=spring-open&u=marie`);
+  await expect(page.locator('#staffPin')).toBeFocused();
+}
 
 export const pinForm = (page: Page) => page.locator('form:has(#staffPin)');
 export const emailForm = (page: Page) => page.locator('form:has(#email)');
