@@ -40,10 +40,11 @@ import { createBracketTournament, ensureRoster, scoreMatch } from './_bracket';
  * and fill it, and had been failing since the picker shipped in `e3464cd1`.
  *
  * Adding the deep link is not merely convenient. With a picker rendered and no
- * row tapped, `useStaffPinLogin` posts `eventSlugOrCode: ''`, which is a 400
- * from the DTO — and the form funnels every failure into the same generic
- * alert, so a 400 there is visually identical to the 401 this leg means to
- * prove. The deep link makes 401 the only reachable failure.
+ * row tapped, the form sends nothing: it stops on the tablet and asks for an
+ * event (`missingBeforeSignIn`, 2026-10-13; before, it posted an empty event
+ * and got a 400). That is an alert too, so the alert alone would not prove the
+ * 401 this leg means to prove. The deep link makes 401 the only reachable
+ * failure, and the leg reads the status of the request.
  *
  * Event-scoped. The disposable `event_kind: 'test'` event for the wrong-event
  * case is deleted by this spec's own `afterAll`: `global-teardown` only ever
@@ -264,9 +265,9 @@ test.describe('staff pad', () => {
 
       // A wrong PIN first, so the success below cannot be a session that was
       // already lying around. Deep-linked for the reason in the header: without
-      // `?event=` the picker replaces the slug input and the failure this leg
-      // would actually observe is a 400 on an empty event, wearing the same
-      // alert as the 401 it means to prove.
+      // `?event=` the picker replaces the slug input and what this leg would
+      // actually observe is the tablet's own "choose your event first", an
+      // alert like the one of the 401 it means to prove.
       //
       // NEVER `waitUntil: 'networkidle'` anywhere in the scoring app: it holds a
       // live connection and re-requests a service worker the /scoring proxy

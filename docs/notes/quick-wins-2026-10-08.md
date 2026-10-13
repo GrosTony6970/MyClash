@@ -71,12 +71,12 @@ Size: **S** = under about one hour, **M** = about half a day.
 
 ## S — staff sign-in (`apps/web-staff/app/login`)
 
-| #   | Today                                                                                                       | Fix                                                                                | What it brings                                                                             | Where                                        | Size |
-| --- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- | ---- |
-| S1  | Wrong PIN, too many tries, no network and no Event chosen all show the same sentence.                       | Branch on the failure kind (`failureMessage` exists); en + fr.                     | A volunteer stops retyping a correct PIN into a lockout, and the organiser is not fetched. | `useStaffPinLogin.ts:51-52`                  | S    |
-| S2  | Autocorrect rewrites the username; the fallback field is labelled "Event slug".                             | `autoCapitalize="none" autoCorrect="off"`, autocomplete hints, label "Event code". | Sign-in works first time on a borrowed tablet.                                             | `StaffPinForm.tsx:48-62`; `fields.tsx:45-56` | S    |
-| S3  | The organiser email form prints "POST /api/v1/auth/magic-link failed (400)" and has no heading or way back. | `failureMessage`, a heading, a "use another address" button.                       | Volunteers stop typing their email into the wrong form.                                    | `MagicLinkForm.tsx:36, 42-83`                | S    |
-| S4  | The Event picker shows the stored date string as-is.                                                        | Format it in the UI language.                                                      | Today's Event is found at a glance among similar names.                                    | `src/components/EventPicker.tsx:154`         | S    |
+| #      | Today                                                                                                                        | Fix                                                                                | What it brings                                                                             | Where                                        | Size |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------- | ---- |
+| ~~S1~~ | Wrong PIN, too many tries, no network and no Event chosen all show the same sentence. Done `a5139aa6`.                       | Branch on the failure kind (`failureMessage` exists); en + fr.                     | A volunteer stops retyping a correct PIN into a lockout, and the organiser is not fetched. | `useStaffPinLogin.ts:51-52`                  | S    |
+| ~~S2~~ | Autocorrect rewrites the username; the fallback field is labelled "Event slug". Done `501586fc`.                             | `autoCapitalize="none" autoCorrect="off"`, autocomplete hints, label "Event code". | Sign-in works first time on a borrowed tablet.                                             | `StaffPinForm.tsx:48-62`; `fields.tsx:45-56` | S    |
+| ~~S3~~ | The organiser email form prints "POST /api/v1/auth/magic-link failed (400)" and has no heading or way back. Done `e9c2564d`. | `failureMessage`, a heading, a "use another address" button.                       | Volunteers stop typing their email into the wrong form.                                    | `MagicLinkForm.tsx:36, 42-83`                | S    |
+| ~~S4~~ | The Event picker shows the stored date string as-is. Done `9fe349e6`.                                                        | Format it in the UI language.                                                      | Today's Event is found at a glance among similar names.                                    | `src/components/EventPicker.tsx:154`         | S    |
 
 ## T — TV and projector screens
 
@@ -1346,7 +1346,8 @@ What the review found, and is fixed:
 
 What the build chose, not ruled. Say so if one is wrong:
 
-- **The piste is opened unchecked.** With wifi the app opens the last piste only when it is one
+- **The piste is opened unchecked.** (Ruled the same day, see the next section: the tablet
+  remembers who had the piste.) With wifi the app opens the last piste only when it is one
   of the pistes of the sign-in. With no wifi it cannot ask, so it opens the piste the tablet
   remembers. A session that ended by itself keeps the piste; the server asks for a sign-in when
   the wifi is back, and holds every entry until then.
@@ -1355,12 +1356,13 @@ What the build chose, not ruled. Say so if one is wrong:
 - "Your Lices" tapped with no wifi comes back to the piste, with no word why. The list of pistes
   is not kept on the tablet.
 - A tablet with ONE assigned piste that never opened it shows sign-in with no wifi.
-- **Read-only mode with a refused entry stays grey.** The ruling was about no network. Its
-  reason ("a refused entry needs the official") holds there too: worth a ruling.
+- ~~Read-only mode with a refused entry stays grey.~~ Ruled red the same day and built
+  (`54de2aef`): see the next section.
 
 Named, not fixed (each read in code):
 
-- Person A works piste 3 and never taps "Log out". Person B signs in on that tablet with a desk
+- (Fixed the same day, `2c7ebeb0` and `1120d6ce`: see the next section.) Person A works piste 3
+  and never taps "Log out". Person B signs in on that tablet with a desk
   or gear account, then opens the app with no wifi: B gets A's piste. No access is crossed (the
   server refuses what B sends), but B is on the wrong screen. Keeping the account beside the
   remembered piste would close it.
@@ -1375,6 +1377,79 @@ Named, not fixed (each read in code):
 - The real-worker probe has two traps, both met this session: its server must be started with
   the `STAFF_ASSET_PREFIX` of the build (or no page runs its scripts, with no error), and its read
   of the tablet's store must not open the store before the app does.
+
+## Built on 2026-10-13: the sign-in rows S1 to S4, and two rulings
+
+The operator picked S1 to S4, and ruled twice, each asked with a story:
+
+| Asked                                                                                                              | Ruling                          |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Read-only mode is on and the tablet holds a refused entry. The bar is grey. With no network it is red. Which here? | **Red, as with no network.**    |
+| Anna leaves piste 3 with no "Log out". Ben signs in, then opens the app with no wifi: he lands on Anna's piste.    | **Remember who had the piste.** |
+
+What the volunteer and the official get:
+
+- **S1** (`a5139aa6`). The PIN sign-in says why it failed: wrong username or PIN; too many tries
+  ("do not type the PIN again"); no connection; the event was not found; the account or the event
+  is closed; the server has a problem. With no event chosen in the list, the screen asks for one
+  and sends nothing.
+- **S2** (`501586fc`, `36a1e7c8`). The keyboard leaves a username and an event code as typed. The
+  field reads "Event code".
+- **S3** (`e9c2564d`, `f6c52a50`, `36a1e7c8`). The email form has a heading ("MyClash account",
+  "For organisers"), a sentence per cause, and "Use another address" after "Check your email".
+- **S4** (`9fe349e6`, `9a46844b`). The list of events writes "Sat, August 8, 2026" / "sam. 8 août
+  2026".
+- **The bar in read-only mode** (`54de2aef`). Over a refused entry it is red, says the refusal and
+  "MAINTENANCE", and offers Review. Its Retry stays while a hit waits.
+- **Who had the piste** (`2c7ebeb0`, `1120d6ce`). The tablet keeps who it last saw signed in. When
+  it sees another person, it forgets the piste: with no wifi that person gets sign-in. With wifi,
+  a second person gets the list of pistes, not the first person's piste.
+
+What ran: one cold review, 92 seeded breaks (all red at the end), the gate chain, the browser
+suite. No API code, no migration, no route.
+
+What the review found, and is fixed:
+
+- The piste page remembered its piste as soon as it opened, for anybody. The browser's Back after
+  Ben's sign-in gave him Anna's piste again, and the Back after "Log out" remembered a piste with
+  nobody signed in. The page now remembers a piste only when the server gave that piste's list.
+- A tablet with a PIN session AND an organiser's account: one fault of the PIN read looked like
+  another person, and the piste was forgotten.
+- The edge's own 404 (no route to the API) read "this event was not found". An answer with no
+  body of the API is now "the connection was blocked".
+- The PIN field asked the browser to keep the PIN (`current-password`). On a shared tablet the
+  browser then offers one volunteer's PIN to the next.
+- A date no calendar has (`2026-13-45`) rolled over to February.
+- The seeded breaks found one story that passed for the wrong reason (its own 403 was still
+  answered with the network "down").
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **One sentence for two causes, twice.** The server says 401 for an unknown username and for a
+  wrong PIN, and 403 for a disabled account and for an event that is over. To tell them apart the
+  server needs a code for each: small, not built.
+- **The PIN field is a "one-time code" for the browser, and the username is "off".** Not looked
+  at on a venue tablet. A browser may still offer to save a password field.
+- "Too many tries" says "wait, up to one hour". The screen cannot read how long: the server's
+  header for it is not kept by the client.
+- English dates are in the US order ("August 8"), as the other dates of the pad. The rest of
+  MyClash writes "8 August" for English.
+- A tablet that kept a piste before this work forgets it once, at its next sign-in read.
+
+Named, not fixed (each read in code):
+
+- **An organiser who signs in by email link on a tablet that still holds another person's PIN
+  session.** The pad asks the PIN session first, so it still sees the PIN account: the organiser
+  gets that person's pistes, with wifi and without. Older than this work. Worth a ruling.
+- "Choose your event first" stays on screen after the tap on an event, until the next press of
+  the button.
+- The list of events says "No events are set up for staff sign-in yet" when its read FAILED (no
+  network, too many requests). `usePickerEvents` turns every failure into an empty list.
+- `checkEmailPrefix` (fr) ends in "a" for "à", and `scoring.banner.logout` (fr) is "Se
+  deconnecter".
+- After "Check your email" the notice shows a second logo under the page's own, with the PIN form
+  still above it.
+- The lock of the PIN is ten tries an hour per account, and a GOOD sign-in counts as a try.
 
 ## Still not checked
 

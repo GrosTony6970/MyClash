@@ -618,10 +618,10 @@ Things worth knowing before touching it:
   picker — so a bare `/login` shows the picker and that input never mounts. The
   wrong-PIN leg used to navigate bare, and had been failing since the picker
   shipped in `e3464cd1`. Worse, with a picker rendered and nothing tapped the
-  form posts an empty event slug and gets a **400**, which it renders in the
-  same generic alert as the **401** the leg means to prove — so that assertion
-  would have gone green on the wrong failure. The deep link makes 401 the only
-  reachable outcome.
+  form sends nothing and asks for an event (since 2026-10-13; before, it posted
+  an empty event slug and got a **400**), in an alert like the one of the
+  **401** the leg means to prove — so that assertion would have gone green on
+  the wrong failure. The deep link makes 401 the only reachable outcome.
 - **The picker is asserted at the API, not in the UI.** `GET staff-auth/events`
   is `@Public()`, and the spec pins its six-field projection because that
   projection is the security boundary. Membership is deliberately not asserted:
