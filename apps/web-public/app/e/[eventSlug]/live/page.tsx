@@ -1,41 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
-import { getPublicApiUrl } from '@/lib/api-url';
+import { FreshnessChip } from '@myclash/ui';
 import { boutPageHref } from '@/lib/bout-page';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { BackLink } from '@/components/BackLink';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
 import { LiveMatchCard } from '../home/_components/LiveMatchCard';
-
-interface LiveMatch {
-  id: string;
-  matchNumberLabel: string;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  scheduledAt: string | null;
-  status: string;
-  tournamentName: string | null;
-  redScore: number;
-  blueScore: number;
-}
-
-interface LiveLiceState {
-  lice: { id: string; name: string; sortOrder: number };
-  runningMatch: LiveMatch | null;
-  nextMatch: LiveMatch | null;
-}
-
-interface LiveState {
-  currentBlock: { label: string; startTime: string; endTime: string; blockType: string } | null;
-  nextBlock: { label: string; startTime: string } | null;
-  lices: LiveLiceState[];
-  /** The Event's IANA zone: the clock a bout's time is told on. */
-  timezone?: string | null;
-}
+import { useLiveBoard, type LiveMatch } from './use-live-board';
 
 function formatTime(hhmm: string): string {
   return hhmm.slice(0, 5);
@@ -96,59 +69,9 @@ export default function LivePage() {
   const { eventSlug } = params;
   const focusLiceId = searchParams.get('lice');
 
-  const apiUrl = getPublicApiUrl();
-  const [state, setState] = useState<LiveState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function fetchState() {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-        cache: 'no-store',
-      });
-      if (res.ok) setState((await res.json()) as LiveState);
-    } catch {
-      // Keep last known state
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setState((await res.json()) as LiveState);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      })
-      .finally(() => setLoading(false));
-
-    timerRef.current = setInterval(() => void fetchState(), 30_000);
-    return () => {
-      controller.abort();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventSlug]);
-
-  // Realtime: re-fetch when any match on the event's lices changes.
-  // Flag-aware (disable_realtime kill-switch) + one channel with an in.()
-  // filter instead of the previous one-channel-per-lice fan-out.
-  const liceIds = (state?.lices ?? []).map((l) => l.lice.id);
-  useRealtimeWithFallback({
-    channelName: `live-lices-${eventSlug}`,
-    table: 'matches',
-    filter: `lice_id=in.(${liceIds.join(',')})`,
-    event: 'UPDATE',
-    enabled: liceIds.length > 0,
-    onEvent: () => void fetchState(),
-    onFallbackPoll: () => void fetchState(),
-  });
+  const { state, loading, freshness } = useLiveBoard(eventSlug);
+  // Always shown: on a phone, "no chip" and "a chip I did not notice" look the same.
+  const howFresh = <FreshnessChip freshness={freshness} t={t} className="self-center" />;
 
   if (loading) {
     return (
@@ -242,6 +165,8 @@ export default function LivePage() {
             <NextBoutCard match={ls.nextMatch} label={t('publicApp.live.next')} tz={tz} />
           </div>
         )}
+
+        {howFresh}
       </main>
     );
   }
@@ -352,7 +277,7 @@ export default function LivePage() {
         </div>
       )}
 
-      <p className="text-xs text-muted text-center">{t('publicApp.live.updatesAutomatically')}</p>
+      {howFresh}
     </main>
   );
 }

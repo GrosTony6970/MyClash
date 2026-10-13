@@ -71,3 +71,44 @@ test('one piste: a bout whose clock is halted says so', async ({ page }) => {
 
   await expect(page.getByRole('link', { name: /L1-P1-M01/ })).toContainText('Paused');
 });
+
+// Quick win F5. The board said "Updates automatically" for ever, also after
+// its reads had stopped landing: nobody could tell a frozen score from a live one.
+test.describe('how fresh the board is', () => {
+  const chip = (page: import('@playwright/test').Page) => page.getByRole('status');
+
+  test('with its live channel down, the board says its updates are slower', async ({ page }) => {
+    await openLiveBoard(page, TWO_PISTES);
+
+    await expect(chip(page)).toHaveText('Slower updates');
+    await expect(page.getByText('Updates automatically')).toHaveCount(0);
+  });
+
+  test('when its reads stop landing, the board says it is not updating, and says so no more when one lands', async ({
+    page,
+  }) => {
+    // The page's own clock, so the story does not wait three polls of thirty seconds.
+    await page.clock.install({ time: new Date('2027-06-12T08:00:00.000Z') });
+    const board = await openLiveBoard(page, TWO_PISTES);
+    await expect(chip(page)).toHaveText('Slower updates');
+
+    // The server stops answering. Three polls later nothing has landed.
+    board.down = true;
+    const readsBefore = board.reads;
+    await page.clock.fastForward(95_000);
+    await expect(chip(page)).toHaveText('Not updating');
+    expect(board.reads).toBeGreaterThan(readsBefore);
+    // The last good picture stays on screen.
+    await expect(page.getByRole('link', { name: /Piste 1/ })).toContainText('Ada Lovelace');
+
+    // The server answers again: the next poll lands.
+    board.down = false;
+    await page.clock.fastForward(31_000);
+    await expect(chip(page)).toHaveText('Slower updates');
+  });
+
+  test('one piste of the board carries the same word', async ({ page }) => {
+    await openLiveBoard(page, TWO_PISTES, '?lice=lice-1');
+    await expect(chip(page)).toHaveText('Slower updates');
+  });
+});

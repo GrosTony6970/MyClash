@@ -1318,7 +1318,6 @@ export const publicApp = {
     noActiveSession: 'No active session',
     noPistesConfigured: 'No pistes configured for this event.',
     nextUp: 'Next up',
-    updatesAutomatically: 'Updates automatically',
   },
   pass: {
     title: 'My event pass',

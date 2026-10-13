@@ -1,7 +1,7 @@
 'use client';
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getRuntimeFlagsCached, useRuntimeFlags } from '@myclash/ui';
 import { getPublicApiUrl } from './api-url';
 import { supabase } from './supabase';
@@ -58,11 +58,18 @@ export function useRealtimeDisabled(): boolean {
  *     if we never connected). Polling resumes the live view as soon as the
  *     channel re-subscribes successfully.
  *   • On unmount → stop polling AND remove the channel.
+ *
+ * Returns the channel's last word (`SUBSCRIBED`, `CHANNEL_ERROR`, …), or null
+ * while there is no channel: the kill-switch is on, nothing is watched yet, or
+ * the channel has said nothing so far. It is the `channelStatus` that
+ * `deriveFreshness` asks for, so a page can SAY whether it is live. It used to
+ * return nothing: the live board said "Updates automatically" over a dead socket.
  */
-export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
+export function useRealtimeWithFallback(opts: UseRealtimeOptions): string | null {
   const pollTimerRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const wasConnectedRef = useRef(false);
+  const [channelStatus, setChannelStatus] = useState<string | null>(null);
 
   const realtimeDisabled = useRealtimeDisabled();
 
@@ -115,6 +122,7 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
           }),
       )
       .subscribe((status: string) => {
+        setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
           if (wasConnectedRef.current) {
             console.info(`[realtime] reconnected: ${opts.channelName}`);
@@ -143,4 +151,7 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.channelName, opts.table, opts.filter, opts.event, opts.enabled, realtimeDisabled]);
+
+  // A status kept from a channel that is gone must not be read as today's.
+  return realtimeDisabled || opts.enabled === false ? null : channelStatus;
 }

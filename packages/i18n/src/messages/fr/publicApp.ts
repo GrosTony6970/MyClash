@@ -1326,7 +1326,6 @@ export const publicApp = {
     noActiveSession: 'Aucune session en cours',
     noPistesConfigured: 'Aucune lice configurée pour cet événement.',
     nextUp: 'Prochainement',
-    updatesAutomatically: 'Mise à jour automatique',
   },
   pass: {
     title: 'Mon pass événement',
