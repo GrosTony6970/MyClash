@@ -19,6 +19,7 @@ import {
 } from '@myclash/rules/results';
 import { LeagueScoringService } from './league-scoring.service';
 import { toRankingPayload, toTournamentResultPayload } from './league-replace-payloads';
+import { withFighterSlugs } from './standings-fighter-slug';
 import {
   aggregateClubStandings,
   attachDecidingTiebreaks,
@@ -1818,7 +1819,7 @@ export class LeaguesService {
   ) {
     let q = this.supabase.service
       .from('league_rankings')
-      .select('*, global_persons(display_name, clubs(name, city))')
+      .select('*, global_persons(display_name, slug, clubs(name, city))')
       .eq('league_id', leagueId)
       .order('ranking_group_key', { ascending: true })
       .order('rank', { ascending: true });
@@ -1832,7 +1833,8 @@ export class LeaguesService {
     // in the same ranking group. Read-time derivation over the already-sorted
     // rows — no migration; every value it needs is on the row already.
     const tieBreakers = normalizeScoringConfig(league['scoring_config']).tieBreakers;
-    const rows = attachDecidingTiebreaks((data ?? []) as Row[], tieBreakers);
+    const linked = await withFighterSlugs({ supabase: this.supabase }, (data ?? []) as Row[]);
+    const rows = attachDecidingTiebreaks(linked, tieBreakers);
 
     return { league, columns, rows, pendingTournaments };
   }

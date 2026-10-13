@@ -73,7 +73,7 @@ describe("a fighter's pages show public Tournaments of public Events only (rulin
     expect(filtersFor(db.from, 'matches', 'or')).toEqual([[ONLY_PUBLIC]]);
     // The double ignores projections: only this pin sees a status column go.
     expect(selectsFor(db.from, 'registrations')[0]).toBe(
-      'id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, status, events(id, name, start_date, end_date, status, event_kind))',
+      'id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, status, events(id, name, slug, start_date, end_date, status, event_kind))',
     );
   });
 

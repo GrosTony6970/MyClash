@@ -48,6 +48,7 @@ describe('FightersService.listMatchesPaginated', () => {
           id: 'evt-001',
           status: 'completed',
           name: 'HEMA Fest 2025',
+          slug: 'hema-fest-2025',
           start_date: '2025-06-01',
           end_date: null,
         },
@@ -146,6 +147,9 @@ describe('FightersService.listMatchesPaginated', () => {
     expect(item.opponentScore).toBe(3);
     expect(item.opponentName).toBe('Jean Dupont');
     expect(item.eventName).toBe('HEMA Fest 2025');
+    // Where the bout's page is, and the day the line shows (quick win F21).
+    expect(item.eventSlug).toBe('hema-fest-2025');
+    expect(item.eventDate).toBe('2025-06-01');
     expect(item.weapon).toBe('Longsword');
     expect(item.tournamentName).toBe('Longsword Open');
     expect(item.status).toBe('completed');

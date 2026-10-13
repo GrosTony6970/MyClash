@@ -70,6 +70,8 @@ export interface MatchSummary {
   matchScheduledAt: string | null;
   eventId: string;
   eventName: string;
+  /** The Event's address: with the bout's id, where the bout's public page is. */
+  eventSlug: string;
   eventDate: string;
   tournamentId: string;
   tournamentName: string;
@@ -983,7 +985,7 @@ export class FightersService {
     const { data: regData, error: regError } = await this.supabase.service
       .from('registrations')
       .select(
-        `id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, status, events(id, name, start_date, end_date, status, event_kind))`,
+        `id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, status, events(id, name, slug, start_date, end_date, status, event_kind))`,
       )
       .eq('persons.global_person_id', fighterId);
     if (regError) throw new BadRequestException(regError.message);
@@ -1107,6 +1109,7 @@ export class FightersService {
         matchScheduledAt: (match['scheduled_at'] as string | null) ?? null,
         eventId: String(event?.['id'] ?? ''),
         eventName: String(event?.['name'] ?? ''),
+        eventSlug: String(event?.['slug'] ?? ''),
         eventDate: String(event?.['start_date'] ?? event?.['end_date'] ?? ''),
         tournamentId: String(tournament?.['id'] ?? phase?.['tournament_id'] ?? ''),
         tournamentName: String(tournament?.['name'] ?? ''),
