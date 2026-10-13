@@ -195,3 +195,69 @@ describe.each(Object.keys(ROUTES) as Array<keyof typeof ROUTES>)('%s (ruling 127
     await expect(run).rejects.not.toBeInstanceOf(HttpException);
   });
 });
+
+/**
+ * A hidden EVENT on the same two reads and on the roster (operator ruling 2026-10-13: a test
+ * Event follows the rule of a draft, its club reads its public pages). All three read the Event
+ * through `getEventBySlug`, which refused a test Event to its own club too. The service door has
+ * its own tests; these hold each ROUTE, with a published Tournament inside the hidden Event.
+ */
+const HIDDEN_EVENTS = [
+  { id: 'ev-draft', slug: 'a-draft', status: 'draft', event_kind: 'standard' },
+  { id: 'ev-test', slug: 'a-test', status: 'published', event_kind: 'test' },
+  { id: 'ev-test-draft', slug: 'a-test-draft', status: 'draft', event_kind: 'test' },
+];
+
+const EVENT_READS = {
+  standings: (event: string, r: never) =>
+    controller.getPublicTournamentStandings(event, 'running', r),
+  poolsWithMatches: (event: string, r: never) =>
+    controller.getPublicTournamentPoolsWithMatches(event, 'running', r),
+  participants: (event: string, r: never) => controller.listParticipants(event, r),
+};
+const EVENT_READ_NAMES = Object.keys(EVENT_READS) as Array<keyof typeof EVENT_READS>;
+
+describe.each(HIDDEN_EVENTS)('an Event with status $status and kind $event_kind', (event) => {
+  beforeEach(() =>
+    build({
+      events: { rows: [{ ...event, organization_id: 'org-a', timezone: 'Europe/Paris' }] },
+      tournaments: { rows: [{ ...T('running', 'running'), event_id: event.id }] },
+    }),
+  );
+
+  it.each(EVENT_READ_NAMES)(
+    '%s answers anyone outside its club exactly as an Event that does not exist',
+    async (route) => {
+      const unknown = await answer(EVENT_READS[route]('no-such-event', req()), 'no-such-event');
+      expect(unknown).toBe(
+        JSON.stringify({
+          status: 404,
+          refused: { message: 'Event "<slug>" not found', error: 'Not Found', statusCode: 404 },
+        }),
+      );
+      for (const caller of [{}, { user: 'u-stranger' }, { user: 'u-owner-b' }]) {
+        expect(
+          await answer(EVENT_READS[route](event.slug, req(caller)), event.slug),
+          JSON.stringify(caller),
+        ).toBe(unknown);
+      }
+    },
+  );
+
+  it.each(EVENT_READ_NAMES)('%s answers a member of its club', async (route) => {
+    await expect(EVENT_READS[route](event.slug, req({ user: 'u-member' }))).resolves.toBeDefined();
+  });
+
+  it.each(EVENT_READ_NAMES)(
+    '%s fails loudly when the membership cannot be read, never as "not found"',
+    async (route) => {
+      build({
+        events: { rows: [{ ...event, organization_id: 'org-a', timezone: 'Europe/Paris' }] },
+        organization_members: { data: null, error: { message: 'connection reset' } },
+      });
+      const run = EVENT_READS[route](event.slug, req({ user: 'u-member' }));
+      await expect(run).rejects.toThrow('connection reset');
+      await expect(run).rejects.not.toBeInstanceOf(HttpException);
+    },
+  );
+});
