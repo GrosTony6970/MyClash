@@ -64,6 +64,7 @@ describe('one builder and one wording', () => {
 
   it.each([
     ['the guest schedule', join(app, 'my-schedule', 'page.tsx')],
+    ["a person's page", join(app, 'people', '[personId]', 'page.tsx')],
     ['the pool list', join(app, 't', '[tournamentSlug]', 'PoolMatchesView.tsx')],
     ['the signed-in schedule', join(__dirname, '..', 'components', 'me', 'ScheduleView.tsx')],
   ])('%s builds the address with boutPageHref', (_name, path) => {

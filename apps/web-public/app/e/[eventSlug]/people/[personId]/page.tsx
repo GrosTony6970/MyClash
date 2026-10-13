@@ -22,6 +22,7 @@ import { isLiveStatus } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
 import { BackLink } from '@/components/BackLink';
+import { boutPageHref } from '@/lib/bout-page';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 import { followRefusal } from './follow-answer';
 import { ThisIsMeCard } from './ThisIsMeCard';
@@ -226,6 +227,10 @@ export default function PersonProfilePage() {
   const hallTime = (iso: string) =>
     formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, localeToBcp47(locale));
 
+  // A bout's page, whose Back returns to this person's page.
+  const boutHref = (m: ScheduleMatch) =>
+    boutPageHref(eventSlug, m.id, `/e/${eventSlug}/people/${personId}`);
+
   // A bout whose clock is halted is still in play: it is live, not gone.
   const live = schedule?.matches.filter((m) => isLiveStatus(m.status)) ?? [];
   const upcoming = schedule?.matches.filter((m) => m.status === 'scheduled') ?? [];
@@ -306,7 +311,7 @@ export default function PersonProfilePage() {
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((m) => (
-            <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
+            <Link key={m.id} href={boutHref(m)}>
               <div className="rounded-xl border-2 border-danger/40 bg-danger/10 p-4 mb-2">
                 <p className="text-xs text-muted mb-1">{boutAndPiste(m)}</p>
                 <p className="font-bold text-foreground">
@@ -329,7 +334,7 @@ export default function PersonProfilePage() {
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
-              <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
+              <Link key={m.id} href={boutHref(m)}>
                 <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                   <div>
                     <p className="text-sm font-medium text-foreground">
@@ -390,7 +395,7 @@ export default function PersonProfilePage() {
               // no third branch, for every draw as well.
               const outcome = m.outcome;
               return (
-                <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
+                <Link key={m.id} href={boutHref(m)}>
                   <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
                     <div>
                       <p className="text-sm font-medium text-foreground">

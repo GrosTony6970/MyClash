@@ -51,5 +51,9 @@ test('a bout whose clock is halted is listed as live, with its piste', async ({ 
 
   const live = page.locator('section', { hasText: 'Live now' });
   await expect(live.getByText('Pool 1 - m-7 · Piste 3')).toBeVisible();
-  await expect(live.getByRole('link')).toHaveAttribute('href', '/e/test-event/match/m-7');
+  // The bout's Back returns to this person's page.
+  await expect(live.getByRole('link')).toHaveAttribute(
+    'href',
+    '/e/test-event/match/m-7?return=%2Fe%2Ftest-event%2Fpeople%2Fperson-1',
+  );
 });
