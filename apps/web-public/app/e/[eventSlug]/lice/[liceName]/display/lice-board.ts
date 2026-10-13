@@ -87,15 +87,40 @@ export async function readLiceBoard(
   };
 }
 
+/** How long, and how many times, a completed bout's clock is waited for. */
+export const CLOCK_END_WAIT_MS = 600;
+export const CLOCK_END_RETRIES = 3;
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
  * Is the bout on screen over? Asked once when the piste stops naming it: a bout
  * that is over keeps the screen for its card's time, a bout that was moved or
  * reset does not. The bout's read and the rule are the scoreboard's own. A read
  * that fails says "not over": a failed read never holds a screen.
+ *
+ * A bout the closing hit ended is written `completed` FIRST, and its clock's
+ * end row several writes later (`ScoringService.afterFightWrite`). A read
+ * between the two sees a completed bout whose clock still runs. So a completed
+ * bout whose clock has not ended is read again, a few times: its end row is on
+ * its way. A bout completed with no clock at all (a forfeit) never gets one:
+ * the scoreboard draws no card for it, and the screen does not hold it.
  */
-export async function readBoutOver(matchId: string): Promise<boolean> {
-  const read = await readLiveMatch(getPublicApiUrl(), matchId);
-  return read.ok && boutIsOver(read.match.status, read.clock?.status);
+export async function readBoutOver(
+  matchId: string,
+  pause: (ms: number) => Promise<void> = wait,
+): Promise<boolean> {
+  try {
+    for (let reads = 1; ; reads += 1) {
+      const read = await readLiveMatch(getPublicApiUrl(), matchId);
+      if (!read.ok || !read.match) return false;
+      if (boutIsOver(read.match.status, read.clock?.status)) return true;
+      if (read.match.status !== 'completed' || reads > CLOCK_END_RETRIES) return false;
+      await pause(CLOCK_END_WAIT_MS);
+    }
+  } catch {
+    return false;
+  }
 }
 
 /**

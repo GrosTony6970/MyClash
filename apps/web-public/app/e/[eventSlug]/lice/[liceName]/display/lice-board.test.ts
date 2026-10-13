@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CLOCK_END_RETRIES,
+  CLOCK_END_WAIT_MS,
   EMPTY_BOARD,
   liceBoardPollMs,
   liceDisplayHref,
@@ -132,6 +134,65 @@ describe('readBoutOver', () => {
       }),
     );
     expect(await readBoutOver('m-1')).toBe(false);
+  });
+
+  /**
+   * The closing hit writes the bout `completed` first and its clock's end row
+   * later. A read between the two must not let the winner's card go.
+   */
+  describe('a completed bout whose clock has not ended yet', () => {
+    /** The clock answers these states in turn, then the last one for ever. */
+    function clockTurns(...states: string[]) {
+      let reads = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (/\/display$/.test(url)) return new Response(JSON.stringify({ status: 'completed' }));
+          if (!/\/clock$/.test(url)) return new Response('[]');
+          const status = states[Math.min(reads, states.length - 1)];
+          reads += 1;
+          return new Response(JSON.stringify({ status }));
+        }),
+      );
+    }
+    const pauses: number[] = [];
+    const pause = async (ms: number) => void pauses.push(ms);
+    afterEach(() => {
+      pauses.length = 0;
+    });
+
+    it('is read again, and is over once its clock ends', async () => {
+      clockTurns('running', 'ended');
+      expect(await readBoutOver('m-1', pause)).toBe(true);
+      expect(pauses).toEqual([CLOCK_END_WAIT_MS]);
+    });
+
+    it('is not over when its clock never ends: a forfeit has no clock', async () => {
+      clockTurns('idle');
+      expect(await readBoutOver('m-1', pause)).toBe(false);
+      expect(pauses).toHaveLength(CLOCK_END_RETRIES);
+    });
+
+    it('is over when its clock ends at the last read', async () => {
+      clockTurns('halted', 'halted', 'halted', 'ended');
+      expect(await readBoutOver('m-1', pause)).toBe(true);
+      expect(pauses).toHaveLength(CLOCK_END_RETRIES);
+    });
+  });
+
+  it('does not wait for the clock of a bout that is not completed', async () => {
+    bout('paused', 'halted');
+    const pause = vi.fn(async () => undefined);
+    expect(await readBoutOver('m-1', pause)).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it('says not over for an answer with no bout in it, and throws nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('null')),
+    );
+    await expect(readBoutOver('m-1')).resolves.toBe(false);
   });
 });
 

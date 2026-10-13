@@ -59,8 +59,8 @@ test('a bout ends: the card stays for its countdown, then the next bout shows', 
   });
 
   // The scoreboard is told to read its bout now: it does not wait for its poll.
-  await expect(page.getByText('Match ended')).toBeVisible({ timeout: 2_000 });
-  await page.waitForTimeout(4_000);
+  await expect(page.getByText('Match ended')).toBeVisible({ timeout: 4_000 });
+  await page.waitForTimeout(3_000);
   await expect(page.getByText('Match ended')).toBeVisible();
 
   await expect(page.getByText('Not started', { exact: true })).toBeVisible({ timeout: 8_000 });
@@ -68,6 +68,48 @@ test('a bout ends: the card stays for its countdown, then the next bout shows', 
   expect(await pageKeptItsMark(page)).toBe(true);
   expect(await sawSpinner(page)).toBe(false);
   expect(page.url()).toBe(PISTE_TV);
+});
+
+// The closing hit writes the bout as completed first, and its clock's end row a
+// moment later. The screen asked once, saw a completed bout whose clock still
+// ran, judged it "not over", and let the card go.
+test('a bout the closing hit ended: its clock ends a moment after, and the card still stays', async ({
+  page,
+}) => {
+  const board = await openOnABoutInPlay(page);
+
+  await atTheNextRead(board, () => {
+    board.bout = ENDED_BOUT;
+    board.answer = NAMES_THE_NEXT;
+    // The clock's end row lands later than the read that follows.
+    setTimeout(() => {
+      board.clock = ENDED;
+    }, 900);
+  });
+
+  await expect(page.getByText('Match ended')).toBeVisible({ timeout: 5_000 });
+  await page.waitForTimeout(3_000);
+  await expect(page.getByText('Match ended')).toBeVisible();
+  await expect(page.getByText('Not started', { exact: true })).toBeVisible({ timeout: 8_000 });
+});
+
+// On a hall's wifi a read can hang. The screen must not wait for ever on a bout
+// its piste no longer names.
+test('when nobody answers whether the bout is over, the screen shows what its piste says', async ({
+  page,
+}) => {
+  const board = await openOnABoutInPlay(page);
+
+  await atTheNextRead(board, () => {
+    board.hangs = true;
+    board.answer = NAMES_THE_NEXT;
+  });
+
+  // Not at once: the screen waits for the answer. Then its limit, five seconds.
+  await page.waitForTimeout(2_000);
+  await expect(page.getByText('Ada Lovelace').first()).toBeVisible();
+  await expect(page.getByText('Not started', { exact: true })).toBeVisible({ timeout: 8_000 });
+  expect(await pageKeptItsMark(page)).toBe(true);
 });
 
 test('a bout moved to another piste leaves the screen at once', async ({ page }) => {
@@ -78,7 +120,7 @@ test('a bout moved to another piste leaves the screen at once', async ({ page })
     board.answer = NAMES_THE_NEXT;
   });
 
-  await expect(page.getByText('Not started', { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText('Not started', { exact: true })).toBeVisible({ timeout: 4_000 });
   await expect(page.getByText('Match ended')).toHaveCount(0);
   expect(await pageKeptItsMark(page)).toBe(true);
 });
@@ -95,8 +137,8 @@ test('the last bout of the piste: its end card stays, then the waiting card show
     board.answer = NAMES_NOTHING;
   });
 
-  await expect(page.getByText('Last match on this lice')).toBeVisible({ timeout: 2_000 });
-  await page.waitForTimeout(4_000);
+  await expect(page.getByText('Last match on this lice')).toBeVisible({ timeout: 4_000 });
+  await page.waitForTimeout(3_000);
   await expect(page.getByText('Last match on this lice')).toBeVisible();
 
   // No countdown runs for a bout with no next of its own: the screen's cap ends the wait.
@@ -112,7 +154,7 @@ test('a bout reopened while its card is up keeps the screen', async ({ page }) =
     board.clock = ENDED;
     board.answer = NAMES_THE_NEXT;
   });
-  await expect(page.getByText('Match ended')).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText('Match ended')).toBeVisible({ timeout: 4_000 });
 
   // A correction voids the closing hit: the bout is in play again, on this piste.
   await atTheNextRead(board, () => {

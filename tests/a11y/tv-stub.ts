@@ -5,7 +5,7 @@
  * (`queue`). The bout's own reads follow: its display payload, its clock, and
  * two empty lists. A story gives only what it changes.
  */
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { stubPublicApi } from './helpers';
 
 export const PUBLIC = 'http://localhost:3001';
@@ -81,6 +81,8 @@ export const IDLE = { status: 'idle', activeMs: 0, runningFrom: null, events: []
 export interface LiveBout {
   bout: object;
   clock: object;
+  /** While true, the bout's reads are never answered: a read that hangs. */
+  hangs?: boolean;
 }
 
 /** One bout's four reads. */
@@ -89,12 +91,13 @@ export async function stubBout(page: Page, id: string, bout: object, clock: obje
 }
 
 async function stubLiveBout(page: Page, id: string, live: LiveBout) {
-  await page.route(`**/api/v1/matches/${id}/display`, (route) =>
-    route.fulfill({ json: live.bout }),
-  );
-  await page.route(`**/api/v1/matches/${id}/clock`, (route) => route.fulfill({ json: live.clock }));
+  // A route that is never fulfilled is a request that never answers.
+  const answer = (route: Route, json: () => unknown) =>
+    live.hangs ? undefined : route.fulfill({ json: json() });
+  await page.route(`**/api/v1/matches/${id}/display`, (route) => answer(route, () => live.bout));
+  await page.route(`**/api/v1/matches/${id}/clock`, (route) => answer(route, () => live.clock));
   for (const list of ['penalties', 'exchanges']) {
-    await page.route(`**/api/v1/matches/${id}/${list}`, (route) => route.fulfill({ json: [] }));
+    await page.route(`**/api/v1/matches/${id}/${list}`, (route) => answer(route, () => []));
   }
 }
 
