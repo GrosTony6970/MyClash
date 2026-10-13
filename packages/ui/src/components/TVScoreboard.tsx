@@ -362,13 +362,14 @@ function TVHeader({
 
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
-      {/* The side tracks may shrink to nothing: a long name in the next-up tile
-          is cut on its one line. Left to wrap, it made the header taller and
-          pushed the card counts off the bottom of the screen. */}
+      {/* The side tracks may shrink to nothing: a long name in the next-up tile,
+          and a long Event name beside two long fighters, are cut on their one
+          line. Left to wrap, they made the header taller and pushed the card
+          counts off the bottom of the screen. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6">
-        <div className="text-stage-row flex flex-col items-start gap-1 text-left font-semibold text-slate-600">
-          {eventName && <p>◇ {eventName}</p>}
-          {liceName && <p className="text-slate-500">{liceName}</p>}
+        <div className="text-stage-row flex min-w-0 flex-col items-start gap-1 text-left font-semibold text-slate-600">
+          {eventName && <p className="max-w-full truncate">◇ {eventName}</p>}
+          {liceName && <p className="max-w-full truncate text-slate-500">{liceName}</p>}
           {connectionCue}
         </div>
         <div className="flex flex-col items-center gap-1">

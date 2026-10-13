@@ -60,6 +60,25 @@ test.describe('on a 1080p TV', () => {
     expect((await page.locator('header').boundingBox())?.height).toBe(usual);
   });
 
+  // Two long fighters take the middle of the header, and leave the Event's name
+  // little room: it is cut on its line too.
+  test('a long Event name beside two long fighters stays on one line', async ({ page }) => {
+    await openPisteTv(page);
+    const oneLine = (await page.getByText('◇ Open de Lyon').boundingBox())?.height;
+
+    await openPisteTv(page, {
+      bout: {
+        ...BOUT,
+        redFighterName: 'Jean-Baptiste de la Fontaine-Beauregard',
+        blueFighterName: 'Maximilian von Hohenzollern-Sigmaringen',
+        event: { name: 'Rencontres internationales d’escrime historique de Lyon et du Rhône' },
+      },
+    });
+    await expect(page.getByText('Maximilian').first()).toBeVisible();
+
+    expect((await page.getByText('◇ Rencontres').boundingBox())?.height).toBe(oneLine);
+  });
+
   test('the piste and the Tournament line are in 18px too', async ({ page }) => {
     await openPisteTv(page);
     await expect(page.getByText('Grace Hopper')).toBeVisible();
