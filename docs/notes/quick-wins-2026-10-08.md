@@ -97,21 +97,21 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~F3~~  | Bouts on the guest schedule cannot be tapped. Done `b165694a`.                                                                                    | Link each card to the Match page.                                                         | Score and exchanges are one tap from "my next bout".                           | `my-schedule/page.tsx:448-460`                                                                            | S    |
 | ~~F4~~  | ✔ The live board shows who fights but no score. The server sends the score; the page drops it. Done `e4746521`.                                   | Reuse `home/_components/LiveMatchCard.tsx`.                                               | "What's the score on piste 3?" is answered on the phone.                       | `live/page.tsx:11-19, 85-91`; `apps/api/.../schedule/live-state.service.ts:27-29`                         | S    |
 | ~~F5~~  | The live board says "Updates automatically" after it has stopped. Done `969ae48a`.                                                                | The freshness chip the Match page already has.                                            | Nobody trusts a frozen score.                                                  | `live/page.tsx:115-117, 339`                                                                              | S–M  |
-| F6      | While the Event runs, "Live now" is the last block on the Event home.                                                                             | Move it under the header when the Event is running.                                       | The first screen answers what people came for.                                 | `home/PublicHome.tsx:321`                                                                                 | S    |
-| F7      | The Event home has no door to "my schedule" or "find my name".                                                                                    | One card near the top.                                                                    | A first-time guest reaches their bouts in two taps, not five.                  | only inbound link: `src/components/public-personal-decision.ts:59`                                        | S    |
+| ~~F6~~  | While the Event runs, "Live now" is the last block on the Event home. Done `b129dfb8`.                                                            | Move it under the header when the Event is running.                                       | The first screen answers what people came for.                                 | `home/PublicHome.tsx:321`                                                                                 | S    |
+| ~~F7~~  | The Event home has no door to "my schedule" or "find my name". Done `b129dfb8`.                                                                   | One card near the top.                                                                    | A first-time guest reaches their bouts in two taps, not five.                  | only inbound link: `src/components/public-personal-decision.ts:59`                                        | S    |
 | ~~F8~~  | Guest pages show times in the phone's time zone. Done `5b8d5d98`.                                                                                 | `formatInZone` with the Event zone, as elsewhere.                                         | A fighter travelling from abroad does not arrive an hour late.                 | `my-schedule/page.tsx:117`; `people/[personId]/page.tsx:314, 348`; `live/page.tsx:40`                     | S    |
 | ~~F9~~  | ✔ A followed fighter's upcoming bouts show no piste. The server sends it. Done `a71e71a7`.                                                        | Add the field to the page's type and render it.                                           | A friend or coach knows where to go.                                           | `people/[personId]/page.tsx:44-57, 303-320`                                                               | S    |
-| F10     | The guest schedule loads once and never says how old it is.                                                                                       | Reuse `useMySchedule` and its "Updated HH:MM" badge.                                      | The schedule survives a dead zone, and says when it was last right.            | `my-schedule/page.tsx:202-236`; `src/components/me/hooks.ts:73-117`                                       | M    |
+| ~~F10~~ | The guest schedule loads once and never says how old it is. Done `d471d5c5`.                                                                      | Reuse `useMySchedule` and its "Updated HH:MM" badge.                                      | The schedule survives a dead zone, and says when it was last right.            | `my-schedule/page.tsx:202-236`; `src/components/me/hooks.ts:73-117`                                       | M    |
 | ~~F11~~ | After sign-in the fighter always lands on `/me`. `?next=` is sent and ignored. Done `e2b4b82a`.                                                   | Read `next`, validate with the existing `isOwnSitePath`.                                  | Sign-in returns you to the page you were on.                                   | `login/page.tsx:67`; `login/auth-requests.ts:94, 128`                                                     | S–M  |
 | ~~F12~~ | On login, Enter does nothing; an empty field fails silently. Done `521423e7`.                                                                     | A real `<form onSubmit>` and an "enter your email" message.                               | Sign-in works from the phone keyboard and with a password manager.             | `login/page.tsx:61, 80, 113, 123, 274-331`                                                                | S    |
-| F13     | A mistyped Event link gives a near-blank page. The app has no not-found page.                                                                     | `notFound()` on a missing Event; one localised 404 with a way home.                       | A wrong QR code or link says so, and offers the way back.                      | `_components/EventHeader.tsx:68`; `home/PublicHome.tsx:104`                                               | S–M  |
+| ~~F13~~ | A mistyped Event link gives a near-blank page. The app has no not-found page. Done `d8f6dd25`.                                                    | `notFound()` on a missing Event; one localised 404 with a way home.                       | A wrong QR code or link says so, and offers the way back.                      | `_components/EventHeader.tsx:68`; `home/PublicHome.tsx:104`                                               | S–M  |
 | ~~F14~~ | Error pages offer "Try again" only. Done `cb4f4b28`.                                                                                              | Add a link to the Event home or `/`.                                                      | No dead end when the retry also fails.                                         | `error.tsx:26-35`; `app/me/error.tsx:22-31`                                                               | S    |
-| F15     | ✔ Tabs read "Longsword Open · MyClash — MyClash", "Home — fal-2026", "Match 12".                                                                  | Drop the suffix; resolve the Event name once in the layout; name the two fighters.        | Shared links and browser history read like the Event, not like an address.     | `layout.tsx:26-28`; `t/[tournamentSlug]/page.tsx:52, 59`; `match/[matchId]/page.tsx:119`                  | S–M  |
-| F16     | League, login and personal-space pages share the generic site title.                                                                              | A root title template and per-page titles.                                                | Several open tabs can be told apart.                                           | no `metadata` in `app/leagues/*`, `app/login/page.tsx`, `app/me/layout.tsx`                               | S    |
+| ~~F15~~ | ✔ Tabs read "Longsword Open · MyClash — MyClash", "Home — fal-2026", "Match 12". Done `729cbcba`.                                                 | Drop the suffix; resolve the Event name once in the layout; name the two fighters.        | Shared links and browser history read like the Event, not like an address.     | `layout.tsx:26-28`; `t/[tournamentSlug]/page.tsx:52, 59`; `match/[matchId]/page.tsx:119`                  | S–M  |
+| ~~F16~~ | League, login and personal-space pages share the generic site title. Done `729cbcba`.                                                             | A root title template and per-page titles.                                                | Several open tabs can be told apart.                                           | no `metadata` in `app/leagues/*`, `app/login/page.tsx`, `app/me/layout.tsx`                               | S    |
 | ~~F17~~ | Referee roles appear as raw English (`main referee`). Done `4a535cd7`.                                                                            | One en/fr label map.                                                                      | French referees read their role in French.                                     | `my-schedule/page.tsx:505`; `people/[personId]/page.tsx:344`                                              | S    |
 | ~~F18~~ | `/live`, `/my-schedule`, `/pass` and a person's page have no back link. Done `b8652b16`.                                                          | Add the existing `BackLink`.                                                              | One tap back to the Event home.                                                | `live/page.tsx:248`; `people/[personId]/page.tsx:192-205`                                                 | S    |
 | F19     | No share button on Match or Tournament pages.                                                                                                     | Generalise `src/components/fighter/ShareProfile.tsx` to any address.                      | "Watch my bout" is one tap to send.                                            | only that component exists                                                                                | S–M  |
-| F20     | No add-to-calendar.                                                                                                                               | A client-side `.ics` of the schedule.                                                     | The phone reminds the fighter, with the app closed.                            | no `.ics` in the repo                                                                                     | M    |
+| ~~F20~~ | No add-to-calendar. NOT built: ruled out.                                                                                                         | A client-side `.ics` of the schedule.                                                     | The phone reminds the fighter, with the app closed.                            | no `.ics` in the repo                                                                                     | M    |
 | F21     | League ranking names are plain text; a fighter's full history is undated and cannot be opened.                                                    | Send the fighter slug and link it; show the date; link each bout.                         | From a rank to the fighter to the bout, without searching.                     | `leagues/[slug]/StandingsGroups.tsx:125-127`; `fighters/[slug]/_components/MatchHistoryModal.tsx:115-143` | S    |
 
 ## M — the signed-in personal space (`apps/web-public/app/me`, `app/profile`)
@@ -1630,6 +1630,99 @@ fix. Each point was read in code, not run:
 
 It needs rulings before a plan: whose are the unsent hits, what an organiser with no PIN sees,
 and whether a PIN typed on a tablet that holds an organiser's login ends that login.
+
+## Built on 2026-10-13, evening: six of the nine F rows that hid a design (NOT pushed, NOT reviewed)
+
+**State on 2026-10-13 22:35.** Seven commits are on local `main` and NOT in `origin/main`
+(`dea8f0e5` to `d471d5c5`). Each row passed its own unit tests, lint, typecheck and browser
+stories. **Not run over this work: the cold review, the seeded breaks, the gate chain, API
+coverage, the whole browser suite.** Do not push before they are. F19 and F21 are planned, not
+built. The plan: `C:\Users\Tony\.claude\plans\pasted-content-id-2bfd-repo-f-github-noble-scott.md`.
+
+The operator picked the nine rows and ruled seven times, each asked with a story:
+
+| Asked                                                                                                                     | Ruling                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| F13. A club member opens the public address of her own DRAFT Event. A wrong link will say "not found". What does she see? | **She sees her draft.** Everybody else gets "not found". A server fault is never "not found".             |
+| F13. A TEST Event answered "not found" on that read to everybody, its own club too. What does a club member see?          | **The home, as for a draft.** One rule for a hidden Event. The public still never sees a test Event.      |
+| F7. A card on the Event home leads to a fighter's bouts. The home does not know who holds the phone. What is on the card? | **The same card for all**, with two links: "My schedule" and "Find my name".                              |
+| F10. Paul opens his schedule in the hall, then again in a changing room with no signal.                                   | **The phone keeps a copy**, removed at sign-out, at "this is not me", and when the server ends the login. |
+| F19. Paul taps "Share" on his bout's page on his phone.                                                                   | **The phone's share sheet**; where there is none, copy the link and say "Copied!"; a failed copy says so. |
+| F15 + F16. Three tabs: a Tournament, a bout, the league list.                                                             | **Page, then Event**: "Dupont vs Martin · FAL 2026". Outside an Event: "Leagues · MyClash".               |
+| F20. Paul adds his 14:20 bout to his calendar at 09:00. At 11:00 the day is delayed by 30 minutes.                        | **Do not build F20.** A calendar entry is wrong as soon as a piste runs late. The row is struck.          |
+
+What people get:
+
+- **F13** (`b401434b`, `d8f6dd25`). A wrong link or QR code shows "Page not found" in the
+  visitor's language, with the way back. A server fault shows "Something went wrong, Try again".
+  A club member sees the public pages of her own draft or test Event: its home, its Tournament
+  pages, its roster.
+- **F15 + F16** (`729cbcba`). Every tab has a name: the page, then the Event; outside an Event,
+  the page, then "MyClash". A bout's tab names its two fighters. Titles are in the visitor's
+  language.
+- **F6** (`b129dfb8`). While the Event runs, "Live now" is under the header of the Event home.
+- **F7** (`b129dfb8`). The Event home has a card with "My schedule" and "Find my name".
+- **F10** (`d471d5c5`). The guest schedule says "Updated 14:02". It reads again when the signal
+  returns, when the visitor comes back to the page, and once a minute in view. With no signal it
+  shows the copy the phone kept and says "Updated 14:02 · offline". The copy leaves the phone at
+  sign-out, at "End guest session", when a visitor picks a name, and on a 401.
+- **For the tests** (`dea8f0e5`). The browser suite now answers the reads a public page makes on
+  the SERVER (`scripts/e2e-server-api-stub.mjs`). Before, no story could open the Event home.
+
+What the recon and the build found:
+
+- **I told the operator a false sentence, and corrected it in the plan.** "The Tournament pages of
+  a test Event still open for its club": they did not. They read the Event through the same
+  door, so they said "not found" to the club too. The ruling fixes them with the home.
+- **The server change is the rule of rulings 97 and 101**: the read of an Event by its address
+  was the one door left behind. `docs/ARCHITECTURE.md` stated the old rule twice; both places
+  are corrected in `b401434b`.
+- **A title set in a layout cuts the Event's name off every page below it.** A person's page
+  read "Participant". Three layouts hand the rule on (`titledAbove`); a sweep holds it.
+- **Next puts the root's title template around a nested default title**: a TV screen read
+  "FAL 2026 · MyClash". The Event's rule uses an absolute title.
+- **The sweep of F13 found nothing wrong, and one false alarm of its own**: the bout page sends
+  its login by another name. The sweep now counts `headers:`.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **"The Event runs" is the status the organiser sets**, as the header's "Live now" pill. Not "a
+  bout is in play at this minute".
+- **On the home the new card is above "Live now".** The card is one row high; the live block can
+  be a screen long.
+- **The schedule reads again once a minute** while the page is in view, and a read with no
+  answer after 20 seconds counts as failed.
+- **A failed read of any kind is worded "offline"**, a server fault too.
+- **Every page gets a tab title**, not only the ones F16 names. A person's page and a Workshop's
+  page read "Participant" and "Workshop", not the name. A club's page and a league's page read
+  their name.
+- **The not-found page answers HTTP 200** on a page of an Event: the Event's loading page has
+  started the answer before the read ends. The visitor sees the right page.
+- **The personal space's schedule shows "could not load" and Retry** when the read fails and the
+  phone keeps nothing. It was a skeleton for ever.
+
+Named, not fixed (each read in code):
+
+- **A person who signs in on a phone that still holds another person's copy** sees that copy
+  until her own read lands (for as long as she has no signal). Sign-in lands by a server
+  redirect: no door of the site runs then. The copy shows what the first person's public page
+  shows, plus his Workshops if he hid them. The operator was told with the plan.
+- `fetchEventTheme` reads the Event a second time, with no login: a draft's hero image is not
+  shown to its club.
+- The people-search page and the Workshop page have no "could not load" state: a failed read of
+  the Event shows them empty.
+- The Tournament statistics read (`stats-data.ts`) sends no login: it stands in the sweep's
+  allow-list.
+- Three hand-written copies of the schedule types (the guest page, the person's page,
+  `me/types.ts`). The personal space's two other schedule callers still show nothing on a failed
+  first read.
+- Not held by a browser story, held by a text pin only: sign-out removes the copy; a visitor who
+  picks a name removes it.
+- The cache question of F13 was read on the dev server only (`Cache-Control: no-cache,
+must-revalidate`), and no cache rule stands in `infra/`. Not read on a production build.
+
+Left of the nine: **F19** (Share) and **F21** (a rank opens the fighter, a history line opens the
+bout). Both are planned in the plan file, with their rulings. Neither is started.
 
 ## Still not checked
 
