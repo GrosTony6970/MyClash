@@ -350,10 +350,13 @@ function TVHeader({
 
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
-        <div className="flex flex-col items-start gap-1 text-left text-sm font-semibold text-slate-600">
+      {/* The side tracks may shrink to nothing: a long name in the next-up tile
+          is cut on its one line. Left to wrap, it made the header taller and
+          pushed the card counts off the bottom of the screen. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6">
+        <div className="text-stage-row flex flex-col items-start gap-1 text-left font-semibold text-slate-600">
           {eventName && <p>◇ {eventName}</p>}
-          {liceName && <p className="text-xs text-slate-500">{liceName}</p>}
+          {liceName && <p className="text-slate-500">{liceName}</p>}
           {connectionCue}
         </div>
         <div className="flex flex-col items-center gap-1">
@@ -375,23 +378,25 @@ function TVHeader({
               {match.awaitingRoundAdvance ? ' · ⏸' : ''}
             </span>
           )}
-          {contextLine && <p className="text-sm font-semibold text-slate-500">{contextLine}</p>}
+          {contextLine && (
+            <p className="text-stage-row font-semibold text-slate-500">{contextLine}</p>
+          )}
           <p className="text-stage-club font-bold">
             <span style={{ color: leftColor }}>{leftName}</span>{' '}
             <span className="text-slate-500">{t('scoring.liveMatch.versus')}</span>{' '}
             <span style={{ color: rightColor }}>{rightName}</span>
           </p>
         </div>
-        <div className="flex justify-end">
+        <div className="flex min-w-0 justify-end">
           {next && (
-            <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-right">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            <div className="min-w-0 rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-right">
+              <p className="text-stage-label font-bold uppercase tracking-widest text-slate-500">
                 {t('scoring.liveMatch.upNext')} ▸
               </p>
-              <p className="text-sm font-semibold">
+              <p className="text-stage-subtitle truncate font-semibold">
                 <span style={{ color: redOnLight }}>●</span> {next.redFighterName ?? '—'}
               </p>
-              <p className="text-sm font-semibold">
+              <p className="text-stage-subtitle truncate font-semibold">
                 <span style={{ color: blueOnLight }}>●</span> {next.blueFighterName ?? '—'}
               </p>
             </div>
