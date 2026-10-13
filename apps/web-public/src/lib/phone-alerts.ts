@@ -95,11 +95,12 @@ export async function turnOffPhoneAlerts(apiUrl: string): Promise<boolean> {
 
 /**
  * Leaves the page of an account that was just deleted. Its saved addresses went with it; the
- * browser's own copy goes here, before the page changes.
+ * browser's own copy goes here, with the schedules this phone kept, before the page changes.
  */
 export async function leaveDeletedAccount(to: string): Promise<void> {
   const held = await browserAddress();
   if (held) await forget(held);
+  forgetSchedules();
   window.location.replace(to);
 }
 

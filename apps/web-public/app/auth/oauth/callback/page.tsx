@@ -7,6 +7,7 @@ import { isOwnSitePath } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
+import { forgetSchedules } from '../../../../src/components/me/schedule-copy';
 import { runOAuthCodeOnce } from './single-flight';
 
 type OAuthResponse = { next?: string };
@@ -146,6 +147,8 @@ function PublicOAuthCallback() {
           }
 
           phase = 'redirecting';
+          // The phone is this person's now: a schedule it kept was somebody else's.
+          forgetSchedules();
           router.replace(result.next ?? next);
         });
       } catch (err) {

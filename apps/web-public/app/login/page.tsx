@@ -19,6 +19,7 @@ import { validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { afterSignIn } from '../../src/lib/sign-in-return';
+import { forgetSchedules } from '../../src/components/me/schedule-copy';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   requestMagicLink,
@@ -90,6 +91,8 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
     const code = await requestPasswordSignIn(apiUrl, email, password);
     setBusy(false);
     if (code === 'ok') {
+      // The phone is this person's now: a schedule it kept was somebody else's.
+      forgetSchedules();
       router.replace(landing);
       return;
     }

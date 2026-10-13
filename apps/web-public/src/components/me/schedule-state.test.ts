@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  departuresSoFar,
   forgetSchedule,
   forgetSchedules,
   keepSchedule,
@@ -167,6 +168,34 @@ describe('the copy leaves the phone with its person', () => {
   it('at sign-out, after the login ended and before the page changes', () => {
     expect(read('src', 'lib', 'phone-alerts.ts')).toMatch(
       /'\/api\/v1\/auth\/logout', \{ method: 'POST' \}\);\s+forgetSchedules\(\);\s+window\.location\.assign\(to\);/,
+    );
+  });
+
+  it('when an account is deleted, before the page changes', () => {
+    expect(read('src', 'lib', 'phone-alerts.ts')).toMatch(
+      /if \(held\) await forget\(held\);\s+forgetSchedules\(\);\s+window\.location\.replace\(to\);/,
+    );
+  });
+
+  it('when somebody signs in with a password, or with Google', () => {
+    expect(read('app', 'login', 'page.tsx')).toMatch(
+      /if \(code === 'ok'\) \{\s+(\/\/[^\n]*\s+)*forgetSchedules\(\);\s+router\.replace\(landing\);/,
+    );
+    expect(read('app', 'auth', 'oauth', 'callback', 'page.tsx')).toMatch(
+      /phase = 'redirecting';\s+(\/\/[^\n]*\s+)*forgetSchedules\(\);\s+router\.replace\(/,
+    );
+  });
+
+  it('and a read that was out when she left writes nothing back', () => {
+    const before = departuresSoFar();
+    forgetSchedules(fakeStore({}));
+    expect(departuresSoFar()).toBe(before + 1);
+    // One Event's copy ended by a 401 is not a person leaving the phone.
+    forgetSchedule('a', fakeStore({}));
+    expect(departuresSoFar()).toBe(before + 1);
+
+    expect(read('src', 'components', 'me', 'use-my-schedule.ts')).toMatch(
+      /const since = departuresSoFar\(\);[\s\S]+?\(answer\) => \{\s+(\/\/[^\n]*\s+)*if \(departuresSoFar\(\) !== since\) return;/,
     );
   });
 

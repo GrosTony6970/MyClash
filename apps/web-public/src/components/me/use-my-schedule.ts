@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { readMySchedule } from './read-my-schedule';
-import { forgetSchedule, keepSchedule, keptSchedule } from './schedule-copy';
+import { departuresSoFar, forgetSchedule, keepSchedule, keptSchedule } from './schedule-copy';
 import {
   copyAfterRead,
   SCHEDULE_LOADING,
@@ -49,9 +49,12 @@ export function useMySchedule<T = PersonSchedule>(eventKey: string | null): MySc
     if (copy) setShown((before) => (before.schedule ? before : scheduleFromCopy(copy)));
 
     const apiUrl = getPublicApiUrl();
+    const since = departuresSoFar();
     return watchSchedule<T>(
       (signal) => readMySchedule<T>(apiUrl, eventKey, signal),
       (answer) => {
+        // She left this phone while the read was out: its answer is not kept, and not shown.
+        if (departuresSoFar() !== since) return;
         const now = Date.now();
         const kept = copyAfterRead(answer, now);
         if (kept === 'forget') forgetSchedule(eventKey);

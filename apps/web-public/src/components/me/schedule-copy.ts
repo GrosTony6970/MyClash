@@ -3,8 +3,9 @@
  * in a hall with no signal (quick win F10; the personal space kept one already).
  *
  * It is one person's day, on a phone that may change hands. So it is REMOVED
- * when that person leaves: at sign-out, at "this is not me", when a visitor
- * picks a name, and when the server says it knows nobody here. Nothing removed
+ * when that person leaves: at sign-out, when an account is deleted, at "this is
+ * not me", when a visitor picks a name or signs in, and when the server says it
+ * knows nobody here. Nothing removed
  * it before: after a sign-out the next person saw the old schedule until their
  * own read landed.
  *
@@ -64,8 +65,21 @@ export function forgetSchedule(eventKey: string, store: Store | null = phoneStor
   }
 }
 
+let departures = 0;
+
+/**
+ * How many times a person left this phone since the page loaded. A schedule
+ * page notes it when it starts to read, and takes no answer once it moved: a
+ * read that was out when she left would write her schedule back after
+ * `forgetSchedules` removed it.
+ */
+export function departuresSoFar(): number {
+  return departures;
+}
+
 /** Every Event's copy: the person on this phone is leaving, or is another one now. */
 export function forgetSchedules(store: Store | null = phoneStore()): void {
+  departures += 1;
   try {
     if (!store) return;
     const keys = Array.from({ length: store.length }, (_, index) => store.key(index));
