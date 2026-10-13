@@ -95,6 +95,11 @@ test('the tablet beeps and vibrates when the clock crosses 0:00, and again at th
     clock: { status: 'halted', activeMs: 89_000, startedAt: STARTED },
   });
   await expect(status(page)).toHaveAttribute('data-status', 'halted');
+  // The Tournament's rules are read: its one hit button a side, not the
+  // default two. Before, a Resume with one second left is asked about (the
+  // default rules have a soft zone), and the clock does not run: red once in
+  // CI, 2026-10-13, where the page showed the "Time is up" question.
+  await expect(page.getByTestId('clean-hit-button')).toHaveCount(2);
   expect(await cues(page)).toEqual({ vibrations: [], beeps: 0 });
 
   await primary(page).click();
