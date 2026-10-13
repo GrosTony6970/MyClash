@@ -37,6 +37,8 @@ export const scoring = {
       serverFault: 'The server has a problem. Your PIN was not checked. Try again in a minute.',
       emailRefused: 'This email address was refused. Check it and try again.',
       linkNotSent: 'The login link was not sent. Try again in a minute.',
+      tooManyLinks:
+        'Too many login links were asked for from this place. Wait, up to one hour, before you ask again.',
     },
     // The email form: whose it is, and the way back from "check your email".
     accountAccess: 'MyClash account',

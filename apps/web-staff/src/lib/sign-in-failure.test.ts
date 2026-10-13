@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
+import { en, fr } from '@myclash/i18n';
 import { OFFLINE_CODE } from '../offline/failure-kind';
 import { magicLinkFailureKey, missingBeforeSignIn, pinLoginFailureKey } from './sign-in-failure';
 
@@ -66,6 +67,13 @@ describe('the PIN sign-in that failed', () => {
     expect(pinLoginFailureKey({ ...edge, status: 401 })).toBe('common.apiFailure.blocked');
   });
 
+  // The edge finds no route to the API and answers its own 404, with no body:
+  // it read "this event was not found, check the event code".
+  it('says the connection was blocked for a 404 or a 429 of the edge', () => {
+    expect(pinLoginFailureKey(http(404, null))).toBe('common.apiFailure.blocked');
+    expect(pinLoginFailureKey(http(429, null))).toBe('common.apiFailure.blocked');
+  });
+
   it('says the server has a problem for a 5xx, and never "wrong PIN"', () => {
     expect(pinLoginFailureKey(http(500, 'INTERNAL_SERVER_ERROR'))).toBe(
       'scoring.login.errors.serverFault',
@@ -103,8 +111,12 @@ describe('the login link that was not sent', () => {
     expect(magicLinkFailureKey(workerOffline)).toBe('common.apiFailure.network');
   });
 
-  it('says "too many requests" for a 429: ten links an hour for the whole hall', () => {
-    expect(magicLinkFailureKey(http(429, 'HTTP_429'))).toBe('common.apiFailure.tooManyRequests');
+  it('says "too many links, up to one hour" for a 429: ten an hour for the whole hall', () => {
+    expect(magicLinkFailureKey(http(429, 'HTTP_429'))).toBe('scoring.login.errors.tooManyLinks');
+  });
+
+  it('says the connection was blocked for a 4xx of the edge', () => {
+    expect(magicLinkFailureKey(http(429, null))).toBe('common.apiFailure.blocked');
   });
 
   it('says the address was refused for a 400', () => {
@@ -120,6 +132,41 @@ describe('the login link that was not sent', () => {
       'scoring.login.errors.linkNotSent',
     );
     expect(magicLinkFailureKey(refused(403))).toBe('scoring.login.errors.linkNotSent');
+  });
+});
+
+// The functions answer keys, and the sweep of the words reads only a key
+// written inside `t(...)`: a key misspelt here would print itself on screen.
+describe('every sentence of a failed sign-in', () => {
+  const every: ApiFailure[] = [
+    { kind: 'network' },
+    { kind: 'aborted' },
+    workerOffline,
+    edge,
+    refused(401),
+    refused(403),
+    http(400),
+    http(404, 'NOT_FOUND'),
+    http(404, null),
+    http(429, 'HTTP_429'),
+    http(500, 'INTERNAL_SERVER_ERROR'),
+  ];
+  const keys = new Set([
+    ...every.map(pinLoginFailureKey),
+    ...every.map(magicLinkFailureKey),
+    missingBeforeSignIn('') ?? '',
+  ]);
+  const said = (words: unknown, key: string) =>
+    key.split('.').reduce<unknown>((at, part) => (at as Record<string, unknown>)?.[part], words);
+
+  it.each([...keys])('%s is written in English and in French', (key) => {
+    expect(said(en, key)).toEqual(expect.any(String));
+    expect(said(fr, key)).toEqual(expect.any(String));
+    expect(said(fr, key)).not.toBe(said(en, key));
+  });
+
+  it('is one of twelve sentences', () => {
+    expect(keys.size).toBe(12);
   });
 });
 

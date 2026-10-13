@@ -22,13 +22,16 @@ import { OFFLINE_CODE } from '../offline/failure-kind';
  * No network has two shapes: a request that threw, and the 503 the pad's
  * service worker answers itself (`offlineResponse()`). An answer with no
  * problem+json body is the edge's: a ban after too many refusals of one
- * address, which a whole hall shares.
+ * address, which a whole hall shares, or its own 404 when it finds no route
+ * to the API. Read as the API's, that 404 said "this event was not found".
  */
 function notTheApi(failure: ApiFailure): string | null {
   if (failure.kind === 'network') return 'common.apiFailure.network';
   if (failure.kind === 'http' && failure.code === OFFLINE_CODE) return 'common.apiFailure.network';
-  const edge =
-    failure.kind === 'unauthenticated' && failure.detail === null && failure.code === null;
+  if (failure.kind !== 'unauthenticated' && failure.kind !== 'http') return null;
+  // A 4xx with no body of the API. A 5xx with none stays a server fault: the
+  // edge says 502 while the API is down.
+  const edge = failure.status < 500 && failure.detail === null && failure.code === null;
   return edge ? 'common.apiFailure.blocked' : null;
 }
 
@@ -69,12 +72,13 @@ export function missingBeforeSignIn(eventSlugOrCode: string): string | null {
  *
  * The form printed the request line: "POST /api/v1/auth/magic-link failed
  * (400): Validation failed". A 400 here is an address the browser took and the
- * server refused. The 429 is one bucket for a whole hall: ten links an hour.
+ * server refused. The 429 is one bucket for a whole hall, ten links an hour:
+ * the shared sentence says "wait a moment", so it has its own.
  */
 export function magicLinkFailureKey(failure: ApiFailure): string {
   const said = notTheApi(failure);
   if (said) return said;
-  if (failure.kind === 'http' && failure.status === 429) return 'common.apiFailure.tooManyRequests';
+  if (failure.kind === 'http' && failure.status === 429) return 'scoring.login.errors.tooManyLinks';
   if (failure.kind === 'http' && failure.status === 400) return 'scoring.login.errors.emailRefused';
   return 'scoring.login.errors.linkNotSent';
 }

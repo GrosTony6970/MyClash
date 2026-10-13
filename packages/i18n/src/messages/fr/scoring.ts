@@ -42,6 +42,8 @@ export const scoring = {
         "Le serveur a un problème. Votre PIN n'a pas été vérifié. Réessayez dans une minute.",
       emailRefused: 'Cette adresse email a été refusée. Vérifiez-la et réessayez.',
       linkNotSent: "Le lien de connexion n'a pas été envoyé. Réessayez dans une minute.",
+      tooManyLinks:
+        "Trop de liens de connexion ont été demandés depuis ce lieu. Attendez, jusqu'à une heure, avant d'en redemander un.",
     },
     accountAccess: 'Compte MyClash',
     accountAccessHint: 'Pour les organisateurs. Un bénévole se connecte avec le PIN, au-dessus.',

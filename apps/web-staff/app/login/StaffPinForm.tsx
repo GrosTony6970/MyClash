@@ -21,6 +21,10 @@ interface Props {
  * (`idx_event_staff_accounts_event_username`). "marie" identifies nobody until
  * an event is chosen, so asking for it first would be asking a question that
  * cannot be answered yet.
+ *
+ * A shared tablet: the browser must not keep one volunteer's username and PIN
+ * and offer them to the next. It ignores `autoComplete="off"` on a password
+ * field; `one-time-code` is the hint it neither saves nor fills.
  */
 export function StaffPinForm({ linkedEvent, linkedUsername }: Props) {
   const { t } = useI18n();
@@ -50,7 +54,7 @@ export function StaffPinForm({ linkedEvent, linkedUsername }: Props) {
         label={t('scoring.login.username')}
         value={form.username}
         onChange={form.setUsernameEdit}
-        autoComplete="username"
+        autoComplete="off"
         asTyped
       />
       <LabelledInput
@@ -60,7 +64,7 @@ export function StaffPinForm({ linkedEvent, linkedUsername }: Props) {
         onChange={form.setPin}
         type="password"
         inputMode="numeric"
-        autoComplete="current-password"
+        autoComplete="one-time-code"
         inputRef={form.pinRef}
       />
 

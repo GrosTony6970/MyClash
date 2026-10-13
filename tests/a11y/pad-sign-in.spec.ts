@@ -96,6 +96,11 @@ test('an Event that is not found, an account that is closed, a server that fails
   stub.answer = problem(500, 'INTERNAL_SERVER_ERROR', 'Internal server error');
   await signIn(page);
   await expect(alert).toHaveText(/your PIN was not checked/i);
+
+  // The edge found no route to the API: its own 404, with no body of the API.
+  stub.answer = { status: 404, json: {} };
+  await signIn(page);
+  await expect(alert).toHaveText(/the connection to the server was blocked/i);
 });
 
 // Quick win S2. A borrowed tablet turned "marie" into "Marie" and a code into
@@ -110,8 +115,9 @@ test('the keyboard leaves a username and an event code as they are typed', async
     await expect(field).toHaveAttribute('autocorrect', 'off');
     await expect(field).toHaveAttribute('spellcheck', 'false');
   }
-  await expect(page.locator('#staffUsername')).toHaveAttribute('autocomplete', 'username');
-  await expect(page.locator('#staffPin')).toHaveAttribute('autocomplete', 'current-password');
+  // A shared tablet: the browser keeps no volunteer's username or PIN for the next one.
+  await expect(page.locator('#staffUsername')).toHaveAttribute('autocomplete', 'off');
+  await expect(page.locator('#staffPin')).toHaveAttribute('autocomplete', 'one-time-code');
   await expect(page.locator('#eventSlugOrCode')).toHaveAttribute('autocomplete', 'off');
   // The email field keeps the keyboard's help: an address is a word of the owner.
   await expect(page.locator('#email')).not.toHaveAttribute('autocorrect', 'off');
@@ -165,7 +171,7 @@ test('a login link that is not sent says why, and prints no request line', async
 
   stub.answer = problem(429, 'HTTP_429', 'ThrottlerException: Too Many Requests');
   await send();
-  await expect(alert).toHaveText(/too many requests/i);
+  await expect(alert).toHaveText(/too many login links.*up to one hour/i);
 
   stub.answer = problem(500, 'INTERNAL_SERVER_ERROR', 'Internal server error');
   await send();
