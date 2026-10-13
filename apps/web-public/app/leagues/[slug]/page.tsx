@@ -1,5 +1,7 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { accentClassFor } from '@myclash/ui';
 import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import { getServerT } from '@myclash/next-i18n/server';
@@ -32,7 +34,8 @@ interface Standings {
   pendingTournaments?: Array<{ tournamentId: string; name: string; eventName: string }>;
 }
 
-async function fetchLeague(apiUrl: string, slug: string): Promise<League | null> {
+/** `cache`: the page and its title ask in the same request, and that is one read. */
+const fetchLeague = cache(async (apiUrl: string, slug: string): Promise<League | null> => {
   try {
     const res = await fetch(`${apiUrl}/api/v1/leagues/${slug}`, { cache: 'no-store' });
     if (!res.ok) return null;
@@ -40,6 +43,17 @@ async function fetchLeague(apiUrl: string, slug: string): Promise<League | null>
   } catch {
     return null;
   }
+});
+
+/** The league's name; with none to give, the page's own words of the league list. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const league = await fetchLeague(getServerApiUrl(), slug);
+  return { title: league?.name ?? (await getServerT())('publicApp.titles.leagues') };
 }
 
 async function fetchStandings(apiUrl: string, leagueId: string): Promise<Standings | null> {

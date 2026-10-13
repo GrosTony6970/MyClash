@@ -13,17 +13,14 @@
  * One home, the real one.
  */
 
-import type { Metadata } from 'next';
+import { titled } from '@/lib/page-metadata';
 import { PublicHome } from './PublicHome';
 
 interface Props {
   params: Promise<{ eventSlug: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  return { title: `Home — ${eventSlug}` };
-}
+export const generateMetadata = titled('publicApp.titles.home');
 
 export default async function HomePage({ params }: Props) {
   const { eventSlug } = await params;

@@ -3,9 +3,9 @@
  * home's Tournaments section. Mirrors the /workshops list layout.
  */
 
-import type { Metadata } from 'next';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
+import { titled } from '@/lib/page-metadata';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader } from '../_components/EventHeader';
 import { eventOrNotFound } from '../_lib/event-or-not-found';
@@ -17,10 +17,7 @@ interface Props {
   params: Promise<{ eventSlug: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  return { title: `Tournaments — ${eventSlug}` };
-}
+export const generateMetadata = titled('publicApp.titles.tournaments');
 
 export default async function TournamentsListPage({ params }: Props) {
   const { eventSlug } = await params;

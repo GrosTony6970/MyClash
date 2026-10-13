@@ -14,6 +14,7 @@
 import type { Metadata } from 'next';
 import { getServerApiUrl } from '@/lib/api-url';
 import { fetchEventTheme } from '../../../src/theme';
+import { eventTitleRule } from './_lib/event-or-not-found';
 
 interface Props {
   children: React.ReactNode;
@@ -21,13 +22,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  return {
-    title: {
-      template: `%s — MyClash`,
-      default: eventSlug,
-    },
-  };
+  return { title: await eventTitleRule(await params) };
 }
 
 export default async function EventLayout({ children, params }: Props) {

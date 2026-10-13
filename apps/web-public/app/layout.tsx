@@ -9,6 +9,7 @@ import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
 import { RuntimeBanner } from './_components/RuntimeBanner';
 import { SimulatedTimeBadge } from './_components/SimulatedTimeBadge';
+import { siteTitleRule } from '@/lib/page-metadata';
 import '../src/styles/globals.css';
 
 // Tournament Manual aesthetic — same font stack as apps/web-admin.
@@ -47,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // localhost in the built output, so a crawler is handed URLs it cannot
     // fetch. It has to be set once, at the root, for the whole app.
     metadataBase: new URL(getAppOrigin()),
-    title: t('metadata.publicTitle'),
+    title: await siteTitleRule(),
     description: t('metadata.publicDescription'),
     icons: {
       icon: '/brand/Logomini_nobackground.png',

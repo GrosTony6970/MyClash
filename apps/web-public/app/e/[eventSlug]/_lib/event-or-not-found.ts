@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
+import { eventTitles } from '@/lib/page-title';
 import { fetchEventInfo, type EventInfo } from '../_components/EventHeader';
 import type { EventRead } from './event-read';
 
@@ -15,6 +16,17 @@ import type { EventRead } from './event-read';
 export const readEventOnce = cache(async (eventSlug: string): Promise<EventRead> =>
   fetchEventInfo(eventSlug, getServerApiUrl(), { headers: await requestLoginHeader() }),
 );
+
+/**
+ * What every tab under an Event ends with: the Event's NAME (`eventTitles`).
+ * The address is what a tab reads when the name cannot be had: the read failed,
+ * or the visitor may not read this Event (a staff session opens a hidden
+ * Event's bout without being of its club). It never refuses a page.
+ */
+export async function eventTitleRule({ eventSlug }: { eventSlug: string }) {
+  const read = await readEventOnce(eventSlug);
+  return eventTitles(read.kind === 'found' ? read.event.name : eventSlug);
+}
 
 /**
  * The Event, or the page that says why there is none (quick win F13): an Event

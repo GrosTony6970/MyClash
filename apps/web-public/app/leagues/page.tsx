@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@myclash/next-i18n/server';
+import { titled } from '@/lib/page-metadata';
+
+export const generateMetadata = titled('publicApp.titles.leagues');
 
 interface League {
   id: string;

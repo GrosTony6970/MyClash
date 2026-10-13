@@ -20,10 +20,7 @@ interface Props {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  // The event layout already applies a "%s — MyClash" title template, and the
-  // key it needed was already in the pack — the workshop sibling has used it
-  // all along. This one hardcoded English, so a French visitor got a French
-  // page under an English <title>.
+  // The page's own words only: the Event's layout adds the Event's name.
   const tr = createTranslator(getMessages(await resolveServerLocale()));
   return { title: tr('publicApp.eventHome.schedule.viewTournamentSchedule') };
 }

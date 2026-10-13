@@ -7,9 +7,9 @@
  *   ✓ Anonymous can browse; enroll requires login
  */
 
-import type { Metadata } from 'next';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
+import { titled } from '@/lib/page-metadata';
 import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT } from '@myclash/next-i18n/server';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
@@ -19,11 +19,7 @@ interface Props {
   params: Promise<{ eventSlug: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  const t = await getServerT();
-  return { title: t('publicApp.workshops.metadataTitle', { name: eventSlug }) };
-}
+export const generateMetadata = titled('publicApp.titles.workshops');
 
 async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<WorkshopListItem[]> {
   try {

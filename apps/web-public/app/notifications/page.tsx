@@ -1,10 +1,7 @@
-import type { Metadata } from 'next';
+import { titled } from '@/lib/page-metadata';
 import NotificationSettingsClient from './NotificationSettingsClient';
 
-export const metadata: Metadata = {
-  title: 'Notifications | MyClash',
-  description: 'Manage MyClash push notifications.',
-};
+export const generateMetadata = titled('publicApp.titles.notifications');
 
 export default function NotificationsPage() {
   return <NotificationSettingsClient />;

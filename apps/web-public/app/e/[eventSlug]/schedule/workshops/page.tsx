@@ -26,7 +26,7 @@ interface Props {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  // The event layout already applies a "%s — MyClash" title template.
+  // The page's own words only: the Event's layout adds the Event's name.
   const tr = createTranslator(getMessages(await resolveServerLocale()));
   return { title: tr('publicApp.eventHome.schedule.viewWorkshopSchedule') };
 }

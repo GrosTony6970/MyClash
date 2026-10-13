@@ -8,6 +8,7 @@
 import type { Metadata } from 'next';
 import { getServerApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
+import { cache } from 'react';
 import { getServerT } from '@myclash/next-i18n/server';
 
 interface Props {
@@ -43,7 +44,8 @@ interface Club {
   recentResults: ClubResult[];
 }
 
-async function fetchClub(slug: string, apiUrl: string): Promise<Club | null> {
+/** `cache`: the page and its title ask in the same request, and that is one read. */
+const fetchClub = cache(async (slug: string, apiUrl: string): Promise<Club | null> => {
   try {
     const res = await fetch(`${apiUrl}/api/v1/clubs/${slug}`, {
       cache: 'no-store',
@@ -53,11 +55,13 @@ async function fetchClub(slug: string, apiUrl: string): Promise<Club | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  return { title: slug };
+  const club = await fetchClub(slug, getServerApiUrl());
+  // No name to give (not found, or the read failed): the address.
+  return { title: club?.name ?? slug };
 }
 
 export default async function ClubPage({ params }: Props) {

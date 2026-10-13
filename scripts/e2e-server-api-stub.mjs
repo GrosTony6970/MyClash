@@ -97,6 +97,61 @@ function readable(slug, cookie) {
   return slug;
 }
 
+/**
+ * Three bouts that are over (a page of one opens no live channel): one with its
+ * two fighters named, one whose names are not known, and one the public may not
+ * read, as the API marks it for a member of its club.
+ */
+const BOUTS = {
+  'bout-1': { names: ['Jean Dupont', 'Paul Martin'] },
+  'bout-nameless': { names: ['', ''] },
+  'bout-hidden': { names: ['Jean Dupont', 'Paul Martin'], hiddenFromPublic: true },
+};
+
+function boutRow(id) {
+  return {
+    id,
+    match_number_label: 'L1-P1-M03',
+    status: 'completed',
+    red_score: 5,
+    blue_score: 3,
+    started_at: '2026-03-14T09:00:00.000Z',
+    ended_at: '2026-03-14T09:03:00.000Z',
+    red_registration_id: 'r-red',
+    blue_registration_id: 'r-blue',
+    winner_registration_id: 'r-red',
+    end_reason: 'first_to_points',
+    ...(BOUTS[id].hiddenFromPublic ? { hiddenFromPublic: true } : {}),
+  };
+}
+
+function boutSummary(id) {
+  const [redName, blueName] = BOUTS[id].names;
+  return {
+    roundCode: 'P1',
+    redName,
+    blueName,
+    redClub: null,
+    blueClub: null,
+    eventTimezone: 'Europe/Paris',
+    referees: [],
+    bestOf: 1,
+    matchFormat: null,
+    scoringConfig: null,
+  };
+}
+
+/** The four reads of a bout's page: `rest` is what follows `/matches/`. */
+function boutAnswer([id, read, ...more]) {
+  if (more.length > 0) return null;
+  // A bout that is not there: each of the four reads says so.
+  if (id === 'no-such-bout') return NOT_FOUND;
+  if (!BOUTS[id]) return null;
+  if (read === undefined) return ok(boutRow(id));
+  if (read === 'summary') return ok(boutSummary(id));
+  return read === 'exchanges' || read === 'penalties' ? ok([]) : null;
+}
+
 function slugOfId(eventId) {
   return Object.keys(EVENTS).find((slug) => EVENTS[slug].id === eventId);
 }
@@ -110,8 +165,7 @@ export function answerFor(method, url, cookie) {
   const parts = url.split('?')[0].split('/').filter(Boolean);
   if (parts[0] !== 'api' || parts[1] !== 'v1') return null;
   const rest = parts.slice(3);
-  // A bout that is not there: its page asks four reads, and each says so.
-  if (parts[2] === 'matches') return rest[0] === 'no-such-bout' ? NOT_FOUND : null;
+  if (parts[2] === 'matches') return boutAnswer(rest);
   if (parts[2] !== 'events') return null;
 
   // GET /events/:slug

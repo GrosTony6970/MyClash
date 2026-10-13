@@ -4,6 +4,9 @@ import { isOwnSitePath } from '@myclash/types';
 import { getServerApiUrl } from '@/lib/api-url';
 import { backLabelKey } from '@/lib/bout-page';
 import { loginCookieHeader } from '@/lib/login-cookie';
+import { boutTitle } from '@/lib/page-title';
+import { getServerT } from '@myclash/next-i18n/server';
+import { cache } from 'react';
 import { MatchLiveView } from './match-live-view';
 import {
   mapMatchRow,
@@ -75,6 +78,15 @@ async function fetchPenalties(matchId: string, login: LoginHeaders): Promise<Mat
   return (await res.json()) as MatchPenaltyRow[];
 }
 
+/**
+ * The bout and its summary, read ONCE per request: the page and its title both
+ * ask (`cache`), with the viewer's login.
+ */
+const readBout = cache(async (matchId: string) => {
+  const login = loginCookieHeader(await cookies());
+  return Promise.all([fetchMatch(matchId, login), fetchSummary(matchId, login)]);
+});
+
 interface Props {
   params: Promise<{ eventSlug: string; matchId: string }>;
   searchParams: Promise<{ return?: string }>;
@@ -85,9 +97,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const { return: returnParam } = await searchParams;
 
   const login = loginCookieHeader(await cookies());
-  const [match, summary, exchanges, penalties] = await Promise.all([
-    fetchMatch(matchId, login),
-    fetchSummary(matchId, login),
+  const [[match, summary], exchanges, penalties] = await Promise.all([
+    readBout(matchId),
     fetchExchanges(matchId, login),
     fetchPenalties(matchId, login),
   ]);
@@ -113,12 +124,10 @@ export default async function MatchPage({ params, searchParams }: Props) {
   );
 }
 
+/** The tab names the two fighters (quick win F15); the Event's layout adds the Event. */
 export async function generateMetadata({ params }: Props) {
   const { matchId } = await params;
-  const match = await fetchMatch(matchId, loginCookieHeader(await cookies()));
-  return {
-    title: match?.matchNumberLabel
-      ? `Match ${match.matchNumberLabel} · MyClash`
-      : 'Match · MyClash',
-  };
+  const [match, summary] = await readBout(matchId);
+  const t = await getServerT();
+  return { title: boutTitle({ ...summary, label: match?.matchNumberLabel }, t) };
 }

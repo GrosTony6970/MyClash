@@ -64,7 +64,7 @@ export async function generateMetadata({
   const event = await eventOrNotFound(eventSlug);
   const place = formatEventPlace(event);
   return {
-    title: t('publicApp.participants.metaTitle', { name: event.name }),
+    title: t('publicApp.titles.participants'),
     description: place
       ? t('publicApp.participants.metaDescriptionWithPlace', { name: event.name, place })
       : t('publicApp.participants.metaDescription', { name: event.name }),

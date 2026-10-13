@@ -63,6 +63,28 @@ test('the bout that is not there answers 404 on each of its reads', () => {
   }
 });
 
+test('a bout answers its row, its two names, and two empty lists', () => {
+  assert.equal(answerFor('GET', '/api/v1/matches/bout-1', undefined).json.status, 'completed');
+  const summary = answerFor('GET', '/api/v1/matches/bout-1/summary', undefined).json;
+  assert.deepEqual([summary.redName, summary.blueName], ['Jean Dupont', 'Paul Martin']);
+  assert.deepEqual(answerFor('GET', '/api/v1/matches/bout-1/exchanges', undefined).json, []);
+  assert.deepEqual(answerFor('GET', '/api/v1/matches/bout-1/penalties', undefined).json, []);
+  assert.equal(
+    answerFor('GET', '/api/v1/matches/bout-nameless/summary', undefined).json.redName,
+    '',
+  );
+  assert.equal(
+    answerFor('GET', '/api/v1/matches/bout-1', undefined).json.hiddenFromPublic,
+    undefined,
+  );
+  assert.equal(
+    answerFor('GET', '/api/v1/matches/bout-hidden', undefined).json.hiddenFromPublic,
+    true,
+  );
+  assert.equal(answerFor('GET', '/api/v1/matches/bout-1/other', undefined), null);
+  assert.equal(answerFor('GET', '/api/v1/matches/bout-1/summary/x', undefined), null);
+});
+
 test('a path the stub does not know has no answer', () => {
   assert.equal(answerFor('GET', '/api/v1/matches/m-1', undefined), null);
   assert.equal(answerFor('GET', '/api/v1/events/some-other-event', undefined), null);

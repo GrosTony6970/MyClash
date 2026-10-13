@@ -1,5 +1,8 @@
 import { getServerT } from '@myclash/next-i18n/server';
 import NotificationSettingsClient from '../../notifications/NotificationSettingsClient';
+import { titled } from '@/lib/page-metadata';
+
+export const generateMetadata = titled('publicApp.titles.notifications');
 
 export default async function PersonalNotificationsPage() {
   const t = await getServerT();

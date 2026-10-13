@@ -15,6 +15,7 @@ import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT } from '@myclash/next-i18n/server';
 import Link from 'next/link';
+import { cache } from 'react';
 import { fetchTournamentStats } from '../stats-data';
 import { StatsView } from '../StatsView';
 
@@ -23,9 +24,11 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { tournamentSlug } = await params;
+  const { eventSlug, tournamentSlug } = await params;
   const t = await getServerT();
-  return { title: `${t('publicApp.tournamentStats.metaTitle')} — ${tournamentSlug}` };
+  const header = await fetchTournamentHeader(eventSlug, tournamentSlug, getServerApiUrl());
+  // No name to give (not found, or the read failed): the address.
+  return { title: t('publicApp.titles.stats', { tournament: header?.name ?? tournamentSlug }) };
 }
 
 /**
@@ -37,25 +40,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * exactly this way (../page.tsx), so this adds no new API surface — the colour
  * was already in this response, merely dropped by the parse.
  */
-async function fetchTournamentHeader(
-  eventSlug: string,
-  tournamentSlug: string,
-  apiUrl: string,
-): Promise<{ id: string; colorToken: string | null } | null> {
-  try {
-    const res = await fetch(
-      `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
-      { cache: 'no-store', headers: await requestLoginHeader() },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { tournament?: { id?: string; color?: string | null } };
-    const id = data.tournament?.id;
-    if (!id) return null;
-    return { id, colorToken: data.tournament?.color ?? null };
-  } catch {
-    return null;
-  }
+interface TournamentHeader {
+  id: string;
+  name: string | null;
+  colorToken: string | null;
 }
+
+/** `cache`: the page and its title ask in the same request, and that is one read. */
+const fetchTournamentHeader = cache(
+  async (
+    eventSlug: string,
+    tournamentSlug: string,
+    apiUrl: string,
+  ): Promise<TournamentHeader | null> => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
+        { cache: 'no-store', headers: await requestLoginHeader() },
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        tournament?: { id?: string; name?: string; color?: string | null };
+      };
+      const id = data.tournament?.id;
+      if (!id) return null;
+      return {
+        id,
+        name: data.tournament?.name ?? null,
+        colorToken: data.tournament?.color ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+);
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 

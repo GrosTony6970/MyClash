@@ -14,13 +14,13 @@
  * chrome — unlike the `/lice/[liceName]/display` routes it links to.
  */
 
-import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
 import { loginCookieHeader } from '@/lib/login-cookie';
+import { titled } from '@/lib/page-metadata';
 import { getServerT } from '@myclash/next-i18n/server';
 import { getStaffLoginUrl } from '@/lib/staff-url';
 import { NowLiveSection } from './NowLiveSection';
@@ -41,11 +41,7 @@ interface EventDisplays {
   lices: HubLice[];
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { eventSlug } = await params;
-  const t = await getServerT();
-  return { title: `${t('publicApp.display.hubTitle')} — ${eventSlug}` };
-}
+export const generateMetadata = titled('publicApp.display.hubTitle');
 
 /**
  * One public call: `GET /events/:slug` already embeds

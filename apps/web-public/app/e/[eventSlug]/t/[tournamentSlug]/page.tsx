@@ -49,14 +49,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const apiUrl = getServerApiUrl();
   const t = await getServerT();
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
-  if (outcome.kind !== 'ok') return { title: `${tournamentSlug} · MyClash` };
+  // No name to give (not found, or the read failed): the address, as the Event's layout does.
+  if (outcome.kind !== 'ok') return { title: tournamentSlug };
   const { data } = outcome;
   const fighterCount = data.pools.reduce(
     (n, pool) => n + (pool.members?.length ?? pool.standings.length),
     0,
   );
   return {
-    title: `${data.tournament.name} · MyClash`,
+    title: data.tournament.name,
     description: `${t('publicApp.tournament.fighterCount', { count: fighterCount })} · ${data.tournament.rulesetLabel ?? data.tournament.rulesetCode}`,
   };
 }
