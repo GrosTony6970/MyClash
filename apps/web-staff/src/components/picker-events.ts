@@ -15,12 +15,14 @@ export interface PickerEvent {
  * as stored. It is read as that day in UTC and written in UTC: read in the
  * tablet's own zone, a tablet west of Greenwich would show the day before.
  *
- * The column is text. A value that is not a day is shown as stored.
+ * The column is text. A value that is not a day is shown as stored: another
+ * shape, or a day no calendar has (`2026-13-45` would roll over to February).
  */
 export function eventDateLabel(startDate: string, locale: string): string {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDate);
   if (!day) return startDate;
   const at = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3])));
+  if (at.toISOString().slice(0, 10) !== startDate) return startDate;
   return at.toLocaleDateString(locale, {
     weekday: 'short',
     day: 'numeric',

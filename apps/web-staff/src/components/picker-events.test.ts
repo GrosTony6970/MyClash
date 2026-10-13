@@ -108,6 +108,19 @@ describe('eventDateLabel', () => {
     expect(eventDateLabel('next summer', 'fr')).toBe('next summer');
   });
 
+  it('shows a day no calendar has as it is stored: it does not roll over', () => {
+    expect(eventDateLabel('2026-13-45', 'en')).toBe('2026-13-45');
+    expect(eventDateLabel('2026-02-30', 'en')).toBe('2026-02-30');
+  });
+
+  // The test above is green in Paris with the day written in the tablet's
+  // zone: only a tablet west of Greenwich shows the day before.
+  it('writes the day in UTC, as it reads it', () => {
+    const source = readFileSync(join(__dirname, 'picker-events.ts'), 'utf8');
+    expect(source).toContain('new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1');
+    expect(source).toContain("timeZone: 'UTC',");
+  });
+
   it('the list writes the date with it, and keeps "no date" for a missing one', () => {
     const picker = readFileSync(join(__dirname, 'EventPicker.tsx'), 'utf8');
     expect(picker).toMatch(
