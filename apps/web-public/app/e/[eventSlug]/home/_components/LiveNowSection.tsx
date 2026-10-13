@@ -70,6 +70,7 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
         cache: 'no-store',
+        credentials: 'include',
       });
       if (!res.ok) return;
       const data = (await res.json()) as LiveStateResponse;
@@ -85,8 +86,11 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
     // callback, which the react-hooks/set-state-in-effect rule allows — a bare
     // synchronous `fetchState()` in the effect body would trip it. Mirrors /live.
     const controller = new AbortController();
+    // With the visitor's login, as the server's first read: a club member's draft
+    // Event would lose its live block at the first read from the browser.
     fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
       cache: 'no-store',
+      credentials: 'include',
       signal: controller.signal,
     })
       .then(async (res) => {

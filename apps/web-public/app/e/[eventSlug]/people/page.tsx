@@ -48,7 +48,9 @@ export default function PeoplePage() {
 
   // The lookup takes the Event's id, not its slug (ruling 121a).
   useEffect(() => {
-    void fetchEventInfo(eventSlug, apiUrl).then((event) => setEventId(event?.id ?? null));
+    void fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' }).then((read) =>
+      setEventId(read.kind === 'found' ? read.event.id : null),
+    );
   }, [eventSlug, apiUrl]);
 
   const search = useCallback(

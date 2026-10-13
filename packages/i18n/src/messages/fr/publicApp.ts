@@ -1218,9 +1218,12 @@ export const publicApp = {
     unaffiliatedLabel: 'Sans club',
     clubLedBy: 'Emmené par {names}',
   },
+  notFound: {
+    title: 'Page introuvable',
+    body: 'Cette adresse ne mène nulle part sur MyClash. Vérifiez le lien ou le QR code.',
+  },
   participants: {
     metaTitle: 'Participants · {name} · MyClash',
-    metaTitleFallback: 'Participants · MyClash',
     metaDescription: 'Liste des participants pour {name}.',
     metaDescriptionWithPlace: 'Liste des participants pour {name} à {place}.',
     searchLabel: 'Rechercher des participants',

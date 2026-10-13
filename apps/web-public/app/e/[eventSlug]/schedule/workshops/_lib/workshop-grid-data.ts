@@ -29,7 +29,7 @@ import {
   type WorkshopBlock,
 } from '@myclash/schedule-core';
 import { dayEndSlot, deriveStartHour } from './workshop-grid-window';
-import { fetchEventInfo } from '../../../_components/EventHeader';
+import { eventOrNotFound } from '../../../_lib/event-or-not-found';
 import {
   fetchVenues,
   fetchWorkshopBreaks,
@@ -98,14 +98,13 @@ function toBoardWorkshop(w: PublicWorkshop): BoardWorkshop {
 export async function loadWorkshopSchedule(
   eventSlug: string,
   apiUrl: string,
-): Promise<WorkshopScheduleData | null> {
+): Promise<WorkshopScheduleData> {
   const [event, workshops, venues, breaks] = await Promise.all([
-    fetchEventInfo(eventSlug, apiUrl),
+    eventOrNotFound(eventSlug),
     fetchWorkshops(eventSlug, apiUrl),
     fetchVenues(eventSlug, apiUrl),
     fetchWorkshopBreaks(eventSlug, apiUrl),
   ]);
-  if (!event) return null;
 
   const tz = event.timezone || 'Europe/Paris';
   const href = (slug: string) => `/e/${eventSlug}/w/${encodeURIComponent(slug)}`;

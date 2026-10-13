@@ -15,6 +15,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
 import { asEventKind, type EventKind } from '@myclash/types';
 import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
+import { eventReadFailure, type EventRead } from '../_lib/event-read';
 
 export interface EventInfo {
   id: string;
@@ -25,7 +26,7 @@ export interface EventInfo {
   endDate: string;
   publicLandingMd: string | null;
   status: string;
-  /** 'standard' | 'club' — the public resolver 404s test events. */
+  /** A test Event reaches this page for a member of its club only. */
   eventKind: EventKind;
   timezone: string;
   logoUrl: string | null;
@@ -60,12 +61,23 @@ function formatDateRange(start: string, end: string, locale: Locale): string {
   return `${s.getDate()}–${e.toLocaleDateString(tag, { ...opts, year: 'numeric' })}`;
 }
 
-export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventInfo | null> {
+/**
+ * The read of an Event by its address. `who` carries the visitor's login: a
+ * server page hands over the request's own (`requestLoginHeader`), a browser
+ * page `{ credentials: 'include' }`. Without it a club member's draft Event
+ * reads as missing.
+ */
+export async function fetchEventInfo(
+  eventSlug: string,
+  apiUrl: string,
+  who: Pick<RequestInit, 'headers' | 'credentials'>,
+): Promise<EventRead> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       cache: 'no-store',
+      ...who,
     });
-    if (!res.ok) return null;
+    if (!res.ok) return eventReadFailure(res.status);
     const raw = (await res.json()) as Record<string, unknown>;
     const org = raw['organizations'] as { name?: string; slug?: string; logo_url?: string } | null;
     // Supabase projects `themes(*)` either as a single object or as an array
@@ -76,35 +88,43 @@ export async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise
       | null
       | undefined;
     const theme = Array.isArray(themesRaw) ? (themesRaw[0] ?? null) : (themesRaw ?? null);
-    return {
-      id: String(raw['id'] ?? ''),
-      name: String(raw['name'] ?? ''),
-      city: typeof raw['city'] === 'string' ? raw['city'] : null,
-      country: typeof raw['country'] === 'string' ? raw['country'] : null,
-      startDate: String(raw['start_date'] ?? raw['startDate'] ?? ''),
-      endDate: String(raw['end_date'] ?? raw['endDate'] ?? ''),
-      publicLandingMd:
-        typeof (raw['public_landing_md'] ?? raw['publicLandingMd']) === 'string'
-          ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
-          : null,
-      status: String(raw['status'] ?? ''),
-      eventKind: asEventKind(raw['event_kind'] ?? raw['eventKind']),
-      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'Europe/Paris',
-      logoUrl:
-        typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
-          ? String(raw['logo_url'] ?? raw['logoUrl'])
-          : null,
-      heroImageUrl: typeof theme?.hero_image_url === 'string' ? theme.hero_image_url : null,
-      organizationName: typeof org?.name === 'string' ? org.name : null,
-      organizationLogoUrl: typeof org?.logo_url === 'string' ? org.logo_url : null,
-      // organization_id rides along on the event row itself (the endpoint
-      // selects *), so linking + following needs no API change.
-      organizationId: typeof raw['organization_id'] === 'string' ? raw['organization_id'] : null,
-      organizationSlug: typeof org?.slug === 'string' ? org.slug : null,
-    };
+    return { kind: 'found', event: eventInfoOf(raw, org, theme) };
   } catch {
-    return null;
+    return eventReadFailure(null);
   }
+}
+
+function eventInfoOf(
+  raw: Record<string, unknown>,
+  org: { name?: string; slug?: string; logo_url?: string } | null,
+  theme: { hero_image_url?: string | null } | null,
+): EventInfo {
+  return {
+    id: String(raw['id'] ?? ''),
+    name: String(raw['name'] ?? ''),
+    city: typeof raw['city'] === 'string' ? raw['city'] : null,
+    country: typeof raw['country'] === 'string' ? raw['country'] : null,
+    startDate: String(raw['start_date'] ?? raw['startDate'] ?? ''),
+    endDate: String(raw['end_date'] ?? raw['endDate'] ?? ''),
+    publicLandingMd:
+      typeof (raw['public_landing_md'] ?? raw['publicLandingMd']) === 'string'
+        ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
+        : null,
+    status: String(raw['status'] ?? ''),
+    eventKind: asEventKind(raw['event_kind'] ?? raw['eventKind']),
+    timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'Europe/Paris',
+    logoUrl:
+      typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
+        ? String(raw['logo_url'] ?? raw['logoUrl'])
+        : null,
+    heroImageUrl: typeof theme?.hero_image_url === 'string' ? theme.hero_image_url : null,
+    organizationName: typeof org?.name === 'string' ? org.name : null,
+    organizationLogoUrl: typeof org?.logo_url === 'string' ? org.logo_url : null,
+    // organization_id rides along on the event row itself (the endpoint
+    // selects *), so linking + following needs no API change.
+    organizationId: typeof raw['organization_id'] === 'string' ? raw['organization_id'] : null,
+    organizationSlug: typeof org?.slug === 'string' ? org.slug : null,
+  };
 }
 
 export function EventHeader({

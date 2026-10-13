@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * One public call: `GET /events/:slug` already embeds
  * `lices(*, venues(id, name), venue_areas(id, name))`, so the hub needs no
- * endpoint of its own. Test-kind events 404 there, and so here. It sends the
+ * endpoint of its own. A test Event 404s there for anybody outside its club, and so here. It sends the
  * viewer's login: a draft Event 404s without one, and its club runs the screens
  * on a test day (ruling 90).
  */

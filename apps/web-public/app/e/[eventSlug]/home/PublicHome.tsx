@@ -14,7 +14,8 @@ import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
 import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { EventBackLink } from './_components/EventBackLink';
-import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
+import { EventHeader } from '../_components/EventHeader';
+import { eventOrNotFound } from '../_lib/event-or-not-found';
 import { TournamentCard } from './_components/TournamentCard';
 import { WorkshopCard } from './_components/WorkshopCard';
 import { LiveNowSection } from './_components/LiveNowSection';
@@ -45,17 +46,17 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
   const locale = await resolveServerLocale();
   const tr = createTranslator(getMessages(locale));
   const tag = localeToBcp47(locale);
-  const event = await fetchEventInfo(eventSlug, apiUrl);
+  const event = await eventOrNotFound(eventSlug);
   const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
-    fetchTournaments(event?.id ?? '', apiUrl),
+    fetchTournaments(event.id, apiUrl),
     fetchParticipantsCounts(eventSlug, apiUrl),
     fetchVenues(eventSlug, apiUrl),
     fetchWorkshops(eventSlug, apiUrl),
   ]);
 
-  const tz = event?.timezone ?? 'Europe/Paris';
-  const isCompleted = event?.status === 'completed';
+  const tz = event.timezone;
+  const isCompleted = event.status === 'completed';
 
   // Schedule summary times: tournament side = first pool (earliest scheduled
   // match across tournaments); workshop side = the session window (earliest
@@ -101,7 +102,7 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
         <EventBackLink />
       )}
 
-      {event && <EventHeader event={event} locale={locale} eventSlug={eventSlug} />}
+      <EventHeader event={event} locale={locale} eventSlug={eventSlug} />
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>

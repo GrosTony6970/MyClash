@@ -9,7 +9,8 @@ import type { Metadata } from 'next';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
-import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
+import { EventHeader } from '../../_components/EventHeader';
+import { eventOrNotFound } from '../../_lib/event-or-not-found';
 import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { loadTournamentSchedule } from './_lib/schedule-grid-data';
 import { TournamentScheduleGrid } from './_components/TournamentScheduleGrid';
@@ -33,7 +34,7 @@ export default async function TournamentSchedulePage({ params }: Props) {
   const locale = await resolveServerLocale();
   const tr = createTranslator(getMessages(locale));
   const [event, schedule] = await Promise.all([
-    fetchEventInfo(eventSlug, apiUrl),
+    eventOrNotFound(eventSlug),
     loadTournamentSchedule(eventSlug, apiUrl),
   ]);
 
@@ -44,20 +45,16 @@ export default async function TournamentSchedulePage({ params }: Props) {
         label={tr('publicApp.eventHome.backToHome')}
         className="mb-1"
       />
-      {event && <EventHeader event={event} locale={locale} eventSlug={eventSlug} />}
+      <EventHeader event={event} locale={locale} eventSlug={eventSlug} />
       <section>
         <h1 className="mb-4 font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewTournamentSchedule')}
         </h1>
-        {schedule ? (
-          <TournamentScheduleGrid
-            data={schedule}
-            eventSlug={eventSlug}
-            emptyLabel={tr('publicApp.eventHome.schedule.notScheduled')}
-          />
-        ) : (
-          <p className="text-sm text-muted">{tr('publicApp.eventHome.schedule.notScheduled')}</p>
-        )}
+        <TournamentScheduleGrid
+          data={schedule}
+          eventSlug={eventSlug}
+          emptyLabel={tr('publicApp.eventHome.schedule.notScheduled')}
+        />
       </section>
     </main>
   );

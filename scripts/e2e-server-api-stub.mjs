@@ -108,8 +108,11 @@ function slugOfId(eventId) {
 export function answerFor(method, url, cookie) {
   if (method !== 'GET') return null;
   const parts = url.split('?')[0].split('/').filter(Boolean);
-  if (parts[0] !== 'api' || parts[1] !== 'v1' || parts[2] !== 'events') return null;
+  if (parts[0] !== 'api' || parts[1] !== 'v1') return null;
   const rest = parts.slice(3);
+  // A bout that is not there: its page asks four reads, and each says so.
+  if (parts[2] === 'matches') return rest[0] === 'no-such-bout' ? NOT_FOUND : null;
+  if (parts[2] !== 'events') return null;
 
   // GET /events/:slug
   if (rest.length === 1) {

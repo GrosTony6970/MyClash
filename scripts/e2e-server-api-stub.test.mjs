@@ -57,6 +57,12 @@ test("a public Event's lists answer anybody", () => {
   );
 });
 
+test('the bout that is not there answers 404 on each of its reads', () => {
+  for (const path of ['', '/summary', '/exchanges', '/penalties']) {
+    assert.equal(answerFor('GET', `/api/v1/matches/no-such-bout${path}`, undefined).status, 404);
+  }
+});
+
 test('a path the stub does not know has no answer', () => {
   assert.equal(answerFor('GET', '/api/v1/matches/m-1', undefined), null);
   assert.equal(answerFor('GET', '/api/v1/events/some-other-event', undefined), null);

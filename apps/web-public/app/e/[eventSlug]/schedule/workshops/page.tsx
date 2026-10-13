@@ -11,7 +11,8 @@ import type { Metadata } from 'next';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
-import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
+import { EventHeader } from '../../_components/EventHeader';
+import { eventOrNotFound } from '../../_lib/event-or-not-found';
 import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { fetchWorkshops } from '../../home/_lib/public-event-data';
 import { buildWorkshopEntries } from '../../home/_lib/schedule-entries';
@@ -36,12 +37,12 @@ export default async function WorkshopSchedulePage({ params }: Props) {
   const locale = await resolveServerLocale();
   const tr = createTranslator(getMessages(locale));
   const [event, workshops, schedule] = await Promise.all([
-    fetchEventInfo(eventSlug, apiUrl),
+    eventOrNotFound(eventSlug),
     fetchWorkshops(eventSlug, apiUrl),
     loadWorkshopSchedule(eventSlug, apiUrl),
   ]);
   const entries = buildWorkshopEntries(workshops, eventSlug);
-  const tz = event?.timezone ?? 'Europe/Paris';
+  const tz = event.timezone;
   const emptyLabel = tr('publicApp.eventHome.schedule.notScheduled');
 
   return (
@@ -51,30 +52,28 @@ export default async function WorkshopSchedulePage({ params }: Props) {
         label={tr('publicApp.eventHome.backToHome')}
         className="mb-1"
       />
-      {event && <EventHeader event={event} locale={locale} eventSlug={eventSlug} />}
+      <EventHeader event={event} locale={locale} eventSlug={eventSlug} />
       <section className="flex flex-col gap-6">
         <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
           {tr('publicApp.eventHome.schedule.viewWorkshopSchedule')}
         </h1>
 
-        {schedule ? (
-          <div className="hidden flex-col gap-6 md:flex">
-            <WorkshopScheduleGrid data={schedule} emptyLabel={emptyLabel} />
-            {/* Timed but in a room the grid has no column for — the agenda
-                already lists these on mobile, so only the grid branch needs it. */}
-            <UnlistedWorkshops
-              heading={tr('publicApp.eventHome.schedule.venueTbc')}
-              workshops={schedule.unplaced}
-            />
-          </div>
-        ) : null}
+        <div className="hidden flex-col gap-6 md:flex">
+          <WorkshopScheduleGrid data={schedule} emptyLabel={emptyLabel} />
+          {/* Timed but in a room the grid has no column for — the agenda
+              already lists these on mobile, so only the grid branch needs it. */}
+          <UnlistedWorkshops
+            heading={tr('publicApp.eventHome.schedule.venueTbc')}
+            workshops={schedule.unplaced}
+          />
+        </div>
 
         <div className="md:hidden">
           <ScheduleAgenda entries={entries} tz={tz} locale={locale} emptyLabel={emptyLabel} />
         </div>
 
         {/* Untimed workshops appear nowhere else on the site — both branches. */}
-        {schedule ? <UnlistedWorkshops heading={emptyLabel} workshops={schedule.undated} /> : null}
+        <UnlistedWorkshops heading={emptyLabel} workshops={schedule.undated} />
       </section>
     </main>
   );

@@ -4,9 +4,11 @@ import { createTranslator, defaultLocale, getMessages, type Locale } from '@mycl
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
 import { getServerApiUrl } from '@/lib/api-url';
+import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
-import { fetchEventInfo, type EventInfo } from '../_components/EventHeader';
+import type { EventInfo } from '../_components/EventHeader';
+import { eventOrNotFound } from '../_lib/event-or-not-found';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
 
@@ -31,7 +33,7 @@ async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> 
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants?includeStaff=true`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return [];
     return (await res.json()) as ParticipantLike[];
@@ -59,8 +61,7 @@ export async function generateMetadata({
 }): Promise<{ title: string; description: string }> {
   const { eventSlug } = await params;
   const t = await getServerT();
-  const event = await fetchEventInfo(eventSlug, getServerApiUrl());
-  if (!event) return { title: t('publicApp.participants.metaTitleFallback'), description: '' };
+  const event = await eventOrNotFound(eventSlug);
   const place = formatEventPlace(event);
   return {
     title: t('publicApp.participants.metaTitle', { name: event.name }),
@@ -79,76 +80,74 @@ export default async function ParticipantsPage({
   const locale = await resolveServerLocale();
   const t = createTranslator(getMessages(locale));
   const [event, participants] = await Promise.all([
-    fetchEventInfo(eventSlug, getServerApiUrl()),
+    eventOrNotFound(eventSlug),
     fetchParticipants(eventSlug),
   ]);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
-      {event && (
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start">
-          {(event.logoUrl || event.organizationLogoUrl) && (
-            <div className="flex items-center gap-2">
-              {event.logoUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={event.logoUrl}
-                  alt=""
-                  className="h-16 w-16 rounded-xl border border-border object-cover"
-                />
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        {(event.logoUrl || event.organizationLogoUrl) && (
+          <div className="flex items-center gap-2">
+            {event.logoUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={event.logoUrl}
+                alt=""
+                className="h-16 w-16 rounded-xl border border-border object-cover"
+              />
+            )}
+            {event.organizationLogoUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={event.organizationLogoUrl}
+                alt=""
+                className="h-10 w-10 rounded-full border border-border object-contain"
+              />
+            )}
+          </div>
+        )}
+        <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {t('publicApp.people.title')}
+          </p>
+          <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
+            {event.name}
+          </h1>
+          {event.organizationName && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {event.organizationSlug ? (
+                <Link
+                  href={`/o/${event.organizationSlug}`}
+                  className="text-sm text-foreground-secondary hover:text-accent hover:underline"
+                >
+                  {event.organizationName}
+                </Link>
+              ) : (
+                <p className="text-sm text-foreground-secondary">{event.organizationName}</p>
               )}
-              {event.organizationLogoUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={event.organizationLogoUrl}
-                  alt=""
-                  className="h-10 w-10 rounded-full border border-border object-contain"
+              {event.organizationId && event.organizationSlug && (
+                <FollowOrganizerButton
+                  organizationId={event.organizationId}
+                  slug={event.organizationSlug}
                 />
               )}
             </div>
           )}
-          <div className="flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-              {t('publicApp.people.title')}
-            </p>
-            <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl">
-              {event.name}
-            </h1>
-            {event.organizationName && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {event.organizationSlug ? (
-                  <Link
-                    href={`/o/${event.organizationSlug}`}
-                    className="text-sm text-foreground-secondary hover:text-accent hover:underline"
-                  >
-                    {event.organizationName}
-                  </Link>
-                ) : (
-                  <p className="text-sm text-foreground-secondary">{event.organizationName}</p>
-                )}
-                {event.organizationId && event.organizationSlug && (
-                  <FollowOrganizerButton
-                    organizationId={event.organizationId}
-                    slug={event.organizationSlug}
-                  />
-                )}
-              </div>
-            )}
-            {(() => {
-              const place = formatEventPlace(event);
-              return place ? <p className="text-sm text-muted">{place}</p> : null;
-            })()}
-            <p className="text-sm text-muted">
-              {formatDateRange(event.startDate, event.endDate, locale)}
-            </p>
-            <BackLink
-              href={`/e/${eventSlug}/home`}
-              label={t('publicApp.tournament.backToEventHome')}
-              className="mt-3"
-            />
-          </div>
-        </header>
-      )}
+          {(() => {
+            const place = formatEventPlace(event);
+            return place ? <p className="text-sm text-muted">{place}</p> : null;
+          })()}
+          <p className="text-sm text-muted">
+            {formatDateRange(event.startDate, event.endDate, locale)}
+          </p>
+          <BackLink
+            href={`/e/${eventSlug}/home`}
+            label={t('publicApp.tournament.backToEventHome')}
+            className="mt-3"
+          />
+        </div>
+      </header>
 
       <ParticipantsTabbedView eventSlug={eventSlug} participants={participants} />
     </main>

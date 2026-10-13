@@ -10,9 +10,10 @@
 import type { Metadata } from 'next';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
+import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT } from '@myclash/next-i18n/server';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
-import { fetchEventInfo } from '../_components/EventHeader';
+import { eventOrNotFound } from '../_lib/event-or-not-found';
 
 interface Props {
   params: Promise<{ eventSlug: string }>;
@@ -28,6 +29,7 @@ async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<Worksh
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/public-workshops`, {
       cache: 'no-store',
+      headers: await requestLoginHeader(),
     });
     if (!res.ok) return [];
     return (await res.json()) as WorkshopListItem[];
@@ -42,7 +44,7 @@ export default async function WorkshopsPage({ params }: Props) {
   const apiUrl = getServerApiUrl();
   const [workshops, event] = await Promise.all([
     fetchWorkshops(eventSlug, apiUrl),
-    fetchEventInfo(eventSlug, apiUrl),
+    eventOrNotFound(eventSlug),
   ]);
 
   return (
@@ -59,11 +61,7 @@ export default async function WorkshopsPage({ params }: Props) {
         {t('publicApp.eventHome.section.workshops')}
       </h1>
 
-      <WorkshopsBrowser
-        workshops={workshops}
-        eventSlug={eventSlug}
-        timezone={event?.timezone ?? 'Europe/Paris'}
-      />
+      <WorkshopsBrowser workshops={workshops} eventSlug={eventSlug} timezone={event.timezone} />
     </main>
   );
 }

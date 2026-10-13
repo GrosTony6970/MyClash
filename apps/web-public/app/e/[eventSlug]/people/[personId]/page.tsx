@@ -111,8 +111,11 @@ export default function PersonProfilePage() {
   useEffect(() => {
     async function load() {
       try {
-        const event = await fetchEventInfo(eventSlug, apiUrl);
-        if (!event) return;
+        const read = await fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' });
+        // An Event that is not there has no such person; a read that failed is a failure.
+        if (read.kind === 'failed') setLoadFailed(true);
+        if (read.kind !== 'found') return;
+        const event = read.event;
         setEventId(event.id);
         const people = `/api/v1/events/${event.id}/people/${personId}`;
         const [profileRes, scheduleRes, me] = await Promise.all([

@@ -97,8 +97,8 @@ export default function WorkshopDetailPage() {
   // Event identity for the shared header band — mirrors the event home page.
   useEffect(() => {
     let cancelled = false;
-    void fetchEventInfo(eventSlug, apiUrl).then((info) => {
-      if (!cancelled) setEventInfo(info);
+    void fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' }).then((read) => {
+      if (!cancelled) setEventInfo(read.kind === 'found' ? read.event : null);
     });
     return () => {
       cancelled = true;

@@ -6,6 +6,8 @@
  * `fetch` with `cache: 'no-store'`).
  */
 
+import { requestLoginHeader } from '@/lib/login-cookie';
+
 export interface Tournament {
   id: string;
   slug: string;
@@ -99,6 +101,7 @@ export async function fetchTournaments(eventId: string, apiUrl: string): Promise
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
       cache: 'no-store',
+      headers: await requestLoginHeader(),
     });
     if (!res.ok) return [];
     return (await res.json()) as Tournament[];
@@ -111,7 +114,7 @@ export async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/public-workshops`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return [];
     return (await res.json()) as PublicWorkshop[];
@@ -127,7 +130,7 @@ export async function fetchWorkshopBreaks(
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/public-workshop-breaks`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return [];
     return (await res.json()) as PublicWorkshopBreak[];
@@ -142,6 +145,7 @@ export async function fetchVenues(eventSlug: string, apiUrl: string): Promise<Pu
       `${apiUrl}/api/v1/events/slug/${encodeURIComponent(eventSlug)}/venues`,
       {
         cache: 'no-store',
+        headers: await requestLoginHeader(),
       },
     );
     if (!res.ok) return [];
@@ -158,7 +162,7 @@ export async function fetchParticipantsCounts(
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return { active: 0, waitlist: 0 };
     const rows = (await res.json()) as ParticipantRow[];
@@ -211,6 +215,7 @@ export async function fetchHighlights(
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
       cache: 'no-store',
+      headers: await requestLoginHeader(),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as LiveStateResponse;

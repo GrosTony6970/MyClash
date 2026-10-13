@@ -18,7 +18,10 @@ describe('the person page', () => {
   const source = read('[personId]', 'page.tsx');
 
   it('reads the profile and the schedule under the Event id', () => {
-    expect(source).toContain('const event = await fetchEventInfo(eventSlug, apiUrl);');
+    expect(source).toContain(
+      "const read = await fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' });",
+    );
+    expect(source).toContain('const event = read.event;');
     expect(source).toContain('const people = `/api/v1/events/${event.id}/people/${personId}`;');
     expect(source).toContain('apiRequest<PersonProfile>(apiUrl, people)');
     expect(source).toContain('apiRequest<PersonSchedule>(apiUrl, `${people}/schedule`)');
@@ -79,12 +82,18 @@ describe('the person page', () => {
       /loadFailed\s*\?\s*t\('publicApp\.following\.personLoadError'\)\s*:\s*t\('publicApp\.following\.personNotFound'\)/,
     );
   });
+
+  it('says it failed when the read of the EVENT failed, and "not found" when the Event is not there', () => {
+    expect(source).toMatch(
+      /if \(read\.kind === 'failed'\) setLoadFailed\(true\);\s+if \(read\.kind !== 'found'\) return;/,
+    );
+  });
 });
 
 describe('the people search page', () => {
   it('looks people up under the Event id', () => {
     const source = read('page.tsx');
-    expect(source).toContain('fetchEventInfo(eventSlug, apiUrl)');
+    expect(source).toContain("fetchEventInfo(eventSlug, apiUrl, { credentials: 'include' })");
     expect(source).toContain('`${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=');
     expect(source).not.toMatch(/api\/v1\/events\/\$\{eventSlug\}/);
   });

@@ -10,6 +10,7 @@
  * Uses `fetch` with `cache: 'no-store'` (mirrors home/_lib/public-event-data).
  */
 
+import { requestLoginHeader } from '@/lib/login-cookie';
 import { zonedDay } from '@myclash/time';
 import {
   buildScheduleBlocks,
@@ -21,7 +22,7 @@ import {
   SLOT_MINUTES,
   type BlockMatchInput,
 } from '@myclash/schedule-core';
-import { fetchEventInfo } from '../../../_components/EventHeader';
+import { eventOrNotFound } from '../../../_lib/event-or-not-found';
 
 /** Raw /schedule row (subset we consume — see api ScheduleGridMatch). */
 interface RawMatch {
@@ -121,7 +122,7 @@ export interface TournamentScheduleData {
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url, { cache: 'no-store', headers: await requestLoginHeader() });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -139,9 +140,8 @@ function breakEndSlot(hhmm: string, startSlot: number): number {
 export async function loadTournamentSchedule(
   eventSlug: string,
   apiUrl: string,
-): Promise<TournamentScheduleData | null> {
-  const event = await fetchEventInfo(eventSlug, apiUrl);
-  if (!event?.id) return null;
+): Promise<TournamentScheduleData> {
+  const event = await eventOrNotFound(eventSlug);
   const tz = event.timezone || 'Europe/Paris';
 
   const base = `${apiUrl}/api/v1/events/${event.id}`;
