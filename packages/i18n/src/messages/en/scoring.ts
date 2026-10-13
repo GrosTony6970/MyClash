@@ -35,7 +35,13 @@ export const scoring = {
       eventNotFound: 'This event was not found. Check the event code, or ask an organiser.',
       closed: 'This account or this event is closed for staff sign-in. Ask an organiser.',
       serverFault: 'The server has a problem. Your PIN was not checked. Try again in a minute.',
+      emailRefused: 'This email address was refused. Check it and try again.',
+      linkNotSent: 'The login link was not sent. Try again in a minute.',
     },
+    // The email form: whose it is, and the way back from "check your email".
+    accountAccess: 'MyClash account',
+    accountAccessHint: 'For organisers. A volunteer signs in with the PIN, above.',
+    useAnotherAddress: 'Use another address',
     // Hits the tablet still holds, said where a session that ended lands.
     unsentOne:
       'This tablet holds 1 entry that was not sent. It is sent once you sign in and open a match. If the event is over, tell an organiser.',

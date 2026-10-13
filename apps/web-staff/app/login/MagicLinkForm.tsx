@@ -3,8 +3,10 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { failureFromError } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { PISTES_ON_ARRIVAL } from '../../src/lib/last-piste';
+import { magicLinkFailureKey } from '../../src/lib/sign-in-failure';
 import { FormError, LabelledInput, SubmitButton } from './fields';
 
 /**
@@ -30,7 +32,6 @@ export function MagicLinkForm() {
     setLoading(true);
     setError(null);
     try {
-      // ApiClientError carries the problem+json detail in its message.
       await api.post('/api/v1/auth/magic-link', {
         email,
         type: 'login',
@@ -38,16 +39,25 @@ export function MagicLinkForm() {
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(t(magicLinkFailureKey(failureFromError(err))));
     } finally {
       setLoading(false);
     }
   }
 
-  if (submitted) return <CheckEmailNotice email={email} />;
+  if (submitted) {
+    return <CheckEmailNotice email={email} onAnotherAddress={() => setSubmitted(false)} />;
+  }
 
   return (
     <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
+      {/* Says whose form this is: volunteers typed their email here (quick win S3). */}
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
+          {t('scoring.login.accountAccess')}
+        </h2>
+        <p className="mt-1 text-sm text-muted">{t('scoring.login.accountAccessHint')}</p>
+      </div>
       <LabelledInput
         id="email"
         label={t('scoring.login.emailAddress')}
@@ -66,7 +76,13 @@ export function MagicLinkForm() {
   );
 }
 
-function CheckEmailNotice({ email }: { email: string }) {
+function CheckEmailNotice({
+  email,
+  onAnotherAddress,
+}: {
+  email: string;
+  onAnotherAddress: () => void;
+}) {
   const { t } = useI18n();
 
   return (
@@ -84,6 +100,14 @@ function CheckEmailNotice({ email }: { email: string }) {
         {t('scoring.login.checkEmailSuffix')}
       </p>
       <p className="mt-4 text-sm text-muted">{t('scoring.login.linkExpires')}</p>
+      {/* A mistyped address was a dead end: the form came back only on a reload. */}
+      <button
+        type="button"
+        onClick={onAnotherAddress}
+        className="mt-4 min-h-[44px] px-3 text-sm text-muted underline hover:text-foreground"
+      >
+        {t('scoring.login.useAnotherAddress')}
+      </button>
     </div>
   );
 }

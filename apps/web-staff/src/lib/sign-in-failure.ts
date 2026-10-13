@@ -1,9 +1,10 @@
 /**
- * What the sign-in screen says when a sign-in fails (quick win S1).
+ * What the sign-in screen says when a sign-in fails (quick wins S1 and S3).
  *
- * The PIN form said one sentence for every cause. Each cause now has its own
- * sentence, because each asks something else of the volunteer: type again,
- * wait, find the wifi, or fetch an organiser.
+ * The PIN form said one sentence for every cause, and the email form printed
+ * the request line. Each cause now has its own sentence, because each asks
+ * something else of the volunteer: type again, wait, find the wifi, or fetch
+ * an organiser.
  *
  * Not `failureMessage` of `@myclash/api-client`: its sentence for a 401 is "your
  * session has expired", and nobody is signed in here. For any other 4xx it
@@ -61,4 +62,19 @@ export function pinLoginFailureKey(failure: ApiFailure): string {
  */
 export function missingBeforeSignIn(eventSlugOrCode: string): string | null {
   return eventSlugOrCode.trim() === '' ? 'scoring.login.errors.noEvent' : null;
+}
+
+/**
+ * The email form's sentence for a login link that was not sent (quick win S3).
+ *
+ * The form printed the request line: "POST /api/v1/auth/magic-link failed
+ * (400): Validation failed". A 400 here is an address the browser took and the
+ * server refused. The 429 is one bucket for a whole hall: ten links an hour.
+ */
+export function magicLinkFailureKey(failure: ApiFailure): string {
+  const said = notTheApi(failure);
+  if (said) return said;
+  if (failure.kind === 'http' && failure.status === 429) return 'common.apiFailure.tooManyRequests';
+  if (failure.kind === 'http' && failure.status === 400) return 'scoring.login.errors.emailRefused';
+  return 'scoring.login.errors.linkNotSent';
 }

@@ -1,5 +1,5 @@
 /**
- * What the sign-in screen says when a sign-in fails (quick win S1).
+ * What the sign-in screen says when a sign-in fails (quick wins S1 and S3).
  *
  * A volunteer types a correct PIN with no wifi. The screen said "Could not
  * sign in with this event, username, and PIN", as for a wrong PIN. They typed
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ApiFailure } from '@myclash/api-client';
 import { OFFLINE_CODE } from '../offline/failure-kind';
-import { missingBeforeSignIn, pinLoginFailureKey } from './sign-in-failure';
+import { magicLinkFailureKey, missingBeforeSignIn, pinLoginFailureKey } from './sign-in-failure';
 
 /** An answer of the API: problem+json always carries a code and a detail. */
 const refused = (status: 401 | 403): ApiFailure => ({
@@ -97,6 +97,32 @@ describe('a sign-in with no Event chosen', () => {
   });
 });
 
+describe('the login link that was not sent', () => {
+  it('says "no connection" with no network', () => {
+    expect(magicLinkFailureKey({ kind: 'network' })).toBe('common.apiFailure.network');
+    expect(magicLinkFailureKey(workerOffline)).toBe('common.apiFailure.network');
+  });
+
+  it('says "too many requests" for a 429: ten links an hour for the whole hall', () => {
+    expect(magicLinkFailureKey(http(429, 'HTTP_429'))).toBe('common.apiFailure.tooManyRequests');
+  });
+
+  it('says the address was refused for a 400', () => {
+    expect(magicLinkFailureKey(http(400))).toBe('scoring.login.errors.emailRefused');
+  });
+
+  it('says the connection was blocked for an answer of the edge', () => {
+    expect(magicLinkFailureKey(edge)).toBe('common.apiFailure.blocked');
+  });
+
+  it('says the link was not sent for anything else', () => {
+    expect(magicLinkFailureKey(http(500, 'INTERNAL_SERVER_ERROR'))).toBe(
+      'scoring.login.errors.linkNotSent',
+    );
+    expect(magicLinkFailureKey(refused(403))).toBe('scoring.login.errors.linkNotSent');
+  });
+});
+
 describe('the forms of the sign-in screen', () => {
   const read = (file: string) =>
     readFileSync(join(__dirname, '..', '..', 'app', 'login', file), 'utf8');
@@ -108,5 +134,12 @@ describe('the forms of the sign-in screen', () => {
     );
     expect(form).toContain('setError(t(pinLoginFailureKey(failureFromError(err))));');
     expect(form).not.toContain("setError(t('scoring.login.localLoginError'))");
+  });
+
+  it('the email form words the failure it met, and prints no request line', () => {
+    const form = read('MagicLinkForm.tsx');
+    expect(form).toContain('setError(t(magicLinkFailureKey(failureFromError(err))));');
+    expect(form).not.toContain('err.message');
+    expect(form).not.toContain('Something went wrong');
   });
 });

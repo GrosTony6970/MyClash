@@ -40,7 +40,12 @@ export const scoring = {
         'Ce compte ou cet événement est fermé à la connexion staff. Demandez à un organisateur.',
       serverFault:
         "Le serveur a un problème. Votre PIN n'a pas été vérifié. Réessayez dans une minute.",
+      emailRefused: 'Cette adresse email a été refusée. Vérifiez-la et réessayez.',
+      linkNotSent: "Le lien de connexion n'a pas été envoyé. Réessayez dans une minute.",
     },
+    accountAccess: 'Compte MyClash',
+    accountAccessHint: 'Pour les organisateurs. Un bénévole se connecte avec le PIN, au-dessus.',
+    useAnotherAddress: 'Utiliser une autre adresse',
     unsentOne:
       "Cette tablette contient 1 saisie non envoyée. Elle sera envoyée dès que vous vous connectez et ouvrez un assaut. Si l'événement est terminé, prévenez un organisateur.",
     unsentMany:

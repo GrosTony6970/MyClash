@@ -10,7 +10,15 @@
  * (`lib/sign-in-failure.test.ts`).
  */
 import { test, expect } from '@playwright/test';
-import { openLinked, openSignIn, pinForm, problem, signIn, stubSignIn } from './pad-sign-in-stub';
+import {
+  emailForm,
+  openLinked,
+  openSignIn,
+  pinForm,
+  problem,
+  signIn,
+  stubSignIn,
+} from './pad-sign-in-stub';
 
 const OLD_SENTENCE = /could not sign in with this event/i;
 
@@ -119,4 +127,58 @@ test('the field for a typed Event is called "Event code", in the words above it 
   await expect(page.getByLabel('Event code')).toBeVisible();
   await expect(page.getByText(/type the event code instead/i)).toBeVisible();
   await expect(page.getByText(/slug/i)).toHaveCount(0);
+});
+
+// Quick win S3. The organiser's form had no name: volunteers typed their email
+// in it. A failure printed "POST /api/v1/auth/magic-link failed (400)".
+test('the email form says whose it is', async ({ page }) => {
+  await stubSignIn(page);
+  await openLinked(page);
+
+  await expect(emailForm(page).getByRole('heading', { name: 'MyClash account' })).toBeVisible();
+  await expect(emailForm(page)).toContainText(/for organisers/i);
+});
+
+test('a login link that is not sent says why, and prints no request line', async ({ page }) => {
+  const stub = await stubSignIn(page);
+  await openLinked(page);
+  const alert = emailForm(page).getByRole('alert');
+  const send = async () => {
+    await page.locator('#email').fill('ada@example.com');
+    await emailForm(page).locator('button[type="submit"]').click();
+  };
+
+  stub.answer = problem(400, 'BAD_REQUEST', 'Validation failed');
+  await send();
+  await expect(alert).toHaveText(/this email address was refused/i);
+  await expect(alert).not.toHaveText(/POST|magic-link|validation/i);
+
+  stub.answer = problem(429, 'HTTP_429', 'ThrottlerException: Too Many Requests');
+  await send();
+  await expect(alert).toHaveText(/too many requests/i);
+
+  stub.answer = problem(500, 'INTERNAL_SERVER_ERROR', 'Internal server error');
+  await send();
+  await expect(alert).toHaveText(/the login link was not sent/i);
+
+  stub.network = 'down';
+  await send();
+  await expect(alert).toHaveText(/could not reach the server/i);
+});
+
+test('"check your email" has a way back to the form, with the address kept', async ({ page }) => {
+  const stub = await stubSignIn(page);
+  stub.answer = { status: 200, json: { message: 'sent' } };
+  await openLinked(page);
+
+  await page.locator('#email').fill('ada@exmaple.com');
+  await emailForm(page).locator('button[type="submit"]').click();
+  await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
+  await expect(page.locator('#email')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Use another address' }).click();
+
+  // The mistyped address is there to correct, not to type again.
+  await expect(page.locator('#email')).toHaveValue('ada@exmaple.com');
+  await expect(page.getByRole('heading', { name: /check your email/i })).toHaveCount(0);
 });
