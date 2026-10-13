@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, type FormEvent } from 'react';
+import { use, useMemo, useState, type FormEvent } from 'react';
 import {
   AuthAltLink,
   AuthDivider,
@@ -18,6 +18,7 @@ import type { AuthPanelTab } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
+import { afterSignIn } from '../../src/lib/sign-in-return';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   requestMagicLink,
@@ -48,6 +49,8 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   const opensOn = useLinkWords(searchParams, t);
   const [message, setMessage] = useState<string | null>(opensOn.message);
   const [error, setError] = useState<string | null>(opensOn.error);
+  // Where signing in lands: the page the door was on, or the personal space.
+  const landing = afterSignIn(use(searchParams)['next']);
 
   const apiUrl = getPublicApiUrl();
   // The organizer workspace is a different host, so the cross-link needs the
@@ -87,7 +90,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
     const code = await requestPasswordSignIn(apiUrl, email, password);
     setBusy(false);
     if (code === 'ok') {
-      router.replace('/me');
+      router.replace(landing);
       return;
     }
     setError(
@@ -136,7 +139,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
     if (busy || !nothingMissing(false)) return;
     setBusy(true);
     reset();
-    const sent = await requestMagicLink(apiUrl, email);
+    const sent = await requestMagicLink(apiUrl, email, landing);
     setBusy(false);
     if (sent) setMessage(t('publicApp.login.checkEmail'));
     else setError(t('publicApp.login.errors.magicLinkFailed'));
@@ -155,7 +158,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
 
   async function continueWithGoogle() {
     reset();
-    const started = await startGoogleSignIn(window.location.origin);
+    const started = await startGoogleSignIn(window.location.origin, landing);
     if (!started) setError(t('auth.oauth.errors.startFailed'));
   }
 

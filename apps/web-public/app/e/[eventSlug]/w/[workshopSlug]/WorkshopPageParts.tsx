@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { formatInZone } from '@myclash/time';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UnknownCaller } from '@/components/me/workshop-booking';
+import { loginHref } from '@/lib/sign-in-return';
 
 const NOTICE = 'rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-sm';
 const DOOR =
@@ -26,6 +28,8 @@ export function UnknownCallerNotice({
   eventSlug: string;
 }): ReactNode {
   const { t } = useI18n();
+  // Signing in returns to this Workshop's page.
+  const here = usePathname();
   if (who === 'account') {
     return (
       <p role="status" className={`${NOTICE} text-foreground-secondary`}>
@@ -40,7 +44,7 @@ export function UnknownCallerNotice({
         <Link href={`/e/${eventSlug}/participants`} className={DOOR}>
           {t('publicApp.workshopDetail.participantsList')}
         </Link>
-        <Link href="/login" className={DOOR}>
+        <Link href={loginHref(here)} className={DOOR}>
           {t('publicApp.home.signIn')}
         </Link>
       </div>

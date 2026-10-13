@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
+import { loginHref } from '@/lib/sign-in-return';
 import {
   getServerSnapshot,
   getSnapshot,
@@ -74,7 +75,7 @@ export function FollowOrganizerButton({
       <div className="flex items-center gap-3">
         {count}
         <Link
-          href={`/login?next=${encodeURIComponent(`/o/${slug}`)}`}
+          href={loginHref(`/o/${slug}`)}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-accent/60 hover:bg-accent/10"
         >
           {t('publicApp.organizer.signInToFollow')}

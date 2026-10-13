@@ -63,7 +63,7 @@ describe('the person page', () => {
       /function HeldNameCard\(\) \{|export function ThisIsMeCard\(/,
     );
     expect(held).toContain("{t('publicApp.people.guestHasAccount')}");
-    expect(held).toMatch(/<Link\s+href="\/login"/);
+    expect(held).toMatch(/<Link\s+href=\{loginHref\(here\)\}/);
     expect(held).not.toContain('claim?personId');
     expect(held).not.toContain('onGuestAccess');
     expect(free).toContain('claim?personId=${personId}');

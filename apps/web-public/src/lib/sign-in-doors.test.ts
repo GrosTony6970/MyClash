@@ -64,7 +64,7 @@ describe('the site header', () => {
 
   it('names a guest beside "Sign in", and her name opens her schedule (ruling 268)', () => {
     expect(header).toMatch(
-      /\{visitor\.guest && \(\s+<NameChip href=\{visitor\.guest\.scheduleHref\}>\{visitor\.guest\.name\}<\/NameChip>\s+\)\}\s+<Link\s+href="\/login"/,
+      /\{visitor\.guest && \(\s+<NameChip href=\{visitor\.guest\.scheduleHref\}>\{visitor\.guest\.name\}<\/NameChip>\s+\)\}\s+<Link\s+href=\{loginHref\(here\)\}/,
     );
     // An account's name still opens the personal space.
     expect(header).toMatch(/<NameChip href="\/me">\s+\{visitor\.displayName \?\?/);

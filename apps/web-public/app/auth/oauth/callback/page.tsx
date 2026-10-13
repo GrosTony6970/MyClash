@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Button } from '@myclash/ui';
+import { isOwnSitePath } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
@@ -94,7 +95,10 @@ function PublicOAuthCallback() {
         const code = searchParams.get('code');
         const personId = searchParams.get('personId');
         const mode = searchParams.get('mode') ?? 'person_claim';
-        const next = searchParams.get('next') ?? (mode === 'public_login' ? '/me' : '/');
+        // `next` is an address anybody can write, and the page falls back on it
+        // when the server names no landing: only a path of our own site is kept.
+        const asked = searchParams.get('next');
+        const next = isOwnSitePath(asked) ? asked : mode === 'public_login' ? '/me' : '/';
 
         if (!code) {
           throw new ValidationError('auth.oauth.errors.missingCode');

@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
+import { loginHref } from '@/lib/sign-in-return';
 import { LegalNotice } from '../../../../../src/components/LegalConsent';
 
 const CARD = 'mb-6 rounded-xl border border-dashed border-border bg-surface px-4 py-3';
@@ -23,12 +25,14 @@ interface ThisIsMeCardProps {
  */
 function HeldNameCard() {
   const { t } = useI18n();
+  // Signing in returns to this person's page.
+  const here = usePathname();
   return (
     <div className={CARD}>
       <p className="text-sm text-foreground-secondary">{t('publicApp.people.guestHasAccount')}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
-          href="/login"
+          href={loginHref(here)}
           className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground"
         >
           {t('publicApp.home.signIn')}

@@ -3,7 +3,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { fetchMe } from '@myclash/api-client';
+import { loginHref } from '@/lib/sign-in-return';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { signOut } from '@/lib/phone-alerts';
 import {
@@ -61,6 +63,8 @@ function SignOutIcon() {
  */
 export function SiteHeader() {
   const { t } = useI18n();
+  // Signing in from the header returns to the page it was pressed on.
+  const here = usePathname();
 
   // `null` until `/me` answers: the server render and the first paint show neither button.
   const [visitor, setVisitor] = useState<PublicPersonalDecision | null>(null);
@@ -118,7 +122,7 @@ export function SiteHeader() {
                 <NameChip href={visitor.guest.scheduleHref}>{visitor.guest.name}</NameChip>
               )}
               <Link
-                href="/login"
+                href={loginHref(here)}
                 className="rounded-md bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 {t('publicApp.home.signIn')}

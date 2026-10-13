@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { UnknownCaller } from '@/components/me/workshop-booking';
+import { loginHref } from '@/lib/sign-in-return';
 
 const DOOR =
   'rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:border-muted';
@@ -63,7 +64,7 @@ export function ScheduleNotShown({ reason, eventSlug, onRetry }: Props) {
               <Link href={`/e/${eventSlug}/participants`} className={DOOR}>
                 {t('publicApp.workshopDetail.participantsList')}
               </Link>
-              <Link href="/login" className={DOOR}>
+              <Link href={loginHref(`/e/${eventSlug}/my-schedule`)} className={DOOR}>
                 {t('publicApp.home.signIn')}
               </Link>
             </>

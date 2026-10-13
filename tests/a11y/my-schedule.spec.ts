@@ -218,7 +218,11 @@ test('my-schedule page - a device the server does not know gets the two doors in
     'href',
     '/e/test-event/participants',
   );
-  await expect(main.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
+  // Signing in returns here (quick win F11).
+  await expect(main.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+    'href',
+    '/login?next=%2Fe%2Ftest-event%2Fmy-schedule',
+  );
   await expect(main.getByRole('button', { name: 'Try again' })).toHaveCount(0);
   await expectNoCriticalAxeViolations(page);
 });

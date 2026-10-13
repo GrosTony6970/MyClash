@@ -85,13 +85,18 @@ export async function requestSignUp(
   }
 }
 
-export async function requestMagicLink(apiUrl: string, email: string): Promise<boolean> {
+/** `landing` is where the mailed link sends its reader: `afterSignIn` chose it. */
+export async function requestMagicLink(
+  apiUrl: string,
+  email: string,
+  landing: string,
+): Promise<boolean> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/auth/magic-link`, {
       method: 'POST',
       credentials: 'include',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ email: email.trim(), type: 'public_login', redirectTo: '/me' }),
+      body: JSON.stringify({ email: email.trim(), type: 'public_login', redirectTo: landing }),
     });
     return res.ok;
   } catch {
@@ -121,11 +126,12 @@ export async function requestPasswordReset(apiUrl: string, email: string): Promi
 
 /**
  * Hand off to Google. Resolves `false` when the redirect could not be started;
- * on success the browser is already navigating away.
+ * on success the browser is already navigating away. `landing` is where the
+ * return from Google ends: `afterSignIn` chose it.
  */
-export async function startGoogleSignIn(origin: string): Promise<boolean> {
+export async function startGoogleSignIn(origin: string, landing: string): Promise<boolean> {
   try {
-    const next = encodeURIComponent('/me');
+    const next = encodeURIComponent(landing);
     const { error } = await createOAuthSupabaseClient().auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${origin}/auth/oauth/callback?mode=public_login&next=${next}` },

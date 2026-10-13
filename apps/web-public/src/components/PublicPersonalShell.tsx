@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
 import { dropForeignAddress, signOut } from '../lib/phone-alerts';
+import { loginHref } from '../lib/sign-in-return';
 import { resolvePublicPersonal } from './public-personal-decision';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
@@ -72,7 +73,8 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       );
 
       if (decision.kind === 'sign_in') {
-        window.location.replace('/login');
+        // Signing in returns to the page of the personal space that was asked for.
+        window.location.replace(loginHref(window.location.pathname));
         return;
       }
       if (decision.kind === 'unverified') {

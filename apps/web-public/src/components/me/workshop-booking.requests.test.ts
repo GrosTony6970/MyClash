@@ -271,7 +271,7 @@ describe('the public Workshop page', () => {
       /<Link href=\{`\/e\/\$\{eventSlug\}\/participants`\} className=\{DOOR\}>\s+\{t\('publicApp\.workshopDetail\.participantsList'\)\}/,
     );
     expect(visitor).toMatch(
-      /<Link href="\/login" className=\{DOOR\}>\s+\{t\('publicApp\.home\.signIn'\)\}/,
+      /<Link href=\{loginHref\(here\)\} className=\{DOOR\}>\s+\{t\('publicApp\.home\.signIn'\)\}/,
     );
   });
 
