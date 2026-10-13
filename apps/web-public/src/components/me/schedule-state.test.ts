@@ -70,6 +70,11 @@ describe('what the page shows after an answer', () => {
     });
   });
 
+  it('a failed read after a 401 keeps the doors: the page does not turn to "could not load"', () => {
+    const doors = scheduleAfterRead(fromCopy, { kind: 'signedOut' }, LATER);
+    expect(scheduleAfterRead(doors, { kind: 'failed' }, LATER)).toEqual(doors);
+  });
+
   it('a read that lands after a failure is no longer offline', () => {
     const offline = scheduleAfterRead(fromCopy, { kind: 'failed' }, LATER);
     expect(scheduleAfterRead(offline, { kind: 'data', data: paul }, LATER).offline).toBe(false);
@@ -180,7 +185,7 @@ describe('the copy leaves the phone with its person', () => {
   it('and the reader is the one both pages use', () => {
     const hook = read('src', 'components', 'me', 'use-my-schedule.ts');
     expect(hook).toContain("if (kept === 'forget') forgetSchedule(eventKey);");
-    expect(hook).toContain('if (out) return;');
+    expect(hook).toContain('readMySchedule<T>(apiUrl, eventKey, signal)');
     expect(read('app', 'e', '[eventSlug]', 'my-schedule', 'page.tsx')).toContain(
       'const mine = useMySchedule<PersonSchedule>(eventSlug);',
     );

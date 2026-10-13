@@ -82,6 +82,28 @@ test('a server that knows nobody here ends the copy: the doors show, not her sch
   expect(await copyOnPhone(page)).toBeNull();
 });
 
+test('a login that only needs renewal keeps her schedule, on screen and on the phone', async ({
+  page,
+}) => {
+  const server = await openSchedule(page);
+  await expect.poll(() => copyOnPhone(page)).not.toBeNull();
+  const before = server.reads;
+
+  // Her hour is up: the read answers 401 until `/me` has renewed the login.
+  server.answers = 401;
+  await page.route('**/api/v1/me', (route) => {
+    server.answers = 200;
+    return route.fulfill({ json: { type: 'claimed' } });
+  });
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+
+  // The refused read, then the same read again.
+  await expect.poll(() => server.reads).toBe(before + 2);
+  await expect(page.getByText('Ada Lovelace')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in to see your schedule' })).toHaveCount(0);
+  expect(await copyOnPhone(page)).not.toBeNull();
+});
+
 test('coming back to the page reads the schedule again', async ({ page }) => {
   const server = await openSchedule(page);
   const before = server.reads;

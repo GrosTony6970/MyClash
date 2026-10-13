@@ -48,6 +48,8 @@ export function scheduleAfterRead<T>(
   }
   // A failed read keeps what is on screen, and says it is old.
   if (shown.schedule) return { ...shown, state: 'shown', offline: true };
+  // The server said it knows nobody here: a read that fails later does not unsay it.
+  if (shown.state === 'signedOut') return shown;
   return { state: 'failed', schedule: null, updatedAt: null, offline: false };
 }
 
