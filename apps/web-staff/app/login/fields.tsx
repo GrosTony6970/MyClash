@@ -20,6 +20,11 @@ interface LabelledInputProps {
   placeholder?: string;
   inputMode?: 'numeric';
   autoComplete?: string;
+  /**
+   * A username or a code: the tablet's keyboard must not capitalise it or
+   * "correct" it into a word (quick win S2).
+   */
+  asTyped?: boolean;
   inputRef?: React.Ref<HTMLInputElement>;
   className?: string;
 }
@@ -34,9 +39,13 @@ export function LabelledInput({
   placeholder,
   inputMode,
   autoComplete,
+  asTyped,
   inputRef,
   className,
 }: LabelledInputProps) {
+  const keyboard = asTyped
+    ? ({ autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const)
+    : {};
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-medium text-foreground-secondary mb-1">
@@ -50,6 +59,7 @@ export function LabelledInput({
         type={type}
         inputMode={inputMode}
         autoComplete={autoComplete}
+        {...keyboard}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className={className ? `${className} ${FIELD_CLASS}` : FIELD_CLASS}

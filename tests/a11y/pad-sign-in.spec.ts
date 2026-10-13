@@ -89,3 +89,34 @@ test('an Event that is not found, an account that is closed, a server that fails
   await signIn(page);
   await expect(alert).toHaveText(/your PIN was not checked/i);
 });
+
+// Quick win S2. A borrowed tablet turned "marie" into "Marie" and a code into
+// a word of the dictionary.
+test('the keyboard leaves a username and an event code as they are typed', async ({ page }) => {
+  await stubSignIn(page);
+  await openLinked(page);
+
+  for (const id of ['#staffUsername', '#eventSlugOrCode']) {
+    const field = page.locator(id);
+    await expect(field).toHaveAttribute('autocapitalize', 'none');
+    await expect(field).toHaveAttribute('autocorrect', 'off');
+    await expect(field).toHaveAttribute('spellcheck', 'false');
+  }
+  await expect(page.locator('#staffUsername')).toHaveAttribute('autocomplete', 'username');
+  await expect(page.locator('#staffPin')).toHaveAttribute('autocomplete', 'current-password');
+  await expect(page.locator('#eventSlugOrCode')).toHaveAttribute('autocomplete', 'off');
+  // The email field keeps the keyboard's help: an address is a word of the owner.
+  await expect(page.locator('#email')).not.toHaveAttribute('autocorrect', 'off');
+});
+
+test('the field for a typed Event is called "Event code", in the words above it too', async ({
+  page,
+}) => {
+  const stub = await stubSignIn(page);
+  stub.events = [];
+  await openSignIn(page);
+
+  await expect(page.getByLabel('Event code')).toBeVisible();
+  await expect(page.getByText(/type the event code instead/i)).toBeVisible();
+  await expect(page.getByText(/slug/i)).toHaveCount(0);
+});

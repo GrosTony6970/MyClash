@@ -50,6 +50,8 @@ export function StaffPinForm({ linkedEvent, linkedUsername }: Props) {
         label={t('scoring.login.username')}
         value={form.username}
         onChange={form.setUsernameEdit}
+        autoComplete="username"
+        asTyped
       />
       <LabelledInput
         id="staffPin"
@@ -58,6 +60,7 @@ export function StaffPinForm({ linkedEvent, linkedUsername }: Props) {
         onChange={form.setPin}
         type="password"
         inputMode="numeric"
+        autoComplete="current-password"
         inputRef={form.pinRef}
       />
 
@@ -104,6 +107,8 @@ function EventField({
       value={value}
       onChange={onType}
       placeholder={t('scoring.login.eventIdentifierPlaceholder')}
+      autoComplete="off"
+      asTyped
       className={className}
     />
   );

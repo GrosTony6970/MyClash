@@ -22,7 +22,7 @@ export const scoring = {
     sending: 'Envoi...',
     sendLoginLink: 'Envoyer le lien de connexion',
     localStaffAccess: 'Compte local staff',
-    eventIdentifier: 'Slug événement',
+    eventIdentifier: "Code de l'événement",
     eventIdentifierPlaceholder: 'fal-2026',
     username: 'Identifiant',
     pin: 'PIN',
@@ -35,7 +35,7 @@ export const scoring = {
       tooManyTries:
         "Trop d'essais pour ce compte. Ne retapez pas le PIN : attendez, jusqu'à une heure, ou demandez à un organisateur.",
       eventNotFound:
-        "Cet événement est introuvable. Vérifiez l'événement, ou demandez à un organisateur.",
+        "Cet événement est introuvable. Vérifiez le code de l'événement, ou demandez à un organisateur.",
       closed:
         'Ce compte ou cet événement est fermé à la connexion staff. Demandez à un organisateur.',
       serverFault:
@@ -52,7 +52,7 @@ export const scoring = {
       upcoming: 'À venir',
       loading: 'Recherche des événements...',
       empty:
-        "Aucun événement n'est encore configuré pour la connexion staff. Saisissez le slug à la place.",
+        "Aucun événement n'est encore configuré pour la connexion staff. Saisissez le code de l'événement à la place.",
       emptyTab: "Rien ici — regardez l'autre onglet.",
       lastUsed: 'Dernier utilisé',
       noDate: 'Sans date',
