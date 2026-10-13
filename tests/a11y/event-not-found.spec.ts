@@ -85,6 +85,59 @@ test('a club member sees the home of their draft Event, with its Tournaments', a
   await expect(notFound(page)).toHaveCount(0);
 });
 
+/**
+ * The login cookie lasts an hour; the cookie that renews it, thirty days. A
+ * club member who comes back after lunch sends the server a login that ended,
+ * and only the browser can renew it (`/me`).
+ */
+test.describe('a club member whose login ended an hour ago', () => {
+  test.beforeEach(async ({ context }) => {
+    await context.addCookies([{ name: 'sb-refresh-token', value: 'a-renewal', url: PUBLIC }]);
+  });
+
+  test('sees her draft Event: the login is renewed, and the page is read again', async ({
+    page,
+    context,
+  }) => {
+    await stubPublicApi(page);
+    let asked = 0;
+    await page.route('**/api/v1/me', async (route) => {
+      asked += 1;
+      // What `/me` does: it writes the renewed login into the browser.
+      await context.addCookies([{ name: 'sb-access-token', value: 'a-login', url: PUBLIC }]);
+      return route.fulfill({ json: { type: 'claimed' } });
+    });
+    await page.goto(`${PUBLIC}/e/draft-event/home`);
+
+    await expect(page.getByRole('heading', { name: 'Tournoi de Nancy' })).toBeVisible();
+    await expect(notFound(page)).toHaveCount(0);
+    expect(asked).toBeGreaterThan(0);
+  });
+
+  test('reads "Page not found" when the login could not be renewed', async ({ page }) => {
+    await stubPublicApi(page);
+    await page.goto(`${PUBLIC}/e/draft-event/home`);
+
+    await expect(notFound(page)).toBeVisible();
+  });
+
+  test('reads "Page not found" after ONE more load, for an Event that is not hers', async ({
+    page,
+  }) => {
+    await stubPublicApi(page);
+    let loads = 0;
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads += 1;
+    });
+    // The login is good, and the server still answers "not found".
+    await page.route('**/api/v1/me', (route) => route.fulfill({ json: { type: 'claimed' } }));
+    await page.goto(`${PUBLIC}/e/draft-event/home`);
+
+    await expect(notFound(page)).toBeVisible();
+    expect(loads).toBe(2);
+  });
+});
+
 test('a bout that is not there offers the Event home and the list of Events', async ({ page }) => {
   await stubPublicApi(page);
   await page.goto(`${PUBLIC}/e/test-event/match/no-such-bout`);

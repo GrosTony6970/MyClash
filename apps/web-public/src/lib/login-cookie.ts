@@ -43,6 +43,44 @@ export function displayPageGate(status: number, jar: CookieJar): 'page' | 'not-f
   return 'error';
 }
 
+/** When a login cookie says it ends, in seconds; null when it does not say. It is not verified here. */
+function endOf(token: string): number | null {
+  try {
+    const claims = JSON.parse(
+      Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { exp?: unknown } | null;
+    return typeof claims?.exp === 'number' ? claims.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Did this viewer's server read go out with a login that ended, which the
+ * browser can renew? The login cookie stays in the browser for thirty days and
+ * is good for one hour. A club member who opens her draft Event after lunch
+ * sends one that ended: the API answers her as it answers a stranger, "not
+ * found". The not-found page asks this, renews the login in the browser and
+ * loads the page again (`NotFoundCard`).
+ *
+ * False for a login that is still good: a second read would answer the same.
+ */
+export function loginNeedsRenewal(jar: CookieJar, nowMs: number): boolean {
+  if (!hasRenewableLogin(jar)) return false;
+  const token = jar.get(LOGIN_COOKIE)?.value;
+  const end = token ? endOf(token) : null;
+  return end === null || end * 1000 <= nowMs;
+}
+
+/** `loginNeedsRenewal` for the current request; false outside one, as `requestLoginHeader`. */
+export async function requestLoginNeedsRenewal(): Promise<boolean> {
+  try {
+    return loginNeedsRenewal(await cookies(), Date.now());
+  } catch {
+    return false;
+  }
+}
+
 export function loginCookieHeader(jar: CookieJar): Record<string, string> {
   const value = jar.get(LOGIN_COOKIE)?.value;
   return value ? { cookie: `${LOGIN_COOKIE}=${encodeURIComponent(value)}` } : {};
