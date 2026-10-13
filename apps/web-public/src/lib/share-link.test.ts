@@ -1,5 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { publicCanOpenTournament, shareLink, shareMessageKey, type ShareDoors } from './share-link';
+import {
+  PUBLIC_TOURNAMENT_STATUSES,
+  publicCanOpenTournament,
+  shareLink,
+  shareMessageKey,
+  type ShareDoors,
+} from './share-link';
 
 const URL = 'https://myclash.test/e/open-2027/match/m-1';
 const TITLE = 'Dupont vs Martin · Open 2027';
@@ -83,8 +91,25 @@ describe('publicCanOpenTournament', () => {
     );
   });
 
-  it('is false for a draft Tournament: only its club reads it', () => {
-    expect(publicCanOpenTournament(open, 'draft')).toBe(false);
+  it('is true for each status the API shows to the public, and for no other', () => {
+    for (const status of ['published', 'running', 'completed']) {
+      expect(publicCanOpenTournament(open, status), status).toBe(true);
+    }
+    // An organiser can archive a Tournament: its club still opens it, the public does not.
+    for (const status of ['draft', 'archived', '', 'a status of next year']) {
+      expect(publicCanOpenTournament(open, status), status).toBe(false);
+    }
+  });
+
+  it("names the statuses the API's own list names", () => {
+    const api = readFileSync(
+      join(__dirname, '../../../api/src/common/auth/competition-visibility.ts'),
+      'utf8',
+    );
+    expect(api).toContain(
+      "PUBLIC_TOURNAMENT_STATUSES = new Set(['published', 'running', 'completed']);",
+    );
+    expect([...PUBLIC_TOURNAMENT_STATUSES]).toEqual(['published', 'running', 'completed']);
   });
 
   it('is false for a Tournament of a draft Event, and of a test Event', () => {

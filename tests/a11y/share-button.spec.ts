@@ -18,7 +18,7 @@ import { PUBLIC } from './public-pages-stub';
 const BOUT = `${PUBLIC}/e/test-event/match/bout-1`;
 const TOURNAMENT = `${PUBLIC}/e/test-event/t/longsword-open`;
 
-type Sheet = 'opens' | 'closed by the person' | 'none';
+type Sheet = 'opens' | 'stays open' | 'closed by the person' | 'none';
 type Clipboard = 'takes' | 'refuses';
 
 interface Doors {
@@ -34,6 +34,13 @@ async function browserWith(page: Page, sheet: Sheet, clipboard: Clipboard = 'tak
       (window as unknown as { doors: Doors }).doors = doors;
       const share = (data: { title: string; url: string }) => {
         doors.shared.push(data);
+        // A real sheet answers when the person is done with it. A second call
+        // meanwhile is refused, and not as "closed by the person".
+        if (sheetIs === 'stays open') {
+          return doors.shared.length === 1
+            ? new Promise<void>(() => {})
+            : Promise.reject(new DOMException('a share is under way', 'InvalidStateError'));
+        }
         return sheetIs === 'opens'
           ? Promise.resolve()
           : Promise.reject(new DOMException('closed', 'AbortError'));
@@ -91,10 +98,8 @@ test('on a phone, Share opens the share sheet with the plain address of the bout
   await tapShare(page);
 
   const doors = await doorsOf(page);
-  expect(doors.shared[0]).toEqual({
-    title: 'Jean Dupont vs Paul Martin · Open de Lyon',
-    url: BOUT,
-  });
+  // One call, and only one.
+  expect(doors.shared).toEqual([{ title: 'Jean Dupont vs Paul Martin · Open de Lyon', url: BOUT }]);
   expect(doors.copied).toEqual([]);
   await expect(shareButton(page)).toHaveText('Share');
   await expect(said(page)).toHaveText('');
@@ -111,6 +116,22 @@ test('a sheet the person closes says nothing and copies nothing', async ({ page 
   await expect(said(page)).toHaveText('');
 });
 
+test('a second tap while the sheet is open does nothing', async ({ page }) => {
+  await browserWith(page, 'stays open');
+  await open(page, BOUT);
+
+  await tapShare(page);
+  await shareButton(page).click();
+  await shareButton(page).click();
+
+  // The browser refuses a second sheet. Passed on, that refusal copied the link
+  // and said "Copied!" under the open sheet.
+  const doors = await doorsOf(page);
+  expect(doors.shared).toHaveLength(1);
+  expect(doors.copied).toEqual([]);
+  await expect(shareButton(page)).toHaveText('Share');
+});
+
 test('with no share sheet, Share copies the link and says "Copied!" for two seconds', async ({
   page,
 }) => {
@@ -119,7 +140,7 @@ test('with no share sheet, Share copies the link and says "Copied!" for two seco
 
   await tapShare(page);
 
-  expect((await doorsOf(page)).copied[0]).toBe(BOUT);
+  expect((await doorsOf(page)).copied).toEqual([BOUT]);
   await expect(shareButton(page)).toHaveText('Copied!');
   // A screen reader hears it: the same words in a polite live region.
   await expect(said(page)).toHaveText('Copied!');
@@ -128,7 +149,7 @@ test('with no share sheet, Share copies the link and says "Copied!" for two seco
   await expect(said(page)).toHaveText('');
 });
 
-test('a copy the browser refuses says so, and keeps saying so', async ({ page }) => {
+test('a copy the browser refuses says so, for longer than "Copied!"', async ({ page }) => {
   await browserWith(page, 'none', 'refuses');
   await open(page, BOUT);
 
@@ -137,8 +158,11 @@ test('a copy the browser refuses says so, and keeps saying so', async ({ page })
   await expect(shareButton(page)).toHaveText('Could not copy the link');
   await expect(said(page)).toHaveText('Could not copy the link');
   // Not for two seconds only: the link is not on the clipboard, and the person must know.
-  await page.waitForTimeout(2_500);
+  await page.waitForTimeout(3_000);
   await expect(shareButton(page)).toHaveText('Could not copy the link');
+  // Then the button is "Share" again: a screen reader that lands on it later reads what it does.
+  await expect(shareButton(page)).toHaveText('Share', { timeout: 6_000 });
+  await expect(said(page)).toHaveText('');
 });
 
 test('a bout the public cannot read has no Share button', async ({ page }) => {
@@ -156,10 +180,20 @@ test("a Tournament's page shares its own address", async ({ page }) => {
 
   await tapShare(page);
 
-  expect((await doorsOf(page)).shared[0]).toEqual({
-    title: 'Longsword Open · Open de Lyon',
-    url: TOURNAMENT,
-  });
+  expect((await doorsOf(page)).shared).toEqual([
+    { title: 'Longsword Open · Open de Lyon', url: TOURNAMENT },
+  ]);
+});
+
+test("a fighter's profile shares its own address with the same button", async ({ page }) => {
+  await browserWith(page, 'none');
+  await open(page, `${PUBLIC}/fighters/lea-martin`);
+  await expect(page.getByRole('heading', { name: 'Léa Martin', level: 1 })).toBeVisible();
+
+  await tapShare(page);
+
+  expect((await doorsOf(page)).copied).toEqual([`${PUBLIC}/fighters/lea-martin`]);
+  await expect(shareButton(page)).toHaveText('Copied!');
 });
 
 for (const [what, path, heading] of [

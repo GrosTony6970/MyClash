@@ -49,8 +49,21 @@ export async function shareLink(
 }
 
 /**
+ * The Tournament statuses the API shows to the public: its own list, of the same
+ * name (`apps/api/src/common/auth/competition-visibility.ts`). A test holds the
+ * two equal. A list of what is SHOWN, not of what is hidden: a status this site
+ * does not know (an organiser can archive a Tournament) counts as hidden.
+ */
+export const PUBLIC_TOURNAMENT_STATUSES: ReadonlySet<string> = new Set([
+  'published',
+  'running',
+  'completed',
+]);
+
+/**
  * May the public open this Tournament's page? Share is drawn only then: a link
- * to a draft Tournament, or to a Tournament of a draft or test Event, says
+ * to a Tournament the public does not read (a draft, an archived one), or to a
+ * Tournament of a draft or test Event, says
  * "Page not found" to everybody outside the club (operator ruling 2026-10-14).
  * The API decides who reads what (`isPublicEvent`); this only keeps a club
  * member from sending a link that opens for nobody. `event` is null when its
@@ -64,7 +77,7 @@ export function publicCanOpenTournament(
     event !== null &&
     event.status !== 'draft' &&
     isPubliclyVisible(event.eventKind) &&
-    tournamentStatus !== 'draft'
+    PUBLIC_TOURNAMENT_STATUSES.has(tournamentStatus)
   );
 }
 
