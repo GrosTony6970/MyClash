@@ -49,9 +49,10 @@ export default function RootPage() {
         setUnchecked(true);
         return;
       }
-      // Offline lands here too: neither session can be verified, and /login is
-      // what this page has always done about that. The running pad at
-      // /matches/[matchId] is not gated by any of this.
+      // No network lands here too, with the service worker or without it
+      // (`answeredFault`): neither session can be verified, and /login is what
+      // this page does about that. The running pad at /matches/[matchId] is
+      // not gated by any of this.
       router.replace(decision.kind === 'allow' ? PISTES_ON_ARRIVAL : '/login');
     })();
   }, [apiUrl, router]);

@@ -62,7 +62,9 @@ describe('a press that goes straight to the server', () => {
     });
 
     expect(fetched).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ ok: false, kind: 'http', status: 503, code: null });
+    // The worker's own answer, with the code that names it. The code changes no
+    // wording: the sentence below is still the one of "no connection".
+    expect(result).toMatchObject({ ok: false, kind: 'http', status: 503, code: 'offline' });
     if (result.ok) throw new Error('unreachable');
     expect(refusalMessage(result, t, 'scoring.corrections.actionFailed')).toBe(
       t('scoring.corrections.offlineRefusal'),

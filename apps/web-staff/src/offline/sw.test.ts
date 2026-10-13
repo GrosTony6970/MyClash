@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SHELL_ID } from '../lib/nav';
+import { offlineResponse } from './failure-kind';
 
 /**
  * The service worker itself: `public/sw.js`, run as the browser runs it, over a
@@ -362,6 +363,13 @@ describe('a request of the API', () => {
     const answer = await sw.ask('/api/v1/matches/bout-1', 'cors');
 
     expect(answer?.status).toBe(503);
-    expect(await answer?.json()).toMatchObject({ error: 'offline', status: 503 });
+    // Word for word the answer the pad keeps beside its classifier: the drill
+    // gives that one, and the start page reads its `code`.
+    expect(await answer?.json()).toEqual(await offlineResponse().json());
+    expect(await offlineResponse().json()).toEqual({
+      error: 'offline',
+      code: 'offline',
+      status: 503,
+    });
   });
 });

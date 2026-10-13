@@ -1,4 +1,5 @@
 import type { ApiResult, MeSession } from '@myclash/api-client';
+import { OFFLINE_CODE } from '../offline/failure-kind';
 
 /**
  * May this browser open the scoring pad?
@@ -37,9 +38,16 @@ export type StaffSessionDecision =
  * Did the server answer this read with a failure? A request that never landed
  * is not one: offline keeps the sign-in screen, where a tablet reads the hits
  * it still holds (ruling 241). Null is a read that was not asked.
+ *
+ * "Never landed" has two shapes. With no service worker the request throws
+ * (`network`). Under the worker it does NOT: the worker answers a dead network
+ * itself, with a 503 that carries `OFFLINE_CODE`. That answer is no word of the
+ * server. Read as one, it sent a tablet with no network to "we could not check
+ * who is signed in", whose Retry could only fail again. A 503 with any other
+ * code, or none, IS the server (or the edge in front of it): ruling 295a.
  */
 export const answeredFault = (read: ApiResult<unknown> | null): boolean =>
-  read !== null && !read.ok && read.kind === 'http';
+  read !== null && !read.ok && read.kind === 'http' && read.code !== OFFLINE_CODE;
 
 export function resolveStaffSession(
   /** `/api/v1/staff-auth/me` answered 2xx — a PIN session on this tablet. */

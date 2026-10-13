@@ -73,9 +73,15 @@ export function classifySyncFailure(status: number, body: FailureBody | null): S
  * together. The offline drill returns this rather than inventing its own
  * failure shape — a drill that produced a state the crew will never meet in a
  * hall would be worse than no drill.
+ *
+ * `code` says the same as `error`, for a reader behind `apiRequest`: that
+ * helper keeps the `code` of a refused answer and nothing else of its body
+ * (`OFFLINE_CODE`, read by the start page).
  */
+export const OFFLINE_CODE = 'offline';
+
 export function offlineResponse(): Response {
-  return new Response(JSON.stringify({ error: 'offline', status: 503 }), {
+  return new Response(JSON.stringify({ error: 'offline', code: OFFLINE_CODE, status: 503 }), {
     status: 503,
     headers: { 'Content-Type': 'application/json' },
   });

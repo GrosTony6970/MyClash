@@ -169,7 +169,10 @@ async function networkFirstApi(request) {
   try {
     return await fetch(request);
   } catch {
-    return new Response(JSON.stringify({ error: 'offline', status: 503 }), {
+    // `code` beside `error`: the shared request helper keeps a refusal's `code`
+    // and drops the rest, and the start page must tell this answer from a
+    // server that is up and answers 503. In step with `offlineResponse()`.
+    return new Response(JSON.stringify({ error: 'offline', code: 'offline', status: 503 }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' },
     });

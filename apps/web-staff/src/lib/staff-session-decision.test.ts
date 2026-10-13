@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { MeSession } from '@myclash/api-client';
+import { responseFailure, type MeSession } from '@myclash/api-client';
 
+import { OFFLINE_CODE, offlineResponse } from '../offline/failure-kind';
 import { answeredFault, resolveStaffSession } from './staff-session-decision';
 
 const me = (type: MeSession['type']): MeSession => ({ type });
@@ -55,6 +56,31 @@ describe('answeredFault', () => {
     ['a /me that was read', { ok: true, data: { type: 'anonymous' } }],
   ])('is not %s', (_what, result) => {
     expect(answeredFault(result as never)).toBe(false);
+  });
+
+  // Under the service worker a dead network does not throw: the worker answers
+  // a 503 of its own. Read as the server's, it sent a tablet with no network to
+  // "we could not check who is signed in", whose Retry could only fail again.
+  it('is not the service worker’s own answer to a dead network', async () => {
+    const worker = { ok: false, ...responseFailure(503, await offlineResponse().json()) };
+
+    expect(worker).toMatchObject({ kind: 'http', status: 503, code: OFFLINE_CODE });
+    expect(answeredFault(worker as never)).toBe(false);
+    // So the decision is the one of a request that never landed: sign in (ruling 241).
+    expect(resolveStaffSession(false, null, answeredFault(worker as never))).toEqual({
+      kind: 'sign_in',
+    });
+  });
+
+  // Ruling 295a stands: a server that is up and answers 503 has answered a fault.
+  it.each([
+    ['the edge with no API behind it', { detail: 'Bad Gateway' }],
+    ['read-only mode', { code: 'read_only_mode', detail: 'Read-only' }],
+    ['a body that is no JSON', undefined],
+  ])('is a 503 of %s', (_what, body) => {
+    const fault = { ok: false, ...responseFailure(503, body) };
+
+    expect(answeredFault(fault as never)).toBe(true);
   });
 });
 
