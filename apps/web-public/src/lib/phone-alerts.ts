@@ -11,6 +11,7 @@
  * package's vitest does not compile TSX, so what can be tested is kept out of the components.
  */
 import { apiRequest } from '@myclash/api-client';
+import { forgetSchedules } from '../components/me/schedule-copy';
 
 /**
  * The address this browser holds, or null. Null is also the answer of a browser with no push, or
@@ -104,10 +105,12 @@ export async function leaveDeletedAccount(to: string): Promise<void> {
 
 /**
  * The ONE sign-out of this app. The alerts go first, while the login can still say whose address
- * it is; then the login; then the page. Nothing here throws, so the page always changes.
+ * it is; then the login; then the schedules this phone kept, which are that person's; then the
+ * page. Nothing here throws, so the page always changes.
  */
 export async function signOut(apiUrl: string, to: string): Promise<void> {
   await turnOffPhoneAlerts(apiUrl);
   await apiRequest<unknown>(apiUrl, '/api/v1/auth/logout', { method: 'POST' });
+  forgetSchedules();
   window.location.assign(to);
 }

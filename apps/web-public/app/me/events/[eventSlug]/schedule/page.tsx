@@ -1,12 +1,14 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import { useI18n } from '@myclash/next-i18n/client';
 import { addDays, zonedToUtcIso } from '@myclash/time';
 import type { ProgrammeBlock } from '@myclash/types';
 import { Skeleton } from '@myclash/ui';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { ScheduleView } from '@/components/me/ScheduleView';
-import { useMyEvents, useMySchedule, useProgramme } from '@/components/me/hooks';
+import { useMyEvents, useProgramme } from '@/components/me/hooks';
+import { useMySchedule } from '@/components/me/use-my-schedule';
 import type { ProgrammeContextRow } from '@/components/me/types';
 
 const DEFAULT_TZ = 'Europe/Paris';
@@ -103,9 +105,25 @@ function ScheduleTab({
   startDate: string | null;
   slug: string;
 }) {
-  const { schedule, loading, updatedAt, offline } = useMySchedule(eventId);
+  const { t } = useI18n();
+  const { schedule, loading, updatedAt, offline, retry } = useMySchedule(eventId);
   const { blocks } = useProgramme(eventId);
-  if (loading || !schedule) return <Skeleton className="h-40 w-full rounded-xl" />;
+  if (loading) return <Skeleton className="h-40 w-full rounded-xl" />;
+  // No schedule and no copy on the phone: say so and offer the retry. It was a skeleton for ever.
+  if (!schedule) {
+    return (
+      <div role="alert" className="rounded-xl border border-border bg-surface p-4 text-sm">
+        <p className="font-semibold text-foreground">{t('publicApp.mySchedule.loadFailedTitle')}</p>
+        <button
+          type="button"
+          onClick={retry}
+          className="mt-3 min-h-11 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:border-muted"
+        >
+          {t('common.identityRetry')}
+        </button>
+      </div>
+    );
+  }
   const tz = timezone ?? DEFAULT_TZ;
   const programme = toContextRows(blocks, startDate, tz);
   const phaseEndByKey = phaseWindowsFrom(blocks, startDate, tz);

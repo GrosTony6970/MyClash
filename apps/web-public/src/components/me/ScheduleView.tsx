@@ -20,6 +20,7 @@ import {
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
 import { refereeRoleLabel } from './referee-role';
+import { ScheduleUpdatedBadge } from './ScheduleUpdatedBadge';
 import { boutPageHref } from '@/lib/bout-page';
 import {
   aggregateReferee,
@@ -525,21 +526,7 @@ export function ScheduleView({
     <div>
       <ClashCheckNotice count={uncheckedCount(items, timed)} />
       {updatedAt != null && (
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-semibold text-muted">
-          <span
-            className={['h-1.5 w-1.5 rounded-full', offline ? 'bg-warning' : 'bg-success'].join(
-              ' ',
-            )}
-          />
-          {t(offline ? 'publicApp.me.schedule.offlineUpdated' : 'publicApp.me.schedule.updated', {
-            time: formatInZone(
-              new Date(updatedAt).toISOString(),
-              tz,
-              { hour: '2-digit', minute: '2-digit' },
-              tag,
-            ),
-          })}
-        </div>
+        <ScheduleUpdatedBadge updatedAt={updatedAt} offline={offline} tz={tz} />
       )}
 
       {[...byDay.entries()].map(([day, dayItems]) =>

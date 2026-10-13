@@ -21,6 +21,7 @@ import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47 } from '@myclash/ti
 import { isLiveStatus } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
+import { forgetSchedules } from '@/components/me/schedule-copy';
 import { BackLink } from '@/components/BackLink';
 import { boutPageHref } from '@/lib/bout-page';
 import { refereeRoleLabel } from '@/components/me/referee-role';
@@ -184,6 +185,8 @@ export default function PersonProfilePage() {
       body: { person_id: personId },
     });
     if (result.ok) {
+      // The phone is this person's now: a schedule it kept was somebody else's.
+      forgetSchedules();
       // Land on the (now guest-aware) personal event schedule.
       window.location.assign(`/e/${eventSlug}/my-schedule`);
       return;

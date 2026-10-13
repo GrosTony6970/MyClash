@@ -7,7 +7,8 @@ import { SkillBadge } from '@myclash/ui';
 import { formatInZone } from '@myclash/time';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
 import { useI18n } from '@myclash/next-i18n/client';
-import { useMyEvents, useMySchedule } from '@/components/me/hooks';
+import { useMyEvents } from '@/components/me/hooks';
+import { useMySchedule } from '@/components/me/use-my-schedule';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';
 import {

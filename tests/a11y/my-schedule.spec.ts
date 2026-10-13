@@ -195,8 +195,8 @@ test('my-schedule page - a read that fails offers Retry, and says nothing about 
     main.getByRole('heading', { name: 'We could not load your schedule' }),
   ).toBeVisible();
   await expect(main.getByText(/sign in/i)).toHaveCount(0);
-  // The page does not read again by itself. (The dev server mounts a page twice,
-  // so the count at this point is not one.)
+  // One press is one read. (The dev server mounts a page twice, so the count at
+  // this point is not one.)
   const before = server.reads;
 
   server.well = true;

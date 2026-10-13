@@ -24,7 +24,8 @@ import {
 import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-clash';
 import { useI18n } from '@myclash/next-i18n/client';
-import { useMyEvents, useMySchedule } from '@/components/me/hooks';
+import { useMyEvents } from '@/components/me/hooks';
+import { useMySchedule } from '@/components/me/use-my-schedule';
 import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
 
 type WorkshopSession = WorkshopListItem['sessions'][number];

@@ -51,7 +51,7 @@ describe('the person page', () => {
     );
     // Only the server's yes opens the schedule.
     expect(source).toMatch(
-      /if \(result\.ok\) \{\s+(\/\/[^\n]*\s+)*window\.location\.assign\(`\/e\/\$\{eventSlug\}\/my-schedule`\);\s+return;/,
+      /if \(result\.ok\) \{\s+(\/\/[^\n]*\s+)*forgetSchedules\(\);\s+(\/\/[^\n]*\s+)*window\.location\.assign\(`\/e\/\$\{eventSlug\}\/my-schedule`\);\s+return;/,
     );
   });
 

@@ -33,9 +33,11 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { dayChipLabel, dayHeading, eventDay, eventDays, onEventDay } from './schedule-days';
-import { readMySchedule } from './read-my-schedule';
 import { ScheduleNotShown, type NotShownReason } from './ScheduleNotShown';
-import { unknownCaller } from '@/components/me/workshop-booking';
+import { forgetSchedules } from '@/components/me/schedule-copy';
+import { ScheduleUpdatedBadge } from '@/components/me/ScheduleUpdatedBadge';
+import { useMySchedule } from '@/components/me/use-my-schedule';
+import { unknownCaller, type UnknownCaller } from '@/components/me/workshop-booking';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
@@ -189,13 +191,11 @@ export default function MySchedulePage() {
   const { eventSlug } = params;
   const apiUrl = getPublicApiUrl();
 
-  // The schedule, why there is none, or "loading" while a read is out. One state, one writer.
-  const [view, setView] = useState<
-    | { kind: 'loading' }
-    | { kind: 'data'; data: PersonSchedule }
-    | { kind: 'notShown'; reason: NotShownReason }
-  >({ kind: 'loading' });
-  const [attempt, setAttempt] = useState(0);
+  // The schedule, the phone's copy of it, or why there is none: ONE reader (`useMySchedule`).
+  const mine = useMySchedule<PersonSchedule>(eventSlug);
+  // The server knows nobody here: a visitor, or an account with no row at this
+  // Event, for which "sign in" would be false. Asked once it has said so.
+  const [unknown, setUnknown] = useState<UnknownCaller | null>(null);
   const [dayFilter, setDayFilter] = useState<string>('all');
   const [focusMode, setFocusMode] = useState(true);
   // Guest sessions get a persistent banner: claim upgrade + end-session.
@@ -206,42 +206,37 @@ export default function MySchedulePage() {
     void fetchMe(apiUrl, { signal: controller.signal }).then((result) => {
       if (result.ok) setIsGuest(result.data.type === 'guest');
     });
-    void readMySchedule<PersonSchedule>(
-      `${apiUrl}/api/v1/events/${eventSlug}/my-schedule`,
-      controller.signal,
-    ).then(async (read) => {
-      // The page left before the answer: nothing is written for it.
-      if (read.kind === 'aborted') return;
-      if (read.kind === 'data') return setView(read);
-      // The server knows nobody here: a visitor, or an account with no row at
-      // this Event, for which "sign in" would be false.
-      const reason = read.kind === 'signedOut' ? await unknownCaller(apiUrl) : 'failed';
-      if (!controller.signal.aborted) setView({ kind: 'notShown', reason });
-    });
     return () => controller.abort();
-  }, [eventSlug, apiUrl, attempt]);
+  }, [apiUrl]);
 
-  if (view.kind === 'loading') {
+  const signedOut = mine.state === 'signedOut';
+  useEffect(() => {
+    if (!signedOut) return;
+    let left = false;
+    void unknownCaller(apiUrl).then((who) => {
+      if (!left) setUnknown(who);
+    });
+    return () => {
+      left = true;
+    };
+  }, [signedOut, apiUrl]);
+
+  const reason: NotShownReason | null = signedOut
+    ? unknown
+    : mine.state === 'failed'
+      ? 'failed'
+      : null;
+  if (reason) {
+    return <ScheduleNotShown reason={reason} eventSlug={eventSlug} onRetry={mine.retry} />;
+  }
+  const schedule = mine.schedule;
+  if (!schedule) {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
         <span className="w-8 h-8 border-2 border-muted border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
-
-  if (view.kind !== 'data') {
-    return (
-      <ScheduleNotShown
-        reason={view.reason}
-        eventSlug={eventSlug}
-        onRetry={() => {
-          setView({ kind: 'loading' });
-          setAttempt((n) => n + 1);
-        }}
-      />
-    );
-  }
-  const schedule = view.data;
 
   // Build unified item list
   const allItems: ScheduleItem[] = [
@@ -320,6 +315,10 @@ export default function MySchedulePage() {
 
       <ClashCheckNotice count={uncheckedCount(cardsOf(sorted), timed)} />
 
+      {mine.updatedAt != null && (
+        <ScheduleUpdatedBadge updatedAt={mine.updatedAt} offline={mine.offline} tz={tz} />
+      )}
+
       {/* The pass hangs off this page rather than /me because /me is
           claimed-only, and most participants at a real event are guests. This
           page already serves both identities, so it is the one door both can
@@ -351,7 +350,11 @@ export default function MySchedulePage() {
                 void fetch(`${apiUrl}/api/v1/guest-sessions/me`, {
                   method: 'DELETE',
                   credentials: 'include',
-                }).finally(() => window.location.assign(`/e/${eventSlug}/home`));
+                }).finally(() => {
+                  // "This is not me": her schedule leaves the phone with her.
+                  forgetSchedules();
+                  window.location.assign(`/e/${eventSlug}/home`);
+                });
               }}
               className="text-muted underline hover:no-underline"
             >
