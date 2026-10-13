@@ -1631,13 +1631,13 @@ fix. Each point was read in code, not run:
 It needs rulings before a plan: whose are the unsent hits, what an organiser with no PIN sees,
 and whether a PIN typed on a tablet that holds an organiser's login ends that login.
 
-## Built on 2026-10-13, evening: six of the nine F rows that hid a design (NOT pushed, NOT reviewed)
+## Built on 2026-10-13, evening: six of the nine F rows that hid a design
 
-**State on 2026-10-13 22:35.** Seven commits are on local `main` and NOT in `origin/main`
-(`dea8f0e5` to `d471d5c5`). Each row passed its own unit tests, lint, typecheck and browser
-stories. **Not run over this work: the cold review, the seeded breaks, the gate chain, API
-coverage, the whole browser suite.** Do not push before they are. F19 and F21 are planned, not
-built. The plan: `C:\Users\Tony\.claude\plans\pasted-content-id-2bfd-repo-f-github-noble-scott.md`.
+**State on 2026-10-14 00:30.** The seven commits of the evening (`dea8f0e5` to `6cbaf8bb`) are
+reviewed and falsified, with eight commits of fixes and tests on top (`3e692bb4` to `50c552cb`):
+see "The review and the seeded breaks" below. The gate chain is green over all of it (36 of 36).
+F19 and F21 are planned, not built. The plan:
+`C:\Users\Tony\.claude\plans\pasted-content-id-2bfd-repo-f-github-noble-scott.md`.
 
 The operator picked the nine rows and ruled seven times, each asked with a story:
 
@@ -1703,10 +1703,12 @@ What the build chose, not ruled. Say so if one is wrong:
 
 Named, not fixed (each read in code):
 
-- **A person who signs in on a phone that still holds another person's copy** sees that copy
-  until her own read lands (for as long as she has no signal). Sign-in lands by a server
-  redirect: no door of the site runs then. The copy shows what the first person's public page
-  shows, plus his Workshops if he hid them. The operator was told with the plan.
+- **A person who signs in by the mailed link on a phone that still holds another person's copy**
+  sees that copy until her own read lands (for as long as she has no signal). The mailed link
+  lands by a server redirect: no door of the site runs then. The copy shows what the first
+  person's public page shows, plus his Workshops if he hid them. The operator was told with the
+  plan. A sign-in with a password or with Google now removes the copies (`5090b0c7`): this note
+  said no sign-in could, and that was wrong for those two.
 - `fetchEventTheme` reads the Event a second time, with no login: a draft's hero image is not
   shown to its club.
 - The people-search page and the Workshop page have no "could not load" state: a failed read of
@@ -1720,6 +1722,59 @@ Named, not fixed (each read in code):
   picks a name removes it.
 - The cache question of F13 was read on the dev server only (`Cache-Control: no-cache,
 must-revalidate`), and no cache rule stands in `infra/`. Not read on a production build.
+
+### The review and the seeded breaks, 2026-10-14
+
+One cold review read the seven commits: no blocker, three majors, nine minors. Each major was
+read again in code before its fix. All three have one cause: the login cookie is good for one
+hour, and only `/me` renews it, in the browser.
+
+- **A fighter with an account lost her schedule after one hour** (`3e692bb4`). The read answered
+  401 for a login that only needed renewal. The page read it as "signed out": it took her
+  schedule off the screen and off the phone. Now the read renews the login first
+  (`fetchRenewingLogin`, the owner that existed). A 401 after that is the answer.
+- **A club member read "Page not found" on her own draft Event after one hour** (`338eb06f`).
+  The server read went out with a login that had ended. Now the not-found page asks `/me`; when
+  the login is back it loads the page again, once. Until `/me` answers it shows a spinner.
+- **Deleting an account left the kept schedules on the phone** (`5090b0c7`). That door now
+  removes them, and so do a sign-in with a password and one with Google. A read that was out
+  when the person left no longer writes her schedule back.
+- With the first fix: a page that shows the two doors ("find your name", "sign in") keeps them
+  when a later read fails. It turned to "could not load" one minute later.
+- Tests only: each of the three public routes of a draft or test Event (`d6aaadf2`); the title
+  sweep now checks WHICH rule a layout hands on (`6fee8467`); the rules of when a schedule page
+  reads are run by a unit test, not held by one line of text (`3e692bb4`).
+
+128 seeded breaks ran over the rows and their fixes: 121 red. Of the seven green, two are held by
+the unit test beside the browser story that stayed green. Five had no test, and have one now
+(`50c552cb`): the live block's login from the browser; the 44 px height of the card's links; a
+Retry that is seen at once; the personal space's "could not load"; the stub's silence for a path
+that is no Event and no bout. Those five ran again: 5 of 5 red.
+
+What the fixes chose, not ruled. Say so if one is wrong:
+
+- **A sign-in with a password or with Google removes every kept schedule of that phone**, the
+  new person's own older copy too. Her next read brings it back.
+- **The not-found page waits for `/me` before it says "not found"**, for a visitor who holds the
+  30-day cookie and a login that ended. Everybody else sees "Page not found" at once.
+
+Named by the review, not fixed (each read in code):
+
+- The Tournament page draws its own "Tournament not found" and does not renew a login: a club
+  member whose login ended reads it on a draft Tournament until she loads the page again.
+- `signInAgainHere`, the door of the personal space when `/me` says the login ended, removes no
+  kept schedule. `/me` also answers "anonymous" on a fault of the login service, so removing
+  there would remove copies on a fault. Needs a ruling.
+- The personal space's pages of one Event read "My event · MyClash" and "My schedule · MyClash"
+  for every Event: two Events in two tabs read the same. It follows the ruling's letter.
+- Suspected, not run: the tab of a not-found page under an Event keeps the page's own words
+  ("Home · no-such-event").
+- The title sweep does not see a hand-written `generateMetadata` in a layout with pages below
+  it, nor a title built from a translated value that holds the site's name.
+- The title read of the roster page throws on a failed read of the Event. The page throws the
+  same error, so the same error page shows.
+- Not held by a browser story, held by a text pin only: the five doors that remove the kept
+  schedules, and "a read out when she left writes nothing back".
 
 Left of the nine: **F19** (Share) and **F21** (a rank opens the fighter, a history line opens the
 bout). Both are planned in the plan file, with their rulings. Neither is started.
