@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { formatInZone } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { signInAgainHere } from '@/lib/sign-in-return';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -83,7 +84,7 @@ export function InstructorDashboard() {
     })
       .then(async (res) => {
         if (res.status === 401) {
-          window.location.replace('/login');
+          signInAgainHere();
           return;
         }
         if (!res.ok) throw new Error('instructor-workshops');

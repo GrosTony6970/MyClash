@@ -9,10 +9,16 @@ export const AFTER_SIGN_IN = '/me';
  * one rule for an address a page was GIVEN) that is not itself a sign-in page.
  * Returning to `/login` after signing in would show the form to somebody who
  * just filled it.
+ *
+ * The site's home is no page to return to either: the API's two doors (the
+ * mailed link, Google) read `/` as "no page given" and land on the personal
+ * space. With `/` kept here, a password sign-in from the home landed on the
+ * home and the two others on the personal space.
  */
 function returnable(asked: unknown): asked is string {
   if (typeof asked !== 'string' || !isOwnSitePath(asked)) return false;
-  return !isSignInDoor(asked.split(/[?#]/)[0]);
+  const path = asked.split(/[?#]/)[0];
+  return path !== '/' && !isSignInDoor(path);
 }
 
 /**
@@ -21,6 +27,15 @@ function returnable(asked: unknown): asked is string {
  */
 export function loginHref(from: string | null | undefined): string {
   return returnable(from) ? `/login?next=${encodeURIComponent(from)}` : '/login';
+}
+
+/**
+ * Leave a page whose login ended, for the sign-in page; signing in returns to
+ * this page. For the browser only: every page of the personal space that meets
+ * a 401 calls it.
+ */
+export function signInAgainHere(): void {
+  window.location.replace(loginHref(window.location.pathname));
 }
 
 /**

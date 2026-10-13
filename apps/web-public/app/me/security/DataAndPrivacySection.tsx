@@ -15,6 +15,7 @@
 
 import { useState } from 'react';
 import { Button } from '@myclash/ui';
+import { signInAgainHere } from '@/lib/sign-in-return';
 
 export function DataAndPrivacySection({
   apiUrl,
@@ -33,7 +34,7 @@ export function DataAndPrivacySection({
       await fetchAndSaveExport(apiUrl);
     } catch (err) {
       if (err instanceof UnauthorizedError) {
-        window.location.replace('/login');
+        signInAgainHere();
         return;
       }
       setError(t('publicApp.security.dataError'));

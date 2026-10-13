@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { signInAgainHere } from '@/lib/sign-in-return';
 import { leaveDeletedAccount } from '@/lib/phone-alerts';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -31,7 +32,7 @@ export default function SecurityPage() {
     const controller = new AbortController();
     // setState stays inside the promise callback: react-hooks/set-state-in-effect.
     void readSecurityStatus(apiUrl, controller.signal).then((read) => {
-      if (read === 'session_ended') window.location.replace('/login');
+      if (read === 'session_ended') signInAgainHere();
       else if (read === 'failed') setStatusError(true);
       else if (read !== 'aborted') setStatus(read);
     });

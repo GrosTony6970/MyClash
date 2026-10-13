@@ -80,10 +80,21 @@ test('the site header sends the page it is on', async ({ page }) => {
   );
 });
 
+// A sign-in page is no page to return to: signing in would show the form again.
 test('on the sign-in page itself, the header sends no page', async ({ page }) => {
   await openLogin(page, LIVE_BOARD);
 
-  const inHeader = page.getByRole('banner').getByRole('link', { name: 'Sign in' });
-  // The header may hide its door on this page: when it shows one, it carries nothing.
-  if ((await inHeader.count()) > 0) await expect(inHeader).toHaveAttribute('href', '/login');
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+    'href',
+    '/login',
+  );
+});
+
+// The mailed link and Google land a visitor of the home on the personal space
+// (the API reads `/` as "no page given"): a password sign-in lands there too.
+test("a password sign-in given the site's home lands on the personal space", async ({ page }) => {
+  await openLogin(page, '/');
+  await signInByPassword(page);
+
+  await page.waitForURL(`${PUBLIC}/me`);
 });

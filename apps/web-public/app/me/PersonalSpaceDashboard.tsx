@@ -7,6 +7,7 @@ import { useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureCode } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { signInAgainHere } from '@/lib/sign-in-return';
 import { DashboardToday } from '@/components/me/DashboardToday';
 import { ClaimRefusedNotice } from '@/components/ClaimRefusedNotice';
 import { claimTapRefusalKey, type ClaimPersonsResult } from '@/lib/claim-refusal';
@@ -110,7 +111,7 @@ export function PersonalSpaceDashboard() {
         // Only a 401. A 403 means signed in and not allowed, and bouncing that
         // to the login form asks the competitor to fix the one thing that is
         // not wrong.
-        window.location.replace('/login');
+        signInAgainHere();
         return;
       } else {
         setError(true);

@@ -361,7 +361,7 @@ describe('the security page', () => {
   it('reads its status through the request module, and leaves only for an ended session', () => {
     expect(page).toContain('readSecurityStatus(apiUrl, controller.signal)');
     expect(page).not.toContain('/api/v1/me/security-status');
-    expect(page).toContain("if (read === 'session_ended') window.location.replace('/login');");
+    expect(page).toContain("if (read === 'session_ended') signInAgainHere();");
   });
 
   it('leaves a deleted account with no word of a lost connection', () => {
