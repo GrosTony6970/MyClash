@@ -58,6 +58,26 @@ describe('swap sides — the choice of a TV screen', () => {
   });
 
   it('with no browser at all (the server), nothing was chosen', () => {
+    expect(mirror.storeOf(undefined)).toBeNull();
     expect(mirror.readMirror(null)).toBeNull();
+  });
+
+  // Chrome with site data blocked throws from the `localStorage` getter itself.
+  it('a browser that throws when its storage is only named has no store, and still swaps', () => {
+    const blocked = {
+      get localStorage(): never {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    };
+    const store = mirror.storeOf(blocked);
+    expect(store).toBeNull();
+
+    mirror.writeMirror(store, true);
+    expect(mirror.mirrorOf(mirror.readMirror(mirror.storeOf(blocked)), false)).toBe(true);
+  });
+
+  it('a browser with a storage hands it over', () => {
+    const store = storage();
+    expect(mirror.storeOf({ localStorage: store })).toBe(store);
   });
 });

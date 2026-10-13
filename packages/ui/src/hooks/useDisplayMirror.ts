@@ -11,8 +11,8 @@ import { useCallback, useSyncExternalStore } from 'react';
  * next bout and when the page is loaded again. Each screen has its own default:
  * the organiser's popup starts swapped, the public piste TV does not.
  *
- * A browser that refuses its storage (private mode) still swaps: the choice is
- * then kept in memory, for as long as the page lives.
+ * A browser that refuses its storage (site data blocked, a full quota) still
+ * swaps: the choice is then kept in memory, for as long as the page lives.
  */
 export const MIRROR_STORAGE_KEY = 'myclash:display:mirror';
 
@@ -55,7 +55,21 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-const browserStore = (): Store | null => (typeof window === 'undefined' ? null : localStorage);
+/**
+ * The storage of this browser, or null when there is none to use. A browser
+ * that blocks site data throws when the page only NAMES its storage, before any
+ * read: that throw must not reach a render.
+ */
+export function storeOf(host: { localStorage: Store } | undefined): Store | null {
+  try {
+    return host?.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const browserStore = (): Store | null =>
+  storeOf(typeof window === 'undefined' ? undefined : window);
 
 /** `[mirror, toggle]`. The server renders the default; the browser then reads the choice. */
 export function useDisplayMirror(defaultOn: boolean): [boolean, () => void] {
