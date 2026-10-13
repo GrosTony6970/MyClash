@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
 import { getServerT } from '@myclash/next-i18n/server';
 
@@ -18,6 +19,12 @@ export interface LeagueStandingRow {
   double_hit_average: string;
   decidingTiebreak?: LeagueDecidingTiebreak | null;
   per_tournament: Array<{ tournamentId: string; finalRank: number; leaguePoints: number }>;
+  /**
+   * The address of the fighter's public page. Null for a profile the public may
+   * not know of: its page is "not found", so its name is no link. Absent on an
+   * API that predates the field.
+   */
+  fighterSlug?: string | null;
   // The fighter identity embed. The FK column is `fighter_id`, but migration
   // 0023 renamed the fighters table to global_persons, so PostgREST returns the
   // embed under `global_persons`.
@@ -58,6 +65,23 @@ export function rankBadge(rank: number): React.ReactNode {
     >
       {rank}
     </span>
+  );
+}
+
+/**
+ * A ranked fighter's name: a link to their public page when the API gives its
+ * address, plain text when it gives none (quick win F21).
+ */
+function FighterName({ row }: { row: LeagueStandingRow }) {
+  const name = row.global_persons?.display_name ?? '—';
+  if (!row.fighterSlug) return name;
+  return (
+    <Link
+      href={`/fighters/${row.fighterSlug}`}
+      className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+    >
+      {name}
+    </Link>
   );
 }
 
@@ -123,7 +147,7 @@ export async function StandingsGroups({
                           {t('publicApp.leagues.championLabel')}
                         </p>
                         <p className="truncate font-semibold text-foreground">
-                          {row.global_persons?.display_name ?? '—'}
+                          <FighterName row={row} />
                         </p>
                         {club && <p className="truncate text-xs text-muted">{club}</p>}
                       </div>
@@ -171,7 +195,7 @@ export async function StandingsGroups({
                         <td className="px-3 py-2 align-top">{rankBadge(row.rank)}</td>
                         <td className="px-3 py-2 align-top">
                           <p className="font-medium text-foreground">
-                            {row.global_persons?.display_name ?? '—'}
+                            <FighterName row={row} />
                           </p>
                           {showTiebreak && (
                             <p className="mt-0.5 text-xs text-muted">

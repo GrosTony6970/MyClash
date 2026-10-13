@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { historyBoutHref, historyDay } from '@/lib/fighter-history';
 
 interface MatchSummary {
   id: string;
   matchScheduledAt: string | null;
   eventId: string;
   eventName: string;
+  eventSlug: string;
   eventDate: string;
   tournamentId: string;
   tournamentName: string;
@@ -28,8 +31,11 @@ interface Props {
 
 const PAGE_SIZE = 20;
 
+const LINE =
+  'flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3';
+
 export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [items, setItems] = useState<MatchSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -111,16 +117,16 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
           {items.map((match) => {
             const won = match.outcome === 'win';
             const draw = match.outcome === 'draw';
-            return (
-              <div
-                key={match.id}
-                className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3"
-              >
+            const day = historyDay(match.eventDate, locale);
+            const href = historyBoutHref(match, slug);
+            const line = (
+              <>
                 <div>
                   <p className="text-sm font-medium text-foreground">{match.opponentName || '—'}</p>
                   <p className="text-xs text-muted">
                     {match.eventName || match.tournamentName}
                     {match.weapon ? ` · ${match.weapon}` : ''}
+                    {day ? ` · ${day}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -140,6 +146,21 @@ export function MatchHistoryModal({ slug, apiUrl, onClose }: Props) {
                     {match.ourScore}-{match.opponentScore}
                   </p>
                 </div>
+              </>
+            );
+            // A line opens its bout's page; one with no page to open stays plain.
+            return href ? (
+              <Link
+                key={match.id}
+                href={href}
+                data-testid="history-line"
+                className={`${LINE} transition-colors hover:border-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40`}
+              >
+                {line}
+              </Link>
+            ) : (
+              <div key={match.id} data-testid="history-line" className={LINE}>
+                {line}
               </div>
             );
           })}

@@ -15,6 +15,7 @@ import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
+import { historyBoutHref } from '@/lib/fighter-history';
 import type { FighterMedal, FighterPlacement } from '@/lib/weapon-stats';
 
 interface Props {
@@ -654,10 +655,7 @@ export default async function FighterPage({ params }: Props) {
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((match) => (
-            <Link
-              key={match.id}
-              href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
-            >
+            <Link key={match.id} href={historyBoutHref(match, fighter.slug) ?? '#'}>
               <div className="rounded-xl border-2 border-danger bg-danger/10 p-4">
                 <p className="mb-1 text-xs text-foreground-secondary">{match.matchNumberLabel}</p>
                 <p className="font-bold text-foreground">
@@ -694,10 +692,7 @@ export default async function FighterPage({ params }: Props) {
                     ? 'bg-warning/15 text-warning'
                     : 'bg-danger/15 text-danger';
               return (
-                <Link
-                  key={match.id}
-                  href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
-                >
+                <Link key={match.id} href={historyBoutHref(match, fighter.slug) ?? '#'}>
                   <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted">
                     <div>
                       <p className="text-sm font-medium text-foreground">

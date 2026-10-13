@@ -199,6 +199,64 @@ function boutAnswer([id, read, ...more]) {
   return read === 'exchanges' || read === 'penalties' ? ok([]) : null;
 }
 
+const LEAGUE = { id: 'lg-1', name: 'Coupe de Lyon', season_year: 2026 };
+
+/** A row of the league's standings. `fighterSlug` is null for a page the public may not open. */
+function ranked(rank, name, fighterSlug) {
+  return {
+    id: `rank-${rank}`,
+    ranking_group_key: 'longsword',
+    rank,
+    total_points: 100 - rank,
+    participation_count: 1,
+    medal_count: 0,
+    double_hit_average: '0',
+    per_tournament: [],
+    global_persons: { display_name: name, clubs: { name: 'Cercle de Lyon', city: 'Lyon' } },
+    fighterSlug,
+  };
+}
+
+/** The league's two reads: its row by its slug, its standings by its id. */
+function leagueAnswer(rest) {
+  if (rest.length === 1 && rest[0] === 'lyon-cup') return ok(LEAGUE);
+  if (rest.length !== 2 || rest[0] !== LEAGUE.id || rest[1] !== 'standings') return null;
+  return ok({
+    league: LEAGUE,
+    columns: [],
+    rows: [ranked(1, 'Léa Martin', 'lea-martin'), ranked(2, 'Paul Hidden', null)],
+    pendingTournaments: [],
+  });
+}
+
+/** A fighter's profile, with one bout that is over: `bout-1` of `test-event`. */
+function fighterAnswer(rest) {
+  if (rest.length !== 1 || rest[0] !== 'lea-martin') return null;
+  return ok({
+    id: 'gp-lea',
+    slug: 'lea-martin',
+    displayName: 'Léa Martin',
+    givenName: 'Léa',
+    familyName: 'Martin',
+    indexable: true,
+    recentMatches: [
+      {
+        id: 'bout-1',
+        matchNumberLabel: 'L1-P1-M03',
+        status: 'completed',
+        opponentName: 'Paul Martin',
+        redScore: 5,
+        blueScore: 3,
+        isRed: true,
+        outcome: 'win',
+        eventName: 'Open de Lyon',
+        eventSlug: 'test-event',
+        scheduledAt: '2026-03-14T09:00:00.000Z',
+      },
+    ],
+  });
+}
+
 function slugOfId(eventId) {
   return Object.keys(EVENTS).find((slug) => EVENTS[slug].id === eventId);
 }
@@ -213,6 +271,8 @@ export function answerFor(method, url, cookie) {
   if (parts[0] !== 'api' || parts[1] !== 'v1') return null;
   const rest = parts.slice(3);
   if (parts[2] === 'matches') return boutAnswer(rest);
+  if (parts[2] === 'leagues') return leagueAnswer(rest);
+  if (parts[2] === 'fighters') return fighterAnswer(rest);
   if (parts[2] !== 'events') return null;
 
   // GET /events/:slug

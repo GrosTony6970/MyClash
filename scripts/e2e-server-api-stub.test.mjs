@@ -78,6 +78,32 @@ test('a Tournament the stub does not know gets no answer', () => {
   );
 });
 
+test('a league answers its row by its slug, and its standings by its id', () => {
+  const league = answerFor('GET', '/api/v1/leagues/lyon-cup', undefined).json;
+  assert.equal(league.name, 'Coupe de Lyon');
+  const { rows } = answerFor('GET', `/api/v1/leagues/${league.id}/standings`, undefined).json;
+  // One fighter with a public page, one whose page the public may not open.
+  assert.deepEqual(
+    rows.map((row) => [row.global_persons.display_name, row.fighterSlug]),
+    [
+      ['Léa Martin', 'lea-martin'],
+      ['Paul Hidden', null],
+    ],
+  );
+  assert.equal(answerFor('GET', '/api/v1/leagues/lg-1/club-standings', undefined), null);
+});
+
+test('a fighter answers a profile with one recent bout, and nothing else', () => {
+  const fighter = answerFor('GET', '/api/v1/fighters/lea-martin', undefined).json;
+  assert.equal(fighter.displayName, 'Léa Martin');
+  assert.deepEqual(
+    fighter.recentMatches.map((bout) => [bout.id, bout.eventSlug, bout.status]),
+    [['bout-1', 'test-event', 'completed']],
+  );
+  assert.equal(answerFor('GET', '/api/v1/fighters/lea-martin/career', undefined), null);
+  assert.equal(answerFor('GET', '/api/v1/fighters/nobody', undefined), null);
+});
+
 test("a public Event's lists answer anybody", () => {
   const tournaments = answerFor('GET', '/api/v1/events/ev-test/tournaments', undefined);
   assert.equal(tournaments.json[0].name, 'Longsword Open');
