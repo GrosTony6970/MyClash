@@ -128,6 +128,33 @@ test('a desk account signed in with its PIN since: with no network, sign-in too'
   await page.waitForURL(/\/login/);
 });
 
+// The piste page remembered its piste as soon as it opened, for anybody: the
+// Back of the browser gave Ben the piste the sign-in had just forgotten.
+test('the Back of the browser to the first person’s piste does not remember it again', async ({
+  page,
+}) => {
+  const stub = await workOnPiste3(page);
+  stub.account = 'staff-2';
+  stub.role = 'checkin';
+  await page.goto(`${PAD}/login?event=spring-open&u=ben`);
+  await page.locator('#staffPin').fill('1234');
+  await page.locator('form:has(#staffPin) button[type="submit"]').click();
+  await page.waitForURL(/\/desk/);
+
+  // A desk account is refused the list of a piste: the page leaves for sign-in.
+  await page.route('**/staff/lices/piste-3/matches', (route) =>
+    route.fulfill({ status: 403, json: { status: 403, code: 'FORBIDDEN', detail: 'no' } }),
+  );
+  await page.goto(`${PAD}/lices/piste-3`);
+  await page.waitForURL(/\/login/);
+
+  stub.network = 'down';
+  await openApp(page);
+
+  await page.waitForURL(/\/login/);
+  await expect(title(page)).toHaveCount(0);
+});
+
 test('the same person signs in again: the piste is still theirs with no network', async ({
   page,
 }) => {

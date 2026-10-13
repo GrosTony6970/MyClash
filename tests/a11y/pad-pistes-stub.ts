@@ -20,7 +20,7 @@ const piste = (n: number) => ({
 });
 
 export interface PadStub {
-  /** The pistes of the sign-in. A story may change them: another person signs in. */
+  /** The pistes of the sign-in. A story may change them: a piste is taken off the account. */
   assigned: number[];
   network: 'up' | 'down' | 'cut';
   /** The PIN account that is signed in. A story may change it: another person signs in. */

@@ -99,6 +99,28 @@ export function pisteHolder(
   return null;
 }
 
+/** A read of "who is signed in", as `apiRequest` answers it. */
+type Read<T> = { ok: true; data: T } | { ok: false; kind: string };
+
+/**
+ * `pisteHolder` of the two reads the list of pistes makes: the PIN account,
+ * then the MyClash account, which is asked only when no PIN session answered.
+ *
+ * The MyClash account counts only when the server SAID there is no PIN session
+ * (a 401 or a 403). A PIN read that failed any other way proves nothing: on a
+ * tablet with both sessions, one server fault would read as another person,
+ * and Anna would lose her piste. The race is the same one: the network coming
+ * back between the two reads.
+ */
+export function holderFromReads(
+  staff: Read<{ account?: { id?: string } }>,
+  me: Read<{ user?: { id?: string } }> | null,
+): string | null {
+  if (staff.ok) return pisteHolder(staff.data, null);
+  if (staff.kind !== 'unauthenticated' || !me?.ok) return null;
+  return pisteHolder(null, me.data);
+}
+
 /**
  * The tablet saw who is signed in (operator, 2026-10-13).
  *
@@ -113,6 +135,10 @@ export function pisteHolder(
  *
  * A tablet that kept a piste and no person (from before this rule) forgets the
  * piste once. An answer that names nobody changes nothing.
+ *
+ * NOT covered: an organiser who signs in by email link on a tablet that still
+ * holds another person's PIN session. The pad asks the PIN session first, so
+ * the tablet still sees the PIN account, with a network as without.
  */
 export function signedInAs(holder: string | null): void {
   if (holder === null) return;

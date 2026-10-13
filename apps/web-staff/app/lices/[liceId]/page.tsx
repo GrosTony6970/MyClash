@@ -112,17 +112,19 @@ export default function LiceMatchListPage() {
   // serves every piste (`idFromPath`).
   const liceId = idFromPath(usePathname(), 'lices');
 
-  useEffect(() => {
-    // The piste this tablet works on, however it got here: a card of the
-    // list, the Back of a bout, a link (`last-piste.ts`).
-    if (liceId) rememberPiste(liceId);
-  }, [liceId]);
-
   const apiUrl = getApiUrl();
   const { data, readFromTabletAt, loading, sessionExpired, unreachable, refresh } = useLiceMatches(
     apiUrl,
     liceId,
   );
+  // The piste this tablet works on, however it got here: a card of the list,
+  // the Back of a bout, a link (`last-piste.ts`). Only once the SERVER gave its
+  // list to the person who is signed in: the Back of the browser after a
+  // sign-out, or after another person's sign-in, remembers nothing.
+  const serverGaveIt = readFromTabletAt === null && data?.liceId === liceId;
+  useEffect(() => {
+    if (liceId && serverGaveIt) rememberPiste(liceId);
+  }, [liceId, serverGaveIt]);
   // Between two bouts is where the entries not sent are seen, and sent.
   const { syncEngine, syncState } = usePisteQueue(apiUrl, refresh);
   // Every bout of the piste, kept for a cut of the network (ruling 4).

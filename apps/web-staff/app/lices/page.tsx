@@ -9,8 +9,8 @@ import { apiRequest, failureFromError, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
 import {
+  holderFromReads,
   isArrival,
-  pisteHolder,
   pisteToOpen,
   pisteWithNoNetwork,
   rememberedPiste,
@@ -94,7 +94,7 @@ export default function LicePickerPage() {
         }
         // The server said who is signed in: another person than the one this
         // tablet last saw does not get that person's piste.
-        signedInAs(pisteHolder(staff.ok ? staff.data : null, account?.ok ? account.data : null));
+        signedInAs(holderFromReads(staff, account));
 
         let lices: Array<{
           id: string;

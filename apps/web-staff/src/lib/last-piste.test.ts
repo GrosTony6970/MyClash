@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { arrivalPathForRole, landingPathForRole } from './landing';
 import {
   forgetPiste,
+  holderFromReads,
   isArrival,
   pisteHolder,
   pisteToOpen,
@@ -159,6 +160,36 @@ describe('who had the piste', () => {
     expect(pisteHolder({}, { user: {} })).toBeNull();
   });
 
+  describe('from the two reads of the list of pistes', () => {
+    const anna = { ok: true as const, data: { account: { id: 'anna' } } };
+    const organiser = { ok: true as const, data: { user: { id: 'user-9' } } };
+
+    it('is the PIN account when its read answered', () => {
+      expect(holderFromReads(anna, null)).toBe('pin:anna');
+    });
+
+    it('is the MyClash account when the server said there is no PIN session', () => {
+      expect(holderFromReads({ ok: false, kind: 'unauthenticated' }, organiser)).toBe(
+        'account:user-9',
+      );
+    });
+
+    // A tablet with both sessions: one fault of the PIN read is not another person.
+    it.each(['http', 'network', 'aborted'])(
+      'is nobody when the PIN read failed as %s, whatever the account read says',
+      (kind) => {
+        expect(holderFromReads({ ok: false, kind }, organiser)).toBeNull();
+      },
+    );
+
+    it('is nobody when neither read names a person', () => {
+      expect(holderFromReads({ ok: false, kind: 'unauthenticated' }, null)).toBeNull();
+      expect(
+        holderFromReads({ ok: false, kind: 'unauthenticated' }, { ok: false, kind: 'http' }),
+      ).toBeNull();
+    });
+  });
+
   it('the same person keeps the piste, sign-in after sign-in', () => {
     tablet();
     signedInAs('pin:anna');
@@ -257,10 +288,17 @@ describe('the screens of the pad', () => {
   });
 
   // Not at the tap of a card alone: the Back of a bout and a link open a piste too.
-  it('a piste is remembered by its own screen, however the official got there', () => {
-    expect(read('app', 'lices', '[liceId]', 'page.tsx')).toMatch(
-      /useEffect\(\(\) => \{[^}]*if \(liceId\) rememberPiste\(liceId\);\s+\}, \[liceId\]\);/,
+  // And only once the server gave the piste's list to the person signed in:
+  // the browser's Back after a sign-out opened the page and remembered it.
+  it('a piste is remembered by its own screen, once the server gave its list', () => {
+    const piste = read('app', 'lices', '[liceId]', 'page.tsx');
+    expect(piste).toContain(
+      'const serverGaveIt = readFromTabletAt === null && data?.liceId === liceId;',
     );
+    expect(piste).toMatch(
+      /useEffect\(\(\) => \{\s+if \(liceId && serverGaveIt\) rememberPiste\(liceId\);\s+\}, \[liceId, serverGaveIt\]\);/,
+    );
+    expect(piste).not.toMatch(/if \(liceId\) rememberPiste/);
     expect(list).not.toContain('rememberPiste');
   });
 
@@ -273,9 +311,7 @@ describe('the screens of the pad', () => {
   // Before the read of the pistes: a remembered piste of another person is
   // gone when `pisteToOpen` reads it.
   it('the list of pistes tells the tablet who is signed in, before it reads the pistes', () => {
-    const told = list.indexOf(
-      'signedInAs(pisteHolder(staff.ok ? staff.data : null, account?.ok ? account.data : null));',
-    );
+    const told = list.indexOf('signedInAs(holderFromReads(staff, account));');
     expect(told).toBeGreaterThan(-1);
     expect(told).toBeLessThan(list.indexOf("api.get('/api/v1/staff/assigned-lices')"));
     expect(told).toBeGreaterThan(list.indexOf("if (decision.kind === 'sign_in')"));
