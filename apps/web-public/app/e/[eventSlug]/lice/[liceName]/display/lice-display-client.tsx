@@ -7,13 +7,7 @@ import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-brow
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 import { DisplayControls } from './DisplayControls';
 import { ScreenSettings } from './ScreenSettings';
-import {
-  EMPTY_BOARD,
-  liceBoardPollMs,
-  liceDisplayHref,
-  readLiceBoard,
-  type LiceBoard,
-} from './lice-board';
+import { EMPTY_BOARD, liceBoardPollMs, readLiceBoard, type LiceBoard } from './lice-board';
 
 interface Props {
   eventSlug: string;
@@ -73,9 +67,12 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     return () => window.clearInterval(timer);
   }, [pollMs, refresh]);
 
-  // One function for the life of the screen: the bout view restarts its
-  // five-second countdown when this prop changes.
-  const ownHref = useCallback(() => liceDisplayHref(eventSlug, liceName), [eventSlug, liceName]);
+  // When a bout is over the screen reads its piste again, and shows what the
+  // piste holds: the next bout, or the waiting card. It does not follow the
+  // bout's own "next" (a bout moved to another piste took the TV with it), and
+  // it loads no page (a load ends fullscreen). One function for the life of
+  // the screen: the bout view restarts its countdown when this prop changes.
+  const readPisteAgain = useCallback(() => void refresh(), [refresh]);
 
   // Not swapped until somebody swaps it: the public piste TV opens as it always did.
   const [mirror, toggleMirror] = useDisplayMirror(false);
@@ -110,7 +107,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
       <DisplayView
         matchId={board.matchId}
         eventSlug={eventSlug}
-        buildNextDisplayHref={ownHref}
+        onBoutOver={readPisteAgain}
         mirror={mirror}
       />
       {controls}

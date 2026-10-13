@@ -60,23 +60,67 @@ export const BOARD = {
   queue: [],
 };
 
-export async function stubPisteTv(page: Page, tv: PisteTv = {}) {
-  await stubPublicApi(page);
-  await page.route('**/api/v1/events/test-event/lices/*/current', (route) =>
-    route.fulfill({ json: tv.board ?? BOARD }),
-  );
-  await page.route('**/api/v1/matches/m-1/display', (route) =>
-    route.fulfill({ json: tv.bout ?? BOUT }),
-  );
-  await page.route('**/api/v1/matches/m-1/clock', (route) =>
-    route.fulfill({ json: tv.clock ?? HALTED }),
-  );
+/** The bout that waits behind `BOUT`: not started, and the last of the piste. */
+export const NEXT_BOUT = {
+  ...BOUT,
+  id: 'm-2',
+  status: 'scheduled',
+  matchNumberLabel: 'L1-P1-M02',
+  redScore: 0,
+  blueScore: 0,
+  redFighterName: 'Grace Hopper',
+  blueFighterName: 'Emmy Noether',
+  startedAt: null,
+  nextMatchId: null,
+  nextMatch: null,
+};
+
+export const IDLE = { status: 'idle', activeMs: 0, runningFrom: null, events: [] };
+
+/** One bout's four reads. */
+export async function stubBout(page: Page, id: string, bout: object, clock: object) {
+  await page.route(`**/api/v1/matches/${id}/display`, (route) => route.fulfill({ json: bout }));
+  await page.route(`**/api/v1/matches/${id}/clock`, (route) => route.fulfill({ json: clock }));
   for (const list of ['penalties', 'exchanges']) {
-    await page.route(`**/api/v1/matches/m-1/${list}`, (route) => route.fulfill({ json: [] }));
+    await page.route(`**/api/v1/matches/${id}/${list}`, (route) => route.fulfill({ json: [] }));
   }
 }
 
-export async function openPisteTv(page: Page, tv: PisteTv = {}) {
-  await stubPisteTv(page, tv);
-  await page.goto(PISTE_TV);
+/** The piste's read, as a story can change it and count it while the screen is up. */
+export interface PisteBoard {
+  /** What the next read of the piste answers. */
+  answer: object;
+  /** How many times the screen read its piste. */
+  reads: number;
 }
+
+export async function stubPisteTv(page: Page, tv: PisteTv = {}): Promise<PisteBoard> {
+  const board: PisteBoard = { answer: tv.board ?? BOARD, reads: 0 };
+  await stubPublicApi(page);
+  await page.route('**/api/v1/events/test-event/lices/*/current', (route) => {
+    board.reads += 1;
+    return route.fulfill({ json: board.answer });
+  });
+  await stubBout(page, 'm-1', tv.bout ?? BOUT, tv.clock ?? HALTED);
+  await stubBout(page, 'm-2', NEXT_BOUT, IDLE);
+  return board;
+}
+
+export async function openPisteTv(page: Page, tv: PisteTv = {}): Promise<PisteBoard> {
+  const board = await stubPisteTv(page, tv);
+  await page.goto(PISTE_TV);
+  return board;
+}
+
+/**
+ * A mark on the page's `window`. A page that is loaded again loses it: a story
+ * that still reads it knows the screen changed without a load.
+ */
+export async function markPage(page: Page) {
+  await page.evaluate(() => {
+    (window as unknown as { tvMark?: boolean }).tvMark = true;
+  });
+}
+
+export const pageKeptItsMark = (page: Page) =>
+  page.evaluate(() => (window as unknown as { tvMark?: boolean }).tvMark === true);

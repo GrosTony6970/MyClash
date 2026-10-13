@@ -1,42 +1,55 @@
 'use client';
 
+import { useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { TVScoreboard } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { supabase } from '@/lib/supabase';
+import { boutDisplayHref } from './display-href';
 
 const API_URL = getPublicApiUrl();
 
 interface Props {
   matchId: string;
   eventSlug: string;
-  /** Where the screen goes when the bout ends. Default: the next bout's own address. */
-  buildNextDisplayHref?: (nextMatchId: string) => string;
+  /**
+   * What the screen does when the bout is over. Default: it goes to the next
+   * bout's own address. One function for the life of the screen: the bout view
+   * restarts its countdown when this prop changes.
+   */
+  onBoutOver?: (nextMatchId: string) => void;
   /** Blue on the left, for a screen that faces the public. */
   mirror?: boolean;
 }
 
 /**
  * Public TV / projection display. Renders the chromeless three-column
- * scoreboard with auto-rollover to the next match 5 seconds after the
- * current one ends.
+ * scoreboard, which moves on to the next match 5 seconds after the
+ * current one ends, without loading a page.
  *
  * Layout decisions live in `<TVScoreboard>`. This wrapper sets the
  * fullscreen surface + cursor hide so a forgotten mouse doesn't show
  * on the projection.
  */
-export function DisplayView({ matchId, eventSlug, buildNextDisplayHref, mirror }: Props) {
+export function DisplayView({ matchId, eventSlug, onBoutOver, mirror }: Props) {
   const { t } = useI18n();
+  const router = useRouter();
+  const toNextBout = useCallback(
+    (nextMatchId: string) => router.replace(boutDisplayHref(eventSlug, nextMatchId)),
+    [router, eventSlug],
+  );
 
   return (
     <div className="min-h-screen w-screen overflow-hidden bg-stage cursor-none">
       <TVScoreboard
+        // A new bout is a new mount: nothing of the bout before it is left.
+        key={matchId}
         t={t}
         matchId={matchId}
         apiBaseUrl={API_URL}
         supabaseClient={supabase}
-        eventSlug={eventSlug}
-        buildNextDisplayHref={buildNextDisplayHref}
+        onBoutOver={onBoutOver ?? toNextBout}
         mirror={mirror}
         // This screen runs unattended on a projector for a whole day, so it
         // cannot depend on the websocket alone: when the channel failed to

@@ -10,14 +10,14 @@
  * clock controls, no drawer, no spacebar). Typography is scaled up
  * significantly so the score is legible from across a sports hall.
  *
- * Auto-rollover: 5 seconds after the clock transitions to `'ended'`,
- * navigates to `/e/{eventSlug}/match/{nextMatchId}/display` so the
- * projection self-services between bouts. Re-opening the match from
- * admin cancels the rollover. No next match → stays on the endcard.
+ * Auto-rollover: 5 seconds after a bout is over, it calls `onBoutOver`
+ * so the projection self-services between bouts, with no page load.
+ * Re-opening the match from admin cancels the rollover. No next match →
+ * stays on the endcard.
  *
- * Used only by `apps/web-public/.../display/page.tsx`. The admin
- * preview surface keeps using `<MatchScoreboard>` (the older
- * single-column layout).
+ * Used by the two public display routes of `apps/web-public` and by the
+ * organiser's popup (`apps/web-admin/app/display`). The admin preview
+ * surface keeps using `<MatchScoreboard>` (the older single-column layout).
  */
 
 import * as React from 'react';
@@ -42,7 +42,6 @@ import { roundLabel } from '../utils/round-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
-import { nextDisplayHref } from './next-display-href';
 
 export interface TVScoreboardProps {
   /** The caller's translator. See src/types/translator.ts for why it is a prop. */
@@ -50,16 +49,20 @@ export interface TVScoreboardProps {
   matchId: string;
   apiBaseUrl: string;
   supabaseClient: SupabaseClient;
-  /** Used to build the next-match navigation URL on auto-rollover. */
-  eventSlug: string;
-  /** Seconds the endcard stays visible before navigating to the
+  /** Seconds the endcard stays visible before the screen moves to the
    *  next match. Defaults to 5 per operator request. */
   rolloverDelaySeconds?: number;
-  /** Override the rollover destination. Defaults to the web-public
-   *  `/e/{eventSlug}/match/{id}/display` route; the admin same-origin
-   *  popup passes `(id) => `/display/${id}`` so rollover stays in its
-   *  own routing. */
-  buildNextDisplayHref?: (nextMatchId: string) => string;
+  /**
+   * The bout is over and its countdown reached zero: the screen moves on. Called
+   * once, with the next bout on the piste. Each screen moves in its own way (the
+   * piste TV reads its piste again, the others go to the next bout's address),
+   * and none may LOAD a page: a load ends fullscreen (quick win T5).
+   *
+   * Pass one function for the life of the screen, and give this component a
+   * `key` of the bout's id: a new bout is then a new mount, with nothing left of
+   * the bout before it.
+   */
+  onBoutOver: (nextMatchId: string) => void;
   /**
    * Fallback poll interval (ms) for surfaces whose realtime WebSocket may
    * not connect (e.g. the cross-origin admin external display under
@@ -104,9 +107,8 @@ export function TVScoreboard({
   matchId,
   apiBaseUrl,
   supabaseClient,
-  eventSlug,
   rolloverDelaySeconds = 5,
-  buildNextDisplayHref,
+  onBoutOver,
   pollMs,
   mirror = false,
   className,
@@ -127,7 +129,7 @@ export function TVScoreboard({
   // When the clock transitions INTO 'ended', start a countdown.
   // When it transitions OUT of 'ended' (e.g., organizer re-opens),
   // cancel the countdown. When it reaches 0 and we have a next
-  // match, hard-navigate to its display URL.
+  // match, tell the screen (`onBoutOver`): it moves on without a page load.
   const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
   const clockStatus = clock?.status ?? 'idle';
   const nextMatchId = match?.nextMatchId ?? null;
@@ -152,16 +154,21 @@ export function TVScoreboard({
         if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(interval);
-          // Hard navigation — guarantees fresh server-rendered
-          // initial data for the next match, no stale React tree.
-          window.location.href = nextDisplayHref(eventSlug, nextMatchId, buildNextDisplayHref);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [boutIsOver, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
+  }, [boutIsOver, nextMatchId, rolloverDelaySeconds]);
+
+  // At zero the screen is told, once, and the countdown line goes away. Told
+  // from an effect, not from the updater above: React may run an updater twice.
+  useEffect(() => {
+    if (countdownRemaining !== 0 || !nextMatchId) return;
+    setCountdownRemaining(null);
+    onBoutOver(nextMatchId);
+  }, [countdownRemaining, nextMatchId, onBoutOver]);
 
   // Alarm debounce. The channel acks SUBSCRIBED on a handshake that lands
   // AFTER the initial HTTP fetch, so a realtime-only surface is briefly

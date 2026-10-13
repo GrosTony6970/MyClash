@@ -9,8 +9,8 @@
  * Same-origin admin route → the admin session cookie works, so this
  * displays in-progress matches on unpublished events. Reads live state
  * over the public `/matches/:id/{display,penalties,clock}` endpoints
- * via TVScoreboard's `useLiveMatch`. Auto-rollover stays within
- * `/display/{nextId}` (no web-public `/e/...` hop).
+ * via TVScoreboard's `useLiveMatch`. When a bout is over the popup goes
+ * to `/display/{nextId}` by the router, with no page load.
  *
  * - `mirror` swaps the fighter columns for a TV facing the audience.
  *   Defaults ON, toggleable, kept by `useDisplayMirror` (the one owner,
@@ -22,7 +22,8 @@
  */
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { use } from 'react';
+import { use, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { TVScoreboard, useDisplayMirror } from '@myclash/ui';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -36,6 +37,10 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
   // Default ON (mirrored) for a TV facing the audience.
   const [mirror, toggleMirror] = useDisplayMirror(true);
 
+  // The next bout, by the router: a page that is loaded leaves fullscreen.
+  const router = useRouter();
+  const toNextBout = useCallback((id: string) => router.replace(`/display/${id}`), [router]);
+
   return (
     <>
       {/* Subtle toggle over the cursor-none stage; cursor-auto so it's
@@ -48,12 +53,13 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
         {t('scoring.scoreboard.swapSides')}
       </button>
       <TVScoreboard
+        // A new bout is a new mount: nothing of the bout before it is left.
+        key={matchId}
         t={t}
         matchId={matchId}
         apiBaseUrl={apiUrl}
         supabaseClient={getSupabaseBrowser()}
-        eventSlug=""
-        buildNextDisplayHref={(id) => `/display/${id}`}
+        onBoutOver={toNextBout}
         mirror={mirror}
         pollMs={1500}
       />
