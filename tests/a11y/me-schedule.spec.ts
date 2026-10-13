@@ -192,6 +192,27 @@ test('/me schedule - a bout with no length ends at its next bout, and the page s
   await expectNoPageIssues(issues);
 });
 
+test('/me schedule - a read that fails with no copy on the phone says so, and Retry reads again', async ({
+  page,
+}) => {
+  await signIn(page);
+  let well = false;
+  await page.route('**/api/v1/events/event-1/my-schedule', (route) =>
+    well ? route.fallback() : route.fulfill({ status: 503, json: { detail: 'unavailable' } }),
+  );
+  await page.goto('http://localhost:3001/me/events/test-event/schedule');
+
+  // It was a grey block for ever: nothing said the read had failed.
+  const failed = page.getByRole('alert').filter({ hasText: 'We could not load your schedule' });
+  await expect(failed).toBeVisible();
+
+  well = true;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+
+  await expect(page.getByText('Mary Somerville').first()).toBeVisible();
+  await expect(failed).toHaveCount(0);
+});
+
 test('/me workshops - an open session inside a bout that ends at its next bout conflicts with it', async ({
   page,
 }) => {

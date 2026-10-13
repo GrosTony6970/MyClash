@@ -100,4 +100,15 @@ describe('every server read of the Event pages sends the login', () => {
       expect(sends(reader!.source), file).toBeLessThan(reads(reader!.source));
     }
   });
+
+  /**
+   * The home's live block is drawn from the server's read, then reads again in
+   * the browser. Without the login there, a club member's draft Event lost its
+   * live block at the first read from the browser.
+   */
+  it("the home's live block reads with the login from the browser too", () => {
+    const block = read('home', '_components', 'LiveNowSection.tsx');
+    expect(reads(block)).toBe(2);
+    expect((block.match(/credentials: 'include',/g) ?? []).length).toBe(2);
+  });
 });

@@ -96,6 +96,9 @@ test('a path the stub does not know has no answer', () => {
   assert.equal(answerFor('GET', '/api/v1/events/test-event/programme', undefined), null);
   assert.equal(answerFor('POST', '/api/v1/events/test-event', undefined), null);
   assert.equal(answerFor('GET', '/', undefined), null);
+  // Not an Event and not a bout: a league, a fighter, the caller's own space.
+  assert.equal(answerFor('GET', '/api/v1/leagues/some-league', undefined), null);
+  assert.equal(answerFor('GET', '/api/v1/me', undefined), null);
 });
 
 function get(port, path, headers = {}) {

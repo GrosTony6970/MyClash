@@ -199,9 +199,20 @@ test('my-schedule page - a read that fails offers Retry, and says nothing about 
   // this point is not one.)
   const before = server.reads;
 
+  // The next read waits for the story: the press must be seen at once, before any answer.
+  let answer = () => {};
+  const answered = new Promise<void>((resolve) => (answer = resolve));
+  await page.route('**/api/v1/events/**/my-schedule', async (route) => {
+    await answered;
+    return route.fallback();
+  });
   server.well = true;
   await main.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'We could not load your schedule' })).toHaveCount(
+    0,
+  );
 
+  answer();
   await expect(main.getByRole('heading', { name: 'My Schedule' })).toBeVisible();
   await expect(main.getByText('Ada Lovelace')).toBeVisible();
   expect(server.reads).toBe(before + 1);

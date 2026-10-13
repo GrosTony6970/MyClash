@@ -80,10 +80,12 @@ for (const slug of ['test-event', 'quiet-event']) {
       await top(page, slug === 'test-event' ? 'Open de Lyon' : 'Coupe de Dijon'),
     );
     expect(cardTop).toBeLessThan(await top(page, 'Tournaments'));
-    // A finger's width, each.
+    // A finger's width, each. The class is asserted too: in a row, a link that lost its own
+    // height is stretched to its neighbour's, and the measure alone stays right.
     for (const name of ['My schedule', 'Find my name']) {
-      const box = await card.getByRole('link', { name }).boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
+      const link = card.getByRole('link', { name });
+      await expect(link).toHaveClass(/(^| )min-h-11( |$)/);
+      expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
     await expectNoCriticalAxeViolations(page);
   });
