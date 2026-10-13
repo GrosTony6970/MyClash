@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import {
   AuthAltLink,
   AuthDivider,
@@ -27,6 +27,7 @@ import {
   startGoogleSignIn,
 } from './auth-requests';
 import { useLinkWords } from './link-words';
+import { missingField } from './missing-field';
 
 type Tab = 'signin' | 'signup' | 'reset';
 type Query = Promise<Record<string, string | string[] | undefined>>;
@@ -62,8 +63,25 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
     setError(null);
   }
 
+  /** Says which field is still empty, and answers whether none is. */
+  function nothingMissing(needsPassword: boolean): boolean {
+    const missing = missingField(email, password, needsPassword);
+    reset();
+    if (missing === 'email') setError(t('publicApp.login.errors.emailRequired'));
+    if (missing === 'password') setError(t('publicApp.login.errors.passwordRequired'));
+    return missing === null;
+  }
+
+  // Enter in a field, or a password manager, sends the form of the tab on screen.
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (tab === 'signin') void handlePasswordSignIn();
+    else if (tab === 'signup') void handleSignUp();
+    else void handleResetRequest();
+  }
+
   async function handlePasswordSignIn() {
-    if (!email.trim() || !password || busy) return;
+    if (busy || !nothingMissing(true)) return;
     setBusy(true);
     reset();
     const code = await requestPasswordSignIn(apiUrl, email, password);
@@ -82,7 +100,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   }
 
   async function handleSignUp() {
-    if (!email.trim() || !password || busy) return;
+    if (busy || !nothingMissing(true)) return;
     if (!acceptedLegal) {
       setError(t('legal.accept.required'));
       return;
@@ -115,7 +133,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   }
 
   async function handleSendMagicLink() {
-    if (!email.trim() || busy) return;
+    if (busy || !nothingMissing(false)) return;
     setBusy(true);
     reset();
     const sent = await requestMagicLink(apiUrl, email);
@@ -125,7 +143,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   }
 
   async function handleResetRequest() {
-    if (!email.trim() || busy) return;
+    if (busy || !nothingMissing(false)) return;
     setBusy(true);
     reset();
     await requestPasswordReset(apiUrl, email);
@@ -237,83 +255,85 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
         </>
       )}
 
-      <AuthField
-        id="email"
-        type="email"
-        autoComplete="email"
-        label={t('auth.login.emailAddress')}
-        placeholder={t('auth.login.emailPlaceholder')}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-
-      {(tab === 'signin' || tab === 'signup') && (
+      {/* `contents`: the form is no box of its own, so the panel spaces its
+          fields as before. `noValidate`: the page says what is missing, in its
+          own words and language. */}
+      <form className="contents" noValidate onSubmit={submit}>
         <AuthField
-          id="password"
-          type="password"
-          autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
-          label={t('auth.login.password')}
-          placeholder={t('auth.login.passwordPlaceholder')}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          id="email"
+          type="email"
+          autoComplete="email"
+          label={t('auth.login.emailAddress')}
+          placeholder={t('auth.login.emailPlaceholder')}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
         />
-      )}
 
-      {tab === 'signup' && (
-        <>
+        {(tab === 'signin' || tab === 'signup') && (
           <AuthField
-            id="passwordConfirm"
+            id="password"
             type="password"
-            autoComplete="new-password"
-            label={t('publicApp.login.passwordConfirmLabel')}
-            value={passwordConfirm}
-            onChange={(event) => setPasswordConfirm(event.target.value)}
+            autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+            label={t('auth.login.password')}
+            placeholder={t('auth.login.passwordPlaceholder')}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
           />
-          <PasswordChecklist failing={passwordValidation.failing} t={t} />
-          <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
-        </>
-      )}
+        )}
 
-      {tab === 'signin' && (
-        <Button
-          type="button"
-          disabled={busy}
-          loading={busy}
-          variant="primary"
-          className="w-full py-3"
-          onClick={() => void handlePasswordSignIn()}
-        >
-          {busy ? t('auth.login.signingIn') : t('auth.login.signIn')}
-        </Button>
-      )}
+        {tab === 'signup' && (
+          <>
+            <AuthField
+              id="passwordConfirm"
+              type="password"
+              autoComplete="new-password"
+              label={t('publicApp.login.passwordConfirmLabel')}
+              value={passwordConfirm}
+              onChange={(event) => setPasswordConfirm(event.target.value)}
+            />
+            <PasswordChecklist failing={passwordValidation.failing} t={t} />
+            <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
+          </>
+        )}
 
-      {tab === 'signup' && (
-        <Button
-          type="button"
-          disabled={
-            busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
-          }
-          loading={busy}
-          variant="primary"
-          className="w-full py-3"
-          onClick={() => void handleSignUp()}
-        >
-          {busy ? t('common.loading') : t('publicApp.login.createAccount')}
-        </Button>
-      )}
+        {tab === 'signin' && (
+          <Button
+            type="submit"
+            disabled={busy}
+            loading={busy}
+            variant="primary"
+            className="w-full py-3"
+          >
+            {busy ? t('auth.login.signingIn') : t('auth.login.signIn')}
+          </Button>
+        )}
 
-      {tab === 'reset' && (
-        <Button
-          type="button"
-          disabled={busy}
-          loading={busy}
-          variant="primary"
-          className="w-full py-3"
-          onClick={() => void handleResetRequest()}
-        >
-          {busy ? t('common.loading') : t('publicApp.login.sendResetLink')}
-        </Button>
-      )}
+        {tab === 'signup' && (
+          <Button
+            type="submit"
+            disabled={
+              busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
+            }
+            loading={busy}
+            variant="primary"
+            className="w-full py-3"
+          >
+            {busy ? t('common.loading') : t('publicApp.login.createAccount')}
+          </Button>
+        )}
+
+        {tab === 'reset' && (
+          <Button
+            type="submit"
+            disabled={busy}
+            loading={busy}
+            variant="primary"
+            className="w-full py-3"
+          >
+            {busy ? t('common.loading') : t('publicApp.login.sendResetLink')}
+          </Button>
+        )}
+      </form>
 
       {tab === 'signin' && (
         <button

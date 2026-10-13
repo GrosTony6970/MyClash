@@ -197,6 +197,8 @@ export const publicApp = {
     sendResetLink: 'Envoyer le lien',
     resetCheckEmail: 'Si cet email est enregistré, un lien de réinitialisation a été envoyé.',
     errors: {
+      emailRequired: 'Saisissez votre adresse email.',
+      passwordRequired: 'Saisissez votre mot de passe.',
       magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
       passwordLoginFailed: 'Email ou mot de passe incorrect.',
       signInFailed: 'Connexion impossible. Réessayez dans un instant.',

@@ -198,6 +198,8 @@ export const publicApp = {
     sendResetLink: 'Send reset link',
     resetCheckEmail: 'If this email is registered, a password reset link has been sent.',
     errors: {
+      emailRequired: 'Enter your email address.',
+      passwordRequired: 'Enter your password.',
       magicLinkFailed: 'Could not send a login link.',
       passwordLoginFailed: 'Wrong email or password.',
       signInFailed: 'Could not sign you in. Try again in a moment.',
