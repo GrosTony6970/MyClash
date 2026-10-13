@@ -90,29 +90,29 @@ Size: **S** = under about one hour, **M** = about half a day.
 
 ## F — fighter and spectator, public pages (`apps/web-public/app/e/[eventSlug]`)
 
-| #      | Today                                                                                                                                             | Fix                                                                                       | What it brings                                                                 | Where                                                                                                     | Size |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ---- |
-| ~~F1~~ | ~~✔ A guest whose schedule fails to load is told to sign in. No link, no retry.~~ Done `6eb64916`.                                                | Tell a 401 from a failure: Retry for one, sign-in and "find my name" links for the other. | A fighter with weak signal retries, instead of thinking they have no schedule. | `my-schedule/page.tsx:213, 231-234, 246-258`                                                              | S    |
-| ~~F2~~ | ~~✔ A bout at 00:30 local time gets its own day chip, and tapping the chip hides it. West of UTC the chip shows the wrong day.~~ Done `30011b27`. | Filter on the same Event-zone day key the grouping uses.                                  | No fighter misses a late bout because the app hid it.                          | `my-schedule/page.tsx:283` (raw ISO prefix) vs `:227, 304-306`; label `:412-415`                          | S    |
-| F3     | Bouts on the guest schedule cannot be tapped.                                                                                                     | Link each card to the Match page.                                                         | Score and exchanges are one tap from "my next bout".                           | `my-schedule/page.tsx:448-460`                                                                            | S    |
-| F4     | ✔ The live board shows who fights but no score. The server sends the score; the page drops it.                                                    | Reuse `home/_components/LiveMatchCard.tsx`.                                               | "What's the score on piste 3?" is answered on the phone.                       | `live/page.tsx:11-19, 85-91`; `apps/api/.../schedule/live-state.service.ts:27-29`                         | S    |
-| F5     | The live board says "Updates automatically" after it has stopped.                                                                                 | The freshness chip the Match page already has.                                            | Nobody trusts a frozen score.                                                  | `live/page.tsx:115-117, 339`                                                                              | S–M  |
-| F6     | While the Event runs, "Live now" is the last block on the Event home.                                                                             | Move it under the header when the Event is running.                                       | The first screen answers what people came for.                                 | `home/PublicHome.tsx:321`                                                                                 | S    |
-| F7     | The Event home has no door to "my schedule" or "find my name".                                                                                    | One card near the top.                                                                    | A first-time guest reaches their bouts in two taps, not five.                  | only inbound link: `src/components/public-personal-decision.ts:59`                                        | S    |
-| F8     | Guest pages show times in the phone's time zone.                                                                                                  | `formatInZone` with the Event zone, as elsewhere.                                         | A fighter travelling from abroad does not arrive an hour late.                 | `my-schedule/page.tsx:117`; `people/[personId]/page.tsx:314, 348`; `live/page.tsx:40`                     | S    |
-| F9     | ✔ A followed fighter's upcoming bouts show no piste. The server sends it.                                                                         | Add the field to the page's type and render it.                                           | A friend or coach knows where to go.                                           | `people/[personId]/page.tsx:44-57, 303-320`                                                               | S    |
-| F10    | The guest schedule loads once and never says how old it is.                                                                                       | Reuse `useMySchedule` and its "Updated HH:MM" badge.                                      | The schedule survives a dead zone, and says when it was last right.            | `my-schedule/page.tsx:202-236`; `src/components/me/hooks.ts:73-117`                                       | M    |
-| F11    | After sign-in the fighter always lands on `/me`. `?next=` is sent and ignored.                                                                    | Read `next`, validate with the existing `isOwnSitePath`.                                  | Sign-in returns you to the page you were on.                                   | `login/page.tsx:67`; `login/auth-requests.ts:94, 128`                                                     | S–M  |
-| F12    | On login, Enter does nothing; an empty field fails silently.                                                                                      | A real `<form onSubmit>` and an "enter your email" message.                               | Sign-in works from the phone keyboard and with a password manager.             | `login/page.tsx:61, 80, 113, 123, 274-331`                                                                | S    |
-| F13    | A mistyped Event link gives a near-blank page. The app has no not-found page.                                                                     | `notFound()` on a missing Event; one localised 404 with a way home.                       | A wrong QR code or link says so, and offers the way back.                      | `_components/EventHeader.tsx:68`; `home/PublicHome.tsx:104`                                               | S–M  |
-| F14    | Error pages offer "Try again" only.                                                                                                               | Add a link to the Event home or `/`.                                                      | No dead end when the retry also fails.                                         | `error.tsx:26-35`; `app/me/error.tsx:22-31`                                                               | S    |
-| F15    | ✔ Tabs read "Longsword Open · MyClash — MyClash", "Home — fal-2026", "Match 12".                                                                  | Drop the suffix; resolve the Event name once in the layout; name the two fighters.        | Shared links and browser history read like the Event, not like an address.     | `layout.tsx:26-28`; `t/[tournamentSlug]/page.tsx:52, 59`; `match/[matchId]/page.tsx:119`                  | S–M  |
-| F16    | League, login and personal-space pages share the generic site title.                                                                              | A root title template and per-page titles.                                                | Several open tabs can be told apart.                                           | no `metadata` in `app/leagues/*`, `app/login/page.tsx`, `app/me/layout.tsx`                               | S    |
-| F17    | Referee roles appear as raw English (`main referee`).                                                                                             | One en/fr label map.                                                                      | French referees read their role in French.                                     | `my-schedule/page.tsx:505`; `people/[personId]/page.tsx:344`                                              | S    |
-| F18    | `/live`, `/my-schedule`, `/pass` and a person's page have no back link.                                                                           | Add the existing `BackLink`.                                                              | One tap back to the Event home.                                                | `live/page.tsx:248`; `people/[personId]/page.tsx:192-205`                                                 | S    |
-| F19    | No share button on Match or Tournament pages.                                                                                                     | Generalise `src/components/fighter/ShareProfile.tsx` to any address.                      | "Watch my bout" is one tap to send.                                            | only that component exists                                                                                | S–M  |
-| F20    | No add-to-calendar.                                                                                                                               | A client-side `.ics` of the schedule.                                                     | The phone reminds the fighter, with the app closed.                            | no `.ics` in the repo                                                                                     | M    |
-| F21    | League ranking names are plain text; a fighter's full history is undated and cannot be opened.                                                    | Send the fighter slug and link it; show the date; link each bout.                         | From a rank to the fighter to the bout, without searching.                     | `leagues/[slug]/StandingsGroups.tsx:125-127`; `fighters/[slug]/_components/MatchHistoryModal.tsx:115-143` | S    |
+| #       | Today                                                                                                                                             | Fix                                                                                       | What it brings                                                                 | Where                                                                                                     | Size |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ---- |
+| ~~F1~~  | ~~✔ A guest whose schedule fails to load is told to sign in. No link, no retry.~~ Done `6eb64916`.                                                | Tell a 401 from a failure: Retry for one, sign-in and "find my name" links for the other. | A fighter with weak signal retries, instead of thinking they have no schedule. | `my-schedule/page.tsx:213, 231-234, 246-258`                                                              | S    |
+| ~~F2~~  | ~~✔ A bout at 00:30 local time gets its own day chip, and tapping the chip hides it. West of UTC the chip shows the wrong day.~~ Done `30011b27`. | Filter on the same Event-zone day key the grouping uses.                                  | No fighter misses a late bout because the app hid it.                          | `my-schedule/page.tsx:283` (raw ISO prefix) vs `:227, 304-306`; label `:412-415`                          | S    |
+| ~~F3~~  | Bouts on the guest schedule cannot be tapped. Done `b165694a`.                                                                                    | Link each card to the Match page.                                                         | Score and exchanges are one tap from "my next bout".                           | `my-schedule/page.tsx:448-460`                                                                            | S    |
+| ~~F4~~  | ✔ The live board shows who fights but no score. The server sends the score; the page drops it. Done `e4746521`.                                   | Reuse `home/_components/LiveMatchCard.tsx`.                                               | "What's the score on piste 3?" is answered on the phone.                       | `live/page.tsx:11-19, 85-91`; `apps/api/.../schedule/live-state.service.ts:27-29`                         | S    |
+| ~~F5~~  | The live board says "Updates automatically" after it has stopped. Done `969ae48a`.                                                                | The freshness chip the Match page already has.                                            | Nobody trusts a frozen score.                                                  | `live/page.tsx:115-117, 339`                                                                              | S–M  |
+| F6      | While the Event runs, "Live now" is the last block on the Event home.                                                                             | Move it under the header when the Event is running.                                       | The first screen answers what people came for.                                 | `home/PublicHome.tsx:321`                                                                                 | S    |
+| F7      | The Event home has no door to "my schedule" or "find my name".                                                                                    | One card near the top.                                                                    | A first-time guest reaches their bouts in two taps, not five.                  | only inbound link: `src/components/public-personal-decision.ts:59`                                        | S    |
+| ~~F8~~  | Guest pages show times in the phone's time zone. Done `5b8d5d98`.                                                                                 | `formatInZone` with the Event zone, as elsewhere.                                         | A fighter travelling from abroad does not arrive an hour late.                 | `my-schedule/page.tsx:117`; `people/[personId]/page.tsx:314, 348`; `live/page.tsx:40`                     | S    |
+| ~~F9~~  | ✔ A followed fighter's upcoming bouts show no piste. The server sends it. Done `a71e71a7`.                                                        | Add the field to the page's type and render it.                                           | A friend or coach knows where to go.                                           | `people/[personId]/page.tsx:44-57, 303-320`                                                               | S    |
+| F10     | The guest schedule loads once and never says how old it is.                                                                                       | Reuse `useMySchedule` and its "Updated HH:MM" badge.                                      | The schedule survives a dead zone, and says when it was last right.            | `my-schedule/page.tsx:202-236`; `src/components/me/hooks.ts:73-117`                                       | M    |
+| ~~F11~~ | After sign-in the fighter always lands on `/me`. `?next=` is sent and ignored. Done `e2b4b82a`.                                                   | Read `next`, validate with the existing `isOwnSitePath`.                                  | Sign-in returns you to the page you were on.                                   | `login/page.tsx:67`; `login/auth-requests.ts:94, 128`                                                     | S–M  |
+| ~~F12~~ | On login, Enter does nothing; an empty field fails silently. Done `521423e7`.                                                                     | A real `<form onSubmit>` and an "enter your email" message.                               | Sign-in works from the phone keyboard and with a password manager.             | `login/page.tsx:61, 80, 113, 123, 274-331`                                                                | S    |
+| F13     | A mistyped Event link gives a near-blank page. The app has no not-found page.                                                                     | `notFound()` on a missing Event; one localised 404 with a way home.                       | A wrong QR code or link says so, and offers the way back.                      | `_components/EventHeader.tsx:68`; `home/PublicHome.tsx:104`                                               | S–M  |
+| ~~F14~~ | Error pages offer "Try again" only. Done `cb4f4b28`.                                                                                              | Add a link to the Event home or `/`.                                                      | No dead end when the retry also fails.                                         | `error.tsx:26-35`; `app/me/error.tsx:22-31`                                                               | S    |
+| F15     | ✔ Tabs read "Longsword Open · MyClash — MyClash", "Home — fal-2026", "Match 12".                                                                  | Drop the suffix; resolve the Event name once in the layout; name the two fighters.        | Shared links and browser history read like the Event, not like an address.     | `layout.tsx:26-28`; `t/[tournamentSlug]/page.tsx:52, 59`; `match/[matchId]/page.tsx:119`                  | S–M  |
+| F16     | League, login and personal-space pages share the generic site title.                                                                              | A root title template and per-page titles.                                                | Several open tabs can be told apart.                                           | no `metadata` in `app/leagues/*`, `app/login/page.tsx`, `app/me/layout.tsx`                               | S    |
+| ~~F17~~ | Referee roles appear as raw English (`main referee`). Done `4a535cd7`.                                                                            | One en/fr label map.                                                                      | French referees read their role in French.                                     | `my-schedule/page.tsx:505`; `people/[personId]/page.tsx:344`                                              | S    |
+| ~~F18~~ | `/live`, `/my-schedule`, `/pass` and a person's page have no back link. Done `b8652b16`.                                                          | Add the existing `BackLink`.                                                              | One tap back to the Event home.                                                | `live/page.tsx:248`; `people/[personId]/page.tsx:192-205`                                                 | S    |
+| F19     | No share button on Match or Tournament pages.                                                                                                     | Generalise `src/components/fighter/ShareProfile.tsx` to any address.                      | "Watch my bout" is one tap to send.                                            | only that component exists                                                                                | S–M  |
+| F20     | No add-to-calendar.                                                                                                                               | A client-side `.ics` of the schedule.                                                     | The phone reminds the fighter, with the app closed.                            | no `.ics` in the repo                                                                                     | M    |
+| F21     | League ranking names are plain text; a fighter's full history is undated and cannot be opened.                                                    | Send the fighter slug and link it; show the date; link each bout.                         | From a rank to the fighter to the bout, without searching.                     | `leagues/[slug]/StandingsGroups.tsx:125-127`; `fighters/[slug]/_components/MatchHistoryModal.tsx:115-143` | S    |
 
 ## M — the signed-in personal space (`apps/web-public/app/me`, `app/profile`)
 
@@ -1504,16 +1504,132 @@ What the build chose, not ruled. Say so if one is wrong:
 
 Named, not fixed (each read in code):
 
-- **With its live channel up, the piste TV leaves a finished bout at once.** The piste's read no
-  longer names a completed bout, so the winner's card shows for under a second. The five seconds
-  of the card are seen only when the channel is down, or the Event is hidden. Older than this
-  work. Read in code, not run. Worth a ruling.
+- ~~**With its live channel up, the piste TV leaves a finished bout at once.**~~ Ruled and fixed
+  on 2026-10-13 (`f23cd7e2`, section "the winner's card, and ten F rows"). The sentence that
+  stood here said the card was whole with the channel down or the Event hidden: that was wrong,
+  any read of the piste cut it.
 - The single-bout public TV has no browser story: its page reads the bout on the server, and the
   browser harness runs no API. Its address has a unit test and its wiring a text pin.
 - The card "waiting for next match" still has two lines in phone sizes (the Event, the piste).
 - French words of `scoring.liveMatch` with no accents ("Arrete", "Programme", "Termine").
 - The tablet's own raw `halted` (row X1) can reuse the new keys `scoring.scoreboard.clockStatus`.
 - `MatchScoreboard`, the organiser's preview, keeps its own fixed type sizes.
+
+## Built on 2026-10-13: the winner's card, and ten F rows
+
+The operator picked the F rows, and ruled three times, each asked with a story:
+
+| Asked                                                                                                                                | Ruling                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| A bout ends on a piste. With its live channel up, the piste TV shows the winner's card for under a second. What should the hall see? | **The card holds five seconds**, live channel up or down.                                     |
+| A duty on the guest schedule reads "arbitre table". The server sends the organiser's own name for the role.                          | **The organiser's name for the role** ("Table", "Video"), as the signed-in schedule shows it. |
+| An organiser signs in by email link on a tablet that holds a volunteer's PIN session, and is still seen as the volunteer.            | **The email link wins.** Ruled, NOT built: it gets its own plan (see "The email link wins").  |
+
+Scope, also ruled: the ten F rows that need no design (F3, F4, F5, F8, F9, F11, F12, F14, F17,
+F18). The nine others (F6, F7, F10, F13, F15, F16, F19, F20, F21) each hide a design, and get
+their own plan.
+
+What people get:
+
+- **The piste TV** (`f23cd7e2`, `ab2421c8`). When a bout ends, its winner's card stays for the
+  whole countdown, then the next bout or the waiting card shows. A bout that was only moved to
+  another piste, or put back to "not started", still leaves the screen at once. A bout a
+  correction reopens keeps the screen.
+- **F8** (`5b8d5d98`). The guest schedule, a person's page and the live board tell a bout's time
+  on the Event's clock, not the phone's.
+- **F9** (`a71e71a7`). A followed fighter's bouts name their piste. A bout whose clock is halted
+  is listed as live: it was in no list at all.
+- **F17** (`4a535cd7`). A referee duty reads "Table", not "arbitre table".
+- **F18** (`b8652b16`). The live board, the guest schedule, the pass page and a person's page
+  have a link back to the Event home.
+- **F3** (`b165694a`, `a472eb52`). A bout on the guest schedule, and on a person's page, opens
+  the bout's page, and that page's Back returns where you came from. It says "Back", not "Back
+  to match list", when you did not come from a list of bouts.
+- **F4** (`e4746521`). The live board shows the score of the bout on each piste.
+- **F5** (`969ae48a`, `ba92e004`). The live board says how fresh it is: "Live", "Slower updates"
+  when its live channel is down, "Not updating" when three reads in a row did not land.
+- **F12** (`521423e7`, `6e2c6774`). On the participant sign-in page, Enter sends the form, and an
+  empty field gets a sentence ("Enter your email address.").
+- **F11** (`e2b4b82a`, `1d1f0c29`). Signing in returns you to the page you came from, by
+  password, by email link and by Google. Every door of the public site sends its page.
+- **F14** (`cb4f4b28`). A page that failed offers a way home beside "Try again".
+
+What ran: one cold review, the seeded breaks, the gate chain, the browser suite. No migration, no
+route, no API code.
+
+What the review found, and is fixed:
+
+- **A bout the closing hit ended could still lose its card.** The server writes the bout as
+  completed first, and its clock's end row a moment later. The screen asked once, between the
+  two, and judged the bout "not over".
+- **A read that never answers left the TV on the old bout.** The screen now waits five seconds
+  for "is this bout over", then shows what its piste says.
+- **On a slow link the piste TV took no answer at all**: each new read cancelled the one before.
+- **The sign-in form lost the gaps between its fields.** The form I put around them was one
+  block to the panel that spaces them.
+- **Signed in from the site's home, a password landed on the home, and the email link and
+  Google on the personal space.** All three land on the personal space.
+- **Four pages of the personal space still forgot their page** when their login ended.
+- **The live board said "Slower updates" on every page load**, until its channel had answered,
+  and for ever on an Event with no piste.
+- A status from a live channel that is gone was read as today's.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The last bout of a piste shows its end card for 8 seconds, not 5.** A bout with no next bout
+  of its own counts nothing down, so the screen's own limit ends the wait.
+- **A bout that ends with no clock (a forfeit) gets no hold.** The scoreboard draws no end card
+  for it, before this work and after.
+- **From a person's page the Back link of F18 goes to the Event home**, not to the participants
+  list the visitor may have come from.
+- **The site's home is no page to return to after sign-in**: a visitor of the home lands on the
+  personal space, as before.
+- **A sign-in from one piste of the live board returns to the whole board.** The door sends the
+  page's path, without what follows the `?`.
+- **Enter does nothing on an incomplete sign-up**, as its button, which stays off until the
+  form is whole. The sentences for a weak or a mismatched password cannot show: older than this
+  work.
+- **The live board says "Live" whenever its channel is up**, as the bout page does. A club
+  member on a hidden Event then sees scores that move every 30 seconds under "Live".
+- F9's halted bout was not asked for: it was in the same lines.
+
+Named, not fixed (each read in code):
+
+- **A guest of a draft or a test Event sees bouts whose page answers "not found"** (F3): the
+  guest schedule has no Event gate, and the bout page shows a hidden Event's bouts to its club
+  and staff only.
+- **Sign-up by email loses the page to return to** (F11): the confirmation link lands on the
+  personal space.
+- The Event home's "Live now" block and the hub's "Now live" block do not say how fresh they
+  are (F5's fault, in two more places). Four readers of the live state, and three of
+  "my schedule", each with types of their own.
+- The guest schedule's "Live" badge is for a running clock only; a halted bout has none.
+- `referee-display.ts`, a second, hard-coded map of role names, on the Tournament page.
+- An unknown fighter is the literal `?` on the live board and on the live card.
+- The loading page of the Event pages words its label in English for every visitor.
+- `fetchEventTheme` reads a field the API does not send: the Event's hero image is never set.
+- Two things of the piste TV are held by no test: an answer of the piste older than one already
+  taken is dropped, and what a removed live channel says is dropped. Both were read, not run.
+
+### The email link wins: ruled, not built
+
+The operator ruled on 2026-10-13: an organiser who signs in by email link on a tablet that holds
+another person's PIN session is seen as the organiser. The recon found that it is not a small
+fix. Each point was read in code, not run:
+
+- **The emailed link does not land on the tablet's app.** It lands on the organiser site, at an
+  address that site does not have (`buildPostAuthRedirectUrl`: a `login` link goes to the admin
+  host, with the path `/lices?arrive=1`).
+- **The server cannot end the PIN session where the link lands.** The PIN session is a cookie of
+  the tablet app's own host; the link is handled on the API's host, which never sees it.
+- **An organiser with no PIN has no list of pistes on the tablet.** Every read behind that list
+  asks for a PIN session; the page sends her back to sign-in.
+- **A volunteer's unsent hits carry no name.** They are saved under whoever the server sees when
+  they go out: the organiser, while her login is fresh; the volunteer again, about an hour later,
+  with no word on screen.
+
+It needs rulings before a plan: whose are the unsent hits, what an organiser with no PIN sees,
+and whether a PIN typed on a tablet that holds an organiser's login ends that login.
 
 ## Still not checked
 
