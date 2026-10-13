@@ -83,10 +83,10 @@ Size: **S** = under about one hour, **M** = about half a day.
 | #      | Today                                                                                                                                     | Fix                                                                                          | What it brings                                                                   | Where                                                                                                      | Size |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---- |
 | ~~T1~~ | ~~Five seconds after a bout ends, the piste TV jumps to a per-Match address. It then follows Match ids, not the piste.~~ Done `aa38439a`. | Have the piste screen pass its own address through the existing `buildNextDisplayHref` prop. | A bout moved to another piste no longer strands the TV until someone walks over. | `packages/ui/src/components/TVScoreboard.tsx:144`; `next-display-href.ts:13`; `lice-display-client.tsx:80` | S    |
-| T2     | A French hall reads "MATCH ENDED", "Next match in 3…", "NEXT ▸", and a pill saying `halted`.                                              | Seven strings to en + fr keys.                                                               | The hall reads the screen in its own language.                                   | `TVScoreboard.tsx:354, 372, 632, 656, 663, 667, 687`                                                       | S    |
-| T3     | The "next up" names are in phone-sized type.                                                                                              | Use the existing stage type scale.                                                           | The next two fighters see they are up from the warm-up area, without a call-out. | `TVScoreboard.tsx:341-343, 362, 371-378`; scale at `packages/ui/src/theme.css:139-143`                     | S    |
-| T4     | The public piste TV cannot swap red and blue sides. The organiser popup can.                                                              | A swap button in `DisplayControls`, same stored key.                                         | Spectators stop giving a point to the wrong fighter.                             | `display-view.tsx:29-47`; `DisplayControls.tsx:123-136`                                                    | S    |
-| T5     | No fullscreen button; the laptop driving the TV can sleep.                                                                                | Fullscreen button + the wake-lock hook from P7.                                              | Setup is one tap, and the screen does not go black mid-Pool.                     | no `requestFullscreen` in the repo                                                                         | S    |
+| ~~T2~~ | A French hall reads "MATCH ENDED", "Next match in 3…", "NEXT ▸", and a pill saying `halted`. Done `9a5c16d0`.                             | Seven strings to en + fr keys.                                                               | The hall reads the screen in its own language.                                   | `TVScoreboard.tsx:354, 372, 632, 656, 663, 667, 687`                                                       | S    |
+| ~~T3~~ | The "next up" names are in phone-sized type. Done `dbfc2fa8`.                                                                             | Use the existing stage type scale.                                                           | The next two fighters see they are up from the warm-up area, without a call-out. | `TVScoreboard.tsx:341-343, 362, 371-378`; scale at `packages/ui/src/theme.css:139-143`                     | S    |
+| ~~T4~~ | The public piste TV cannot swap red and blue sides. The organiser popup can. Done `b421fd68`.                                             | A swap button in `DisplayControls`, same stored key.                                         | Spectators stop giving a point to the wrong fighter.                             | `display-view.tsx:29-47`; `DisplayControls.tsx:123-136`                                                    | S    |
+| ~~T5~~ | No fullscreen button; the laptop driving the TV can sleep. Done `b5701493`.                                                               | Fullscreen button + the wake-lock hook from P7.                                              | Setup is one tap, and the screen does not go black mid-Pool.                     | no `requestFullscreen` in the repo                                                                         | S    |
 
 ## F — fighter and spectator, public pages (`apps/web-public/app/e/[eventSlug]`)
 
@@ -1450,6 +1450,70 @@ Named, not fixed (each read in code):
 - After "Check your email" the notice shows a second logo under the page's own, with the PIN form
   still above it.
 - The lock of the PIN is ten tries an hour per account, and a GOOD sign-in counts as a try.
+
+## Built on 2026-10-13: the TV rows T2 to T5, and two rulings
+
+The operator picked T2 to T5, and ruled twice, each asked with a story:
+
+| Asked                                                                                                                   | Ruling                                                     |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| A Fullscreen button drops out after every bout: the TV loads its page again to change bout, and a load ends fullscreen. | **The button, and the TV changes bout with no page load.** |
+| The kiosk design note says the hidden bar of the piste TV is "exhausted". Where does "Swap sides" go?                   | **In the hidden bar.** The design note changes.            |
+
+What the hall gets:
+
+- **T2** (`9a5c16d0`, `d4525961`). The scoreboard's words follow the language of the hall: the
+  clock pill ("En pause", no more raw `halted`), "Assaut terminé", "Prochain assaut dans 3…",
+  "Dernier assaut sur cette lice", "À suivre", "Manche 2/3", "Temps total", "contre".
+- **T3** (`dbfc2fa8`, `12015e8c`). On a 1080p TV the next two fighters are named in 30px (was
+  14px), and the Event, the piste and the Tournament line in 18px (was 12 to 14px).
+- **T4** (`b421fd68`, `a98c7068`). The hidden bar of the piste TV has "Swap sides". The screen
+  keeps the choice. The card "waiting for next match" names its two fighters in the same order.
+  The public TV opens not swapped, the organiser's popup swapped, both as before.
+- **T5** (`091f6f2a`, `b5701493`, `9970739d`, `9ade9162`). The three TV screens stay awake. The
+  piste TV's bar and the organiser's popup have a Fullscreen button. When a bout ends, a screen
+  moves to the next bout with no page load, so fullscreen holds from bout to bout.
+
+What ran: one cold review, the seeded breaks, the gate chain, the browser suite. No migration, no
+route. One comment changed in the API.
+
+What the review found, and is fixed:
+
+- A browser that blocks site data throws when a page only names its storage. "Swap sides" named
+  it while the screen was drawn: the public piste TV would have shown the error page.
+- A new mount of the scoreboard for each bout put "Loading scoreboard" on the piste TV between
+  two bouts. The bout that ended now stays drawn until the next one is read.
+- A reopen in the same draw as the last tick of the countdown told the screen the bout was over.
+- The piste TV's browser story could pass on the read its dead live channel makes when it fails,
+  and not on the countdown. It now changes the piste in the countdown's last second.
+- A long Event name beside two long fighters wrapped in the header.
+- "Exit fullscreen, pressed" for a screen reader.
+- The French pill said "Arrêté" where the tablet says "pause".
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **A next-up name is cut on one line, not wrapped.** Two long names wrapped made the header
+  taller, and the card counts under the fighters left the bottom of the screen. The plan said
+  "wrap".
+- **The single-bout public TV has no Fullscreen button**: it has no bar. It stays awake, and it
+  keeps a fullscreen that F11 gave it.
+- T3's sizes are chosen on screenshots, not in a hall.
+- The single-bout TV and the organiser's popup show "Loading scoreboard" for one read at each
+  bout: they change address, and the router mounts a new address again. It replaces a page load.
+- After a deploy, the next change of bout loads the page once: fullscreen drops that one time.
+
+Named, not fixed (each read in code):
+
+- **With its live channel up, the piste TV leaves a finished bout at once.** The piste's read no
+  longer names a completed bout, so the winner's card shows for under a second. The five seconds
+  of the card are seen only when the channel is down, or the Event is hidden. Older than this
+  work. Read in code, not run. Worth a ruling.
+- The single-bout public TV has no browser story: its page reads the bout on the server, and the
+  browser harness runs no API. Its address has a unit test and its wiring a text pin.
+- The card "waiting for next match" still has two lines in phone sizes (the Event, the piste).
+- French words of `scoring.liveMatch` with no accents ("Arrete", "Programme", "Termine").
+- The tablet's own raw `halted` (row X1) can reuse the new keys `scoring.scoreboard.clockStatus`.
+- `MatchScoreboard`, the organiser's preview, keeps its own fixed type sizes.
 
 ## Still not checked
 
