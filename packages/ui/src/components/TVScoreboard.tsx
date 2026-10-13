@@ -35,7 +35,7 @@ import {
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
 import { isFreshnessAlarming } from '../hooks/realtime-freshness';
 import { FreshnessChip } from './FreshnessChip';
-import type { ClockEvent, ExchangeRow } from '../types/match-events';
+import type { ClockEvent, ClockSnapshot, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
@@ -82,6 +82,15 @@ const CARD_CHIP_BG: Record<(typeof CARD_COLORS)[number], string> = {
   yellow: 'bg-yellow-400 text-yellow-950',
   red: 'bg-red-600 text-white',
   black: 'bg-gray-900 text-white border border-gray-600',
+};
+
+// The clock pill's words. One key per state of the clock: a state with no key
+// does not compile.
+const CLOCK_STATUS_KEY: Record<ClockSnapshot['status'], string> = {
+  idle: 'scoring.scoreboard.clockStatus.idle',
+  running: 'scoring.scoreboard.clockStatus.running',
+  halted: 'scoring.scoreboard.clockStatus.halted',
+  ended: 'scoring.scoreboard.clockStatus.ended',
 };
 
 // Circular stage art (fighter photo, club logo). Tailwind v4 has no @theme
@@ -355,7 +364,10 @@ function TVHeader({
           )}
           {(match.bestOf ?? 1) > 1 && (
             <span className="rounded-full border-2 border-sky-300 bg-sky-50 px-4 py-1 text-base font-bold tabular-nums text-sky-700">
-              Round {match.currentRound ?? 1}/{match.bestOf}
+              {t('scoring.rounds.counter', {
+                current: String(match.currentRound ?? 1),
+                total: String(match.bestOf),
+              })}
               {' · '}
               <span style={{ color: redOnLight }}>{match.redRoundWins ?? 0}</span>
               <span className="mx-0.5 text-slate-400">–</span>
@@ -366,14 +378,16 @@ function TVHeader({
           {contextLine && <p className="text-sm font-semibold text-slate-500">{contextLine}</p>}
           <p className="text-stage-club font-bold">
             <span style={{ color: leftColor }}>{leftName}</span>{' '}
-            <span className="text-slate-500">vs</span>{' '}
+            <span className="text-slate-500">{t('scoring.liveMatch.versus')}</span>{' '}
             <span style={{ color: rightColor }}>{rightName}</span>
           </p>
         </div>
         <div className="flex justify-end">
           {next && (
             <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-right">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">NEXT ▸</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                {t('scoring.liveMatch.upNext')} ▸
+              </p>
               <p className="text-sm font-semibold">
                 <span style={{ color: redOnLight }}>●</span> {next.redFighterName ?? '—'}
               </p>
@@ -633,7 +647,7 @@ function CenterColumn({
                 : 'bg-gray-800 text-gray-500'
         }`}
       >
-        {clockStatus}
+        {t(CLOCK_STATUS_KEY[clockStatus])}
       </span>
 
       {isEnded ? (
@@ -657,18 +671,20 @@ function CenterColumn({
           ) : (
             <>
               <p className="text-stage-verdict font-black uppercase tracking-widest text-amber-400">
-                MATCH ENDED
+                {t('scoring.scoreboard.matchEnded')}
               </p>
               {winner && <p className="text-stage-name font-bold">🏆 {winner.name}</p>}
             </>
           )}
           {countdownRemaining !== null && (
             <p className="text-stage-club mt-4 text-gray-400">
-              Next match in {countdownRemaining}…
+              {t('scoring.scoreboard.nextMatchIn', { seconds: String(countdownRemaining) })}
             </p>
           )}
           {countdownRemaining === null && !match.nextMatchId && (
-            <p className="text-stage-row mt-4 text-gray-500">Last match on this lice</p>
+            <p className="text-stage-row mt-4 text-gray-500">
+              {t('scoring.scoreboard.lastMatchOnLice')}
+            </p>
           )}
         </div>
       ) : (
@@ -688,7 +704,7 @@ function CenterColumn({
           </p>
           {match.startedAt && (
             <p className="text-stage-label uppercase tracking-widest text-gray-500">
-              Total{' '}
+              {t('scoring.clock.totalTime')}{' '}
               <span className="font-mono">
                 {formatClockMs(Date.now() - new Date(match.startedAt).getTime())}
               </span>

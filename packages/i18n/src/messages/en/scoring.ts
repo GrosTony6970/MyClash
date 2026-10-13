@@ -6,6 +6,16 @@ export const scoring = {
     loadError: 'Could not load scoreboard data ({status}).',
     retry: 'Retry',
     swapSides: '⇄ Swap sides',
+    // The TV scoreboard, read across a hall: the clock's state, and a bout's end.
+    clockStatus: {
+      idle: 'Not started',
+      running: 'Running',
+      halted: 'Halted',
+      ended: 'Ended',
+    },
+    matchEnded: 'Match ended',
+    nextMatchIn: 'Next match in {seconds}…',
+    lastMatchOnLice: 'Last match on this lice',
   },
   login: {
     checkEmailTitle: 'Check your email',
