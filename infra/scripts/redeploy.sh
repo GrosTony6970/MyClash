@@ -265,6 +265,18 @@ for svc in "${SERVICES[@]}"; do
   fi
 done
 
+# ── The pad's offline cache follows the commit (see deploy.sh) ────
+for svc in "${SERVICES[@]}"; do
+  if [[ "$svc" == "web-staff" ]]; then
+    if curl -fsSL "https://staff.${DOMAIN}/login" 2>/dev/null | grep -q "sw.js?v=${GIT_COMMIT:0:8}"; then
+      ok "Scoring pad serves its service worker as ${GIT_COMMIT:0:8}"
+    else
+      warn "Scoring pad does not serve sw.js?v=${GIT_COMMIT:0:8}: the tablets keep their old offline cache"
+    fi
+    break
+  fi
+done
+
 # ── Summary ──────────────────────────────────────────────────────
 hdr "Redeploy complete"
 "${COMPOSE[@]}" ps "${SERVICES[@]}"

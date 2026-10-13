@@ -7,7 +7,7 @@
 # What it does (in order):
 #   1. Validate environment (.env, config files, JSON syntax)
 #   2. Acquire deploy lock (flock) — only one deploy at a time
-#   3. Sync version stamps (PWA cache busts)
+#   3. (the pad's offline cache follows the commit by itself: see the note below)
 #   4. Generate VAPID keys if missing (web push)
 #   5. Pre-deploy DB backup (pg_dump → backups/pre-deploy/)
 #   6. git fetch + reset --hard origin/main
@@ -756,6 +756,16 @@ if curl -fsSL "https://api.${DOMAIN}/health" >/dev/null 2>&1; then
   ok "API /health reachable"
 else
   warn "API /health not reachable from this host (may be a DNS/firewall issue, not a deploy issue)"
+fi
+
+# The scoring pad registers its service worker under the commit it serves, and
+# the worker's cache takes that as its version. A pad that serves another
+# version (a container started without GIT_COMMIT says "unknown") keeps the old
+# cache on every tablet, and says nothing there.
+if curl -fsSL "https://staff.${DOMAIN}/login" 2>/dev/null | grep -q "sw.js?v=${GIT_COMMIT:0:8}"; then
+  ok "Scoring pad serves its service worker as ${GIT_COMMIT:0:8}"
+else
+  warn "Scoring pad does not serve sw.js?v=${GIT_COMMIT:0:8}: the tablets keep their old offline cache"
 fi
 
 # ── Record deploy metadata ───────────────────────────────────────

@@ -37,6 +37,10 @@ const SHELL_URLS = [
   '/login',
   '/lices',
   '/offline',
+  // The two desks. With a cache that follows the deploy, a page that is not
+  // kept here is lost at each deploy until its next visit with a network.
+  '/desk',
+  '/gear',
   ...SHELL_ROUTES.map((route) => `/${route}/${SHELL_ID}`),
 ];
 
@@ -46,8 +50,10 @@ const SHELL_URLS = [
  * with an id, the start page for anything else.
  */
 function shellFor(pathname) {
-  const [, route, id, more] = pathname.split('/');
-  if (SHELL_ROUTES.includes(route) && id && more === undefined) return `/${route}/${SHELL_ID}`;
+  const [, route, id, ...more] = pathname.split('/');
+  // `/matches/x` and `/matches/x/`: the page reads both as bout x (`idFromPath`).
+  const noMore = more.length === 0 || (more.length === 1 && more[0] === '');
+  if (SHELL_ROUTES.includes(route) && id && noMore) return `/${route}/${SHELL_ID}`;
   return '/';
 }
 
@@ -64,7 +70,7 @@ function shellFor(pathname) {
 function staticFilesOf(html) {
   const found = new Set();
   let prefix = '/_next/';
-  for (const [, address] of html.matchAll(/["'(]((?:\/[\w-]+)?\/_next\/static\/[^"'\\)\s?#]+)/g)) {
+  for (const [, address] of html.matchAll(/["'(]((?:\/[\w-]+)?\/_next\/static\/[^"'\\)\s#]+)/g)) {
     found.add(address);
     prefix = address.slice(0, address.indexOf('static/'));
   }
@@ -74,42 +80,70 @@ function staticFilesOf(html) {
   return [...found];
 }
 
-/** Keeps one address. A failure costs that file only, and is said. */
+/**
+ * Keeps one address. Answers the response it kept, or why it kept none:
+ *   - `absent`: the server says there is no such file (a 4xx). It will not come.
+ *   - `missed`: no answer, or a fault of the server. It may come at the next try.
+ */
 async function keep(cache, url) {
   try {
     const res = await fetch(url, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await cache.put(url, res.clone());
-    return res;
+    if (res.ok) {
+      await cache.put(url, res.clone());
+      return res;
+    }
+    console.warn('[SW] Not kept:', url, res.status);
+    return res.status < 500 ? 'absent' : 'missed';
   } catch (err) {
-    // Non-fatal: an install with no network is fine, the file is kept at its first use.
     console.warn('[SW] Not kept:', url, err);
-    return null;
+    return 'missed';
   }
 }
 
 /**
  * Keeps each shell and every static file it names. One by one: `addAll` drops
- * the whole list when one address fails.
+ * the whole list when one address fails. Answers whether the cache is WHOLE:
+ * nothing was missed for want of an answer.
  */
 async function keepShells(cache) {
   const files = new Set();
+  let whole = true;
   for (const url of SHELL_URLS) {
     const res = await keep(cache, url);
-    if (res) for (const file of staticFilesOf(await res.text())) files.add(file);
+    if (res === 'missed') whole = false;
+    if (typeof res === 'string') continue;
+    for (const file of staticFilesOf(await res.text())) files.add(file);
   }
-  await Promise.all([...files].map((file) => keep(cache, file)));
+  const kept = await Promise.all([...files].map((file) => keep(cache, file)));
+  return whole && !kept.includes('missed');
+}
+
+/**
+ * The install of a NEW version must not take over with half a cache.
+ *
+ * The cache follows the deploy, so activate removes the cache of the worker
+ * before. A tablet that reloads just after a deploy, on wifi that drops while
+ * the shells are being kept, would lose a whole cache for half of one: "Next
+ * match" with no network would be the start page again. So when a worker is
+ * already active, an install the network cut short FAILS: the browser drops
+ * this worker, the active one and its cache stay, and the next page with a
+ * network tries again.
+ *
+ * A first install has nothing to protect: it takes what it got, and the rest
+ * is kept at its first use.
+ */
+async function install() {
+  const whole = await keepShells(await caches.open(CACHE_NAME));
+  if (!whole && self.registration.active) {
+    throw new Error('[SW] The network cut the install short: the worker before stays');
+  }
+  await self.skipWaiting();
 }
 
 // ── Install: precache the shells ─────────────────────────────────────────────
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then(keepShells)
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(install());
 });
 
 // ── Activate: purge old caches ────────────────────────────────────────────────
