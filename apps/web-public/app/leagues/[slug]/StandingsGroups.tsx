@@ -78,7 +78,8 @@ function FighterName({ row }: { row: LeagueStandingRow }) {
   return (
     <Link
       href={`/fighters/${row.fighterSlug}`}
-      className="underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      // No focus ring: the champion's card cuts what leaves the name's box.
+      className="underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none"
     >
       {name}
     </Link>

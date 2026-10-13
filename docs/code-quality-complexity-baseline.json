@@ -750,7 +750,7 @@
     "apps/web-public/app/fighters/[slug]/page.tsx:382",
     "apps/web-public/app/fighters/page.tsx:84",
     "apps/web-public/app/leagues/[slug]/ClubStandingsSection.tsx:31",
-    "apps/web-public/app/leagues/[slug]/StandingsGroups.tsx:94",
+    "apps/web-public/app/leagues/[slug]/StandingsGroups.tsx:95",
     "apps/web-public/app/leagues/[slug]/page.tsx:117",
     "apps/web-public/app/login/page.tsx:37",
     "apps/web-public/app/me/PersonalSpaceDashboard.tsx:283",
