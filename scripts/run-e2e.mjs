@@ -43,8 +43,34 @@ export function playwrightVerdict(output) {
  * its own timeout on it. So the number has to be one no healthy run can reach,
  * and its only job is to stop a wedged browser from holding the runner for the
  * job's default six hours.
+ *
+ * Then it was ten minutes for the whole run, and the suite grew into it: on
+ * 2026-10-13 a run of 253 tests was killed at 600 s with 251 passed and none
+ * failed. A limit on the whole run is a time budget whatever it is called. So
+ * the guard now measures SILENCE: Playwright prints a line when each test ends,
+ * and a test cannot run longer than its own 30 s limit. Three minutes with no
+ * line is a wedged browser, however long the suite is.
  */
-const HANG_GUARD_MS = 600_000;
+const HANG_GUARD_MS = 180_000;
+// The run then ends with code 1, always: an epilogue would have settled it before this.
+const HANG_MESSAGE = `Playwright hang guard fired after ${HANG_GUARD_MS / 1000}s of silence — no summary.`;
+
+/**
+ * Calls `onSilence` once when `heard()` has not been called for `ms`. `stop()`
+ * ends the watch.
+ */
+export function silenceGuard(ms, onSilence) {
+  let timer = setTimeout(onSilence, ms);
+  return {
+    heard() {
+      clearTimeout(timer);
+      timer = setTimeout(onSilence, ms);
+    },
+    stop() {
+      clearTimeout(timer);
+    },
+  };
+}
 
 /**
  * How long the runner waits, after Playwright's epilogue, for Playwright to
@@ -186,19 +212,18 @@ function runPlaywright() {
     let settled = false;
     let output = '';
     let summaryExitTimer;
-    const watchdogTimer = setTimeout(() => {
-      // Always 1: an epilogue would have settled ten minutes before this.
-      console.error(`Playwright hang guard fired after ${HANG_GUARD_MS / 1000}s — no summary.`);
+    const watchdog = silenceGuard(HANG_GUARD_MS, () => {
+      console.error(HANG_MESSAGE);
       void killChild(child);
       settle(1);
-    }, HANG_GUARD_MS);
+    });
 
     const settle = (code) => {
       if (settled) {
         return;
       }
       settled = true;
-      clearTimeout(watchdogTimer);
+      watchdog.stop();
       clearTimeout(summaryExitTimer);
       child.stdout.destroy();
       child.stderr.destroy();
@@ -208,6 +233,7 @@ function runPlaywright() {
 
     const handleOutput = (chunk, stream) => {
       const text = chunk.toString();
+      watchdog.heard();
       output += text;
       stream.write(text);
 

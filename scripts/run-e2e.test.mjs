@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import http from 'node:http';
 import test from 'node:test';
 
-import { playwrightVerdict, waitForServer } from './run-e2e.mjs';
+import { playwrightVerdict, silenceGuard, waitForServer } from './run-e2e.mjs';
 
 /**
  * The runner reads Playwright's output as it streams and decides two things
@@ -116,6 +116,51 @@ test(
     assert.equal(answered.count, 1, 'a 5xx was asked again');
   },
 );
+
+/**
+ * The hang guard measures silence, not the length of the run. As a limit on the
+ * whole run it killed a healthy suite: 253 tests, 251 passed and none failed
+ * when it fired at 600 s (CI run 38412304967).
+ */
+test('a run that keeps printing is never killed, however long it is', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let fired = 0;
+  const guard = silenceGuard(180_000, () => (fired += 1));
+
+  // Twenty minutes of a suite that prints a line every thirty seconds.
+  for (let line = 0; line < 40; line += 1) {
+    t.mock.timers.tick(30_000);
+    guard.heard();
+  }
+
+  assert.equal(fired, 0);
+  guard.stop();
+});
+
+test('a run that goes silent for the whole guard is killed, once', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let fired = 0;
+  const guard = silenceGuard(180_000, () => (fired += 1));
+
+  guard.heard();
+  t.mock.timers.tick(179_999);
+  assert.equal(fired, 0, 'it fired before the silence was whole');
+  t.mock.timers.tick(1);
+  assert.equal(fired, 1);
+  t.mock.timers.tick(600_000);
+  assert.equal(fired, 1, 'it fired again');
+});
+
+test('a run that ended stops the guard', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let fired = 0;
+  const guard = silenceGuard(180_000, () => (fired += 1));
+
+  guard.stop();
+  t.mock.timers.tick(600_000);
+
+  assert.equal(fired, 0);
+});
 
 test('importing the runner boots no dev server', () => {
   // The entry guard is what makes every test above possible, and it has to be
