@@ -1329,7 +1329,9 @@ requireContains(
 requireContains(
   publicPersonalShellText,
   'apps/web-public/src/components/PublicPersonalShell.tsx',
-  "window.location.replace('/login')",
+  // The shell leaves for the sign-in page through the one builder, which
+  // carries the page to return to (`src/lib/sign-in-return.ts`).
+  'signInAgainHere();',
 );
 /**
  * App chrome must be STICKY, never FIXED.
