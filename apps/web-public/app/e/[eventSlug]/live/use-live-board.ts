@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '@myclash/api-client';
-import { IDLE_POLL_MS, deriveFreshness, type Freshness } from '@myclash/ui';
+import type { Freshness } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled, useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { BOARD_POLL_MS, boardFreshness, boardIsDegraded } from './board-freshness';
 
 export interface LiveMatch {
   id: string;
@@ -32,10 +33,6 @@ export interface LiveState {
   timezone?: string | null;
 }
 
-/** The board reads itself this often whatever its channel says: an Event that
- *  hides a bout from the public never announces it on the channel. */
-const BOARD_POLL_MS = IDLE_POLL_MS;
-
 export interface LiveBoardView {
   /** The last read that landed, or null before the first one. */
   state: LiveState | null;
@@ -46,8 +43,9 @@ export interface LiveBoardView {
 
 /**
  * The time, read once a second while `ticking`. "Not updating" comes true with
- * no event to announce it, so a tick draws the page again. Not while the
- * channel is up: a healthy page does not draw itself once a second all day.
+ * no event to announce it, so a tick draws the page again. Only while the
+ * board depends on its poll: a healthy page does not draw itself once a second
+ * all day.
  * 0 until the first tick, which `deriveFreshness` reads as "just now".
  */
 function useSecondsWhile(ticking: boolean): number {
@@ -105,13 +103,7 @@ export function useLiveBoard(eventSlug: string): LiveBoardView {
   });
   const realtimeDisabled = useRealtimeDisabled();
 
-  const now = useSecondsWhile(channelStatus !== 'SUBSCRIBED');
-  const freshness = deriveFreshness({
-    realtimeDisabled,
-    channelStatus,
-    pollMs: BOARD_POLL_MS,
-    lastUpdateAt,
-    now,
-  });
+  const now = useSecondsWhile(boardIsDegraded({ realtimeDisabled, channelStatus }));
+  const freshness = boardFreshness({ realtimeDisabled, channelStatus, lastUpdateAt, now });
   return { state, loading, freshness };
 }

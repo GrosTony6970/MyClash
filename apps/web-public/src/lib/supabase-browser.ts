@@ -100,6 +100,7 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): string | null
       };
     }
 
+    let alive = true;
     const channel = supabase
       .channel(opts.channelName)
       .on(
@@ -122,6 +123,10 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): string | null
           }),
       )
       .subscribe((status: string) => {
+        // Removing a channel makes it say `CLOSED` once more, AFTER the cleanup
+        // below. That word is about a channel that is gone: taken, it replaced
+        // the next channel's status, and started a poll nothing stopped.
+        if (!alive) return;
         setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
           if (wasConnectedRef.current) {
@@ -145,9 +150,12 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): string | null
     channelRef.current = channel;
 
     return () => {
+      alive = false;
       stopPolling();
       void supabase.removeChannel(channel);
       channelRef.current = null;
+      // The next channel has said nothing yet.
+      setChannelStatus(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.channelName, opts.table, opts.filter, opts.event, opts.enabled, realtimeDisabled]);

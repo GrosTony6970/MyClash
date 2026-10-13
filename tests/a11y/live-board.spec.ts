@@ -77,11 +77,29 @@ test('one piste: a bout whose clock is halted says so', async ({ page }) => {
 test.describe('how fresh the board is', () => {
   const chip = (page: import('@playwright/test').Page) => page.getByRole('status');
 
+  // Nothing answers the live channel here. The board says "slower" once the
+  // channel has SAID it is down, not while it is still joining: that takes a
+  // moment, so the wait is long.
+  const saysSlower = (page: import('@playwright/test').Page) =>
+    expect(chip(page)).toHaveText('Slower updates', { timeout: 20_000 });
+
   test('with its live channel down, the board says its updates are slower', async ({ page }) => {
     await openLiveBoard(page, TWO_PISTES);
 
-    await expect(chip(page)).toHaveText('Slower updates');
+    await saysSlower(page);
     await expect(page.getByText('Updates automatically')).toHaveCount(0);
+  });
+
+  // A board with no piste opens no channel: nothing has failed, and nothing says so.
+  test('a board whose channel has said nothing does not say its updates are slower', async ({
+    page,
+  }) => {
+    const board = await openLiveBoard(page, liveState([]));
+
+    await expect(chip(page)).toHaveText('Live');
+    await expect.poll(() => board.reads).toBeGreaterThan(0);
+    await page.waitForTimeout(1_500);
+    await expect(chip(page)).toHaveText('Live');
   });
 
   test('when its reads stop landing, the board says it is not updating, and says so no more when one lands', async ({
@@ -90,7 +108,7 @@ test.describe('how fresh the board is', () => {
     // The page's own clock, so the story does not wait three polls of thirty seconds.
     await page.clock.install({ time: new Date('2027-06-12T08:00:00.000Z') });
     const board = await openLiveBoard(page, TWO_PISTES);
-    await expect(chip(page)).toHaveText('Slower updates');
+    await saysSlower(page);
 
     // The server stops answering. Three polls later nothing has landed.
     board.down = true;
@@ -109,6 +127,6 @@ test.describe('how fresh the board is', () => {
 
   test('one piste of the board carries the same word', async ({ page }) => {
     await openLiveBoard(page, TWO_PISTES, '?lice=lice-1');
-    await expect(chip(page)).toHaveText('Slower updates');
+    await saysSlower(page);
   });
 });
