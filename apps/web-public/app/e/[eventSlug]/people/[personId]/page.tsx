@@ -18,6 +18,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47 } from '@myclash/time';
+import { isLiveStatus } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
 import { followRefusal } from './follow-answer';
@@ -54,7 +55,13 @@ interface ScheduleMatch {
   outcome: 'win' | 'loss' | 'draw' | null;
   isRed: boolean;
   tournamentName: string | null;
+  /** The piste the bout is planned on, when it has one. */
+  liceName?: string | null;
 }
+
+/** A bout that is live or to come: its label, and where to go to watch it. */
+const boutAndPiste = (m: ScheduleMatch): string =>
+  m.liceName ? `${m.matchNumberLabel} · ${m.liceName}` : m.matchNumberLabel;
 
 interface PersonSchedule {
   /** The Event's IANA zone: the clock the times below are told on. */
@@ -211,7 +218,8 @@ export default function PersonProfilePage() {
   const hallTime = (iso: string) =>
     formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, localeToBcp47(locale));
 
-  const live = schedule?.matches.filter((m) => m.status === 'running') ?? [];
+  // A bout whose clock is halted is still in play: it is live, not gone.
+  const live = schedule?.matches.filter((m) => isLiveStatus(m.status)) ?? [];
   const upcoming = schedule?.matches.filter((m) => m.status === 'scheduled') ?? [];
   const past = schedule?.matches.filter((m) => m.status === 'completed') ?? [];
 
@@ -287,7 +295,7 @@ export default function PersonProfilePage() {
           {live.map((m) => (
             <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
               <div className="rounded-xl border-2 border-danger/40 bg-danger/10 p-4 mb-2">
-                <p className="text-xs text-muted mb-1">{m.matchNumberLabel}</p>
+                <p className="text-xs text-muted mb-1">{boutAndPiste(m)}</p>
                 <p className="font-bold text-foreground">
                   {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                 </p>
@@ -314,7 +322,7 @@ export default function PersonProfilePage() {
                     <p className="text-sm font-medium text-foreground">
                       {t('publicApp.following.vsOpponent', { name: m.opponentName ?? '?' })}
                     </p>
-                    <p className="text-xs text-muted">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-muted">{boutAndPiste(m)}</p>
                   </div>
                   {m.scheduledAt && <p className="text-xs text-muted">{hallTime(m.scheduledAt)}</p>}
                 </div>
