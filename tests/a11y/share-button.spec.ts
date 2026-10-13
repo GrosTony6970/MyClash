@@ -147,6 +147,11 @@ test('with no share sheet, Share copies the link and says "Copied!" for two seco
   await expect(said(page)).toHaveAttribute('role', 'status');
   await expect(shareButton(page)).toHaveText('Share', { timeout: 5_000 });
   await expect(said(page)).toHaveText('');
+
+  // The tap that ended does not hold the next one back.
+  await shareButton(page).click();
+  await expect(shareButton(page)).toHaveText('Copied!');
+  expect((await doorsOf(page)).copied).toEqual([BOUT, BOUT]);
 });
 
 test('a copy the browser refuses says so, for longer than "Copied!"', async ({ page }) => {
