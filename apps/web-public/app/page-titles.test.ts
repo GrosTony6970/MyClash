@@ -106,6 +106,20 @@ describe('the rule has one owner', () => {
     }
   });
 
+  /** Under an Event the rule handed on is the Event's; anywhere else, the site's. */
+  it('a layout that hands a rule on hands the rule of where it stands', () => {
+    const handing = filesNamed(APP, /^layout\.tsx?$/).filter((file) =>
+      /titledAbove\(/.test(source(file)),
+    );
+    expect(handing.length).toBeGreaterThanOrEqual(3);
+    for (const layout of handing) {
+      const rule = layout.startsWith('e/[eventSlug]/') ? 'eventTitleRule' : 'siteTitleRule';
+      const handed = [...source(layout).matchAll(/titledAbove\(\s*'[^']+',\s*(\w+)/g)];
+      expect(handed.length, layout).toBeGreaterThan(0);
+      for (const [, name] of handed) expect(name, layout).toBe(rule);
+    }
+  });
+
   it.each(titleSources)('%s writes no site name and no template of its own', (file) => {
     const text = source(file);
     // The site's name in a title is what doubled it: "Longsword Open · MyClash — MyClash".
