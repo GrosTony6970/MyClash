@@ -23,6 +23,7 @@ import {
 } from './competition-visibility';
 import type { EventAuthzDeps } from './event-authz';
 import { isPublicEvent } from './event-read-gate';
+import { inListChunks } from '../postgrest-in-list';
 
 type Row = Record<string, string | null | undefined>;
 
@@ -139,7 +140,19 @@ export async function publiclyKnownProfileIds(
   deps: Pick<EventAuthzDeps, 'supabase'>,
   profileIds: string[],
 ): Promise<Set<string>> {
-  if (profileIds.length === 0) return new Set();
+  // A league's standings ask for every ranked fighter: one question per piece a `.in()` list holds.
+  const known = new Set<string>();
+  for (const piece of inListChunks([...new Set(profileIds)])) {
+    for (const id of await knownAmong(deps, piece)) known.add(id);
+  }
+  return known;
+}
+
+/** `publiclyKnownProfileIds` for one piece: distinct ids, no more than a `.in()` list holds. */
+async function knownAmong(
+  deps: Pick<EventAuthzDeps, 'supabase'>,
+  profileIds: string[],
+): Promise<Set<string>> {
   const standing = await rows(
     'profile',
     deps.supabase.service
@@ -153,13 +166,7 @@ export async function publiclyKnownProfileIds(
   const staff = await publicStaffIds(deps.supabase.service, unsure);
   const rest = unsure.filter((id) => !staff.has(id));
   if (rest.length === 0) return new Set([...onItsOwn, ...staff]);
-  const persons = await rows(
-    'profile roster',
-    deps.supabase.service
-      .from('persons')
-      .select('id, event_id, global_person_id')
-      .in('global_person_id', rest),
-  );
+  const persons = await rosterOf(deps.supabase.service, rest);
   const roster = persons.map((row) => ({
     id: row.id as string,
     eventId: row.event_id as string,
@@ -173,6 +180,30 @@ export async function publiclyKnownProfileIds(
   // `listed`, so kept.
   const listed = new Set(roster.map((row) => row.profileId));
   return new Set(profileIds.filter((id) => !listed.has(id) || known.has(id)));
+}
+
+/** PostgREST cuts a read at this many rows, and says nothing (`PGRST_DB_MAX_ROWS` in `infra/`). */
+const ROW_CAP = 1000;
+
+/**
+ * Every roster row of these profiles. A read that comes back full may have been cut, and a profile
+ * whose rows were cut would count as one with no roster row: known. So a full read is asked again
+ * in two halves, down to one profile; one profile that fills a read alone is a 5xx.
+ */
+async function rosterOf(db: SupabaseClient, profileIds: string[]): Promise<Row[]> {
+  const found = await rows(
+    'profile roster',
+    db.from('persons').select('id, event_id, global_person_id').in('global_person_id', profileIds),
+  );
+  if (found.length < ROW_CAP) return found;
+  if (profileIds.length === 1) {
+    throw new Error('profile roster read failed: one profile fills a whole read');
+  }
+  const half = Math.ceil(profileIds.length / 2);
+  return [
+    ...(await rosterOf(db, profileIds.slice(0, half))),
+    ...(await rosterOf(db, profileIds.slice(half))),
+  ];
 }
 
 /**
