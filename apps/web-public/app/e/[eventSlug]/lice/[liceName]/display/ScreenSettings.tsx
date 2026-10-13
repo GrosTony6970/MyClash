@@ -35,10 +35,11 @@ export function ScreenSettings({ mirror, onToggleMirror }: Props) {
         {t('scoring.scoreboard.swapSides')}
       </button>
       {fullscreen.supported && (
+        // Its words say where the screen stands, so it has no `aria-pressed`:
+        // "Exit fullscreen, pressed" says two things at once.
         <button
           type="button"
           onClick={fullscreen.toggle}
-          aria-pressed={fullscreen.active}
           className={settingClass(fullscreen.active)}
         >
           {t(

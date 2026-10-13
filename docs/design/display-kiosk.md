@@ -25,14 +25,16 @@ A projector or a big TV, **10-foot read**, legible at ~15m across a sports hall.
 ```
 
 - **`cursor-none`** — there is no pointer, so **no hover state means anything**. If an affordance only appears on hover, it does not exist here.
-- **Nothing is interactive**, with the single exception below. Nobody watches this screen and touches it. It is output.
+- **Nothing is interactive**, with the exceptions below: one bar on the piste screen, two buttons on the organiser's popup. Nobody watches this screen and touches it. It is output.
 - **Chromeless** — no `SiteHeader`, no legal footer, no sidebar, no nav. The stage is the whole viewport. Both display routes are stripped by the shared `isDisplayRoute()` in `apps/web-public/src/lib/display-routes.ts`, read by `MaybeSiteHeader` and `AppLegalFooter`; they used to keep separate regexes and disagreed about the per-lice route, which left a spectator **Sign in** button on the screen the staff are handed.
 
 ## The one interactive element
 
-`DisplayControls` on `/e/[eventSlug]/lice/[liceName]/display`: a control bar carrying the **Lice switcher**, the **settings of this screen** (`ScreenSettings`: swap sides), a link to the display hub, and **staff sign-in** (the scoring pad — a referee's PIN works nowhere else).
+`DisplayControls` on `/e/[eventSlug]/lice/[liceName]/display`: a control bar carrying the **Lice switcher**, the **settings of this screen** (`ScreenSettings`: swap sides, fullscreen), a link to the display hub, and **staff sign-in** (the scoring pad — a referee's PIN works nowhere else).
 
 A setting of the screen is what the person who sets a TV up changes while standing in front of it, and sees change at once. It lives in the bar (operator ruling, 2026-10-13). A way to another page is not a setting: it belongs on the hub.
+
+The organiser's popup (`/display/[matchId]`) has no bar. Its two settings, swap sides and fullscreen, are two small translucent buttons in its top left corner, always shown: the popup is opened from the scoring pad by the person who then drags it to the TV.
 
 It is **invisible until the screen is touched** (`pointermove` / `touchstart` / `keydown`) and fades again after ~4s idle; while shown it sets `cursor-auto` over the stage's `cursor-none`, and its Lice list is fetched on the _first_ reveal, never on mount. Projection unchanged, spectators see nothing — and the person setting the screens up can change Lice without knowing the URL scheme.
 

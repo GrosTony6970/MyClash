@@ -51,10 +51,9 @@ test('a tap on Fullscreen fills the screen, and it holds when the bout ends', as
   await bar.getByRole('button', { name: 'Fullscreen', exact: true }).click();
 
   await expect.poll(() => inFullscreen(page)).toBe(true);
-  await expect(bar.getByRole('button', { name: 'Exit fullscreen' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  // The button's words now say the way out.
+  await expect(bar.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Fullscreen', exact: true })).toHaveCount(0);
 
   // The piste now names the bout that waited: the countdown takes the screen there.
   board.answer = { ...BOARD, current: { id: NEXT_BOUT.id } };
