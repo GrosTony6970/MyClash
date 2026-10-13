@@ -10,7 +10,17 @@
  */
 import { test, expect } from '@playwright/test';
 import { stubPublicApi } from './helpers';
-import { ENDED, ENDED_BOUT, IDLE, NEXT_BOUT, markPage, pageKeptItsMark, stubBout } from './tv-stub';
+import {
+  BOUT,
+  ENDED,
+  ENDED_BOUT,
+  HALTED,
+  IDLE,
+  NEXT_BOUT,
+  markPage,
+  pageKeptItsMark,
+  stubBout,
+} from './tv-stub';
 
 const ADMIN = 'http://localhost:3003';
 
@@ -34,4 +44,23 @@ test('when its bout ends, the popup shows the next bout at its address, with no 
   // router, so the popup shows its spinner for one read. The piste TV keeps its
   // address and shows none (`tv-piste-follows-its-piste.spec.ts`).
   expect(await pageKeptItsMark(page)).toBe(true);
+});
+
+test('the popup opens swapped, for a TV that faces the public, and has both its buttons', async ({
+  page,
+}) => {
+  await stubPublicApi(page);
+  await stubBout(page, 'm-1', BOUT, HALTED);
+
+  await page.goto(`${ADMIN}/display/m-1`);
+  await expect(page.getByText('Ada Lovelace').last()).toBeVisible();
+
+  // Blue (Mary) is drawn on the left: nobody chose it, it is the popup's default.
+  const left = async (name: string) => (await page.getByText(name).last().boundingBox())?.x ?? NaN;
+  await expect
+    .poll(async () => (await left('Mary Somerville')) < (await left('Ada Lovelace')))
+    .toBe(true);
+
+  await expect(page.getByRole('button', { name: /swap sides/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fullscreen', exact: true })).toBeVisible();
 });
