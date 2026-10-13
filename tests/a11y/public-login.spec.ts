@@ -42,6 +42,24 @@ async function openLogin(page: Page, address = LOGIN): Promise<Sent[]> {
 const email = (page: Page) => page.getByLabel('Email address');
 const password = (page: Page) => page.getByLabel('Password', { exact: true });
 
+// The panel spaces its direct children. A form around the fields is one child:
+// with no spacing of its own, the fields and the button touch each other.
+test('the form keeps the gaps between its fields and its button', async ({ page }) => {
+  await openLogin(page);
+
+  const box = async (of: ReturnType<typeof email>) => (await of.boundingBox())!;
+  const emailBox = await box(email(page));
+  const passwordBox = await box(password(page));
+  const button = await box(page.getByRole('button', { name: 'Sign in', exact: true }));
+  const forgot = await box(page.getByRole('button', { name: /forgot/i }));
+
+  // Between two fields sits the second field's label, and the panel's gap of 16px.
+  const label = await box(page.getByText('Password', { exact: true }));
+  expect(label.y - (emailBox.y + emailBox.height)).toBeGreaterThanOrEqual(12);
+  expect(button.y - (passwordBox.y + passwordBox.height)).toBeGreaterThanOrEqual(12);
+  expect(forgot.y - (button.y + button.height)).toBeGreaterThanOrEqual(12);
+});
+
 test('Enter in the password field signs in, once', async ({ page }) => {
   const sent = await openLogin(page);
 

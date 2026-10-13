@@ -258,10 +258,10 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
         </>
       )}
 
-      {/* `contents`: the form is no box of its own, so the panel spaces its
-          fields as before. `noValidate`: the page says what is missing, in its
-          own words and language. */}
-      <form className="contents" noValidate onSubmit={submit}>
+      {/* `space-y-4`: the panel spaces its DIRECT children, and the form is one
+          of them, so it spaces its own fields the same way. `noValidate`: the
+          page says what is missing, in its own words and language. */}
+      <form className="space-y-4" noValidate onSubmit={submit}>
         <AuthField
           id="email"
           type="email"

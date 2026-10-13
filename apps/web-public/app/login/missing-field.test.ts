@@ -33,7 +33,7 @@ describe('the participant sign-in page is a form', () => {
   const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8');
 
   it('sends by its form, so Enter and a password manager work', () => {
-    expect(page).toContain('<form className="contents" noValidate onSubmit={submit}>');
+    expect(page).toContain('<form className="space-y-4" noValidate onSubmit={submit}>');
     // One submit button per tab: sign in, create an account, send the reset link.
     expect(page.match(/type="submit"/g)).toHaveLength(3);
   });
