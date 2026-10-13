@@ -15,8 +15,7 @@ interface Props {
   eventSlug: string;
   /**
    * What the screen does when the bout is over. Default: it goes to the next
-   * bout's own address. One function for the life of the screen: the bout view
-   * restarts its countdown when this prop changes.
+   * bout's own address.
    */
   onBoutOver?: (nextMatchId: string) => void;
   /** Blue on the left, for a screen that faces the public. */
@@ -43,8 +42,6 @@ export function DisplayView({ matchId, eventSlug, onBoutOver, mirror }: Props) {
   return (
     <div className="min-h-screen w-screen overflow-hidden bg-stage cursor-none">
       <TVScoreboard
-        // A new bout is a new mount: nothing of the bout before it is left.
-        key={matchId}
         t={t}
         matchId={matchId}
         apiBaseUrl={API_URL}

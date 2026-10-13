@@ -70,8 +70,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   // When a bout is over the screen reads its piste again, and shows what the
   // piste holds: the next bout, or the waiting card. It does not follow the
   // bout's own "next" (a bout moved to another piste took the TV with it), and
-  // it loads no page (a load ends fullscreen). One function for the life of
-  // the screen: the bout view restarts its countdown when this prop changes.
+  // it loads no page (a load ends fullscreen).
   const readPisteAgain = useCallback(() => void refresh(), [refresh]);
 
   // Not swapped until somebody swaps it: the public piste TV opens as it always did.

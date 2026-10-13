@@ -59,9 +59,10 @@ export interface TVScoreboardProps {
    * piste TV reads its piste again, the others go to the next bout's address),
    * and none may LOAD a page: a load ends fullscreen (quick win T5).
    *
-   * Pass one function for the life of the screen, and give this component a
-   * `key` of the bout's id: a new bout is then a new mount, with nothing left of
-   * the bout before it.
+   * A screen that keeps its address (the piste TV) then hands this component
+   * the next bout's id, and the bout before it stays drawn until the next one
+   * is read: no spinner between bouts. A screen that changes address is
+   * mounted again by the router, and shows the spinner for one read.
    */
   onBoutOver: (nextMatchId: string) => void;
   /**
@@ -167,11 +168,12 @@ export function TVScoreboard({
 
   // At zero the screen is told, once, and the countdown line goes away. Told
   // from an effect, not from the updater above: React may run an updater twice.
+  // `boutIsOver` is asked again: a reopen can land in the render of the last tick.
   useEffect(() => {
-    if (countdownRemaining !== 0 || !nextMatchId) return;
+    if (countdownRemaining !== 0 || !boutIsOver || !nextMatchId) return;
     setCountdownRemaining(null);
     onBoutOver(nextMatchId);
-  }, [countdownRemaining, nextMatchId, onBoutOver]);
+  }, [countdownRemaining, boutIsOver, nextMatchId, onBoutOver]);
 
   // Alarm debounce. The channel acks SUBSCRIBED on a handshake that lands
   // AFTER the initial HTTP fetch, so a realtime-only surface is briefly

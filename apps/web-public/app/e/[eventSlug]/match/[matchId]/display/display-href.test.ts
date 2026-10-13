@@ -26,8 +26,4 @@ describe('the single-bout TV moves to the next bout without a page load', () => 
   it('hands the scoreboard that move unless the screen brings its own', () => {
     expect(view).toContain('onBoutOver={onBoutOver ?? toNextBout}');
   });
-
-  it('mounts the scoreboard anew for each bout', () => {
-    expect(view).toContain('key={matchId}');
-  });
 });

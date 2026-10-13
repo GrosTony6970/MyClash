@@ -244,9 +244,9 @@ export interface DisplayMatch {
   redRegistrationId?: string | null;
   blueRegistrationId?: string | null;
   /** External-display redesign: next match on this lice (for the
-   *  corner NEXT tile + auto-rollover after MATCH ENDED). Public
-   *  surfaces can rely on this without a second authenticated
-   *  fetch. */
+   *  corner NEXT tile, and what a TV screen is told when its bout is
+   *  over). Public surfaces can rely on this without a second
+   *  authenticated fetch. */
   nextMatchId?: string | null;
   nextMatch?: {
     id: string;

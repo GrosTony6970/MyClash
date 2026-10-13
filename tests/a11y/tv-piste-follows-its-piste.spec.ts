@@ -25,6 +25,7 @@ import {
   markPage,
   openPisteTv,
   pageKeptItsMark,
+  sawSpinner,
 } from './tv-stub';
 
 test('when its bout ends, the piste TV shows what its piste holds next, with no page load', async ({
@@ -33,6 +34,10 @@ test('when its bout ends, the piste TV shows what its piste holds next, with no 
   const board = await openPisteTv(page, { bout: ENDED_BOUT, clock: ENDED });
   await expect(page.getByText('Match ended')).toBeVisible();
   await markPage(page);
+
+  // The last second of the countdown. By now the dead channel's own first read
+  // of the piste is long done, so it cannot be what moves the screen.
+  await expect(page.getByText('Next match in 1…')).toBeVisible({ timeout: 10_000 });
 
   // The piste now names the bout that waited.
   board.answer = { ...BOARD, current: { id: 'm-2' } };
@@ -45,6 +50,8 @@ test('when its bout ends, the piste TV shows what its piste holds next, with no 
 
   expect(board.reads).toBe(readsBefore + 1);
   expect(await pageKeptItsMark(page)).toBe(true);
+  // The bout before stayed drawn until the next one was read.
+  expect(await sawSpinner(page)).toBe(false);
   expect(page.url()).toBe(PISTE_TV);
 });
 

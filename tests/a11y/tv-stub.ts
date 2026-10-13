@@ -118,9 +118,20 @@ export async function openPisteTv(page: Page, tv: PisteTv = {}): Promise<PisteBo
  */
 export async function markPage(page: Page) {
   await page.evaluate(() => {
-    (window as unknown as { tvMark?: boolean }).tvMark = true;
+    const mark = { sawSpinner: false };
+    (window as unknown as { tvMark?: typeof mark }).tvMark = mark;
+    // From now on: did the screen ever go to its "Loading scoreboard" spinner?
+    new MutationObserver(() => {
+      if (document.body.innerText.includes('Loading scoreboard')) mark.sawSpinner = true;
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
   });
 }
 
+type Mark = { tvMark?: { sawSpinner: boolean } };
+
 export const pageKeptItsMark = (page: Page) =>
-  page.evaluate(() => (window as unknown as { tvMark?: boolean }).tvMark === true);
+  page.evaluate(() => (window as unknown as Mark).tvMark !== undefined);
+
+/** Since the mark: the scoreboard was replaced by its spinner at some moment. */
+export const sawSpinner = (page: Page) =>
+  page.evaluate(() => (window as unknown as Mark).tvMark?.sawSpinner === true);

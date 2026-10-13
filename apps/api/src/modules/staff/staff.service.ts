@@ -1416,8 +1416,8 @@ export class StaffService {
     }
 
     // Next match on the same lice — used by the TV display's auto-
-    // rollover (5s after MATCH ENDED, navigate to this id's display
-    // route) and the corner NEXT tile. Same query shape the staff
+    // rollover (5s after a bout is over, the single-bout screens go to
+    // this id) and the corner NEXT tile. Same query shape the staff
     // current-match endpoint uses. Public, so narrowed to what `reader`
     // may see: the tile names fighters, and the rollover opens the bout.
     const nextMatch = await this.resolveNextMatchOnLice(

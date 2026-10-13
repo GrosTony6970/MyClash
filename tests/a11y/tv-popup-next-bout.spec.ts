@@ -30,5 +30,8 @@ test('when its bout ends, the popup shows the next bout at its address, with no 
   await expect(page.getByText('Not started', { exact: true })).toBeVisible();
   await expect(page.getByText('Match ended')).toHaveCount(0);
 
+  // Not asserted: no spinner. A new address is a new mount of the page for the
+  // router, so the popup shows its spinner for one read. The piste TV keeps its
+  // address and shows none (`tv-piste-follows-its-piste.spec.ts`).
   expect(await pageKeptItsMark(page)).toBe(true);
 });

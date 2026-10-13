@@ -66,8 +66,6 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
         )}
       </div>
       <TVScoreboard
-        // A new bout is a new mount: nothing of the bout before it is left.
-        key={matchId}
         t={t}
         matchId={matchId}
         apiBaseUrl={apiUrl}
