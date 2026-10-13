@@ -428,26 +428,10 @@ else
   ok "VAPID keys already configured"
 fi
 
-# ── Sync version stamps (PWA cache busting) ──────────────────────
-hdr "Syncing version stamps"
-
-if [[ -f VERSION ]]; then
-  APP_VERSION=$(tr -d '[:space:]' < VERSION)
-
-  # Service worker cache names per app. if/then rather than
-  # `[[ -f x ]] && sed … || true`, which shellcheck reads as an if-then-else it
-  # is not (SC2015). The `|| true` stays: stamping is best-effort and must not
-  # abort a deploy.
-  for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do
-    if [[ -f "$sw" ]]; then
-      sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
-    fi
-  done
-
-  ok "Version ${APP_VERSION} stamped into service workers"
-else
-  warn "No VERSION file — skipping version stamping"
-fi
+# The cache of the scoring pad's service worker follows the deploy by itself: the
+# page registers /sw.js?v=<GIT_COMMIT served> (apps/web-staff ServiceWorkerRegistration).
+# Nothing is stamped into a file here. The sed that did so had stopped matching the
+# file, behind `|| true`, and web-public's worker has no cache; web-admin has no worker.
 
 # ── Prepare directories ──────────────────────────────────────────
 hdr "Preparing data and log directories"

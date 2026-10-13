@@ -28,15 +28,16 @@
  * a default that Cache Components already changes when enabled.
  * `app/api/health/api-reachable/route.ts` in web-public pins it the same way.
  */
+import { servedCommit } from '../../../src/lib/served-commit';
+
 export const dynamic = 'force-dynamic';
 
 export function GET() {
   return Response.json({
     // Named so a sweep across the four hosts is self-identifying.
     app: 'web-staff',
-    // Truncated to 8 like the API's `shortCommit`, so the same deploy never
-    // shows as two different-looking commits.
-    commit: (process.env.GIT_COMMIT || 'unknown').slice(0, 8),
+    // The commit the service worker's cache is named after too (`servedCommit`).
+    commit: servedCommit(),
     environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production',
     // Seconds since this container started. The field that would have settled
     // the question above on its own: a redeploy resets it, so a large uptime

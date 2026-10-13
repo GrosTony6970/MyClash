@@ -148,18 +148,6 @@ if [[ "$PULL" -eq 1 ]]; then
     git reset --hard origin/main
     ok "Code updated"
   fi
-
-  # Re-stamp service-worker cache names so PWAs cache-bust (same as deploy.sh).
-  if [[ -f VERSION ]]; then
-    APP_VERSION=$(tr -d '[:space:]' < VERSION)
-    # if/then, and the `|| true` stays — see deploy.sh for both reasons.
-    for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do
-      if [[ -f "$sw" ]]; then
-        sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
-      fi
-    done
-    ok "Version ${APP_VERSION} stamped into service workers"
-  fi
 fi
 
 # GIT_COMMIT feeds compose build args; always reflect the checkout being built.

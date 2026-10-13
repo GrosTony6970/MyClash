@@ -15,6 +15,8 @@ import { SHELL_ID } from '../lib/nav';
  */
 const SOURCE = readFileSync(join(__dirname, '..', '..', 'public', 'sw.js'), 'utf8');
 const ORIGIN = 'https://staff.test';
+/** The cache of the worker the tests register, as commit `14f7b056`. */
+const CACHE = 'myclash-staff-14f7b056';
 
 type Handler = (event: {
   request: { url: string; mode: string };
@@ -149,7 +151,7 @@ function online(sw: Worker) {
 
 let sw: Worker;
 beforeEach(() => {
-  sw = worker();
+  sw = worker('14f7b056');
 });
 
 describe('the shell of an address', () => {
@@ -194,13 +196,54 @@ describe('the static files a page names', () => {
   });
 });
 
+// The deploy script stamped the cache's name into this file with a `sed` that
+// had stopped matching, behind `|| true`: the cache was `v1` for ever, and a
+// tablet could serve a page of the old app after a deploy.
+describe('the version of the cache', () => {
+  it('is the `v` of the worker’s own address: the commit the page registered it with', async () => {
+    online(sw);
+    await sw.install();
+
+    expect([...sw.stores.keys()]).toEqual(['myclash-staff-14f7b056']);
+  });
+
+  it('removes the caches of the older workers at activate, and no other cache', async () => {
+    const old = worker('5bc3195f');
+    online(old);
+    await old.install();
+    const next = worker('14f7b056');
+    for (const [name, store] of old.stores) next.stores.set(name, store);
+    next.stores.set('another-app-v1', new Map());
+    online(next);
+
+    await next.install();
+    // Both until the new worker is active: the open page still reads the old one.
+    expect([...next.stores.keys()].sort()).toEqual([
+      'another-app-v1',
+      'myclash-staff-14f7b056',
+      'myclash-staff-5bc3195f',
+    ]);
+    await next.activate();
+
+    expect([...next.stores.keys()].sort()).toEqual(['another-app-v1', 'myclash-staff-14f7b056']);
+    expect(next.stores.get('myclash-staff-14f7b056')!.has('/matches/_')).toBe(true);
+  });
+
+  it('has a name of its own for a worker registered with no version', async () => {
+    const bare = worker();
+    await bare.install();
+
+    expect([...bare.stores.keys()]).toEqual(['myclash-staff-unversioned']);
+  });
+});
+
 describe('the install', () => {
   it('keeps the six shells and every static file they name', async () => {
     online(sw);
 
     await sw.install();
 
-    const kept = [...sw.stores.get('myclash-staff-v1')!.keys()].sort();
+    const kept = [...sw.stores.get(CACHE)!.keys()].sort();
     expect(kept).toEqual([
       '/',
       '/_next/static/chunks/bout.js',
@@ -223,7 +266,7 @@ describe('the install', () => {
 
     await sw.install();
 
-    const kept = sw.stores.get('myclash-staff-v1')!;
+    const kept = sw.stores.get(CACHE)!;
     expect(kept.has('/matches/_')).toBe(true);
     expect(kept.has('/_next/static/chunks/bout.js')).toBe(true);
     expect(kept.has('/offline')).toBe(false);
@@ -232,7 +275,7 @@ describe('the install', () => {
 
   it('ends with nothing kept, and no failure, when there is no network at all', async () => {
     await expect(sw.install()).resolves.toBeUndefined();
-    expect([...sw.stores.get('myclash-staff-v1')!.keys()]).toEqual([]);
+    expect([...sw.stores.get(CACHE)!.keys()]).toEqual([]);
   });
 });
 
@@ -261,7 +304,7 @@ describe('a navigation with no network', () => {
   });
 
   it('gives the start page for a bout when the bout shell was not kept', async () => {
-    sw.stores.get('myclash-staff-v1')!.delete('/matches/_');
+    sw.stores.get(CACHE)!.delete('/matches/_');
 
     expect(await text(sw.ask('/matches/bout-2'))).toMatch(/main\.js"><\/script>\/$/);
   });

@@ -16,11 +16,13 @@
  * could not check who was signed in and offered a Retry that reloaded the same
  * dead address (quick-win ruling 4).
  *
- * Cache name is stamped by the deploy script (VERSION env var).
- * On activate, old caches are purged so stale assets never serve.
+ * THE VERSION is the `v` of this worker's own address: the page registers
+ * `/sw.js?v=<commit served>` (`ServiceWorkerRegistration.tsx`). A deploy is a
+ * new address, so a new worker: it fills a cache of its own at install, and at
+ * activate removes every older one, so a page of the old app never serves.
  */
 
-const CACHE_VERSION = self.__CACHE_VERSION__ || 'v1';
+const CACHE_VERSION = new URL(self.location.href).searchParams.get('v') || 'unversioned';
 const CACHE_NAME = `myclash-staff-${CACHE_VERSION}`;
 
 /** The id a page is asked with to keep its shell. In step with `SHELL_ID` in `src/lib/nav.ts`. */
