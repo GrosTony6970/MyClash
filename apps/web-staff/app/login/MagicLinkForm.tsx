@@ -51,13 +51,7 @@ export function MagicLinkForm() {
 
   return (
     <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4">
-      {/* Says whose form this is: volunteers typed their email here (quick win S3). */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
-          {t('scoring.login.accountAccess')}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{t('scoring.login.accountAccessHint')}</p>
-      </div>
+      <WhoseForm />
       <LabelledInput
         id="email"
         label={t('scoring.login.emailAddress')}
@@ -73,6 +67,20 @@ export function MagicLinkForm() {
         label={loading ? t('scoring.login.sending') : t('scoring.login.sendLoginLink')}
       />
     </form>
+  );
+}
+
+/** Says whose form this is: volunteers typed their email here (quick win S3). */
+function WhoseForm() {
+  const { t } = useI18n();
+
+  return (
+    <div>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-muted">
+        {t('scoring.login.accountAccess')}
+      </h2>
+      <p className="mt-1 text-sm text-muted">{t('scoring.login.accountAccessHint')}</p>
+    </div>
   );
 }
 
