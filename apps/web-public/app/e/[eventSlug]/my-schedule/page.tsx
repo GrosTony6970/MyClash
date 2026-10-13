@@ -34,6 +34,7 @@ import { dayChipLabel, dayHeading, eventDay, eventDays, onEventDay } from './sch
 import { readMySchedule } from './read-my-schedule';
 import { ScheduleNotShown, type NotShownReason } from './ScheduleNotShown';
 import { unknownCaller } from '@/components/me/workshop-booking';
+import { refereeRoleLabel } from '@/components/me/referee-role';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -78,7 +79,8 @@ interface RefereeSlot {
   /** The duty's planned window, worked out by the API from the Matches it covers. */
   startsAt: string | null;
   endsAt: string | null;
-  role: string;
+  /** The organiser's own name for the duty's role; the role's id is not shown. */
+  skillName?: string | null;
   poolName: string | null;
   tournamentName: string | null;
 }
@@ -475,7 +477,7 @@ export default function MySchedulePage() {
                             {t('publicApp.mySchedule.refereePrefix')} — {dutyName(item.data)}
                           </p>
                           <p className="text-info text-xs mt-0.5">
-                            {item.data.role.replace(/_/g, ' ')}
+                            {refereeRoleLabel(item.data.skillName, t)}
                             {item.data.tournamentName && ` · ${item.data.tournamentName}`}
                           </p>
                         </>

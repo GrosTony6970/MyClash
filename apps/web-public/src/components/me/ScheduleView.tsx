@@ -19,6 +19,7 @@ import {
 } from './conflicts';
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
+import { refereeRoleLabel } from './referee-role';
 import {
   aggregateReferee,
   fightHeaderEnd,
@@ -410,7 +411,7 @@ export function ScheduleView({
               : 'publicApp.me.schedule.matchCount',
             { count: r.count },
           )}
-          refLabel={r.skillName ?? t('publicApp.me.events.roleReferee')}
+          refLabel={refereeRoleLabel(r.skillName, t)}
           refColor={r.skillColor ?? 'slate'}
           conflict={conflictLabel}
           isNext={item.key === nextKey}

@@ -21,6 +21,7 @@ import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47 } from '@myclash/ti
 import { isLiveStatus } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
+import { refereeRoleLabel } from '@/components/me/referee-role';
 import { followRefusal } from './follow-answer';
 import { ThisIsMeCard } from './ThisIsMeCard';
 
@@ -74,7 +75,8 @@ interface PersonSchedule {
     matchId: string;
     matchNumberLabel: string;
     scheduledAt: string | null;
-    role: string;
+    /** The organiser's own name for the duty's role; the role's id is not shown. */
+    skillName?: string | null;
   }>;
   workshops: Array<{
     workshopName: string;
@@ -349,7 +351,7 @@ export default function PersonProfilePage() {
               >
                 <div>
                   <p className="text-sm font-medium text-foreground">{s.matchNumberLabel}</p>
-                  <p className="text-xs text-muted">{s.role.replace('_', ' ')}</p>
+                  <p className="text-xs text-muted">{refereeRoleLabel(s.skillName, t)}</p>
                 </div>
                 {s.scheduledAt && <p className="text-xs text-muted">{hallTime(s.scheduledAt)}</p>}
               </div>

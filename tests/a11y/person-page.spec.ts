@@ -5,9 +5,20 @@
  * The API is stubbed (`public-pages-stub.ts`): the page reads on the client.
  */
 import { test, expect } from '@playwright/test';
-import { emptySchedule, openPersonPage, scheduledBout } from './public-pages-stub';
+import { emptySchedule, openPersonPage, scheduledBout, tableDuty } from './public-pages-stub';
 
 const AT_1030 = '2027-06-12T08:30:00.000Z';
+
+// Quick win F17. The page printed the role's id, "arbitre table".
+test("a duty names its role as the organiser named it, never by the role's id", async ({
+  page,
+}) => {
+  await openPersonPage(page, { ...emptySchedule, refereeSlots: [tableDuty(AT_1030)] });
+
+  const duties = page.locator('section', { hasText: 'Referee duties' });
+  await expect(duties.getByText('Table', { exact: true })).toBeVisible();
+  await expect(page.getByText(/arbitre/i)).toHaveCount(0);
+});
 
 // Quick win F9. The server sent the piste; the page did not show it.
 test('a bout to come names its piste', async ({ page }) => {
