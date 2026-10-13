@@ -14,6 +14,9 @@
  * it. This one acts, and can: the list it is checked against is the list of
  * the person who is signed in NOW, so a tablet that changed hands opens
  * nothing that is not theirs. Sign-out forgets the piste.
+ *
+ * With no network that list cannot be read: the piste is opened unchecked
+ * (`pisteWithNoNetwork`), from the copy the tablet keeps of it.
  */
 
 const STORAGE_KEY = 'myclash.staff.lastPiste.v1';
@@ -42,6 +45,19 @@ export function pisteToOpen(
   const [only] = assigned;
   if (assigned.length === 1 && only) return only;
   return remembered !== null && assigned.includes(remembered) ? remembered : null;
+}
+
+/**
+ * Where the tablet goes when the app is opened with no network (operator,
+ * 2026-10-13): the piste it last opened, from the copy it keeps of it.
+ *
+ * Not checked against the pistes of the sign-in, as `pisteToOpen` does: the
+ * server cannot be asked. The piste's own page asks it when the network is
+ * back, and a session that has ended goes to sign-in there. A tablet that
+ * remembers no piste (signed out, or never used) gets the sign-in screen.
+ */
+export function pisteWithNoNetwork(remembered: string | null): string {
+  return remembered === null ? '/login' : `/lices/${remembered}`;
 }
 
 /** The official opened this piste. Best effort: a tablet that cannot write shows the list next time. */

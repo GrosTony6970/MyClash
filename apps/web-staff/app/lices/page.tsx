@@ -8,8 +8,17 @@ import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { apiRequest, failureFromError, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
-import { isArrival, pisteToOpen, rememberedPiste } from '../../src/lib/last-piste';
-import { answeredFault, resolveStaffSession } from '../../src/lib/staff-session-decision';
+import {
+  isArrival,
+  pisteToOpen,
+  pisteWithNoNetwork,
+  rememberedPiste,
+} from '../../src/lib/last-piste';
+import {
+  answeredFault,
+  neverLanded,
+  resolveStaffSession,
+} from '../../src/lib/staff-session-decision';
 import { EventBanner } from '../../src/components/EventBanner';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
@@ -62,9 +71,16 @@ export default function LicePickerPage() {
           staff.ok,
           account?.ok ? account.data : null,
           answeredFault(account),
+          neverLanded(staff) || neverLanded(account),
         );
         if (decision.kind === 'unverified') {
           setError(t('common.identityUnchecked'));
+          return;
+        }
+        // No network: as the start page does, the last piste from the tablet's copy.
+        if (decision.kind === 'no_network') {
+          leaving = true;
+          router.replace(pisteWithNoNetwork(rememberedPiste()));
           return;
         }
         if (decision.kind === 'sign_in') {

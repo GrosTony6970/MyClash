@@ -11,6 +11,7 @@ import {
   forgetPiste,
   isArrival,
   pisteToOpen,
+  pisteWithNoNetwork,
   PISTES_ON_ARRIVAL,
   rememberedPiste,
   rememberPiste,
@@ -43,6 +44,18 @@ describe('the piste to open at once', () => {
   it('is none when the list is not opened as an arrival', () => {
     expect(pisteToOpen(false, ['piste-1', 'piste-3'], 'piste-3')).toBeNull();
     expect(pisteToOpen(false, ['piste-7'], null)).toBeNull();
+  });
+});
+
+// Operator, 2026-10-13: the app opened with no wifi opens the piste it last had.
+describe('where the tablet goes with no network', () => {
+  it('is the piste it last opened: the server cannot say whose pistes these are', () => {
+    expect(pisteWithNoNetwork('piste-3')).toBe('/lices/piste-3');
+  });
+
+  // Signed out by the banner, or a tablet that never opened a piste.
+  it('is the sign-in screen when it remembers none', () => {
+    expect(pisteWithNoNetwork(null)).toBe('/login');
   });
 });
 

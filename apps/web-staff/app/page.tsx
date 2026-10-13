@@ -6,13 +6,16 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, fetchMe } from '@myclash/api-client';
 import { getApiUrl } from '../src/lib/api-url';
-import { PISTES_ON_ARRIVAL } from '../src/lib/last-piste';
-import { answeredFault, resolveStaffSession } from '../src/lib/staff-session-decision';
+import { PISTES_ON_ARRIVAL, pisteWithNoNetwork, rememberedPiste } from '../src/lib/last-piste';
+import { answeredFault, neverLanded, resolveStaffSession } from '../src/lib/staff-session-decision';
 
 /**
  * Root page - checks auth and redirects:
  * - a staff PIN session, or a claimed account -> /lices, as an arrival: the
  *   piste list opens the last piste at once (`last-piste.ts`)
+ * - no network, with the service worker or without it -> the piste the tablet
+ *   last had, from its own copy (`pisteWithNoNetwork`): neither session can be
+ *   verified, and sign-in cannot work either
  * - anything else -> /login
  *
  * This is the PWA's `start_url` (public/manifest.json), so it is the first
@@ -43,16 +46,17 @@ export default function RootPage() {
         staff.ok,
         account?.ok ? account.data : null,
         answeredFault(account),
+        neverLanded(staff) || neverLanded(account),
       );
       // A `/me` that answered a fault is not a signed-out session (ruling 295a).
       if (decision.kind === 'unverified') {
         setUnchecked(true);
         return;
       }
-      // No network lands here too, with the service worker or without it
-      // (`answeredFault`): neither session can be verified, and /login is what
-      // this page does about that. The running pad at /matches/[matchId] is
-      // not gated by any of this.
+      if (decision.kind === 'no_network') {
+        router.replace(pisteWithNoNetwork(rememberedPiste()));
+        return;
+      }
       router.replace(decision.kind === 'allow' ? PISTES_ON_ARRIVAL : '/login');
     })();
   }, [apiUrl, router]);

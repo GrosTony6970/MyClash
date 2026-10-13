@@ -32,12 +32,18 @@ export type StaffSessionDecision =
    * read that decides her access failed. She may be signed in, so the page says
    * it could not check, with a Retry.
    */
-  | { kind: 'unverified' };
+  | { kind: 'unverified' }
+  /**
+   * A read got no answer, and nothing proved a session (operator, 2026-10-13).
+   * Nobody can be asked, and sign-in cannot work either: the page opens the
+   * piste the tablet last had (`pisteWithNoNetwork`), where the bar counts the
+   * hits it still holds. That piste's own read sends to sign-in on a 401.
+   */
+  | { kind: 'no_network' };
 
 /**
  * Did the server answer this read with a failure? A request that never landed
- * is not one: offline keeps the sign-in screen, where a tablet reads the hits
- * it still holds (ruling 241). Null is a read that was not asked.
+ * is not one (`neverLanded`). Null is a read that was not asked.
  *
  * "Never landed" has two shapes. With no service worker the request throws
  * (`network`). Under the worker it does NOT: the worker answers a dead network
@@ -49,6 +55,16 @@ export type StaffSessionDecision =
 export const answeredFault = (read: ApiResult<unknown> | null): boolean =>
   read !== null && !read.ok && read.kind === 'http' && read.code !== OFFLINE_CODE;
 
+/**
+ * Did this read get no answer at all? The two shapes of "never landed" above:
+ * a request that threw, and the worker's own 503. Null is a read that was not
+ * asked.
+ */
+export const neverLanded = (read: ApiResult<unknown> | null): boolean =>
+  read !== null &&
+  !read.ok &&
+  (read.kind === 'network' || (read.kind === 'http' && read.code === OFFLINE_CODE));
+
 export function resolveStaffSession(
   /** `/api/v1/staff-auth/me` answered 2xx — a PIN session on this tablet. */
   hasStaffPinSession: boolean,
@@ -56,11 +72,17 @@ export function resolveStaffSession(
   me: MeSession | null,
   /** `answeredFault` of the `/api/v1/me` read. */
   meFault = false,
+  /**
+   * `neverLanded` of either read. The race: the network can come back between
+   * the two, so a read that landed is asked first.
+   */
+  noNetwork = false,
 ): StaffSessionDecision {
   if (hasStaffPinSession) return { kind: 'allow' };
   if (meFault) return { kind: 'unverified' };
   // `claimed` and nothing else. A guest session belongs to a spectator who
   // confirmed themselves on a roster; it is not a staff credential.
   if (me?.type === 'claimed') return { kind: 'allow' };
+  if (noNetwork) return { kind: 'no_network' };
   return { kind: 'sign_in' };
 }

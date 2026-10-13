@@ -10,41 +10,17 @@
  * The API is stubbed. The tablet holds a PIN session: `/staff-auth/me` answers.
  * The rule has its unit tests (`lib/last-piste.test.ts`).
  */
-import { test, expect, type Page } from '@playwright/test';
-
-const PAD = 'http://localhost:3002';
-const piste = (n: number) => ({
-  id: `piste-${n}`,
-  name: `Piste ${n}`,
-  event: { name: 'Spring Open' },
-});
-
-/** The pistes of the sign-in. A story may change them: another person signs in. */
-async function stubPad(page: Page, assigned: number[]) {
-  const state = { assigned };
-  await page.route('**/api/**', (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (route.request().method() !== 'GET') return route.fulfill({ json: {} });
-    if (path.endsWith('/staff-auth/me')) return route.fulfill({ json: { id: 'staff-1' } });
-    if (path.endsWith('/staff/assigned-lices')) {
-      return route.fulfill({ json: state.assigned.map(piste) });
-    }
-    const list = /\/staff\/lices\/(piste-\d)\/matches$/.exec(path);
-    if (list) {
-      const liceId = list[1] ?? '';
-      const liceName = `Piste ${liceId.slice(-1)}`;
-      return route.fulfill({ json: { liceId, liceName, matches: [] } });
-    }
-    return route.fulfill({ status: 404, json: {} });
-  });
-  return state;
-}
-
-const cards = (page: Page) => page.getByTestId('piste-card');
-const title = (page: Page) => page.getByTestId('lice-title');
-const path = (page: Page) => new URL(page.url()).pathname + new URL(page.url()).search;
-/** The app is opened: its first page, as the installed app starts. */
-const openApp = (page: Page) => page.goto(`${PAD}/`);
+import { test, expect } from '@playwright/test';
+import {
+  PAD,
+  cards,
+  logOut,
+  openApp,
+  path,
+  rememberEvent,
+  stubPad,
+  title,
+} from './pad-pistes-stub';
 
 test('the app opens the last piste at once, and the link still shows the list', async ({
   page,
@@ -121,23 +97,14 @@ test('a tablet with one piste opens it at once, and its link shows the list of o
 
 test('sign-out forgets the piste', async ({ page }) => {
   await stubPad(page, [1, 2, 3]);
-  // The tablet remembers its Event, as after a sign-in: the banner with the
-  // sign-out is shown only then.
-  await page.addInitScript(() => {
-    window.localStorage.setItem(
-      'myclash.staff.lastEvent.v1',
-      JSON.stringify({ id: 'event-1', slug: 'spring-open', name: 'Spring Open' }),
-    );
-  });
+  await rememberEvent(page);
   await openApp(page);
   await cards(page).filter({ hasText: 'Piste 3' }).click();
   await expect(title(page)).toHaveText('Piste 3');
   await page.getByRole('link', { name: /your lices/i }).click();
   await expect(cards(page)).toHaveCount(3);
 
-  await page.getByRole('button', { name: /^log out$/i }).click();
-  await page.getByRole('button', { name: /^log out\?$/i }).click();
-  await page.waitForURL(/\/login/);
+  await logOut(page);
 
   // The next person signs in: the list, not piste 3.
   await page.goto(`${PAD}/lices?arrive=1`);

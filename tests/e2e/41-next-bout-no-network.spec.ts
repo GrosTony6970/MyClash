@@ -14,7 +14,8 @@ import { createPoolTournament, readPoolMatches, type PoolMatch } from './_pool';
  * tile opens the second bout, a bout this tablet never opened: its PAGE comes
  * from the shell the worker kept at install, and the bout from the tablet's
  * copy. It is started and scored there, and it names the third bout as its
- * Next. When the network is back the server learns of it.
+ * Next. The app opened again with no network opens the piste, not sign-in
+ * (operator, 2026-10-13). When the network is back the server learns of it.
  *
  * `tests/a11y/pad-next-bout-no-network.spec.ts` holds the same story on a
  * stubbed server, where service workers are blocked: the page of bout 2 comes
@@ -49,6 +50,12 @@ test('with no network the Next tile opens a bout the tablet never opened, and it
   try {
     const page = await context.newPage();
     await signInWithPin(page, eventSlug, piste.username);
+    // Through the piste's list, as on the day: the tablet remembers its piste and keeps the list.
+    await page.goto(`${STAFF_URL}/lices/${piste.liceId}`);
+    await expect(page.getByTestId('lice-title')).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => kept(page, `lice-matches/${piste.liceId}`), { timeout: 30_000 })
+      .not.toBeNull();
     await page.goto(`${STAFF_URL}/matches/${first}`);
     const pad = padOf(page);
     await expect(pad.primary).toBeEnabled({ timeout: 30_000 });
@@ -72,6 +79,15 @@ test('with no network the Next tile opens a bout the tablet never opened, and it
     await expect(pad.linkTo(third), 'bout 2 names bout 3 as its Next').toBeVisible();
     expect((await serverBout(api, second)).status, 'the server has heard nothing').toBe(
       'scheduled',
+    );
+
+    // The app opened with no network (operator, 2026-10-13): its last piste, not sign-in.
+    await page.goto(`${STAFF_URL}/`);
+    await expect(page).toHaveURL(new RegExp(`/lices/${piste.liceId}$`), { timeout: 30_000 });
+    await expect(page.getByTestId('lice-from-tablet'), 'the list is the tablet’s copy').toBeVisible(
+      {
+        timeout: 30_000,
+      },
     );
 
     await context.setOffline(false);
