@@ -13,8 +13,8 @@
  * `/display/{nextId}` (no web-public `/e/...` hop).
  *
  * - `mirror` swaps the fighter columns for a TV facing the audience.
- *   Defaults ON, toggleable, persisted in localStorage so it survives
- *   the auto-rollover navigation.
+ *   Defaults ON, toggleable, kept by `useDisplayMirror` (the one owner,
+ *   shared with the public piste TV).
  * - `pollMs` is a fallback refresh: this page's realtime WebSocket is
  *   cross-origin (admin.${DOMAIN} → app.${DOMAIN}) and can be blocked
  *   under self-signed `--dev-certs`; the poll hits the same-origin
@@ -22,12 +22,10 @@
  */
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { use, useEffect, useState } from 'react';
-import { TVScoreboard } from '@myclash/ui';
+import { use } from 'react';
+import { TVScoreboard, useDisplayMirror } from '@myclash/ui';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-const MIRROR_STORAGE_KEY = 'myclash:display:mirror';
 
 export default function DisplayPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { t } = useI18n();
@@ -35,24 +33,8 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
   const { matchId } = use(params);
   const apiUrl = getPublicApiUrl();
 
-  // Default ON (mirrored) for a TV facing the audience; read the
-  // persisted choice after mount so SSR + first paint are stable.
-  const [mirror, setMirror] = useState(true);
-  useEffect(() => {
-    // localStorage is browser-only, so the persisted choice can only be
-    // read after mount — setState-in-effect is the intended pattern here.
-    const stored = window.localStorage.getItem(MIRROR_STORAGE_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (stored !== null) setMirror(stored === 'true');
-  }, []);
-
-  function toggleMirror() {
-    setMirror((prev) => {
-      const next = !prev;
-      window.localStorage.setItem(MIRROR_STORAGE_KEY, String(next));
-      return next;
-    });
-  }
+  // Default ON (mirrored) for a TV facing the audience.
+  const [mirror, toggleMirror] = useDisplayMirror(true);
 
   return (
     <>

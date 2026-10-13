@@ -12,6 +12,8 @@ interface Props {
   eventSlug: string;
   /** Where the screen goes when the bout ends. Default: the next bout's own address. */
   buildNextDisplayHref?: (nextMatchId: string) => string;
+  /** Blue on the left, for a screen that faces the public. */
+  mirror?: boolean;
 }
 
 /**
@@ -23,7 +25,7 @@ interface Props {
  * fullscreen surface + cursor hide so a forgotten mouse doesn't show
  * on the projection.
  */
-export function DisplayView({ matchId, eventSlug, buildNextDisplayHref }: Props) {
+export function DisplayView({ matchId, eventSlug, buildNextDisplayHref, mirror }: Props) {
   const { t } = useI18n();
 
   return (
@@ -35,6 +37,7 @@ export function DisplayView({ matchId, eventSlug, buildNextDisplayHref }: Props)
         supabaseClient={supabase}
         eventSlug={eventSlug}
         buildNextDisplayHref={buildNextDisplayHref}
+        mirror={mirror}
         // This screen runs unattended on a projector for a whole day, so it
         // cannot depend on the websocket alone: when the channel failed to
         // join, the board silently froze mid-bout and someone had to walk over

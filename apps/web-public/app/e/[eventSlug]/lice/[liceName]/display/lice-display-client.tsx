@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { LiceWaitingDisplay } from '@myclash/ui';
+import { LiceWaitingDisplay, useDisplayMirror } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 import { DisplayControls } from './DisplayControls';
+import { ScreenSettings } from './ScreenSettings';
 import {
   EMPTY_BOARD,
   liceBoardPollMs,
@@ -76,8 +77,19 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   // five-second countdown when this prop changes.
   const ownHref = useCallback(() => liceDisplayHref(eventSlug, liceName), [eventSlug, liceName]);
 
+  // Not swapped until somebody swaps it: the public piste TV opens as it always did.
+  const [mirror, toggleMirror] = useDisplayMirror(false);
+
   // The control layer rides over BOTH states — it stays invisible until the
   // screen is touched, so it costs the projection nothing either way.
+  const controls = (
+    <DisplayControls
+      eventSlug={eventSlug}
+      currentLiceName={liceName}
+      settings={<ScreenSettings mirror={mirror} onToggleMirror={toggleMirror} />}
+    />
+  );
+
   if (!board.matchId) {
     return (
       <>
@@ -85,17 +97,23 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
           eventName={board.eventName}
           liceName={liceName}
           nextMatch={board.nextMatch}
+          mirror={mirror}
           t={t}
         />
-        <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
+        {controls}
       </>
     );
   }
 
   return (
     <>
-      <DisplayView matchId={board.matchId} eventSlug={eventSlug} buildNextDisplayHref={ownHref} />
-      <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
+      <DisplayView
+        matchId={board.matchId}
+        eventSlug={eventSlug}
+        buildNextDisplayHref={ownHref}
+        mirror={mirror}
+      />
+      {controls}
     </>
   );
 }

@@ -289,6 +289,7 @@ export { useAdjacentMatches } from './hooks/useAdjacentMatches';
 export { useLiveMatch } from './hooks/useLiveMatch';
 export { useLoginKeepAlive } from './hooks/useLoginKeepAlive';
 export { useWakeLock } from './hooks/useWakeLock';
+export { useDisplayMirror } from './hooks/useDisplayMirror';
 export type {
   DisplayMatch,
   MatchStatus,

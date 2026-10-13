@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -11,6 +11,8 @@ interface Props {
   eventSlug: string;
   /** The Lice this screen is showing, as it appears in the URL. */
   currentLiceName: string;
+  /** The settings of this screen (`ScreenSettings`), shown before the two links. */
+  settings: ReactNode;
 }
 
 const HIDE_AFTER_MS = 4_000;
@@ -25,7 +27,7 @@ const HIDE_AFTER_MS = 4_000;
  * way to reach the sign-in their PIN actually works on. Idle-hidden is how both
  * hold: the projection stays pure output, and a tap gets you the switcher.
  */
-export function DisplayControls({ eventSlug, currentLiceName }: Props) {
+export function DisplayControls({ eventSlug, currentLiceName, settings }: Props) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const [liceNames, setLiceNames] = useState<string[]>([]);
@@ -122,6 +124,7 @@ export function DisplayControls({ eventSlug, currentLiceName }: Props) {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
+            {settings}
             <Link
               href={`/e/${eventSlug}/display`}
               className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-accent hover:text-accent"

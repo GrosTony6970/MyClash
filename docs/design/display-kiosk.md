@@ -30,7 +30,9 @@ A projector or a big TV, **10-foot read**, legible at ~15m across a sports hall.
 
 ## The one interactive element
 
-`DisplayControls` on `/e/[eventSlug]/lice/[liceName]/display`: a control bar carrying the **Lice switcher**, a link to the display hub, and **staff sign-in** (the scoring pad — a referee's PIN works nowhere else).
+`DisplayControls` on `/e/[eventSlug]/lice/[liceName]/display`: a control bar carrying the **Lice switcher**, the **settings of this screen** (`ScreenSettings`: swap sides), a link to the display hub, and **staff sign-in** (the scoring pad — a referee's PIN works nowhere else).
+
+A setting of the screen is what the person who sets a TV up changes while standing in front of it, and sees change at once. It lives in the bar (operator ruling, 2026-10-13). A way to another page is not a setting: it belongs on the hub.
 
 It is **invisible until the screen is touched** (`pointermove` / `touchstart` / `keydown`) and fades again after ~4s idle; while shown it sets `cursor-auto` over the stage's `cursor-none`, and its Lice list is fetched on the _first_ reveal, never on mount. Projection unchanged, spectators see nothing — and the person setting the screens up can change Lice without knowing the URL scheme.
 
@@ -51,7 +53,7 @@ Use `bg-stage` for a projector surface and nothing else — it is not a card, no
 ## Don't
 
 - **Don't** add a hover state, a tooltip, or anything requiring a pointer.
-- **Don't** put chrome on it. No header, no back link, no nav — the control layer above is the exception, and it is exhausted: anything else you want to reach belongs on the hub page.
+- **Don't** put chrome on it. No header, no back link, no nav — the control layer above is the exception, and its links are exhausted: anything else you want to reach belongs on the hub page.
 - **Don't** add a second idea to the screen. One match, or one lice.
 - **Don't** size type for a desk. Size it for the back row.
 

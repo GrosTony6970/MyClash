@@ -33,6 +33,8 @@ export interface LiceWaitingDisplayProps {
   nextMatch: LiceWaitingDisplayNextMatch | null;
   /** i18n callable; consumer pipes its app-local t(). */
   t: (key: string, params?: Record<string, string>) => string;
+  /** Blue is named first, as the scoreboard that follows will show it (see TVScoreboard). */
+  mirror?: boolean;
   className?: string;
 }
 
@@ -41,13 +43,19 @@ export function LiceWaitingDisplay({
   liceName,
   nextMatch,
   t,
+  mirror = false,
   className,
 }: LiceWaitingDisplayProps) {
   const matchCode = nextMatch?.roundCode ?? nextMatch?.matchNumberLabel ?? null;
-  const redName = nextMatch?.redFighterName ?? null;
-  const blueName = nextMatch?.blueFighterName ?? null;
-  const redStyle = sideStyle(nextMatch?.scoringConfig ?? null, 'red');
-  const blueStyle = sideStyle(nextMatch?.scoringConfig ?? null, 'blue');
+  const red = {
+    name: nextMatch?.redFighterName ?? null,
+    color: sideStyle(nextMatch?.scoringConfig ?? null, 'red').border,
+  };
+  const blue = {
+    name: nextMatch?.blueFighterName ?? null,
+    color: sideStyle(nextMatch?.scoringConfig ?? null, 'blue').border,
+  };
+  const [left, right] = mirror ? [blue, red] : [red, blue];
 
   return (
     <div
@@ -81,11 +89,11 @@ export function LiceWaitingDisplay({
               </span>
             )}
             <p className="text-stage-name flex flex-wrap items-center justify-center gap-4 font-bold leading-tight">
-              <span style={{ color: redStyle.border }}>{redName ?? '—'}</span>
+              <span style={{ color: left.color }}>{left.name ?? '—'}</span>
               <span className="text-stage-club uppercase tracking-widest text-slate-500">
                 {t('scoring.liveMatch.versus')}
               </span>
-              <span style={{ color: blueStyle.border }}>{blueName ?? '—'}</span>
+              <span style={{ color: right.color }}>{right.name ?? '—'}</span>
             </p>
             {nextMatch.tournamentName && (
               <p className="text-stage-row text-slate-400">{nextMatch.tournamentName}</p>
