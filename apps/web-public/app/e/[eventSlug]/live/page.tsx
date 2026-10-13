@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
-import { isLiveStatus } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { boutPageHref } from '@/lib/bout-page';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { BackLink } from '@/components/BackLink';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
+import { LiveMatchCard } from '../home/_components/LiveMatchCard';
 
 interface LiveMatch {
   id: string;
@@ -18,6 +19,8 @@ interface LiveMatch {
   scheduledAt: string | null;
   status: string;
   tournamentName: string | null;
+  redScore: number;
+  blueScore: number;
 }
 
 interface LiveLiceState {
@@ -64,23 +67,16 @@ function LiveBadge({ paused = false }: { paused?: boolean }) {
   );
 }
 
-function MatchCard({ match, label, tz }: { match: LiveMatch; label: string; tz: string }) {
+/** The next bout of a piste: not in play yet, so it has a time and no score. */
+function NextBoutCard({ match, label, tz }: { match: LiveMatch; label: string; tz: string }) {
   const { t, locale } = useI18n();
-  const isLive = isLiveStatus(match.status);
   return (
-    <div
-      className={[
-        'rounded-xl p-3 border',
-        isLive ? 'bg-danger/10 border-danger/40' : 'bg-surface border-border',
-      ].join(' ')}
-    >
+    <div className="rounded-xl p-3 border bg-surface border-border">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-muted font-medium">{label}</span>
-        {isLive ? (
-          <LiveBadge paused={match.status === 'paused'} />
-        ) : match.scheduledAt ? (
+        {match.scheduledAt && (
           <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, tz, locale)}</span>
-        ) : null}
+        )}
       </div>
       <p className="text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
       <p className="text-sm text-foreground-secondary mt-0.5">
@@ -217,7 +213,21 @@ export default function LivePage() {
         )}
 
         {ls.runningMatch ? (
-          <MatchCard match={ls.runningMatch} label={t('publicApp.live.nowFighting')} tz={tz} />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
+              {t('publicApp.live.nowFighting')}
+            </p>
+            {/* The piste is the page's title: the card does not name it again. */}
+            <LiveMatchCard
+              match={{ ...ls.runningMatch, liceName: null }}
+              href={boutPageHref(
+                eventSlug,
+                ls.runningMatch.id,
+                `/e/${eventSlug}/live?lice=${ls.lice.id}`,
+              )}
+              pausedLabel={ls.runningMatch.status === 'paused' ? t('publicApp.live.paused') : null}
+            />
+          </div>
         ) : (
           <div className="rounded-xl p-4 bg-surface border border-border text-center">
             <p className="text-muted text-sm">{t('publicApp.live.noActiveMatch')}</p>
@@ -229,7 +239,7 @@ export default function LivePage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
               {t('publicApp.live.upNext')}
             </p>
-            <MatchCard match={ls.nextMatch} label={t('publicApp.live.next')} tz={tz} />
+            <NextBoutCard match={ls.nextMatch} label={t('publicApp.live.next')} tz={tz} />
           </div>
         )}
       </main>
@@ -305,6 +315,16 @@ export default function LivePage() {
                     {ls.runningMatch.redFighterName ?? '?'}{' '}
                     <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
                     {ls.runningMatch.blueFighterName ?? '?'}
+                  </p>
+                  {/* Red's score first, as the names above. The whole tile is a
+                      link to its piste, so the shared card (a link) cannot sit here. */}
+                  <p
+                    data-testid="live-score"
+                    className="mt-1 text-xl font-black tabular-nums text-foreground"
+                  >
+                    {ls.runningMatch.redScore}
+                    <span className="mx-1.5 text-muted">–</span>
+                    {ls.runningMatch.blueScore}
                   </p>
                 </div>
               ) : ls.nextMatch ? (
