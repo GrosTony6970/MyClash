@@ -29,7 +29,9 @@ export async function expectNoPageIssues(issues: PageIssue[]) {
 /**
  * Answer, inside the browser, the API calls a web-public page makes.
  *
- * No API runs in this harness. A call nobody answers fails, the browser logs
+ * No API runs in this harness. (A page's reads on the SERVER are another
+ * matter: `scripts/e2e-server-api-stub.mjs` answers the few it knows, and a
+ * `page.route` here never sees them.) A call nobody answers fails, the browser logs
  * "Failed to load resource", and `expectNoPageIssues` counts it. On Linux that
  * failure arrives at once; on Windows it takes about two seconds, after the test
  * has ended. So the event home and my-schedule specs passed locally and failed in

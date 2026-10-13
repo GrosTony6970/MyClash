@@ -4,6 +4,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { SERVER_API_STUB_PORT, startServerApiStub } from './e2e-server-api-stub.mjs';
+
 /**
  * What Playwright's output says so far: 'passed', 'failed' or 'pending'.
  *
@@ -98,6 +100,9 @@ const servers = [
       '3001',
     ],
     url: 'http://localhost:3001',
+    // The reads this app makes on the SERVER go to the stub `main` starts; the
+    // browser's reads stay with each spec's `page.route`.
+    env: { API_URL_INTERNAL: `http://127.0.0.1:${SERVER_API_STUB_PORT}` },
   },
   {
     name: 'web-staff',
@@ -187,6 +192,7 @@ function spawnServer(server) {
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:9',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'e2e-harness-placeholder-anon-key',
       ...process.env,
+      ...server.env,
       NEXT_TELEMETRY_DISABLED: '1',
     },
     detached: process.platform !== 'win32',
@@ -289,6 +295,7 @@ function killChild(child) {
 }
 
 async function main() {
+  const serverApiStub = await startServerApiStub();
   for (const server of servers) {
     spawnServer(server);
   }
@@ -298,6 +305,9 @@ async function main() {
     const exitCode = await runPlaywright();
     process.exitCode = exitCode;
   } finally {
+    // A dev server keeps its connection to the stub open: end them, or `close` waits.
+    serverApiStub.close();
+    serverApiStub.closeAllConnections();
     await Promise.all(children.map((child) => killChild(child)));
   }
 }
