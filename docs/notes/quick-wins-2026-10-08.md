@@ -890,7 +890,7 @@ wrong:
   network. The review found the other side of it: with three or more unsent entries the same
   tablet reads grey, because three failures in a row say OFFLINE whatever the inbox holds (older
   than this work). Question for the operator: with a refused entry in the inbox and no network,
-  is the bar red or grey?
+  is the bar red or grey? **Ruled on 2026-10-13: red, always. Built `cb18a1d3`.**
 - Unlock is stopped in a drill with the other direct presses.
 - The two new deployed-stack tests are files of their own (39 and 40), not a second test of 06:
   06 would have crossed the 400-line budget.
@@ -1274,7 +1274,8 @@ What the build chose, not ruled. Say so if one is wrong:
 - **Which bouts are kept ahead**: a bout not started whose Tournament's rules the tablet holds.
   A bout in play elsewhere, or with no rules, is not kept: its tile leads to "not loaded".
 - **Every five minutes** for the piste read, thirty seconds after a read with no answer.
-- **The piste picker (`/lices`) with no wifi goes to sign-in too.** It said "could not check"
+- **The piste picker (`/lices`) with no wifi goes to sign-in too.** (Ruled on 2026-10-13: it
+  opens the last piste, as the start page does. Built `b35de7df`.) It said "could not check"
   there. It is the same decision as the start page, and what the picker already did with no
   service worker. From sign-in, only the browser's Back returns to the piste. Say if the picker
   should stay where it is.
@@ -1285,8 +1286,9 @@ What the build chose, not ruled. Say so if one is wrong:
 
 Named, not fixed (each read in code):
 
-- **An installed pad launched with no wifi lands on sign-in though it holds a piste** (ruling
-  241). With the piste kept, it could open the last piste. It needs a ruling.
+- ~~**An installed pad launched with no wifi lands on sign-in though it holds a piste** (ruling
+  241). With the piste kept, it could open the last piste. It needs a ruling.~~ Ruled and built
+  on 2026-10-13, `b35de7df`: see the next section.
 - A copy read ahead while a bout was not started stays when that bout starts on another tablet.
   Opened here with no wifi, it offers Start; rulings 12 and 14 say what the server does with it.
 - With no wifi, a tile whose answer came from the server before the cut is not replaced by a
@@ -1309,6 +1311,70 @@ Named, not fixed (each read in code):
 - A container started by hand with no `GIT_COMMIT` serves its worker as "unknown", and two such
   starts in a row do not renew the tablets' cache. The deploy scripts now warn when the pad does
   not serve the new commit.
+
+## Built on 2026-10-13: the app opened with no wifi, and the bar over a refused entry
+
+Three rulings of 2026-10-13, each asked with a story:
+
+| Asked                                                                                                              | Ruling                                                                             |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| The tablet of piste 3 is opened at 14:00 with no wifi. Sign-in (which cannot work), or the piste the tablet holds? | **Open the last piste.**                                                           |
+| The list of pistes with no wifi: sign-in (built with ruling 4), stay on the list, or the same as the start page?   | **The same as the start page.**                                                    |
+| A refused entry is in the inbox and there is no network: red bar or grey?                                          | **Red, always.** With "Review", and the bar also says that there is no connection. |
+
+What the official gets:
+
+- The app opened with no wifi opens the piste the tablet last had, from the tablet's copy, with
+  the line that says from when the list is. The list of pistes does the same. A tablet signed out
+  with "Log out" remembers no piste and shows sign-in (`b35de7df`).
+- With a refused entry in the inbox and no network, the bar is red, says the refusal and "NO
+  CONNECTION", and offers "Review". It offers no Retry: nothing can be sent. The tablet tries
+  again by itself every five seconds, as it does with no refused entry (`cb18a1d3`).
+
+What ran: one cold review, 38 seeded breaks (all red), the gate chain (36 of 36), the browser
+suite (218 passed), and the real service worker on a production build with the server stopped
+(32 checks of 32). No API code, no migration, no route.
+
+What the review found, and is fixed:
+
+- With a refused entry and one or two unsent entries of other bouts, the bar was red but said
+  nothing of the network and offered a Retry that could send nothing. Only three failed sends in
+  a row, or a browser that says "offline", gave the ruled bar. The send engine now says
+  "offline" for a pass that met a dead network, with a refused entry in the inbox too. So the
+  choice "the engine is not touched" of the plan did not hold.
+- The start page's function had crossed 50 lines.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The piste is opened unchecked.** With wifi the app opens the last piste only when it is one
+  of the pistes of the sign-in. With no wifi it cannot ask, so it opens the piste the tablet
+  remembers. A session that ended by itself keeps the piste; the server asks for a sign-in when
+  the wifi is back, and holds every entry until then.
+- A tablet that remembers a piste and holds no copy of its list opens the piste page, which says
+  "no connection". Not sign-in.
+- "Your Lices" tapped with no wifi comes back to the piste, with no word why. The list of pistes
+  is not kept on the tablet.
+- A tablet with ONE assigned piste that never opened it shows sign-in with no wifi.
+- **Read-only mode with a refused entry stays grey.** The ruling was about no network. Its
+  reason ("a refused entry needs the official") holds there too: worth a ruling.
+
+Named, not fixed (each read in code):
+
+- Person A works piste 3 and never taps "Log out". Person B signs in on that tablet with a desk
+  or gear account, then opens the app with no wifi: B gets A's piste. No access is crossed (the
+  server refuses what B sends), but B is on the wrong screen. Keeping the account beside the
+  remembered piste would close it.
+- On the list of pistes, a network that drops between the sign-in read and the read of the
+  pistes says "could not load" with a Retry. The Retry then opens the last piste.
+- The two pages go to `/login` and `/lices/…` with no mount prefix, as the lines before mine do.
+  Behind the admin address (`/staff/…`) that leaves the pad. Older than this work.
+- The bar says ONLINE over a list that came from the tablet, when the tablet kept its access
+  point and only the uplink is gone (named with ruling 4; the probe shows it).
+- The step added to `tests/e2e/41` is WRITTEN BY READING, NOT RUN. It also changes where that
+  story ends: on the piste page, whose queue must send when the network is back.
+- The real-worker probe has two traps, both met this session: its server must be started with
+  the `STAFF_ASSET_PREFIX` of the build (or no page runs its scripts, with no error), and its read
+  of the tablet's store must not open the store before the app does.
 
 ## Still not checked
 
