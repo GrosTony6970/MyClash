@@ -25,7 +25,7 @@ import {
   type TimedItem,
 } from '@/components/me/conflicts';
 import type { PoolSpan } from '@/components/me/types';
-import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -116,12 +116,10 @@ function getTime(item: ScheduleItem): number {
   return t ? new Date(t).getTime() : Infinity;
 }
 
-function formatTime(iso: string | null, t: TranslateFn, locale: AppLocale): string {
+/** A time on the EVENT's clock: the phone of a fighter who travelled may be on another. */
+function formatTime(iso: string | null, tz: string, t: TranslateFn, locale: AppLocale): string {
   if (!iso) return t('publicApp.mySchedule.tbd');
-  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, localeToBcp47(locale));
 }
 
 /** A duty or a workshop — the items that are not bouts. */
@@ -437,7 +435,7 @@ export default function MySchedulePage() {
                     <div className="flex-1">
                       {/* Time */}
                       <p className="text-xs text-muted mb-0.5">
-                        {formatTime(item.time, t, locale)}
+                        {formatTime(item.time, tz, t, locale)}
                         {item.kind === 'match' && item.data.liceName && (
                           <span className="ml-1">· {item.data.liceName}</span>
                         )}

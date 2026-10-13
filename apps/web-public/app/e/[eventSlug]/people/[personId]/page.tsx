@@ -17,7 +17,7 @@ import { useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { localeToBcp47 } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { fetchEventInfo } from '../../_components/EventHeader';
 import { followRefusal } from './follow-answer';
@@ -57,6 +57,8 @@ interface ScheduleMatch {
 }
 
 interface PersonSchedule {
+  /** The Event's IANA zone: the clock the times below are told on. */
+  timezone?: string | null;
   matches: ScheduleMatch[];
   refereeSlots: Array<{
     /** referee_assignments.id — `matchId` is '' for every pool-scoped duty, so
@@ -204,6 +206,11 @@ export default function PersonProfilePage() {
     );
   }
 
+  // A time on the EVENT's clock: the phone of whoever follows may be on another.
+  const tz = schedule?.timezone ?? DEFAULT_EVENT_TIMEZONE;
+  const hallTime = (iso: string) =>
+    formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, localeToBcp47(locale));
+
   const live = schedule?.matches.filter((m) => m.status === 'running') ?? [];
   const upcoming = schedule?.matches.filter((m) => m.status === 'scheduled') ?? [];
   const past = schedule?.matches.filter((m) => m.status === 'completed') ?? [];
@@ -309,14 +316,7 @@ export default function PersonProfilePage() {
                     </p>
                     <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
-                  {m.scheduledAt && (
-                    <p className="text-xs text-muted">
-                      {new Date(m.scheduledAt).toLocaleTimeString(localeToBcp47(locale), {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  )}
+                  {m.scheduledAt && <p className="text-xs text-muted">{hallTime(m.scheduledAt)}</p>}
                 </div>
               </Link>
             ))}
@@ -343,14 +343,7 @@ export default function PersonProfilePage() {
                   <p className="text-sm font-medium text-foreground">{s.matchNumberLabel}</p>
                   <p className="text-xs text-muted">{s.role.replace('_', ' ')}</p>
                 </div>
-                {s.scheduledAt && (
-                  <p className="text-xs text-muted">
-                    {new Date(s.scheduledAt).toLocaleTimeString(localeToBcp47(locale), {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                )}
+                {s.scheduledAt && <p className="text-xs text-muted">{hallTime(s.scheduledAt)}</p>}
               </div>
             ))}
           </div>

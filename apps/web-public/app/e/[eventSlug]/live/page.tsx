@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
 import { isLiveStatus } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
@@ -29,18 +29,17 @@ interface LiveState {
   currentBlock: { label: string; startTime: string; endTime: string; blockType: string } | null;
   nextBlock: { label: string; startTime: string } | null;
   lices: LiveLiceState[];
+  /** The Event's IANA zone: the clock a bout's time is told on. */
+  timezone?: string | null;
 }
 
 function formatTime(hhmm: string): string {
   return hhmm.slice(0, 5);
 }
 
-function scheduledTime(iso: string | null, locale: AppLocale): string {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString(localeToBcp47(locale), {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+/** A time on the EVENT's clock: a spectator's phone may be on another. */
+function scheduledTime(iso: string | null, tz: string, locale: AppLocale): string {
+  return formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, localeToBcp47(locale));
 }
 
 /**
@@ -64,7 +63,7 @@ function LiveBadge({ paused = false }: { paused?: boolean }) {
   );
 }
 
-function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
+function MatchCard({ match, label, tz }: { match: LiveMatch; label: string; tz: string }) {
   const { t, locale } = useI18n();
   const isLive = isLiveStatus(match.status);
   return (
@@ -79,7 +78,7 @@ function MatchCard({ match, label }: { match: LiveMatch; label: string }) {
         {isLive ? (
           <LiveBadge paused={match.status === 'paused'} />
         ) : match.scheduledAt ? (
-          <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, locale)}</span>
+          <span className="text-xs text-muted">{scheduledTime(match.scheduledAt, tz, locale)}</span>
         ) : null}
       </div>
       <p className="text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
@@ -177,6 +176,8 @@ export default function LivePage() {
     );
   }
 
+  const tz = state.timezone ?? DEFAULT_EVENT_TIMEZONE;
+
   // ── Drill-down mode ────────────────────────────────────────────────────────
   if (focusLiceId) {
     const ls = state.lices.find((l) => l.lice.id === focusLiceId);
@@ -222,7 +223,7 @@ export default function LivePage() {
         )}
 
         {ls.runningMatch ? (
-          <MatchCard match={ls.runningMatch} label={t('publicApp.live.nowFighting')} />
+          <MatchCard match={ls.runningMatch} label={t('publicApp.live.nowFighting')} tz={tz} />
         ) : (
           <div className="rounded-xl p-4 bg-surface border border-border text-center">
             <p className="text-muted text-sm">{t('publicApp.live.noActiveMatch')}</p>
@@ -234,7 +235,7 @@ export default function LivePage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-2">
               {t('publicApp.live.upNext')}
             </p>
-            <MatchCard match={ls.nextMatch} label={t('publicApp.live.next')} />
+            <MatchCard match={ls.nextMatch} label={t('publicApp.live.next')} tz={tz} />
           </div>
         )}
       </main>
@@ -324,7 +325,7 @@ export default function LivePage() {
                   </p>
                   {ls.nextMatch.scheduledAt && (
                     <p className="text-xs text-muted mt-1">
-                      {scheduledTime(ls.nextMatch.scheduledAt, locale)}
+                      {scheduledTime(ls.nextMatch.scheduledAt, tz, locale)}
                     </p>
                   )}
                 </div>
