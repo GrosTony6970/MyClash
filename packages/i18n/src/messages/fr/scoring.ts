@@ -14,7 +14,7 @@ export const scoring = {
     clockStatus: {
       idle: 'Pas commencé',
       running: 'En cours',
-      halted: 'Arrêté',
+      halted: 'En pause',
       ended: 'Terminé',
     },
     matchEnded: 'Assaut terminé',

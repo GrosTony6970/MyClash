@@ -24,7 +24,7 @@ test.describe('in a French hall', () => {
     await openPisteTv(page, { bout: BEST_OF });
     await expect(page.getByText('Ada Lovelace').first()).toBeVisible();
 
-    await expect(says(page, 'Arrêté')).toBeVisible();
+    await expect(says(page, 'En pause')).toBeVisible();
     await expect(page.getByText('Manche 2/3')).toBeVisible();
     await expect(page.getByText('Temps total')).toBeVisible();
     await expect(page.getByText('À suivre')).toBeVisible();
