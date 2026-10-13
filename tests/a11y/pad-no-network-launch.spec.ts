@@ -142,8 +142,12 @@ test('the Back of the browser to the first person’s piste does not remember it
   await page.waitForURL(/\/desk/);
 
   // A desk account is refused the list of a piste: the page leaves for sign-in.
+  // Only while the server answers: with no network this route must not be what
+  // sends the piste page to sign-in at the end of the story.
   await page.route('**/staff/lices/piste-3/matches', (route) =>
-    route.fulfill({ status: 403, json: { status: 403, code: 'FORBIDDEN', detail: 'no' } }),
+    stub.network === 'up'
+      ? route.fulfill({ status: 403, json: { status: 403, code: 'FORBIDDEN', detail: 'no' } })
+      : route.fallback(),
   );
   await page.goto(`${PAD}/lices/piste-3`);
   await page.waitForURL(/\/login/);
