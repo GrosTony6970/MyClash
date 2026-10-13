@@ -28,6 +28,9 @@
  * | test     | no           | no    | excluded  | no      | no       | yes         |
  * | club     | yes          | no    | counted   | no      | no       | yes         |
  *
+ * "public: no" hides a test Event from the PUBLIC. A member of its club reads
+ * its public pages, as she reads a draft's (`isPublicEvent` in the API).
+ *
  * ## On the predicates below
  *
  * Three pairs currently share an implementation. **That duplication is

@@ -12,7 +12,6 @@ import {
   asEventKind,
   countsTowardStats,
   DEFAULT_EVENT_KIND,
-  isPubliclyVisible,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -580,17 +579,15 @@ export class EventsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Event "${slug}" not found`);
-    // Test events are invisible to the public — this resolver backs the
-    // public GET /events/:slug. Admin reads go through getEventById /
-    // listOrgEvents, which keep test events visible to the owning org.
-    // Club events resolve normally: they are fully public.
-    if (!isPubliclyVisible(asEventKind((data as { event_kind?: string }).event_kind))) {
-      throw new NotFoundException(`Event "${slug}" not found`);
-    }
-    // Kind was the only axis; STATUS was not checked at all, so an event still
-    // being built resolved for anyone — and this row is `select('*')`, which is
-    // where the id that unlocks every eventId-addressed read came from. Uses
-    // the row already fetched, so it costs no extra round-trip.
+    // ONE rule for an Event the public may not see, a draft or a TEST Event
+    // alike (`isPublicEvent`): a member of its club reads it, everybody else is
+    // told it does not exist. A test Event was refused here for its own club
+    // too, before the gate could ask, so that club's public pages of it said
+    // "not found" (operator ruling, 2026-10-13). Club events are fully public.
+    //
+    // This row is `select('*')`, which is where the id that unlocks every
+    // eventId-addressed read comes from. The gate uses the row already
+    // fetched, so it costs no extra round-trip.
     //
     // `slug` and not the id as the 404 ref, so a hidden event and an unknown
     // slug answer identically. Passing the id would hand back exactly the

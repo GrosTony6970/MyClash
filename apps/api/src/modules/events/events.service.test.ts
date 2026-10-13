@@ -860,20 +860,55 @@ describe('EventsService', () => {
   });
 
   /**
-   * The public resolver. Test events 404 (they do not exist as far as the
-   * public is concerned); club events resolve normally — they are fully public,
-   * they are simply never rated.
+   * The public resolver. A test Event does not exist as far as the public is
+   * concerned, and is shown to a member of its club, as a draft is (operator
+   * ruling, 2026-10-13: one rule for a hidden Event). Club events resolve
+   * normally — they are fully public, they are simply never rated.
    */
   describe('getEventBySlug — public visibility by kind', () => {
-    const resolve = (kind: string) => {
+    const resolve = (kind: string, caller = CALLER) => {
       fromMock.mockReturnValueOnce(
-        makeChain({ data: { id: 'e1', slug: 'club-night', event_kind: kind }, error: null }),
+        makeChain({
+          data: {
+            id: 'e1',
+            slug: 'club-night',
+            event_kind: kind,
+            status: 'published',
+            organization_id: 'org-1',
+          },
+          error: null,
+        }),
       );
-      return service.getEventBySlug('club-night', CALLER);
+      return service.getEventBySlug('club-night', caller);
     };
 
-    it('404s a test event', async () => {
-      await expect(resolve('test')).rejects.toThrow(NotFoundException);
+    it('404s a test event for an anonymous caller, and asks nobody who she is', async () => {
+      const err = await resolve('test', ANON).catch((e: unknown) => e as Error);
+
+      expect(err).toBeInstanceOf(NotFoundException);
+      expect(err.message).toBe('Event "club-night" not found');
+      expect(assertOrgRole).not.toHaveBeenCalled();
+    });
+
+    it('404s a test event for a signed-in caller outside its club, in the same words', async () => {
+      assertOrgRole.mockRejectedValueOnce(new ForbiddenException('Requires read_only role'));
+      const err = await resolve('test').catch((e: unknown) => e as Error);
+
+      expect(err).toBeInstanceOf(NotFoundException);
+      expect(err.message).toBe('Event "club-night" not found');
+    });
+
+    it('resolves a test event for a member of its club', async () => {
+      assertOrgRole.mockResolvedValueOnce(undefined);
+
+      await expect(resolve('test')).resolves.toMatchObject({ id: 'e1', event_kind: 'test' });
+      expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'read_only');
+    });
+
+    it('a failed read of the membership is a fault, never "not found"', async () => {
+      assertOrgRole.mockRejectedValueOnce(new Error('connection lost'));
+
+      await expect(resolve('test')).rejects.toThrow('connection lost');
     });
 
     it('resolves a club event', async () => {

@@ -423,8 +423,11 @@ that takes a Lice id from its caller (`apps/api/src/modules/lices/lices-in-event
 ever scheduled onto one. Served by `apps/api/src/modules/venues/`.
 
 **`events.event_kind` is `standard | test | club`** (migration `0162`). It is not cosmetic: `test`
-and `club` events are excluded from public listings, which is why `GET /events/:slug` returning 404
-for one is the policy working. Anything counting or listing events has to say which kinds it means.
+and `club` events are excluded from public listings, and a `test` Event is hidden from the public
+as a draft is. `GET /events/:slug` returning 404 for a test Event to anybody outside its club is
+the policy working; a member of its club reads it (`isPublicEvent`, `assertCanReadEventRow`: ONE
+rule for a draft and a test Event, operator ruling 2026-10-13). Anything counting or listing
+events has to say which kinds it means.
 
 **Swiss is a first-class format**, alongside pools, single-elim and double-elim — not a variant of
 one. It has its own tables (`swiss_rounds`, `swiss_entrants`), its own module
@@ -2816,8 +2819,9 @@ What belongs here, because none of it is derivable from a route list:
   early on and moved; a `tournaments/:id/` path for any of them is a pre-migration artefact.
 - **Upserts are `PUT`, not `POST` + `PATCH`.** Referee qualifications and slot config replace
   the whole set for a scope in one call.
-- **`GET /events/:slug` is public and hides `test` and `club` events by design** — see the
-  `event_kind` matrix (migration `0162`). A 404 there is the policy working, not a bug.
+- **`GET /events/:slug` is public and hides a `test` Event, and a draft, from everybody outside
+  its club by design** — see the `event_kind` matrix (migration `0162`). A 404 there is the
+  policy working, not a bug; a member of the Event's club reads it. A `club` Event is public.
 - **5xx response messages are scrubbed.** A deliberate 503 will not say why unless it carries
   the operational-exception marker, which is the only opt-out.
 - **`/health` answers only on `api.${DOMAIN}`.** The global prefix exclusion is host-bound.
