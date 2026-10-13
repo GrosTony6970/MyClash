@@ -16,6 +16,15 @@ import { PUBLIC } from './public-pages-stub';
 
 const notFound = (page: Page) => page.getByRole('heading', { name: 'Page not found' });
 
+/** How many times the page itself was asked of the server: a load, and each load again. */
+function countLoads(page: Page): () => number {
+  let loads = 0;
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads += 1;
+  });
+  return () => loads;
+}
+
 test('an Event that is not there says so, and offers the list of Events', async ({ page }) => {
   await stubPublicApi(page);
   await page.goto(`${PUBLIC}/e/no-such-event/home`);
@@ -100,41 +109,48 @@ test.describe('a club member whose login ended an hour ago', () => {
     context,
   }) => {
     await stubPublicApi(page);
-    let asked = 0;
+    // `/me` waits for the story, so the story reads the page while nobody has answered yet.
+    let renew = () => {};
+    const renewed = new Promise<void>((resolve) => (renew = resolve));
     await page.route('**/api/v1/me', async (route) => {
-      asked += 1;
+      await renewed;
       // What `/me` does: it writes the renewed login into the browser.
       await context.addCookies([{ name: 'sb-access-token', value: 'a-login', url: PUBLIC }]);
       return route.fulfill({ json: { type: 'claimed' } });
     });
     await page.goto(`${PUBLIC}/e/draft-event/home`);
 
+    // Not a "not found" that may be false: the page waits.
+    await expect(page.getByRole('main').getByRole('status', { name: 'Loading...' })).toBeVisible();
+    await expect(notFound(page)).toHaveCount(0);
+
+    renew();
     await expect(page.getByRole('heading', { name: 'Tournoi de Nancy' })).toBeVisible();
     await expect(notFound(page)).toHaveCount(0);
-    expect(asked).toBeGreaterThan(0);
   });
 
-  test('reads "Page not found" when the login could not be renewed', async ({ page }) => {
+  test('reads "Page not found" with no more load when the login could not be renewed', async ({
+    page,
+  }) => {
     await stubPublicApi(page);
+    const loads = countLoads(page);
     await page.goto(`${PUBLIC}/e/draft-event/home`);
 
     await expect(notFound(page)).toBeVisible();
+    expect(loads()).toBe(1);
   });
 
   test('reads "Page not found" after ONE more load, for an Event that is not hers', async ({
     page,
   }) => {
     await stubPublicApi(page);
-    let loads = 0;
-    page.on('request', (request) => {
-      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads += 1;
-    });
+    const loads = countLoads(page);
     // The login is good, and the server still answers "not found".
     await page.route('**/api/v1/me', (route) => route.fulfill({ json: { type: 'claimed' } }));
     await page.goto(`${PUBLIC}/e/draft-event/home`);
 
     await expect(notFound(page)).toBeVisible();
-    expect(loads).toBe(2);
+    expect(loads()).toBe(2);
   });
 });
 
