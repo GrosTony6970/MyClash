@@ -10,9 +10,11 @@ import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
 import {
   isArrival,
+  pisteHolder,
   pisteToOpen,
   pisteWithNoNetwork,
   rememberedPiste,
+  signedInAs,
 } from '../../src/lib/last-piste';
 import {
   answeredFault,
@@ -65,7 +67,10 @@ export default function LicePickerPage() {
         // never emitted 'user', so the fallback could not pass and every
         // organiser without a PIN was bounced to /login holding a valid
         // session. The decision is now a tested pure module.
-        const staff = await apiRequest(getApiUrl(), '/api/v1/staff-auth/me');
+        const staff = await apiRequest<{ account?: { id?: string } }>(
+          getApiUrl(),
+          '/api/v1/staff-auth/me',
+        );
         const account = staff.ok ? null : await fetchMe(getApiUrl());
         const decision = resolveStaffSession(
           staff.ok,
@@ -87,6 +92,9 @@ export default function LicePickerPage() {
           router.replace('/login');
           return;
         }
+        // The server said who is signed in: another person than the one this
+        // tablet last saw does not get that person's piste.
+        signedInAs(pisteHolder(staff.ok ? staff.data : null, account?.ok ? account.data : null));
 
         let lices: Array<{
           id: string;

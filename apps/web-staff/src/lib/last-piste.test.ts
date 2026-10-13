@@ -10,11 +10,13 @@ import { arrivalPathForRole, landingPathForRole } from './landing';
 import {
   forgetPiste,
   isArrival,
+  pisteHolder,
   pisteToOpen,
   pisteWithNoNetwork,
   PISTES_ON_ARRIVAL,
   rememberedPiste,
   rememberPiste,
+  signedInAs,
 } from './last-piste';
 
 describe('the piste to open at once', () => {
@@ -123,6 +125,107 @@ describe('what the tablet keeps', () => {
   });
 });
 
+// Operator, 2026-10-13. Anna works piste 3 and goes home without "Log out".
+// Ben signs in with a desk account. With no wifi the app gave Ben piste 3.
+describe('who had the piste', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function tablet(kept: Record<string, string> = {}) {
+    const store = new Map(Object.entries(kept));
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      },
+    });
+  }
+
+  it('is the PIN account, or the MyClash account when no PIN session answers', () => {
+    expect(pisteHolder({ account: { id: 'staff-1' } }, null)).toBe('pin:staff-1');
+    expect(pisteHolder(null, { user: { id: 'user-9' } })).toBe('account:user-9');
+    // The PIN account first, as the door of the pad asks it first.
+    expect(pisteHolder({ account: { id: 'staff-1' } }, { user: { id: 'user-9' } })).toBe(
+      'pin:staff-1',
+    );
+    // A PIN account and a MyClash account never read as one person.
+    expect(pisteHolder({ account: { id: 'x' } }, null)).not.toBe(
+      pisteHolder(null, { user: { id: 'x' } }),
+    );
+  });
+
+  it('is nobody when the answers name nobody', () => {
+    expect(pisteHolder(null, null)).toBeNull();
+    expect(pisteHolder({}, { user: {} })).toBeNull();
+  });
+
+  it('the same person keeps the piste, sign-in after sign-in', () => {
+    tablet();
+    signedInAs('pin:anna');
+    rememberPiste('piste-3');
+
+    signedInAs('pin:anna');
+
+    expect(rememberedPiste()).toBe('piste-3');
+    expect(pisteWithNoNetwork(rememberedPiste())).toBe('/lices/piste-3');
+  });
+
+  it('another person does not get it: with no network, sign-in', () => {
+    tablet();
+    signedInAs('pin:anna');
+    rememberPiste('piste-3');
+
+    signedInAs('pin:ben');
+
+    expect(rememberedPiste()).toBeNull();
+    expect(pisteWithNoNetwork(rememberedPiste())).toBe('/login');
+  });
+
+  it('the piste the other person then opens is theirs', () => {
+    tablet();
+    signedInAs('pin:anna');
+    rememberPiste('piste-3');
+    signedInAs('pin:ben');
+    rememberPiste('piste-1');
+
+    signedInAs('pin:ben');
+
+    expect(rememberedPiste()).toBe('piste-1');
+  });
+
+  it('an answer that names nobody changes nothing', () => {
+    tablet();
+    signedInAs('pin:anna');
+    rememberPiste('piste-3');
+
+    signedInAs(null);
+    expect(rememberedPiste()).toBe('piste-3');
+
+    // And the tablet still knows it was Anna.
+    signedInAs('pin:anna');
+    expect(rememberedPiste()).toBe('piste-3');
+  });
+
+  it('a piste kept with no person, from before this rule, is forgotten once', () => {
+    tablet({ 'myclash.staff.lastPiste.v1': 'piste-3' });
+
+    signedInAs('pin:anna');
+
+    expect(rememberedPiste()).toBeNull();
+  });
+
+  it('a tablet whose store refuses breaks nothing', () => {
+    const refuse = () => {
+      throw new Error('SecurityError');
+    };
+    vi.stubGlobal('window', {
+      localStorage: { getItem: refuse, setItem: refuse, removeItem: refuse },
+    });
+
+    expect(() => signedInAs('pin:anna')).not.toThrow();
+  });
+});
+
 describe('the screens of the pad', () => {
   const read = (...path: string[]) => readFileSync(join(__dirname, '..', '..', ...path), 'utf8');
   const list = read('app', 'lices', 'page.tsx');
@@ -164,6 +267,23 @@ describe('the screens of the pad', () => {
   it('the link of a piste goes to the plain list', () => {
     expect(read('app', 'lices', '[liceId]', '_components', 'LiceHeader.tsx')).toContain(
       'href="/lices"',
+    );
+  });
+
+  // Before the read of the pistes: a remembered piste of another person is
+  // gone when `pisteToOpen` reads it.
+  it('the list of pistes tells the tablet who is signed in, before it reads the pistes', () => {
+    const told = list.indexOf(
+      'signedInAs(pisteHolder(staff.ok ? staff.data : null, account?.ok ? account.data : null));',
+    );
+    expect(told).toBeGreaterThan(-1);
+    expect(told).toBeLessThan(list.indexOf("api.get('/api/v1/staff/assigned-lices')"));
+    expect(told).toBeGreaterThan(list.indexOf("if (decision.kind === 'sign_in')"));
+  });
+
+  it('the PIN sign-in tells it too: a desk account never opens the list of pistes', () => {
+    expect(read('app', 'login', 'useStaffPinLogin.ts')).toMatch(
+      /const me = await signIn\([^)]*\);\s+(\/\/[^\n]*\s+)*signedInAs\(pisteHolder\(me, null\)\);/,
     );
   });
 

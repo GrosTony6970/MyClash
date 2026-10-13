@@ -16,10 +16,13 @@
  * nothing that is not theirs. Sign-out forgets the piste.
  *
  * With no network that list cannot be read: the piste is opened unchecked
- * (`pisteWithNoNetwork`), from the copy the tablet keeps of it.
+ * (`pisteWithNoNetwork`), from the copy the tablet keeps of it. So the piste
+ * belongs to ONE person: the tablet keeps who it last saw signed in, and
+ * forgets the piste the moment it sees another (`signedInAs`).
  */
 
 const STORAGE_KEY = 'myclash.staff.lastPiste.v1';
+const HOLDER_KEY = 'myclash.staff.pisteHolder.v1';
 
 /** Where an arrival lands: the list of pistes, told that it is an arrival. */
 export const PISTES_ON_ARRIVAL = '/lices?arrive=1';
@@ -54,7 +57,8 @@ export function pisteToOpen(
  * Not checked against the pistes of the sign-in, as `pisteToOpen` does: the
  * server cannot be asked. The piste's own page asks it when the network is
  * back, and a session that has ended goes to sign-in there. A tablet that
- * remembers no piste (signed out, or never used) gets the sign-in screen.
+ * remembers no piste (signed out, another person signed in since, or never
+ * used) gets the sign-in screen.
  */
 export function pisteWithNoNetwork(remembered: string | null): string {
   return remembered === null ? '/login' : `/lices/${remembered}`;
@@ -75,6 +79,49 @@ export function rememberedPiste(): string | null {
     return window.localStorage.getItem(STORAGE_KEY) || null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Who the server says is signed in, as one word the tablet can keep, or null
+ * when the answers name nobody.
+ *
+ * `staff` is the body of `staff-auth/me` or of the PIN sign-in, `me` the body
+ * of `/api/v1/me`. The PIN account is asked first, as the pad's door does
+ * (`resolveStaffSession`).
+ */
+export function pisteHolder(
+  staff: { account?: { id?: string } } | null,
+  me: { user?: { id?: string } } | null,
+): string | null {
+  if (staff?.account?.id) return `pin:${staff.account.id}`;
+  if (me?.user?.id) return `account:${me.user.id}`;
+  return null;
+}
+
+/**
+ * The tablet saw who is signed in (operator, 2026-10-13).
+ *
+ * Anna works piste 3 and goes home without "Log out". Ben signs in on that
+ * tablet with a desk account. Later Ben opens the app with no wifi: he landed
+ * on Anna's piste. Now the piste is forgotten when the tablet sees another
+ * person than the one it last saw, so with no wifi Ben gets the sign-in screen.
+ *
+ * Called where the server answers who is signed in: the list of pistes, and
+ * the PIN sign-in. With no network nobody can be asked, and nothing is called:
+ * the piste stays with the person the tablet last saw.
+ *
+ * A tablet that kept a piste and no person (from before this rule) forgets the
+ * piste once. An answer that names nobody changes nothing.
+ */
+export function signedInAs(holder: string | null): void {
+  if (holder === null) return;
+  try {
+    if (window.localStorage.getItem(HOLDER_KEY) === holder) return;
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.setItem(HOLDER_KEY, holder);
+  } catch {
+    // Private browsing, or a full quota: `rememberedPiste` reads nothing there either.
   }
 }
 

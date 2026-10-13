@@ -821,7 +821,7 @@
     "apps/web-staff/app/lices/[liceId]/_components/BracketDisclosure.tsx:100",
     "apps/web-staff/app/lices/[liceId]/_components/PoolsDisclosure.tsx:110",
     "apps/web-staff/app/lices/[liceId]/page.tsx:106",
-    "apps/web-staff/app/lices/page.tsx:43",
+    "apps/web-staff/app/lices/page.tsx:45",
     "apps/web-staff/app/matches/[matchId]/page.tsx:39",
     "apps/web-staff/src/components/ForfeitPanel.tsx:33",
     "apps/web-staff/src/components/MatchClock.tsx:51",

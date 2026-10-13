@@ -23,10 +23,16 @@ export interface PadStub {
   /** The pistes of the sign-in. A story may change them: another person signs in. */
   assigned: number[];
   network: 'up' | 'down' | 'cut';
+  /** The PIN account that is signed in. A story may change it: another person signs in. */
+  account: string;
+  /** The role of that account: where its PIN sign-in lands. */
+  role: 'scoring' | 'checkin';
 }
 
 export async function stubPad(page: Page, assigned: number[]): Promise<PadStub> {
-  const state: PadStub = { assigned, network: 'up' };
+  const state: PadStub = { assigned, network: 'up', account: 'staff-1', role: 'scoring' };
+  // What `staff-auth/me` and the PIN sign-in both answer.
+  const me = () => ({ type: 'staff', account: { id: state.account, role: state.role } });
   await page.route('**/api/**', (route) => {
     if (state.network === 'cut') return route.abort();
     if (state.network === 'down') {
@@ -36,8 +42,9 @@ export async function stubPad(page: Page, assigned: number[]): Promise<PadStub> 
       });
     }
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/staff-auth/login')) return route.fulfill({ json: me() });
     if (route.request().method() !== 'GET') return route.fulfill({ json: {} });
-    if (path.endsWith('/staff-auth/me')) return route.fulfill({ json: { id: 'staff-1' } });
+    if (path.endsWith('/staff-auth/me')) return route.fulfill({ json: me() });
     if (path.endsWith('/staff/assigned-lices')) {
       return route.fulfill({ json: state.assigned.map(piste) });
     }

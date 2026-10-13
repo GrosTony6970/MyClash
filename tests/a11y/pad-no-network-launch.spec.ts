@@ -89,6 +89,62 @@ test('after a sign-out, the app opened with no network shows sign-in', async ({ 
   await expect(title(page)).toHaveCount(0);
 });
 
+// Operator, 2026-10-13. Anna works piste 3 and goes home without "Log out".
+// Ben signs in on that tablet. With no wifi the app gave Ben Anna's piste.
+test('another person arrived on this tablet: with no network the app shows sign-in', async ({
+  page,
+}) => {
+  const stub = await workOnPiste3(page);
+
+  // Ben has the same three pistes: with wifi he gets the list, not Anna's piste.
+  stub.account = 'staff-2';
+  await openApp(page);
+  await expect(cards(page)).toHaveCount(3);
+  await expect(page).toHaveURL(/\/lices$/);
+
+  stub.network = 'down';
+  await openApp(page);
+
+  await page.waitForURL(/\/login/);
+  await expect(title(page)).toHaveCount(0);
+});
+
+test('a desk account signed in with its PIN since: with no network, sign-in too', async ({
+  page,
+}) => {
+  const stub = await workOnPiste3(page);
+
+  // A desk account never opens the list of pistes: its sign-in is where the tablet learns.
+  stub.account = 'staff-2';
+  stub.role = 'checkin';
+  await page.goto(`${PAD}/login?event=spring-open&u=ben`);
+  await page.locator('#staffPin').fill('1234');
+  await page.locator('form:has(#staffPin) button[type="submit"]').click();
+  await page.waitForURL(/\/desk/);
+
+  stub.network = 'down';
+  await openApp(page);
+
+  await page.waitForURL(/\/login/);
+});
+
+test('the same person signs in again: the piste is still theirs with no network', async ({
+  page,
+}) => {
+  const stub = await workOnPiste3(page);
+
+  await page.goto(`${PAD}/login?event=spring-open&u=anna`);
+  await page.locator('#staffPin').fill('1234');
+  await page.locator('form:has(#staffPin) button[type="submit"]').click();
+  await expect(title(page)).toHaveText('Piste 3');
+
+  stub.network = 'down';
+  await openApp(page);
+
+  await expect(title(page)).toHaveText('Piste 3');
+  expect(path(page)).toBe('/lices/piste-3');
+});
+
 // Ruling 295a stands: a server that is up and fails is not "no network".
 test('a server that answers a fault still says "could not check"', async ({ page }) => {
   await workOnPiste3(page);

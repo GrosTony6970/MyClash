@@ -8,6 +8,7 @@ import { resolveSelectedEvent, type PickerEvent } from '../../src/components/pic
 import { usePickerEvents } from '../../src/lib/usePickerEvents';
 import { rememberEvent, useRememberedEvent } from '../../src/lib/last-event';
 import { arrivalPathForRole } from '../../src/lib/landing';
+import { pisteHolder, signedInAs } from '../../src/lib/last-piste';
 import { missingBeforeSignIn, pinLoginFailureKey } from '../../src/lib/sign-in-failure';
 
 /**
@@ -52,6 +53,9 @@ export function useStaffPinLogin(linkedEvent: string, linkedUsername: string) {
     setError(null);
     try {
       const me = await signIn(event.eventSlugOrCode, event.selected, username, pin);
+      // A desk or gear account never opens the list of pistes: the tablet
+      // learns here that another person has it now.
+      signedInAs(pisteHolder(me, null));
       // The role decides the destination, and it comes off the login response
       // because the mc_staff token carries none.
       window.location.href = arrivalPathForRole(me?.account?.role);
@@ -92,7 +96,7 @@ async function signIn(
 
 /** The login response — the same payload `/staff-auth/me` returns. */
 interface StaffMe {
-  account?: { role?: string };
+  account?: { id?: string; role?: string };
 }
 
 /** Which event the volunteer is signing into, from the three possible sources. */
