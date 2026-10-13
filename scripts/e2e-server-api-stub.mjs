@@ -80,7 +80,30 @@ const BROKEN = { status: 500, json: { statusCode: 500, detail: 'Internal server 
 const HOME_LISTS = {
   participants: () => [{ personId: 'p-1', tournaments: [{ registrationState: 'active' }] }],
   'public-workshops': () => [],
-  'live-state': () => ({ lices: [] }),
+  // One piste: a bout in play on a running Event, a bout to come on the others.
+  'live-state': (slug) => {
+    const bout = {
+      id: 'live-1',
+      matchNumberLabel: 'L1-P1-M01',
+      status: EVENTS[slug].status === 'running' ? 'running' : 'scheduled',
+      scheduledAt: '2026-03-14T08:30:00.000Z',
+      redFighterName: 'Ada Lovelace',
+      blueFighterName: 'Mary Somerville',
+      redScore: 2,
+      blueScore: 1,
+      tournamentName: 'Longsword Open',
+    };
+    const running = bout.status === 'running';
+    return {
+      lices: [
+        {
+          lice: { id: 'lice-1', name: 'Piste 1' },
+          runningMatch: running ? bout : null,
+          nextMatch: running ? null : bout,
+        },
+      ],
+    };
+  },
 };
 
 function signedIn(cookie) {
@@ -187,7 +210,7 @@ export function answerFor(method, url, cookie) {
   const list = HOME_LISTS[rest[1]];
   if (!list) return null;
   const slug = readable(rest[0], cookie);
-  return typeof slug === 'string' ? ok(list()) : slug;
+  return typeof slug === 'string' ? ok(list(slug)) : slug;
 }
 
 /** Starts the stub; resolves with its server once it listens. */

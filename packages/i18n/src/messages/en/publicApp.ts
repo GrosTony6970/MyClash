@@ -86,6 +86,11 @@ export const publicApp = {
       seeFullList: 'See full list →',
     },
     liveNow: 'Live now',
+    mine: {
+      title: 'Taking part in this event?',
+      schedule: 'My schedule',
+      findMe: 'Find my name',
+    },
     scheduleHighlights: 'Schedule highlights',
     viewLiveBoard: 'View full live board',
     eventHero: 'Event hero',

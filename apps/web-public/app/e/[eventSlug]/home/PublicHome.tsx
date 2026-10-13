@@ -19,6 +19,8 @@ import { eventOrNotFound } from '../_lib/event-or-not-found';
 import { TournamentCard } from './_components/TournamentCard';
 import { WorkshopCard } from './_components/WorkshopCard';
 import { LiveNowSection } from './_components/LiveNowSection';
+import { MyScheduleCard } from './_components/MyScheduleCard';
+import { liveBlockPlace } from './_lib/live-block-place';
 import {
   fetchHighlights,
   fetchParticipantsCounts,
@@ -85,6 +87,18 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
     minute: '2-digit',
   } as const;
 
+  // ONE block, drawn in one of two places (quick win F6).
+  const livePlace = liveBlockPlace(event.status);
+  const liveNow = (
+    <LiveNowSection
+      eventSlug={eventSlug}
+      initialHighlights={highlights}
+      workshops={workshops}
+      tz={tz}
+      nowIso={new Date().toISOString()}
+    />
+  );
+
   return (
     // Target of the root layout's "skip to main content" link (app/layout.tsx).
     // Without the `id` that link takes focus and then does nothing; without
@@ -103,6 +117,10 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
       )}
 
       <EventHeader event={event} locale={locale} eventSlug={eventSlug} />
+
+      <MyScheduleCard eventSlug={eventSlug} tr={tr} />
+
+      {livePlace === 'top' && liveNow}
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
@@ -318,15 +336,7 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
         </section>
       )}
 
-      {!isCompleted && (
-        <LiveNowSection
-          eventSlug={eventSlug}
-          initialHighlights={highlights}
-          workshops={workshops}
-          tz={tz}
-          nowIso={new Date().toISOString()}
-        />
-      )}
+      {livePlace === 'bottom' && liveNow}
 
       {isCompleted && (
         <section className="border-t border-border pt-6">

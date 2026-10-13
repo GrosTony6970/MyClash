@@ -704,7 +704,7 @@
     "apps/web-public/app/e/[eventSlug]/display/NowLiveSection.tsx:56",
     "apps/web-public/app/e/[eventSlug]/display/page.tsx:85",
     "apps/web-public/app/e/[eventSlug]/feedback/page.tsx:195",
-    "apps/web-public/app/e/[eventSlug]/home/PublicHome.tsx:44",
+    "apps/web-public/app/e/[eventSlug]/home/PublicHome.tsx:46",
     "apps/web-public/app/e/[eventSlug]/home/_components/LiveNowSection.tsx:59",
     "apps/web-public/app/e/[eventSlug]/home/_components/ScheduleAgenda.tsx:11",
     "apps/web-public/app/e/[eventSlug]/home/_components/TournamentCard.tsx:12",

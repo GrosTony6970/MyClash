@@ -82,6 +82,11 @@ export const publicApp = {
       seeFullList: 'Voir la liste complète →',
     },
     liveNow: 'En direct',
+    mine: {
+      title: 'Vous participez à cet événement ?',
+      schedule: 'Mon planning',
+      findMe: 'Trouver mon nom',
+    },
     scheduleHighlights: 'Temps forts du programme',
     viewLiveBoard: 'Voir le tableau en direct',
     eventHero: "Bannière de l'événement",

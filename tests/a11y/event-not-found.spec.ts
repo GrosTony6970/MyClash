@@ -80,7 +80,7 @@ test('a club member sees the home of their draft Event, with its Tournaments', a
 
   await expect(page.getByRole('heading', { name: 'Tournoi de Nancy' })).toBeVisible();
   // The lists are read with the login too: the stub refuses them without it.
-  await expect(page.getByText('Longsword Open')).toBeVisible();
+  await expect(page.locator('a[href="/e/draft-event/t/longsword-open"]')).toBeVisible();
   await expect(page.getByRole('link', { name: /registered/ })).toBeVisible();
   await expect(notFound(page)).toHaveCount(0);
 });

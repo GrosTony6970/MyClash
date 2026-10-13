@@ -48,9 +48,13 @@ test("a draft Event's lists refuse a read that carries no login", () => {
 test("a public Event's lists answer anybody", () => {
   const tournaments = answerFor('GET', '/api/v1/events/ev-test/tournaments', undefined);
   assert.equal(tournaments.json[0].name, 'Longsword Open');
-  assert.deepEqual(answerFor('GET', '/api/v1/events/test-event/live-state', undefined).json, {
-    lices: [],
-  });
+  // A running Event has a bout in play on its piste; an Event not yet running, a bout to come.
+  const [live] = answerFor('GET', '/api/v1/events/test-event/live-state', undefined).json.lices;
+  assert.equal(live.runningMatch.status, 'running');
+  assert.equal(live.nextMatch, null);
+  const [quiet] = answerFor('GET', '/api/v1/events/quiet-event/live-state', undefined).json.lices;
+  assert.equal(quiet.runningMatch, null);
+  assert.equal(quiet.nextMatch.status, 'scheduled');
   assert.equal(
     answerFor('GET', '/api/v1/events/test-event/participants?x=1', undefined).status,
     200,
