@@ -74,10 +74,29 @@ describe('the piste screen', () => {
     expect(hook).not.toContain('} finally {');
   });
 
-  it('keeps the list it has: only a good read writes it', () => {
-    expect(hook.match(/setData\(/g)).toHaveLength(1);
-    expect(hook).toContain("if (read.kind === 'data') setData(read.data);");
+  it('keeps the list it has: only a good read, or the tablet’s kept list, writes it', () => {
+    expect(hook.match(/setShown\(/g)).toHaveLength(2);
+    expect(hook).toContain('setShown({ data: read.data, readAt: null });');
     expect(hook).toContain("setUnreachable(read.kind === 'unreachable');");
+  });
+
+  // A piste opened with no network shows the list of the tablet's last good read.
+  it('keeps each good read on the tablet, and opens that list when there is no network', () => {
+    expect(hook).toContain('void keepPisteList(liceId, read.data).catch(() => undefined);');
+    expect(hook).toMatch(
+      /if \(read\.kind === 'unreachable'\) \{\s+const kept = await keptPisteList\(liceId\)\.catch\(\(\) => null\);/,
+    );
+    // The store answers late: never over a list the screen already holds.
+    expect(hook).toContain('if (kept) setShown((now) => now ?? kept);');
+    // One state for the list and where it came from.
+    expect(hook).toContain('readFromTabletAt: shown?.readAt ?? null,');
+  });
+
+  it('says that the list is the tablet’s, and from when', () => {
+    expect(page).toMatch(
+      /\{readFromTabletAt !== null && \(\s+<ListFromTablet at=\{readFromTabletAt\} locale=\{locale\} t=\{t\} \/>\s+\)\}/,
+    );
+    expect(page).toContain("{t('scoring.lice.listFromTablet', {");
   });
 
   it('says "no connection" in place of the lists when it has no list and no network', () => {

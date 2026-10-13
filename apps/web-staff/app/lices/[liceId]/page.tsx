@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../src/theme/ThemeProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { rememberPiste } from '../../../src/lib/last-piste';
+import { idFromPath } from '../../../src/lib/nav';
 import { useKeepPiste } from '../../../src/hooks/useKeepPiste';
 import { useLiceMatches } from '../../../src/hooks/useLiceMatches';
 import { usePisteQueue } from '../../../src/hooks/usePisteQueue';
@@ -17,10 +18,6 @@ import { AllMatchesDisclosure } from './_components/AllMatchesDisclosure';
 import { GroupedMatchList } from './_components/GroupedMatchList';
 import { LiceHeader } from './_components/LiceHeader';
 import { TournamentSections } from './_components/TournamentSections';
-
-interface Props {
-  params: Promise<{ liceId: string }>;
-}
 
 function MatchSection({
   heading,
@@ -44,6 +41,35 @@ function MatchSection({
         <GroupedMatchList matches={matches} />
       )}
     </section>
+  );
+}
+
+/** The piste's list is the one the tablet kept: it says so, and from when. */
+function ListFromTablet({
+  at,
+  locale,
+  t,
+}: {
+  at: number;
+  locale: string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  return (
+    <p
+      role="status"
+      data-testid="lice-from-tablet"
+      className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning"
+    >
+      {t('scoring.lice.listFromTablet', {
+        when: new Date(at).toLocaleString(locale, {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      })}
+    </p>
   );
 }
 
@@ -77,24 +103,26 @@ function useNetworkStatus(): 'online' | 'offline' {
  *   - `/lices/[liceId]` → THIS page
  *   - `/matches/[matchId]` → scoreboard (linked from here)
  */
-export default function LiceMatchListPage({ params }: Props) {
+export default function LiceMatchListPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { chromeScope } = useScoringTheme();
   const networkStatus = useNetworkStatus();
-  const [liceId, setLiceId] = useState<string | null>(null);
+  // From the address, not from `params`: with no network one kept page
+  // serves every piste (`idFromPath`).
+  const liceId = idFromPath(usePathname(), 'lices');
 
   useEffect(() => {
-    void params.then(({ liceId: id }) => {
-      setLiceId(id);
-      // The piste this tablet works on, however it got here: a card of the
-      // list, the Back of a bout, a link (`last-piste.ts`).
-      rememberPiste(id);
-    });
-  }, [params]);
+    // The piste this tablet works on, however it got here: a card of the
+    // list, the Back of a bout, a link (`last-piste.ts`).
+    if (liceId) rememberPiste(liceId);
+  }, [liceId]);
 
   const apiUrl = getApiUrl();
-  const { data, loading, sessionExpired, unreachable, refresh } = useLiceMatches(apiUrl, liceId);
+  const { data, readFromTabletAt, loading, sessionExpired, unreachable, refresh } = useLiceMatches(
+    apiUrl,
+    liceId,
+  );
   // Between two bouts is where the entries not sent are seen, and sent.
   const { syncEngine, syncState } = usePisteQueue(apiUrl, refresh);
   // Every bout of the piste, kept for a cut of the network (ruling 4).
@@ -165,6 +193,11 @@ export default function LiceMatchListPage({ params }: Props) {
           </p>
         ) : (
           <>
+            {/* The list came off the tablet: said with the DAY of the read, as a
+                bout's copy is (operator ruling 10), before a card is tapped. */}
+            {readFromTabletAt !== null && (
+              <ListFromTablet at={readFromTabletAt} locale={locale} t={t} />
+            )}
             {/* Only rendered when something is genuinely running or paused. */}
             {live.length > 0 && (
               <MatchSection heading={t('scoring.lice.live')} matches={live} testId="live-section" />

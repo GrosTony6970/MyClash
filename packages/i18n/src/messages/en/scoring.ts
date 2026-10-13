@@ -283,6 +283,9 @@ export const scoring = {
     noNextMatch: 'No next match',
     listUnreachable:
       'No connection. The matches of this lice are not loaded yet. They load when the network is back.',
+    // The server cannot be reached and the tablet holds the list of an earlier read.
+    listFromTablet:
+      'No connection. This is the list as this tablet read it on {when}. It may be behind.',
     allMatches: 'All matches on this lice ({count})',
     allMatchesEmpty: 'No match on this lice yet.',
     refereeLabel: 'Referee',

@@ -1,8 +1,15 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from './db';
 import { keepBout, keepBoutsAskedAt, keptBout } from './kept-bout';
-import { keepPiste, keptNeighbours, keptPiste, neighboursFromPiste } from './kept-piste';
+import {
+  keepPiste,
+  keepPisteList,
+  keptNeighbours,
+  keptPiste,
+  keptPisteList,
+  neighboursFromPiste,
+} from './kept-piste';
 import type { MatchInfo } from '../components/MatchView';
 
 const bout = (id: string, redScore = 0): MatchInfo => ({
@@ -123,6 +130,38 @@ describe('the neighbours of a bout, from the piste the tablet keeps', () => {
     await keepBoutsAskedAt([named('a')], 1_000);
 
     expect(await keptNeighbours('lice-9', 'a')).toBeNull();
+  });
+});
+
+describe('the list of the piste page the tablet keeps', () => {
+  const list = (liceName: string) => ({ liceId: 'lice-1', liceName, event: null, matches: [] });
+
+  it('is nothing for a piste whose list the tablet never read', async () => {
+    expect(await keptPisteList('lice-1')).toBeNull();
+  });
+
+  it('is the last list read, with the time of that read, per piste', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-13T09:00:00Z'));
+    await keepPisteList('lice-1', list('Piste 1, at nine'));
+    await keepPisteList('lice-2', list('Piste 2'));
+    vi.setSystemTime(new Date('2026-10-13T10:00:00Z'));
+    await keepPisteList('lice-1', list('Piste 1, at ten'));
+    vi.useRealTimers();
+
+    expect(await keptPisteList('lice-1')).toEqual({
+      data: list('Piste 1, at ten'),
+      readAt: new Date('2026-10-13T10:00:00Z').getTime(),
+    });
+    expect((await keptPisteList('lice-2'))?.data.liceName).toBe('Piste 2');
+  });
+
+  it('does not share a key with the order of the same piste', async () => {
+    await keepPiste('lice-1', ['a'], 1_000);
+    await keepPisteList('lice-1', list('Piste 1'));
+
+    expect((await keptPiste('lice-1'))?.order).toEqual(['a']);
+    expect((await keptPisteList('lice-1'))?.data.liceName).toBe('Piste 1');
   });
 });
 

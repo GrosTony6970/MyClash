@@ -143,7 +143,7 @@ describe('the screens of the pad', () => {
   // Not at the tap of a card alone: the Back of a bout and a link open a piste too.
   it('a piste is remembered by its own screen, however the official got there', () => {
     expect(read('app', 'lices', '[liceId]', 'page.tsx')).toMatch(
-      /params\.then\(\(\{ liceId: id \}\) => \{\s+setLiceId\(id\);[^}]*rememberPiste\(id\);\s+\}\);/,
+      /useEffect\(\(\) => \{[^}]*if \(liceId\) rememberPiste\(liceId\);\s+\}, \[liceId\]\);/,
     );
     expect(list).not.toContain('rememberPiste');
   });

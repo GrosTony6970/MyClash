@@ -279,6 +279,8 @@ export const scoring = {
     noNextMatch: 'Aucun assaut suivant',
     listUnreachable:
       'Pas de connexion. Les assauts de cette lice ne sont pas encore chargés. Ils se chargeront au retour du réseau.',
+    listFromTablet:
+      'Pas de connexion. Voici la liste telle que cette tablette l’a lue {when}. Elle peut ne plus être à jour.',
     allMatches: 'Tous les assauts de cette lice ({count})',
     allMatchesEmpty: 'Aucun assaut sur cette lice pour le moment.',
     refereeLabel: 'Arbitre',

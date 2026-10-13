@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  SHELL_ID,
   displayUrlForMatch,
+  idFromPath,
   isExternalHref,
   safeReturnHref,
   staffRoutePrefix,
@@ -171,6 +173,54 @@ describe('displayUrlForMatch', () => {
     // It resolves to the path `//example.com`: the rule refuses the result, and
     // would pass the base alone.
     expect(displayUrlForMatch('/display/match-1', '../..//example.com')).toBeNull();
+  });
+});
+
+describe('idFromPath', () => {
+  it('reads the bout of a bout address and the piste of a piste address', () => {
+    expect(idFromPath('/matches/1b4e28ba-2fa1-11d2-883f-0016d3cca427', 'matches')).toBe(
+      '1b4e28ba-2fa1-11d2-883f-0016d3cca427',
+    );
+    expect(idFromPath('/lices/lice-7', 'lices')).toBe('lice-7');
+    expect(idFromPath('/matches/bout-1/', 'matches')).toBe('bout-1');
+  });
+
+  // The admin proxy serves the same pages under `/staff`.
+  it('reads it under the `/staff` mount too', () => {
+    expect(idFromPath('/staff/matches/bout-1', 'matches')).toBe('bout-1');
+    expect(idFromPath('/staff/lices/lice-7', 'lices')).toBe('lice-7');
+  });
+
+  it('is null for an address of another route, and for one with no id', () => {
+    expect(idFromPath('/lices/lice-7', 'matches')).toBeNull();
+    expect(idFromPath('/matches/bout-1', 'lices')).toBeNull();
+    for (const path of ['/', '/matches', '/matches/', '/staff', '/staff/matches', '/login']) {
+      expect(idFromPath(path, 'matches'), path).toBeNull();
+    }
+  });
+
+  // The service worker asks the page as `/matches/_` to keep its shell: that
+  // page has no bout, and must not ask the server for a bout named `_`.
+  it('is null for the address the service worker keeps the shell with', () => {
+    expect(SHELL_ID).toBe('_');
+    expect(idFromPath(`/matches/${SHELL_ID}`, 'matches')).toBeNull();
+    expect(idFromPath(`/lices/${SHELL_ID}`, 'lices')).toBeNull();
+  });
+
+  it('decodes the id, and is null for one that cannot be decoded', () => {
+    expect(idFromPath('/lices/lice%207', 'lices')).toBe('lice 7');
+    expect(idFromPath('/lices/%E0%A4%A', 'lices')).toBeNull();
+  });
+
+  // With no network one kept page serves every bout: its `params` say `_`.
+  it('is what the two pages read their id with, from the address', () => {
+    const read = (...path: string[]) => readFileSync(join(__dirname, '..', '..', ...path), 'utf8');
+    const bout = read('app', 'matches', '[matchId]', 'page.tsx');
+    const piste = read('app', 'lices', '[liceId]', 'page.tsx');
+
+    expect(bout).toContain("const matchId = idFromPath(usePathname(), 'matches');");
+    expect(piste).toContain("const liceId = idFromPath(usePathname(), 'lices');");
+    for (const page of [bout, piste]) expect(page).not.toMatch(/\bparams\b(?!`)/);
   });
 });
 

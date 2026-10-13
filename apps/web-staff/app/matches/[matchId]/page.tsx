@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   BoutNotLoadedView,
   MatchView,
@@ -22,11 +23,7 @@ import { getApiUrl } from '../../../src/lib/api-url';
 import { readBout } from '../../../src/lib/bout-read';
 import { forgetBout, keepBout, keptBout } from '../../../src/offline/kept-bout';
 import { getSyncEngine } from '../../../src/offline/sync';
-import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
-
-interface Props {
-  params: Promise<{ matchId: string }>;
-}
+import { idFromPath, safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 
 /** How often a bout opened with no network is asked for again. */
 const BOUT_NOT_LOADED_RETRY_MS = 5_000;
@@ -39,7 +36,7 @@ const BOUT_NOT_LOADED_RETRY_MS = 5_000;
  * kept on the tablet, and a read that finds no network opens that copy
  * (`src/offline/kept-bout.ts`).
  */
-export default function MatchScoringPage({ params }: Props) {
+export default function MatchScoringPage() {
   const { t } = useI18n();
   const apiUrl = getApiUrl();
   // Durable offline sync: exchanges are written to an IndexedDB outbox and POSTed by
@@ -47,7 +44,9 @@ export default function MatchScoringPage({ params }: Props) {
   const syncEngine = useMemo(() => getSyncEngine(apiUrl), [apiUrl]);
   const syncState = useSyncState(syncEngine);
 
-  const [matchId, setMatchId] = useState<string | null>(null);
+  // From the address, not from `params`: with no network one kept page
+  // serves every bout (`idFromPath`).
+  const matchId = idFromPath(usePathname(), 'matches');
   // The bout on screen and where it came from, as ONE state: `readAt` is the
   // time of the tablet's copy, and null for the server's own answer. Two states
   // could say "from the tablet" over a bout the server just gave.
@@ -74,10 +73,6 @@ export default function MatchScoringPage({ params }: Props) {
   const [backHref, setBackHref] = useState<string | null>(null);
   const [routePrefix, setRoutePrefix] = useState('');
   const [returnParam, setReturnParam] = useState<string | null>(null);
-
-  useEffect(() => {
-    void params.then(({ matchId: id }) => setMatchId(id));
-  }, [params]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

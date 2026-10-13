@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LiceMatchesPayload } from '../components/lice-match-types';
 import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
+import { keepPisteList, keptPisteList } from '../offline/kept-piste';
 
 /**
  * How often a piste tablet re-reads its lice.
@@ -15,6 +16,11 @@ export const LICE_MATCHES_POLL_MS = 20_000;
 
 export interface LiceMatchesState {
   data: LiceMatchesPayload | null;
+  /**
+   * When the tablet read `data` (ms), if it is the list the tablet KEPT, shown
+   * because the server cannot be reached. Null for the server's own answer.
+   */
+  readFromTabletAt: number | null;
   loading: boolean;
   /** True only after a real auth failure — never after a network blip. */
   sessionExpired: boolean;
@@ -34,9 +40,19 @@ export interface LiceMatchesState {
  *   - only 401/403 count as "signed out". The old page redirected to /login on
  *     any non-OK response, so a single 502 from a restarting API bounced the
  *     operator out mid-bout.
+ *
+ * Each good read is kept on the tablet. A piste opened with no network shows
+ * that list, and the page says from when it is. The list and where it came
+ * from are ONE state: two could say "from the tablet" over the server's list.
+ *
+ * The race: the tablet's store answers late, maybe after a later read that the
+ * server answered. The kept list is set only while the screen holds none.
  */
 export function useLiceMatches(apiUrl: string, liceId: string | null): LiceMatchesState {
-  const [data, setData] = useState<LiceMatchesPayload | null>(null);
+  const [shown, setShown] = useState<{
+    data: LiceMatchesPayload;
+    readAt: number | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
@@ -47,7 +63,15 @@ export function useLiceMatches(apiUrl: string, liceId: string | null): LiceMatch
     const read = await readLiceMatches(`${apiUrl}/api/v1/staff/lices/${liceId}/matches`, online);
     if (read.kind === 'signedOut') setSessionExpired(true);
     // Any other answer deliberately keeps the previous payload.
-    if (read.kind === 'data') setData(read.data);
+    if (read.kind === 'data') {
+      setShown({ data: read.data, readAt: null });
+      // A store that refuses the write costs the next open with no network only.
+      void keepPisteList(liceId, read.data).catch(() => undefined);
+    }
+    if (read.kind === 'unreachable') {
+      const kept = await keptPisteList(liceId).catch(() => null);
+      if (kept) setShown((now) => now ?? kept);
+    }
     setUnreachable(read.kind === 'unreachable');
     // After EVERY read. It sat in a `finally` whose `try` the offline return
     // never entered, so a piste opened with no network said "Loading" for ever.
@@ -64,7 +88,14 @@ export function useLiceMatches(apiUrl: string, liceId: string | null): LiceMatch
     return startPolling(refresh);
   }, [liceId, refresh]);
 
-  return { data, loading, sessionExpired, unreachable, refresh };
+  return {
+    data: shown?.data ?? null,
+    readFromTabletAt: shown?.readAt ?? null,
+    loading,
+    sessionExpired,
+    unreachable,
+    refresh,
+  };
 }
 
 export type LiceRead =

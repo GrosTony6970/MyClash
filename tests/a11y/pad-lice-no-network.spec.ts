@@ -9,6 +9,7 @@
  * worker gives a dead network: a 503 with `{ error: 'offline' }`.
  */
 import { test, expect, type Page } from '@playwright/test';
+import { keptRow } from './pad-piste-stub';
 
 const PAD = 'http://localhost:3002';
 const LICE = 'lice-1';
@@ -92,6 +93,32 @@ test('a list already on screen stays when the network goes', async ({ page }) =>
   await expect(page.getByText('Piste Seven')).toBeVisible();
   await expect(page.getByText(/no next match/i)).toBeVisible();
   await expect(page.getByTestId('lice-unreachable')).toHaveCount(0);
+});
+
+// The tablet keeps each list it reads. A piste opened again with no network
+// (a reload, the Back of a bout after a cut) said "not loaded" over a piste the
+// official had read a minute before.
+test('a piste opened again with no network shows the list the tablet kept, and says so', async ({
+  page,
+}) => {
+  const state = await openPiste(page, 'list');
+  await expect(page.getByText('Piste Seven')).toBeVisible();
+  await expect(page.getByTestId('lice-from-tablet')).toHaveCount(0);
+  // The write is behind the screen: the reload must not race it.
+  await expect.poll(() => keptRow(page, `lice-matches/${LICE}`)).toMatchObject(LIST);
+
+  state.answer = 'offline';
+  await page.reload();
+
+  await expect(page.getByText('Piste Seven')).toBeVisible();
+  await expect(page.getByTestId('lice-from-tablet')).toHaveText(/this tablet read it on/i);
+  await expect(page.getByTestId('lice-unreachable')).toHaveCount(0);
+
+  // The server's list replaces the tablet's, and the notice goes.
+  state.answer = 'list';
+  await comeBackOnline(page);
+  await expect(page.getByTestId('lice-from-tablet')).toHaveCount(0);
+  await expect(page.getByText('Piste Seven')).toBeVisible();
 });
 
 test('a server that fails is not called "no connection"', async ({ page }) => {

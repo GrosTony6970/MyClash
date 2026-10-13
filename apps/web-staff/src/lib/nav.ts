@@ -51,6 +51,32 @@ export function staffRoutePrefix(pathname: string): string {
 }
 
 /**
+ * The id in the address of a page that has one: `/matches/<id>`, `/lices/<id>`,
+ * under either mount.
+ *
+ * WHY THE ADDRESS, and not the `params` Next hands the page. With no network
+ * the service worker serves ONE page for every bout: the shell it kept of
+ * `/matches/_` (`public/sw.js`, `shellFor`). The `params` of that page say `_`,
+ * whatever bout the address names. The address is the one thing that is true
+ * of the bout the official asked for.
+ *
+ * `_` is the shell's own address: no bout, no piste.
+ */
+export function idFromPath(pathname: string, route: 'matches' | 'lices'): string | null {
+  const own = pathname.slice(staffRoutePrefix(pathname).length);
+  const [, first, id] = own.split('/');
+  if (first !== route || !id || id === SHELL_ID) return null;
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return null;
+  }
+}
+
+/** The id the service worker asks a page with, to keep its shell. In step with `public/sw.js`. */
+export const SHELL_ID = '_';
+
+/**
  * The sign-in screen of the mount the pad is served under. Through the admin
  * proxy a bare `/login` would leave the pad for the admin app.
  */

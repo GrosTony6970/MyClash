@@ -47,9 +47,7 @@ describe('the queue on the piste list', () => {
   // The End of a bout just went: the list must not show that bout as live for 20 s more.
   it('has the list read again when a send has ended', () => {
     expect(hook).toContain('useSendEnded(syncEngine, readListAgain);');
-    expect(page).toContain(
-      'const { data, loading, sessionExpired, unreachable, refresh } = useLiceMatches(apiUrl, liceId);',
-    );
+    expect(page).toMatch(/unreachable, refresh \} = useLiceMatches\(\s+apiUrl,\s+liceId,\s+\);/);
   });
 
   // An engine tells its state only when it sends: without the send at the

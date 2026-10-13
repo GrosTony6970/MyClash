@@ -10,11 +10,13 @@
  * In the `reads` table, under a key of its own, as the copies are.
  */
 import type { NextMatchInfo } from '@myclash/ui';
+import type { LiceMatchesPayload } from '../components/lice-match-types';
 import type { MatchInfo } from '../components/MatchView';
 import { db } from './db';
 import { keptBout } from './kept-bout';
 
 const keyOf = (liceId: string) => `piste/${liceId}`;
+const listKeyOf = (liceId: string) => `lice-matches/${liceId}`;
 
 export interface KeptPiste {
   /** The ids of the piste's bouts, in the order of the piste list. */
@@ -41,6 +43,23 @@ export async function keepPiste(liceId: string, order: string[], askedAt: number
 export async function keptPiste(liceId: string): Promise<KeptPiste | null> {
   const row = await db.reads.get(keyOf(liceId));
   return row ? { order: row.body as string[], readAt: row.fetchedAt } : null;
+}
+
+/**
+ * Keeps the list the piste page just read (`GET /staff/lices/:id/matches`): its
+ * own rows, with the times and the referees, which a bout's copy does not hold.
+ * The page shows it when it opens with no network, and says from when it is.
+ */
+export async function keepPisteList(liceId: string, list: LiceMatchesPayload): Promise<void> {
+  await db.reads.put({ path: listKeyOf(liceId), body: list, fetchedAt: Date.now() });
+}
+
+/** The list the tablet holds for that piste and when it was read, or null. */
+export async function keptPisteList(
+  liceId: string,
+): Promise<{ data: LiceMatchesPayload; readAt: number } | null> {
+  const row = await db.reads.get(listKeyOf(liceId));
+  return row ? { data: row.body as LiceMatchesPayload, readAt: row.fetchedAt } : null;
 }
 
 /** The bouts on each side of one bout, as the Next and Previous tiles name them. */
