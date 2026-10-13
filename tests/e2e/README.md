@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`40` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`41` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -116,6 +116,7 @@ the pass/fail record.
 | `38` | api failure seam (org)   | none                                                                                                                                                                                                                     |
 | `39` | late presses             | `E2E_SCORING_PAD`                                                                                                                                                                                                        |
 | `40` | offline bout             | — always runs                                                                                                                                                                                                            |
+| `41` | next bout, no network    | `E2E_STAFF_URL`                                                                                                                                                                                                          |
 
 </div>
 
@@ -482,6 +483,10 @@ twice with one id, are `39-late-presses.spec.ts` (same flag as `10`). A whole bo
 with no network, a reload on the tablet's copy included, is `40-offline-bout.spec.ts`.
 `39` and `40` were written by reading the code on 2026-10-12, when the deployed build
 was older than these doors: read their first run as a first run.
+`41-next-bout-no-network.spec.ts` is "Next match" with no network for a bout the tablet
+never opened: a PIN session on a piste of three bouts, on the STAFF address
+(`E2E_STAFF_URL`; the admin mount serves no service worker, and the spec skips without
+it). Written by reading the code on 2026-10-13, as `39` and `40` were.
 
 Things worth knowing before touching it:
 
@@ -1231,6 +1236,7 @@ of the bracket says afterwards:
 | 38  | The api-failure seam, org + public      | `38-api-failure-seam-org.spec.ts`   | always                                   |
 | 39  | The tablet's presses, sent twice        | `39-late-presses.spec.ts`           | opt-in (`E2E_SCORING_PAD=1`); see `16`   |
 | 40  | A whole bout with no network            | `40-offline-bout.spec.ts`           | active; see `16`                         |
+| 41  | "Next match" with no network            | `41-next-bout-no-network.spec.ts`   | opt-in (`E2E_STAFF_URL`)                 |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The nightly does **not** set all of

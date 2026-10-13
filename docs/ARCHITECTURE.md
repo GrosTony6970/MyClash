@@ -1503,14 +1503,61 @@ bouts is where an official sees that entries still wait.
 
 ### 10.4 PWA requirements
 
-- Service Worker pre-caches the scoring app shell. There is NO ruleset bundle and
-  there must not be — see "Seed, don't resolve" in §7.3.
-- The Service Worker **resolves a synthetic `503 { error: 'offline' }`** for every
-  `/api/` call rather than throwing, and caches no API response. Any client code
-  branching on `!res.ok` is therefore on the OFFLINE path as often as the
-  not-found one: classify with `classifySyncFailure` before concluding a record
-  is gone. Setup data (the tournament's scoring rules, the penalty catalogue) is
-  cached separately in IndexedDB by `offline/cached-reads.ts`.
+- The Service Worker (`apps/web-staff/public/sw.js`, a plain file with no build
+  step) keeps the pad's **shells** at install, and every static file each shell
+  names. There is NO ruleset bundle and there must not be — see "Seed, don't
+  resolve" in §7.3.
+- **One shell serves every bout, and one every piste.** A page with an id in its
+  address (`/matches/<id>`, `/lices/<id>`) is one page for every id. The worker
+  keeps it once, asked as `/matches/_` and `/lices/_`, and serves that shell for
+  any such address when the network is gone and it holds no copy of that very
+  address (`shellFor`). Any other address gets the start page. So the two pages
+  read their id from the ADDRESS (`idFromPath`, `src/lib/nav.ts`), never from
+  the `params` Next hands them: the `params` of the kept shell say `_`. Before
+  this, a bout whose page the tablet had never opened got the start page with
+  no network, which could not check who was signed in (quick-win ruling 4).
+- **The worker's cache follows the deploy.** The root layout registers the
+  worker as `/sw.js?v=<commit served>` (`src/lib/served-commit.ts`, read on the
+  server per request; `GIT_COMMIT` reaches the container at run time). The
+  worker names its cache after the `v` of its own address. A deploy is a new
+  address, so a new worker: it fills its own cache at install and removes the
+  older ones at activate. An install of a new version that the network cut
+  short FAILS when a worker is already active, so half a cache never replaces a
+  whole one; the next page with a network tries again. Nothing stamps a version
+  into a file: the deploy scripts only check that the pad serves the new one.
+- The Service Worker **resolves a synthetic `503 { error: 'offline', code:
+'offline' }`** for every `/api/` call rather than throwing, and caches no API
+  response. Any client code branching on `!res.ok` is therefore on the OFFLINE
+  path as often as the not-found one: classify with `classifySyncFailure` before
+  concluding a record is gone. `code` is for a reader behind `apiRequest`, which
+  keeps the code of a refused answer and nothing else of its body: the start
+  page tells this answer from a server that is up and answers 503
+  (`answeredFault`), and goes to sign-in with no network. `offlineResponse()`
+  (`offline/failure-kind.ts`) is the pad's copy of that body; a test pins the
+  two as one. Setup data (the tournament's scoring rules, the penalty
+  catalogue) is cached separately in IndexedDB by `offline/cached-reads.ts`.
+- **The tablet keeps its whole piste** (quick-win ruling 4). While the piste
+  list or a bout screen is open, `useKeepPiste` reads
+  `GET /staff/lices/:liceId/bouts` at the opening, when the network or the tab
+  comes back, and every five minutes (thirty seconds after a read that got no
+  answer). `lib/keep-piste.ts` keeps the order of the piste
+  (`offline/kept-piste.ts`), the rules and the penalty catalogue of each
+  Tournament on it, and the bouts it can open WHOLE: a bout whose Tournament's
+  rules the tablet holds, and that is not started or whose clock the tablet
+  holds. A copy read ahead has no clock, no hits and no cards, which is the
+  truth of a bout not started only; a copy with no rules would open with the
+  default buttons. A bout that is not kept stays in the order, and its tile
+  leads to "not loaded". The penalty catalogue is kept by Tournament
+  (`lib/penalty-catalogue.ts`), so a bout never opened has it. An answer never
+  replaces a copy of a later ask (`keepBoutsAskedAt`): the piste read and the
+  bout screen's own read write the same copy.
+- **The Next and Previous tiles** are the server's once it has answered for the
+  bout on screen, and "no neighbour" is such an answer. Until then they come
+  from the order the tablet keeps (`usePadNeighbours`), so a bout opened from
+  its copy names its next bout, to the end of the piste. The neighbour is the
+  next bout IN THE ORDER, with or without a copy.
+- The piste page with no network shows the list of its last good read, and
+  says from when.
 - **A bout the tablet has read opens with no network** (quick-win rulings 3, 9
   and 10). Each good read of a bout (`lib/bout-read.ts`) is kept in the same
   table by `offline/kept-bout.ts`. A read that finds no network, with no bout on
@@ -1533,6 +1580,20 @@ bouts is where an official sees that entries still wait.
   smaller lie (the same choice as on a live screen). The clock the server last gave is kept with the bout
   (`keepClock`), so a copy opens at the time the bout had, and the presses the
   tablet holds are added to it (§10.2, "The clock on the tablet").
+- **What no gate runs.** The stubbed browser suite blocks service workers, so
+  the worker has its unit tests (`src/offline/sw.test.ts` runs `public/sw.js`
+  over a made-up cache and network) and one probe with the REAL worker, run by
+  hand on 2026-10-13: a production build of the pad with its scripts under
+  `/staff/_next/static/`, a Chromium with workers allowed, and the server
+  stopped for "no network". 25 checks of 25: the kept shell opens under
+  another bout's address, the address is not rewritten, the right bout shows
+  from the tablet and names its next bout; a typed address and a reload do the
+  same; a piste page never opened is the piste page; the start page goes to
+  sign-in; every script comes from the cache (38 entries at install); and after
+  a deploy (the same build served as another commit) the tablet has one cache,
+  named after the new commit, and a bout opens from it with no network.
+  `tests/e2e/41-next-bout-no-network.spec.ts` is the same story against a
+  deployed stack.
 - Manifest installs as standalone tablet app.
 - The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The states are `SyncStatus` in `offline/sync.ts`: `idle`, `syncing`, `offline`, `maintenance`, `error`, `signed-out` and the three refusals of the caller (see the state machine in §10.2).
 

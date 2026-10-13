@@ -1205,6 +1205,111 @@ Named, not fixed (each read in code):
   Not looked at: it may be the test, or a second press judged by the clock from before.
 - Not checked: whether a Resume sent late and answered right at 0:00 can make the beep sound twice.
 
+## Ruling 4, built on 2026-10-13: "Next match" with no network
+
+Story. The wifi drops at a piste for forty minutes. Bout 1 ends and the official taps "Next
+match". The tablet said "We could not check who is signed in", with a Retry that could only fail
+again. Two causes: the PAGE of a bout the tablet had never opened was not on the tablet, and
+neither was the BOUT (a copy was written only after its own screen had read it).
+
+Two rulings of 2026-10-13, asked with that story:
+
+| Asked                                                        | Ruling                                                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How many bouts ahead must the table play with no wifi?       | **The whole piste.** The tablet keeps every bout of its piste and their order. A new server route is accepted.                                    |
+| Three faults found beside ruling 4: which go into this work? | **All three.** A piste page opened with no wifi; the Retry that loops on the start page; the offline cache that was never renewed after a deploy. |
+
+What the official gets:
+
+- With no wifi, "Next match", the Next and Previous tiles and a card of the piste list open the
+  bout from the tablet's copy, with the notice that says from when it is. A bout not started can
+  be started and scored. It names its own next bout, to the end of the piste.
+- A piste page opened or reloaded with no wifi shows the list the tablet kept, with its date.
+- With no wifi the start page goes to sign-in. Its Retry no longer loops.
+- After a deploy, a tablet takes the new app at its next page with a network, and its offline
+  pages are complete at once (the pages of the bout, the piste, the two desks, and their scripts).
+
+Built in sixteen commits, `9c228728` to `899c1197`:
+
+- Server: the tiles walk a piste in the order of its list, and that order is total (`9c228728`,
+  `aabf3b49`); one builder for the summary of one bout and of many (`fe0a640b`, `5bc3195f`);
+  `GET /staff/lices/:liceId/bouts` (`e80dd481`).
+- Tablet: it keeps its piste (`4a039791`, `678d0fc8`, `e25b69f1`); a bout opened from the tablet
+  names its next bout (`1414c3c3`); the two pages open with no network from one kept shell each
+  (`14f7b056`); the worker's cache follows the deploy (`1a2df9b2`, `d4e35604`); the start page
+  (`d6e0241f`).
+- Tests: `tests/a11y/pad-next-bout-no-network.spec.ts`, `pad-lice-no-network.spec.ts`, the
+  worker's own tests (`src/offline/sw.test.ts`), and `tests/e2e/41-next-bout-no-network.spec.ts`
+  (`899c1197`), WRITTEN BY READING, NOT RUN: it joins 40, 39, 10 and 16 after the redeploy, and
+  needs `E2E_STAFF_URL`.
+
+What the reviews found, and is fixed (three cold reviews, one per push):
+
+- Two bouts of one time and one bout number had no fixed order. Every bracket bout has the same
+  number for that order (its label is the bare slot), so the list and the kept piste could
+  disagree.
+- A bout read ahead with no rules of its Tournament opened with the default +2 and +1 buttons.
+  The tablet now keeps a bout only when it holds those rules.
+- A bout in play on ANOTHER tablet, read ahead, opened here at 0:00 with Start and no double
+  counted. The tablet now keeps ahead a bout not started, or one whose clock it holds.
+- A piste read that failed waited five minutes. It is asked again after thirty seconds.
+- After a deploy, an install that the wifi cut short deleted the old, complete cache. Such an
+  install now fails when a worker is already active, and is tried again at the next page.
+
+What the falsifiers found (142 seeded breaks over three runs, all red at the end):
+
+- A fault of my own summary builder: a bracket stored with `mainBracketSize` had "B2" as its
+  round token where the round code said "SF". The comparison with the old code had missed it.
+- A check that changed nothing, removed (`e25b69f1`).
+
+Proof that no gate runs, done by hand: the REAL service worker on a production build, the server
+stopped. 25 checks of 25, in the shape of production (scripts under `/staff/_next/static/`), with
+a deploy in the middle. ARCHITECTURE 10.4 has the list.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **Cards in a bout read ahead.** The tablet does not keep the prior cards of the fighters for a
+  bout it never opened. With no wifi, a card there is worded as a first offence and not priced
+  until the server takes it. The server prices it right.
+- **Which bouts are kept ahead**: a bout not started whose Tournament's rules the tablet holds.
+  A bout in play elsewhere, or with no rules, is not kept: its tile leads to "not loaded".
+- **Every five minutes** for the piste read, thirty seconds after a read with no answer.
+- **The piste picker (`/lices`) with no wifi goes to sign-in too.** It said "could not check"
+  there. It is the same decision as the start page, and what the picker already did with no
+  service worker. From sign-in, only the browser's Back returns to the piste. Say if the picker
+  should stay where it is.
+- A bracket's bouts of one time now come in slot order on the piste list and the tiles.
+- A failed read of the Tournament, the Pool or the piste inside a bout's summary is now a server
+  error. Before, the summary came back with a blank weapon and default rounds.
+- The real-worker probe is a script run by hand, not a CI job.
+
+Named, not fixed (each read in code):
+
+- **An installed pad launched with no wifi lands on sign-in though it holds a piste** (ruling
+  241). With the piste kept, it could open the last piste. It needs a ruling.
+- A copy read ahead while a bout was not started stays when that bout starts on another tablet.
+  Opened here with no wifi, it offers Start; rulings 12 and 14 say what the server does with it.
+- With no wifi, a tile whose answer came from the server before the cut is not replaced by a
+  newer order the tablet read after it.
+- The bar says ONLINE while the bout on screen is the tablet's copy, when the tablet kept its
+  access point and only the uplink is gone.
+- An organiser with an account and no PIN gets no piste kept: the piste routes refuse that
+  session. The admin mount (`/staff/…`) has no service worker at all.
+- `tests/e2e/06` and `40` open the pad on the admin mount by default, where no worker is served:
+  they may not run under the worker they name. To check at the redeploy (`E2E_STAFF_URL`).
+- The pools and bracket panels of the piste page read the network only.
+- The QR scanner's decoder is loaded on first use: after a deploy it is not on the tablet until
+  the desk scans once with a network.
+- `/offline` is kept and never served.
+- One Tournament with a stored format the schema refuses now fails the read of its whole piste.
+  Every write path validates the format; only an old row or a hand-written one can do it.
+- On a real tablet the level-bout button shows the default step until the rules land; a tap in
+  that moment takes the default length on the tablet's clock. This was the cause of the unstable
+  story of `pad-level-no-network.spec.ts`, whose wait is fixed (`c2cda563`).
+- A container started by hand with no `GIT_COMMIT` serves its worker as "unknown", and two such
+  starts in a row do not renew the tablets' cache. The deploy scripts now warn when the pad does
+  not serve the new commit.
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.

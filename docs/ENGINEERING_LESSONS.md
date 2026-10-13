@@ -81,6 +81,27 @@ here.
   bout as the server's. The pad's buttons default to the federal `+2`/`+1`, so a config fetch that fails
   silently arms the wrong values on a custom ruleset and the queued hit is permanently wrong. A
   stale button beats a defaulted one — but only if the surface says which it is showing.
+- **A copy kept AHEAD must be a copy the screen can open whole.** The tablet reads its whole piste
+  so "Next match" works with no network. A bout read ahead has its row and its names and nothing
+  else. Two things that read as "kept" were not: a bout whose Tournament's rules had not landed
+  (it opened with the default buttons, in silence), and a bout in play on another tablet (it
+  opened at 0:00 with Start, with no double counted). Keep ahead only what is the whole truth of
+  the thing: a bout not started, with its rules. Leave the rest "not loaded", which is true.
+- **Two reads that write one copy need the time of the ASK, not of the write.** The slow read's
+  answer can land last and be the older one. Stamp a copy with the moment its read was asked, and
+  let an answer replace only a copy of an earlier ask, inside one transaction.
+- **A page with an id in its address must read the id from the address when a service worker can
+  serve it as a shell.** The `params` Next hands the page are those of the address the shell was
+  KEPT under. One shell per route (asked as `/matches/_`) then serves every bout.
+- **A cache that follows the deploy must be complete at install, and must not replace a whole
+  cache with half of one.** Before, the pad's cache name never changed (a `sed` in the deploy
+  script had stopped matching, behind `|| true`), so everything a tablet had ever opened stayed
+  on it, and nobody saw what was missing from a fresh cache. With a cache per commit: keep every
+  shell and every file it names at install; fail the install when the network cut it short and
+  an older worker is active; and check after a deploy that the pad serves the new version.
+- **The stubbed browser suite blocks service workers.** What only the worker can show needs the
+  worker: `next build`, `next start`, a Chromium with workers allowed, and the server STOPPED
+  for "no network" (not a flag in the page). The run of 2026-10-13 is in ARCHITECTURE §10.4.
 
 ## Frontend & UX
 
