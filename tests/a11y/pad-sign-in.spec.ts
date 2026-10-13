@@ -129,6 +129,16 @@ test('the field for a typed Event is called "Event code", in the words above it 
   await expect(page.getByText(/slug/i)).toHaveCount(0);
 });
 
+// Quick win S4. The list printed the date as the server stores it: 2026-08-08.
+test('the list of Events writes each date in words', async ({ page }) => {
+  await stubSignIn(page);
+  await openSignIn(page);
+
+  const row = page.getByRole('button', { name: /spring open/i });
+  await expect(row).toContainText('Sat, August 8, 2026');
+  await expect(row).not.toContainText('2026-08-08');
+});
+
 // Quick win S3. The organiser's form had no name: volunteers typed their email
 // in it. A failure printed "POST /api/v1/auth/magic-link failed (400)".
 test('the email form says whose it is', async ({ page }) => {

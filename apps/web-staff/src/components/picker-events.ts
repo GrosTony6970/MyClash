@@ -8,6 +8,28 @@ export interface PickerEvent {
   kind: string;
 }
 
+/**
+ * An Event's start date in the language of the screen (quick win S4).
+ *
+ * The server stores a day with no hour, `2026-08-08`, and the list printed it
+ * as stored. It is read as that day in UTC and written in UTC: read in the
+ * tablet's own zone, a tablet west of Greenwich would show the day before.
+ *
+ * The column is text. A value that is not a day is shown as stored.
+ */
+export function eventDateLabel(startDate: string, locale: string): string {
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDate);
+  if (!day) return startDate;
+  const at = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3])));
+  return at.toLocaleDateString(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export type PickerTab = 'live' | 'upcoming';
 
 export interface PartitionedEvents {

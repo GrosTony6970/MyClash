@@ -7,6 +7,7 @@ import { useRememberedEvent } from '../lib/last-event';
 import { eventKindTone, type EventKindTone } from '../lib/event-kind-badge';
 import {
   defaultPickerTab,
+  eventDateLabel,
   partitionPickerEvents,
   type PickerEvent,
   type PickerTab,
@@ -127,7 +128,7 @@ function EventRow({
   remembered: boolean;
   onSelect: (event: PickerEvent) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   return (
     <button
@@ -151,7 +152,11 @@ function EventRow({
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
         <span>{t(STATUS_KEYS[event.status] ?? 'scoring.login.picker.statusPublished')}</span>
-        <span>{event.startDate ?? t('scoring.login.picker.noDate')}</span>
+        <span>
+          {event.startDate === null
+            ? t('scoring.login.picker.noDate')
+            : eventDateLabel(event.startDate, locale)}
+        </span>
         <KindBadge kind={event.kind} />
         {event.status === 'draft' && (
           <Badge tone="warning">{t('scoring.login.picker.badgeDraft')}</Badge>

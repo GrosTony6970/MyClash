@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   defaultPickerTab,
+  eventDateLabel,
   partitionPickerEvents,
   resolveSelectedEvent,
   type PickerEvent,
@@ -84,5 +87,31 @@ describe('resolveSelectedEvent', () => {
     // A first-time tablet must not default to whatever happens to be first:
     // signing into the wrong event is precisely what the picker prevents.
     expect(resolveSelectedEvent(events, null, null)).toBeNull();
+  });
+});
+
+// Quick win S4: the list printed `2026-08-08`, the value as the server stores it.
+describe('eventDateLabel', () => {
+  it('writes the day in the language of the screen', () => {
+    expect(eventDateLabel('2026-08-08', 'en')).toMatch(/^Sat, August 8, 2026$/);
+    expect(eventDateLabel('2026-08-08', 'fr')).toMatch(/^sam\. 8 août 2026$/);
+  });
+
+  // Read in the tablet's zone, midnight UTC of 1 January is 31 December in Montréal.
+  it('is the stored day in any time zone of the tablet', () => {
+    expect(eventDateLabel('2026-01-01', 'en')).toMatch(/January 1, 2026/);
+    expect(eventDateLabel('2026-12-31', 'en')).toMatch(/December 31, 2026/);
+  });
+
+  it('shows a value that is not a day as it is stored', () => {
+    expect(eventDateLabel('2026-08-08T09:00:00Z', 'en')).toBe('2026-08-08T09:00:00Z');
+    expect(eventDateLabel('next summer', 'fr')).toBe('next summer');
+  });
+
+  it('the list writes the date with it, and keeps "no date" for a missing one', () => {
+    const picker = readFileSync(join(__dirname, 'EventPicker.tsx'), 'utf8');
+    expect(picker).toMatch(
+      /event\.startDate === null\s+\? t\('scoring\.login\.picker\.noDate'\)\s+: eventDateLabel\(event\.startDate, locale\)/,
+    );
   });
 });
