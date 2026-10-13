@@ -25,6 +25,7 @@ import {
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { boutPageHref } from '@/lib/bout-page';
 import { useI18n } from '@myclash/next-i18n/client';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
@@ -330,11 +331,9 @@ export function PoolMatchesView({
                   {pool.matches.map((m) => {
                     // Carry where "back" leads so the match page can return the
                     // spectator to this exact pool-matches tab.
-                    const returnTo = encodeURIComponent(
-                      `/e/${eventSlug}/t/${tournamentSlug}#poolmatches`,
-                    );
+                    const returnTo = `/e/${eventSlug}/t/${tournamentSlug}#poolmatches`;
                     const openMatch = () =>
-                      router.push(`/e/${eventSlug}/match/${m.matchId}?return=${returnTo}`);
+                      router.push(boutPageHref(eventSlug, m.matchId, returnTo));
                     const winner = resolveMatchWinner(m);
                     const redIsYou =
                       !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;

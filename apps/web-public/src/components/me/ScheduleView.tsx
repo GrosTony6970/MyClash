@@ -20,6 +20,7 @@ import {
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
 import { refereeRoleLabel } from './referee-role';
+import { boutPageHref } from '@/lib/bout-page';
 import {
   aggregateReferee,
   fightHeaderEnd,
@@ -389,9 +390,7 @@ export function ScheduleView({
           sideColors={m.sideColors}
           href={
             eventSlug
-              ? `/e/${eventSlug}/match/${m.id}?return=${encodeURIComponent(
-                  `/me/events/${eventSlug}/schedule`,
-                )}`
+              ? boutPageHref(eventSlug, m.id, `/me/events/${eventSlug}/schedule`)
               : undefined
           }
         />

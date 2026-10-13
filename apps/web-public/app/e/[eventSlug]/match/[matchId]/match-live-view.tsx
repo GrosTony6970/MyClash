@@ -274,8 +274,8 @@ interface Props {
   initialPenalties: MatchPenaltyRow[];
   /** Where the top back-link leads (validated root-relative path). */
   backHref: string;
-  /** True when `backHref` returns to the pool-matches list (vs. event home). */
-  backToMatchList: boolean;
+  /** What the back-link says, as a key: `backLabelKey` of `@/lib/bout-page` decides. */
+  backLabelKey: string;
 }
 
 export function MatchLiveView({
@@ -285,7 +285,7 @@ export function MatchLiveView({
   initialExchanges,
   initialPenalties,
   backHref,
-  backToMatchList,
+  backLabelKey,
 }: Props) {
   // Resolved here, not handed down from the server page: a server-resolved URL
   // is the docker-internal host, which the browser can't reach — the polling
@@ -358,15 +358,7 @@ export function MatchLiveView({
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
-      <BackLink
-        href={backHref}
-        label={
-          backToMatchList
-            ? t('scoring.lice.backToMatchList')
-            : t('publicApp.tournament.backToEventHome')
-        }
-        className="mb-4"
-      />
+      <BackLink href={backHref} label={t(backLabelKey)} className="mb-4" />
 
       {/* Freshness — the shared chip, so this page and the TV board can no
           longer disagree about what is true. A finished match is static and has

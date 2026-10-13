@@ -11,9 +11,10 @@
  *   ✓ "Focus on me" vs "Show all" toggle
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { boutPageHref } from '@/lib/bout-page';
 import { BackLink } from '@/components/BackLink';
 import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
@@ -426,8 +427,13 @@ export default function MySchedulePage() {
               const hasConflict = itemConflicts.length > 0;
 
               return (
-                <div
+                <ScheduleCard
                   key={key}
+                  href={
+                    item.kind === 'match'
+                      ? boutPageHref(eventSlug, item.data.id, `/e/${eventSlug}/my-schedule`)
+                      : undefined
+                  }
                   className={[
                     'border-2 rounded-xl px-4 py-3 text-sm',
                     hasConflict
@@ -509,13 +515,35 @@ export default function MySchedulePage() {
                       </span>
                     )}
                   </div>
-                </div>
+                </ScheduleCard>
               );
             })}
           </div>
         </section>
       ))}
     </main>
+  );
+}
+
+/**
+ * A card of the schedule. A bout's card is a link to the bout's page, where its
+ * score and its hits are. A duty and a Workshop have no page to open from here:
+ * a duty over a whole Pool names no bout.
+ */
+function ScheduleCard({
+  href,
+  className,
+  children,
+}: {
+  href?: string;
+  className: string;
+  children: ReactNode;
+}) {
+  if (!href) return <div className={className}>{children}</div>;
+  return (
+    <Link href={href} className={`${className} block transition-colors hover:border-muted`}>
+      {children}
+    </Link>
   );
 }
 

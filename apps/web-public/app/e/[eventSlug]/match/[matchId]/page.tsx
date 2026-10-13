@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { isOwnSitePath } from '@myclash/types';
 import { getServerApiUrl } from '@/lib/api-url';
+import { backLabelKey } from '@/lib/bout-page';
 import { loginCookieHeader } from '@/lib/login-cookie';
 import { MatchLiveView } from './match-live-view';
 import {
@@ -107,7 +108,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
       initialExchanges={exchanges}
       initialPenalties={penalties}
       backHref={backHref}
-      backToMatchList={validReturn !== null}
+      backLabelKey={backLabelKey(validReturn, eventSlug)}
     />
   );
 }
