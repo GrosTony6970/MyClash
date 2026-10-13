@@ -139,7 +139,7 @@ export function SyncBar({
       data-sync={phase}
       data-pending={pending}
       data-rejected={rejected}
-      className={`flex flex-wrap items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase)}`}
+      className={`flex flex-wrap items-center justify-center gap-2 px-4 py-1 text-xs font-bold text-center ${syncBarTone(phase, rejected)}`}
     >
       <span>
         {syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}

@@ -247,6 +247,7 @@ export const scoring = {
     hitsRefused:
       '{count} TOUCHE{plural} NON ENREGISTRÉE{plural} - LA SUITE DE L’ASSAUT ATTEND. OUVREZ EXAMINER',
     pressRefused: 'UNE ACTION SUR LE CHRONO A ÉTÉ REFUSÉE - SON ASSAUT ATTEND. EXAMINEZ-LA',
+    noConnectionToo: 'PAS DE CONNEXION',
     sessionEnded:
       "SESSION TERMINÉE - SAISIES NON ENVOYÉES. RECONNECTEZ-VOUS. SI L'ÉVÉNEMENT EST TERMINÉ, PRÉVENEZ UN ORGANISATEUR",
     accountCannotScore:

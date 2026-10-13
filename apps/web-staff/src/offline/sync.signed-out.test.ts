@@ -149,7 +149,7 @@ describe('the bout screen', () => {
     expect(syncBarLabel(phase, 2, t, 1, 0), 'a held hit does not reword it').toBe(
       '⚠ scoring.lice.sessionEnded',
     );
-    expect(syncBarTone(phase)).toBe(syncBarTone('error'));
+    expect(syncBarTone(phase, 0)).toBe(syncBarTone('error', 0));
     expect(needsOperator(phase)).toBe(true);
   });
 
@@ -163,7 +163,7 @@ describe('the bout screen', () => {
     expect(syncBarLabel('error', 0, t, 1, 0)).toBe('⚠ scoring.lice.syncError');
     expect(syncBarLabel('error', 1, t, 0, 0)).toBe('⚠ scoring.lice.hitsRefused');
     expect(needsOperator('offline')).toBe(false);
-    expect(syncBarTone('offline')).not.toBe(syncBarTone('error'));
+    expect(syncBarTone('offline', 0)).not.toBe(syncBarTone('error', 0));
   });
 
   it('draws the bar from those decisions', () => {
@@ -171,7 +171,7 @@ describe('the bout screen', () => {
     expect(bar).toContain(
       '{syncBarLabel(phase, rejected, t, pending, syncState?.heldPressCount ?? 0)}',
     );
-    expect(bar).toContain('${syncBarTone(phase)}');
+    expect(bar).toContain('${syncBarTone(phase, rejected)}');
     expect(bar).toContain('{offersRetry(phase, { rejected, sendable, pending }) && (');
   });
 

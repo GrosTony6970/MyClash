@@ -1195,10 +1195,14 @@ The split between `offline` and `error` is deliberate: a network failure means "
 resolve", whereas a server failure means "something needs a human". Both leave the exchanges queued.
 The rule is one for one entry as for ten (operator, 2026-10-12). A pass that left entries on the
 tablet says `offline` when at least one met no network (the service worker's 503, a fetch that
-threw), none met a fault of the server, and the inbox holds nothing (`emitWalked`). It says `error`
-when the server answered one with a fault, while a refused row is held, or when the pass tried
-nothing. Before, only three failures in a row said `offline`, so one or two entries behind a dead
-uplink read as a red sync error with a Retry. Nothing tells the engine that the network is back when
+threw) and none met a fault of the server (`emitWalked`). It says `error` when the server answered
+one with a fault, or when the pass tried nothing because its rows wait behind a refused row of their
+bout. Before, only three failures in a row said `offline`, so one or two entries behind a dead
+uplink read as a red sync error with a Retry. A refused row in the inbox does not turn "no network"
+into `error` (operator, 2026-10-13): the status stays `offline`, and the BAR is red over it, says
+the refusal and "no connection", and offers Review with no Retry (`syncBarTone` and `syncBarLabel`
+in `src/lib/sync-bar.ts`, which take the count of refused rows). With no refused row, `offline` is
+grey. Read-only mode keeps its grey bar over a refused row: not ruled. Nothing tells the engine that the network is back when
 the browser never left "online" (a tablet that keeps its access point while the uplink drops gets
 no `online` event). So while the status is `offline` and entries wait, the bout page sends again
 every 5 seconds (`useSendWhileOffline`, `offline/use-sync-state.ts`), on a browser that says it is
@@ -1532,7 +1536,7 @@ bouts is where an official sees that entries still wait.
   concluding a record is gone. `code` is for a reader behind `apiRequest`, which
   keeps the code of a refused answer and nothing else of its body: the start
   page tells this answer from a server that is up and answers 503
-  (`answeredFault`), and goes to sign-in with no network. `offlineResponse()`
+  (`answeredFault`, `neverLanded`). `offlineResponse()`
   (`offline/failure-kind.ts`) is the pad's copy of that body; a test pins the
   two as one. Setup data (the tournament's scoring rules, the penalty
   catalogue) is cached separately in IndexedDB by `offline/cached-reads.ts`.
@@ -1558,6 +1562,16 @@ bouts is where an official sees that entries still wait.
   next bout IN THE ORDER, with or without a copy.
 - The piste page with no network shows the list of its last good read, and
   says from when.
+- **The app opened with no network opens the piste the tablet last had**
+  (operator, 2026-10-13). The start page and the list of pistes ask who is
+  signed in; when a read got no answer and nothing proved a session
+  (`resolveStaffSession`, `no_network`), they go to `pisteWithNoNetwork`
+  (`src/lib/last-piste.ts`): the remembered piste, or sign-in for a tablet that
+  remembers none (the banner's sign-out forgets it). The piste is NOT checked
+  against the pistes of the sign-in, as it is with a network: the server
+  cannot be asked. The piste page asks it once the network is back, and a
+  session that has ended goes to sign-in there. The list of pistes itself is
+  not kept on the tablet.
 - **A bout the tablet has read opens with no network** (quick-win rulings 3, 9
   and 10). Each good read of a bout (`lib/bout-read.ts`) is kept in the same
   table by `offline/kept-bout.ts`. A read that finds no network, with no bout on
@@ -1585,11 +1599,15 @@ bouts is where an official sees that entries still wait.
   over a made-up cache and network) and one probe with the REAL worker, run by
   hand on 2026-10-13: a production build of the pad with its scripts under
   `/staff/_next/static/`, a Chromium with workers allowed, and the server
-  stopped for "no network". 25 checks of 25: the kept shell opens under
+  stopped for "no network" (32 checks of 32 at its last run, 2026-10-13; the
+  server must be started with the `STAFF_ASSET_PREFIX` of the build, or no
+  page runs its scripts): the kept shell opens under
   another bout's address, the address is not rewritten, the right bout shows
   from the tablet and names its next bout; a typed address and a reload do the
-  same; a piste page never opened is the piste page; the start page goes to
-  sign-in; every script comes from the cache (38 entries at install); and after
+  same; a piste page never opened is the piste page; the start page and the
+  list of pistes open the last piste, with the list the tablet kept and its
+  date, and the start page goes to sign-in when no piste is remembered; every
+  script comes from the cache (38 entries at install); and after
   a deploy (the same build served as another commit) the tablet has one cache,
   named after the new commit, and a bout opens from it with no network.
   `tests/e2e/41-next-bout-no-network.spec.ts` is the same story against a

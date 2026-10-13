@@ -214,7 +214,7 @@ describe('what the bar says of it', () => {
     expect(phase).toBe(status);
     expect(syncBarLabel(phase, 0, t, 1, 0)).toBe(`⚠ ${barKey}`);
     expect(syncBarLabel(phase, 2, t, 1, 0), 'a held hit does not reword it').toBe(`⚠ ${barKey}`);
-    expect(syncBarTone(phase)).toBe(syncBarTone('error'));
+    expect(syncBarTone(phase, 0)).toBe(syncBarTone('error', 0));
     expect(needsOperator(phase)).toBe(true);
     expect(syncPhaseOf('offline', status), 'browser-offline wins').toBe('offline');
   });

@@ -65,15 +65,35 @@ export function offersAccountSignOut(phase: SyncPhase): boolean {
 }
 
 /**
+ * A refused entry in the inbox while there is no network (operator,
+ * 2026-10-13): it needs the official, with or without wifi. The bar is red and
+ * says both. The phase stays `offline`: nothing can be sent, so no Retry.
+ */
+function refusedWithNoNetwork(phase: SyncPhase, rejected: number): boolean {
+  return phase === 'offline' && rejected > 0;
+}
+
+/**
  * Offline is neutral, not red: in a sports hall it is the expected state and
  * the outbox is doing its job. That frees danger for the states that need the
- * operator.
+ * operator, and for a refused entry the inbox holds (`refusedWithNoNetwork`).
  */
-export function syncBarTone(phase: SyncPhase): string {
+export function syncBarTone(phase: SyncPhase, rejected: number): string {
   if (phase === 'online') return 'bg-success/25 text-success';
   if (phase === 'syncing') return 'bg-warning/25 text-warning animate-pulse';
-  if (needsOperator(phase)) return 'bg-danger/25 text-danger';
+  if (needsOperator(phase) || refusedWithNoNetwork(phase, rejected)) {
+    return 'bg-danger/25 text-danger';
+  }
   return 'bg-muted/25 text-muted animate-pulse';
+}
+
+/** What the inbox holds, in the bar's words: a refused clock press is said first. */
+function refusedWords(rejected: number, heldPresses: number, t: Translate): string {
+  if (heldPresses > 0) return t('scoring.lice.pressRefused');
+  return t('scoring.lice.hitsRefused', {
+    count: String(rejected),
+    plural: rejected === 1 ? '' : 'S',
+  });
 }
 
 /**
@@ -87,6 +107,8 @@ export function syncBarTone(phase: SyncPhase): string {
  *
  * `heldPresses` rewords an error once more: a refused clock press stops the
  * rows of its bout behind it, so the bar says that first, whatever else is held.
+ *
+ * With no network a refused entry is still said, and "no connection" after it.
  */
 export function syncBarLabel(
   phase: SyncPhase,
@@ -110,16 +132,15 @@ export function syncBarLabel(
     case 'pin-role-refused':
       return `⚠ ${waits ? t('scoring.lice.pinRoleCannotScore') : t('scoring.lice.pinRoleCannotScoreNoHits')}`;
     case 'offline':
-      return `● ${t('scoring.lice.offlineQueued')}`;
+      return refusedWithNoNetwork(phase, rejected)
+        ? `⚠ ${refusedWords(rejected, heldPresses, t)} · ${t('scoring.lice.noConnectionToo')}`
+        : `● ${t('scoring.lice.offlineQueued')}`;
     case 'maintenance':
       return `● ${t('scoring.lice.maintenanceQueued')}`;
     case 'error':
-      if (heldPresses > 0) return `⚠ ${t('scoring.lice.pressRefused')}`;
+      // A held press is one of the refused entries: `rejected` counts it.
       return rejected > 0
-        ? `⚠ ${t('scoring.lice.hitsRefused', {
-            count: String(rejected),
-            plural: rejected === 1 ? '' : 'S',
-          })}`
+        ? `⚠ ${refusedWords(rejected, heldPresses, t)}`
         : `⚠ ${t('scoring.lice.syncError')}`;
   }
 }

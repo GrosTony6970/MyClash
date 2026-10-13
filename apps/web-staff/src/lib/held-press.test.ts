@@ -19,7 +19,7 @@ import {
   heldWhoLine,
 } from './held-hit';
 import { endRefusalMessage, heldReason } from './refusal-copy';
-import { syncBarLabel } from './sync-bar';
+import { offersRetry, syncBarLabel, syncBarTone } from './sync-bar';
 
 const t = (key: string, values?: Record<string, string | number>) =>
   values ? `${key} ${JSON.stringify(values)}` : key;
@@ -221,6 +221,46 @@ describe('the bar over a held press', () => {
   it('does not reword another state: a session that ended is said first', () => {
     expect(syncBarLabel('signed-out', 1, t, 1, 1)).toBe('⚠ scoring.lice.sessionEnded');
     expect(syncBarLabel('offline', 0, t, 1, 1)).toBe('● scoring.lice.offlineQueued');
+  });
+});
+
+// Operator, 2026-10-13. The server refused a hit; then the wifi drops. The bar
+// went grey ("offline"), as if nothing needed the official.
+describe('the bar over a refused entry with no network', () => {
+  const grey = syncBarTone('offline', 0);
+  const red = syncBarTone('error', 0);
+
+  it('is red: a refused entry needs the official, with or without wifi', () => {
+    expect(red).not.toBe(grey);
+    expect(syncBarTone('offline', 1)).toBe(red);
+  });
+
+  it('is grey with no refused entry: a hall with no wifi is no fault', () => {
+    expect(grey).toContain('text-muted');
+  });
+
+  it('says the refusal, and that there is no connection', () => {
+    expect(syncBarLabel('offline', 1, t, 3, 0)).toBe(
+      `⚠ ${t('scoring.lice.hitsRefused', { count: '1', plural: '' })} · scoring.lice.noConnectionToo`,
+    );
+    expect(syncBarLabel('offline', 2, t, 0, 1)).toBe(
+      '⚠ scoring.lice.pressRefused · scoring.lice.noConnectionToo',
+    );
+  });
+
+  it('offers no Retry: nothing can be sent', () => {
+    expect(offersRetry('offline', { rejected: 1, sendable: 1, pending: 3 })).toBe(false);
+  });
+
+  // Not ruled: read-only mode keeps its own words and its tone.
+  it('leaves read-only mode as it was', () => {
+    expect(syncBarTone('maintenance', 1)).toBe(grey);
+    expect(syncBarLabel('maintenance', 1, t, 3, 0)).toBe('● scoring.lice.maintenanceQueued');
+  });
+
+  it('the bar hands the count of refused entries to its tone', () => {
+    const bar = readFileSync(join(__dirname, '..', 'components', 'SyncBar.tsx'), 'utf8');
+    expect(bar).toContain('${syncBarTone(phase, rejected)}');
   });
 });
 

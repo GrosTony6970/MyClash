@@ -12,6 +12,7 @@ import 'fake-indexeddb/auto';
 import { db } from './db';
 import { enqueue, getPendingForMatch, getRejected, quarantine, takeOffTablet } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
+import { offersRetry, syncBarTone, syncPhaseOf } from '../lib/sync-bar';
 
 const API_URL = 'http://localhost:4000';
 
@@ -63,6 +64,22 @@ async function drained(status: number, waiting: number, body: unknown = {}) {
   const [held] = await getRejected();
   return { engine, heldId: held!.id as number, last: () => states.at(-1) };
 }
+
+// Operator, 2026-10-13: red, always. The engine's word does not change (Retry
+// and the organiser's board read it): the bar makes it red.
+describe('a refused hit in the inbox when three sends met no network', () => {
+  it('is "offline" for the engine, and red on the bar', async () => {
+    const { engine, last } = await drained(503, 3, { error: 'offline' });
+
+    await engine.drain();
+
+    expect(last()).toMatchObject({ status: 'offline', pendingCount: 3, rejectedCount: 1 });
+    const phase = syncPhaseOf('online', last()!.status);
+    expect(phase).toBe('offline');
+    expect(syncBarTone(phase, last()!.rejectedCount)).toBe(syncBarTone('error', 0));
+    expect(offersRetry(phase, { rejected: 1, sendable: 0, pending: 3 })).toBe(false);
+  });
+});
 
 describe('Discard in the refused-hits inbox', () => {
   it('keeps "session ended" while hits still wait for a sign-in', async () => {

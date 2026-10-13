@@ -101,6 +101,31 @@ test('the piste list tries again by itself while the queue waits for a network',
   await expect(bar(page)).toHaveAttribute('data-pending', '0');
 });
 
+// Operator, 2026-10-13. The bar went grey ("offline") over a refused entry, as
+// if nothing needed the official.
+test('a refused entry with no network: the bar is red, says both, and offers Review alone', async ({
+  page,
+}) => {
+  const stub = await pausedBout(page);
+  stub.refuseNextHit = 'match_locked';
+  await redHit(page).first().click();
+  await expect(held(page)).toContainText(/this bout is locked/i);
+
+  // The browser itself says there is no network, from the next page on.
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+  });
+  stub.network = 'down';
+  await openPiste(page);
+
+  await expect(bar(page)).toHaveAttribute('data-sync', 'offline');
+  await expect(bar(page)).toHaveAttribute('data-rejected', '1');
+  await expect(bar(page)).toHaveClass(/text-danger/);
+  await expect(bar(page)).toContainText(/not recorded.*no connection/i);
+  await expect(page.getByTestId('review-refused')).toBeVisible();
+  await expect(bar(page).getByRole('button', { name: /retry/i })).toHaveCount(0);
+});
+
 test('a refused entry is said on the piste list, and its inbox opens there', async ({ page }) => {
   const stub = await pausedBout(page);
   stub.refuseNextHit = 'match_locked';

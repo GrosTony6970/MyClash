@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
 import { quarantine } from './outbox';
 import { SyncEngine, type SyncState } from './sync';
+import { offersRetry, syncBarTone, syncPhaseOf } from '../lib/sync-bar';
 import {
   API_URL,
   OFFLINE,
@@ -107,13 +108,47 @@ describe('a send that tried nothing', () => {
     expect(server.calls).toEqual([]);
     expect(states.at(-1)).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 1 });
   });
+});
 
-  it('keeps error over a refused entry when another bout met no network', async () => {
+// Operator, 2026-10-13: red, always, and the bar says both. `error` here gave
+// the refusal with a Retry and no word of the network.
+describe('a refused entry in the inbox, and another bout met no network', () => {
+  it('says offline, with the refused entry counted: the bar is red over it', async () => {
     await quarantine(await addHit('m1'), 'Match is locked');
     await addHit('m2');
 
     const last = await sent(() => OFFLINE);
 
+    expect(last).toMatchObject({ status: 'offline', pendingCount: 1, rejectedCount: 1 });
+    expect(syncBarTone(syncPhaseOf('online', last?.status), 1)).toBe(syncBarTone('error', 0));
+    expect(offersRetry('offline', { rejected: 1, sendable: 0, pending: 1 })).toBe(false);
+  });
+
+  it('says error when that other bout met a fault of the server', async () => {
+    await quarantine(await addHit('m1'), 'Match is locked');
+    await addHit('m2');
+
+    const last = await sent(() => FAULT);
+
     expect(last).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 1 });
+  });
+
+  // The dead network of one send is not remembered by the next.
+  it('says error again once the network is back and only its own bout waits behind it', async () => {
+    await quarantine(await addHit('m1'), 'Match is locked');
+    await addHit('m2');
+    let down = true;
+    mockServer(() => (down ? OFFLINE : undefined));
+    const engine = new SyncEngine(API_URL);
+    const states: SyncState[] = [];
+    engine.subscribe((state) => states.push(state));
+    await engine.drain();
+    expect(states.at(-1)?.status).toBe('offline');
+
+    down = false;
+    await addHit('m1');
+    await engine.drain();
+
+    expect(states.at(-1)).toMatchObject({ status: 'error', pendingCount: 1, rejectedCount: 1 });
   });
 });

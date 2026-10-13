@@ -139,7 +139,7 @@ describe('the bar during maintenance', () => {
 
   it('is calm like offline, not red: the operator did nothing wrong', () => {
     expect(needsOperator(phase)).toBe(false);
-    expect(syncBarTone(phase)).toBe(syncBarTone('offline'));
+    expect(syncBarTone(phase, 0)).toBe(syncBarTone('offline', 0));
   });
 
   it('offers Retry while a hit waits, and only then', () => {

@@ -150,6 +150,8 @@ export class SyncEngine {
   private aborted = false;
   /** A row of the pass that runs met a fault of the server, and not a dead network. */
   private metFault = false;
+  /** A row of the pass that runs met a dead network. */
+  private metNoNetwork = false;
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
   /**
@@ -579,6 +581,7 @@ export class SyncEngine {
   /** Walks the queue as it is now. `stopped`: an answer ended the send, and the bar says which. */
   private async sendPass(): Promise<'empty' | 'walked' | 'stopped'> {
     this.metFault = false;
+    this.metNoNetwork = false;
     const pending = await getAllPending();
     if (pending.length === 0) return 'empty';
 
@@ -599,6 +602,7 @@ export class SyncEngine {
       if (outcome === 'stopped') return 'stopped';
       order.note(entry, outcome);
       if (outcome === 'failed') this.metFault = true;
+      if (outcome === 'offline') this.metNoNetwork = true;
       // A row that waits behind a server fault of its own bout says nothing
       // about the network: other bouts go on. Behind a dead network it counts,
       // so three rows of one bout still end the send as "offline".
@@ -619,14 +623,19 @@ export class SyncEngine {
    * The end of a send that walked the whole queue: green, or what still waits.
    * Rows that met no network and nothing else wait as `offline`, one row as
    * ten (operator, 2026-10-12): a hall with wifi and no internet is no fault
-   * of the server. Red stays for an answer of the server, and while the inbox
-   * holds a refused row: the rows behind it are tried by no send. A row left
-   * by a pass that walked the queue, with nothing held, met one or the other.
+   * of the server. `error` stays for an answer of the server, and for rows
+   * that only wait behind a refused row of their bout: they are tried by no
+   * send, so no network was met. A row left by a pass that walked the queue,
+   * with nothing held, met one or the other.
+   *
+   * A refused row in the inbox does not turn "no network" into `error`
+   * (operator, 2026-10-13): the bar is red over it all the same, says both,
+   * and offers no Retry that could send nothing (`lib/sync-bar.ts`).
    */
   private async emitWalked(): Promise<void> {
     if ((await totalPendingCount()) === 0) return this.emit('idle');
-    const noNetworkAlone = !this.metFault && (await rejectedCount()) === 0;
-    if (noNetworkAlone) return this.emit('offline');
+    if (this.metFault) return this.emit('error', 'Some exchanges could not be synced');
+    if (this.metNoNetwork || (await rejectedCount()) === 0) return this.emit('offline');
     return this.emit('error', 'Some exchanges could not be synced');
   }
 

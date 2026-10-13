@@ -248,6 +248,8 @@ export const scoring = {
     hitsRefused: '{count} HIT{plural} NOT RECORDED - THE REST OF THE MATCH WAITS. OPEN REVIEW',
     // A refused clock press stops the rows of its match behind it.
     pressRefused: 'A CLOCK PRESS WAS REFUSED - ITS MATCH WAITS. REVIEW IT',
+    // Said after one of the two lines above when there is no network either.
+    noConnectionToo: 'NO CONNECTION',
     // The server answered 401: nothing is refused, the queue waits (ruling 241).
     sessionEnded:
       'SESSION ENDED - ENTRIES NOT SENT. SIGN IN AGAIN. IF THE EVENT IS OVER, TELL AN ORGANISER',
