@@ -1819,7 +1819,9 @@ export class LeaguesService {
   ) {
     let q = this.supabase.service
       .from('league_rankings')
-      .select('*, global_persons(display_name, slug, clubs(name, city))')
+      .select(
+        '*, global_persons(display_name, slug, deleted_at, merged_into_id, account_deleted_at, clubs(name, city))',
+      )
       .eq('league_id', leagueId)
       .order('ranking_group_key', { ascending: true })
       .order('rank', { ascending: true });

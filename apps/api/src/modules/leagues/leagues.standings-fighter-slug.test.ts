@@ -23,7 +23,13 @@ vi.mock('../../common/auth/hidden-entrants', async (original) => ({
 
 const LEAGUE = '11111111-1111-4111-8111-111111111111';
 
-const ranked = (rank: number, profileId: string, name: string, slug: string | null) => ({
+const LIVE: Record<'deleted_at' | 'merged_into_id' | 'account_deleted_at', string | null> = {
+  deleted_at: null,
+  merged_into_id: null,
+  account_deleted_at: null,
+};
+
+const ranked = (rank: number, profileId: string, name: string, slug: string, state = LIVE) => ({
   id: `rank-${rank}`,
   league_id: LEAGUE,
   ranking_group_key: 'longsword',
@@ -34,14 +40,20 @@ const ranked = (rank: number, profileId: string, name: string, slug: string | nu
   double_hit_average: '0',
   per_tournament: [],
   global_person_id: profileId,
-  global_persons: { display_name: name, slug, clubs: { name: 'Club A', city: 'Lyon' } },
+  global_persons: { display_name: name, slug, ...state, clubs: { name: 'Club A', city: 'Lyon' } },
 });
 
+const AT = '2026-09-01T10:00:00.000Z';
 const RANKINGS = [
   ranked(1, 'gp-lea', 'Léa Martin', 'lea-martin'),
   ranked(2, 'gp-hidden', 'Paul Hidden', 'paul-hidden'),
-  ranked(3, 'gp-noslug', 'Ada Noslug', null),
+  // Each is a profile the public may know of, and each has no page left (`isReachable`).
+  ranked(3, 'gp-merged', 'Ada Merged', 'ada-merged', { ...LIVE, merged_into_id: 'gp-lea' }),
+  ranked(4, 'gp-deleted', 'Bob Deleted', 'bob-deleted', { ...LIVE, deleted_at: AT }),
+  ranked(5, 'gp-erased', 'Eve Erased', 'eve-erased', { ...LIVE, account_deleted_at: AT }),
 ];
+const ALL_IDS = RANKINGS.map((row) => row.global_person_id);
+const NO_PAGE = RANKINGS.slice(1).map((row) => row.global_persons.slug);
 
 function build() {
   const db = mockSupabase({
@@ -72,7 +84,7 @@ const rowsOf = (payload: { rows: unknown[] }) => payload.rows as StandingsRow[];
 
 beforeEach(() => {
   known.mockReset();
-  known.mockResolvedValue(new Set(['gp-lea', 'gp-noslug']));
+  known.mockResolvedValue(new Set(ALL_IDS.filter((id) => id !== 'gp-hidden')));
 });
 
 describe("a standings row says where the fighter's public page is (F21)", () => {
@@ -90,14 +102,19 @@ describe("a standings row says where the fighter's public page is (F21)", () => 
     expect(JSON.stringify(hidden)).not.toContain('paul-hidden');
   });
 
-  it('gives null for a known profile that has no slug', async () => {
-    const [, , noSlug] = rowsOf(await build().controller.standings(LEAGUE, {}));
-    expect(noSlug!['fighterSlug']).toBeNull();
+  it.each([
+    [2, 'merged into another profile'],
+    [3, 'deleted'],
+    [4, 'erased with its account'],
+  ])('gives null for a profile the public knows of that was %#: %s', async (index) => {
+    const row = rowsOf(await build().controller.standings(LEAGUE, {}))[index]!;
+    expect(row['fighterSlug']).toBeNull();
+    expect(row.global_persons['display_name']).toBe(RANKINGS[index]!.global_persons.display_name);
   });
 
-  it('sends no raw slug on any row: fighterSlug is the one word', async () => {
+  it('sends the name and the club of a profile, and nothing else of it', async () => {
     for (const row of rowsOf(await build().controller.standings(LEAGUE, {}))) {
-      expect(row.global_persons).not.toHaveProperty('slug');
+      expect(Object.keys(row.global_persons).sort()).toEqual(['clubs', 'display_name']);
       expect(row.global_persons['clubs']).toEqual({ name: 'Club A', city: 'Lyon' });
     }
   });
@@ -106,22 +123,22 @@ describe("a standings row says where the fighter's public page is (F21)", () => 
     const { controller, supabase } = build();
     await controller.standings(LEAGUE, {});
     expect(known).toHaveBeenCalledTimes(1);
-    expect(known).toHaveBeenCalledWith({ supabase }, ['gp-lea', 'gp-hidden', 'gp-noslug']);
+    expect(known).toHaveBeenCalledWith({ supabase }, ALL_IDS);
   });
 
-  it("reads each ranked profile's slug", async () => {
+  it("reads each ranked profile's slug, and what says the profile is still there", async () => {
     const { db, controller } = build();
     await controller.standings(LEAGUE, {});
-    // The double ignores projections: only this pin sees the slug go.
+    // The double ignores projections: only this pin sees a column go.
     expect(selectsFor(db.from, 'league_rankings')).toEqual([
-      '*, global_persons(display_name, slug, clubs(name, city))',
+      '*, global_persons(display_name, slug, deleted_at, merged_into_id, account_deleted_at, clubs(name, city))',
     ]);
   });
 
   it("answers the league admin's standings the same way", async () => {
     const rows = rowsOf(await build().service.adminStandings(LEAGUE, 'u-padmin'));
-    expect(rows.map((row) => row['fighterSlug'])).toEqual(['lea-martin', null, null]);
-    expect(JSON.stringify(rows)).not.toContain('paul-hidden');
+    expect(rows.map((row) => row['fighterSlug'])).toEqual(['lea-martin', null, null, null, null]);
+    for (const slug of NO_PAGE) expect(JSON.stringify(rows)).not.toContain(slug);
   });
 
   it('fails when the question fails: never every name a link, never none', async () => {
