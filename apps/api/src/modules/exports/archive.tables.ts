@@ -397,6 +397,7 @@ const TABLES = {
     json: [
       { path: 'payload_json.penaltyIds[]', map: 'matchPenalties' },
       { path: 'payload_json.reopenedBy', map: 'matchPenalties' },
+      { path: 'payload_json.answeredIds[]', map: 'matchPenalties' },
     ],
   },
 

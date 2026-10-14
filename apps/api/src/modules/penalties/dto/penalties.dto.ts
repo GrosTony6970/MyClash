@@ -143,5 +143,12 @@ export class PublishPenaltyRulesetDto extends createZodDto(publishPenaltyRuleset
 const rollbackPenaltyRulesetSchema = z.object({ versionId: z.uuid() }).strict();
 export class RollbackPenaltyRulesetDto extends createZodDto(rollbackPenaltyRulesetSchema) {}
 
-const reviewPenaltySchema = z.object({ status: z.enum(['confirmed', 'dismissed']) }).strict();
+const reviewPenaltySchema = z
+  .object({
+    status: z.enum(['confirmed', 'dismissed']),
+    // The review's `updated_at` as the organiser's page showed it: the answer is to THAT review.
+    // A black card that landed since changed it, and the answer is refused (409).
+    seenUpdatedAt: z.string().min(1),
+  })
+  .strict();
 export class ReviewPenaltyDto extends createZodDto(reviewPenaltySchema) {}

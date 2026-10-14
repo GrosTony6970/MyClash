@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 
 /**
@@ -51,30 +52,41 @@ export function nextReview(
     payload_json: {
       ...payload,
       penaltyIds: cardIds,
-      ...(reopen ? { reopenedFrom: 'dismissed', reopenedBy: card } : {}),
+      // The cards the dismissal answered, for the void that may give it back.
+      ...(reopen ? { reopenedFrom: 'dismissed', reopenedBy: card, answeredIds: counted } : {}),
     },
   };
 }
 
 /**
- * The review once black card `voided` is taken back and `liveIds` are the cards left (rulings
- * 2026-10-14). Voiding the card that reopened a dismissed review gives the answer back; any other
- * void keeps the status, and the count follows the live cards. Below two live cards, a review
- * nobody ever answered goes (`'drop'`), and a reopened one goes back to its answer.
+ * The review once a black card is taken back and `liveIds` are the cards left (rulings
+ * 2026-10-14). A reopened review gets its answer back once every live card is one that answer
+ * covered: voiding the card that reopened it does that, unless another new card came since,
+ * which then holds the review open in its place. Below two live cards it gets its answer back
+ * too. Any other void keeps the status, and the count follows the live cards. Below two live
+ * cards, a review nobody ever answered goes (`'drop'`).
  */
 export function reviewAfterVoid(
   review: Pick<ReviewRead, 'status' | 'payload_json'>,
   liveIds: string[],
-  voided: string,
 ): ReturnType<typeof nextReview> | 'drop' {
   const payload = { ...(review.payload_json ?? {}) };
-  const answer = payload['reopenedFrom'];
-  const reopened = answer === 'dismissed';
-  if (reopened && (payload['reopenedBy'] === voided || liveIds.length < 2)) {
+  if (payload['reopenedFrom'] === 'dismissed') {
+    const answered = Array.isArray(payload['answeredIds'])
+      ? (payload['answeredIds'] as unknown[])
+      : [];
+    const unanswered = liveIds.filter((id) => !answered.includes(id));
+    if (unanswered.length === 0 || liveIds.length < 2) {
+      return {
+        status: 'dismissed',
+        black_card_count: liveIds.length,
+        payload_json: { ...answeredPayload(payload), penaltyIds: liveIds },
+      };
+    }
     return {
-      status: 'dismissed',
+      status: review.status,
       black_card_count: liveIds.length,
-      payload_json: { ...answeredPayload(payload), penaltyIds: liveIds },
+      payload_json: { ...payload, penaltyIds: liveIds, reopenedBy: unanswered[0] },
     };
   }
   if (liveIds.length < 2 && review.status === 'pending') return 'drop';
@@ -105,9 +117,23 @@ export function sameReview(read: ReviewRead, next: ReturnType<typeof nextReview>
   );
 }
 
+/** The code of an answer refused because a card changed the review since the page read it. */
+export const REVIEW_CHANGED = 'penalty_review_changed';
+
+export const reviewChanged = () =>
+  new ConflictException({
+    message: 'A black card changed this review since it was shown: read it again',
+    code: REVIEW_CHANGED,
+  });
+
 /** An organiser's answer is the review's own: what a card had reopened is forgotten. */
 export function answeredPayload(payload: unknown): Row {
-  const { reopenedFrom: _from, reopenedBy: _by, ...rest } = (payload ?? {}) as Row;
+  const {
+    reopenedFrom: _from,
+    reopenedBy: _by,
+    answeredIds: _answered,
+    ...rest
+  } = (payload ?? {}) as Row;
   return rest;
 }
 

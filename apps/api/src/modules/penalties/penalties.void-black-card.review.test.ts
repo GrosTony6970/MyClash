@@ -85,6 +85,7 @@ describe('PenaltiesService.voidPenalty: the second black card review', () => {
           penaltyIds: ['card-a', 'card-b', 'card-black'],
           reopenedFrom: 'dismissed',
           reopenedBy: 'card-black',
+          answeredIds: ['card-a', 'card-b'],
         }),
       ],
     });
@@ -99,6 +100,35 @@ describe('PenaltiesService.voidPenalty: the second black card review', () => {
     expect(scopedTo(update, 'updated_at')).toBe(VERSION);
   });
 
+  // Found by the review: c1 c2 dismissed, c3 reopens, c4 comes, c3 is voided. The dismissal
+  // never saw c4: the review stays pending, held open by c4.
+  it('keeps the review pending when a card the dismissal never saw is still live', async () => {
+    const { db, undo } = setup({
+      cards: [
+        blackCard(),
+        blackCard({ id: 'card-a', ...elsewhere }),
+        blackCard({ id: 'card-b', ...elsewhere }),
+        blackCard({ id: 'card-d', ...elsewhere }),
+      ],
+      reviews: [
+        reviewOf('pending', {
+          penaltyIds: ['card-a', 'card-b', 'card-black', 'card-d'],
+          reopenedFrom: 'dismissed',
+          reopenedBy: 'card-black',
+          answeredIds: ['card-a', 'card-b'],
+        }),
+      ],
+    });
+
+    await undo();
+
+    expect(answer(db)[0]?.row).toMatchObject({
+      status: 'pending',
+      black_card_count: 3,
+      payload_json: { reopenedFrom: 'dismissed', reopenedBy: 'card-d' },
+    });
+  });
+
   it('keeps a reopened review pending when another card is voided and two remain', async () => {
     const { db, undo } = setup({
       cards: [
@@ -111,6 +141,7 @@ describe('PenaltiesService.voidPenalty: the second black card review', () => {
           penaltyIds: ['card-a', 'card-black', 'card-c'],
           reopenedFrom: 'dismissed',
           reopenedBy: 'card-c',
+          answeredIds: ['card-a', 'card-black'],
         }),
       ],
     });
@@ -132,6 +163,7 @@ describe('PenaltiesService.voidPenalty: the second black card review', () => {
           penaltyIds: ['card-black', 'card-c'],
           reopenedFrom: 'dismissed',
           reopenedBy: 'card-c',
+          answeredIds: ['card-x', 'card-black'],
         }),
       ],
     });

@@ -27,6 +27,8 @@ export interface PenaltyReview {
   black_card_count: number | null;
   created_at: string;
   reviewed_at: string | null;
+  /** The review's version: an answer is to the review as shown (refused if a card changed it). */
+  updated_at: string;
 }
 
 export interface PenaltyReviewsRead {

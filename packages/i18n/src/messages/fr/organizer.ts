@@ -310,6 +310,8 @@ export const organizer = {
     dismissPrompt:
       'Rejeter la révision de {name} dans {tournament} ? Le combattant reste dans le tournoi.',
     disqualifyAfterAll: 'Disqualifier quand même',
+    changedSince:
+      'Un nouveau carton noir a changé la révision de {name} depuis son affichage. Relisez-la, puis répondez.',
     confirmedToast: '{name} disqualifie.',
     dismissedToast: 'Revision rejetée.',
     actionFailed: 'Impossible de mettre à jour la revision.',

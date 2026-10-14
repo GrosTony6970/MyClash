@@ -38,7 +38,11 @@ import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
-import { answeredPayload, syncSecondBlackCardReview } from './second-black-card-review';
+import {
+  answeredPayload,
+  reviewChanged,
+  syncSecondBlackCardReview,
+} from './second-black-card-review';
 import type {
   AssignPenaltyRulesetDto,
   CreatePenaltyDto,
@@ -1210,13 +1214,10 @@ export class PenaltiesService {
       userId,
     );
 
-    if (dto.status === 'confirmed') {
-      await this.supabase.service
-        .from('registrations')
-        .update({ status: 'disqualified' })
-        .eq('id', review['registration_id'] as string);
-    }
-
+    // The answer is to the review the organiser saw. A black card that landed since changed it
+    // (its count, or a dismissal it reopened), and so does one landing between this read and
+    // this write: either way she is told, and her page reads it again.
+    if (review['updated_at'] !== dto.seenUpdatedAt) throw reviewChanged();
     const { data, error } = await this.supabase.service
       .from('tournament_penalty_reviews')
       .update({
@@ -1227,9 +1228,19 @@ export class PenaltiesService {
         payload_json: answeredPayload(review['payload_json']),
       })
       .eq('id', reviewId)
+      .eq('updated_at', review['updated_at'] as string)
       .select('*')
-      .single();
+      .maybeSingle();
     if (error) throw new BadRequestException(error.message);
+    if (!data) throw reviewChanged();
+
+    // After the answer is written: a refused answer disqualifies nobody.
+    if (dto.status === 'confirmed') {
+      await this.supabase.service
+        .from('registrations')
+        .update({ status: 'disqualified' })
+        .eq('id', review['registration_id'] as string);
+    }
     return data;
   }
 

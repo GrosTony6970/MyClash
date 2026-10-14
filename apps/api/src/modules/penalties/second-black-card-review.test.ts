@@ -57,6 +57,7 @@ describe('nextReview', () => {
         penaltyIds: ['c-1', 'c-2', 'c-3'],
         reopenedFrom: 'dismissed',
         reopenedBy: 'c-3',
+        answeredIds: ['c-1', 'c-2'],
       },
     });
   });
@@ -205,7 +206,12 @@ describe('syncSecondBlackCardReview', () => {
 describe('answeredPayload', () => {
   it('forgets what a card reopened once the organiser answers', () => {
     expect(
-      answeredPayload({ penaltyIds: ['c-1'], reopenedFrom: 'dismissed', reopenedBy: 'c-3' }),
+      answeredPayload({
+        penaltyIds: ['c-1'],
+        reopenedFrom: 'dismissed',
+        reopenedBy: 'c-3',
+        answeredIds: ['c-1'],
+      }),
     ).toEqual({ penaltyIds: ['c-1'] });
   });
 });

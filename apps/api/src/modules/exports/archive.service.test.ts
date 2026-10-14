@@ -513,7 +513,12 @@ describe('ArchiveService', () => {
         black_card_count: 2,
         // match_penalties.id values, in an array inside a JSON column, and the one
         // card that reopened a dismissed review.
-        payload_json: { penaltyIds: ['mp-1'], reopenedFrom: 'dismissed', reopenedBy: 'mp-1' },
+        payload_json: {
+          penaltyIds: ['mp-1'],
+          reopenedFrom: 'dismissed',
+          reopenedBy: 'mp-1',
+          answeredIds: ['mp-1'],
+        },
       },
     ],
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
@@ -706,6 +711,7 @@ describe('ArchiveService', () => {
         penaltyIds: [penaltyId],
         reopenedFrom: 'dismissed',
         reopenedBy: penaltyId,
+        answeredIds: [penaltyId],
       });
     });
 

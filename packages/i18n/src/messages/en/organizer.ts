@@ -315,6 +315,8 @@ export const organizer = {
     // O11: Dismiss asks too; a dismissed review can still be confirmed.
     dismissPrompt: 'Dismiss the review of {name} in {tournament}? They stay in the tournament.',
     disqualifyAfterAll: 'Disqualify after all',
+    changedSince:
+      'A new black card changed the review of {name} since it was shown. Read it again, then answer.',
     confirmedToast: '{name} disqualified.',
     dismissedToast: 'Review dismissed.',
     actionFailed: 'Could not update the review.',

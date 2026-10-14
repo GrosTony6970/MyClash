@@ -161,8 +161,8 @@ export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Act
 
 /**
  * The review "a second black card" asked for follows the cards left once a black card is
- * voided (`reviewAfterVoid`): the void of the card that reopened a dismissed review gives the
- * answer back; a review nobody answered goes once fewer than two live cards remain; otherwise
+ * voided (`reviewAfterVoid`): a reopened review gets its answer back once every live card is one
+ * the answer covered; a review nobody answered goes once fewer than two live cards remain; otherwise
  * the count follows. Written over the review as it was read, once more if it moved.
  */
 export async function dropSpentBlackCardReview(db: Client, card: Row): Promise<void> {
@@ -178,7 +178,7 @@ export async function dropSpentBlackCardReview(db: Client, card: Row): Promise<v
       );
       const review = await readReview(db, tournamentId, registrationId);
       if (!review) return;
-      const next = reviewAfterVoid(review, live, String(card['id']));
+      const next = reviewAfterVoid(review, live);
       if (next !== 'drop' && sameReview(review, next)) return;
       const written =
         next === 'drop'

@@ -11379,6 +11379,7 @@ export interface components {
     ReviewPenaltyDto: {
       /** @enum {string} */
       status: 'confirmed' | 'dismissed';
+      seenUpdatedAt: string;
     };
     SubscribeDto: {
       /** Format: uri */

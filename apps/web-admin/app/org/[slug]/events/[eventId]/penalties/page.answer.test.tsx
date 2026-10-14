@@ -37,7 +37,9 @@ const review = (id: string, status: string, reviewedAt: string | null = null) =>
   black_card_count: 2,
   created_at: '2026-10-14T09:00:00Z',
   reviewed_at: reviewedAt,
+  updated_at: SEEN,
 });
+const SEEN = '2026-10-14T09:30:00.123456+00:00';
 const EVENT = { id: EVENT_ID, name: 'Open 2026', status: 'running', timezone: 'America/New_York' };
 const readsWith = (reviews: unknown[], event: object = EVENT) => ({
   [`/api/v1/events/${EVENT_ID}`]: event,
@@ -94,7 +96,7 @@ describe('answering a penalty review', () => {
     expect(button('Confirm disqualification').disabled).toBe(true);
     await act(async () => land({ ok: true, data: {} }));
     await page.settle();
-    expect(sentBodies()).toEqual([{ status: 'dismissed' }]);
+    expect(sentBodies()).toEqual([{ status: 'dismissed', seenUpdatedAt: SEEN }]);
   });
 
   it('dates a resolved review on the Event clock', async () => {
@@ -116,7 +118,36 @@ describe('answering a penalty review', () => {
     expect(dialog()?.textContent).toContain('Disqualify Ana Roux from Longsword?');
     await tap([...dialog()!.querySelectorAll<HTMLButtonElement>('button')].pop()!);
     expect(page.writes()).toEqual([ANSWER('rv-2')]);
-    expect(sentBodies()).toEqual([{ status: 'confirmed' }]);
+    expect(sentBodies()).toEqual([{ status: 'confirmed', seenUpdatedAt: SEEN }]);
+  });
+
+  // From the review of push 3: a card that landed after the page read the review.
+  it('says a new card changed the review, and reads it again, when the answer is refused', async () => {
+    page = await openEventPage(<PenaltyReviewsPage />, readsWith([review('rv-1', 'pending')]));
+    const served = vi.mocked(apiRequest).getMockImplementation()!;
+    const reads = () =>
+      vi.mocked(apiRequest).mock.calls.filter(([, path]) => path.endsWith('/penalty-reviews'))
+        .length;
+    const before = reads();
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) =>
+      init?.method === 'PATCH'
+        ? {
+            ok: false,
+            kind: 'http',
+            status: 409,
+            detail: 'changed',
+            validationErrors: null,
+            code: 'penalty_review_changed',
+            details: null,
+          }
+        : served(base, path, init),
+    );
+    await tap(button('Dismiss'));
+    await tap(button('Dismiss', dialog()!));
+    expect(document.body.textContent).toContain(
+      'A new black card changed the review of Ana Roux since it was shown.',
+    );
+    expect(reads()).toBeGreaterThan(before);
   });
 
   it('closes every answer on an archived Event', async () => {

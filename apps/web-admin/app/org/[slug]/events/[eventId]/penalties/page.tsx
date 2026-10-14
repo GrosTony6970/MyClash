@@ -87,9 +87,16 @@ export default function PenaltyReviewsPage() {
     setWriting(true);
     const r = await apiRequest(apiUrl, `/api/v1/tournament-penalty-reviews/${review.id}`, {
       method: 'PATCH',
-      body: { status },
+      body: { status, seenUpdatedAt: review.updated_at },
     });
     setWriting(false);
+    // A black card changed the review since it was shown: the answer is refused, and the page
+    // reads the review again so the organiser answers what is there now.
+    if (!r.ok && r.kind === 'http' && r.code === 'penalty_review_changed') {
+      toast.warning(t('organizer.penaltyReviews.changedSince', { name }));
+      refresh();
+      return;
+    }
     if (!r.ok) {
       const message = failureMessage(r, t, t('organizer.penaltyReviews.actionFailed'));
       if (message) toast.error(message);
