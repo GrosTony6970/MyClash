@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
+import { PageAlert, errorOutcome, type Outcome } from '@/components/PageAlert';
 import {
   ConfirmDialog,
   Modal,
@@ -223,6 +224,8 @@ export default function ParticipantsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
   const [addError, setAddError] = useState<string | null>(null);
+  /** The roster's own read failed: said on the page, not in a window. */
+  const [readFailure, setReadFailure] = useState<Outcome | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [selectedTournaments, setSelectedTournaments] = useState<Set<string>>(new Set());
   const [globalSearch, setGlobalSearch] = useState('');
@@ -303,12 +306,12 @@ export default function ParticipantsPage() {
       }
       // The three lists were tolerant and stay tolerant — the roster draws from
       // whatever landed — but a refusal reached nothing at all, so an empty
-      // roster and a refused roster looked identical.
+      // roster and a refused roster looked identical. It is the PAGE's alert: it
+      // once went to the Add window's line, and showed only when that opened.
       const failed = [pRes, rRes, tRes].find((r) => !r.ok);
-      if (failed && !failed.ok) {
-        const message = failureMessage(failed, t, t('admin.orgPersons.loadError'));
-        if (message) setAddError(message);
-      }
+      const message =
+        failed && !failed.ok ? failureMessage(failed, t, t('admin.orgPersons.loadError')) : null;
+      setReadFailure(message ? errorOutcome(message) : null);
     });
     return () => controller.abort();
   }, [eventId, apiUrl, refreshKey, t]);
@@ -1075,6 +1078,8 @@ export default function ParticipantsPage() {
           </button>
         </div>
       </div>
+
+      <PageAlert outcome={readFailure} className="mb-4" />
 
       {/* Slice 5: top-level mode toggle. 'Persons' is the existing roster
        *  view; 'Waiting list' renders per-tournament queue tables instead. */}
