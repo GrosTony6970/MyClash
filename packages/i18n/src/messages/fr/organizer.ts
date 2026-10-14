@@ -2714,6 +2714,8 @@ export const organizer = {
     copied: 'Copie.',
     showPin: 'Afficher le PIN',
     hidePin: 'Masquer le PIN',
+    resetPinFor: 'Nouveau PIN pour {name}',
+    newPin: 'Nouveau PIN',
     resetPinError: 'Impossible de réinitialiser le PIN.',
     resetPinDone: 'PIN mis à jour.',
     pinHint: 'De 6 à 16 chiffres. Évitez les suites et les répétitions.',

@@ -7,7 +7,6 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { createAccountProblem } from './create-account-feedback';
-import { pinProblem } from './pin-feedback';
 import type { EventInfo, Lice, StaffAccount } from './types';
 
 export interface NewStaffAccount {
@@ -216,15 +215,8 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
     async (account: StaffAccount, pin: string) => {
       setError(null);
       setNotice(null);
-      // Checked before the request because the reset prompt is the generic
-      // masked `usePrompt` — it has nowhere to render a live rule — and a
-      // rejected PIN would otherwise come back as an unexplained 400.
-      const problem = pinProblem(pin, t);
-      if (problem !== null) {
-        setError(problem);
-        return;
-      }
-      // The new PIN is never echoed back, so a silent failure here is
+      // The reset box checks the PIN as it is typed (`pinPromptOptions`, O27), and the server
+      // keeps its own check. The new PIN is never echoed back, so a silent failure here is
       // indistinguishable from a typo at the tablet an hour later.
       const res = await staffRequest(base, `/staff-accounts/${account.id}/reset-pin`, {
         method: 'POST',

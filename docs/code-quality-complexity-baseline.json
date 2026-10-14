@@ -865,7 +865,7 @@
     "packages/ui/src/components/MatchScoreboard.tsx:41",
     "packages/ui/src/components/MatchTimeline.tsx:141",
     "packages/ui/src/components/Modal.tsx:52",
-    "packages/ui/src/components/PromptDialog.tsx:44",
+    "packages/ui/src/components/PromptDialog.tsx:53",
     "packages/ui/src/components/RatingHistoryChart.tsx:26",
     "packages/ui/src/components/TVScoreboard.tsx:129",
     "packages/ui/src/components/TVScoreboard.tsx:337",

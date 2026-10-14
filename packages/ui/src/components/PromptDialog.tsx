@@ -39,6 +39,15 @@ export interface PromptDialogProps {
   busy?: boolean;
   /** Initial value. */
   initialValue?: string;
+  /** The field's visible name (O27). Words already translated: this package never translates. */
+  fieldLabel?: string;
+  /**
+   * Why the typed value cannot be confirmed, already translated, or null when it can (O27).
+   * Checked as the value is typed: the reason shows under the field and Confirm stays off.
+   */
+  validate?: (value: string) => string | null;
+  /** A show / hide button on a masked field, with its two words (O27). */
+  revealable?: { show: string; hide: string };
 }
 
 export function PromptDialog({
@@ -56,6 +65,9 @@ export function PromptDialog({
   masked = false,
   busy = false,
   initialValue = '',
+  fieldLabel,
+  validate,
+  revealable,
 }: PromptDialogProps) {
   const dialogRef = useRef<HTMLFormElement>(null);
   const [value, setValue] = useState(initialValue);
@@ -75,7 +87,9 @@ export function PromptDialog({
   // stacking context (see ConfirmDialog).
   if (!open || typeof document === 'undefined') return null;
 
-  const canConfirm = allowEmpty || value.trim().length > 0;
+  // The reason waits for the first key: an empty field is closed by the rule above anyway.
+  const reason = validate && value !== '' ? validate(value) : null;
+  const canConfirm = (allowEmpty || value.trim().length > 0) && reason === null;
   const confirmClasses = danger
     ? 'bg-red-800 hover:bg-red-900 text-white'
     : 'bg-slate-900 hover:bg-slate-700 text-white';
@@ -114,18 +128,19 @@ export function PromptDialog({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
+              aria-label={fieldLabel}
               rows={3}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
             />
           ) : (
-            <input
-              autoFocus
-              type={masked ? 'password' : 'text'}
-              autoComplete={masked ? 'off' : undefined}
+            <PromptInput
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={setValue}
               placeholder={placeholder}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+              masked={masked}
+              fieldLabel={fieldLabel}
+              reason={reason}
+              revealable={revealable}
             />
           )}
         </div>
@@ -152,6 +167,89 @@ export function PromptDialog({
   );
 }
 
+/**
+ * The one-line field: its name above it, the reason it cannot be confirmed under it, and a
+ * show / hide button on a masked field that offers one (O27).
+ */
+interface PromptInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  masked: boolean;
+  fieldLabel?: string;
+  reason: string | null;
+  revealable?: { show: string; hide: string };
+}
+
+function PromptInput({
+  value,
+  onChange,
+  placeholder,
+  masked,
+  fieldLabel,
+  reason,
+  revealable,
+}: PromptInputProps) {
+  const fieldId = useId();
+  const [shown, setShown] = useState(false);
+  const hidden = masked && !shown;
+  return (
+    <>
+      {fieldLabel && (
+        <label
+          htmlFor={fieldId}
+          className="mb-1 block text-sm font-medium text-foreground-secondary"
+        >
+          {fieldLabel}
+        </label>
+      )}
+      <div className="flex gap-2">
+        <input
+          id={fieldId}
+          autoFocus
+          type={hidden ? 'password' : 'text'}
+          autoComplete={masked ? 'off' : undefined}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-invalid={reason !== null}
+          aria-describedby={reason !== null ? `${fieldId}-reason` : undefined}
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+        />
+        {masked && revealable && (
+          <RevealButton shown={shown} onToggle={() => setShown((now) => !now)} words={revealable} />
+        )}
+      </div>
+      {reason !== null && (
+        <p id={`${fieldId}-reason`} className="mt-1 text-sm text-danger">
+          {reason}
+        </p>
+      )}
+    </>
+  );
+}
+
+function RevealButton({
+  shown,
+  onToggle,
+  words,
+}: {
+  shown: boolean;
+  onToggle: () => void;
+  words: { show: string; hide: string };
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={shown}
+      className="shrink-0 rounded-md border border-border px-3 text-sm font-semibold text-foreground-secondary hover:bg-background"
+    >
+      {shown ? words.hide : words.show}
+    </button>
+  );
+}
+
 export interface PromptOptions {
   title: ReactNode;
   description?: ReactNode;
@@ -164,6 +262,12 @@ export interface PromptOptions {
   /** Mask the typed value (PINs). See {@link PromptDialogProps.masked}. */
   masked?: boolean;
   initialValue?: string;
+  /** See {@link PromptDialogProps.fieldLabel}. */
+  fieldLabel?: string;
+  /** See {@link PromptDialogProps.validate}. */
+  validate?: (value: string) => string | null;
+  /** See {@link PromptDialogProps.revealable}. */
+  revealable?: { show: string; hide: string };
 }
 
 /**
@@ -201,19 +305,12 @@ export function usePrompt(): {
     resolver.current = null;
   }, []);
 
+  // Every option reaches the dialog: a list of them here dropped the ones added later.
+  const { open, ...options } = state;
   const promptDialog = (
     <PromptDialog
-      open={state.open}
-      title={state.title}
-      description={state.description}
-      placeholder={state.placeholder}
-      confirmLabel={state.confirmLabel}
-      cancelLabel={state.cancelLabel}
-      danger={state.danger}
-      allowEmpty={state.allowEmpty}
-      multiline={state.multiline}
-      masked={state.masked}
-      initialValue={state.initialValue}
+      {...options}
+      open={open}
       onConfirm={(value) => settle(value)}
       onCancel={() => settle(null)}
     />

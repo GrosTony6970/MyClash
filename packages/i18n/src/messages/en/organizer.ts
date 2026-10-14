@@ -2754,6 +2754,9 @@ export const organizer = {
     copied: 'Copied.',
     showPin: 'Show PIN',
     hidePin: 'Hide PIN',
+    // O27: the reset box names whose PIN it is.
+    resetPinFor: 'New PIN for {name}',
+    newPin: 'New PIN',
     resetPinError: 'Could not reset the PIN.',
     resetPinDone: 'PIN updated.',
     pinHint: '6 to 16 digits. Avoid runs and repeats.',

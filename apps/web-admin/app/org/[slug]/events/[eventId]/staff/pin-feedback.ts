@@ -1,4 +1,6 @@
 import { isValidPinShape, isWeakPin, type WeakPinReason } from '@myclash/types';
+import type { PromptOptions, Translator } from '@myclash/ui';
+import type { StaffAccount } from './types';
 
 /**
  * Static keys rather than `t(\`…weakPin.${reason}\`)`: a template-literal key is
@@ -24,4 +26,25 @@ export function pinProblem(pin: string, t: (key: string) => string): string | nu
   if (!isValidPinShape(pin)) return t('organizer.staff.pinHint');
   const weakness = isWeakPin(pin);
   return weakness === null ? null : t(WEAK_PIN_KEYS[weakness]);
+}
+
+/**
+ * The reset-PIN box (O27, ruled 2026-10-14): it names whose PIN it is and states the rule,
+ * checks the PIN as it is typed (the reason under the field, Reset off), and can show what was
+ * typed. It used to ask for "PIN" alone, and a refused one came back as a line above the list.
+ */
+export function pinPromptOptions(
+  account: Pick<StaffAccount, 'display_name'>,
+  t: Translator,
+): PromptOptions {
+  return {
+    title: t('organizer.staff.resetPinFor', { name: account.display_name }),
+    description: t('organizer.staff.pinHint'),
+    fieldLabel: t('organizer.staff.newPin'),
+    masked: true,
+    revealable: { show: t('organizer.staff.showPin'), hide: t('organizer.staff.hidePin') },
+    validate: (pin) => pinProblem(pin, t),
+    confirmLabel: t('organizer.staff.resetPin'),
+    cancelLabel: t('common.cancel'),
+  };
 }

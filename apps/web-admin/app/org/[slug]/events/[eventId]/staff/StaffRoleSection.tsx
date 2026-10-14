@@ -6,6 +6,7 @@ import { STAFF_ROLES, type StaffRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { CreateStaffAccountForm } from './CreateStaffAccountForm';
 import { StaffAccountList } from './StaffAccountList';
+import { pinPromptOptions } from './pin-feedback';
 import { isStaffRoleTab, STAFF_TAB_HINT_KEYS, STAFF_TAB_LABEL_KEYS } from './types';
 import type { StaffAccount } from './types';
 import type { useStaffAccounts } from './useStaffAccounts';
@@ -33,7 +34,7 @@ export function StaffRoleSection({ staff, staffUrl, publicAppUrl, eventSlug }: P
   useTabInUrl(tab, setTab);
 
   async function askForPin(account: StaffAccount) {
-    const pin = await prompt({ title: t('organizer.staff.pin'), masked: true });
+    const pin = await prompt(pinPromptOptions(account, t));
     if (pin) await staff.resetPin(account, pin);
   }
 
