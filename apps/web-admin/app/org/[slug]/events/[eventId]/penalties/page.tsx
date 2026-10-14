@@ -99,8 +99,9 @@ export default function PenaltyReviewsPage() {
         <p className="mt-1 text-sm text-muted">{t('organizer.penaltyReviews.subtitle')}</p>
       </header>
 
-      {problems.map((problem) => (
-        <PageAlert key={problem} outcome={errorOutcome(problem)} />
+      {problems.map((problem, index) => (
+        // By place: two Tournaments of one name can both fail.
+        <PageAlert key={index} outcome={errorOutcome(problem)} />
       ))}
 
       {loading ? (
