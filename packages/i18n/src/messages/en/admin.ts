@@ -359,6 +359,9 @@ export const admin = {
     saving: 'Saving…',
     saveChanges: 'Save changes',
     toastAddedToTournaments: 'Added {name} to {count} tournament(s).',
+    // O16: every add says so, with the window open for the next walk-in or not.
+    toastAdded: 'Added {name}.',
+    addAnother: 'Save and add another',
     toastUnmatchableIdentity:
       '{name} has no club, no HEMA Ratings ID and no email, so their results will not join up with their other events. Add one to fix it.',
     duplicateNameTitle: 'Someone with this name is already on the roster',

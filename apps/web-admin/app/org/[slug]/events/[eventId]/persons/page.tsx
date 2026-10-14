@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
@@ -24,6 +24,7 @@ import { useRosterFilters } from './useRosterFilters';
 import { rosterCsv, rosterRows } from './roster-export';
 import {
   computeClubPickerRows,
+  type ClubPickerRow,
   type ClubSuggestion as ClubPickerSuggestion,
 } from './_components/club-picker-rows';
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
@@ -222,6 +223,8 @@ export default function ParticipantsPage() {
   const [waitlistBusy, setWaitlistBusy] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
+  const addFormId = useId();
+  const addGivenName = useRef<HTMLInputElement>(null);
   const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
   const [addError, setAddError] = useState<string | null>(null);
   /** The roster's own read failed: said on the page, not in a window. */
@@ -509,8 +512,8 @@ export default function ParticipantsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function closeAddModal() {
-    setShowAdd(false);
+  /** Empties the person and the club; the ticked Tournaments stay (O16, the next walk-in). */
+  function clearAddPerson() {
     setAddForm(EMPTY_ADD_FORM);
     setAddError(null);
     setGlobalSearch('');
@@ -521,10 +524,62 @@ export default function ParticipantsPage() {
     setSelectedClubId(null);
     setSelectedClubLabel('');
     setNewClubName(null);
+  }
+
+  function closeAddModal() {
+    setShowAdd(false);
+    clearAddPerson();
     setSelectedTournaments(new Set());
   }
 
-  async function handleAdd() {
+  function pickProfile(g: GlobalPersonSuggestion) {
+    setSelectedGlobalId(g.id);
+    setGlobalSearch(g.displayName);
+    setGlobalSuggestions([]);
+    setAddForm((f) => ({
+      ...f,
+      givenName: g.givenName,
+      familyName: g.familyName,
+      hemaRatingsId: g.hemaRatingsId ?? '',
+    }));
+    if (g.clubLabel) {
+      setSelectedClubId(g.clubId);
+      setSelectedClubLabel(g.clubLabel);
+      setClubSearch(g.clubLabel);
+      setClubSuggestions([]);
+    }
+  }
+
+  function pickClubRow(row: ClubPickerRow) {
+    if (row.kind === 'existing') {
+      setSelectedClubId(row.club.id);
+      setSelectedClubLabel(row.club.name);
+      setClubSearch(row.club.name);
+    } else {
+      setNewClubName(row.name);
+      setSelectedClubId(null);
+      setSelectedClubLabel('');
+    }
+    setClubSuggestions([]);
+  }
+
+  // The club list as shown under the club field: none once a club is picked or named.
+  const addClubRows =
+    selectedClubId || newClubName
+      ? []
+      : computeClubPickerRows(clubSearch, clubSuggestions as ClubPickerSuggestion[]);
+
+  /**
+   * Enter in a search field picks its first suggestion while the list shows (O16, ruled
+   * 2026-10-14); with no list, Enter saves the form as anywhere else.
+   */
+  function enterPicks(event: React.KeyboardEvent, pick: (() => void) | null) {
+    if (event.key !== 'Enter' || !pick) return;
+    event.preventDefault();
+    pick();
+  }
+
+  async function handleAdd(another: boolean) {
     if (!addForm.givenName.trim() || !addForm.familyName.trim()) {
       setAddError(t('admin.common.givenAndFamilyNameRequired'));
       return;
@@ -644,6 +699,7 @@ export default function ParticipantsPage() {
           failedTournaments.push(tour?.name ?? tournamentId);
         }
       }
+      // Every add says so (O16): at a desk queue, the window may stay open for the next one.
       if (failedTournaments.length > 0) {
         toast.warning(
           t('admin.orgPersons.toastCreatedRegisterFailed', {
@@ -657,6 +713,8 @@ export default function ParticipantsPage() {
             count: selectedTournaments.size,
           }),
         );
+      } else {
+        toast.success(t('admin.orgPersons.toastAdded', { name: personName }));
       }
       // The identity this add minted can never be matched again — no club, no
       // HEMA Ratings id, no email — so the same person mints another one at the
@@ -665,8 +723,14 @@ export default function ParticipantsPage() {
       if (person.mintedIdentity === 'unmatchable') {
         toast.warning(t('admin.orgPersons.toastUnmatchableIdentity', { name: personName }));
       }
+      // A full Tournament asks at once, over the window: before the next person is typed.
       if (fullPending.length > 0) setWaitlistPrompt(fullPending);
-      closeAddModal();
+      if (another) {
+        clearAddPerson();
+        addGivenName.current?.focus();
+      } else {
+        closeAddModal();
+      }
       refresh();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
@@ -1631,13 +1695,24 @@ export default function ParticipantsPage() {
             footer={
               <>
                 <button
+                  type="button"
                   onClick={closeAddModal}
                   className="text-sm text-muted hover:text-foreground-secondary px-4 py-2"
                 >
                   {t('admin.orgPersons.cancel')}
                 </button>
                 <button
-                  onClick={() => void handleAdd()}
+                  type="button"
+                  onClick={() => void handleAdd(true)}
+                  data-testid="persons-add-another"
+                  disabled={addSaving}
+                  className="border border-border hover:bg-background disabled:opacity-50 text-foreground-secondary font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+                >
+                  {t('admin.orgPersons.addAnother')}
+                </button>
+                <button
+                  type="submit"
+                  form={addFormId}
                   data-testid="persons-add-submit"
                   disabled={addSaving}
                   className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
@@ -1649,322 +1724,308 @@ export default function ParticipantsPage() {
               </>
             }
           >
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                {t('admin.orgPersons.searchGlobalProfiles')}
-              </label>
-              <input
-                type="search"
-                value={globalSearch}
-                onChange={(e) => {
-                  setGlobalSearch(e.target.value);
-                  setSelectedGlobalId(null);
-                }}
-                placeholder={t('admin.orgPersons.searchNamePlaceholder')}
-                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-              {globalSuggestions.length > 0 && !selectedGlobalId && (
-                <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
-                  {globalSuggestions.map((g) => {
-                    const alreadyAdded = existingGlobalIds.has(g.id);
-                    return (
-                      <button
-                        key={g.id}
-                        type="button"
-                        disabled={alreadyAdded}
-                        onClick={() => {
-                          if (alreadyAdded) return;
-                          setSelectedGlobalId(g.id);
-                          setGlobalSearch(g.displayName);
-                          setGlobalSuggestions([]);
-                          setAddForm((f) => ({
-                            ...f,
-                            givenName: g.givenName,
-                            familyName: g.familyName,
-                            hemaRatingsId: g.hemaRatingsId ?? '',
-                          }));
-                          if (g.clubLabel) {
-                            setSelectedClubId(g.clubId);
-                            setSelectedClubLabel(g.clubLabel);
-                            setClubSearch(g.clubLabel);
-                            setClubSuggestions([]);
-                          }
-                        }}
-                        className={
-                          alreadyAdded
-                            ? 'w-full text-left px-3 py-2 text-sm bg-background text-muted border-b border-border last:border-0 cursor-not-allowed'
-                            : 'w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0'
-                        }
-                      >
-                        <span className="font-medium">{g.displayName}</span>
-                        {g.clubLabel && (
-                          <span className="text-muted ml-2 text-xs">{g.clubLabel}</span>
-                        )}
-                        {alreadyAdded && (
-                          <span className="ml-2 text-xs italic text-muted">
-                            {t('admin.orgPersons.alreadyInEvent')}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {selectedGlobalId && (
-                <p className="text-xs text-success mt-1">
-                  {t('admin.orgPersons.linkedToGlobalProfile')}{' '}
-                  <button
-                    type="button"
-                    className="underline"
-                    onClick={() => {
-                      setSelectedGlobalId(null);
-                      setGlobalSearch('');
-                    }}
-                  >
-                    {t('admin.orgPersons.clear')}
-                  </button>
-                </p>
-              )}
-            </div>
-
-            <hr className="my-3 border-border" />
-
-            <p className="mb-3 text-sm font-semibold text-foreground-secondary">
-              {t('admin.orgPersons.orCreateManually')}
-            </p>
-
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('admin.orgPersons.givenName')}
-                  </label>
-                  <input
-                    type="text"
-                    data-testid="person-given-name"
-                    value={addForm.givenName}
-                    onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                    {t('admin.orgPersons.familyName')}
-                  </label>
-                  <input
-                    type="text"
-                    data-testid="person-family-name"
-                    value={addForm.familyName}
-                    onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-              </div>
-
-              <div>
+            {/* A real form: Enter saves (O16). The footer's submit names it by id. */}
+            <form
+              id={addFormId}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleAdd(false);
+              }}
+            >
+              <div className="mb-4">
                 <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('admin.orgPersons.email')}
-                </label>
-                <input
-                  type="email"
-                  value={addForm.email}
-                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('admin.orgPersons.club')}
+                  {t('admin.orgPersons.searchGlobalProfiles')}
                 </label>
                 <input
                   type="search"
-                  value={clubSearch}
+                  value={globalSearch}
                   onChange={(e) => {
-                    setClubSearch(e.target.value);
-                    setSelectedClubId(null);
-                    setSelectedClubLabel('');
-                    setNewClubName(null);
+                    setGlobalSearch(e.target.value);
+                    setSelectedGlobalId(null);
                   }}
-                  placeholder={t('admin.orgPersons.clubSearchPlaceholder')}
+                  onKeyDown={(e) => {
+                    const first = selectedGlobalId
+                      ? undefined
+                      : globalSuggestions.find((g) => !existingGlobalIds.has(g.id));
+                    enterPicks(e, first ? () => pickProfile(first) : null);
+                  }}
+                  placeholder={t('admin.orgPersons.searchNamePlaceholder')}
                   className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
-                {!selectedClubId &&
-                  !newClubName &&
-                  (() => {
-                    const rows = computeClubPickerRows(
-                      clubSearch,
-                      clubSuggestions as ClubPickerSuggestion[],
-                    );
-                    if (rows.length === 0) return null;
-                    return (
-                      <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
-                        {rows.map((row, idx) =>
-                          row.kind === 'existing' ? (
-                            <button
-                              key={`existing-${row.club.id}`}
-                              type="button"
-                              onClick={() => {
-                                setSelectedClubId(row.club.id);
-                                setSelectedClubLabel(row.club.name);
-                                setClubSearch(row.club.name);
-                                setClubSuggestions([]);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
-                            >
-                              <span className="font-medium">{row.club.name}</span>
-                              {row.club.abbreviation && (
-                                <span className="text-muted ml-2 text-xs">
-                                  {row.club.abbreviation}
-                                </span>
-                              )}
-                            </button>
-                          ) : (
-                            <button
-                              key={`create-${idx}`}
-                              type="button"
-                              data-testid="new-club-create-row"
-                              onClick={() => {
-                                setNewClubName(row.name);
-                                setSelectedClubId(null);
-                                setSelectedClubLabel('');
-                                setClubSuggestions([]);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
-                            >
-                              {t('admin.orgPersons.createNewClub', { name: row.name })}
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    );
-                  })()}
-                {selectedClubId && (
-                  <p className="text-xs text-success mt-1">
-                    {selectedClubLabel}{' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
-                        setSelectedClubId(null);
-                        setSelectedClubLabel('');
-                        setClubSearch('');
-                      }}
-                    >
-                      {t('admin.orgPersons.clear')}
-                    </button>
-                  </p>
-                )}
-                {newClubName && (
-                  <p className="text-xs text-success mt-1" data-testid="new-club-chip">
-                    {t('admin.orgPersons.newClubPrefix')}{' '}
-                    <span className="font-medium">{newClubName}</span>{' '}
-                    {t('admin.orgPersons.newClubSuffix')}{' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
-                        setNewClubName(null);
-                        setClubSearch('');
-                      }}
-                    >
-                      {t('admin.orgPersons.clear')}
-                    </button>
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('admin.orgPersons.hemaRatingsIdOptional')}
-                </label>
-                <input
-                  type="text"
-                  value={addForm.hemaRatingsId}
-                  onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                  placeholder={t('admin.orgPersons.hemaRatingsIdPlaceholder')}
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-
-              <HemaRatingsSuggest
-                apiUrl={apiUrl}
-                eventId={eventId}
-                personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
-                selectedId={addForm.hemaRatingsId}
-                onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
-              />
-
-              <div>
-                <label className="block text-xs font-medium text-foreground-secondary mb-1">
-                  {t('admin.orgPersons.seedOptional')}
-                </label>
-                <input
-                  type="number"
-                  value={addForm.seed}
-                  onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
-                  min="1"
-                  className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-
-              <label className="mt-3 inline-flex items-center gap-2 text-sm text-foreground-secondary">
-                <input
-                  type="checkbox"
-                  checked={addForm.isReferee}
-                  disabled={isReadOnly}
-                  onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
-                />
-                {t('organizer.persons.addAsReferee')}
-              </label>
-
-              <label className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
-                <input
-                  type="checkbox"
-                  checked={addForm.isInstructor}
-                  disabled={isReadOnly}
-                  onChange={(e) => setAddForm((f) => ({ ...f, isInstructor: e.target.checked }))}
-                />
-                {t('organizer.persons.addAsInstructor')}
-              </label>
-
-              {tournaments.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-foreground-secondary mb-2">
-                    {t('admin.orgPersons.registerInTournaments')}
-                  </label>
-                  <div className="flex flex-col gap-1.5">
-                    {tournaments.map((tour) => (
-                      <label
-                        key={tour.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTournaments.has(tour.id)}
-                          onChange={() =>
-                            setSelectedTournaments((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(tour.id)) next.delete(tour.id);
-                              else next.add(tour.id);
-                              return next;
-                            })
+                {globalSuggestions.length > 0 && !selectedGlobalId && (
+                  <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
+                    {globalSuggestions.map((g) => {
+                      const alreadyAdded = existingGlobalIds.has(g.id);
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          disabled={alreadyAdded}
+                          onClick={() => {
+                            if (!alreadyAdded) pickProfile(g);
+                          }}
+                          className={
+                            alreadyAdded
+                              ? 'w-full text-left px-3 py-2 text-sm bg-background text-muted border-b border-border last:border-0 cursor-not-allowed'
+                              : 'w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0'
                           }
-                          className="rounded"
-                        />
-                        {tour.name}
-                      </label>
-                    ))}
+                        >
+                          <span className="font-medium">{g.displayName}</span>
+                          {g.clubLabel && (
+                            <span className="text-muted ml-2 text-xs">{g.clubLabel}</span>
+                          )}
+                          {alreadyAdded && (
+                            <span className="ml-2 text-xs italic text-muted">
+                              {t('admin.orgPersons.alreadyInEvent')}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedGlobalId && (
+                  <p className="text-xs text-success mt-1">
+                    {t('admin.orgPersons.linkedToGlobalProfile')}{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setSelectedGlobalId(null);
+                        setGlobalSearch('');
+                      }}
+                    >
+                      {t('admin.orgPersons.clear')}
+                    </button>
+                  </p>
+                )}
+              </div>
+
+              <hr className="my-3 border-border" />
+
+              <p className="mb-3 text-sm font-semibold text-foreground-secondary">
+                {t('admin.orgPersons.orCreateManually')}
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      {t('admin.orgPersons.givenName')}
+                    </label>
+                    <input
+                      ref={addGivenName}
+                      type="text"
+                      data-testid="person-given-name"
+                      value={addForm.givenName}
+                      onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                      {t('admin.orgPersons.familyName')}
+                    </label>
+                    <input
+                      type="text"
+                      data-testid="person-family-name"
+                      value={addForm.familyName}
+                      onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
+                      className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
 
-            {addError && (
-              <p className="text-sm text-danger mt-3" role="alert">
-                {addError}
-              </p>
-            )}
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.email')}
+                  </label>
+                  <input
+                    type="email"
+                    value={addForm.email}
+                    onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.club')}
+                  </label>
+                  <input
+                    type="search"
+                    value={clubSearch}
+                    onChange={(e) => {
+                      setClubSearch(e.target.value);
+                      setSelectedClubId(null);
+                      setSelectedClubLabel('');
+                      setNewClubName(null);
+                    }}
+                    onKeyDown={(e) => {
+                      const first = addClubRows[0];
+                      enterPicks(e, first ? () => pickClubRow(first) : null);
+                    }}
+                    placeholder={t('admin.orgPersons.clubSearchPlaceholder')}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {addClubRows.length > 0 && (
+                    <div className="border border-border rounded-lg mt-1 max-h-36 overflow-y-auto">
+                      {addClubRows.map((row, idx) =>
+                        row.kind === 'existing' ? (
+                          <button
+                            key={`existing-${row.club.id}`}
+                            type="button"
+                            onClick={() => pickClubRow(row)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-background border-b border-border last:border-0"
+                          >
+                            <span className="font-medium">{row.club.name}</span>
+                            {row.club.abbreviation && (
+                              <span className="text-muted ml-2 text-xs">
+                                {row.club.abbreviation}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            key={`create-${idx}`}
+                            type="button"
+                            data-testid="new-club-create-row"
+                            onClick={() => pickClubRow(row)}
+                            className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-accent/10 border-b border-border last:border-0 font-medium"
+                          >
+                            {t('admin.orgPersons.createNewClub', { name: row.name })}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {selectedClubId && (
+                    <p className="text-xs text-success mt-1">
+                      {selectedClubLabel}{' '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setSelectedClubId(null);
+                          setSelectedClubLabel('');
+                          setClubSearch('');
+                        }}
+                      >
+                        {t('admin.orgPersons.clear')}
+                      </button>
+                    </p>
+                  )}
+                  {newClubName && (
+                    <p className="text-xs text-success mt-1" data-testid="new-club-chip">
+                      {t('admin.orgPersons.newClubPrefix')}{' '}
+                      <span className="font-medium">{newClubName}</span>{' '}
+                      {t('admin.orgPersons.newClubSuffix')}{' '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setNewClubName(null);
+                          setClubSearch('');
+                        }}
+                      >
+                        {t('admin.orgPersons.clear')}
+                      </button>
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.hemaRatingsIdOptional')}
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.hemaRatingsId}
+                    onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                    placeholder={t('admin.orgPersons.hemaRatingsIdPlaceholder')}
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+
+                <HemaRatingsSuggest
+                  apiUrl={apiUrl}
+                  eventId={eventId}
+                  personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
+                  selectedId={addForm.hemaRatingsId}
+                  onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
+                />
+
+                <div>
+                  <label className="block text-xs font-medium text-foreground-secondary mb-1">
+                    {t('admin.orgPersons.seedOptional')}
+                  </label>
+                  <input
+                    type="number"
+                    value={addForm.seed}
+                    onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
+                    min="1"
+                    className="w-full border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+
+                <label className="mt-3 inline-flex items-center gap-2 text-sm text-foreground-secondary">
+                  <input
+                    type="checkbox"
+                    checked={addForm.isReferee}
+                    disabled={isReadOnly}
+                    onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                  />
+                  {t('organizer.persons.addAsReferee')}
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm text-foreground-secondary">
+                  <input
+                    type="checkbox"
+                    checked={addForm.isInstructor}
+                    disabled={isReadOnly}
+                    onChange={(e) => setAddForm((f) => ({ ...f, isInstructor: e.target.checked }))}
+                  />
+                  {t('organizer.persons.addAsInstructor')}
+                </label>
+
+                {tournaments.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-foreground-secondary mb-2">
+                      {t('admin.orgPersons.registerInTournaments')}
+                    </label>
+                    <div className="flex flex-col gap-1.5">
+                      {tournaments.map((tour) => (
+                        <label
+                          key={tour.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedTournaments.has(tour.id)}
+                            onChange={() =>
+                              setSelectedTournaments((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(tour.id)) next.delete(tour.id);
+                                else next.add(tour.id);
+                                return next;
+                              })
+                            }
+                            className="rounded"
+                          />
+                          {tour.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {addError && (
+                <p className="text-sm text-danger mt-3" role="alert">
+                  {addError}
+                </p>
+              )}
+            </form>
           </Modal>
 
           {editPerson && (

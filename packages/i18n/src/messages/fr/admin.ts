@@ -363,7 +363,9 @@ export const admin = {
     tournaments: 'Tournois',
     saving: 'Enregistrement…',
     saveChanges: 'Enregistrer les modifications',
-    toastAddedToTournaments: '{name} ajoute a {count} tournoi(s).',
+    toastAddedToTournaments: '{name} ajouté à {count} tournoi(s).',
+    toastAdded: '{name} ajouté.',
+    addAnother: 'Enregistrer et en ajouter un autre',
     toastUnmatchableIdentity:
       "{name} n'a ni club, ni identifiant HEMA Ratings, ni e-mail : ses résultats ne se cumuleront pas avec ses autres événements. Ajoutez-en un pour corriger cela.",
     duplicateNameTitle: 'Une personne de ce nom est déjà sur la liste',
