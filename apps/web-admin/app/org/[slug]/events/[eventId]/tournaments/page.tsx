@@ -14,7 +14,7 @@ import {
   useConfirm,
 } from '@myclash/ui';
 import Link from 'next/link';
-import { OrgCrumb } from '@/components/Crumbs';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -256,9 +256,12 @@ export default function EventTournamentsPage() {
             <div className="flex items-center gap-2 text-sm text-muted">
               <OrgCrumb slug={slug} className="hover:text-accent" />
               <span>/</span>
-              <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-accent">
-                {eventName || t('organizer.shell.nav.eventOverview')}
-              </Link>
+              <EventCrumb
+                slug={slug}
+                eventId={eventId}
+                className="hover:text-accent"
+                fallback={eventName || t('organizer.shell.nav.eventOverview')}
+              />
               <span>/</span>
               <span className="font-medium text-foreground">
                 {t('organizer.shell.nav.tournaments')}

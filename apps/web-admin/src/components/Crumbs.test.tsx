@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import {
   EVENT_ID,
+  EVENTS_READ,
   openEventPage,
   type OpenedPage,
 } from '../../app/org/[slug]/events/[eventId]/archived-page.fixtures';
@@ -50,6 +51,16 @@ describe('the crumbs', () => {
       ['/org/club', 'Club'],
       ['/org/club/events/ev1', 'Open 2026'],
     ]);
+  });
+
+  it('names the Event of its own id, not the one the shell has selected (review m3)', async () => {
+    page = await openEventPage(<EventCrumb slug="club" eventId="ev2" fallback="Event" />, {
+      [EVENTS_READ]: [
+        { id: EVENT_ID, name: 'Open 2026', status: 'running' },
+        { id: 'ev2', name: 'Sabre Day', status: 'draft' },
+      ],
+    });
+    expect(links()).toEqual([['/org/club/events/ev2', 'Sabre Day']]);
   });
 
   it('show the slug and the page word until the names have landed', async () => {

@@ -32,7 +32,7 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
 // The crumbs read the club's and the Event's names from the shell; this test is about the ranking.
 vi.mock('@/components/organizer-event-context', () => ({
-  useOrganizerSelectedEvent: () => ({ orgName: null, currentEvent: null }),
+  useOrganizerSelectedEvent: () => ({ orgName: null, events: [] }),
 }));
 vi.mock('@/lib/supabase-browser', () => ({
   useRealtimeWithFallback: (opts: { onFallbackPoll: () => void }) => {

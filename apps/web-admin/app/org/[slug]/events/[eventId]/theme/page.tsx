@@ -18,8 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { OrgCrumb } from '@/components/Crumbs';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -191,9 +190,12 @@ export default function BrandingEditorPage() {
         <div className="mb-1 flex items-center gap-2 text-sm text-muted">
           <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
           <span>/</span>
-          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-            {eventName}
-          </Link>
+          <EventCrumb
+            slug={slug}
+            eventId={eventId}
+            className="hover:text-foreground-secondary"
+            fallback={eventName}
+          />
           <span>/</span>
           <span className="font-medium text-foreground">{t('organizer.branding.title')}</span>
         </div>

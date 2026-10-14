@@ -20,6 +20,8 @@ export function OrgCrumb({ slug, className }: { slug: string; className?: string
 /**
  * The Event's crumb. It showed a word ("Event") where the shell already knows the
  * Event's name. `fallback` is the page's own word, shown until the Event list lands.
+ * The Event is found by its own id, never by the shell's selection: that follows the
+ * address one render late, and the switcher moves it before the next page is drawn.
  */
 export function EventCrumb({
   slug,
@@ -32,10 +34,11 @@ export function EventCrumb({
   className?: string;
   fallback: string;
 }) {
-  const { currentEvent } = useOrganizerSelectedEvent();
+  const { events } = useOrganizerSelectedEvent();
+  const name = events.find((event) => event.id === eventId)?.name;
   return (
     <Link href={`/org/${slug}/events/${eventId}`} className={className}>
-      {currentEvent?.name || fallback}
+      {name || fallback}
     </Link>
   );
 }

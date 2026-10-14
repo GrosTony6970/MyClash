@@ -596,7 +596,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/StandingsTab.tsx:51",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/page.tsx:51",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/useSwissAdmin.ts:114",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/theme/page.tsx:33",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/theme/page.tsx:32",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/AdvancedTab.tsx:20",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/BasicsTab.tsx:40",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/DisplayTab.tsx:52",
