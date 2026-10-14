@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useDirtyReport } from '../_shared/useSavedSnapshot';
 
 const apiUrl = getPublicApiUrl();
 
@@ -28,11 +29,14 @@ export function TournamentVenuesEditor({
   tournamentId,
   eventId,
   readOnly,
+  onDirtyChange,
 }: {
   tournamentId: string;
   eventId: string;
   /** The Event is archived: the server refuses the save and the three moves. */
   readOnly: boolean;
+  /** A pick not saved yet (O15): the settings page asks before it is lost. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useI18n();
 
@@ -48,6 +52,10 @@ export function TournamentVenuesEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [movingKind, setMovingKind] = useState<PhaseVenueKind | null>(null);
+  useDirtyReport(
+    poolVenueId !== savedPool || swissVenueId !== savedSwiss || bracketVenueId !== savedBracket,
+    onDirtyChange,
+  );
 
   useEffect(() => {
     let cancelled = false;

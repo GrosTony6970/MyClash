@@ -17,6 +17,7 @@ import {
   levelChainsAreValid,
   type LevelAtTimeChains,
 } from '../../../new/_wizard/LevelAtTimeEditor';
+import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
@@ -62,7 +63,7 @@ const BEST_OF_OPTIONS = [
   { value: '7', labelKey: 'organizer.tournaments.settings.bestOf7' },
 ] as const;
 
-export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
+export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -71,6 +72,7 @@ export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
     [t],
   );
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
+  const markSaved = useSavedSnapshot(data, DEFAULTS, onDirtyChange);
   // Whether the ruleset HAS afterblow, driven from its grammar rather than a
   // `rulesetCode === 'TF_v1'` literal — so the afterblow-mode control survives
   // a "Customise this format" fork (code becomes custom_*, grammar unchanged).
@@ -94,7 +96,7 @@ export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
           const rc = (row['ruleset_config'] ?? {}) as { matchFormat?: Partial<MatchFormat> };
           const mf = rc.matchFormat ?? {};
           const sc = (row['scoring_config_json'] ?? {}) as Partial<MatchFormat>;
-          setData({
+          const read: MatchFormat = {
             pointCap: mf.pointCap ?? DEFAULTS.pointCap,
             timerMode: mf.timerMode ?? DEFAULTS.timerMode,
             timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
@@ -108,11 +110,13 @@ export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
             scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
             afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
             bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
-          });
+          };
+          setData(read);
+          markSaved(read);
         }
       },
     );
-  }, [tournamentId]);
+  }, [tournamentId, markSaved]);
 
   async function save() {
     setSaving(true);
@@ -144,6 +148,7 @@ export function MatchFormatTab({ tournamentId, readOnly }: TabProps) {
         if (message) toast.error(message);
         return;
       }
+      markSaved(data);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);

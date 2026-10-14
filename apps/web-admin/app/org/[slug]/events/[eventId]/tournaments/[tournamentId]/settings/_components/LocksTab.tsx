@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Switch, useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
@@ -23,11 +24,12 @@ const LOCK_DEFAULTS: LockConfig = {
   autoLockCompletedBrackets: false,
 };
 
-export function LocksTab({ tournamentId, readOnly }: TabProps) {
+export function LocksTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
   const [lock, setLock] = useState<LockConfig>(LOCK_DEFAULTS);
+  const markSaved = useSavedSnapshot(lock, LOCK_DEFAULTS, onDirtyChange);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -37,18 +39,20 @@ export function LocksTab({ tournamentId, readOnly }: TabProps) {
       (r) => {
         if (r.ok) {
           const lc = (r.data['lock_config'] ?? {}) as Partial<LockConfig>;
-          setLock({
+          const read: LockConfig = {
             autoLockEnabled: lc.autoLockEnabled ?? LOCK_DEFAULTS.autoLockEnabled,
             autoLockDelayMinutes: lc.autoLockDelayMinutes ?? LOCK_DEFAULTS.autoLockDelayMinutes,
             autoLockCompletedPools:
               lc.autoLockCompletedPools ?? LOCK_DEFAULTS.autoLockCompletedPools,
             autoLockCompletedBrackets:
               lc.autoLockCompletedBrackets ?? LOCK_DEFAULTS.autoLockCompletedBrackets,
-          });
+          };
+          setLock(read);
+          markSaved(read);
         }
       },
     );
-  }, [tournamentId]);
+  }, [tournamentId, markSaved]);
 
   async function save() {
     setSaving(true);
@@ -62,6 +66,7 @@ export function LocksTab({ tournamentId, readOnly }: TabProps) {
         if (message) toast.error(message);
         return;
       }
+      markSaved(lock);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);

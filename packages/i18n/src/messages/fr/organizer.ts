@@ -697,6 +697,7 @@ export const organizer = {
       publishFailedReason: 'Le serveur n’a pas pu le publier.',
     },
     settings: {
+      eyebrow: 'Tournoi',
       title: 'Paramètres du tournoi',
       subtitle: "Configurez les règles, le chronomètre, l'affichage et le comportement avance.",
       backToList: 'Retour à la liste des tournois',

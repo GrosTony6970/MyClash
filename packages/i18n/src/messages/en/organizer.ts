@@ -702,6 +702,8 @@ export const organizer = {
       publishFailedReason: 'The server could not publish it.',
     },
     settings: {
+      // The header names the Tournament once it is read (O15); this word stands above it.
+      eyebrow: 'Tournament',
       title: 'Tournament settings',
       subtitle: 'Configure rules, timer, display, and advanced behavior.',
       backToList: 'Back to tournaments',

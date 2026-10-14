@@ -10,6 +10,7 @@ import {
 } from '../../../new/_wizard/buildTfFromRow';
 import { TfRulesetControls } from '../../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../../_shared/useCustomiseFormat';
+import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import { isCodedRuleset } from '../../../../../../../../../src/components/rulesets/ruleset-kind';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -17,7 +18,7 @@ import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
-export function AdvancedTab({ tournamentId, readOnly }: TabProps) {
+export function AdvancedTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -25,6 +26,7 @@ export function AdvancedTab({ tournamentId, readOnly }: TabProps) {
   const [isSystem, setIsSystem] = useState(true);
   const [baseCode, setBaseCode] = useState<string | null>(null);
   const [tf, setTf] = useState<RulesetConfigTF>(TF_DEFAULTS);
+  const markSaved = useSavedSnapshot(tf, TF_DEFAULTS, onDirtyChange);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
@@ -39,15 +41,15 @@ export function AdvancedTab({ tournamentId, readOnly }: TabProps) {
         setRulesetCode(row.ruleset_code);
         setIsSystem((row['ruleset_is_system'] as boolean | undefined) ?? true);
         setBaseCode((row['ruleset_base_code'] as string | null | undefined) ?? null);
-        setTf(
-          buildTfFromRow(
-            (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
-            TF_DEFAULTS,
-          ),
+        const read = buildTfFromRow(
+          (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
+          TF_DEFAULTS,
         );
+        setTf(read);
+        markSaved(read);
       }
     });
-  }, [tournamentId]);
+  }, [tournamentId, markSaved]);
 
   useEffect(() => {
     load();
@@ -73,6 +75,7 @@ export function AdvancedTab({ tournamentId, readOnly }: TabProps) {
         if (message) toast.error(message);
         return;
       }
+      markSaved(tf);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);

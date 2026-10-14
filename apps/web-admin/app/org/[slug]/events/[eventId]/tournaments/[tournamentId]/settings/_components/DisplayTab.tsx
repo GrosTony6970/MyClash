@@ -7,6 +7,7 @@ import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
@@ -49,11 +50,13 @@ const DEFAULTS: DisplayState = {
 // of the 11 tokens the API accepts.
 const COLORS = TOURNAMENT_SIDE_COLORS;
 
-export function DisplayTab({ tournamentId, readOnly }: TabProps) {
+export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
+  // The logo is not in it: an upload or a removal saves at once.
+  const markSaved = useSavedSnapshot(data, DEFAULTS, onDirtyChange);
   const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
   // The ruleset's own answer — see the fieldset comment below.
   const [hasAfterblow, setHasAfterblow] = useState(false);
@@ -83,14 +86,16 @@ export function DisplayTab({ tournamentId, readOnly }: TabProps) {
             display?: { sideColors?: { red: string; blue: string }; quickPenalties?: number[] };
             buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
           };
-          setData({
+          const read: DisplayState = {
             sideColors: sc.display?.sideColors ?? DEFAULTS.sideColors,
             buttons: {
               clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
               afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
             },
             quickPenalties: sc.display?.quickPenalties ?? [],
-          });
+          };
+          setData(read);
+          markSaved(read);
         }
       },
     );
@@ -104,7 +109,7 @@ export function DisplayTab({ tournamentId, readOnly }: TabProps) {
       entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
       setPenaltyEntries(entries);
     });
-  }, [tournamentId]);
+  }, [tournamentId, markSaved]);
 
   async function uploadLogo(file: File) {
     const check = validateLogoFile(file);
@@ -169,6 +174,7 @@ export function DisplayTab({ tournamentId, readOnly }: TabProps) {
         if (message) toast.error(message);
         return;
       }
+      markSaved(data);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);

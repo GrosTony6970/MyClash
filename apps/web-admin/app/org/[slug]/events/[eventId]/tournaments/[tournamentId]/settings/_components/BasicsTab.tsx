@@ -10,6 +10,7 @@ import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
 
 interface Ruleset {
@@ -37,7 +38,7 @@ interface TournamentBasics {
 
 const apiUrl = getPublicApiUrl();
 
-export function BasicsTab({ tournamentId, readOnly }: TabProps) {
+export function BasicsTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string }>();
@@ -46,6 +47,15 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
   const toast = useToast();
   const weaponOptions = useWeaponOptions();
   const [data, setData] = useState<TournamentBasics | null>(null);
+  // Save and the ruleset change each mark the fields they sent: a picked ruleset not applied
+  // yet is unsaved too.
+  const markSaved = useSavedSnapshot(data, null, onDirtyChange);
+  const markRulesetSaved = (sent: TournamentBasics) =>
+    markSaved((saved) =>
+      saved
+        ? { ...saved, rulesetCode: sent.rulesetCode, rulesetVersion: sent.rulesetVersion }
+        : saved,
+    );
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [saving, setSaving] = useState(false);
@@ -89,7 +99,7 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
           : [],
       ]).then(([row, r, p]) => {
         if (row) {
-          setData({
+          const read: TournamentBasics = {
             name: row['name'] as string,
             slug: row['slug'] as string,
             weapon: row['weapon'] as string,
@@ -98,7 +108,9 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
             penaltyRulesetId: (row['penalty_ruleset_id'] as string | null) ?? null,
             maxParticipants: (row['max_participants'] as number | null) ?? null,
             maxWaitlist: (row['max_waitlist'] as number | null) ?? null,
-          });
+          };
+          setData(read);
+          markSaved(read);
           setOriginalRuleset({
             code: row['ruleset_code'] as string,
             version: row['ruleset_version'] as string,
@@ -108,7 +120,7 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
         setPenaltyRulesets(p);
       });
     });
-  }, [tournamentId, orgSlug, eventId]);
+  }, [tournamentId, orgSlug, eventId, markSaved]);
 
   async function save() {
     if (!data) return;
@@ -135,6 +147,19 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
         if (message) toast.error(message);
         return;
       }
+      const sent = data;
+      markSaved((saved) =>
+        saved
+          ? {
+              ...saved,
+              name: sent.name,
+              weapon: sent.weapon,
+              penaltyRulesetId: sent.penaltyRulesetId,
+              maxParticipants: sent.maxParticipants,
+              maxWaitlist: sent.maxWaitlist,
+            }
+          : saved,
+      );
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);
@@ -159,6 +184,7 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
     });
     if (r.ok) {
       setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
+      markRulesetSaved(data);
       toast.success(t('admin.orgTournaments.changeRulesetSuccess'));
       return;
     }
@@ -211,6 +237,7 @@ export function BasicsTab({ tournamentId, readOnly }: TabProps) {
         return;
       }
       setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
+      markRulesetSaved(data);
       setRepinOpen(false);
       toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
     } finally {

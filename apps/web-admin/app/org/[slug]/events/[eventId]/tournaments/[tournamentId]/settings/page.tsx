@@ -2,8 +2,10 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { AdminPageHeader } from '@myclash/ui';
+import { useParams, useRouter } from 'next/navigation';
+import { AdminPageHeader, useLeaveGuard } from '@myclash/ui';
+import { apiRequest } from '@myclash/api-client';
+import { getPublicApiUrl } from '@/lib/api-url';
 import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
 import { DisplayTab } from './_components/DisplayTab';
@@ -14,6 +16,8 @@ import { RulesetDriftBanner } from './_components/RulesetDriftBanner';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 import { BackLink } from '@/components/BackLink';
 import { useEventStatus } from '../../../_hooks/useEventStatus';
+
+const apiUrl = getPublicApiUrl();
 
 type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks' | 'recap';
 
@@ -37,9 +41,15 @@ export default function TournamentSettingsPage() {
   const { t } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string; tournamentId: string }>();
+  const router = useRouter();
   // An archived Event: the server refuses every save here but the Recap's (rulings 377, 379).
   const { isReadOnly } = useEventStatus(params.eventId);
-  const tab = { tournamentId: params.tournamentId, readOnly: isReadOnly };
+  // The open tab holds edits not saved yet (O15). Each tab reads afresh when it opens, so a
+  // switch, a link or closing the browser tab asks first.
+  const [dirty, setDirty] = useState(false);
+  const { askToLeave, confirmDialog } = useLeaveGuard(dirty, { t, navigate: router.push });
+  const name = useTournamentName(params.tournamentId);
+  const tab = { tournamentId: params.tournamentId, readOnly: isReadOnly, onDirtyChange: setDirty };
   const [active, setActive] = useState<TabKey>('basics');
 
   useEffect(() => {
@@ -52,7 +62,8 @@ export default function TournamentSettingsPage() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  function selectTab(key: TabKey) {
+  async function selectTab(key: TabKey) {
+    if (key === active || !(await askToLeave())) return;
     // eslint-disable-next-line react-hooks/immutability -- intentional navigation side effect; setting location.hash fires hashchange which updates state
     window.location.hash = `#${key}`;
   }
@@ -65,8 +76,8 @@ export default function TournamentSettingsPage() {
       />
       <div className="mt-4">
         <AdminPageHeader
-          eyebrow="Tournament"
-          title={t('organizer.tournaments.settings.title')}
+          eyebrow={t('organizer.tournaments.settings.eyebrow')}
+          title={name ?? t('organizer.tournaments.settings.title')}
           subtitle={t('organizer.tournaments.settings.subtitle')}
         />
       </div>
@@ -82,7 +93,7 @@ export default function TournamentSettingsPage() {
             <button
               key={tab.key}
               type="button"
-              onClick={() => selectTab(tab.key)}
+              onClick={() => void selectTab(tab.key)}
               className={[
                 'text-left px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 active === tab.key
@@ -105,6 +116,22 @@ export default function TournamentSettingsPage() {
           {active === 'recap' && <RecapTab tournamentId={params.tournamentId} />}
         </section>
       </div>
+      {confirmDialog}
     </main>
   );
+}
+
+/** The Tournament's name, for the header; null until it is read, and if the read fails. */
+function useTournamentName(tournamentId: string): string | null {
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void apiRequest<{ name?: string }>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then((r) => {
+      if (current && r.ok) setName(r.data.name ?? null);
+    });
+    return () => {
+      current = false;
+    };
+  }, [tournamentId]);
+  return name;
 }
