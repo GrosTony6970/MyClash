@@ -56,7 +56,48 @@ export function nextReview(
   };
 }
 
-function sameReview(read: ReviewRead, next: ReturnType<typeof nextReview>): boolean {
+/**
+ * The review once black card `voided` is taken back and `liveIds` are the cards left (rulings
+ * 2026-10-14). Voiding the card that reopened a dismissed review gives the answer back; any other
+ * void keeps the status, and the count follows the live cards. Below two live cards, a review
+ * nobody ever answered goes (`'drop'`), and a reopened one goes back to its answer.
+ */
+export function reviewAfterVoid(
+  review: Pick<ReviewRead, 'status' | 'payload_json'>,
+  liveIds: string[],
+  voided: string,
+): ReturnType<typeof nextReview> | 'drop' {
+  const payload = { ...(review.payload_json ?? {}) };
+  const answer = payload['reopenedFrom'];
+  const reopened = answer === 'dismissed';
+  if (reopened && (payload['reopenedBy'] === voided || liveIds.length < 2)) {
+    return {
+      status: 'dismissed',
+      black_card_count: liveIds.length,
+      payload_json: { ...answeredPayload(payload), penaltyIds: liveIds },
+    };
+  }
+  if (liveIds.length < 2 && review.status === 'pending') return 'drop';
+  return {
+    status: review.status,
+    black_card_count: liveIds.length,
+    payload_json: { ...payload, penaltyIds: liveIds },
+  };
+}
+
+/** Takes the review away, as it was read. False: somebody wrote it in between. */
+export async function dropReviewAsRead(db: Client, read: ReviewRead): Promise<boolean> {
+  const { data, error } = await db
+    .from('tournament_penalty_reviews')
+    .delete()
+    .eq('id', read.id)
+    .eq('updated_at', read.updated_at)
+    .select('id');
+  if (error) throw new Error(`The black card review could not be removed: ${error.message}`);
+  return ((data ?? []) as Row[]).length > 0;
+}
+
+export function sameReview(read: ReviewRead, next: ReturnType<typeof nextReview>): boolean {
   return (
     read.status === next.status &&
     read.black_card_count === next.black_card_count &&

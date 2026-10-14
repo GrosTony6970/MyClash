@@ -25,40 +25,122 @@ describe('PATCH match-penalties/:id/void: the route the pad’s undo calls', () 
 });
 
 describe('PenaltiesService.voidPenalty: the second black card review', () => {
-  const pending = {
+  const VERSION = '2026-10-14T10:00:00.123456+00:00';
+  const reviewOf = (status: string, payload: Record<string, unknown>) => ({
     id: 'review-1',
     tournament_id: 'tournament-1',
     registration_id: 'reg-blue',
     review_type: 'second_black_card',
-    status: 'pending',
-  };
+    status,
+    black_card_count: (payload['penaltyIds'] as unknown[]).length,
+    payload_json: payload,
+    updated_at: VERSION,
+  });
+  const pending = reviewOf('pending', { penaltyIds: ['card-x', 'card-black'] });
+  const elsewhere = { match_id: 'm7' };
+  const answer = (db: Parameters<typeof writesTo>[0]) => writesTo(db, 'tournament_penalty_reviews');
 
-  it('is removed when fewer than two black cards remain, and only while pending', async () => {
+  it('is removed when fewer than two black cards remain and nobody answered it', async () => {
     const { db, undo } = setup({ reviews: [pending] });
 
     await undo();
 
-    const [removed] = writesTo(db, 'tournament_penalty_reviews');
+    const [removed] = answer(db);
     expect(removed?.op).toBe('delete');
-    expect(scopedTo(removed, 'tournament_id')).toBe('tournament-1');
-    expect(scopedTo(removed, 'registration_id')).toBe('reg-blue');
-    expect(scopedTo(removed, 'status')).toBe('pending');
+    expect(scopedTo(removed, 'id')).toBe('review-1');
+    expect(scopedTo(removed, 'updated_at')).toBe(VERSION);
   });
 
-  it('stays while two black cards of that Fighter remain in the Tournament', async () => {
-    const elsewhere = { match_id: 'm7' };
+  it('stays pending while two black cards of that Fighter remain, the count following', async () => {
     const { db, undo } = setup({
       cards: [
         blackCard(),
         blackCard({ id: 'card-a', ...elsewhere }),
         blackCard({ id: 'card-b', ...elsewhere }),
       ],
-      reviews: [pending],
+      reviews: [reviewOf('pending', { penaltyIds: ['card-a', 'card-b', 'card-black'] })],
     });
 
     await undo();
 
-    expect(writesTo(db, 'tournament_penalty_reviews')).toEqual([]);
+    const [update] = answer(db);
+    expect(update?.op).toBe('update');
+    expect(update?.row).toMatchObject({
+      status: 'pending',
+      black_card_count: 2,
+      payload_json: { penaltyIds: ['card-a', 'card-b'] },
+    });
+  });
+
+  // Ruled 2026-10-14: the card that reopened a dismissed review is voided → the answer is back.
+  it('gives the dismissal back when the card that reopened the review is voided', async () => {
+    const { db, undo } = setup({
+      cards: [
+        blackCard(),
+        blackCard({ id: 'card-a', ...elsewhere }),
+        blackCard({ id: 'card-b', ...elsewhere }),
+      ],
+      reviews: [
+        reviewOf('pending', {
+          penaltyIds: ['card-a', 'card-b', 'card-black'],
+          reopenedFrom: 'dismissed',
+          reopenedBy: 'card-black',
+        }),
+      ],
+    });
+
+    await undo();
+
+    const [update] = answer(db);
+    expect(update?.row).toMatchObject({ status: 'dismissed', black_card_count: 2 });
+    expect((update?.row as { payload_json: object }).payload_json).toEqual({
+      penaltyIds: ['card-a', 'card-b'],
+    });
+    expect(scopedTo(update, 'updated_at')).toBe(VERSION);
+  });
+
+  it('keeps a reopened review pending when another card is voided and two remain', async () => {
+    const { db, undo } = setup({
+      cards: [
+        blackCard(),
+        blackCard({ id: 'card-a', ...elsewhere }),
+        blackCard({ id: 'card-c', ...elsewhere }),
+      ],
+      reviews: [
+        reviewOf('pending', {
+          penaltyIds: ['card-a', 'card-black', 'card-c'],
+          reopenedFrom: 'dismissed',
+          reopenedBy: 'card-c',
+        }),
+      ],
+    });
+
+    await undo();
+
+    expect(answer(db)[0]?.row).toMatchObject({
+      status: 'pending',
+      black_card_count: 2,
+      payload_json: { reopenedBy: 'card-c' },
+    });
+  });
+
+  it('gives a reopened review its answer back, never removes it, below two live cards', async () => {
+    const { db, undo } = setup({
+      cards: [blackCard(), blackCard({ id: 'card-c', ...elsewhere })],
+      reviews: [
+        reviewOf('pending', {
+          penaltyIds: ['card-black', 'card-c'],
+          reopenedFrom: 'dismissed',
+          reopenedBy: 'card-c',
+        }),
+      ],
+    });
+
+    await undo();
+
+    const [update] = answer(db);
+    expect(update?.op).toBe('update');
+    expect(update?.row).toMatchObject({ status: 'dismissed', black_card_count: 1 });
   });
 
   it('a review that cannot be removed does not fail a void that landed', async () => {

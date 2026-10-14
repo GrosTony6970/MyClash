@@ -27,14 +27,9 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
 
     await undo();
 
-    // The review's delete is last: it is asked for once the card is voided.
-    expect(written(db)).toEqual([
-      'matches',
-      'registrations',
-      'match_forfeits',
-      'match_penalties',
-      'tournament_penalty_reviews',
-    ]);
+    // The Fighter has no black card review: nothing is written to the reviews (a review is
+    // brought up to date once the card is voided, `penalties.void-black-card.review.test.ts`).
+    expect(written(db)).toEqual(['matches', 'registrations', 'match_forfeits', 'match_penalties']);
     const [bout] = writesTo(db, 'matches');
     expect(bout?.row).toMatchObject(BEFORE_THE_CARD);
     expect(scopedTo(bout, 'id')).toBe('m1');
@@ -200,7 +195,7 @@ describe('PenaltiesService.voidPenalty: a card whose void leaves the forfeit alo
 
     await undo('card-black-2');
 
-    expect(written(db)).toEqual(['match_penalties', 'tournament_penalty_reviews']);
+    expect(written(db)).toEqual(['match_penalties']);
   });
 
   it('a voided black card beside it does not count', async () => {
@@ -221,6 +216,6 @@ describe('PenaltiesService.voidPenalty: a card whose void leaves the forfeit alo
 
     await undo();
 
-    expect(written(db)).toEqual(['match_penalties', 'tournament_penalty_reviews']);
+    expect(written(db)).toEqual(['match_penalties']);
   });
 });

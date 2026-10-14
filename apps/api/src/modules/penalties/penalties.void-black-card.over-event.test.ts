@@ -65,7 +65,7 @@ describe('PATCH match-penalties/:id/void: a black card on an over Event (ruling 
 
       await send();
 
-      expect(written(db)).toEqual(['match_penalties', 'tournament_penalty_reviews']);
+      expect(written(db)).toEqual(['match_penalties']);
       expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     },
   );
@@ -80,7 +80,7 @@ describe('PATCH match-penalties/:id/void: a black card on an over Event (ruling 
 
       await send();
 
-      expect(written(db)).toEqual(['match_penalties', 'tournament_penalty_reviews']);
+      expect(written(db)).toEqual(['match_penalties']);
     },
   );
 });

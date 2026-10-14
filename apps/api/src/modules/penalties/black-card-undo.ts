@@ -2,6 +2,14 @@ import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import type { MatchForfeitsService } from '../matches/match-forfeits.service';
 import type { SupabaseService } from '../supabase/supabase.service';
+import {
+  dropReviewAsRead,
+  liveBlackCardIds,
+  readReview,
+  reviewAfterVoid,
+  sameReview,
+  writeReviewOver,
+} from './second-black-card-review';
 
 /**
  * Taking a black card back takes back what the card did (ruling 319).
@@ -42,12 +50,12 @@ function rowsOf(what: string, result: { data: unknown; error: { message: string 
   return (result.data ?? []) as Row[];
 }
 
-/** That Fighter's other live black cards, on this bout or in the whole Tournament. */
-async function otherLiveBlackCards(db: Client, card: Row, on: 'match_id' | 'tournament_id') {
+/** That Fighter's other live black cards on this bout. */
+async function otherLiveBlackCardsOnBout(db: Client, card: Row) {
   const cards = await db
     .from('match_penalties')
     .select('id')
-    .eq(on, card[on] as string)
+    .eq('match_id', card['match_id'] as string)
     .eq('registration_id', card['registration_id'] as string)
     .eq('card', 'black')
     .eq('voided', false)
@@ -64,7 +72,7 @@ async function otherLiveBlackCards(db: Client, card: Row, on: 'match_id' | 'tour
  */
 async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
   if (card['card'] !== 'black') return null;
-  if ((await otherLiveBlackCards(db, card, 'match_id')) > 0) return null;
+  if ((await otherLiveBlackCardsOnBout(db, card)) > 0) return null;
   const forfeits = await db
     .from('match_forfeits')
     .select('id, replacement_registration_id, created_at')
@@ -152,24 +160,36 @@ export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Act
 }
 
 /**
- * The review "a second black card" asked for, while nobody has answered it,
- * goes with the card that asked: fewer than two live ones remain.
+ * The review "a second black card" asked for follows the cards left once a black card is
+ * voided (`reviewAfterVoid`): the void of the card that reopened a dismissed review gives the
+ * answer back; a review nobody answered goes once fewer than two live cards remain; otherwise
+ * the count follows. Written over the review as it was read, once more if it moved.
  */
 export async function dropSpentBlackCardReview(db: Client, card: Row): Promise<void> {
   if (card['card'] !== 'black') return;
+  const tournamentId = card['tournament_id'] as string;
+  const registrationId = card['registration_id'] as string;
   // Never throws: the card is voided by now, and the answer must say so.
   try {
-    if ((await otherLiveBlackCards(db, card, 'tournament_id')) >= 2) return;
-    const { error } = await db
-      .from('tournament_penalty_reviews')
-      .delete()
-      .eq('tournament_id', card['tournament_id'] as string)
-      .eq('registration_id', card['registration_id'] as string)
-      .eq('status', 'pending');
-    if (error) throw new Error(error.message);
+    for (const lastTry of [false, true]) {
+      // The voided card by its id too: this runs right after its own write.
+      const live = (await liveBlackCardIds(db, tournamentId, registrationId)).filter(
+        (id) => id !== card['id'],
+      );
+      const review = await readReview(db, tournamentId, registrationId);
+      if (!review) return;
+      const next = reviewAfterVoid(review, live, String(card['id']));
+      if (next !== 'drop' && sameReview(review, next)) return;
+      const written =
+        next === 'drop'
+          ? await dropReviewAsRead(db, review)
+          : await writeReviewOver(db, review, next);
+      if (written) return;
+      if (lastTry) throw new Error('the review changed twice while it was written');
+    }
   } catch (err) {
     logger.warn(
-      `The second black card review of registration ${String(card['registration_id'])} was not removed`,
+      `The second black card review of registration ${String(card['registration_id'])} was not brought up to date`,
       err,
     );
   }
