@@ -14,6 +14,9 @@ import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRefereeWrite } from '@/hooks/useRefereeWrite';
 import { RefereeWriteNotice } from '@/components/RefereeRefusalNotice';
+import { matchVisible } from './match-filter';
+import { MatchListFilterBar } from './MatchListFilterBar';
+import { useMatchListFilters } from './useMatchListFilters';
 
 const apiUrl = getPublicApiUrl();
 
@@ -123,6 +126,7 @@ export function MatchesTab({
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const filters = useMatchListFilters();
   // The two referee dropdowns ask the one checker (ADR-016): a refusal is shown, not reverted in silence.
   const refereeWrite = useRefereeWrite();
 
@@ -351,7 +355,8 @@ export function MatchesTab({
   return (
     <div className="space-y-6">
       <RefereeWriteNotice write={refereeWrite} />
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-3">
+        <MatchListFilterBar {...filters} />
         <button
           type="button"
           onClick={refresh}
@@ -374,8 +379,12 @@ export function MatchesTab({
       */}
       <div className="flex flex-col gap-4">
         {pools.map((pool) => {
+          // The header counts the whole Pool; the table shows what the filter lets through.
           const done = pool.matches.filter((m) => m.status === 'completed').length;
           const total = pool.matches.length;
+          const shown = pool.matches.filter((m) =>
+            matchVisible(m, filters.query, filters.hideDone),
+          );
           return (
             <section key={pool.poolId} className="rounded-lg border border-border bg-surface">
               <header className="border-b border-border px-4 py-3">
@@ -396,6 +405,10 @@ export function MatchesTab({
               {pool.matches.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-muted">
                   {t('organizer.pools.matches.empty')}
+                </p>
+              ) : shown.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-muted">
+                  {t('organizer.pools.matches.noneShown')}
                 </p>
               ) : (
                 // Height cap turns this wrapper into a real vertical scroll
@@ -519,7 +532,7 @@ export function MatchesTab({
                       </tr>
                     </thead>
                     <tbody>
-                      {pool.matches.map((m) => {
+                      {shown.map((m) => {
                         // Always-clickable: lice-scoped scoring URL when
                         // a lice is assigned, per-match URL otherwise.
                         // The previous "Assign a lice first" disabled

@@ -9,6 +9,10 @@ import { MatchesTab } from './MatchesTab';
  * piste and referees, and the Pool strip that sets them for every bout, are
  * four saves the server refuses there. The tab offered all four.
  */
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: () => undefined, push: () => undefined }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
     <a href={href}>{children}</a>

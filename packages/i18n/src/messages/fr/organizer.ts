@@ -2611,6 +2611,10 @@ export const organizer = {
       noPools: "Aucune poule générée. Générez les poules dans l'onglet Configurer.",
       applyToAll: 'Appliquer à tous :',
       mixed: '(mixte)',
+      filterLabel: 'Trouver un combat',
+      filterPlaceholder: 'Combattant, arbitre ou club',
+      hideCompleted: 'Masquer les combats terminés ou annulés',
+      noneShown: 'Aucun combat de cette poule ne correspond au filtre.',
     },
     standings: {
       overall: 'Global',

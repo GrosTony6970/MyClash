@@ -15,6 +15,10 @@ import { MatchesTab } from './MatchesTab';
  * component builds it. A refusal used to be a console line and a refetch.
  */
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: () => undefined, push: () => undefined }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
     <a href={href}>{children}</a>

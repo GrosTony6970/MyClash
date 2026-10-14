@@ -2653,6 +2653,10 @@ export const organizer = {
       noPools: 'No pools yet. Generate pools first in the Configure tab.',
       applyToAll: 'Apply to all:',
       mixed: '(mixed)',
+      filterLabel: 'Find a match',
+      filterPlaceholder: 'Fighter, referee or club',
+      hideCompleted: 'Hide completed and voided matches',
+      noneShown: 'No match of this pool fits the filter.',
     },
     standings: {
       overall: 'Overall',
