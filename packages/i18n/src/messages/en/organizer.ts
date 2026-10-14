@@ -1363,6 +1363,8 @@ export const organizer = {
     deleteConfirm: 'Delete this plan?',
     saveRatesError: 'Could not save rates.',
     saveTiersError: 'Could not save tiers.',
+    ratesSaved: 'Rates saved. This plan is your club’s: every Event that uses it pays these rates.',
+    tiersSaved: 'Tiers saved. This plan is your club’s: every Event that uses it pays these tiers.',
     builtInPlans: 'Built-in plans',
     builtIn: 'built-in',
     yourPlans: 'Your plans',

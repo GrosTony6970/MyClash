@@ -1,6 +1,6 @@
 'use client';
 
-import { HelpTooltip, useConfirm } from '@myclash/ui';
+import { HelpTooltip, useConfirm, useToast } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationPlan, CompensationPhase } from '@myclash/types';
@@ -70,6 +70,7 @@ export default function OrgCompensationPlansPage() {
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { confirm, confirmDialog } = useConfirm();
+  const toast = useToast();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [plans, setPlans] = useState<CompensationPlan[]>([]);
@@ -258,6 +259,7 @@ export default function OrgCompensationPlansPage() {
         return;
       }
       setPlans((prev) => prev.map((p) => (p.id === planId ? r.data : p)));
+      toast.success(t('organizer.compensationSettings.ratesSaved'));
     } finally {
       setSavingRates(false);
     }
@@ -285,6 +287,7 @@ export default function OrgCompensationPlansPage() {
         return;
       }
       setPlans((prev) => prev.map((p) => (p.id === planId ? r.data : p)));
+      toast.success(t('organizer.compensationSettings.tiersSaved'));
     } finally {
       setSavingTiers(false);
     }

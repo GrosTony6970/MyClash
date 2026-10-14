@@ -1360,6 +1360,10 @@ export const organizer = {
     deleteConfirm: 'Supprimer ce plan ?',
     saveRatesError: 'Impossible de sauvegarder les taux.',
     saveTiersError: 'Impossible de sauvegarder les paliers.',
+    ratesSaved:
+      'Taux enregistrés. Ce barème est celui de votre club : chaque événement qui l’utilise paie ces taux.',
+    tiersSaved:
+      'Paliers enregistrés. Ce barème est celui de votre club : chaque événement qui l’utilise paie ces paliers.',
     builtInPlans: 'Plans integres',
     builtIn: 'integre',
     yourPlans: 'Vos plans',
