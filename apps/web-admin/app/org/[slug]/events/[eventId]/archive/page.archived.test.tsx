@@ -125,6 +125,22 @@ describe('the archive page of an archived Event', () => {
     expect(restoreButton()).toBeUndefined();
   });
 
+  it('takes the phrase in small letters and with stray spaces, and sends it exact', async () => {
+    page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
+    await pick('open-2025.zip');
+    await press(page, 'Preview restore');
+    const sentence = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="RESTORE MYCLASH ARCHIVE"]',
+    )!;
+    await act(async () => type(sentence, '  restore  myclash archive '));
+    expect(restoreButton()?.disabled).toBe(false);
+    await act(async () => restoreButton()?.click());
+    await page.settle();
+    expect(restores(page)).toEqual([
+      'POST /api/v1/archive/restore?confirmation=RESTORE+MYCLASH+ARCHIVE&targetOrganizationId=org-1',
+    ]);
+  });
+
   it('still restores a whole Event, as a new one', async () => {
     page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
 

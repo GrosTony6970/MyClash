@@ -7,7 +7,7 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 import { restoredNotice, type RestoreAnswer } from './restore-notice';
-import type { RestorePreview } from './RestorePreviewCard';
+import { RESTORE_CONFIRMATION, type RestorePreview } from './RestorePreviewCard';
 
 type Sent<T> = { ok: true; data: T } | { ok: false; message: string | null };
 
@@ -21,14 +21,16 @@ async function postArchive<T>(path: string, file: File, t: Translator, fallback:
   return (r.ok ? r : { ok: false, message: failureMessage(r, t, t(fallback)) }) as Sent<T>;
 }
 
-/** Where a restore goes: a whole Event into the club, one Tournament into this Event. */
+/**
+ * Where a restore goes: a whole Event into the club, one Tournament into this Event. It
+ * carries the exact phrase, whatever the organiser typed (`restorePhraseTyped`).
+ */
 export function restorePath(
-  confirmation: string,
   scope: RestorePreview['scope'] | undefined,
   eventId: string,
   organizationId: string | undefined,
 ): string {
-  const params = new URLSearchParams({ confirmation });
+  const params = new URLSearchParams({ confirmation: RESTORE_CONFIRMATION });
   if (scope === 'event' && organizationId) params.set('targetOrganizationId', organizationId);
   if (scope === 'tournament') params.set('targetEventId', eventId);
   return `/api/v1/archive/restore?${params.toString()}`;
@@ -70,7 +72,7 @@ export function useArchiveRestore(eventId: string, organizationId: string | unde
     });
   };
   const restoreArchive = () => {
-    const path = restorePath(confirmation, preview?.scope, eventId, organizationId);
+    const path = restorePath(preview?.scope, eventId, organizationId);
     void send<RestoreAnswer>(path, 'organizer.archive.restoreError').then((answer) => {
       if (!answer) return;
       setOutcome(successOutcome(restoredNotice(t, answer)));

@@ -14,7 +14,17 @@ export interface RestorePreview {
   canRestore: boolean;
 }
 
+/**
+ * The words typed before a restore. The server takes exactly these (`archive.service.ts`);
+ * the brake is "type the three words", not "type them in capitals" (as P9 ruled for the
+ * pad's reset). So the page reads what was typed loosely, and sends the exact words.
+ */
 export const RESTORE_CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
+
+/** Capitals do not matter, nor the spaces around the words or between them. */
+export function restorePhraseTyped(typed: string): boolean {
+  return typed.trim().replace(/\s+/g, ' ').toUpperCase() === RESTORE_CONFIRMATION;
+}
 
 /** What the previewed file holds, the phrase to type, and the Restore button. */
 export function RestorePreviewCard({
@@ -46,7 +56,7 @@ export function RestorePreviewCard({
         <button
           type="button"
           onClick={onRestore}
-          disabled={restoreClosed || !preview.canRestore || confirmation !== RESTORE_CONFIRMATION}
+          disabled={restoreClosed || !preview.canRestore || !restorePhraseTyped(confirmation)}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
         >
           {t('organizer.archive.restoreCopy')}
