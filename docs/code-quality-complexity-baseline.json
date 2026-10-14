@@ -544,7 +544,6 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/print/page.tsx:115",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AssignmentDiagnosticsPanel.tsx:78",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AvailabilityChips.tsx:84",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/CandidatePicker.tsx:24",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/PoolSlotCard.tsx:51",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/SkillCatalog.tsx:304",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/SkillCatalog.tsx:78",

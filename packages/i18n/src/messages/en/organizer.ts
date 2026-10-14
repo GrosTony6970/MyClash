@@ -1762,6 +1762,8 @@ export const organizer = {
     pickerRecommended: 'Recommended',
     pickerDiscouraged: 'Needs confirmation',
     pickerBlocked: 'Not possible',
+    pickerSearch: 'Search referees',
+    pickerNoMatch: 'No referee matches "{query}".',
     // ADR-019's load: the distinct bouts under the person's duties on the slot's day.
     pickerBoutsThatDay: 'Bouts that day: {count}',
     // One sentence per reason code of the one referee checker (ADR-016), said after the

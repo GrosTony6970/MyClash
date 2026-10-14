@@ -12,9 +12,11 @@
  * The same call answers the Assign button, so the picker and Assign cannot disagree.
  */
 
+import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Modal } from '@myclash/ui';
 import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
+import { filterCandidates } from './candidate-filter';
 import type {
   AssignmentBoardPool,
   AssignmentBoardRoleSlot,
@@ -37,6 +39,7 @@ export function CandidatePicker({
   onCancel: () => void;
 }) {
   const { t } = useI18n();
+  const [query, setQuery] = useState('');
 
   return (
     <Modal
@@ -55,28 +58,63 @@ export function CandidatePicker({
         </button>
       }
     >
-      <div className="max-h-96 space-y-3 overflow-y-auto">
-        <CandidateGroup
-          title={t('organizer.refereeBoard.pickerRecommended')}
-          candidates={slot.candidates.recommended}
-          action={t('organizer.refereeBoard.pick')}
-          tone="recommended"
-          onSelect={(candidate) => onAssign(candidate.personId, false)}
-        />
-        <CandidateGroup
-          title={t('organizer.refereeBoard.pickerDiscouraged')}
-          candidates={slot.candidates.warning}
-          action={t('organizer.refereeBoard.pickAnyway')}
-          tone="discouraged"
-          onSelect={(candidate) => onAssign(candidate.personId, true)}
-        />
-        <CandidateGroup
-          title={t('organizer.refereeBoard.pickerBlocked')}
-          candidates={slot.candidates.blocked}
-          tone="impossible"
-        />
-      </div>
+      <input
+        type="search"
+        // eslint-disable-next-line jsx-a11y/no-autofocus -- the picker opens to find one name
+        autoFocus
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        aria-label={t('organizer.refereeBoard.pickerSearch')}
+        placeholder={t('organizer.refereeBoard.pickerSearch')}
+        className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <CandidateGroups candidates={slot.candidates} query={query} onAssign={onAssign} />
     </Modal>
+  );
+}
+
+/** The three groups, each holding only the candidates the search keeps (O9). */
+function CandidateGroups({
+  candidates,
+  query,
+  onAssign,
+}: {
+  candidates: AssignmentBoardRoleSlot['candidates'];
+  query: string;
+  onAssign: (personId: string, confirm: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const recommended = filterCandidates(candidates.recommended, query);
+  const warning = filterCandidates(candidates.warning, query);
+  const blocked = filterCandidates(candidates.blocked, query);
+  const none = recommended.length + warning.length + blocked.length === 0;
+  return (
+    <div className="max-h-96 space-y-3 overflow-y-auto">
+      {none && query.trim() && (
+        <p className="text-sm text-muted">
+          {t('organizer.refereeBoard.pickerNoMatch', { query: query.trim() })}
+        </p>
+      )}
+      <CandidateGroup
+        title={t('organizer.refereeBoard.pickerRecommended')}
+        candidates={recommended}
+        action={t('organizer.refereeBoard.pick')}
+        tone="recommended"
+        onSelect={(candidate) => onAssign(candidate.personId, false)}
+      />
+      <CandidateGroup
+        title={t('organizer.refereeBoard.pickerDiscouraged')}
+        candidates={warning}
+        action={t('organizer.refereeBoard.pickAnyway')}
+        tone="discouraged"
+        onSelect={(candidate) => onAssign(candidate.personId, true)}
+      />
+      <CandidateGroup
+        title={t('organizer.refereeBoard.pickerBlocked')}
+        candidates={blocked}
+        tone="impossible"
+      />
+    </div>
   );
 }
 

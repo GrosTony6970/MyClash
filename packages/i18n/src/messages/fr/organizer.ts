@@ -1747,9 +1747,11 @@ export const organizer = {
     cancel: 'Annuler',
     pick: 'Choisir',
     pickAnyway: 'Affecter quand même',
-    pickerRecommended: 'Recommandes',
+    pickerRecommended: 'Recommandés',
     pickerDiscouraged: 'À confirmer',
     pickerBlocked: 'Impossible',
+    pickerSearch: 'Rechercher un arbitre',
+    pickerNoMatch: 'Aucun arbitre ne correspond à « {query} ».',
     pickerBoutsThatDay: 'Combats ce jour-là : {count}',
     reasons: {
       own_match: 'combat dans ce match ({against})',
