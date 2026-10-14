@@ -135,18 +135,18 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~O2~~  | ~~One click on a placed Workshop's × deletes the session and every enrolment with it. No confirm, no undo.~~ Done `42ed9406`.                                                                        | `useConfirm` (already on that page), stating the enrolment count.                    | A mis-click while dragging cannot wipe a sign-up list on the day.               | `EV/workshops/WorkshopScheduleBoard.tsx:777-788, 896-903`; `page.tsx:828-837`                                  | S     |
 | ~~O3~~  | ~~✔ A message to every participant goes out on one click. No confirm, no count.~~ Done `eceb8c88`.                                                                                                   | `useConfirm`, naming the audience and severity.                                      | No half-written or mis-targeted message to the whole hall.                      | `EV/notifications/page.tsx:103-122`                                                                            | S     |
 | ~~O4~~  | ~~✔ Broadcast failure and success look the same: one grey line.~~ Done `5938c85e`.                                                                                                                   | Split error from notice, or `useToast`.                                              | The organiser knows whether the hall was told.                                  | `EV/notifications/page.tsx:128, 131`                                                                           | S     |
-| O5      | ✔ "Specific persons" has no select-all: 40 people is 40 clicks.                                                                                                                                      | "Select all shown" on the filtered list.                                             | Messaging one club or one Pool takes seconds.                                   | `EV/notifications/page.tsx:144-151, 210-241`                                                                   | S     |
+| ~~O5~~  | ~~✔ "Specific persons" has no select-all: 40 people is 40 clicks.~~ Done `e79eede3`.                                                                                                                 | "Select all shown" on the filtered list.                                             | Messaging one club or one Pool takes seconds.                                   | `EV/notifications/page.tsx:144-151, 210-241`                                                                   | S     |
 | ~~O6~~  | ~~All three planning boards open on day 1, never on today.~~ Done `74b7748b`.                                                                                                                        | Default to the Event's "today" when it is one of its days.                           | On day 2 nobody drops a Pool onto yesterday.                                    | `EV/schedule/useScheduleData.ts:239`; `EV/workshops/WorkshopScheduleBoard.tsx:130`; `EV/referees/page.tsx:589` | S     |
 | ~~O7~~  | ~~Pools, Swiss, print and archive forget the Tournament on refresh; dashboard links for Tournament #4 open #1.~~ Done `fd61511b`.                                                                    | Read and write `?tournamentId`, as the bracket page does; add it to the links.       | The organiser stays on the Tournament they are running.                         | `EV/pools/page.tsx:199`; `EV/swiss/page.tsx:87`; `EV/print/page.tsx:127`; `EV/page.tsx:669-699`                | S     |
 | ~~O8~~  | ~~A refused referee assignment shows its reason behind the open picker.~~ Done `6aabcb2d`.                                                                                                           | Show it inside the picker.                                                           | The organiser sees why and picks someone else, instead of clicking again.       | `EV/referees/page.tsx:987, 1344, 1434-1443`                                                                    | S     |
 | ~~O9~~  | ~~The referee picker has no search.~~ Done `39c483cd`.                                                                                                                                               | An autofocused filter input.                                                         | A named referee is two keystrokes away.                                         | `EV/referees/_components/CandidatePicker.tsx:42-79`                                                            | S     |
 | ~~O10~~ | ~~A failed load of one Tournament's penalty reviews looks like "nobody to review".~~ Done `d9cb35a5`.                                                                                                | Show the existing error banner, naming the Tournament.                               | A pending disqualification is not missed because of a network blip.             | `EV/penalties/page.tsx:104`                                                                                    | S     |
-| O11     | Dismissing a penalty review is one click beside "Confirm DQ"; resolved rows carry no date.                                                                                                           | Confirm on dismiss; disable while saving; show the date.                             | A mis-tap does not quietly close a disqualification case.                       | `EV/penalties/page.tsx:208-214, 228-243`                                                                       | S     |
-| O12     | ✔ The new-Event wizard loses four steps of input on refresh or on "Back".                                                                                                                            | `useConfirm` when the form differs from empty.                                       | No retyping of dates, venue and pistes after a stray click.                     | `org/[slug]/events/new/page.tsx:856, 1125, 1222`                                                               | S     |
-| O13     | In the same wizard, a retry after a partial failure says "slug already taken".                                                                                                                       | Remember the created Event and skip that step on retry.                              | No confusing error, and no half-built Event nobody knows about.                 | `org/[slug]/events/new/page.tsx:988-1009, 1038-1041`                                                           | S–M   |
+| ~~O11~~ | ~~Dismissing a penalty review is one click beside "Confirm DQ"; resolved rows carry no date.~~ Done `084a4f66`.                                                                                      | Confirm on dismiss; disable while saving; show the date.                             | A mis-tap does not quietly close a disqualification case.                       | `EV/penalties/page.tsx:208-214, 228-243`                                                                       | S     |
+| ~~O12~~ | ~~✔ The new-Event wizard loses four steps of input on refresh or on "Back".~~ Done `21fc5b86`.                                                                                                       | `useConfirm` when the form differs from empty.                                       | No retyping of dates, venue and pistes after a stray click.                     | `org/[slug]/events/new/page.tsx:856, 1125, 1222`                                                               | S     |
+| ~~O13~~ | ~~In the same wizard, a retry after a partial failure says "slug already taken".~~ Done `0538d390`.                                                                                                  | Remember the created Event and skip that step on retry.                              | No confusing error, and no half-built Event nobody knows about.                 | `org/[slug]/events/new/page.tsx:988-1009, 1038-1041`                                                           | S–M   |
 | ~~O14~~ | ~~The Tournament wizard says "created" straight after a failed publish.~~ Done `22b618c2`.                                                                                                           | Word it "saved as draft" when publish failed.                                        | Nobody believes a draft Tournament is live.                                     | `EV/tournaments/new/_wizard/WizardShell.tsx:54-60`                                                             | S     |
-| O15     | Tournament settings tabs drop unsaved edits on tab switch; the page never names the Tournament.                                                                                                      | Keep tabs mounted; show the name.                                                    | Settings are not lost, nor applied to the wrong Tournament.                     | `EV/tournaments/[tournamentId]/settings/page.tsx:51-65, 96-104`                                                | M     |
-| O16     | Adding walk-ins closes the window after each person; Enter does not save.                                                                                                                            | "Save and add another"; a real `<form>`.                                             | A queue at the desk moves at typing speed.                                      | `EV/persons/page.tsx:466-479, 624, 1559-1902`                                                                  | S–M   |
+| ~~O15~~ | ~~Tournament settings tabs drop unsaved edits on tab switch; the page never names the Tournament.~~ Done `63022b10`.                                                                                 | Keep tabs mounted; show the name.                                                    | Settings are not lost, nor applied to the wrong Tournament.                     | `EV/tournaments/[tournamentId]/settings/page.tsx:51-65, 96-104`                                                | M     |
+| ~~O16~~ | ~~Adding walk-ins closes the window after each person; Enter does not save.~~ Done `ae0e2bd8`.                                                                                                       | "Save and add another"; a real `<form>`.                                             | A queue at the desk moves at typing speed.                                      | `EV/persons/page.tsx:466-479, 624, 1559-1902`                                                                  | S–M   |
 | O17     | CSV import: the final screen counts skipped and invalid rows without listing them; reasons come in English from the server.                                                                          | List the rows (the data is already in the report); send a reason code and translate. | The organiser knows whom to add by hand, in their language.                     | `EV/persons/import/page.tsx:589, 606-611`; `apps/api/.../persons/csv-import.service.ts:131-178`                | S + M |
 | O18     | CSV import: the dashed box does not accept a dropped file, and there is no template.                                                                                                                 | Drop handlers; a "Download template" link.                                           | Fewer failed first imports from misspelt headers.                               | `EV/persons/import/page.tsx:337-357`                                                                           | S     |
 | ~~O19~~ | ~~The roster has no export, and its filters are lost on refresh.~~ Done `9e68f5ea`.                                                                                                                  | CSV of the filtered list via `escapeCsvCell`; filters in the address.                | A check-in list for the desk in one click.                                      | `EV/persons/page.tsx:152-157, 1004-1021`                                                                       | M     |
@@ -155,9 +155,9 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~O22~~ | ~~The print pack prints one Tournament at a time.~~ Done `9e2aa2a8`.                                                                                                                                 | An "All Tournaments" option.                                                         | One print job at 8 a.m. instead of four.                                        | `EV/print/page.tsx:308-325`                                                                                    | M     |
 | ~~O23~~ | ~~Archive restore: after previewing file A, choosing file B keeps A's preview and restores B.~~ Done `35ccc5c0`.                                                                                     | Clear the preview when the file changes.                                             | Nobody restores an archive they never looked at.                                | `EV/archive/page.tsx:121, 289-296`                                                                             | S     |
 | ~~O24~~ | ~~Saving referee pay rates gives no confirmation.~~ Done `d7bf23ba`.                                                                                                                                 | `toast.success` on each save.                                                        | No reloading to check that money settings were kept.                            | `EV/compensation/plan/page.tsx:228-292`                                                                        | S     |
-| O25     | Removing a piste from a venue is instant and a refusal is silent; Enter does not add a piste, there or on the schedule board.                                                                        | The `confirm()` already in that file; a toast; Enter-to-add.                         | Six pistes are six "type, Enter"; none vanishes by accident.                    | `org/[slug]/venues/page.tsx:521-554, 654-699`; `EV/schedule/grid.tsx:1754-1794`                                | S     |
+| ~~O25~~ | ~~Removing a piste from a venue is instant and a refusal is silent; Enter does not add a piste, there or on the schedule board.~~ Done `235649b6`.                                                   | The `confirm()` already in that file; a toast; Enter-to-add.                         | Six pistes are six "type, Enter"; none vanishes by accident.                    | `org/[slug]/venues/page.tsx:521-554, 654-699`; `EV/schedule/grid.tsx:1754-1794`                                | S     |
 | ~~O26~~ | ~~The schedule board forgets Blocks / Detailed view on reload. Its four other settings are kept.~~ Done `479f4232`.                                                                                  | A fifth entry in `useSchedulePrefs`.                                                 | One click less after every reload on the day.                                   | `EV/schedule/grid.tsx:424`; `useSchedulePrefs.ts:30-33`                                                        | S     |
-| O27     | The reset-PIN prompt shows neither the PIN rule nor whose PIN it is.                                                                                                                                 | Pass the hint and the name (`PromptDialog` takes `description`).                     | The PIN is right first time, for the right person.                              | `EV/staff/StaffRoleSection.tsx:36`                                                                             | S     |
+| ~~O27~~ | ~~The reset-PIN prompt shows neither the PIN rule nor whose PIN it is.~~ Done `ad51e1a3`.                                                                                                            | Pass the hint and the name (`PromptDialog` takes `description`).                     | The PIN is right first time, for the right person.                              | `EV/staff/StaffRoleSection.tsx:36`                                                                             | S     |
 | ~~O28~~ | ~~✔ Match detail is a dead end. The page already receives the Tournament and Pool; it does not use them.~~ Done `9af16813`.                                                                          | One more breadcrumb.                                                                 | Back to the Pool in one click after checking a bout.                            | `EV/matches/[matchId]/page.tsx:85-134, 505-518`                                                                | S     |
 | ~~O29~~ | ~~Pool matches have no name filter.~~ Done `21c2730d`.                                                                                                                                               | A name filter and "hide completed".                                                  | "When does Martin fight?" is answered without scrolling 60 rows.                | `EV/pools/_tabs/MatchesTab.tsx:106-115`                                                                        | M     |
 
@@ -2119,12 +2119,87 @@ Named, not fixed (each read in code):
 - The referee board's and the Configure panel's day are tested by their pure rule, not by a
   mounted page.
 
+## Built on 2026-10-14: push 3 of the O and X rows
+
+Eight rows, the bug of a third black card, two faults found beside them, the fixes of their
+review and the tests of the seeded breaks: seventeen commits, `a587ea2a` to `f047e736`. Pushes 4
+and 5 of the plan (O17 O18 O20, X1 X2 X4 X5) are NOT built. The build detail of this push:
+`C:\Users\Tony\.claude\plans\pasted-content-id-0f1e-repo-f-github-humming-galaxy.md`.
+
+What people get:
+
+- **The leave question has one owner** (`a587ea2a`). It moved from the fighter profile to the
+  shared package, so the wizard and the Tournament settings ask with it too.
+- **Escape closes only the top dialog** (`b977fda9`, found beside O25). A question opened over a
+  window closed both at one Escape, on the pad too (the corrections drawer went with the "Edit as
+  no exchange" question). One listener now hands each Escape to the dialog opened last.
+- **O15** (`63022b10`). The Tournament settings ask "Leave without saving?" before a tab switch,
+  a link or closing the browser tab, and name the Tournament.
+- **O12** (`21fc5b86`). The new-Event wizard asks before Cancel, "Back to the club", a link or
+  closing the tab, while it holds anything typed or a logo.
+- **O13** (`0538d390`, `ef8fb278`). A second Create goes on where the first stopped: it keeps the
+  Event made (the address is locked, a line says why), changes its basics if they were edited,
+  keeps the venue made unless one of its fields changed, and sends only the pistes and areas not
+  taken yet, one by one, each refusal named.
+- **O16** (`ae0e2bd8`). The Add participant window is a form: Enter in the club field or the
+  profile search picks the first suggestion, elsewhere Enter saves. "Save and add another" keeps
+  the ticked Tournaments. A full Tournament asks at once, over the window. Every add says so.
+- **O5** (`e79eede3`). "Specific people" finds a person by name, email or club, accents ignored,
+  shows each club, and has "Select all shown" (adds) and "Clear". The count says how many the
+  search hides. Above 500 the page says so and sends nothing.
+- **O11** (`084a4f66`, `ba5a5d48`). Dismiss asks first; one answer at a time; nothing to answer on
+  an archived Event; a resolved review shows its date on the Event's clock; a dismissed one keeps
+  "Disqualify after all". An answer to a review a new card changed since it was shown is refused,
+  and the page says so and reads it again.
+- **The third black card** (`1609ce13`, `381137c1`, `ba5a5d48`). A new black card reopens the
+  review with the new count, a confirmed disqualification stays confirmed, and a failed write is a
+  server error. Voiding the card that reopened a review gives the dismissal back, once no live card
+  is one the dismissal did not see. A card the tablet sends again brings its review up to date.
+- **O25** (`a8cb604c`, `235649b6`, `fae4ec63`). Removing a venue area asks first and names the
+  Event pistes and workshop sessions it holds; a piste goes at once. A refused add or remove says
+  why inside the venue window. Enter adds, there and on the schedule board, once per press.
+- **O27** (`ad51e1a3`, `fae4ec63`). The reset-PIN box names the person and the rule, checks the PIN
+  as it is typed, and has Show / Hide.
+
+The proof: one cold review (no blocker, three majors, eight minors; the majors and three minors
+fixed, the rest below), 100 seeded breaks (94 red; five got a test, then red; one is held twice,
+below), the gate chain (36 of 36), the browser suite (403 passed, 10.6 min), API coverage (green). No migration, no new route; one request body changed (the
+answer to a penalty review carries the version it answers).
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The leave question no longer names the profile**: "Your changes are not saved yet."
+- **Removing the English "Confirm" / "Cancel" defaults of the dialogs moves to push 5**, with X4.
+- **Enter in the walk-in profile search picks the first profile** not already in the Event.
+- **A card sent again repairs its review**, even on an Event that is over: it only writes the
+  review the cards already call for.
+- **The Add window stays in the roster page.** Moving it out would add long functions to the
+  complexity ledger.
+- **A venue made by a wizard try, then changed, stays in the club's catalogue**, with any piste it
+  took.
+- **A reopened review keeps its first answer's date.**
+- **A review's date names its clock**: the browser's while the Event list has not arrived.
+
+Named, not fixed (each read in code):
+
+- The list of what an area holds is read across every Event of the club: past 1000 rows the
+  server cuts it, and an area could read "holds nothing" (`venue-area-leaves.ts`).
+- After a half-done Create, the leave question still says the changes will be lost, though the
+  Event exists.
+- The settings header keeps the old name after Basics saves a new one, until a reload.
+- Two dialogs opened in one render are stacked in the order of their effects; no page does it.
+- Confirming a review still sets the fighter disqualified without reading that write's error, and
+  a black card's own "out of the Tournament" write does the same (`penalties.service.ts`).
+- The unload prompt's `preventDefault` and `returnValue` each raise it alone: no test tells one
+  from the other.
+- The fighter profile's Settings page crashed once on a cold dev compile (`AiKeysManager`: an
+  answer that was not a list); 24 of 24 after.
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
   The row holds four items and cannot wrap (`_components/SiteHeader.tsx:112-152`).
 - Long fighter names on a 720p TV (`TVScoreboard.tsx:416`) — needs a real screen.
-- Whether a dismissed penalty review can be reopened; if not, O11 matters more.
 - Not read at all: start-of-day, the organiser live board, clubs, HEMA Ratings export, theme, the
   AI assistant, backups, and the pass / QR flow.
 
