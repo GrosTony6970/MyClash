@@ -908,8 +908,17 @@ export default function ParticipantsPage() {
     ) {
       return;
     }
+    await bulkReferee('POST', 'organizer.persons.bulk.registerRefereeToast');
+  }
+
+  /**
+   * One write per selected person. A refused write used to be counted out in silence
+   * under a green toast: now the toast says how many were refused, and they stay
+   * selected, so the next press tries them again.
+   */
+  async function bulkReferee(method: 'POST' | 'DELETE', doneKey: string) {
     setBulkLoading(true);
-    let ok = 0;
+    const refused = new Set<string>();
     for (const personId of selected) {
       const person = persons.find((p) => p.id === personId);
       // Mirror the single-person path at the "Add referee" toggle:
@@ -917,14 +926,19 @@ export default function ParticipantsPage() {
       // — ensureEventReferee resolves either.
       const targetId = person?.globalPersonId ?? personId;
       const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${targetId}`, {
-        method: 'POST',
+        method,
       });
-      if (r.ok) ok += 1;
+      if (!r.ok) refused.add(personId);
     }
-    setSelected(new Set());
+    const done = selected.size - refused.size;
+    setSelected(refused);
     setBulkLoading(false);
     refresh();
-    toast.success(t('organizer.persons.bulk.registerRefereeToast', { count: ok }));
+    if (refused.size === 0) toast.success(t(doneKey, { count: done }));
+    else {
+      const counts = { done: String(done), refused: String(refused.size) };
+      toast.warning(t('organizer.persons.bulk.refereePartial', counts));
+    }
   }
 
   async function handleBulkUnregisterReferee() {
@@ -937,20 +951,7 @@ export default function ParticipantsPage() {
     ) {
       return;
     }
-    setBulkLoading(true);
-    let ok = 0;
-    for (const personId of selected) {
-      const person = persons.find((p) => p.id === personId);
-      const targetId = person?.globalPersonId ?? personId;
-      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${targetId}`, {
-        method: 'DELETE',
-      });
-      if (r.ok) ok += 1;
-    }
-    setSelected(new Set());
-    setBulkLoading(false);
-    refresh();
-    toast.success(t('organizer.persons.bulk.unregisterRefereeToast', { count: ok }));
+    await bulkReferee('DELETE', 'organizer.persons.bulk.unregisterRefereeToast');
   }
 
   function handleDelete(personId: string) {

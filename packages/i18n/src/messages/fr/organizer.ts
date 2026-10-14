@@ -2902,6 +2902,8 @@ export const organizer = {
       checkInPartial: '{failed} pointage(s) refuse(s).',
       registerRefereeToast: '{count} participant(s) inscrit(s) comme arbitre pour cet événement.',
       unregisterRefereeToast: '{count} participant(s) desinscrit(s) comme arbitre.',
+      refereePartial:
+        '{done} fait(s), {refused} refusé(s). Les refusés restent sélectionnés : appuyez de nouveau pour les réessayer.',
       deleteFromEvent: "Supprimer de l'événement",
     },
   },
