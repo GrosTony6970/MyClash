@@ -60,3 +60,12 @@ export function resequenceDay(
     return t ? { ...b, ...t } : b;
   });
 }
+
+/**
+ * The day tab the drawer shows (quick win O6): the one the organiser picked, else today
+ * when today has a tab (`todayIndex` counts from the Event's first day), else day 1.
+ */
+export function plannerDay(picked: number | null, todayIndex: number | null, days: number): number {
+  if (picked !== null) return picked;
+  return todayIndex !== null && todayIndex < days ? todayIndex : 0;
+}

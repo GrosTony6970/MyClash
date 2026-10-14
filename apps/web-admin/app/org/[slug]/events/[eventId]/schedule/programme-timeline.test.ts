@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ProgrammeBlock } from '@myclash/types';
-import { nextBlockStartTime, resequenceDay } from './programme-timeline';
+import { nextBlockStartTime, plannerDay, resequenceDay } from './programme-timeline';
 
 function block(p: Partial<ProgrammeBlock> & { id: string }): ProgrammeBlock {
   return {
@@ -82,5 +82,21 @@ describe('resequenceDay', () => {
   it('returns the input unchanged for an empty day', () => {
     const blocks = [block({ id: 'a', dayIndex: 0 })];
     expect(resequenceDay(blocks, 5, '08:00')).toBe(blocks);
+  });
+});
+
+describe('plannerDay (O6: the drawer opens on today)', () => {
+  it('opens on today when today has a tab', () => {
+    expect(plannerDay(null, 1, 3)).toBe(1);
+  });
+
+  it('opens on day 1 when today has no tab, or the Event does not run today', () => {
+    expect(plannerDay(null, 2, 2)).toBe(0);
+    expect(plannerDay(null, null, 3)).toBe(0);
+  });
+
+  it('keeps the day the organiser picked, day 1 included', () => {
+    expect(plannerDay(2, 1, 3)).toBe(2);
+    expect(plannerDay(0, 1, 3)).toBe(0);
   });
 });

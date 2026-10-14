@@ -13,7 +13,13 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { eachDay, initialDay } from '@myclash/schedule-core';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
+import {
+  minToTime,
+  nextBlockStartTime,
+  plannerDay,
+  resequenceDay,
+  timeToMin,
+} from './programme-timeline';
 import { loadPlannerBlocks } from './schedule-reads';
 import { mutateSchedule, refusalText } from './schedule-mutations';
 import { ProgrammeSheetInputs } from './sheet-inputs';
@@ -136,7 +142,7 @@ export function ProgrammePlanner({
   // Number of days from blocks
   const numDays = Math.max(1, ...blocks.map((b) => b.dayIndex + 1));
   // Opens on today when today has a tab (O6), else on day 1.
-  const activeDay = pickedDay ?? (todayIndex !== null && todayIndex < numDays ? todayIndex : 0);
+  const activeDay = plannerDay(pickedDay, todayIndex, numDays);
   // Workshops live on their own board — never list legacy workshop blocks here.
   const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay && b.blockType !== 'workshop');
 

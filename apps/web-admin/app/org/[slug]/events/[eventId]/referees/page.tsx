@@ -581,6 +581,7 @@ function AssignmentsTab({
   /** The clock the day filter is measured on — see the pool filter below. */
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
+  const dayPicked = useRef(false);
   /**
    * Tournament filter. `null` means "untouched", which resolves to every
    * tournament the selected day has — so the default needs no effect to set
@@ -695,6 +696,7 @@ function AssignmentsTab({
   // here rather than in an effect — react-hooks/set-state-in-effect is an
   // error in this app.
   function handleSelectDay(iso: string | null) {
+    dayPicked.current = true;
     setSelectedDayIso(iso);
     setTournamentSelection(null);
   }
@@ -843,10 +845,11 @@ function AssignmentsTab({
       setEventStartDateIso(r.data.start_date ?? null);
       setEventEndDateIso(r.data.end_date ?? null);
       setEventTz(timeZone);
-      // Today when the Event runs today (O6), else "All days". A day already picked stays.
+      // Today when the Event runs today (O6), else "All days". A day picked meanwhile, "All
+      // days" too, stays: null alone cannot tell it from "not picked yet".
       const days = eachDay(r.data.start_date, r.data.end_date);
       const today = initialDay(days, timeZone, new Date().toISOString());
-      setSelectedDayIso((picked) => picked ?? today);
+      if (!dayPicked.current) setSelectedDayIso(today);
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);
