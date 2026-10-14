@@ -383,6 +383,8 @@ export function FighterProfileClient({
   const dirty = formIsDirty(form, savedForm);
   useEffect(() => {
     onDirtyChange?.(dirty);
+    // An unmounted form holds nothing unsaved.
+    return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -392,10 +394,10 @@ export function FighterProfileClient({
   // read live from the form (a removed medal row cannot leave its message on the next row).
   const [checkedYear, setCheckedYear] = useState<number | null>(null);
   const problems = checkedYear === null ? null : profileFormProblems(form, checkedYear);
-  const yearRange = t('publicApp.fighterProfile.errors.yearRange', {
-    min: PROFILE_YEAR_MIN,
-    max: checkedYear ?? PROFILE_YEAR_MIN,
-  });
+  const yearRange =
+    checkedYear === null
+      ? ''
+      : t('publicApp.fighterProfile.errors.yearRange', { min: PROFILE_YEAR_MIN, max: checkedYear });
   // Profile-photo upload: a picked file opens the cropper (cropImageSrc holds
   // its object URL); a successful crop uploads and updates the header preview.
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -696,6 +698,7 @@ export function FighterProfileClient({
     }
     // Checked above: an empty start year clears it, any other is a year in range.
     const practicingSince = form.practicingSince.trim();
+    const sent = form;
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -743,7 +746,9 @@ export function FighterProfileClient({
         const profile = (await response.json()) as FighterProfile;
         setDashboard((current) => (current ? { ...current, profile } : current));
         const saved = formFromProfile(profile, dateFormat.format);
-        setForm(saved);
+        // A word typed while the save was out stays on screen, and stays unsaved (the race of
+        // a slow answer): only an untouched form takes the server's copy.
+        setForm((current) => (current === sent ? saved : current));
         setSavedForm(saved);
         setMessage(t('publicApp.fighterProfile.saveSuccess'));
       })

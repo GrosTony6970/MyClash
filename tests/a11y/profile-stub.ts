@@ -34,7 +34,8 @@ export interface ProfileFixture {
   bio?: string | null;
 }
 
-function profileOf(fixture: ProfileFixture) {
+/** The profile the API answers with: the dashboard's, and a save's. */
+export function profileOf(fixture: ProfileFixture) {
   return {
     id: 'gp-1',
     slug: 'lea-martin',

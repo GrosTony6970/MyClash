@@ -1,6 +1,6 @@
 import { expect, test, type Dialog, type Page } from '@playwright/test';
 import { collectPageIssues, expectNoPageIssues } from './helpers';
-import { openProfile, PUBLIC } from './profile-stub';
+import { openProfile, profileOf, PUBLIC } from './profile-stub';
 
 /**
  * Quick win M4 (operator, 2026-10-14): an unsaved profile asks before it is left — by a tab, by a
@@ -78,6 +78,29 @@ test('nothing asks once the profile is saved, or before anything is typed', asyn
   await refereeTab(page).click();
   await expect(page).toHaveURL(`${PUBLIC}/me/profile?tab=referee`);
   await expect(asks(page)).toHaveCount(0);
+});
+
+test('a word typed while the profile saves is kept, and still asks before leaving', async ({
+  page,
+}) => {
+  await openProfile(page);
+  // Registered after the stub: this one answers the save, when the story says so.
+  let answer: (() => Promise<void>) | null = null;
+  await page.route('**/api/v1/fighters/me/profile', (route) => {
+    // The server saved what was SENT: the bio before the last words.
+    answer = () => route.fulfill({ json: profileOf({ bio: BIO }) });
+  });
+
+  await bio(page).fill(BIO);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => answer !== null).toBe(true);
+  await bio(page).fill(`${BIO} And sabre.`);
+  await answer!();
+
+  await expect(page.getByText('Profile saved.')).toBeVisible();
+  await expect(bio(page)).toHaveValue(`${BIO} And sabre.`);
+  await refereeTab(page).click();
+  await expect(asks(page)).toBeVisible();
 });
 
 test('closing the browser tab with unsaved edits raises the browser prompt', async ({ page }) => {
