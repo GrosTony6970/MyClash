@@ -58,7 +58,7 @@
     "apps/web-public/app/me/follows/personContext.ts": 1,
     "apps/web-public/app/me/follows/useDirectoryGroups.ts": 8,
     "apps/web-public/app/me/follows/useMemberDetails.ts": 1,
-    "apps/web-public/app/me/instructor/InstructorDashboard.tsx": 6,
+    "apps/web-public/app/me/instructor/InstructorDashboard.tsx": 5,
     "apps/web-public/app/me/leagues/LeaguesClient.tsx": 1,
     "apps/web-public/app/me/leagues/[slug]/LeagueDetailClient.tsx": 2,
     "apps/web-public/app/me/profile/WorkshopProfileClient.tsx": 1,

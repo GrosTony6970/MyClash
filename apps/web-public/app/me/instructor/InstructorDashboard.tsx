@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import { formatInZone } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { signInAgainHere } from '@/lib/sign-in-return';
+import { rosterReadOnOpen } from '@/components/me/roster-read';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
@@ -557,23 +559,29 @@ function SessionRow({
   const [rosterError, setRosterError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // One read at a time: open, close, open again fast must not send two.
+  const reading = useRef(false);
 
   async function loadRoster() {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/workshop-sessions/${session.id}/roster`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('roster');
-      setRoster((await res.json()) as RosterEntry[]);
-    } catch {
-      setRosterError(true);
-    }
+    reading.current = true;
+    // A read starts clean: the error of an older one (or of an accept's re-read) goes.
+    setRosterError(false);
+    // `apiRequest` renews a lapsed login once; a 401 after that is a login that did not come back.
+    const result = await apiRequest<RosterEntry[]>(
+      apiUrl,
+      `/api/v1/workshop-sessions/${session.id}/roster`,
+    );
+    reading.current = false;
+    if (result.ok) setRoster(result.data);
+    else if (result.kind === 'unauthenticated' && result.status === 401) signInAgainHere();
+    else setRosterError(true);
   }
 
   async function toggle() {
     const next = !open;
     setOpen(next);
-    if (next && roster === null && !rosterError) await loadRoster();
+    const read = rosterReadOnOpen({ roster, failed: rosterError, reading: reading.current });
+    if (next && read) await loadRoster();
   }
 
   async function moderate(personId: string, action: 'accept' | 'refuse') {
