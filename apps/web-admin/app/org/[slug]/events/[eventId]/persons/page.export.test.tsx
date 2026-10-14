@@ -113,6 +113,18 @@ describe('the roster’s filters and its export', () => {
     ]);
   });
 
+  it('closes Export over the waiting list, which is not the rows it writes', async () => {
+    page = await openEventPage(<PersonsPage />, READS);
+    const waitingList = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Waiting list',
+    );
+    await act(async () => waitingList!.click());
+    const button = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Export CSV',
+    );
+    expect(button?.disabled).toBe(true);
+  });
+
   it('exports every row on screen when no filter is set, and never an email', async () => {
     page = await openEventPage(<PersonsPage />, READS);
     const csv = await exportCsv();

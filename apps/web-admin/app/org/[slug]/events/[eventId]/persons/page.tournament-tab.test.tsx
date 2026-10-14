@@ -152,6 +152,27 @@ describe('the roster’s Tournament tab', () => {
     expect(NAVIGATION.replaced).toEqual([]);
   });
 
+  it('keeps the address of a link when the Tournament list could not be read', async () => {
+    vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string) => {
+      if (path === '/api/v1/events/ev1/tournaments') {
+        return {
+          ok: false as const,
+          kind: 'http' as const,
+          status: 500,
+          detail: null,
+          validationErrors: null,
+          code: null,
+          details: null,
+        };
+      }
+      if (path in READS) return { ok: true, data: READS[path] };
+      throw new Error(`unexpected request ${path}`);
+    });
+    await openRoster('tournamentId=t-2');
+    expect(pressedTab()).toBe('All Participants');
+    expect(NAVIGATION.replaced).toEqual([]);
+  });
+
   it('keeps the Tournament in the address when the waiting list opens', async () => {
     await openRoster('tournamentId=t-2');
     const waitingList = [...container.querySelectorAll('button')].find(

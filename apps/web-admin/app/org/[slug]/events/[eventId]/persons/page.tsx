@@ -291,7 +291,8 @@ export default function ParticipantsPage() {
       ),
     ]).then(([pRes, rRes, tRes]) => {
       setLoading(false);
-      setTabsKnown(true);
+      // A list that did not land knows no Tournament: the tab shows "all" and writes nothing.
+      if (tRes.ok) setTabsKnown(true);
       if (pRes.ok) setPersons(pRes.data);
       if (rRes.ok) setRegistrations(rRes.data);
       if (tRes.ok) {
@@ -1058,11 +1059,12 @@ export default function ParticipantsPage() {
           >
             {t('admin.orgPersons.csvImport')}
           </Link>
-          {/* A read, not a save: open on an archived Event too. */}
+          {/* A read, not a save: open on an archived Event too. Closed over the waiting
+              list, which is not the rows it would write. */}
           <button
             type="button"
             onClick={exportRoster}
-            disabled={filteredPersons.length === 0}
+            disabled={mode === 'waiting-list' || filteredPersons.length === 0}
             className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             {t('organizer.persons.export.button')}
