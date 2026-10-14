@@ -36,7 +36,7 @@ import {
   type BoardVenue,
   type BoardWorkshop,
 } from '@myclash/schedule-core';
-import { minutesIntoDayInZone } from '@myclash/time';
+import { localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
 import { tintBgClassFor, tintBorderClassFor, tintTextClassFor, useToast } from '@myclash/ui';
 import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -136,7 +136,7 @@ export function WorkshopScheduleBoard({
   onUpdateBreak,
   onDeleteBreak,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const [activeDay, setActiveDay] = useState<string>(() => openingDay(days, timezone));
   useEffect(() => {
@@ -467,7 +467,9 @@ export function WorkshopScheduleBoard({
       )
       .join('');
     const printTitle = esc(
-      t('organizer.workshopsPage.board.printTitle', { day: formatDayLabel(activeDay) }),
+      t('organizer.workshopsPage.board.printTitle', {
+        day: formatDayLabel(activeDay, localeToBcp47(locale)),
+      }),
     );
     const headers = [
       t('organizer.workshopsPage.board.printColTime'),
@@ -513,7 +515,10 @@ export function WorkshopScheduleBoard({
                   : 'bg-border text-foreground-secondary hover:bg-border',
               ].join(' ')}
             >
-              {t('organizer.schedulePage.grid.dayTab', { n: i + 1, date: formatDayLabel(d) })}
+              {t('organizer.schedulePage.grid.dayTab', {
+                n: i + 1,
+                date: formatDayLabel(d, localeToBcp47(locale)),
+              })}
             </button>
           ))}
         <div className="ml-auto flex items-center gap-1 text-muted">

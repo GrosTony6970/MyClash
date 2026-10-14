@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ConfirmDialog, accentClassFor, useToast } from '@myclash/ui';
-import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
+import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift } from './place-with-shift';
@@ -174,7 +174,7 @@ export function ScheduleGrid({
   /** The Event is archived: no drag or resize starts, and the board offers no save. */
   readOnly: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const apiUrl = getPublicApiUrl();
 
@@ -1709,10 +1709,10 @@ export function ScheduleGrid({
                   ].join(' ')}
                 >
                   {single
-                    ? formatDayLabel(day)
+                    ? formatDayLabel(day, localeToBcp47(locale))
                     : t('organizer.schedulePage.grid.dayTab', {
                         n: idx + 1,
-                        date: formatDayLabel(day),
+                        date: formatDayLabel(day, localeToBcp47(locale)),
                       })}
                 </button>
               );
@@ -2289,7 +2289,7 @@ export function ScheduleGrid({
         <RunningLateDialog
           seed={dayDelaySeed}
           fromTime={delayFromTime}
-          dayLabel={activeDay ? formatDayLabel(activeDay) : ''}
+          dayLabel={activeDay ? formatDayLabel(activeDay, localeToBcp47(locale)) : ''}
           preview={dayDelayPreview}
           busy={delayingDay}
           onCancel={() => setPendingDelay(false)}
@@ -2312,7 +2312,9 @@ export function ScheduleGrid({
             : 'organizer.schedulePage.grid.clearDayDescPlural',
           {
             count: scheduledOnActiveDay.length,
-            day: activeDay ? formatDayLabel(activeDay) : t('organizer.schedulePage.grid.thisDay'),
+            day: activeDay
+              ? formatDayLabel(activeDay, localeToBcp47(locale))
+              : t('organizer.schedulePage.grid.thisDay'),
           },
         )}
         confirmLabel={t('organizer.schedulePage.grid.clearDayConfirm')}
@@ -2340,7 +2342,7 @@ export function ScheduleGrid({
                   count: pendingRunClear.matchCount,
                   label: `${pendingRunClear.label}${pendingRunClear.tournamentName ? ` (${pendingRunClear.tournamentName})` : ''}`,
                   day: activeDay
-                    ? formatDayLabel(activeDay)
+                    ? formatDayLabel(activeDay, localeToBcp47(locale))
                     : t('organizer.schedulePage.grid.thisDay'),
                 },
               )

@@ -41,11 +41,9 @@ describe('initialDay (O6: a board opens on today in the Event zone)', () => {
 });
 
 describe('formatDayLabel', () => {
-  it('formats a date with weekday + day + month (UTC, fr-FR)', () => {
-    // 2027-06-01 is a Tuesday — characterization of the existing format.
-    const label = formatDayLabel('2027-06-01');
-    expect(label).toMatch(/01/);
-    expect(typeof label).toBe('string');
-    expect(label.length).toBeGreaterThan(0);
+  it("speaks the reader's language", () => {
+    // 2027-06-01 is a Tuesday.
+    expect(formatDayLabel('2027-06-01', 'en-GB')).toBe('Tue 01 Jun');
+    expect(formatDayLabel('2027-06-01', 'fr-FR')).toBe('mar. 01 juin');
   });
 });

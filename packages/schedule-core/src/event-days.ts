@@ -34,10 +34,13 @@ export function initialDay(
   return today && days.includes(today) ? today : null;
 }
 
-/** Day-of-week + DD MMM, French locale (the rest of the admin app is FR-leaning). */
-export function formatDayLabel(iso: string): string {
+/**
+ * Day-of-week + DD MMM in the reader's language (`locale` is BCP 47, e.g. `localeToBcp47`).
+ * No default: a day tab once said "sam. 03 mai" to an English organiser.
+ */
+export function formatDayLabel(iso: string, locale: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString('fr-FR', {
+  return d.toLocaleDateString(locale, {
     weekday: 'short',
     day: '2-digit',
     month: 'short',

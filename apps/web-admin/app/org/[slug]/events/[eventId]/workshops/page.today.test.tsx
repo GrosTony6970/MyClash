@@ -125,6 +125,16 @@ describe('the workshop board opens on today', () => {
     expect(shown).not.toContain('Saturday longsword');
   });
 
+  it("names its day tabs in the reader's language", async () => {
+    vi.setSystemTime(new Date('2025-05-10T09:00:00Z'));
+    page = await openEventPage(<WorkshopsAdminPage />, READS);
+    await boardShows();
+    const tabs = [...document.body.querySelectorAll('button')].map((b) => b.textContent);
+    // The page is in English: the tabs were French ("sam. 03 mai") whatever the language.
+    expect(tabs).toContain('Day 1 · Sat 03 May');
+    expect(tabs).toContain('Day 2 · Sun 04 May');
+  });
+
   it('opens on day 1 when the Event does not run today', async () => {
     vi.setSystemTime(new Date('2025-05-10T09:00:00Z'));
     page = await openEventPage(<WorkshopsAdminPage />, READS);

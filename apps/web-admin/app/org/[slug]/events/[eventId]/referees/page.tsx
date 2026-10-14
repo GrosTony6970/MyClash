@@ -41,6 +41,7 @@ import {
   filterBoardPools,
   tournamentsForDay,
 } from './_components/filter-board-pools';
+import { formatDayShort } from './_components/day-label';
 import { AssignmentFilters } from './_components/AssignmentFilters';
 import {
   PoolTimelineGrid,
@@ -490,15 +491,6 @@ function formatTime(t: Translator, value: string | null, locale: AppLocale) {
   return new Intl.DateTimeFormat(localeToBcp47(locale), {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
-}
-
-/** Short day label for the by-timeslot header + day-filter pills. */
-function formatDayShort(value: string, locale: AppLocale) {
-  return new Intl.DateTimeFormat(localeToBcp47(locale), {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
   }).format(new Date(value));
 }
 
@@ -1389,7 +1381,7 @@ function AssignmentsTab({
           {/* Day + tournament filter — scopes the timeline and the
               by-timeslot view below. Stays live on a locked board. */}
           <AssignmentFilters
-            days={eventDayIsos.map((iso) => ({ iso, label: formatDayShort(iso, locale) }))}
+            days={eventDayIsos.map((iso) => ({ iso, label: formatDayShort(iso, locale, 'UTC') }))}
             selectedDayIso={selectedDayIso}
             onSelectDay={handleSelectDay}
             tournaments={tournamentOptions}
