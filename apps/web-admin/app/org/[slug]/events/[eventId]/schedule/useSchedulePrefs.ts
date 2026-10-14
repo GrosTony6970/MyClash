@@ -5,8 +5,9 @@ import { zoomToSlotHeight } from '@myclash/schedule-core';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 
 /**
- * The four schedule-board preferences that survive a reload: whether the side
- * panel is collapsed, how wide it is, the vertical zoom, and the hall filter.
+ * The five schedule-board preferences that survive a reload: whether the side
+ * panel is collapsed, how wide it is, the vertical zoom, the hall filter, and
+ * Blocks or Detailed.
  *
  * WHY useSyncExternalStore. These were four `useState` defaults plus eight
  * effects — one to read localStorage on mount and one to write it back on
@@ -31,6 +32,7 @@ const PANEL_COLLAPSED_KEY = 'myclash.schedule.panelCollapsed';
 const PANEL_WIDTH_KEY = 'myclash.schedule.panelWidth';
 const ZOOM_KEY = 'myclash.schedule.zoom';
 const VENUE_FILTER_KEY = 'myclash.schedule.venueFilter';
+const VIEW_MODE_KEY = 'myclash.schedule.viewMode';
 
 /**
  * Slot height the board opens at, a touch taller than the base slot so block
@@ -91,6 +93,16 @@ export const venueFilterCodec: PrefCodec<string> = {
   key: VENUE_FILTER_KEY,
   fallback: 'all',
   parse: (raw) => raw || null,
+  serialize: (value) => value,
+};
+
+export type ScheduleViewMode = 'blocks' | 'grid';
+
+/** The readable block view (one block per Pool or round) unless the detailed grid was chosen. */
+export const viewModeCodec: PrefCodec<ScheduleViewMode> = {
+  key: VIEW_MODE_KEY,
+  fallback: 'blocks',
+  parse: (raw) => (raw === 'blocks' || raw === 'grid' ? raw : null),
   serialize: (value) => value,
 };
 
@@ -163,14 +175,18 @@ export interface SchedulePrefs {
   /** Per-hall filter for the block board: 'all' | venueId | 'none'. */
   venueFilter: string;
   setVenueFilter: Dispatch<SetStateAction<string>>;
+  /** Blocks or the detailed time grid (quick win O26: a reload forgot it). */
+  viewMode: ScheduleViewMode;
+  setViewMode: Dispatch<SetStateAction<ScheduleViewMode>>;
 }
 
-/** Read/persist the schedule board's four operator preferences. */
+/** Read/persist the schedule board's five operator preferences. */
 export function useSchedulePrefs(): SchedulePrefs {
   const [panelCollapsed, setPanelCollapsed] = usePersistedPref(panelCollapsedCodec);
   const [panelWidth, setPanelWidth] = usePersistedPref(panelWidthCodec);
   const [slotHeightPx, setSlotHeightPx] = usePersistedPref(zoomCodec);
   const [venueFilter, setVenueFilter] = usePersistedPref(venueFilterCodec);
+  const [viewMode, setViewMode] = usePersistedPref(viewModeCodec);
   return {
     panelCollapsed,
     setPanelCollapsed,
@@ -180,5 +196,7 @@ export function useSchedulePrefs(): SchedulePrefs {
     setSlotHeightPx,
     venueFilter,
     setVenueFilter,
+    viewMode,
+    setViewMode,
   };
 }

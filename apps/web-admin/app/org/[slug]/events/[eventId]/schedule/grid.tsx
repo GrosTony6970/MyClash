@@ -458,12 +458,9 @@ export function ScheduleGrid({
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
-  // Default to the readable block view (one block per pool/round); the
-  // detailed time-grid is available behind the toggle.
-  const [viewMode, setViewMode] = useState<'blocks' | 'grid'>('blocks');
-  // The four preferences that survive a reload (panel collapsed/width, zoom,
-  // hall filter). localStorage-backed via useSyncExternalStore — see
-  // ./useSchedulePrefs for why that rather than useState + a sync effect.
+  // The five preferences that survive a reload (panel collapsed/width, zoom,
+  // hall filter, Blocks or Detailed). localStorage-backed via useSyncExternalStore
+  // — see ./useSchedulePrefs for why that rather than useState + a sync effect.
   const {
     panelCollapsed,
     setPanelCollapsed,
@@ -473,6 +470,8 @@ export function ScheduleGrid({
     setSlotHeightPx,
     venueFilter,
     setVenueFilter,
+    viewMode,
+    setViewMode,
   } = useSchedulePrefs();
   // Tournament legend focus — clicking a chip dims the other tournaments.
   const [focusedTournament, setFocusedTournament] = useState<string | null>(null);

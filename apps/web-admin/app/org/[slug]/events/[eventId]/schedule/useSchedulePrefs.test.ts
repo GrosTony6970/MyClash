@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { zoomToSlotHeight } from '@myclash/schedule-core';
 import { PANEL_DEFAULT_WIDTH, PANEL_MAX_WIDTH, PANEL_MIN_WIDTH } from './panel-width';
@@ -5,6 +7,7 @@ import {
   panelCollapsedCodec,
   panelWidthCodec,
   venueFilterCodec,
+  viewModeCodec,
   zoomCodec,
   type PrefCodec,
 } from './useSchedulePrefs';
@@ -26,6 +29,7 @@ const codecs: Array<[string, PrefCodec<unknown>]> = [
   ['panelWidth', panelWidthCodec as PrefCodec<unknown>],
   ['zoom', zoomCodec as PrefCodec<unknown>],
   ['venueFilter', venueFilterCodec as PrefCodec<unknown>],
+  ['viewMode', viewModeCodec as PrefCodec<unknown>],
 ];
 
 describe('schedule preference codecs', () => {
@@ -106,6 +110,31 @@ describe('schedule preference codecs', () => {
       for (const value of ['all', 'none', 'b3f1c0de-0000-4000-8000-000000000000']) {
         expect(venueFilterCodec.parse(venueFilterCodec.serialize(value))).toBe(value);
       }
+    });
+  });
+
+  // Blocks / Detailed was the one board setting a reload forgot (quick win O26).
+  describe('viewMode', () => {
+    it('opens on the readable block view when nothing is stored', () => {
+      expect(viewModeCodec.fallback).toBe('blocks');
+    });
+
+    it('round-trips both views', () => {
+      for (const value of ['blocks', 'grid'] as const) {
+        expect(viewModeCodec.parse(viewModeCodec.serialize(value))).toBe(value);
+      }
+    });
+
+    it('treats any other stored word as unset', () => {
+      for (const raw of ['', 'Grid', 'timeline', '1']) expect(viewModeCodec.parse(raw)).toBeNull();
+    });
+
+    // A text pin: no test mounts the board (it reads the API and realtime), so this is
+    // what holds that it takes its view from the kept preference, not from a useState.
+    it('is what the board reads', () => {
+      const grid = readFileSync(join(__dirname, 'grid.tsx'), 'utf8');
+      expect(grid).toMatch(/viewMode,\s+setViewMode,\s+\} = useSchedulePrefs\(\);/);
+      expect(grid).not.toMatch(/useState<'blocks' \| 'grid'>/);
     });
   });
 });
