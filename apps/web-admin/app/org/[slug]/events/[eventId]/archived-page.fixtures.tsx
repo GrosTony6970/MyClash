@@ -46,6 +46,25 @@ const REFUSAL = {
   details: null,
 };
 
+const FAILED = Symbol('a read the server fails');
+/**
+ * A read the server answers with a fault: give it as the answer of a path in
+ * `reads`. `apiRequest` then gives the page the failure a 500 is, and a raw
+ * `fetch` a 500 response.
+ */
+export const FAILED_READ = { [FAILED]: true } as const;
+const isFailedRead = (answer: unknown) =>
+  typeof answer === 'object' && answer !== null && FAILED in answer;
+const SERVER_FAULT = {
+  ok: false as const,
+  kind: 'http' as const,
+  status: 500,
+  detail: null,
+  validationErrors: null,
+  code: null,
+  details: null,
+};
+
 export interface OpenedPage {
   /** Every save the page sent, as `METHOD path`, in order. */
   writes: () => string[];
@@ -179,7 +198,9 @@ function standInServer(
       sent.push(save);
       return save in taken ? { ok: true, data: taken[save] } : REFUSAL;
     }
-    if (path in answers) return { ok: true, data: answers[path] };
+    if (path in answers) {
+      return isFailedRead(answers[path]) ? SERVER_FAULT : { ok: true, data: answers[path] };
+    }
     throw new Error(`unexpected request ${path}`);
   });
   const rawFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -192,6 +213,7 @@ function standInServer(
         headers: { 'content-type': 'application/problem+json' },
       });
     }
+    if (path in answers && isFailedRead(answers[path])) return new Response('{}', { status: 500 });
     if (path in answers) return new Response(JSON.stringify(answers[path]), { status: 200 });
     throw new Error(`unexpected request ${path}`);
   };

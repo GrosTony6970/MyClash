@@ -7,6 +7,7 @@ import { useConfirm } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { PageAlert, errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { broadcastQuestion, narrowedToTournament } from './broadcast-question';
 
@@ -69,7 +70,7 @@ export default function EventNotificationsPage() {
   const [search, setSearch] = useState('');
   const [history, setHistory] = useState<BroadcastHistory[]>([]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -89,7 +90,7 @@ export default function EventNotificationsPage() {
       const failed = [peopleResponse, historyResponse].find((r) => !r.ok);
       if (failed && !failed.ok) {
         const message = failureMessage(failed, t, t('organizer.broadcast.loadError'));
-        if (message) setMessage(message);
+        if (message) setOutcome(errorOutcome(message));
       }
     });
     return () => controller.abort();
@@ -124,7 +125,7 @@ export default function EventNotificationsPage() {
     if (!title.trim() || !body.trim() || busy) return;
     if (!(await askBeforeSend())) return;
     setBusy(true);
-    setMessage(null);
+    setOutcome(null);
     try {
       const r = await apiRequest<{ recipientCount: number }>(
         apiUrl,
@@ -146,10 +147,10 @@ export default function EventNotificationsPage() {
         // severity or the event's own state. `throw new Error('send failed')`
         // put all three behind one sentence.
         const message = failureMessage(r, t, t('organizer.broadcast.sendError'));
-        if (message) setMessage(message);
+        if (message) setOutcome(errorOutcome(message));
         return;
       }
-      setMessage(t('organizer.broadcast.sent', { count: r.data.recipientCount }));
+      setOutcome(successOutcome(t('organizer.broadcast.sent', { count: r.data.recipientCount })));
       setTitle('');
       setBody('');
       const historyResponse = await apiRequest<BroadcastHistory[]>(
@@ -311,7 +312,7 @@ export default function EventNotificationsPage() {
             </label>
           </div>
 
-          {message && <p className="mt-4 text-sm text-foreground-secondary">{message}</p>}
+          <PageAlert outcome={outcome} className="mt-4" />
 
           <button
             type="button"

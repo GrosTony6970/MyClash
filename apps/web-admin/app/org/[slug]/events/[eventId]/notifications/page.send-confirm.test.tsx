@@ -3,7 +3,13 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
-import { EVENT_ID, openEventPage, type, type OpenedPage } from '../archived-page.fixtures';
+import {
+  EVENT_ID,
+  FAILED_READ,
+  openEventPage,
+  type,
+  type OpenedPage,
+} from '../archived-page.fixtures';
 import EventNotificationsPage from './page';
 
 /**
@@ -121,6 +127,41 @@ describe('Send on the broadcast page', () => {
     await openWithMessage();
     await press('Send notification');
     expect(dialog()?.textContent).toContain('Recipients: Fighters only, of one tournament only.');
+  });
+
+  it('a refused send is an alert, never the grey line of a sent one (O4)', async () => {
+    page = await openEventPage(<EventNotificationsPage />, READS);
+    await act(async () => {
+      type(titleField(), 'Lunch');
+      type(document.body.querySelector('textarea')!, 'Back at 14:00.');
+    });
+    await press('Send notification');
+    await press('Send notification', dialog()!);
+    expect(page.writes()).toEqual([SEND]);
+    const alert = document.body.querySelector('main [role="alert"]');
+    expect(alert?.textContent).toBeTruthy();
+    expect(alert?.textContent).not.toContain('Notification sent');
+    expect(document.body.querySelector('main [role="status"]')).toBeNull();
+    expect(titleField().value).toBe('Lunch');
+  });
+
+  it('a send that lands is a status line, and no alert stays (O4)', async () => {
+    await openWithMessage();
+    await press('Send notification');
+    await press('Send notification', dialog()!);
+    expect(document.body.querySelector('main [role="status"]')?.textContent).toBe(
+      'Notification sent to 2 recipient(s).',
+    );
+    expect(document.body.querySelector('main [role="alert"]')).toBeNull();
+  });
+
+  it('a list that could not be read is an alert (O4)', async () => {
+    page = await openEventPage(<EventNotificationsPage />, {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}/persons`]: FAILED_READ,
+    });
+    expect(document.body.querySelector('main [role="alert"]')?.textContent).toBeTruthy();
+    expect(document.body.querySelector('main [role="status"]')).toBeNull();
   });
 
   it('does not say so for everyone: the server ignores the Tournament there', async () => {

@@ -5,6 +5,7 @@ import { useConfirm, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { PageAlert, errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 
 const apiUrl = getPublicApiUrl();
 
@@ -56,7 +57,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
   const [tournamentId, setTournamentId] = useState('');
   const [groups, setGroups] = useState<LeagueGroup[]>([]);
   const [groupId, setGroupId] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busyDetach, setBusyDetach] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -91,7 +92,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       const failed = [leagueRes, tournamentRes].find((r) => !r.ok);
       if (failed && !failed.ok) {
         const message = failureMessage(failed, t, t('admin.leagues.loadError'));
-        if (message) setMessage(message);
+        if (message) setOutcome(errorOutcome(message));
       }
     });
     void loadAttachments();
@@ -137,7 +138,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
   const selectedBlockedStatus = tournamentStatusForLeague.get(tournamentId);
 
   const submit = () => {
-    setMessage(null);
+    setOutcome(null);
     void apiRequest(
       apiUrl,
       `/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`,
@@ -147,10 +148,10 @@ export function AttachToLeaguePanel({ eventId }: Props) {
         // `throw new Error()` with no message at all, replaced by one fixed
         // sentence — the API says which league or tournament refused, and why.
         const message = failureMessage(r, t, t('admin.leagues.requestError'));
-        if (message) setMessage(message);
+        if (message) setOutcome(errorOutcome(message));
         return;
       }
-      setMessage(t('admin.leagues.requestSent'));
+      setOutcome(successOutcome(t('admin.leagues.requestSent')));
       void loadAttachments();
     });
   };
@@ -158,6 +159,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
   const detach = async (attachment: Attachment) => {
     if (!(await confirm({ title: t('admin.leagues.myRequests.leaveConfirm'), danger: true })))
       return;
+    setOutcome(null);
     setBusyDetach(attachment.id);
     try {
       const r = await apiRequest(
@@ -167,7 +169,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       );
       if (!r.ok) {
         const message = failureMessage(r, t, t('admin.leagues.myRequests.detachError'));
-        if (message) setMessage(message);
+        if (message) setOutcome(errorOutcome(message));
         return;
       }
       void loadAttachments();
@@ -283,7 +285,7 @@ export function AttachToLeaguePanel({ eventId }: Props) {
                   : t('admin.leagues.myRequests.alreadyAttached')}
               </p>
             )}
-            {message && <p className="mt-3 text-sm text-foreground-secondary">{message}</p>}
+            <PageAlert outcome={outcome} className="mt-3" />
           </div>
 
           <div>
