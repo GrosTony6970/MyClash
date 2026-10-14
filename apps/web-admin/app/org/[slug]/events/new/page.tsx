@@ -16,6 +16,7 @@ import {
   type VenueMode,
   type WizardState,
 } from './wizard-state';
+import { createEventSteps, NO_PROGRESS, type CreateProgress } from './create-event';
 
 type Action =
   | { type: 'SET_FIELD'; field: keyof WizardState; value: unknown }
@@ -171,11 +172,14 @@ function Step1({
   dispatch,
   t,
   locale,
+  slugLocked,
 }: {
   state: WizardState;
   dispatch: React.Dispatch<Action>;
   t: Translator;
   locale: string;
+  /** The Event exists already (O13): its address is what it was made with. */
+  slugLocked: boolean;
 }) {
   const weekdayLabels = t('organizer.newEvent.weekdays').split('|');
 
@@ -194,7 +198,7 @@ function Step1({
           value={state.name}
           onChange={(event) => {
             dispatch({ type: 'SET_FIELD', field: 'name', value: event.target.value });
-            if (!state.slug || state.slug === slugify(state.name)) {
+            if (!slugLocked && (!state.slug || state.slug === slugify(state.name))) {
               dispatch({ type: 'SET_FIELD', field: 'slug', value: slugify(event.target.value) });
             }
           }}
@@ -226,9 +230,16 @@ function Step1({
               })
             }
             placeholder={t('organizer.newEvent.slugPlaceholder')}
-            className="flex-1 px-3 py-2 text-sm focus:outline-none"
+            disabled={slugLocked}
+            aria-describedby={slugLocked ? 'wizard-event-slug-locked' : undefined}
+            className="flex-1 px-3 py-2 text-sm focus:outline-none disabled:bg-background disabled:text-muted"
           />
         </div>
+        {slugLocked && (
+          <p id="wizard-event-slug-locked" className="mt-1 text-xs text-muted">
+            {t('organizer.newEvent.slugLocked')}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -810,6 +821,8 @@ export default function NewEventPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueVenue[]>([]);
   const [catalogueLoading, setCatalogueLoading] = useState(true);
+  // What the server took in the tries before this one (O13).
+  const [progress, setProgress] = useState<CreateProgress>(NO_PROGRESS);
   // O12 (ruled 2026-10-14): four steps of typing are not lost to a stray click. The wizard's
   // own exits, a link of the site and closing the browser tab ask first.
   const { askToLeave, confirmDialog } = useLeaveGuard(wizardDirty(state, logoFile !== null), {
@@ -943,92 +956,20 @@ export default function NewEventPage() {
         resolvedOrgId = orgRes.data.id;
       }
 
-      const eventRes = await apiRequest<{ id: string }>(
-        apiUrl,
-        `/api/v1/organizations/${resolvedOrgId}/events`,
-        {
-          method: 'POST',
-          body: {
-            slug: state.slug,
-            name: state.name.trim(),
-            startDate: state.startDate,
-            endDate: state.endDate,
-            city: state.city.trim() || null,
-            country: state.country || null,
-            eventKind: state.eventKind,
-          },
-        },
+      // O13: a try that stopped half-way is continued, never started again.
+      const outcome = await createEventSteps(
+        state,
+        resolvedOrgId,
+        catalogue,
+        progress,
+        (path, init) => apiRequest(apiUrl, path, init),
       );
-      if (!eventRes.ok) {
-        // A slug already taken, a date range the org refuses — the API names
-        // which, and every one of them used to read "Could not create event."
-        fail(failureMessage(eventRes, t, t('organizer.newEvent.validation.createFailed')));
+      setProgress(outcome.progress);
+      if (outcome.refusal) {
+        fail(failureMessage(outcome.refusal.failure, t, t(outcome.refusal.fallbackKey)));
         return;
       }
-      const event = eventRes.data;
-
-      // Materialise the venue. Mode 'new' creates a fresh venue in the
-      // org catalogue; mode 'existing' simply reuses the picked id.
-      let venueId: string | null = null;
-      let venueHostsTournament = false;
-      let venueHostsWorkshop = false;
-      if (state.venueMode === 'existing' && state.selectedVenueId) {
-        const picked = catalogue.find((v) => v.id === state.selectedVenueId);
-        if (picked) {
-          venueId = picked.id;
-          venueHostsTournament = picked.hosts_tournament;
-          venueHostsWorkshop = picked.hosts_workshop;
-        }
-      } else if (state.venueMode === 'new') {
-        const venueRes = await apiRequest<{ id: string }>(
-          apiUrl,
-          `/api/v1/organizations/${resolvedOrgId}/venues`,
-          {
-            method: 'POST',
-            body: {
-              name: state.newVenueName.trim(),
-              address: state.newVenueAddress.trim() || undefined,
-              hostsTournament: state.newVenueHostsTournament,
-              hostsWorkshop: state.newVenueHostsWorkshop,
-            },
-          },
-        );
-        if (!venueRes.ok) {
-          fail(failureMessage(venueRes, t, t('organizer.newEvent.validation.venueCreateFailed')));
-          return;
-        }
-        venueId = venueRes.data.id;
-        venueHostsTournament = state.newVenueHostsTournament;
-        venueHostsWorkshop = state.newVenueHostsWorkshop;
-      }
-
-      // Lice rows linked to the venue (tournament-capable venues only).
-      if (venueHostsTournament && state.liceNames.length > 0) {
-        // Follow-up writes on an event that already exists. They still
-        // discard their refusals, unchanged: the operator lands on the event,
-        // where the lices and areas are listed, so a dropped one is visible.
-        await Promise.all(
-          state.liceNames.map((name, index) =>
-            apiRequest(apiUrl, `/api/v1/events/${event.id}/lices`, {
-              method: 'POST',
-              body: { name: name.trim(), sortOrder: index, venueId: venueId ?? undefined },
-            }),
-          ),
-        );
-      }
-
-      // Areas attached to the venue (workshop-capable + only when the
-      // operator defined named areas; a single implicit area = no rows).
-      if (venueHostsWorkshop && venueId && state.areaNames.length > 0) {
-        await Promise.all(
-          state.areaNames.map((name, index) =>
-            apiRequest(apiUrl, `/api/v1/venues/${venueId}/areas`, {
-              method: 'POST',
-              body: { name: name.trim(), sortOrder: index },
-            }),
-          ),
-        );
-      }
+      const event = { id: outcome.progress.eventId! };
 
       const pastedLogoUrl = state.logoUrl.trim() || null;
       if (logoFile) {
@@ -1136,7 +1077,15 @@ export default function NewEventPage() {
       </ol>
 
       <div className="mb-6">
-        {state.step === 1 && <Step1 state={state} dispatch={dispatch} t={t} locale={locale} />}
+        {state.step === 1 && (
+          <Step1
+            state={state}
+            dispatch={dispatch}
+            t={t}
+            locale={locale}
+            slugLocked={progress.eventId !== null}
+          />
+        )}
         {state.step === 2 && (
           <Step2
             state={state}

@@ -882,6 +882,7 @@ export const organizer = {
     slug: 'Slug URL *',
     slugPrefix: '/e/',
     slugPlaceholder: 'fal-2027',
+    slugLocked: "L'événement est déjà créé avec cette adresse : elle ne peut plus changer ici.",
     startDate: 'Date de début *',
     endDate: 'Date de fin *',
     city: 'Ville',
@@ -955,6 +956,10 @@ export const organizer = {
       venueNameRequired: 'Le nom du lieu est requis',
       venueCapabilityRequired: 'Choisissez au moins une fonction du lieu (tournoi ou stage).',
       venueCreateFailed: 'Impossible de créer le lieu',
+      updateFailed:
+        "L'événement existe, mais ses nouvelles informations n'ont pas pu être enregistrées.",
+      liceCreateFailed: "L'événement existe, mais une piste n'a pas pu être ajoutée.",
+      areaCreateFailed: "L'événement existe, mais une zone n'a pas pu être ajoutée au lieu.",
       logoType: 'Le logo doit être une image PNG, JPEG ou WebP.',
       logoSize: 'Le logo doit faire 10 Mo ou moins.',
       organizationNotFound: 'Organisation introuvable',

@@ -885,6 +885,7 @@ export const organizer = {
     slug: 'URL slug *',
     slugPrefix: '/e/',
     slugPlaceholder: 'fal-2027',
+    slugLocked: 'The event is already created with this address, so it cannot change here.',
     startDate: 'Start date *',
     endDate: 'End date *',
     city: 'City',
@@ -957,6 +958,10 @@ export const organizer = {
       venueNameRequired: 'Venue name is required',
       venueCapabilityRequired: 'Pick at least one venue capability (tournament or workshop).',
       venueCreateFailed: 'Failed to create the venue',
+      // O13: a try that stopped half-way is continued; each later write names itself.
+      updateFailed: 'The event exists, but its new details could not be saved.',
+      liceCreateFailed: 'The event exists, but a piste could not be added.',
+      areaCreateFailed: 'The event exists, but an area could not be added to the venue.',
       logoType: 'Logo must be a PNG, JPEG, or WebP image.',
       logoSize: 'Logo must be 10 MB or smaller.',
       organizationNotFound: 'Organization not found',
