@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   DataTable,
@@ -385,6 +385,8 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A ref, not state: two presses in one tick would both read the state before it changes.
+  const adding = useRef(false);
 
   const toggleEvent = (id: string) =>
     setSelectedEventIds((prev) =>
@@ -576,7 +578,12 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
   const enterAdds = (add: () => Promise<void>) => (event: React.KeyboardEvent) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    void add();
+    // One add at a time: a held or doubled Enter must not send the same name twice.
+    if (event.repeat || adding.current) return;
+    adding.current = true;
+    void add().finally(() => {
+      adding.current = false;
+    });
   };
 
   return (

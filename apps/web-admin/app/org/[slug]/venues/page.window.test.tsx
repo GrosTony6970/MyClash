@@ -115,4 +115,19 @@ describe('the venue window', () => {
     expect(page.writes()).toEqual([ADD_PISTE]);
     expect(dialogs()[0]!.textContent).toContain('Piste 2');
   });
+
+  it('sends one piste for a held Enter', async () => {
+    await openWindow({ [ADD_PISTE]: { id: 'vl-2', name: 'Piste 2', sort_order: 1 } });
+    const field = dialogs()[0]!.querySelector<HTMLInputElement>('input[placeholder="Piste 1"]')!;
+    act(() => type(field, 'Piste 2'));
+    await act(async () => {
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      field.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, repeat: true }),
+      );
+    });
+    await page.settle();
+    expect(page.writes()).toEqual([ADD_PISTE]);
+  });
 });

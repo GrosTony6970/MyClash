@@ -78,7 +78,8 @@ export function ConfirmDialog({
           {title}
         </h2>
         {description ? (
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
+          // A div: a description may hold a list (O25 names an area's pistes in one).
+          <div className="mt-2 text-sm leading-relaxed text-slate-600">{description}</div>
         ) : null}
         <div className="mt-6 flex justify-end gap-2">
           <button

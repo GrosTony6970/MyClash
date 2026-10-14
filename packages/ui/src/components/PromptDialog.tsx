@@ -241,8 +241,8 @@ function RevealButton({
   return (
     <button
       type="button"
+      // Its words say what it does next ("Hide PIN"): no pressed state to read backwards.
       onClick={onToggle}
-      aria-pressed={shown}
       className="shrink-0 rounded-md border border-border px-3 text-sm font-semibold text-foreground-secondary hover:bg-background"
     >
       {shown ? words.hide : words.show}
