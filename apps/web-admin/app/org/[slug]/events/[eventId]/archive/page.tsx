@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { BackLink } from '@/components/BackLink';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RestoreArchiveForm } from './RestoreArchiveForm';
@@ -42,7 +43,14 @@ export default function OrganizerArchivePage() {
   const [scope, setScope] = useState<ArchiveScope>('event');
   const [include, setInclude] = useState<ArchiveInclude>('scoring');
   const [format, setFormat] = useState<ArchiveFormat>('zip');
-  const [selectedTournamentId, setSelectedTournamentId] = useState('');
+  const [selectedTournamentId, setSelectedTournamentId] = useTournamentChoice(
+    eventId,
+    tournaments.map((tournament) => tournament.id),
+  );
+  // The three CSVs below are one Tournament's even under "Whole Event": they say whose.
+  const csvOf = {
+    tournament: tournaments.find((tour) => tour.id === selectedTournamentId)?.name ?? '',
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,10 +63,7 @@ export default function OrganizerArchivePage() {
       }),
     ]).then(([eventRes, tournamentsRes]) => {
       if (eventRes.ok) setEvent(eventRes.data);
-      if (tournamentsRes.ok) {
-        setTournaments(tournamentsRes.data);
-        setSelectedTournamentId(tournamentsRes.data[0]?.id ?? '');
-      }
+      if (tournamentsRes.ok) setTournaments(tournamentsRes.data);
     });
     return () => controller.abort();
   }, [apiUrl, eventId]);
@@ -155,19 +160,19 @@ export default function OrganizerArchivePage() {
                 href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/matches.csv`}
                 className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
               >
-                {t('organizer.archive.downloadMatches')}
+                {t('organizer.archive.downloadMatches', csvOf)}
               </a>
               <a
                 href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/exchanges.csv`}
                 className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
               >
-                {t('organizer.archive.downloadExchanges')}
+                {t('organizer.archive.downloadExchanges', csvOf)}
               </a>
               <a
                 href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/rankings.csv`}
                 className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
               >
-                {t('organizer.archive.downloadRankings')}
+                {t('organizer.archive.downloadRankings', csvOf)}
               </a>
             </>
           )}

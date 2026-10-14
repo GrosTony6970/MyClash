@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import {
@@ -40,6 +40,8 @@ import {
 } from './DoubleElimPodiumOptions';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { withTournament } from '@/lib/tournament-choice';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
 import { FoughtBoutsConfirm, RegenerateConfirm, type FoughtAsk } from './DiscardConfirms';
@@ -200,8 +202,6 @@ function readBracketHashTab(): BracketTabKey {
 export default function BracketPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
@@ -223,11 +223,11 @@ export default function BracketPage() {
   }
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  // Seed the selection from `?tournamentId=...` so refresh + shared
-  // links land on the same bracket. We fall back to the first
-  // tournament below once the tournaments fetch settles.
-  const initialTournamentId = searchParams.get('tournamentId') ?? '';
-  const [selectedTournament, setSelectedTournament] = useState<string>(initialTournamentId);
+  // Nothing is read for a Tournament before the list says the Event holds it.
+  const [selectedTournament, setSelectedTournament] = useTournamentChoice(
+    eventId,
+    tournaments.map((tour) => tour.id),
+  );
   const [bracket, setBracket] = useState<BracketResult | null>(null);
   const [bracketPhaseId, setBracketPhaseId] = useState<string | null>(null);
   const [existingBracket, setExistingBracket] = useState(false);
@@ -391,38 +391,10 @@ export default function BracketPage() {
     void apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
       signal: controller.signal,
     }).then((r) => {
-      if (!r.ok) return;
-      const tournaments = r.data;
-      setTournaments(tournaments);
-      if (tournaments.length === 0) return;
-      // Default to the first tournament only when the URL doesn't
-      // already carry a valid tournamentId — preserves deep-links
-      // and the shared-link experience.
-      const urlTournamentId = searchParams.get('tournamentId') ?? '';
-      const targetId = tournaments.some((t) => t.id === urlTournamentId)
-        ? urlTournamentId
-        : tournaments[0]!.id;
-      setTimeout(() => setSelectedTournament(targetId), 0);
+      if (r.ok) setTournaments(r.data);
     });
     return () => controller.abort();
-    // searchParams is captured at initial load only — subsequent URL
-    // changes from this page (via the selector below) shouldn't refire
-    // the fetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl]);
-
-  // Mirror the in-memory selection back to the URL so refresh + share
-  // both land on the same tournament. router.replace keeps the page in
-  // history without pushing a new entry per dropdown change. The
-  // `#bracket` hash is preserved verbatim.
-  useEffect(() => {
-    if (!selectedTournament) return;
-    if (typeof window === 'undefined') return;
-    if (searchParams.get('tournamentId') === selectedTournament) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('tournamentId', selectedTournament);
-    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-  }, [selectedTournament, searchParams, router]);
 
   // ── Load tournament side colors ─────────────────────────────────────────────
 
@@ -1094,7 +1066,7 @@ export default function BracketPage() {
             {t('organizer.aiAssistant.suggest')}
           </Link>
           <Link
-            href={`/org/${slug}/events/${eventId}/pools`}
+            href={withTournament(`/org/${slug}/events/${eventId}/pools`, selectedTournament)}
             className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
             {t('organizer.bracketPage.backToPools')}

@@ -30,6 +30,8 @@ import { addToWaitingList, tryRegisterInTournament } from './_components/registr
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
 interface Person {
   id: string;
@@ -151,7 +153,16 @@ export default function ParticipantsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<string>('all');
+  // The tab is in the address, so a dashboard row's link and a refresh keep it. Opened bare,
+  // the roster shows every Tournament: it never opens on the last one picked (ruled 2026-10-14).
+  // No choice before the list first lands: "all" would replace a link's Tournament.
+  const [tabsKnown, setTabsKnown] = useState(false);
+  const [chosenTab, setActiveTab] = useTournamentChoice(
+    eventId,
+    tabsKnown ? [ALL_TOURNAMENTS, ...tournaments.map((tour) => tour.id)] : [],
+    { remember: false },
+  );
+  const activeTab = chosenTab || ALL_TOURNAMENTS;
   // Inline header filters: 'all' | 'none' | clubId, and referee tri-state.
   const [clubFilter, setClubFilter] = useState('all');
   const [refereeFilter, setRefereeFilter] = useState<PersonFilterValue['referee']>('all');
@@ -166,7 +177,9 @@ export default function ParticipantsPage() {
     if (typeof window === 'undefined') return;
     const desired = mode === 'waiting-list' ? '#waiting-list' : '';
     if (window.location.hash !== desired) {
-      window.history.replaceState(null, '', `${window.location.pathname}${desired}`);
+      // The query holds the Tournament tab: keep it.
+      const { pathname, search } = window.location;
+      window.history.replaceState(null, '', `${pathname}${search}${desired}`);
     }
   }, [mode]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -267,6 +280,7 @@ export default function ParticipantsPage() {
       ),
     ]).then(([pRes, rRes, tRes]) => {
       setLoading(false);
+      setTabsKnown(true);
       if (pRes.ok) setPersons(pRes.data);
       if (rRes.ok) setRegistrations(rRes.data);
       if (tRes.ok) {
@@ -1094,6 +1108,7 @@ export default function ParticipantsPage() {
               return (
                 <button
                   key={tabId}
+                  aria-pressed={active}
                   onClick={() => {
                     setActiveTab(tabId);
                     setSelected(new Set());

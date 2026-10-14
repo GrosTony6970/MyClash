@@ -35,6 +35,8 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
 import { discardFailureMessage, foughtBoutsAtStake } from '@/lib/discard-refusal';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { withTournament } from '@/lib/tournament-choice';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -117,7 +119,10 @@ export default function PoolsPage() {
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string; color?: string | null }>
   >([]);
-  const [selectedTournament, setSelectedTournament] = useState<string>('');
+  const [selectedTournament, setSelectedTournament] = useTournamentChoice(
+    eventId,
+    tournaments.map((tour) => tour.id),
+  );
   // Derived: the row matching the active id, surfaced to the
   // breadcrumb + picker so the tournament name follows the operator
   // across every subtab without threading a new prop.
@@ -195,9 +200,7 @@ export default function PoolsPage() {
       `/api/v1/events/${eventId}/tournaments`,
       { signal: controller.signal },
     ).then((r) => {
-      if (!r.ok) return;
-      setTournaments(r.data);
-      if (r.data.length > 0) setTimeout(() => setSelectedTournament(r.data[0]!.id), 0);
+      if (r.ok) setTournaments(r.data);
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);
@@ -598,7 +601,7 @@ export default function PoolsPage() {
           {t('organizer.aiAssistant.suggest')}
         </Link>
         <Link
-          href={`/org/${slug}/events/${eventId}/bracket`}
+          href={withTournament(`/org/${slug}/events/${eventId}/bracket`, selectedTournament)}
           className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >
           {t('organizer.pools.page.toBracket')}

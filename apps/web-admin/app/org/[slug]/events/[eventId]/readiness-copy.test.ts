@@ -49,7 +49,15 @@ describe('readinessFixHref', () => {
     ['schedule', `${base}/schedule`],
     ['bracket', `${base}/bracket`],
   ])('sends %s to %s', (key, expected) => {
-    expect(readinessFixHref(check({ key }), 'my-club', 'event-1')).toBe(expected);
+    expect(readinessFixHref(check({ key, tournamentId: null }), 'my-club', 'event-1')).toBe(
+      expected,
+    );
+  });
+
+  it("opens the page on the check's own Tournament (O7)", () => {
+    expect(readinessFixHref(check({ key: 'bracket' }), 'my-club', 'event-1')).toBe(
+      `${base}/bracket?tournamentId=t1`,
+    );
   });
 
   it('sends ruleset to that tournament’s settings', () => {

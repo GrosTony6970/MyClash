@@ -23,6 +23,7 @@ import { parseHashTab } from '../pools/parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { useSwissAdmin } from './useSwissAdmin';
 import { ConfigureTab } from './_tabs/ConfigureTab';
 import { RoundsTab } from './_tabs/RoundsTab';
@@ -58,7 +59,10 @@ export default function SwissPage() {
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string; color?: string | null }>
   >([]);
-  const [selectedTournament, setSelectedTournament] = useState<string>('');
+  const [selectedTournament, setSelectedTournament] = useTournamentChoice(
+    eventId,
+    tournaments.map((tour) => tour.id),
+  );
   const [activeTab, setActiveTab] = useState<TabKey>('configure');
 
   const swiss = useSwissAdmin(selectedTournament, t('organizer.swiss.errors.loadFailed'));
@@ -82,9 +86,7 @@ export default function SwissPage() {
       `/api/v1/events/${eventId}/tournaments`,
       { signal: controller.signal },
     ).then((r) => {
-      if (!r.ok) return;
-      setTournaments(r.data);
-      if (r.data.length > 0) setTimeout(() => setSelectedTournament(r.data[0]!.id), 0);
+      if (r.ok) setTournaments(r.data);
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);

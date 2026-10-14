@@ -24,6 +24,7 @@ import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   allMatchesOf,
@@ -125,7 +126,10 @@ export default function PrintPackPage() {
    */
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useTournamentChoice(
+    eventId,
+    tournaments.map((tournament) => tournament.id),
+  );
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [pools, setPools] = useState<ApiPoolWithMatches[]>([]);
   const [bracket, setBracket] = useState<{ rounds: number; slots: ApiBracketSlot[] } | null>(null);
@@ -172,9 +176,7 @@ export default function PrintPackPage() {
         if (!event.ok || !tournamentRows.ok || !liceRows.ok) return;
         setEventName(event.data.name ?? '');
         setEventTz(event.data.timezone || DEFAULT_EVENT_TIMEZONE);
-        const list = tournamentRows.data ?? [];
-        setTournaments(list);
-        setSelected((current) => current ?? list[0]?.id ?? null);
+        setTournaments(tournamentRows.data ?? []);
         setLices(new Map(liceRows.data.map((l) => [l.id, l.name])));
       })
       .finally(() => setEventLoaded(true));
@@ -246,7 +248,7 @@ export default function PrintPackPage() {
 
   // Derived, never stored: the event list has to have landed, and the data on
   // screen has to belong to the tournament currently selected.
-  const loading = !eventLoaded || (selected !== null && loadedFor !== selected);
+  const loading = !eventLoaded || (selected !== '' && loadedFor !== selected);
   const canPrint = sections.length > 0 && allMatches.length > 0;
 
   function toggleSection(key: PrintSectionKey) {
@@ -305,7 +307,7 @@ export default function PrintPackPage() {
             {t('organizer.printPack.tournamentLabel')}
           </span>
           <select
-            value={selected ?? ''}
+            value={selected}
             onChange={(event) => setSelected(event.target.value)}
             className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
           >

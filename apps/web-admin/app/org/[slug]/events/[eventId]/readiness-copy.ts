@@ -10,6 +10,7 @@
  * tests rather than typed inline in JSX.
  */
 import type { StatusSemantic } from '@myclash/ui';
+import { withTournament } from '@/lib/tournament-choice';
 
 export type ReadinessLevel = 'ok' | 'warn' | 'critical' | 'info';
 
@@ -94,7 +95,7 @@ export function readinessFixHref(
     return check.tournamentId ? `${base}/tournaments/${check.tournamentId}/settings` : null;
   }
   const route = FIX_ROUTE[check.key];
-  return route ? `${base}/${route}` : null;
+  return route ? withTournament(`${base}/${route}`, check.tournamentId ?? '') : null;
 }
 
 /**

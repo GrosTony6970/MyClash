@@ -35,6 +35,7 @@ import { isOutstanding, type ReadinessReport } from './readiness-copy';
 import { statusChangeQuestion } from './tournaments/_lib/status-change-question';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { withTournament } from '@/lib/tournament-choice';
 
 interface Tournament {
   id: string;
@@ -671,7 +672,10 @@ export default function EventDetailPage() {
                     </DataTableCell>
                     <DataTableCell>
                       <Link
-                        href={`/org/${slug}/events/${eventId}/persons`}
+                        href={withTournament(
+                          `/org/${slug}/events/${eventId}/persons`,
+                          tournament.id,
+                        )}
                         className={cellLinkClass}
                       >
                         {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
@@ -686,12 +690,18 @@ export default function EventDetailPage() {
                       </Link>
                     </DataTableCell>
                     <DataTableCell>
-                      <Link href={`/org/${slug}/events/${eventId}/pools`} className={cellLinkClass}>
+                      <Link
+                        href={withTournament(`/org/${slug}/events/${eventId}/pools`, tournament.id)}
+                        className={cellLinkClass}
+                      >
                         {tournament.poolCount ?? 0}
                       </Link>
                     </DataTableCell>
                     <DataTableCell>
-                      <Link href={`/org/${slug}/events/${eventId}/swiss`} className={cellLinkClass}>
+                      <Link
+                        href={withTournament(`/org/${slug}/events/${eventId}/swiss`, tournament.id)}
+                        className={cellLinkClass}
+                      >
                         {tournament.swissRoundCount
                           ? t('organizer.eventHub.dashboard.swissRounds', {
                               count: tournament.swissRoundCount,
@@ -701,7 +711,10 @@ export default function EventDetailPage() {
                     </DataTableCell>
                     <DataTableCell>
                       <Link
-                        href={`/org/${slug}/events/${eventId}/bracket`}
+                        href={withTournament(
+                          `/org/${slug}/events/${eventId}/bracket`,
+                          tournament.id,
+                        )}
                         className={cellLinkClass}
                       >
                         {tournament.bracketSize ?? '—'}

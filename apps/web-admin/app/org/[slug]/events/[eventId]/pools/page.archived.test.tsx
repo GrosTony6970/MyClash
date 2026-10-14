@@ -12,7 +12,11 @@ import PoolsPage from './page';
  * The three other tabs are stubbed. The bouts tab's stub shows the one thing
  * the page owes it: that it is told the Event is read-only.
  */
-vi.mock('next/navigation', () => ({ useParams: () => ({ slug: 'org', eventId: 'ev1' }) }));
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ slug: 'org', eventId: 'ev1' }),
+  useRouter: () => ({ replace: () => undefined, push: () => undefined }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
     <a href={href}>{children}</a>

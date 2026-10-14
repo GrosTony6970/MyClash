@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import {
   DataTable,
@@ -29,6 +29,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
+import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -43,42 +44,24 @@ const apiUrl = getPublicApiUrl();
 export default function FinalRankingPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { t } = useI18n();
   const toast = useToast();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<string>(
-    searchParams.get('tournamentId') ?? '',
+  const [selectedTournament, setSelectedTournament] = useTournamentChoice(
+    eventId,
+    tournaments.map((tour) => tour.id),
   );
 
-  // Load the event's tournaments once; seed the selection from ?tournamentId.
   useEffect(() => {
     const controller = new AbortController();
     // Tolerant, as before: an empty picker is its own empty state, and the
     // ranking panel below says when it has nothing to draw.
     void apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
       signal: controller.signal,
-    }).then((r) => {
-      const data = r.ok ? r.data : [];
-      setTournaments(data);
-      const urlId = searchParams.get('tournamentId') ?? '';
-      const targetId = data.some((t) => t.id === urlId) ? urlId : (data[0]?.id ?? '');
-      setSelectedTournament(targetId);
-    });
+    }).then((r) => setTournaments(r.ok ? r.data : []));
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
-
-  // Mirror the selection to the URL so refresh + share both work.
-  useEffect(() => {
-    if (!selectedTournament || typeof window === 'undefined') return;
-    if (searchParams.get('tournamentId') === selectedTournament) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('tournamentId', selectedTournament);
-    router.replace(`${url.pathname}${url.search}`, { scroll: false });
-  }, [selectedTournament, searchParams, router]);
 
   const { bracket, poolEntries, loading } = useFinalRankingData(selectedTournament);
 
