@@ -155,6 +155,46 @@ test('an accept whose re-read failed leaves no error once the roster is opened a
   expect(reads).toHaveLength(3);
 });
 
+test("an older read that answers last does not undo an accept's newer read", async ({ page }) => {
+  await signInAsLea(page);
+  await page.route('**/api/v1/me/instructor-workshops', (route) =>
+    route.fulfill({ json: WORKSHOPS }),
+  );
+  await page.route('**/api/v1/workshop-sessions/ses-1/enrollments/*/accept', (route) =>
+    route.fulfill({ json: { ok: true } }),
+  );
+  // Read 1 the list, read 2 (after the first accept) fails, read 3 (the reopen) is held,
+  // read 4 (after the second accept) is the list with Inès accepted.
+  let held: (() => Promise<void>) | null = null;
+  let reads = 0;
+  await page.route('**/api/v1/workshop-sessions/ses-1/roster', (route) => {
+    reads += 1;
+    if (reads === 2) return route.fulfill({ status: 500, json: { status: 500, detail: 'down' } });
+    if (reads === 3) {
+      held = () => route.fulfill({ json: ROSTER });
+      return undefined;
+    }
+    return route.fulfill({ json: reads === 4 ? AFTER_ACCEPT : ROSTER });
+  });
+  await page.goto(`${PUBLIC}/me/instructor`);
+
+  await viewRoster(page).click();
+  await page.getByRole('button', { name: 'Accept' }).click();
+  await expect(page.getByText(ROSTER_ERROR)).toBeVisible();
+  await hideRoster(page).click();
+  await viewRoster(page).click();
+  await expect.poll(() => held !== null).toBe(true);
+
+  // The old list is on screen while read 3 is out: Accept again.
+  await page.getByRole('button', { name: 'Accept' }).click();
+  await expect(page.getByRole('button', { name: 'Accept' })).toHaveCount(0);
+  await held!();
+  // Read 3 answered last with the older list: it must not bring Inès back to the waitlist.
+  await expect.poll(() => reads).toBe(4);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('button', { name: 'Accept' })).toHaveCount(0);
+});
+
 test('a roster read refused for a login that did not come back goes to sign-in', async ({
   page,
 }) => {

@@ -559,11 +559,13 @@ function SessionRow({
   const [rosterError, setRosterError] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // One read at a time: open, close, open again fast must not send two.
-  const reading = useRef(false);
+  // Each read takes a number; only the answer of the latest one is kept (an older read can answer
+  // after an accept's newer one). An open sends no read while the latest is out.
+  const lastAsked = useRef(0);
+  const lastAnswered = useRef(0);
 
   async function loadRoster() {
-    reading.current = true;
+    const mine = ++lastAsked.current;
     // A read starts clean: the error of an older one (or of an accept's re-read) goes.
     setRosterError(false);
     // `apiRequest` renews a lapsed login once; a 401 after that is a login that did not come back.
@@ -571,7 +573,8 @@ function SessionRow({
       apiUrl,
       `/api/v1/workshop-sessions/${session.id}/roster`,
     );
-    reading.current = false;
+    if (mine !== lastAsked.current) return;
+    lastAnswered.current = mine;
     if (result.ok) setRoster(result.data);
     else if (result.kind === 'unauthenticated' && result.status === 401) signInAgainHere();
     else setRosterError(true);
@@ -580,7 +583,8 @@ function SessionRow({
   async function toggle() {
     const next = !open;
     setOpen(next);
-    const read = rosterReadOnOpen({ roster, failed: rosterError, reading: reading.current });
+    const reading = lastAsked.current !== lastAnswered.current;
+    const read = rosterReadOnOpen({ roster, failed: rosterError, reading });
     if (next && read) await loadRoster();
   }
 
