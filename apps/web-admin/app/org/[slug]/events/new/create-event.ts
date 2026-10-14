@@ -18,7 +18,7 @@ export interface CreateProgress {
   sentBasics: string | null;
   /** A venue this wizard made, with what it was made from. */
   madeVenue: { id: string; sent: string } | null;
-  /** `index:name` of each piste the Event holds. */
+  /** `venue:index:name` of each piste the Event holds. */
   pistesSent: string[];
   /** `venue:index:name` of each area a venue holds. */
   areasSent: string[];
@@ -72,7 +72,10 @@ export async function createEventSteps(
     const pistes = state.liceNames.map((raw, index) => {
       const name = raw.trim();
       const body = { name, sortOrder: index, venueId: venue.id ?? undefined };
-      return { key: `${index}:${name}`, path: `/api/v1/events/${eventId}/lices`, body };
+      // Keyed by venue too: a venue changed between tries takes every piste, not only the
+      // ones the first try had not sent.
+      const key = `${venue.id ?? ''}:${index}:${name}`;
+      return { key, path: `/api/v1/events/${eventId}/lices`, body };
     });
     outcome = await sendMissing(outcome.progress, 'pistesSent', pistes, 'liceCreateFailed', send);
     if (outcome.refusal) return outcome;

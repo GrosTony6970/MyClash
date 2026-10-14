@@ -124,6 +124,22 @@ describe('createEventSteps', () => {
     expect(api.said()[0]).toBe('POST /api/v1/organizations/org-1/venues');
   });
 
+  // From the review of push 3: a piste taken, then the venue edited before the retry.
+  it('sends every piste to the venue made again, not only the ones not sent yet', async () => {
+    const first = await run(
+      FORM,
+      NO_PROGRESS,
+      server(['POST /api/v1/events/id-1/lices Lice 2']).send,
+    );
+    const api = server();
+    await run({ ...FORM, newVenueAddress: '1 rue des Arts' }, first.progress, api.send);
+    expect(api.calls.filter((c) => c.call === 'POST /api/v1/events/id-1/lices')).toEqual([
+      expect.objectContaining({ body: { name: 'Lice 1', sortOrder: 0, venueId: 'id-1' } }),
+      expect.objectContaining({ body: { name: 'Lice 2', sortOrder: 1, venueId: 'id-1' } }),
+      expect.objectContaining({ body: { name: 'Lice 3', sortOrder: 2, venueId: 'id-1' } }),
+    ]);
+  });
+
   it('sends each area of a workshop venue once', async () => {
     const workshop = { ...FORM, newVenueHostsWorkshop: true, areaNames: ['Salle A', 'Salle B'] };
     const first = await run(
