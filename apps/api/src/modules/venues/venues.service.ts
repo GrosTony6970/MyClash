@@ -16,6 +16,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
+import { withAreaLeaves } from './venue-area-leaves';
 import type {
   CreateVenueAreaDto,
   CreateVenueDto,
@@ -140,13 +141,15 @@ export class VenuesService {
       }
     }
 
-    return venues.map((v) => ({
+    const listed = venues.map((v) => ({
       ...v,
       events: [...(eventIdsByVenue.get(String(v['id'])) ?? [])]
         .map((id) => eventById.get(id))
         .filter((e): e is { id: string; name: string; slug: string } => Boolean(e))
         .sort((a, b) => a.name.localeCompare(b.name)),
     }));
+    // Each area names what removing it would leave without an area (O25).
+    return withAreaLeaves(this.supabase.service, listed);
   }
 
   /** One venue — for any member of the venue's OWN club (ruling 77). */
