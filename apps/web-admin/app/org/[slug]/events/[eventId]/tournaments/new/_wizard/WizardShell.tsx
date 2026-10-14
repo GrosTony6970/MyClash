@@ -126,7 +126,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
             eventId={eventId}
             readOnly={readOnly}
             onBack={goBack}
-            onFinish={(publish) => void finish(publish)}
+            onFinish={finish}
           />
         )}
       </div>

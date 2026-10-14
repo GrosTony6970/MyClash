@@ -23,7 +23,8 @@ export function Step4Advanced({
   tournamentId: string;
   eventId: string;
   onBack: () => void;
-  onFinish: (publish: boolean) => void;
+  /** Resolves once the finish (and its publish) has answered: the buttons stay closed till then. */
+  onFinish: (publish: boolean) => Promise<void>;
   /** The Event is archived: the server refuses the step's saves, so they are closed. */
   readOnly: boolean;
 }) {
@@ -87,7 +88,20 @@ export function Step4Advanced({
         if (message) toast.error(message);
         return;
       }
-      onFinish(publishOnFinish);
+      await onFinish(publishOnFinish);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * Skips this step's own save; holds the buttons until the finish has answered. On an
+   * archived Event it is the way out of the wizard (ruling 377): it publishes nothing.
+   */
+  async function finishWithDefaults() {
+    setSaving(true);
+    try {
+      await onFinish(publishOnFinish && !readOnly);
     } finally {
       setSaving(false);
     }
@@ -98,7 +112,8 @@ export function Step4Advanced({
       <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
         <button
           type="button"
-          onClick={() => onFinish(publishOnFinish)}
+          onClick={() => void finishWithDefaults()}
+          disabled={saving}
           className="font-medium text-warning hover:underline"
         >
           {t('organizer.tournaments.wizard.useDefaultsAndFinish')} →

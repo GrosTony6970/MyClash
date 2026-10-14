@@ -102,4 +102,15 @@ describe('the Tournament wizard of an archived Event', () => {
     expect(page.writes()).toEqual([]);
     expect(NAVIGATION.left).toEqual(['/org/org/events/ev1/tournaments']);
   });
+
+  it('publishes nothing by "Use defaults and finish", even with "Publish on finish" ticked', async () => {
+    page = await openWizard('id=t-1&step=4');
+    const publishBox = [
+      ...document.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].pop()!;
+    await act(async () => publishBox.click());
+    await press(page, ['Use defaults and finish →']);
+    expect(page.writes()).toEqual([]);
+    expect(NAVIGATION.left).toEqual(['/org/org/events/ev1/tournaments']);
+  });
 });

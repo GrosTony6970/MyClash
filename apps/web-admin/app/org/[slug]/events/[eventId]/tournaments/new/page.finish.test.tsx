@@ -92,6 +92,32 @@ describe('the end of the Tournament wizard', () => {
     expect(toasts().join(' | ')).toContain('Tournament saved as a draft.');
   });
 
+  it('holds both finish buttons while the publish is out: one click, one publish (review m5)', async () => {
+    await openStep4('taken');
+    const served = vi.mocked(apiRequest).getMockImplementation()!;
+    let land: () => void = () => undefined;
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) => {
+      if ((init?.body as { status?: string })?.status === 'published') {
+        await new Promise<void>((resolve) => {
+          land = resolve;
+        });
+      }
+      return served(base, path, init);
+    });
+    await tap(publishBox());
+    await tap(button('Finish'));
+    const useDefaults = [...document.body.querySelectorAll('button')].find((b) =>
+      b.textContent?.startsWith('Use defaults and finish'),
+    )!;
+    expect(useDefaults.disabled).toBe(true);
+    expect(button('Saving...').disabled).toBe(true);
+    await tap(useDefaults);
+    expect(publishes()).toHaveLength(1);
+    await act(async () => land());
+    await page.settle();
+    expect(NAVIGATION.left).toEqual(['/org/org/events/ev1/tournaments']);
+  });
+
   it('"Use defaults and finish" publishes when "Publish on finish" is ticked', async () => {
     await openStep4('taken');
     await tap(publishBox());
