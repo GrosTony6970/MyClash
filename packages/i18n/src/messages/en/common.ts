@@ -63,6 +63,14 @@ export const common = {
   optional: 'Optional',
   saving: 'Saving...',
   unknown: 'Unknown',
+  // The question of `useLeaveGuard` (packages/ui): a page with unsaved edits asks
+  // before a link, a tab switch or its own Cancel leaves it.
+  leaveGuard: {
+    title: 'Leave without saving?',
+    body: 'Your changes are not saved yet. They will be lost.',
+    leave: 'Leave',
+    stay: 'Stay',
+  },
   // Human phase names, keyed by the round tokens formatRoundCode emits.
   // Resolved through roundTokenLabel() in @myclash/types so the TV display,
   // the scoring pad and the bracket headers all name a round the same way —

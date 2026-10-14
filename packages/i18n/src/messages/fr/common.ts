@@ -36,6 +36,12 @@ export const common = {
   optional: 'Facultatif',
   saving: 'Enregistrement...',
   unknown: 'Inconnu',
+  leaveGuard: {
+    title: 'Quitter sans enregistrer ?',
+    body: 'Vos modifications ne sont pas encore enregistrées. Elles seront perdues.',
+    leave: 'Quitter',
+    stay: 'Rester',
+  },
   round: {
     final: 'Finale',
     semiFinal: 'Demi-finale',

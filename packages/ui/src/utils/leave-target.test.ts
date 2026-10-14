@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leaveTarget, type LinkClick } from './leave-guard';
+import { leaveTarget, type LinkClick } from './leave-target';
 
 const HERE = 'https://myclash.fr/me/profile';
 const click = (patch: Partial<LinkClick> = {}): LinkClick => ({

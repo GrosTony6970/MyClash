@@ -780,7 +780,7 @@
     "apps/web-public/app/me/instructor/InstructorDashboard.tsx:73",
     "apps/web-public/app/me/leagues/LeaguesClient.tsx:34",
     "apps/web-public/app/me/leagues/[slug]/LeagueDetailClient.tsx:45",
-    "apps/web-public/app/me/profile/ProfileTabs.tsx:25",
+    "apps/web-public/app/me/profile/ProfileTabs.tsx:24",
     "apps/web-public/app/me/profile/WorkshopProfileClient.tsx:42",
     "apps/web-public/app/me/security/page.tsx:201",
     "apps/web-public/app/me/security/page.tsx:26",

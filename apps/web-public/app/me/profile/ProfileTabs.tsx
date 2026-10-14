@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SegmentedTabs } from '@myclash/ui';
+import { SegmentedTabs, useLeaveGuard } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useLeaveGuard } from '@/components/me/use-leave-guard';
 import { useI18n } from '@myclash/next-i18n/client';
 import { FighterProfileClient } from '../../profile/fighter/FighterProfileClient';
 import { RefereeProfileClient } from '../../profile/referee/RefereeProfileClient';
@@ -36,7 +35,10 @@ export function ProfileTabs() {
   // link or closing the page asks first (quick-win M4). The form is the one owner of the flag:
   // it reports every change, and "nothing unsaved" when it unmounts.
   const [fighterDirty, setFighterDirty] = useState(false);
-  const { askToLeave, confirmDialog } = useLeaveGuard(fighterDirty);
+  const { askToLeave, confirmDialog } = useLeaveGuard(fighterDirty, {
+    t,
+    navigate: router.push,
+  });
 
   const setTab = async (next: ProfileTab) => {
     if (next === tab || !(await askToLeave())) return;

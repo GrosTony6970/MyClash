@@ -165,6 +165,9 @@ export { ToastProvider, useToast } from './components/Toast';
 export type { ToastVariant } from './components/Toast';
 
 export { useFocusTrap } from './hooks/useFocusTrap';
+export { useLeaveGuard } from './hooks/useLeaveGuard';
+export { leaveTarget } from './utils/leave-target';
+export type { LinkAttributes, LinkClick } from './utils/leave-target';
 
 // ── Phase 4: bulk actions ─────────────────────────────────────────────────
 

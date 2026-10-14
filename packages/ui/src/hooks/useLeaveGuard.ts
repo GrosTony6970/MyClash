@@ -1,26 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { useConfirm } from '@myclash/ui';
-import { useI18n } from '@myclash/next-i18n/client';
-import { leaveTarget } from './leave-guard';
+import { useConfirm } from '../components/useConfirm';
+import type { Translator } from '../types/translator';
+import { leaveTarget } from '../utils/leave-target';
 
 /**
- * Ask before a page with unsaved edits is left (quick-win M4, operator 2026-10-14).
+ * Ask before a page with unsaved edits is left (quick-win M4, then O12 and O15, operator
+ * 2026-10-14).
  *
  * While `dirty`, three ways out ask first: a click on a link to another page of the site (the
  * app's own dialog; the listener runs in the capture phase on `document`, so before Next's `Link`
  * sees the click), closing or reloading the browser tab (the browser's own `beforeunload`
- * prompt), and whatever the page itself calls `askToLeave()` for (the profile's tabs). The
+ * prompt), and whatever the page itself calls `askToLeave()` for (a tab switch, a Cancel). The
  * browser's Back button is not guarded: Next has no clean way to stop it.
+ *
+ * This package neither translates nor routes by itself: the app hands in its `t` and its
+ * router's `push`.
  */
-export function useLeaveGuard(dirty: boolean): {
+export function useLeaveGuard(
+  dirty: boolean,
+  { t, navigate }: { t: Translator; navigate: (href: string) => void },
+): {
   askToLeave: () => Promise<boolean>;
   confirmDialog: ReactNode;
 } {
-  const { t } = useI18n();
-  const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const dirtyNow = useRef(dirty);
   useEffect(() => {
@@ -31,10 +35,10 @@ export function useLeaveGuard(dirty: boolean): {
     async () =>
       !dirtyNow.current ||
       confirm({
-        title: t('publicApp.me.profile.leaveTitle'),
-        description: t('publicApp.me.profile.leaveBody'),
-        confirmLabel: t('publicApp.me.profile.leaveConfirm'),
-        cancelLabel: t('publicApp.me.profile.leaveCancel'),
+        title: t('common.leaveGuard.title'),
+        description: t('common.leaveGuard.body'),
+        confirmLabel: t('common.leaveGuard.leave'),
+        cancelLabel: t('common.leaveGuard.stay'),
         danger: true,
       }),
     [confirm, t],
@@ -42,8 +46,8 @@ export function useLeaveGuard(dirty: boolean): {
 
   useEffect(() => {
     if (!dirty) return undefined;
-    return guardLeaving(askToLeave, (href) => router.push(href));
-  }, [dirty, askToLeave, router]);
+    return guardLeaving(askToLeave, navigate);
+  }, [dirty, askToLeave, navigate]);
 
   return { askToLeave, confirmDialog };
 }

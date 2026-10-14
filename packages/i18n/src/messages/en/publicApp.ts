@@ -422,10 +422,6 @@ export const publicApp = {
     },
     profile: {
       tabsLabel: 'Switch between fighter, referee and workshop profile',
-      leaveTitle: 'Leave without saving?',
-      leaveBody: 'Your changes to this profile are not saved yet. They will be lost.',
-      leaveConfirm: 'Leave',
-      leaveCancel: 'Stay',
     },
     events: {
       title: 'My events',
