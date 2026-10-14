@@ -54,8 +54,8 @@ const pool = (poolName: string, red: string, blue: string) => ({
 const tournamentReads = (id: string, name: string, pools: unknown[]) => ({
   [`/api/v1/tournaments/${id}`]: { name, ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
   [`/api/v1/tournaments/${id}/pools-with-matches`]: pools,
-  // No bracket phase: the server answers 404, which this page reads as "pools only".
-  [`/api/v1/tournaments/${id}/bracket`]: FAILED_READ,
+  // No bracket phase: the server answers null, "pools only".
+  [`/api/v1/tournaments/${id}/bracket`]: null,
 });
 
 const READS = {
@@ -117,6 +117,20 @@ describe('the print pack of every Tournament', () => {
     expect(html.indexOf('Pool L')).toBeGreaterThan(0);
     expect(html.indexOf('Pool L')).toBeLessThan(html.indexOf('Pool S'));
     expect(html).not.toContain('Rapier');
+  });
+
+  it('prints nothing, and says why, when one Tournament could not be read', async () => {
+    // Read as "no bouts", the refusal left Sabre out of the joined job without a word.
+    NAVIGATION.search = new URLSearchParams('tournamentId=all');
+    page = await openEventPage(<PrintPackPage />, {
+      ...READS,
+      '/api/v1/tournaments/t-2/pools-with-matches': FAILED_READ,
+    });
+    const print = [...document.body.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Print',
+    );
+    expect(print?.disabled).toBe(true);
+    expect(document.body.textContent).toContain('Could not load the tournament data.');
   });
 
   it('still prints one Tournament alone, under its own name', async () => {

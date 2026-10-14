@@ -36,22 +36,22 @@ async function readPack(
       `/api/v1/tournaments/${tournamentId}/pools-with-matches`,
       options,
     ),
-    // A tournament with no bracket phase 404s here; that is a valid state
-    // (pools only), not an error worth blocking the whole page for.
-    apiRequest<{ rounds: number; slots: ApiBracketSlot[] }>(
+    // A Tournament with no bracket phase answers null (pools only).
+    apiRequest<{ rounds: number; slots: ApiBracketSlot[] } | null>(
       apiUrl,
       `/api/v1/tournaments/${tournamentId}/bracket`,
       options,
     ),
   ]);
+  // A refused read is no "nothing to print": a Tournament with no Pool phase answers an
+  // empty list, one with no bracket phase answers null. Read as empty, a refusal left that
+  // Tournament out of a joined job without a word.
   if (!detail.ok) return detail;
+  if (!pools.ok) return pools;
+  if (!bracket.ok) return bracket;
   return {
     ok: true,
-    data: {
-      detail: detail.data,
-      pools: pools.ok ? (pools.data ?? []) : [],
-      bracket: bracket.ok ? bracket.data : null,
-    },
+    data: { detail: detail.data, pools: pools.data ?? [], bracket: bracket.data },
   };
 }
 
