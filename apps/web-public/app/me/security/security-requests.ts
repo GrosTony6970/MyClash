@@ -53,9 +53,9 @@ export function passwordChangeRefusalKey(refusal: SecurityRefusal): string {
 /** The sentence of a refused account deletion. */
 export function accountDeletionRefusalKey(refusal: SecurityRefusal): string {
   if (refusal === 'wrong_password') return 'publicApp.security.errors.wrongCurrentPassword';
-  if (refusal === 'bad_request') return 'publicApp.security.errors.confirmationMismatch';
   if (refusal === 'throttled') return 'publicApp.security.errors.tooManyTries';
   if (refusal === 'network') return 'publicApp.security.errors.network';
+  // A 400 too: the page always sends DELETE_CONFIRMATION, so a refused body is never the word.
   return 'publicApp.security.errors.deleteFailed';
 }
 

@@ -998,7 +998,6 @@ export const publicApp = {
       wrongCurrentPassword: 'Mot de passe actuel incorrect.',
       changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
       tooManyTries: 'Trop de tentatives. Attendez une heure, puis réessayez.',
-      confirmationMismatch: "La confirmation n'a pas été acceptée. Tapez le mot à nouveau.",
       deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
       setPasswordLinkFailed: "Impossible d'envoyer le lien. Réessayez dans un instant.",
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',

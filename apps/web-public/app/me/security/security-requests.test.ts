@@ -229,7 +229,8 @@ describe('the sentence of a refused request', () => {
 
   it.each<[SecurityRefusal, string]>([
     ['wrong_password', `${errors}.wrongCurrentPassword`],
-    ['bad_request', `${errors}.confirmationMismatch`],
+    // The page always sends the API's word: a 400 is never "type the word again".
+    ['bad_request', `${errors}.deleteFailed`],
     ['network', `${errors}.network`],
     ['failed', `${errors}.deleteFailed`],
   ])('of an account deletion: %s', (refusal, key) => {

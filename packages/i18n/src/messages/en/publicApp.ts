@@ -992,7 +992,6 @@ export const publicApp = {
       changePasswordFailed: 'Could not update the password. Try again.',
       // Ten checks of a current password an hour, per account (ruling 359).
       tooManyTries: 'Too many tries. Wait an hour, then try again.',
-      confirmationMismatch: 'The confirmation was not accepted. Type the word again.',
       deleteFailed: 'Could not delete the account. Try again.',
       setPasswordLinkFailed: 'Could not send the link. Try again in a moment.',
       network: 'Could not reach the MyClash server. Try again.',
