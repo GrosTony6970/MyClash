@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button, PasswordChecklist } from '@myclash/ui';
+import { Button, PasswordChecklist, Spinner } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { signInAgainHere } from '@/lib/sign-in-return';
@@ -49,6 +49,9 @@ export default function SecurityPage() {
           <p className="mt-2 text-sm text-muted">{t('publicApp.security.subtitle')}</p>
         </header>
 
+        {!status && !statusError && (
+          <Spinner size="lg" className="self-center text-muted" label={t('common.loading')} />
+        )}
         {/* The data export asks nothing of the status: it stays when that read failed. */}
         {statusError && (
           <>
@@ -95,6 +98,7 @@ function ChangePasswordSection({
   const [sessionEnded, setSessionEnded] = useState(false);
 
   const validation = useMemo(() => validatePassword(newPassword), [newPassword]);
+  const canSubmit = !busy && validation.ok && newPassword === confirm && Boolean(currentPassword);
 
   async function submit(): Promise<void> {
     setBusy(true);
@@ -128,7 +132,23 @@ function ChangePasswordSection({
           <p className="mt-1">{t('publicApp.security.googleOnlyBody')}</p>
         </div>
       ) : (
-        <div className="mt-4 space-y-3">
+        // A real form: Enter submits, and a password manager reads whose password it is.
+        <form
+          className="mt-4 space-y-3"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSubmit) void submit();
+          }}
+        >
+          <input
+            type="email"
+            name="username"
+            autoComplete="username"
+            value={status.email ?? ''}
+            readOnly
+            hidden
+          />
           <PasswordField
             label={t('publicApp.security.currentPassword')}
             value={currentPassword}
@@ -151,13 +171,7 @@ function ChangePasswordSection({
           {newPassword && confirm && newPassword !== confirm && (
             <p className="text-xs text-danger">{t('publicApp.login.errors.passwordMismatch')}</p>
           )}
-          <Button
-            type="button"
-            disabled={busy || !validation.ok || newPassword !== confirm || !currentPassword}
-            loading={busy}
-            variant="primary"
-            onClick={() => void submit()}
-          >
+          <Button type="submit" disabled={!canSubmit} loading={busy} variant="primary">
             {busy ? t('common.loading') : t('publicApp.security.changePasswordAction')}
           </Button>
           <PasswordSetLink
@@ -166,7 +180,7 @@ function ChangePasswordSection({
             label={t('publicApp.security.forgotPasswordLink')}
             t={t}
           />
-        </div>
+        </form>
       )}
 
       {changed && <PasswordChangedNotice changed={changed} t={t} />}
@@ -246,7 +260,14 @@ function DeleteAccountSection({
             {t('publicApp.security.deleteModalTitle')}
           </p>
           <p className="mt-2 text-sm text-danger">{t('publicApp.security.deleteModalBody')}</p>
-          <div className="mt-3 space-y-3">
+          <form
+            className="mt-3 space-y-3"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit && !busy) void submit();
+            }}
+          >
             {status.hasPassword && (
               <>
                 <PasswordField
@@ -277,13 +298,7 @@ function DeleteAccountSection({
               />
             </label>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="danger"
-                loading={busy}
-                disabled={!canSubmit || busy}
-                onClick={() => void submit()}
-              >
+              <Button type="submit" variant="danger" loading={busy} disabled={!canSubmit || busy}>
                 {t('publicApp.security.deleteConfirmAction')}
               </Button>
               <button
@@ -301,7 +316,7 @@ function DeleteAccountSection({
                 {t('actions.cancel')}
               </button>
             </div>
-          </div>
+          </form>
           {error && (
             <p
               className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"

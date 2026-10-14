@@ -160,7 +160,15 @@ export function EmailChangeSection({
           </button>
         </div>
       ) : editing ? (
-        <div className="mt-4 space-y-3">
+        // A real form: Enter in the field sends, as the button does (quick-win M8).
+        <form
+          className="mt-4 space-y-3"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!saving && email) void requestChange();
+          }}
+        >
           <label className="block">
             <span className="text-sm font-semibold text-foreground">
               {t('publicApp.emailChange.newEmail')}
@@ -175,13 +183,7 @@ export function EmailChangeSection({
             />
           </label>
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              loading={saving}
-              disabled={saving || !email}
-              onClick={() => void requestChange()}
-            >
+            <Button type="submit" variant="primary" loading={saving} disabled={saving || !email}>
               {saving
                 ? t('publicApp.emailChange.sending')
                 : t('publicApp.emailChange.sendConfirmation')}
@@ -198,7 +200,7 @@ export function EmailChangeSection({
               {t('actions.cancel')}
             </button>
           </div>
-        </div>
+        </form>
       ) : null}
 
       {message && (
