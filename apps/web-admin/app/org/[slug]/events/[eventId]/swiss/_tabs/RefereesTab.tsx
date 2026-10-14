@@ -18,7 +18,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
-import { CandidatePicker } from '../../referees/_components/CandidatePicker';
+import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import {
   useAssignmentBoard,
   type AssignmentBoardPool,
@@ -155,15 +155,11 @@ export function RefereesTab({
       ))}
 
       {picker && (
-        <CandidatePicker
-          pool={picker.pool}
-          slot={picker.slot}
-          onAssign={(personId, confirm) => {
-            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm).then((ok) => {
-              if (ok) setPicker(null);
-            });
-          }}
-          onCancel={() => setPicker(null)}
+        <BoardCandidatePicker
+          target={picker}
+          manualAssign={manualAssign}
+          busy={busy}
+          onClose={() => setPicker(null)}
         />
       )}
 

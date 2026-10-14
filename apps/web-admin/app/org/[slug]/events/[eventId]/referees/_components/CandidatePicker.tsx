@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Modal } from '@myclash/ui';
+import { PageAlert, errorOutcome } from '@/components/PageAlert';
 import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
 import { filterCandidates } from './candidate-filter';
 import type {
@@ -27,6 +28,8 @@ export function CandidatePicker({
   pool,
   slot,
   slotLabel,
+  refusal,
+  busy,
   onAssign,
   onCancel,
 }: {
@@ -34,6 +37,10 @@ export function CandidatePicker({
   slot: AssignmentBoardRoleSlot;
   /** The slot's name as the screen shows it; the slot's own display name by default. */
   slotLabel?: string;
+  /** Why the last pick was refused, shown in the picker itself (O8). */
+  refusal: string | null;
+  /** An assignment is out: nothing can be picked. */
+  busy: boolean;
   /** `confirm` is true for a candidate picked from "Needs confirmation". */
   onAssign: (personId: string, confirm: boolean) => void;
   onCancel: () => void;
@@ -45,6 +52,7 @@ export function CandidatePicker({
     <Modal
       open
       onClose={onCancel}
+      busy={busy}
       size="lg"
       title={`${pool.name} - ${slotLabel ?? slot.displayName ?? slot.role}`}
       description={pool.tournamentName}
@@ -58,18 +66,27 @@ export function CandidatePicker({
         </button>
       }
     >
-      <input
-        type="search"
-        // eslint-disable-next-line jsx-a11y/no-autofocus -- the picker opens to find one name
-        autoFocus
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        aria-label={t('organizer.refereeBoard.pickerSearch')}
-        placeholder={t('organizer.refereeBoard.pickerSearch')}
-        className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
-      />
-      <CandidateGroups candidates={slot.candidates} query={query} onAssign={onAssign} />
+      <PageAlert outcome={refusal ? errorOutcome(refusal) : null} className="mb-3" />
+      <PickerSearch query={query} onChange={setQuery} />
+      <CandidateGroups candidates={slot.candidates} query={query} busy={busy} onAssign={onAssign} />
     </Modal>
+  );
+}
+
+/** The search field, focused when the picker opens: it opens to find one name (O9). */
+function PickerSearch({ query, onChange }: { query: string; onChange: (query: string) => void }) {
+  const { t } = useI18n();
+  return (
+    <input
+      type="search"
+      // eslint-disable-next-line jsx-a11y/no-autofocus -- the picker opens to find one name
+      autoFocus
+      value={query}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label={t('organizer.refereeBoard.pickerSearch')}
+      placeholder={t('organizer.refereeBoard.pickerSearch')}
+      className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
+    />
   );
 }
 
@@ -77,10 +94,12 @@ export function CandidatePicker({
 function CandidateGroups({
   candidates,
   query,
+  busy,
   onAssign,
 }: {
   candidates: AssignmentBoardRoleSlot['candidates'];
   query: string;
+  busy: boolean;
   onAssign: (personId: string, confirm: boolean) => void;
 }) {
   const { t } = useI18n();
@@ -100,6 +119,7 @@ function CandidateGroups({
         candidates={recommended}
         action={t('organizer.refereeBoard.pick')}
         tone="recommended"
+        busy={busy}
         onSelect={(candidate) => onAssign(candidate.personId, false)}
       />
       <CandidateGroup
@@ -107,6 +127,7 @@ function CandidateGroups({
         candidates={warning}
         action={t('organizer.refereeBoard.pickAnyway')}
         tone="discouraged"
+        busy={busy}
         onSelect={(candidate) => onAssign(candidate.personId, true)}
       />
       <CandidateGroup
@@ -132,6 +153,7 @@ function CandidateGroup({
   candidates,
   action,
   tone,
+  busy = false,
   onSelect,
 }: {
   title: string;
@@ -139,6 +161,7 @@ function CandidateGroup({
   /** The button's words; no button when absent (the candidate cannot be picked). */
   action?: string;
   tone: keyof typeof TONES;
+  busy?: boolean;
   onSelect?: (candidate: PickerCandidate) => void;
 }) {
   if (candidates.length === 0) return null;
@@ -160,8 +183,9 @@ function CandidateGroup({
             {action && onSelect && (
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => onSelect(candidate)}
-                className={`shrink-0 rounded border px-2 py-0.5 text-xs font-semibold ${TONES[tone].button}`}
+                className={`shrink-0 rounded border px-2 py-0.5 text-xs font-semibold disabled:opacity-50 ${TONES[tone].button}`}
               >
                 {action}
               </button>

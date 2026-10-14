@@ -99,6 +99,10 @@ interface RefereeSkill {
   color: string;
 }
 
+/** What an assign came to. `refusal` is null when there are no words (an aborted send). */
+export type AssignAnswer =
+  { assigned: true; refusal: null } | { assigned: false; refusal: string | null };
+
 export interface UseAssignmentBoard {
   board: AssignmentBoard | null;
   /** Scheduled + unscheduled units in one list — every tab filters this. */
@@ -117,7 +121,7 @@ export interface UseAssignmentBoard {
     role: string,
     personId: string,
     confirm?: boolean,
-  ) => Promise<boolean>;
+  ) => Promise<AssignAnswer>;
   unassign: (assignmentId: string) => Promise<void>;
 }
 
@@ -217,11 +221,15 @@ export function useAssignmentBoard(
     [board],
   );
 
-  /** Resolves true when the assignment persisted, so a caller can close its picker. */
+  /** Answers whether the assignment persisted, and why not: the picker shows it (O8). */
   const manualAssign = useCallback(
-    async (poolId: string, role: string, personId: string, confirm = false): Promise<boolean> => {
+    async (
+      poolId: string,
+      role: string,
+      personId: string,
+      confirm = false,
+    ): Promise<AssignAnswer> => {
       setBusy(true);
-      setError(null);
       try {
         const r = await apiRequest<AssignmentBoard>(
           apiUrl,
@@ -231,11 +239,10 @@ export function useAssignmentBoard(
         if (!r.ok) {
           // The one checker refuses by reason (ADR-016) — the sentence the operator
           // needs in order to pick somebody else, or confirm.
-          setError(assignFailureText(t, r, messages.mutationFailed));
-          return false;
+          return { assigned: false, refusal: assignFailureText(t, r, messages.mutationFailed) };
         }
         setBoard(r.data);
-        return true;
+        return { assigned: true, refusal: null };
       } finally {
         setBusy(false);
       }

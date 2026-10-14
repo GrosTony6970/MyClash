@@ -29,7 +29,7 @@ import { type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
-import { CandidatePicker } from '../../referees/_components/CandidatePicker';
+import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
 import {
   useAssignmentBoard,
@@ -167,15 +167,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
       </section>
 
       {picker && (
-        <CandidatePicker
-          pool={picker.pool}
-          slot={picker.slot}
-          onAssign={(personId, confirm) => {
-            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm).then((ok) => {
-              if (ok) setPicker(null);
-            });
-          }}
-          onCancel={() => setPicker(null)}
+        <BoardCandidatePicker
+          target={picker}
+          manualAssign={manualAssign}
+          busy={busy}
+          onClose={() => setPicker(null)}
         />
       )}
     </section>

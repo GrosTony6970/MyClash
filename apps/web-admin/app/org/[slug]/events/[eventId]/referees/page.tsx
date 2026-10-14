@@ -22,7 +22,8 @@ import {
   type PickerReason,
   type RefereeConflictEntry,
 } from '@/lib/referee-reasons';
-import { CandidatePicker } from './_components/CandidatePicker';
+import { BoardCandidatePicker } from './_components/BoardCandidatePicker';
+import type { AssignAnswer } from './_components/useAssignmentBoard';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
@@ -972,9 +973,8 @@ function AssignmentsTab({
     role: AssignmentRole,
     personId: string,
     confirm = false,
-  ) {
+  ): Promise<AssignAnswer> {
     setRunning(true);
-    setError(null);
     try {
       const r = await apiRequest<AssignmentBoard>(
         apiUrl,
@@ -983,12 +983,12 @@ function AssignmentsTab({
       );
       if (!r.ok) {
         // The one checker refuses by reason (ADR-016) — the sentence the operator
-        // needs in order to pick somebody else, or confirm.
-        setError(assignFailureText(t, r, t('organizer.refereesPage.assignmentApplyFailed')));
-        return;
+        // needs in order to pick somebody else, or confirm. The picker shows it (O8).
+        const failed = t('organizer.refereesPage.assignmentApplyFailed');
+        return { assigned: false, refusal: assignFailureText(t, r, failed) };
       }
-      setPicker(null);
       setBoard(r.data);
+      return { assigned: true, refusal: null };
     } finally {
       setRunning(false);
     }
@@ -1432,14 +1432,12 @@ function AssignmentsTab({
       )}
 
       {picker && (
-        <CandidatePicker
-          pool={picker.pool}
-          slot={picker.slot}
+        <BoardCandidatePicker
+          target={picker}
           slotLabel={picker.slot.displayName ?? roleLabel(t, picker.slot.role, skillNameById)}
-          onAssign={(personId, confirm) =>
-            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm)
-          }
-          onCancel={() => setPicker(null)}
+          manualAssign={manualAssign}
+          busy={running}
+          onClose={() => setPicker(null)}
         />
       )}
 

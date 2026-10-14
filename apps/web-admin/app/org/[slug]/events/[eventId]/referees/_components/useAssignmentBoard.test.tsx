@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { I18nProvider } from '@/i18n/I18nProvider';
-import { useAssignmentBoard, type UseAssignmentBoard } from './useAssignmentBoard';
+import {
+  useAssignmentBoard,
+  type AssignAnswer,
+  type UseAssignmentBoard,
+} from './useAssignmentBoard';
 
 /**
  * What Assign on the pools, bracket and Swiss tabs sends.
@@ -68,11 +72,11 @@ function assignCall() {
 
 describe('useAssignmentBoard.manualAssign', () => {
   it('posts the pool, the role and the person, with no confirmation by default', async () => {
-    let saved = false;
+    let answer: AssignAnswer | null = null;
     await act(async () => {
-      saved = await hook.manualAssign('pool-1', 'declarant', 'gp-lea');
+      answer = await hook.manualAssign('pool-1', 'declarant', 'gp-lea');
     });
-    expect(saved).toBe(true);
+    expect(answer).toStrictEqual({ assigned: true, refusal: null });
     expect(assignCall()?.[1]).toBe('/api/v1/events/ev1/referee-assignments');
     expect(assignCall()?.[2]?.method).toBe('POST');
     expect(assignCall()?.[2]?.body).toStrictEqual({
@@ -80,6 +84,28 @@ describe('useAssignmentBoard.manualAssign', () => {
       role: 'declarant',
       personId: 'gp-lea',
     });
+  });
+
+  it('answers a refusal with its words, for the picker, and leaves the board line alone (O8)', async () => {
+    vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string, init) =>
+      init?.method === 'POST'
+        ? ({
+            ok: false,
+            kind: 'http',
+            status: 409,
+            detail: 'Léa fights at that time',
+            validationErrors: null,
+            code: null,
+            details: null,
+          } as never)
+        : { ok: true, data: path.endsWith('/referee-assignment-board') ? BOARD : [] },
+    );
+    let answer: AssignAnswer | null = null;
+    await act(async () => {
+      answer = await hook.manualAssign('pool-1', 'declarant', 'gp-lea');
+    });
+    expect(answer).toStrictEqual({ assigned: false, refusal: 'Léa fights at that time' });
+    expect(hook.error).toBeNull();
   });
 
   it('sends the confirmation when the organiser picks from "Needs confirmation"', async () => {
