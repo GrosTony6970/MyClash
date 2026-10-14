@@ -1956,6 +1956,42 @@ Named, not fixed (each read in code):
 - The referee history and the fighter profile read by raw `fetch`: no login renewal there.
 - A guarded link that carries its own `replace` or `scroll` loses them: no profile link has one.
 
+## Rulings — operator, 2026-10-14, on the O and X rows
+
+The operator picked every O and X row left (O4 to O29, X1 to X5). Recon read all 31 again in
+code: every fault is still there, and the row's own words are wrong or too narrow on O6, O7, O11,
+O12, O13, O14, O17, O20 and O23. It also found a bug beside O11: the server writes a fighter's
+"second black card" review with no conflict key, so a third black card meets the table's unique
+row, the error is never read, and the review stays as it was (`penalties.service.ts:1471-1479`).
+Each fork was asked with a story:
+
+| Row            | Ruling                                                                                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O7             | A page's Tournament: `?tournamentId` in the address first, then the last one picked in this Event on this browser, then the first. Sidebar and dashboard links carry it.                                    |
+| O12 + O13      | The new-Event wizard asks before its own exits; the browser asks on reload and close (its Back is not guarded, as M4). A retry after a partial failure keeps the Event made and sends only what is missing. |
+| O15            | "Leave without saving?" before a tab switch, a site link, or closing the tab. Each tab reads fresh. The page names the Tournament.                                                                          |
+| O11            | Dismiss asks first; both buttons are off while one saves; a resolved row shows its date; a dismissed row keeps "Disqualify after all".                                                                      |
+| 3rd black card | A new black card puts the review back to pending with the new count, whatever its state; a confirmed DQ stays confirmed. A failed write is a server error.                                                  |
+| Its void       | A review a new card reopened remembers its answer (dismissed); voiding that card gives the answer back, with the live count. A review that was pending stays pending.                                       |
+| O5             | "Select all shown" adds; "Clear" empties; the count holds the hidden ones; the search ignores accents; each row shows its club; above 500 the page says so before sending.                                  |
+| O6             | All three boards (schedule, workshops, referees) open on today in the Event's zone, when today is one of its days.                                                                                          |
+| O16            | Enter in the club field picks the first suggestion, elsewhere it saves. "Save and add another" keeps the ticked Tournaments and clears the person and the club. "Tournament full" asks before the next.     |
+| O17            | Every screen shows the file's line number (the header is line 1). The preview and the final screen list each skipped and invalid row. The server sends a reason code; the page words it, en and fr.         |
+| O18            | A dropped `.csv` is taken (another file is refused, with the reason); "Download template"; the server takes French and English header names; an unknown header is named on the preview.                     |
+| O19            | The export holds the rows on screen, one per person: name, club, Tournaments and status, seed, referee and instructor. No email, birth date or notes. The filters stay in the address.                      |
+| O22            | "All Tournaments" joins each Tournament's pack in one print job. No new layout.                                                                                                                             |
+| O25            | Removing an area asks first; removing a piste does not. A refusal shows in the venue window. Enter adds. Escape closes the top dialog only.                                                                 |
+| O27            | The PIN box names the person and the rule, checks while she types, and has show/hide.                                                                                                                       |
+| O29            | The filter matches fighters, referees and club, accents ignored. "Hide completed" hides completed and voided bouts. Both stay in the address.                                                               |
+| X1             | One word per state per domain, en and fr, from one helper all three apps read. The maps there are now merge into it. French accents are fixed. Roles use the words of `docs/HIERARCHY.md`.                  |
+| X2             | "Unknown fighter", with "(bib 12)" when the Registration has a bib. A raw id never shows as a name.                                                                                                         |
+| X4             | All the strings move, AND the lint is widened (eyebrow, subtitle, description, confirm and cancel labels, literals inside JSX expressions, `packages/ui` too). Its baseline stays empty.                    |
+| X5             | Each field gets a real name (a search box may reuse its placeholder). A new lint rule refuses a field with a placeholder and no name.                                                                       |
+| O20            | All six CSVs built in the browser get the byte-order mark and headers in the user's language, the ruleset's stat columns too. The standings on screen use the same words.                                   |
+
+The plan: `C:\Users\Tony\.claude\plans\pasted-content-id-9bf5-repo-f-github-cosmic-emerson.md`
+(five pushes, one row per commit).
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
