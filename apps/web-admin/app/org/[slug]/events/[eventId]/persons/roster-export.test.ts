@@ -63,6 +63,12 @@ describe('the roster CSV', () => {
     ]);
   });
 
+  it("holds the open tab's Tournament alone, even when it is not a person's first", () => {
+    const csv = rosterCsv(rows('t-2'), true, t);
+    // Ana is in Longsword first, Sabre second: on Sabre's tab her row is Sabre's.
+    expect(csv.slice(1).split('\r\n')[1]).toBe('ROUX Hélène,Lyon Escrime,Registered,,Yes,No');
+  });
+
   it('starts with the byte-order mark, and never holds an email', () => {
     const csv = rosterCsv(rows('all'), false, t);
     expect(csv.charCodeAt(0)).toBe(0xfeff);

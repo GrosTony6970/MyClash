@@ -136,3 +136,13 @@ describe('the status menu of a Tournament on the Event dashboard', () => {
     expect(page.writes()).toEqual([]);
   });
 });
+
+describe('the links of a Tournament row on the Event dashboard (O7)', () => {
+  it("open each page on that row's Tournament", async () => {
+    await open();
+    const hrefs = [...document.body.querySelectorAll('tbody a')].map((a) => a.getAttribute('href'));
+    for (const page of ['persons', 'pools', 'swiss', 'bracket']) {
+      expect(hrefs).toContain(`/org/club/events/ev1/${page}?tournamentId=t-1`);
+    }
+  });
+});
