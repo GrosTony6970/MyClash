@@ -11,7 +11,9 @@ import { MatchesTab } from './MatchesTab';
  */
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: () => undefined, push: () => undefined }),
-  useSearchParams: () => new URLSearchParams(),
+  // The bout's own fighter in the filter: the kit types only into an empty field, and its
+  // digits would hide the bout whose four saves this test presses.
+  useSearchParams: () => new URLSearchParams('q=ana'),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (

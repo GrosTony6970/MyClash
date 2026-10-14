@@ -133,6 +133,23 @@ describe('the filter of the bouts tab', () => {
     expect(document.body.textContent).toContain('No match of this pool fits the filter.');
   });
 
+  it('keeps every letter typed before the address has moved (slow wifi)', async () => {
+    // This router never commits: the address stays where it was, as during a slow round trip.
+    page = await openEventPage(tab, READS);
+    const field = document.body.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    for (const key of ['l', 'u', 'n', 'd']) {
+      await act(async () => {
+        // A key adds to what the box shows NOW, as a keyboard does.
+        setValue.call(field, field.value + key);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+    expect(field.value).toBe('lund');
+    expect(NAVIGATION.replaced.at(-1)).toContain('q=lund');
+    expect(rows()).toEqual(['M1', 'M3']);
+  });
+
   it('writes the filter into the address, its Tournament and its tab kept', async () => {
     window.history.replaceState(null, '', '/org/org/events/ev1/pools?tournamentId=t-1#matches');
     page = await openEventPage(tab, READS);
@@ -144,9 +161,10 @@ describe('the filter of the bouts tab', () => {
       field.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await act(async () => hide.click());
+    // The second write keeps the search: it is not lost though the address has not moved yet.
     expect(NAVIGATION.replaced).toEqual([
       '/org/org/events/ev1/pools?tournamentId=t-1&q=lund#matches',
-      '/org/org/events/ev1/pools?tournamentId=t-1&hide=done#matches',
+      '/org/org/events/ev1/pools?tournamentId=t-1&q=lund&hide=done#matches',
     ]);
   });
 });
