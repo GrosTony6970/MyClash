@@ -17,6 +17,21 @@ const createFighterSchema = z
   .strict();
 export class CreateFighterDto extends createZodDto(createFighterSchema) {}
 
+// A fighter's years, "practising since" and a medal's year, run from 2000 to this year (operator,
+// 2026-10-14). The profile page holds a copy of this floor, pinned to this line by its test.
+export const PROFILE_YEAR_MIN = 2000;
+
+/** The latest calendar year anywhere on Earth (UTC+14): a phone just past New Year is not refused. */
+export function latestProfileYear(now: Date = new Date()): number {
+  return new Date(now.getTime() + 14 * 3_600_000).getUTCFullYear();
+}
+
+const profileYear = z
+  .number()
+  .int()
+  .min(PROFILE_YEAR_MIN)
+  .refine((year) => year <= latestProfileYear(), { message: 'year is after this year' });
+
 const updateFighterSchema = z
   .object({
     givenName: z.string().min(1).max(100).optional(),
@@ -36,7 +51,7 @@ const updateFighterSchema = z
     websiteUrl: z.string().max(300).nullable().optional(),
     instagramUrl: z.string().max(300).nullable().optional(),
     youtubeUrl: z.string().max(300).nullable().optional(),
-    practicingSinceYear: z.number().int().min(1900).max(2100).nullable().optional(),
+    practicingSinceYear: profileYear.nullable().optional(),
     // Per-field public visibility map ({ fieldKey: boolean }). Unknown keys are
     // dropped server-side; only whitelisted fields are persisted.
     publicVisibility: z.record(z.string(), z.boolean()).optional(),
@@ -88,7 +103,7 @@ export class FighterWeaponInputDto extends createZodDto(fighterWeaponInputSchema
 const fighterMedalInputSchema = z
   .object({
     competition: z.string().min(1).max(200),
-    year: z.number().int().min(1900).max(2100),
+    year: profileYear,
     rank: z.number().int().min(1).max(3),
     weapon: z.string().min(1).max(100),
   })

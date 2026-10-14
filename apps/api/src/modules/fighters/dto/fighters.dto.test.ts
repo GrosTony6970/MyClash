@@ -1,5 +1,64 @@
-import { describe, expect, it } from 'vitest';
-import { PublicFighterQueryDto, UpdateFighterDto, UpdateMyFighterProfileDto } from './fighters.dto';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  latestProfileYear,
+  PublicFighterQueryDto,
+  UpdateFighterDto,
+  UpdateMyFighterProfileDto,
+} from './fighters.dto';
+
+/**
+ * A fighter's years, "practising since" and a medal's year, run from 2000 to this year (operator,
+ * 2026-10-14). "This year" is the latest calendar year anywhere on Earth (UTC+14), so a phone that
+ * has just passed New Year is not refused by a server still in the old year.
+ */
+describe('a profile year is from 2000 to this year', () => {
+  const FIGHTER = '00000000-0000-4000-8000-000000000000';
+  const medal = (year: number) => ({ competition: 'Open de Lyon', year, rank: 3, weapon: 'Sabre' });
+  const meParse = (input: object) =>
+    UpdateMyFighterProfileDto.schema.safeParse({ fighterId: FIGHTER, ...input });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-14T10:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('refuses a start year before 2000 and takes 2000, on both update routes', () => {
+    for (const schema of [UpdateFighterDto.schema, UpdateMyFighterProfileDto.schema]) {
+      const base = schema === UpdateFighterDto.schema ? {} : { fighterId: FIGHTER };
+      expect(schema.safeParse({ ...base, practicingSinceYear: 1999 }).success).toBe(false);
+      expect(schema.safeParse({ ...base, practicingSinceYear: 2000 }).success).toBe(true);
+    }
+  });
+
+  it('takes this year and refuses next year as a start year', () => {
+    expect(meParse({ practicingSinceYear: 2026 }).success).toBe(true);
+    expect(meParse({ practicingSinceYear: 2027 }).success).toBe(false);
+  });
+
+  it('still takes null, which clears the start year', () => {
+    expect(meParse({ practicingSinceYear: null }).success).toBe(true);
+  });
+
+  it('refuses a medal year before 2000 or after this year, and takes the two ends', () => {
+    expect(meParse({ medals: [medal(1999)] }).success).toBe(false);
+    expect(meParse({ medals: [medal(20)] }).success).toBe(false);
+    expect(meParse({ medals: [medal(2027)] }).success).toBe(false);
+    expect(meParse({ medals: [medal(2000)] }).success).toBe(true);
+    expect(meParse({ medals: [medal(2026)] }).success).toBe(true);
+  });
+
+  it('takes next year once it is New Year somewhere on Earth', () => {
+    vi.setSystemTime(new Date('2026-12-31T10:00:00Z')); // 2027-01-01 00:00 at UTC+14
+    expect(latestProfileYear()).toBe(2027);
+    expect(meParse({ practicingSinceYear: 2027 }).success).toBe(true);
+    vi.setSystemTime(new Date('2026-12-31T09:59:59Z'));
+    expect(latestProfileYear()).toBe(2026);
+    expect(meParse({ practicingSinceYear: 2027 }).success).toBe(false);
+  });
+});
 
 /**
  * The nesting rule has to hold at the DTO boundary as well as in the CHECK
