@@ -17,34 +17,8 @@ import { useConfirm, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-interface Person {
-  id: string;
-  givenName: string;
-  familyName: string;
-}
-
-interface Registration {
-  id: string;
-  personId: string;
-  tournamentId: string;
-}
-
-interface Tournament {
-  id: string;
-  name: string;
-}
-
-interface PenaltyReview {
-  id: string;
-  tournament_id: string;
-  registration_id: string;
-  review_type: string;
-  status: 'pending' | 'confirmed' | 'dismissed';
-  black_card_count: number | null;
-  created_at: string;
-  reviewed_at: string | null;
-}
+import { PageAlert, errorOutcome } from '@/components/PageAlert';
+import { readPenaltyReviews, type PenaltyReview, type Tournament } from './penalty-reviews-read';
 
 export default function PenaltyReviewsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -59,56 +33,20 @@ export default function PenaltyReviewsPage() {
   const [personByRegistration, setPersonByRegistration] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  // New here. The tournament read is what the whole page is built on, and a
-  // refusal used to be swallowed by a bare `catch` — an empty review list that
-  // looked like "no fighter needs reviewing".
-  const [error, setError] = useState<string | null>(null);
+  // Every read that failed, by name: an empty list must never stand for a list that
+  // could not be read (O10). Each read replaces them, so a read that lands clears them.
+  const [problems, setProblems] = useState<string[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const init = { signal: controller.signal };
-        const [tRes, rRes, pRes] = await Promise.all([
-          apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, init),
-          apiRequest<Registration[]>(apiUrl, `/api/v1/events/${eventId}/registrations`, init),
-          apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, init),
-        ]);
-        if (!tRes.ok) {
-          // The whole page is a list of reviews per tournament, so without the
-          // tournaments there is nothing to draw — and it used to say nothing
-          // at all about why.
-          const message = failureMessage(tRes, t, t('organizer.penaltyReviews.loadError'));
-          if (message) setError(message);
-          return;
-        }
-        setTournaments(tRes.data);
-
-        // registration_id → fighter display name (never raw ids in the UI).
-        if (rRes.ok && pRes.ok) {
-          const nameByPerson = new Map(
-            pRes.data.map((p) => [p.id, `${p.givenName} ${p.familyName}`.trim()]),
-          );
-          setPersonByRegistration(
-            new Map(rRes.data.map((r) => [r.id, nameByPerson.get(r.personId) ?? ''])),
-          );
-        }
-
-        const reviewLists = await Promise.all(
-          tRes.data.map(async (tournament) => {
-            const res = await apiRequest<PenaltyReview[]>(
-              apiUrl,
-              `/api/v1/tournaments/${tournament.id}/penalty-reviews`,
-              init,
-            );
-            return res.ok ? res.data : [];
-          }),
-        );
-        setReviews(reviewLists.flat());
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void readPenaltyReviews(apiUrl, eventId, t, controller.signal).then((read) => {
+      if (!read) return;
+      setTournaments(read.tournaments);
+      setPersonByRegistration(read.personByRegistration);
+      setReviews(read.reviews);
+      setProblems(read.problems);
+      setLoading(false);
+    });
     return () => controller.abort();
   }, [apiUrl, eventId, refreshKey, t]);
 
@@ -161,11 +99,9 @@ export default function PenaltyReviewsPage() {
         <p className="mt-1 text-sm text-muted">{t('organizer.penaltyReviews.subtitle')}</p>
       </header>
 
-      {error && (
-        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {error}
-        </div>
-      )}
+      {problems.map((problem) => (
+        <PageAlert key={problem} outcome={errorOutcome(problem)} />
+      ))}
 
       {loading ? (
         <p className="text-sm text-muted">{t('common.loading')}</p>

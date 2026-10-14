@@ -525,7 +525,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/matches/[matchId]/page.tsx:199",
     "apps/web-admin/app/org/[slug]/events/[eventId]/notifications/page.tsx:41",
     "apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx:143",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/page.tsx:49",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/penalties/page.tsx:23",
     "apps/web-admin/app/org/[slug]/events/[eventId]/persons/_components/DeleteParticipantModal.tsx:107",
     "apps/web-admin/app/org/[slug]/events/[eventId]/persons/_components/DeleteParticipantModal.tsx:297",
     "apps/web-admin/app/org/[slug]/events/[eventId]/persons/_components/WaitingListPanel.tsx:191",

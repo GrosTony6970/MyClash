@@ -290,6 +290,9 @@ export const organizer = {
   penaltyReviews: {
     title: 'Penalty reviews',
     loadError: 'Could not load the penalty reviews.',
+    tournamentLoadError:
+      'Could not read the reviews of {tournament}: a review of it may be missing below.',
+    namesLoadError: 'Could not read the fighters\' names: they show as "Unknown fighter".',
     subtitle:
       'A second black card in the same tournament flags the fighter for disqualification review. Confirm to disqualify their registration, or dismiss.',
     pendingTitle: 'Pending reviews ({count})',

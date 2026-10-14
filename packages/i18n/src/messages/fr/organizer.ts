@@ -286,6 +286,10 @@ export const organizer = {
   penaltyReviews: {
     title: 'Revisions de pénalités',
     loadError: 'Impossible de charger les revisions de pénalités.',
+    tournamentLoadError:
+      'Impossible de lire les révisions de {tournament} : une révision peut manquer ci-dessous.',
+    namesLoadError:
+      'Impossible de lire les noms des combattants : ils s’affichent comme « Combattant inconnu ».',
     subtitle:
       'Un deuxieme carton noir dans le même tournoi signale le combattant pour revision de disqualification. Confirmez pour disqualifier son inscription, ou rejetez.',
     pendingTitle: 'Revisions en attente ({count})',
