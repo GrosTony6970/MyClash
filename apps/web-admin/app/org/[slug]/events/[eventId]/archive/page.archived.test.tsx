@@ -1,5 +1,6 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { openArchivedPage, type, type OpenedPage } from '../archived-page.fixtures';
 import OrganizerArchivePage from './page';
@@ -48,7 +49,11 @@ const previewOf = (scope: 'event' | 'tournament') => ({
   },
 });
 
-/** Reads the archive, types the confirmation sentence, presses everything. */
+/**
+ * Reads the archive, types the confirmation sentence, presses Restore. Not a second
+ * round of pressing everything: that picks the file again, and another file clears its
+ * preview (quick win O23).
+ */
 async function previewConfirmAndPress(page: OpenedPage) {
   await page.pressEverything(1);
   const sentence = document.body.querySelector<HTMLInputElement>(
@@ -56,8 +61,24 @@ async function previewConfirmAndPress(page: OpenedPage) {
   );
   expect(sentence, 'the preview did not open').not.toBeNull();
   await act(async () => type(sentence!, 'RESTORE MYCLASH ARCHIVE'));
-  await page.pressEverything(1);
+  await act(async () => restoreButton()?.click());
+  await page.settle();
 }
+
+const restoreButton = () =>
+  [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Restore copy');
+const fileField = () => document.body.querySelector<HTMLInputElement>('input[type="file"]')!;
+/** Picks a file the way the browser does: its `files`, then a change event. */
+async function pick(name: string) {
+  const file = new File(['x'], name, { type: 'application/zip' });
+  Object.defineProperty(fileField(), 'files', { value: [file], configurable: true });
+  await act(async () => fileField().dispatchEvent(new Event('change', { bubbles: true })));
+}
+const press = async (page: OpenedPage, label: string) => {
+  const button = [...document.body.querySelectorAll('button')].find((b) => b.textContent === label);
+  await act(async () => button?.click());
+  await page.settle();
+};
 
 const restores = (page: OpenedPage) =>
   page.writes().filter((save) => save.startsWith('POST /api/v1/archive/restore?'));
@@ -72,6 +93,36 @@ describe('the archive page of an archived Event', () => {
     await previewConfirmAndPress(page);
 
     expect(restores(page)).toEqual([]);
+  });
+
+  it('forgets the preview of file A when file B is picked: B is never restored unseen (O23)', async () => {
+    page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
+    await pick('open-2025.zip');
+    await press(page, 'Preview restore');
+    expect(restoreButton(), 'the preview of A did not open').toBeDefined();
+    await pick('open-2024.zip');
+    expect(restoreButton()).toBeUndefined();
+    expect(document.body.textContent).not.toContain('Open 2024');
+  });
+
+  it('forgets the old preview when the preview of the new file is refused (O23)', async () => {
+    page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
+    await pick('open-2025.zip');
+    await press(page, 'Preview restore');
+    expect(restoreButton()).toBeDefined();
+    // The server cannot read the next file.
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      ok: false,
+      kind: 'http',
+      status: 400,
+      detail: 'Unknown archive version',
+      validationErrors: null,
+      code: null,
+      details: null,
+    } as never);
+    await press(page, 'Preview restore');
+    expect(document.body.textContent).toContain('Unknown archive version');
+    expect(restoreButton()).toBeUndefined();
   });
 
   it('still restores a whole Event, as a new one', async () => {

@@ -505,7 +505,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/_components/ArchivedBanner.tsx:27",
     "apps/web-admin/app/org/[slug]/events/[eventId]/_components/EventLogoCard.tsx:41",
     "apps/web-admin/app/org/[slug]/events/[eventId]/ai-assistant/page.tsx:42",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/archive/page.tsx:48",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/archive/page.tsx:33",
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/_tabs/RefereesTab.tsx:207",
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/_tabs/RefereesTab.tsx:37",
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx:199",

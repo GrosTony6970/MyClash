@@ -2,15 +2,14 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { useEventStatus } from '../_hooks/useEventStatus';
-import { restoredNotice, type RestoreAnswer } from './restore-notice';
+import { RestoreArchiveForm } from './RestoreArchiveForm';
 
 type ArchiveScope = 'event' | 'tournament';
 type ArchiveInclude = 'structure' | 'scoring';
@@ -31,26 +30,11 @@ interface Tournament {
   status: string;
 }
 
-interface RestorePreview {
-  scope: ArchiveScope;
-  include: ArchiveInclude;
-  source: {
-    eventName: string;
-    tournamentName?: string;
-  };
-  counts: Record<string, number>;
-  warnings: string[];
-  canRestore: boolean;
-}
-
-const RESTORE_CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
-
 export default function OrganizerArchivePage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const { isArchived } = useEventStatus(eventId);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
@@ -59,11 +43,6 @@ export default function OrganizerArchivePage() {
   const [include, setInclude] = useState<ArchiveInclude>('scoring');
   const [format, setFormat] = useState<ArchiveFormat>('zip');
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
-  const [preview, setPreview] = useState<RestorePreview | null>(null);
-  const [confirmation, setConfirmation] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -89,68 +68,6 @@ export default function OrganizerArchivePage() {
       ? `${apiUrl}/api/v1/events/${eventId}/archive?format=${format}&include=${include}`
       : `${apiUrl}/api/v1/tournaments/${selectedTournamentId}/archive?format=${format}&include=${include}`;
 
-  const previewRestore = (submitEvent: FormEvent<HTMLFormElement>) => {
-    submitEvent.preventDefault();
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError(t('organizer.archive.uploadMissing'));
-      return;
-    }
-    const formData = new FormData();
-    formData.set('file', file);
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    void apiRequest<RestorePreview>(apiUrl, '/api/v1/archive/restore-preview', {
-      method: 'POST',
-      body: formData,
-    })
-      .then((r) => {
-        if (r.ok) {
-          setPreview(r.data);
-          return;
-        }
-        // The restore reader names the table or the version it choked on. That
-        // is the whole value of a preview step, and it was being replaced by
-        // "Could not read this archive."
-        const message = failureMessage(r, t, t('organizer.archive.previewError'));
-        if (message) setError(message);
-      })
-      .finally(() => setBusy(false));
-  };
-
-  const restoreArchive = () => {
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError(t('organizer.archive.uploadMissing'));
-      return;
-    }
-    const params = new URLSearchParams({ confirmation });
-    if (preview?.scope === 'event' && event?.organization_id) {
-      params.set('targetOrganizationId', event.organization_id);
-    }
-    if (preview?.scope === 'tournament') params.set('targetEventId', eventId);
-    const formData = new FormData();
-    formData.set('file', file);
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    void apiRequest<RestoreAnswer>(apiUrl, `/api/v1/archive/restore?${params.toString()}`, {
-      method: 'POST',
-      body: formData,
-    })
-      .then((r) => {
-        if (r.ok) {
-          setNotice(restoredNotice(t, r.data));
-          setConfirmation('');
-          return;
-        }
-        const message = failureMessage(r, t, t('organizer.archive.restoreError'));
-        if (message) setError(message);
-      })
-      .finally(() => setBusy(false));
-  };
-
   return (
     <main className="mx-auto p-8 max-w-2xl">
       <BackLink
@@ -165,9 +82,6 @@ export default function OrganizerArchivePage() {
         </h1>
         <p className="text-sm text-muted mt-1">{t('organizer.archive.description')}</p>
       </header>
-
-      {error && <Alert tone="error">{error}</Alert>}
-      {notice && <Alert tone="success">{notice}</Alert>}
 
       <section className="mb-6 rounded-lg border border-border p-4">
         <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
@@ -282,90 +196,11 @@ export default function OrganizerArchivePage() {
         </p>
       </section>
 
-      <form onSubmit={previewRestore} className="rounded-lg border border-border p-4">
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-          {t('organizer.archive.restoreTitle')}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{t('organizer.archive.restoreDescription')}</p>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          <input
-            ref={fileRef}
-            type="file"
-            name="file"
-            accept=".json,.zip"
-            aria-label={t('organizer.archive.archiveFile')}
-            className="block w-full text-sm text-foreground-secondary"
-          />
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground disabled:opacity-50"
-          >
-            {t('organizer.archive.preview')}
-          </button>
-        </div>
-
-        {preview && (
-          <div className="mt-5 rounded-md border border-border bg-background p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{preview.source.eventName}</p>
-                <p className="text-xs text-muted">
-                  {preview.scope === 'tournament'
-                    ? preview.source.tournamentName
-                    : t('organizer.archive.scopes.event')}
-                </p>
-              </div>
-              <span className="rounded-full bg-surface px-2 py-1 text-xs font-medium text-foreground-secondary">
-                {t(`organizer.archive.includes.${preview.include}`)}
-              </span>
-            </div>
-            <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-              {Object.entries(preview.counts)
-                .filter(([, value]) => value > 0)
-                .map(([key, value]) => (
-                  <div key={key} className="rounded-md bg-surface p-2">
-                    {/* The API keys these counts by the archive envelope's table
-                        names. Rendering them raw showed the organiser
-                        `eventProgrammeBlocks` and `poolMembers`. */}
-                    <dt className="text-xs text-muted">{t(`organizer.archive.tables.${key}`)}</dt>
-                    <dd className="font-semibold text-foreground">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-            {preview.warnings.length > 0 && (
-              <ul className="mt-4 list-disc pl-5 text-sm text-danger">
-                {preview.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                value={confirmation}
-                onChange={(changeEvent) => setConfirmation(changeEvent.target.value)}
-                aria-label={t('organizer.archive.confirmation')}
-                placeholder={RESTORE_CONFIRMATION}
-                className="w-full rounded-md border border-border px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={restoreArchive}
-                disabled={
-                  busy ||
-                  !preview.canRestore ||
-                  confirmation !== RESTORE_CONFIRMATION ||
-                  // One Tournament is restored INTO this Event: refused on an archived one.
-                  (preview.scope === 'tournament' && isArchived)
-                }
-                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-50"
-              >
-                {t('organizer.archive.restoreCopy')}
-              </button>
-            </div>
-          </div>
-        )}
-      </form>
+      <RestoreArchiveForm
+        eventId={eventId}
+        organizationId={event?.organization_id}
+        isArchived={isArchived}
+      />
     </main>
   );
 }
@@ -374,20 +209,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="block">
       <span className="mb-1 block text-xs font-medium uppercase text-muted">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function Alert({ tone, children }: { tone: 'error' | 'success'; children: string }) {
-  return (
-    <div
-      className={`mb-4 rounded-md border px-4 py-3 text-sm ${
-        tone === 'error'
-          ? 'border-danger/30 bg-danger/10 text-danger'
-          : 'border-success/30 bg-success/10 text-success'
-      }`}
-    >
       {children}
     </div>
   );
