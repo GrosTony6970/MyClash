@@ -241,7 +241,7 @@ export class BroadcastNotificationsService {
     const { data, error } = await this.supabase.service
       .from('event_broadcast_recipients')
       .select(
-        'id, delivery_status, delivered_at, event_broadcast_notifications ( id, event_id, severity, target_type, title, body, created_at, events ( slug, name ) )',
+        'id, delivery_status, delivered_at, event_broadcast_notifications ( id, event_id, severity, target_type, title, body, created_at, events ( slug, name, timezone ) )',
       )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
@@ -257,6 +257,8 @@ export class BroadcastNotificationsService {
         eventId: broadcast?.['event_id'],
         eventSlug: event?.['slug'] ?? null,
         eventName: event?.['name'] ?? null,
+        // The inbox shows a message's time on its Event's clock (quick-win M5).
+        eventTimezone: event?.['timezone'] ?? null,
         severity: broadcast?.['severity'],
         targetType: broadcast?.['target_type'],
         title: broadcast?.['title'],
