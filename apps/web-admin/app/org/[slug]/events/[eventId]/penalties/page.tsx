@@ -18,15 +18,22 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { PageAlert, errorOutcome } from '@/components/PageAlert';
+import { localeToBcp47 } from '@myclash/time';
 import { readPenaltyReviews, type PenaltyReview, type Tournament } from './penalty-reviews-read';
+import { reviewedAt } from './reviewed-at';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 export default function PenaltyReviewsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { eventId } = params;
   const apiUrl = getPublicApiUrl();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
+  // An archived Event refuses these writes (ruling 377); its zone dates a resolved review.
+  const { event, isReadOnly } = useEventStatus(eventId);
+  // One answer at a time (O11): both buttons are off while one is being saved.
+  const [writing, setWriting] = useState(false);
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [reviews, setReviews] = useState<PenaltyReview[]>([]);
@@ -57,20 +64,32 @@ export default function PenaltyReviewsPage() {
       personByRegistration.get(review.registration_id) ||
       t('organizer.penaltyReviews.unknownFighter');
     const tournamentName = tournaments.find((tour) => tour.id === review.tournament_id)?.name ?? '';
-    if (status === 'confirmed') {
-      const ok = await confirm({
-        title: t('organizer.penaltyReviews.confirmDqPrompt', {
-          name,
-          tournament: tournamentName,
-        }),
-        danger: true,
-      });
-      if (!ok) return;
-    }
+    // Both answers ask first (O11): a mis-tap must not close a disqualification case.
+    const ok = await confirm(
+      status === 'confirmed'
+        ? {
+            title: t('organizer.penaltyReviews.confirmDqPrompt', {
+              name,
+              tournament: tournamentName,
+            }),
+            danger: true,
+          }
+        : {
+            title: t('organizer.penaltyReviews.dismissPrompt', {
+              name,
+              tournament: tournamentName,
+            }),
+            confirmLabel: t('organizer.penaltyReviews.dismiss'),
+            cancelLabel: t('common.cancel'),
+          },
+    );
+    if (!ok) return;
+    setWriting(true);
     const r = await apiRequest(apiUrl, `/api/v1/tournament-penalty-reviews/${review.id}`, {
       method: 'PATCH',
       body: { status },
     });
+    setWriting(false);
     if (!r.ok) {
       const message = failureMessage(r, t, t('organizer.penaltyReviews.actionFailed'));
       if (message) toast.error(message);
@@ -89,6 +108,9 @@ export default function PenaltyReviewsPage() {
   const tournamentName = (id: string) => tournaments.find((tour) => tour.id === id)?.name ?? '—';
   const fighterName = (registrationId: string) =>
     personByRegistration.get(registrationId) || t('organizer.penaltyReviews.unknownFighter');
+  const answerClosed = writing || isReadOnly;
+  const answeredAt = (review: PenaltyReview) =>
+    reviewedAt(review.reviewed_at, event?.timezone, localeToBcp47(locale));
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
@@ -137,15 +159,17 @@ export default function PenaltyReviewsPage() {
                     <div className="flex gap-2">
                       <button
                         type="button"
+                        disabled={answerClosed}
                         onClick={() => void resolve(review, 'confirmed')}
-                        className="rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover"
+                        className="rounded-md bg-danger px-3 py-1.5 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
                       >
                         {t('organizer.penaltyReviews.confirmDq')}
                       </button>
                       <button
                         type="button"
+                        disabled={answerClosed}
                         onClick={() => void resolve(review, 'dismissed')}
-                        className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground"
+                        className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground disabled:opacity-50"
                       >
                         {t('organizer.penaltyReviews.dismiss')}
                       </button>
@@ -177,6 +201,17 @@ export default function PenaltyReviewsPage() {
                         ? t('organizer.penaltyReviews.statusConfirmed')
                         : t('organizer.penaltyReviews.statusDismissed')}
                     </span>
+                    {review.reviewed_at && <span className="text-muted">{answeredAt(review)}</span>}
+                    {review.status === 'dismissed' && (
+                      <button
+                        type="button"
+                        disabled={answerClosed}
+                        onClick={() => void resolve(review, 'confirmed')}
+                        className="ml-auto rounded-md border border-danger/40 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-50"
+                      >
+                        {t('organizer.penaltyReviews.disqualifyAfterAll')}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -306,6 +306,9 @@ export const organizer = {
     dismiss: 'Dismiss',
     confirmDqPrompt:
       'Disqualify {name} from {tournament}? Their registration becomes "disqualified".',
+    // O11: Dismiss asks too; a dismissed review can still be confirmed.
+    dismissPrompt: 'Dismiss the review of {name} in {tournament}? They stay in the tournament.',
+    disqualifyAfterAll: 'Disqualify after all',
     confirmedToast: '{name} disqualified.',
     dismissedToast: 'Review dismissed.',
     actionFailed: 'Could not update the review.',

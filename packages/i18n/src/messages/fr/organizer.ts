@@ -302,6 +302,9 @@ export const organizer = {
     dismiss: 'Rejeter',
     confirmDqPrompt:
       'Disqualifier {name} de {tournament} ? Son inscription passera en "disqualified".',
+    dismissPrompt:
+      'Rejeter la révision de {name} dans {tournament} ? Le combattant reste dans le tournoi.',
+    disqualifyAfterAll: 'Disqualifier quand même',
     confirmedToast: '{name} disqualifie.',
     dismissedToast: 'Revision rejetée.',
     actionFailed: 'Impossible de mettre à jour la revision.',

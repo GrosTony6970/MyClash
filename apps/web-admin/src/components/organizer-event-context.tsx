@@ -45,6 +45,8 @@ export interface OrgEventSummary {
   start_date: string | null;
   end_date: string | null;
   updated_at?: string | null;
+  /** The Event's IANA zone (`events.timezone`, never null): its clock for a page's dates. */
+  timezone: string;
 }
 
 interface OrganizerEventContextValue {

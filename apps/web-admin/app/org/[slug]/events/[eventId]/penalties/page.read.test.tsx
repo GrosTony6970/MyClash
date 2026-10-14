@@ -107,6 +107,10 @@ describe('the penalty reviews read', () => {
     )!;
     await act(async () => dismiss.click());
     await page.settle();
+    // Dismiss asks first (O11): say yes.
+    const yes = [...document.body.querySelectorAll('[role="dialog"] button')].pop() as HTMLElement;
+    await act(async () => yes.click());
+    await page.settle();
     expect(alerts()).toEqual([]);
   });
 });
