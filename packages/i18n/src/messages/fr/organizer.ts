@@ -14,6 +14,7 @@ export const organizer = {
     description:
       "Feuilles vierges pour faire tourner ce tournoi sur papier si l'application est injoignable. À imprimer avant l'événement et à garder à la piste.",
     tournamentLabel: 'Tournoi',
+    allTournaments: 'Tous les tournois, en une seule impression',
     sections: 'Que faut-il imprimer ?',
     sectionPools: 'Feuilles de poule',
     sectionPoolsHint:

@@ -18,34 +18,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
-import { sideColorsFor } from '@myclash/ui';
-import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
+import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { useI18n } from '@myclash/next-i18n/client';
-import {
-  allMatchesOf,
-  bracketToPrint,
-  poolsToPrint,
-  type ApiBracketSlot,
-  type ApiPoolWithMatches,
-} from './build-print-data';
-import { printPackHtml, type PrintSectionKey } from './print-pack';
+import { packInput } from './pack-input';
+import { printJoinedPacksHtml, printPackHtml, type PrintSectionKey } from './print-pack';
 import type { PrintLabels } from './print-types';
+import { usePrintPackData } from './usePrintPackData';
 
 interface Tournament {
   id: string;
   name: string;
-}
-
-interface TournamentDetail {
-  name: string;
-  ruleset_code?: string | null;
-  ruleset_version?: string | null;
-  scoring_config_json?: TournamentScoringConfig | null;
 }
 
 /**
@@ -126,23 +113,18 @@ export default function PrintPackPage() {
    */
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const ids = tournaments.map((tournament) => tournament.id);
+  // "All Tournaments" (O22) is a choice of this page alone: in its address, never remembered.
   const [selected, setSelected] = useTournamentChoice(
     eventId,
-    tournaments.map((tournament) => tournament.id),
+    ids.length > 1 ? [...ids, ALL_TOURNAMENTS] : ids,
   );
-  const [detail, setDetail] = useState<TournamentDetail | null>(null);
-  const [pools, setPools] = useState<ApiPoolWithMatches[]>([]);
-  const [bracket, setBracket] = useState<{ rounds: number; slots: ApiBracketSlot[] } | null>(null);
+  const packs = usePrintPackData(
+    selected === ALL_TOURNAMENTS ? ids : selected ? [selected] : [],
+    t,
+  );
   const [lices, setLices] = useState<Map<string, string>>(new Map());
   const [sections, setSections] = useState<PrintSectionKey[]>(['pools', 'bracket', 'pistes']);
-  /**
-   * Which tournament the data below belongs to, and whether the event-level
-   * fetch has landed. `loading` is DERIVED from these rather than set in an
-   * effect body — `react-hooks/set-state-in-effect` is an error here, and the
-   * derivation is also what keeps the spinner honest when the operator switches
-   * tournaments (the old data is stale the moment `selected` changes).
-   */
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [eventLoaded, setEventLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -183,46 +165,6 @@ export default function PrintPackPage() {
     return () => controller.abort();
   }, [eventId, t]);
 
-  // ── Per-tournament data ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!selected) return;
-    const controller = new AbortController();
-    const options = { signal: controller.signal };
-    void Promise.all([
-      apiRequest<TournamentDetail>(apiUrl, `/api/v1/tournaments/${selected}`, options),
-      apiRequest<ApiPoolWithMatches[]>(
-        apiUrl,
-        `/api/v1/tournaments/${selected}/pools-with-matches`,
-        options,
-      ),
-      // A tournament with no bracket phase 404s here; that is a valid state
-      // (pools only), not an error worth blocking the whole page for.
-      apiRequest<{ rounds: number; slots: ApiBracketSlot[] }>(
-        apiUrl,
-        `/api/v1/tournaments/${selected}/bracket`,
-        options,
-      ),
-    ])
-      .then(([tournamentDetail, poolRows, bracketResult]) => {
-        if (!tournamentDetail.ok) {
-          // Same defect as the effect above: the detail read had no `.ok` check
-          // at all, so a refusal was cast to a TournamentDetail and printed.
-          const message = failureMessage(tournamentDetail, t, t('organizer.printPack.loadError'));
-          if (message) setError(message);
-          return;
-        }
-        setDetail(tournamentDetail.data);
-        setPools(poolRows.ok ? (poolRows.data ?? []) : []);
-        setBracket(bracketResult.ok ? bracketResult.data : null);
-        setError(null);
-      })
-      // Marks this tournament as settled either way: an error must stop the
-      // spinner, or the operator stares at "loading" with the reason already
-      // on screen underneath it.
-      .finally(() => setLoadedFor(selected));
-    return () => controller.abort();
-  }, [selected, t]);
-
   const labels = useMemo(() => sheetLabels(t), [t]);
 
   const roundName = useCallback(
@@ -236,20 +178,29 @@ export default function PrintPackPage() {
     [t],
   );
 
-  const printPools = useMemo(() => poolsToPrint(pools, lices), [pools, lices]);
-  const printBracket = useMemo(
-    () => (bracket ? bracketToPrint(bracket.slots, bracket.rounds, lices, roundName) : []),
-    [bracket, lices, roundName],
-  );
-  const allMatches = useMemo(
-    () => allMatchesOf(printPools, printBracket),
-    [printPools, printBracket],
+  /** Each pack that has a bout to print; the time is stamped when Print is pressed. */
+  const printable = useMemo(
+    () =>
+      packs.packs
+        .map((pack) =>
+          packInput(pack, {
+            eventName,
+            timeZone: eventTz,
+            generatedAt: '',
+            lices,
+            roundName,
+            labels,
+            sections,
+          }),
+        )
+        .filter((input) => input.allMatches.length > 0),
+    [packs.packs, eventName, eventTz, lices, roundName, labels, sections],
   );
 
-  // Derived, never stored: the event list has to have landed, and the data on
-  // screen has to belong to the tournament currently selected.
-  const loading = !eventLoaded || (selected !== '' && loadedFor !== selected);
-  const canPrint = sections.length > 0 && allMatches.length > 0;
+  // Derived, never stored: the event list has to have landed, and the packs on
+  // screen have to belong to the choice currently made.
+  const loading = !eventLoaded || packs.loading;
+  const canPrint = sections.length > 0 && printable.length > 0;
 
   function toggleSection(key: PrintSectionKey) {
     setSections((current) =>
@@ -258,25 +209,13 @@ export default function PrintPackPage() {
   }
 
   function handlePrint() {
-    if (!canPrint || !detail) return;
-    const html = printPackHtml({
-      meta: {
-        eventName,
-        tournamentName: detail.name,
-        rulesetLabel: `${detail.ruleset_code ?? ''} ${detail.ruleset_version ?? ''}`.trim(),
-        // The organiser's configured corners, resolved for a white page — never
-        // a hardcoded red/blue. Across a hall the corner colour is the only
-        // thing a spectator can read, and paper has to agree with the screen.
-        sideColors: sideColorsFor(detail.scoring_config_json ?? null, 'light'),
-        generatedAt: new Date().toLocaleString(localeToBcp47(locale)),
-        timeZone: eventTz,
-      },
-      labels,
-      pools: printPools,
-      bracketRounds: printBracket,
-      allMatches,
-      sections,
-    });
+    if (!canPrint) return;
+    const generatedAt = new Date().toLocaleString(localeToBcp47(locale));
+    const inputs = printable.map((input) => ({ ...input, meta: { ...input.meta, generatedAt } }));
+    const html =
+      selected === ALL_TOURNAMENTS
+        ? printJoinedPacksHtml(eventName, inputs)
+        : printPackHtml(inputs[0]!);
 
     openPrintWindow(html, () => setError(t('organizer.printWindow.popupBlocked')));
   }
@@ -311,6 +250,7 @@ export default function PrintPackPage() {
             onChange={(event) => setSelected(event.target.value)}
             className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground"
           >
+            <option value={ALL_TOURNAMENTS}>{t('organizer.printPack.allTournaments')}</option>
             {tournaments.map((tournament) => (
               <option key={tournament.id} value={tournament.id}>
                 {tournament.name}
@@ -345,12 +285,12 @@ export default function PrintPackPage() {
         ))}
       </div>
 
-      {error && (
+      {(error ?? packs.error) && (
         <p className="mt-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {error}
+          {error ?? packs.error}
         </p>
       )}
-      {!loading && allMatches.length === 0 && !error && (
+      {!loading && printable.length === 0 && !(error ?? packs.error) && (
         <p className="mt-4 text-sm text-muted">{t('organizer.printPack.noData')}</p>
       )}
       {sections.length === 0 && (

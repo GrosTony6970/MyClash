@@ -6,7 +6,7 @@ import {
   type ApiBracketSlot,
   type ApiPoolWithMatches,
 } from './build-print-data';
-import { printPackHtml } from './print-pack';
+import { printJoinedPacksHtml, printPackHtml, printPackSheets } from './print-pack';
 import type { PrintLabels, PrintTournamentMeta } from './print-types';
 
 const LABELS: PrintLabels = {
@@ -252,5 +252,35 @@ describe('printPackHtml', () => {
   it('produces an empty body when nothing is selected', () => {
     const html = render([]);
     expect(html).toContain('<body></body>');
+  });
+});
+
+describe('printJoinedPacksHtml (O22: "All Tournaments")', () => {
+  const pack = (tournamentName: string, poolName: string) => ({
+    meta: { ...META, tournamentName },
+    labels: LABELS,
+    pools: poolsToPrint([apiPool({ poolName })], LICES),
+    bracketRounds: [],
+    allMatches: [],
+    sections: ['pools'] as const,
+  });
+
+  it("holds each Tournament's sheets, in order, in one document named after the Event", () => {
+    const html = printJoinedPacksHtml('FAL 2026', [
+      pack('Longsword Open', 'Pool A'),
+      pack('Sabre Open', 'Pool S'),
+    ]);
+    expect(html.match(/<!doctype html>/gi)).toHaveLength(1);
+    expect(html).toContain('<title>FAL 2026</title>');
+    expect(html.match(/class="sheet"/g)).toHaveLength(2);
+    expect(html.indexOf('Pool A')).toBeLessThan(html.indexOf('Pool S'));
+    expect(html).toContain('Sabre Open');
+    expect(html).toContain('.sheet:last-child { page-break-after: auto; }');
+  });
+
+  it('prints one pack exactly as that Tournament printed alone', () => {
+    const alone = pack('Longsword Open', 'Pool A');
+    expect(printPackSheets(alone)).toHaveLength(1);
+    expect(printPackHtml(alone)).toContain(printPackSheets(alone)[0]);
   });
 });

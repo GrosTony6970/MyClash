@@ -541,7 +541,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:76",
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/_components/PoolTimelineGrid.tsx:73",
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx:112",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/print/page.tsx:117",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/print/page.tsx:104",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AssignmentDiagnosticsPanel.tsx:78",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AvailabilityChips.tsx:84",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/PoolSlotCard.tsx:51",

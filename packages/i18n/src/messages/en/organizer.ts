@@ -18,6 +18,7 @@ export const organizer = {
     description:
       'Blank sheets to run this tournament on paper if the app is unreachable. Print before the event and keep them at the piste.',
     tournamentLabel: 'Tournament',
+    allTournaments: 'All Tournaments, in one print job',
     sections: 'What to print',
     sectionPools: 'Pool sheets',
     sectionPoolsHint: 'One page per pool: the roster and every bout, with blank score boxes.',

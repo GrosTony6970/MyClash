@@ -30,6 +30,21 @@ export interface PrintPackInput {
 }
 
 export function printPackHtml(input: PrintPackInput): string {
+  const { meta } = input;
+  return printDocument(`${meta.tournamentName} — ${meta.eventName}`, printPackSheets(input));
+}
+
+/**
+ * "All Tournaments" (quick win O22): each Tournament's pack, in the Event's order, in ONE
+ * document, so the morning is one print job. No new layout: every sheet already names
+ * its Tournament in its header.
+ */
+export function printJoinedPacksHtml(eventName: string, inputs: readonly PrintPackInput[]): string {
+  return printDocument(eventName, inputs.flatMap(printPackSheets));
+}
+
+/** One Tournament's sheets, in the order they come out of the tray. */
+export function printPackSheets(input: PrintPackInput): string[] {
   const { meta, labels, pools, bracketRounds, allMatches, sections } = input;
   const selected = new Set(sections);
   const sheets: string[] = [];
@@ -57,5 +72,5 @@ export function printPackHtml(input: PrintPackInput): string {
     sheets.push(...allMatches.map((match) => matchScoresheetHtml(match, meta, labels)));
   }
 
-  return printDocument(`${meta.tournamentName} — ${meta.eventName}`, sheets);
+  return sheets;
 }
