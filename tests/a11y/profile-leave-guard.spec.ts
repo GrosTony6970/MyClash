@@ -47,6 +47,23 @@ test('a link of the personal space asks first', async ({ page }) => {
   await expect(page).toHaveURL(`${PUBLIC}/me/settings`);
 });
 
+test('on a phone, a link of the drawer asks first, and the drawer closes', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProfile(page);
+  await bio(page).fill(BIO);
+  const drawerOpen = page.getByRole('button', { name: 'Close personal menu' });
+
+  await page.getByRole('button', { name: 'Open personal menu' }).click();
+  await expect(drawerOpen).toBeVisible();
+  // The drawer's own Settings link: the sidebar's is hidden at this width.
+  await page.getByRole('link', { name: 'Settings' }).locator('visible=true').click();
+  await expect(asks(page)).toBeVisible();
+  await asks(page).getByRole('button', { name: 'Leave' }).click();
+
+  await expect(page).toHaveURL(`${PUBLIC}/me/settings`);
+  await expect(drawerOpen).toHaveCount(0);
+});
+
 test('nothing asks once the profile is saved, or before anything is typed', async ({ page }) => {
   const profile = await openProfile(page);
   await refereeTab(page).click();

@@ -68,8 +68,10 @@ function guardLeaving(askToLeave: () => Promise<boolean>, go: (href: string) => 
       window.location.href,
     );
     if (!href) return;
+    // preventDefault alone: Next's Link runs the link's own onClick (the phone drawer closes
+    // there), then gives up on a prevented click. Stopping the event would keep the drawer open.
     event.preventDefault();
-    event.stopPropagation();
+    // The page goes on with a plain push: a link's own `replace` / `scroll` are not kept.
     void askToLeave().then((leave) => {
       if (leave) go(href);
     });
