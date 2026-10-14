@@ -98,7 +98,7 @@ export function Step4Advanced({
       <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
         <button
           type="button"
-          onClick={() => onFinish(false)}
+          onClick={() => onFinish(publishOnFinish)}
           className="font-medium text-warning hover:underline"
         >
           {t('organizer.tournaments.wizard.useDefaultsAndFinish')} →

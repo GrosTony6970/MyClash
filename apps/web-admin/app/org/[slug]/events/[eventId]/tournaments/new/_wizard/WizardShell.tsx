@@ -45,21 +45,23 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
     if (step > 1) setStep((step - 1) as Step);
   }
   async function finish(publish: boolean) {
+    // The list is opened either way, after the publish answered (the list reads the
+    // status): the Tournament itself does exist. What the organiser must not believe
+    // is that a refused publish left it live (O14): ONE toast says what it is, never a
+    // green "saved" beside a red reason.
     if (publish && tournamentId) {
-      // The publish was fire-and-forget: the wizard toasted "created", pushed
-      // to the list, and a refused publish left a draft the operator believed
-      // was live. Awaited and reported now; the navigation still happens either
-      // way, because the tournament itself does exist.
       const r = await apiRequest(getPublicApiUrl(), `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
         body: { status: 'published' },
       });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('organizer.tournaments.wizard.publishFailedToast'));
-        if (message) toast.error(message);
+      if (r.ok) toast.success(t('organizer.tournaments.wizard.publishedToast'));
+      else {
+        const reason = failureMessage(r, t, t('organizer.tournaments.wizard.publishFailedReason'));
+        toast.error(t('organizer.tournaments.wizard.publishFailedToast', { reason: reason ?? '' }));
       }
+    } else {
+      toast.success(t('organizer.tournaments.wizard.savedDraftToast'));
     }
-    toast.success(t('organizer.tournaments.wizard.finishedToast'));
     router.push(`/org/${slug}/events/${eventId}/tournaments`);
   }
 

@@ -688,8 +688,10 @@ export const organizer = {
       publishOnFinish: 'Publier à la fin',
       finish: 'Terminer',
       useDefaultsAndFinish: 'Utiliser les defauts et terminer',
-      finishedToast: 'Tournoi enregistre.',
-      publishFailedToast: "Le tournoi est enregistre mais n'a pas pu être publie.",
+      savedDraftToast: 'Tournoi enregistré comme brouillon.',
+      publishedToast: 'Tournoi enregistré et publié.',
+      publishFailedToast: 'Enregistré comme brouillon, non publié. {reason}',
+      publishFailedReason: 'Le serveur n’a pas pu le publier.',
     },
     settings: {
       title: 'Paramètres du tournoi',

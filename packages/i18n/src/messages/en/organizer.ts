@@ -691,8 +691,11 @@ export const organizer = {
       publishOnFinish: 'Publish on finish',
       finish: 'Finish',
       useDefaultsAndFinish: 'Use defaults and finish',
-      finishedToast: 'Tournament saved.',
-      publishFailedToast: 'The tournament was saved but could not be published.',
+      savedDraftToast: 'Tournament saved as a draft.',
+      publishedToast: 'Tournament saved and published.',
+      // {reason} is a whole sentence: the server's, or publishFailedReason.
+      publishFailedToast: 'Saved as a draft, not published. {reason}',
+      publishFailedReason: 'The server could not publish it.',
     },
     settings: {
       title: 'Tournament settings',
