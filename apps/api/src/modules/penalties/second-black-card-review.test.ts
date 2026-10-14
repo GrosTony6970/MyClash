@@ -161,6 +161,23 @@ describe('syncSecondBlackCardReview', () => {
     ]);
   });
 
+  it('counts the card that landed between its two tries', async () => {
+    const { db, done } = run({
+      match_penalties: [cards('c-1', 'c-2'), cards('c-1', 'c-2', 'c-3')],
+      tournament_penalty_reviews: [
+        ok(null),
+        { data: null, error: { message: 'duplicate key', code: '23505' } },
+        ok(review('pending', ['c-1', 'c-2'])),
+        WROTE,
+      ],
+    });
+    await done;
+    expect(writesTo(db, 'tournament_penalty_reviews')[1]?.row).toMatchObject({
+      black_card_count: 3,
+      payload_json: { penaltyIds: ['c-1', 'c-2', 'c-3'] },
+    });
+  });
+
   it('reads again when the review moved since it was read, and says so at a second miss', async () => {
     const once = run({
       match_penalties: cards('c-1', 'c-2', 'c-3'),

@@ -140,6 +140,18 @@ describe('adding walk-ins', () => {
     expect(document.body.textContent).toContain('Added Ana Red to 1 tournament(s).');
   });
 
+  it('opens again empty after Cancel: the ticks of the last window are gone', async () => {
+    await openAdd();
+    act(() => tick().click());
+    const cancel = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((b) => b.textContent === 'Cancel')!;
+    await act(async () => cancel.click());
+    const add = document.body.querySelector<HTMLButtonElement>('[data-testid="persons-add"]')!;
+    await act(async () => add.click());
+    expect(tick().checked).toBe(false);
+  });
+
   it('asks about a full Tournament at once, over the window, before the next person', async () => {
     await openAdd();
     const server = vi.mocked(apiRequest).getMockImplementation()!;

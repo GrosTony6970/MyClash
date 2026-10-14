@@ -93,6 +93,23 @@ describe('the settings of a Tournament ask before an edit is lost', () => {
     await tap('Leave');
     expect(tabShown()).toBe('#basics');
     expect(page.writes()).toEqual([]);
+
+    // The edit went with its tab: nothing is unsaved any more.
+    await tap('Display');
+    expect(question()).toBeNull();
+    expect(tabShown()).toBe('#display');
+  });
+
+  it('forgets a left edit on a tab with no form, as on any other', async () => {
+    await openTab('locks');
+    await act(async () => autoLock().click());
+    await tap('Recap');
+    await tap('Leave');
+    expect(tabShown()).toBe('#recap');
+    // Recap holds no form and reports nothing: the closed tab's own "nothing unsaved" counts.
+    await tap('Display');
+    expect(question()).toBeNull();
+    expect(tabShown()).toBe('#display');
   });
 
   it('switches with no question once the edit is saved', async () => {

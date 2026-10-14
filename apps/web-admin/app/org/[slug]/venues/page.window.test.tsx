@@ -88,6 +88,14 @@ describe('the venue window', () => {
     expect(dialogs()[0]!.textContent).not.toContain('Hall A');
   });
 
+  it('keeps the area when the question is answered no', async () => {
+    await openWindow({ [DROP_AREA]: {} });
+    await tap(removeOf('Hall A'));
+    await tap(buttonIn(dialogs()[1]!, 'Cancel'));
+    expect(page.writes()).toEqual([]);
+    expect(dialogs()[0]!.textContent).toContain('Hall A');
+  });
+
   it('removes a piste at once, with no question', async () => {
     await openWindow({ [DROP_PISTE]: {} });
     await tap(removeOf('Piste 1'));

@@ -63,7 +63,49 @@ afterEach(() => {
   container.remove();
 });
 
+/** The window and the question in two hosts: the window's re-renders on its own. */
+let rerenderWindow: () => void;
+function WindowHost() {
+  const [open, setOpen] = useState(true);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    rerenderWindow = () => setTick((n) => n + 1);
+  });
+  return <Modal open={open} onClose={() => setOpen(false)} title={WINDOW} />;
+}
+function QuestionHost() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    openQuestion = () => setOpen(true);
+  });
+  return (
+    <ConfirmDialog
+      open={open}
+      onConfirm={() => setOpen(false)}
+      onCancel={() => setOpen(false)}
+      title={QUESTION}
+      confirmLabel={QUESTION}
+      cancelLabel={WINDOW}
+    />
+  );
+}
+
 describe('a question over a window', () => {
+  it('keeps the question on top when only the window re-renders', () => {
+    act(() =>
+      root.render(
+        <>
+          <WindowHost />
+          <QuestionHost />
+        </>,
+      ),
+    );
+    act(() => openQuestion());
+    act(() => rerenderWindow());
+    escape();
+    expect(titles()).toEqual(['Venue']);
+  });
+
   it('closes the question at the first Escape and the window at the second', () => {
     act(() => root.render(<Page />));
     act(() => openQuestion());
