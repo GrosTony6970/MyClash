@@ -110,9 +110,9 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~F16~~ | League, login and personal-space pages share the generic site title. Done `729cbcba`.                                                             | A root title template and per-page titles.                                                | Several open tabs can be told apart.                                           | no `metadata` in `app/leagues/*`, `app/login/page.tsx`, `app/me/layout.tsx`                               | S    |
 | ~~F17~~ | Referee roles appear as raw English (`main referee`). Done `4a535cd7`.                                                                            | One en/fr label map.                                                                      | French referees read their role in French.                                     | `my-schedule/page.tsx:505`; `people/[personId]/page.tsx:344`                                              | S    |
 | ~~F18~~ | `/live`, `/my-schedule`, `/pass` and a person's page have no back link. Done `b8652b16`.                                                          | Add the existing `BackLink`.                                                              | One tap back to the Event home.                                                | `live/page.tsx:248`; `people/[personId]/page.tsx:192-205`                                                 | S    |
-| F19     | No share button on Match or Tournament pages.                                                                                                     | Generalise `src/components/fighter/ShareProfile.tsx` to any address.                      | "Watch my bout" is one tap to send.                                            | only that component exists                                                                                | S–M  |
+| ~~F19~~ | No share button on Match or Tournament pages. Done `22794702`.                                                                                    | Generalise `src/components/fighter/ShareProfile.tsx` to any address.                      | "Watch my bout" is one tap to send.                                            | only that component exists                                                                                | S–M  |
 | ~~F20~~ | No add-to-calendar. NOT built: ruled out.                                                                                                         | A client-side `.ics` of the schedule.                                                     | The phone reminds the fighter, with the app closed.                            | no `.ics` in the repo                                                                                     | M    |
-| F21     | League ranking names are plain text; a fighter's full history is undated and cannot be opened.                                                    | Send the fighter slug and link it; show the date; link each bout.                         | From a rank to the fighter to the bout, without searching.                     | `leagues/[slug]/StandingsGroups.tsx:125-127`; `fighters/[slug]/_components/MatchHistoryModal.tsx:115-143` | S    |
+| ~~F21~~ | League ranking names are plain text; a fighter's full history is undated and cannot be opened. Done `d2f5292a`.                                   | Send the fighter slug and link it; show the date; link each bout.                         | From a rank to the fighter to the bout, without searching.                     | `leagues/[slug]/StandingsGroups.tsx:125-127`; `fighters/[slug]/_components/MatchHistoryModal.tsx:115-143` | S    |
 
 ## M — the signed-in personal space (`apps/web-public/app/me`, `app/profile`)
 
@@ -1636,7 +1636,7 @@ and whether a PIN typed on a tablet that holds an organiser's login ends that lo
 **State on 2026-10-14 00:30.** The seven commits of the evening (`dea8f0e5` to `6cbaf8bb`) are
 reviewed and falsified, with eight commits of fixes and tests on top (`3e692bb4` to `50c552cb`):
 see "The review and the seeded breaks" below. The gate chain is green over all of it (36 of 36).
-F19 and F21 are planned, not built. The plan:
+F19 and F21 were built on 2026-10-14: see the section after this one. The plan:
 `C:\Users\Tony\.claude\plans\pasted-content-id-2bfd-repo-f-github-noble-scott.md`.
 
 The operator picked the nine rows and ruled seven times, each asked with a story:
@@ -1764,7 +1764,7 @@ Named by the review, not fixed (each read in code):
   member whose login ended reads it on a draft Tournament until she loads the page again.
 - `signInAgainHere`, the door of the personal space when `/me` says the login ended, removes no
   kept schedule. `/me` also answers "anonymous" on a fault of the login service, so removing
-  there would remove copies on a fault. Needs a ruling.
+  there would remove copies on a fault. RULED on 2026-10-14: keep the copy.
 - The personal space's pages of one Event read "My event · MyClash" and "My schedule · MyClash"
   for every Event: two Events in two tabs read the same. It follows the ruling's letter.
 - Suspected, not run: the tab of a not-found page under an Event keeps the page's own words
@@ -1776,8 +1776,94 @@ Named by the review, not fixed (each read in code):
 - Not held by a browser story, held by a text pin only: the five doors that remove the kept
   schedules, and "a read out when she left writes nothing back".
 
-Left of the nine: **F19** (Share) and **F21** (a rank opens the fighter, a history line opens the
-bout). Both are planned in the plan file, with their rulings. Neither is started.
+Left of the nine at that time: **F19** and **F21**. Both are built: see the next section.
+
+## Built on 2026-10-14: the last two F rows, F19 and F21
+
+F19 (Share) and F21 (a rank opens the fighter, a history line opens the bout) are built,
+reviewed and falsified: eight commits, `22794702` to `8f088021`. Every F row is now done or ruled
+out.
+
+The operator ruled three times, each asked with a story:
+
+| Asked                                                                                                                                            | Ruling                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Paul's phone keeps a copy of his schedule. His personal space says "your login ended". The server says the same on a fault of the login service. | **Keep the copy.** That door removes nothing. Closes the finding about `signInAgainHere` of the night. |
+| Marie is at her desk, on Chrome on Windows, and taps Share. Chrome has its own share panel there.                                                | **The browser's panel**, on a desktop too. No guess of "is this a phone".                              |
+| A club member opens a published Tournament of her own DRAFT Event. A link she shares says "Page not found" to everybody outside her club.        | **No Share button** on a page the public cannot open.                                                  |
+
+What people get:
+
+- **F19** (`22794702`, `802f3bc7`). A Share button on a bout's page and on a Tournament's page.
+  It opens the browser's share panel where there is one. Where there is none it copies the link,
+  and the button says "Copied!" for two seconds. A copy that fails says "Could not copy the link"
+  for six seconds. The link is the page's plain address: not the sender's way back. The fighter
+  profile's "Copy link" is now this same button.
+- **No Share** on a bout the public cannot read, on a draft or archived Tournament, and on a
+  Tournament of a draft or test Event.
+- **F21** (`c03ccbab`, `d2f5292a`). A name in a league's standings opens the fighter's page. A
+  line of a fighter's full history shows the first day of its Event and opens the bout. From a
+  bout opened from a fighter's page, Back returns to the fighter: it led to the Event's home.
+- **A ranked fighter with no public page stays plain text**: a profile the public may not know
+  of, and a profile that was merged, deleted or erased.
+- **For the tests.** The server stub of the browser suite now answers a Tournament's page, a
+  league with its standings, and a fighter. No story could open those pages before.
+
+### The review and the seeded breaks
+
+One cold review read the first three commits: no blocker, two majors, ten minors. Each was read
+again in code before its fix.
+
+- **An archived Tournament showed Share** (`802f3bc7`). An organiser can archive a Tournament: its
+  club still opens it, the public does not. My rule named the one status it hid. It now names the
+  three statuses the server shows, and a test holds the two lists equal.
+- **"May the public know this profile" was built for one profile** (`04a2cc9a`). The standings ask
+  it for every ranked fighter. Two limits of the database gateway then matter. A long list of ids
+  fails the read, so the league page could fail whole. And a read is cut at 1000 rows with no
+  word: a fighter whose rows were cut counted as KNOWN, so a hidden page would get a link. The
+  question now goes in pieces of 200, and a read that comes back full is asked again in halves.
+- **A merged or erased profile got a link to a missing page** (`b284f8c4`). The standings now ask
+  the same two rules as the fighter's page.
+- **A second tap under an open share panel copied the link** and said "Copied!" (`802f3bc7`). A
+  tap is ignored until the one before it has its answer.
+- **After a failed copy the button was named "Could not copy the link"** until the next tap. It
+  reads "Share" again after six seconds.
+- **The focus ring of a ranked name was cut** by the champion's card (`cc667ffe`). The link is
+  underlined on focus.
+
+78 seeded breaks ran over the rows and their fixes: 77 red. The green one had no test, and has
+one now (`8f088021`): the button was dead after its first tap and every story passed. It ran
+again: red.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The history line's date is the first day of the Event**, not the day of the bout. The answer
+  carries no time zone for the bout's own instant.
+- **A failed copy shows for six seconds**, then the button reads "Share" again. The ruling says
+  "a failed copy says so"; it does not say for how long.
+- **The message is on the button itself.** Nothing moves on the page, but the button is wider
+  for those seconds.
+- **The league admin's standings carry the same field.** The admin page does not read it.
+- **Back from a bout opened in the full history** returns to the fighter's page with the history
+  closed.
+
+Named, not fixed (each read in code):
+
+- **The league page now costs more on the server.** For each ranked fighter that no account has
+  claimed, the server reads the Events of that fighter's roster rows, one Event after the other.
+  It was one read. The page is not cached. Not measured on a real league. Worth a ruling if a
+  league page is slow.
+- `events.start_date` is free text in the database. A value that is not a plain day would show a
+  wrong day on a history line, or none. Not read what the organiser's form sends.
+- A recent result with no Event address is a link to `#`. The full history shows the same line
+  as plain text. The `#` is older than this work.
+- A ranked name is a text-height target, and looks like a link only on hover.
+- The Share button is hand-drawn, as the Back link beside it: the shared `Button` has no quiet
+  outline look.
+- No browser story opens a Tournament of a TEST Event: the unit test holds that rule.
+- The fighter profile's share card is still hidden on phones on the public fighter page.
+- Not provable here: the share panel itself on a real phone. A story records the call the page
+  makes.
 
 ## Still not checked
 
