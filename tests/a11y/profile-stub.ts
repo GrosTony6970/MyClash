@@ -1,16 +1,16 @@
 import { expect, type Page } from '@playwright/test';
-import { stubPublicApi } from './helpers';
+import { PUBLIC, signInAsLea } from './me-stub';
 
 /**
  * A signed-in fighter on `/me/profile`, with no API behind it.
  *
  * The page reads its dashboard and the weapon list in the browser; the catch-all `{}` of
- * `stubPublicApi` would make `formFromProfile` throw, so both are answered here with the API's
+ * `signInAsLea` would make `formFromProfile` throw, so both are answered here with the API's
  * shapes. Every PATCH of the profile is recorded, and answered with the profile it sent, as the
  * API answers with the saved row. Register a story's own routes AFTER this call.
  */
 
-export const PUBLIC = 'http://localhost:3001';
+export { PUBLIC };
 
 const WEAPONS = [
   { id: 'w-1', name: 'Longsword' },
@@ -84,17 +84,7 @@ export interface ProfilePage {
 
 export async function openProfile(page: Page, fixture: ProfileFixture = {}): Promise<ProfilePage> {
   const saves: ProfilePage['saves'] = [];
-  await stubPublicApi(page);
-  await page.route('**/api/v1/me', (route) =>
-    route.fulfill({
-      json: {
-        type: 'claimed',
-        user: { id: 'user-1', email: 'lea@example.test', display_name: 'Léa Martin' },
-      },
-    }),
-  );
-  await page.route('**/api/v1/me/events', (route) => route.fulfill({ json: [] }));
-  await page.route('**/api/v1/notifications/broadcasts', (route) => route.fulfill({ json: [] }));
+  await signInAsLea(page);
   // No insight written yet: the API answers null.
   await page.route('**/api/v1/me/insight*', (route) => route.fulfill({ json: null }));
   await page.route('**/api/v1/weapons', (route) => route.fulfill({ json: WEAPONS }));

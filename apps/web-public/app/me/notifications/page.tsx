@@ -21,7 +21,7 @@ export default async function PersonalNotificationsPage() {
             {t('publicApp.notifications.description')}
           </p>
         </header>
-        <NotificationSettingsClient embedded />
+        <NotificationSettingsClient />
       </div>
     </main>
   );

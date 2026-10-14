@@ -47,6 +47,7 @@ const NO_TITLE: Record<string, 'redirect' | 'tv'> = {
   'me/events/[eventSlug]/overview/page.tsx': 'redirect',
   'me/fighter/page.tsx': 'redirect',
   'me/referee/page.tsx': 'redirect',
+  'notifications/page.tsx': 'redirect',
   'profile/fighter/page.tsx': 'redirect',
   'profile/referee/page.tsx': 'redirect',
   // A screen on a wall, in fullscreen. Its tab reads the Event's name, from the Event's layout.

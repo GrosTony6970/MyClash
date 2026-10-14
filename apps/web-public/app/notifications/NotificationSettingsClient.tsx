@@ -1,28 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button } from '@myclash/ui';
+import { apiRequest } from '@myclash/api-client';
+import { formatInZone, localeToBcp47 } from '@myclash/time';
+import { Button, Skeleton } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../src/lib/api-url';
 import { dropForeignAddress, savedForMe, turnOffPhoneAlerts } from '../../src/lib/phone-alerts';
+import { signInAgainHere } from '../../src/lib/sign-in-return';
 import { markBroadcastsSeen } from '../../src/components/me/useUnreadBroadcasts';
 
 type PermissionStateLabel = NotificationPermission | 'unsupported' | 'loading';
-
-interface Props {
-  embedded?: boolean;
-}
 
 type BroadcastSeverity = 'info' | 'warning' | 'alert';
 
 interface BroadcastNotification {
   id: string;
   eventName: string | null;
+  /** Every message has an Event, every Event a zone: its time is shown on the Event's clock. */
+  eventTimezone: string;
   severity: BroadcastSeverity;
   title: string;
   body: string;
   createdAt: string;
 }
+
+/** A message's time on its Event's clock, with the zone's name: "14 Oct, 09:12 CEST". */
+const MESSAGE_TIME: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZoneName: 'short',
+};
 
 const severityClasses: Record<BroadcastSeverity, string> = {
   info: 'border-info/40 bg-info/10 text-info',
@@ -44,18 +54,19 @@ function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   return buffer;
 }
 
-export default function NotificationSettingsClient({ embedded = false }: Props) {
+export default function NotificationSettingsClient() {
   // Resolved here, not handed down from the server page: a server-resolved URL
   // is the docker-internal host, which the browser can't reach.
   const apiUrl = getPublicApiUrl();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [permission, setPermission] = useState<PermissionStateLabel>('loading');
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
   // The server could not say whose this browser's address is: neither "on" nor "off" is known.
   const [unchecked, setUnchecked] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
+  // null while the read is out: the inbox shows a placeholder, never "no messages".
+  const [broadcasts, setBroadcasts] = useState<BroadcastNotification[] | null>(null);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,22 +101,22 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/notifications/broadcasts`, {
-      credentials: 'include',
+    // `apiRequest` renews a lapsed login once (the cookie is good for an hour); a 401 after that
+    // is a login that did not come back: sign in again, back to this page.
+    void apiRequest<BroadcastNotification[]>(apiUrl, '/api/v1/notifications/broadcasts', {
       signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401) return;
-        if (!response.ok) throw new Error('load failed');
-        setBroadcasts((await response.json()) as BroadcastNotification[]);
+    }).then((result) => {
+      if (result.ok) {
+        setBroadcasts(result.data);
         // Opening the inbox marks everything delivered so far as read and
         // clears the unread badge in the personal-shell nav.
         markBroadcastsSeen();
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') return;
+      } else if (result.kind === 'unauthenticated' && result.status === 401) {
+        signInAgainHere();
+      } else if (result.kind !== 'aborted') {
         setBroadcastError(t('publicApp.notifications.loadBroadcastsError'));
-      });
+      }
+    });
     return () => controller.abort();
   }, [apiUrl, t]);
 
@@ -212,22 +223,8 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
                 ? t('publicApp.notifications.statusGranted')
                 : t('publicApp.notifications.statusNeedsPermission');
 
-  const content = (
+  return (
     <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
-      {!embedded && (
-        <header>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            {t('publicApp.name')}
-          </p>
-          <h1 className="mt-2 font-display text-3xl font-bold text-foreground">
-            {t('publicApp.notifications.title')}
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            {t('publicApp.notifications.description')}
-          </p>
-        </header>
-      )}
-
       <div className="rounded-lg border border-border bg-surface p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -269,12 +266,21 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
         {message && <p className="mt-4 text-sm text-muted">{message}</p>}
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section
+        data-testid="broadcast-inbox"
+        className="rounded-lg border border-border bg-surface p-4"
+      >
         <h2 className="text-base font-semibold text-foreground">
           {t('publicApp.notifications.broadcastHistory')}
         </h2>
-        {broadcastError && <p className="mt-3 text-sm text-danger">{broadcastError}</p>}
-        {!broadcastError && broadcasts.length === 0 ? (
+        {broadcastError ? (
+          <p className="mt-3 text-sm text-danger">{broadcastError}</p>
+        ) : broadcasts === null ? (
+          <div data-testid="broadcast-inbox-loading" className="mt-4 space-y-3">
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+          </div>
+        ) : broadcasts.length === 0 ? (
           <p className="mt-3 text-sm text-muted">{t('publicApp.notifications.noBroadcasts')}</p>
         ) : (
           <div className="mt-4 space-y-3">
@@ -295,6 +301,14 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
                 </div>
                 <h3 className="mt-2 font-semibold">{broadcast.title}</h3>
                 <p className="mt-1 text-sm opacity-90">{broadcast.body}</p>
+                <time dateTime={broadcast.createdAt} className="mt-2 block text-xs opacity-80">
+                  {formatInZone(
+                    broadcast.createdAt,
+                    broadcast.eventTimezone,
+                    MESSAGE_TIME,
+                    localeToBcp47(locale),
+                  )}
+                </time>
               </article>
             ))}
           </div>
@@ -302,10 +316,4 @@ export default function NotificationSettingsClient({ embedded = false }: Props) 
       </section>
     </section>
   );
-
-  if (embedded) {
-    return content;
-  }
-
-  return <main className="min-h-screen bg-background px-4 py-8 text-foreground">{content}</main>;
 }
