@@ -10,7 +10,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { ConfirmDialog, accentClassFor } from '@myclash/ui';
+import { ConfirmDialog, accentClassFor, useToast } from '@myclash/ui';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent } from '@myclash/types';
@@ -76,6 +76,7 @@ import {
   computeGridStartHour,
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { openPrintWindow } from '@/lib/print-window';
 import { LicePlacementEditor } from './LicePlacementEditor';
 import { mutateSchedule } from './schedule-mutations';
 
@@ -174,6 +175,7 @@ export function ScheduleGrid({
   readOnly: boolean;
 }) {
   const { t } = useI18n();
+  const toast = useToast();
   const apiUrl = getPublicApiUrl();
 
   // The read half and the write half each need something from the other: a
@@ -1434,8 +1436,6 @@ export function ScheduleGrid({
     const body = rows
       .map((r) => `<tr>${r.cells.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
       .join('');
-    const w = window.open('', '_blank');
-    if (!w) return;
     const printTitle = esc(t('organizer.schedulePage.grid.printTitle'));
     const headers = [
       t('organizer.schedulePage.grid.printColDay'),
@@ -1447,7 +1447,7 @@ export function ScheduleGrid({
     ]
       .map((h) => `<th>${esc(h)}</th>`)
       .join('');
-    w.document.write(
+    openPrintWindow(
       `<!doctype html><html><head><title>${printTitle}</title><style>` +
         `body{font-family:system-ui,sans-serif;padding:24px;color:#111}` +
         `h1{font-size:18px}table{border-collapse:collapse;width:100%;font-size:12px}` +
@@ -1455,10 +1455,8 @@ export function ScheduleGrid({
         `</style></head><body><h1>${printTitle}</h1><table><thead><tr>` +
         headers +
         `</tr></thead><tbody>${body}</tbody></table></body></html>`,
+      () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
-    w.document.close();
-    w.focus();
-    w.print();
   }
 
   // Per-run grid headers: pools AND bracket rounds group into contiguous

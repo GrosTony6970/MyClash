@@ -1,6 +1,11 @@
 import type { MessageTree } from '../../message-tree.js';
 
 export const organizer = {
+  // Every "Print / PDF" of the organiser opens its page in a window of its own.
+  printWindow: {
+    popupBlocked:
+      'Your browser blocked the print window. Allow pop-ups for this site and try again.',
+  },
   /**
    * The event-day paper fallback, printed blank in case the stack dies. Every string
    * here ends up on paper handed to a scorekeeper, so it must translate - the
@@ -26,8 +31,6 @@ export const organizer = {
     nothingSelected: 'Select at least one kind of sheet.',
     noData: 'This tournament has no pools or bracket yet — there is nothing to print.',
     loadError: 'Could not load the tournament data.',
-    popupBlocked:
-      'Your browser blocked the print window. Allow pop-ups for this site and try again.',
     // Bracket round names, printed as sheet headings. Kept here rather than
     // borrowed from publicApp.tournament.finalRanking so the pack owns every
     // string that lands on its paper.

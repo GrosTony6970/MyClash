@@ -23,6 +23,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   allMatchesOf,
@@ -275,15 +276,7 @@ export default function PrintPackPage() {
       sections,
     });
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      setError(t('organizer.printPack.popupBlocked'));
-      return;
-    }
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    openPrintWindow(html, () => setError(t('organizer.printWindow.popupBlocked')));
   }
 
   return (

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { openArchivedPage, type OpenedPage } from '../archived-page.fixtures';
@@ -70,5 +70,20 @@ describe('the compensation page of an archived Event', () => {
     await page.pressEverything();
 
     expect(page.writes()).toEqual([]);
+  });
+});
+
+/** Export PDF said nothing when the browser blocked its window (quick win O21). */
+describe('Export PDF of the referee pay', () => {
+  it('says the browser blocked the print window', async () => {
+    page = await openArchivedPage(<CompensationPage />, READS);
+    vi.stubGlobal('open', () => null);
+    const exportPdf = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Export PDF',
+    )!;
+    await act(async () => exportPdf.click());
+    expect(document.body.textContent).toContain(
+      'Your browser blocked the print window. Allow pop-ups for this site and try again.',
+    );
   });
 });

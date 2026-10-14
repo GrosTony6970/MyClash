@@ -36,7 +36,8 @@ import {
   type BoardWorkshop,
 } from '@myclash/schedule-core';
 import { minutesIntoDayInZone } from '@myclash/time';
-import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { tintBgClassFor, tintBorderClassFor, tintTextClassFor, useToast } from '@myclash/ui';
+import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import {
@@ -130,6 +131,7 @@ export function WorkshopScheduleBoard({
   onDeleteBreak,
 }: Props) {
   const { t } = useI18n();
+  const toast = useToast();
   const [activeDay, setActiveDay] = useState<string>(days[0] ?? '');
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- keep activeDay valid when the days list changes; behaviour-preserving
@@ -458,8 +460,6 @@ export function WorkshopScheduleBoard({
           )}</td><td>${bl.confirmedCount}/${bl.capacity ?? '∞'}</td></tr>`,
       )
       .join('');
-    const w = window.open('', '_blank');
-    if (!w) return;
     const printTitle = esc(
       t('organizer.workshopsPage.board.printTitle', { day: formatDayLabel(activeDay) }),
     );
@@ -473,17 +473,15 @@ export function WorkshopScheduleBoard({
     ]
       .map((h) => `<th>${esc(h)}</th>`)
       .join('');
-    w.document.write(
+    openPrintWindow(
       `<!doctype html><html><head><title>${printTitle}</title>` +
         `<style>body{font-family:system-ui,sans-serif;padding:24px;color:#111}h1{font-size:18px}` +
         `table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f4f6}</style></head>` +
         `<body><h1>${printTitle}</h1><table><thead><tr>` +
         headers +
         `</tr></thead><tbody>${rows}</tbody></table></body></html>`,
+      () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
-    w.document.close();
-    w.focus();
-    w.print();
   }
 
   const hourOptions = (lo: number, hi: number) => {

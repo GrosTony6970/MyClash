@@ -18,6 +18,7 @@ import {
   DataTableHead,
   DataTableRow,
   TournamentColorDot,
+  useToast,
   computeFinalRanking,
   rankingBracketShape,
   type FinalRankingEntry,
@@ -27,6 +28,7 @@ import { useFinalRankingData } from './useFinalRankingData';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { openPrintWindow } from '@/lib/print-window';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
@@ -44,6 +46,7 @@ export default function FinalRankingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const toast = useToast();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<string>(
@@ -127,17 +130,13 @@ export default function FinalRankingPage() {
 
   function printRanking() {
     if (exportRows.length === 0) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(
+    openPrintWindow(
       rankingToPrintHtml(
         t('organizer.finalRanking.printTitle', { name: tournamentName }),
         exportRows,
       ),
+      () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
-    w.document.close();
-    w.focus();
-    w.print();
   }
 
   const canExport = !loading && ranking.length > 0;

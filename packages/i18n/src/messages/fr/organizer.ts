@@ -4,6 +4,10 @@ import type { organizer as enOrganizer } from '../en/organizer.js';
 // Locked to EN's exact shape: a missing or extra key is a tsc error here,
 // which is the guarantee the single-file `satisfies Messages` used to give.
 export const organizer = {
+  printWindow: {
+    popupBlocked:
+      "Votre navigateur a bloqué la fenêtre d'impression. Autorisez les pop-ups pour ce site et réessayez.",
+  },
   printPack: {
     title: 'Dossier papier',
     breadcrumb: 'Dossier papier',
@@ -24,8 +28,6 @@ export const organizer = {
     nothingSelected: 'Sélectionnez au moins un type de feuille.',
     noData: "Ce tournoi n'a ni poules ni tableau pour l'instant — il n'y a rien à imprimer.",
     loadError: 'Impossible de charger les données du tournoi.',
-    popupBlocked:
-      "Votre navigateur a bloqué la fenêtre d'impression. Autorisez les pop-ups pour ce site et réessayez.",
     roundFinal: 'Finale',
     roundSemiFinals: 'Demi-finales',
     roundQuarterFinals: 'Quarts de finale',

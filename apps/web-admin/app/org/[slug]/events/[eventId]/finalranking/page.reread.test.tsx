@@ -1,6 +1,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ToastProvider } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { I18nProvider } from '@/i18n/I18nProvider';
@@ -121,7 +122,9 @@ async function openPage() {
   await act(async () => {
     root.render(
       <I18nProvider locale="en">
-        <FinalRankingPage />
+        <ToastProvider>
+          <FinalRankingPage />
+        </ToastProvider>
       </I18nProvider>,
     );
   });
@@ -169,5 +172,21 @@ describe('Final ranking against the 30 s re-read', () => {
     await settle();
 
     expect(container.textContent).not.toContain('Ada');
+  });
+});
+
+/** Print / PDF said nothing when the browser blocked its window (quick win O21). */
+describe('Print / PDF of the final ranking', () => {
+  it('says the browser blocked the print window', async () => {
+    vi.stubGlobal('open', () => null);
+    await openPage();
+    const print = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Print / PDF',
+    )!;
+    await act(async () => print.click());
+    expect(document.body.textContent).toContain(
+      'Your browser blocked the print window. Allow pop-ups for this site and try again.',
+    );
+    vi.unstubAllGlobals();
   });
 });

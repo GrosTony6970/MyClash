@@ -10,6 +10,8 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { openPrintWindow } from '@/lib/print-window';
+import { useToast } from '@myclash/ui';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
@@ -51,6 +53,7 @@ function slugify(name: string): string {
 
 export default function CompensationPage() {
   const { locale, t } = useI18n();
+  const toast = useToast();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
@@ -229,17 +232,13 @@ export default function CompensationPage() {
 
   function printReport() {
     if (!report || report.referees.length === 0) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(
+    openPrintWindow(
       compensationToPrintHtml(
         t('organizer.eventCompensation.exportTitle', { plan: report.planName }),
         report,
       ),
+      () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
-    w.document.close();
-    w.focus();
-    w.print();
   }
 
   const canExport = !!report && report.referees.length > 0;
