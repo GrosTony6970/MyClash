@@ -33,13 +33,13 @@ export function ProfileTabs() {
   const searchParams = useSearchParams();
   const tab: ProfileTab = parseTab(searchParams.get('tab'));
   // Only the Fighter tab holds a form. Its edits are lost when it unmounts, so a tab switch, a
-  // link or closing the page asks first (quick-win M4).
+  // link or closing the page asks first (quick-win M4). The form is the one owner of the flag:
+  // it reports every change, and "nothing unsaved" when it unmounts.
   const [fighterDirty, setFighterDirty] = useState(false);
-  const { askToLeave, confirmDialog } = useLeaveGuard(tab === 'fighter' && fighterDirty);
+  const { askToLeave, confirmDialog } = useLeaveGuard(fighterDirty);
 
   const setTab = async (next: ProfileTab) => {
     if (next === tab || !(await askToLeave())) return;
-    setFighterDirty(false);
     router.replace(next === 'fighter' ? '/me/profile' : `/me/profile?tab=${next}`, {
       scroll: false,
     });

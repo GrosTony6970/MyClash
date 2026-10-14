@@ -28,7 +28,35 @@ test('a tab switch asks first: Stay keeps the bio, Leave opens the tab', async (
   await refereeTab(page).click();
   await asks(page).getByRole('button', { name: 'Leave' }).click();
   await expect(page).toHaveURL(`${PUBLIC}/me/profile?tab=referee`);
+
+  // The bio was left with the form: from the Referee tab, nothing is unsaved.
+  await page.getByRole('link', { name: 'Settings' }).first().click();
+  await expect(page).toHaveURL(`${PUBLIC}/me/settings`);
+  await expect(asks(page)).toHaveCount(0);
   await expectNoPageIssues(issues);
+});
+
+test('a new photo saves at once: it leaves nothing unsaved', async ({ page }) => {
+  await openProfile(page);
+  await page.route('**/api/v1/fighters/me/photo', (route) =>
+    route.fulfill({ json: { url: '/brand/Logomini_nobackground.png' } }),
+  );
+  const pixel = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page
+    .getByTestId('profile-photo')
+    .locator('input[type="file"]')
+    .setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: pixel });
+  const cropper = page.getByRole('dialog', { name: 'Adjust your photo' });
+  await cropper.getByRole('button', { name: 'Save photo' }).click();
+  await expect(cropper).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Change photo' })).toBeVisible();
+
+  await refereeTab(page).click();
+  await expect(page).toHaveURL(`${PUBLIC}/me/profile?tab=referee`);
+  await expect(asks(page)).toHaveCount(0);
 });
 
 test('a link of the personal space asks first', async ({ page }) => {
