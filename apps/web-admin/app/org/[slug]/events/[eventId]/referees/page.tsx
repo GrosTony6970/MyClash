@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 
 import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
@@ -1884,16 +1885,14 @@ export default function RefereesPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-              {slug}
-            </Link>
+            <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
             <span>/</span>
-            <Link
-              href={`/org/${slug}/events/${eventId}`}
+            <EventCrumb
+              slug={slug}
+              eventId={eventId}
               className="hover:text-foreground-secondary"
-            >
-              {t('organizer.refereesPage.eventBreadcrumb')}
-            </Link>
+              fallback={t('organizer.refereesPage.eventBreadcrumb')}
+            />
             <span>/</span>
             <span className="text-foreground font-medium">
               {t('organizer.refereesPage.refereesTitle')}

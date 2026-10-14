@@ -1,7 +1,7 @@
 'use client';
 
 import { localeToBcp47 } from '@myclash/time';
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
@@ -247,13 +247,14 @@ export default function CompensationPage() {
     <main className="mx-auto p-8 max-w-[110rem]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.eventCompensation.event')}
-        </Link>
+        <EventCrumb
+          slug={slug}
+          eventId={eventId}
+          className="hover:text-foreground-secondary"
+          fallback={t('organizer.eventCompensation.event')}
+        />
         <span>/</span>
         <span className="text-foreground font-medium">
           {t('organizer.eventCompensation.breadcrumb')}

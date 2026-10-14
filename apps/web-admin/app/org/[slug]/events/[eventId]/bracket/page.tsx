@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import {
   BracketView,
   HelpTooltip,
@@ -1068,16 +1069,14 @@ export default function BracketPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-              {slug}
-            </Link>
+            <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
             <span>/</span>
-            <Link
-              href={`/org/${slug}/events/${eventId}`}
+            <EventCrumb
+              slug={slug}
+              eventId={eventId}
               className="hover:text-foreground-secondary"
-            >
-              {t('organizer.bracketPage.breadcrumbEvent')}
-            </Link>
+              fallback={t('organizer.bracketPage.breadcrumbEvent')}
+            />
             <span>/</span>
             <span className="text-foreground font-medium">
               {t('organizer.bracketPage.breadcrumbBracket')}

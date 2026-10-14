@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import {
   DataTable,
   DataTableCell,
@@ -146,16 +146,14 @@ export default function FinalRankingPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-muted">
-            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-              {slug}
-            </Link>
+            <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
             <span>/</span>
-            <Link
-              href={`/org/${slug}/events/${eventId}`}
+            <EventCrumb
+              slug={slug}
+              eventId={eventId}
               className="hover:text-foreground-secondary"
-            >
-              {t('organizer.finalRanking.breadcrumbEvent')}
-            </Link>
+              fallback={t('organizer.finalRanking.breadcrumbEvent')}
+            />
             <span>/</span>
             <span className="font-medium text-foreground">{t('organizer.finalRanking.title')}</span>
           </div>

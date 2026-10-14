@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { useParams } from 'next/navigation';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -48,13 +48,14 @@ export default function EventClubsPage() {
   return (
     <main className="mx-auto max-w-[110rem] p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-muted">
-        <Link href={`/org/${slug}`} className="hover:text-info">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-info" />
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-info">
-          {t('organizer.shell.nav.eventOverview')}
-        </Link>
+        <EventCrumb
+          slug={slug}
+          eventId={eventId}
+          className="hover:text-info"
+          fallback={t('organizer.shell.nav.eventOverview')}
+        />
         <span>/</span>
         <span className="font-medium text-foreground">{t('organizer.shell.nav.clubs')}</span>
       </div>

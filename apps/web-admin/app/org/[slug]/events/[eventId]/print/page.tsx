@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { sideColorsFor } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
@@ -282,13 +282,14 @@ export default function PrintPackPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="mb-1 flex items-center gap-2 text-sm text-muted">
-        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.finalRanking.breadcrumbEvent')}
-        </Link>
+        <EventCrumb
+          slug={slug}
+          eventId={eventId}
+          className="hover:text-foreground-secondary"
+          fallback={t('organizer.finalRanking.breadcrumbEvent')}
+        />
         <span>/</span>
         <span className="font-medium text-foreground">{t('organizer.printPack.breadcrumb')}</span>
       </div>

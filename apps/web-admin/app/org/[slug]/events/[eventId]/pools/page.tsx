@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import {
   ConfirmDialog,
   HelpTooltip,
@@ -564,16 +565,14 @@ export default function PoolsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-              {slug}
-            </Link>
+            <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
             <span>/</span>
-            <Link
-              href={`/org/${slug}/events/${eventId}`}
+            <EventCrumb
+              slug={slug}
+              eventId={eventId}
               className="hover:text-foreground-secondary"
-            >
-              {t('organizer.phaseVisibility.breadcrumbEvent')}
-            </Link>
+              fallback={t('organizer.phaseVisibility.breadcrumbEvent')}
+            />
             <span>/</span>
             <span className={selectedTournamentObj ? 'text-muted' : 'text-foreground font-medium'}>
               {t('organizer.phaseVisibility.breadcrumbPools')}

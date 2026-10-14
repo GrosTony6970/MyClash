@@ -17,7 +17,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { TournamentColorDot } from '@myclash/ui';
 import { parseHashTab } from '../pools/parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -134,16 +134,14 @@ export default function SwissPage() {
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-muted">
-            <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-              {slug}
-            </Link>
+            <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
             <span>/</span>
-            <Link
-              href={`/org/${slug}/events/${eventId}`}
+            <EventCrumb
+              slug={slug}
+              eventId={eventId}
               className="hover:text-foreground-secondary"
-            >
-              {t('organizer.phaseVisibility.breadcrumbEvent')}
-            </Link>
+              fallback={t('organizer.phaseVisibility.breadcrumbEvent')}
+            />
             <span>/</span>
             <span className={selected ? 'text-muted' : 'font-medium text-foreground'}>
               {t('organizer.swiss.page.title')}

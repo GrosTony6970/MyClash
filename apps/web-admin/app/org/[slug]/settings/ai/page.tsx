@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { OrgCrumb } from '@/components/Crumbs';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AiKeysManager } from '@myclash/ui';
@@ -138,9 +138,7 @@ export default function OrgAISettingsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl p-8">
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
         <span>/</span>
         <span className="text-foreground font-medium">{t('admin.aiSettings.org.breadcrumb')}</span>
       </div>

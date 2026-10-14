@@ -8,6 +8,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { OrgCrumb } from '@/components/Crumbs';
 import { useI18n } from '@myclash/next-i18n/client';
 import type {
   CsvImportReport,
@@ -280,9 +281,7 @@ export default function CsvImportPage() {
     <main className="mx-auto p-8 max-w-2xl">
       {/* Header */}
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
         <span>/</span>
         <Link
           href={`/org/${slug}/events/${eventId}/persons`}

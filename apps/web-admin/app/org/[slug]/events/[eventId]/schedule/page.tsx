@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import type { GenerateResult } from '@myclash/types';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
@@ -55,13 +56,14 @@ export default function SchedulePage() {
       <div className="px-8 pt-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted mb-1">
-          <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-            {slug}
-          </Link>
+          <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
           <span>/</span>
-          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-            {t('organizer.schedulePage.breadcrumbEvent')}
-          </Link>
+          <EventCrumb
+            slug={slug}
+            eventId={eventId}
+            className="hover:text-foreground-secondary"
+            fallback={t('organizer.schedulePage.breadcrumbEvent')}
+          />
           <span>/</span>
           <span className="text-foreground font-medium">
             {t('organizer.schedulePage.breadcrumbSchedule')}

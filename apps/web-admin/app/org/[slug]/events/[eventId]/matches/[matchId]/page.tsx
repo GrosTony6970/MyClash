@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { FORFEIT_REASONS, OVERRIDE_REASONS, isOverrideReason } from '@myclash/rulesets';
@@ -503,13 +503,14 @@ export default function MatchDetailPage() {
     <main className="mx-auto w-full max-w-4xl p-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
-          {slug}
-        </Link>
+        <OrgCrumb slug={slug} className="hover:text-foreground-secondary" />
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-foreground-secondary">
-          {t('organizer.matchDetail.breadcrumbEvent')}
-        </Link>
+        <EventCrumb
+          slug={slug}
+          eventId={eventId}
+          className="hover:text-foreground-secondary"
+          fallback={t('organizer.matchDetail.breadcrumbEvent')}
+        />
         <span>/</span>
         <span className="text-foreground font-medium">
           {summary?.roundCode ??
