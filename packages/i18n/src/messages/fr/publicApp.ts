@@ -988,16 +988,18 @@ export const publicApp = {
     deleteSubtitle:
       'Cette action est définitive. Votre connexion et vos informations personnelles sont supprimées, et vos profils déliés. Votre nom reste sur les résultats de compétition publiés, qui constituent un registre public.',
     deleteAction: 'Supprimer mon compte',
-    deleteModalTitle: 'Tapez DELETE pour confirmer',
+    // Le mot tapé pour confirmer une suppression, dans la langue du lecteur (opérateur, 2026-10-14).
+    deleteWord: 'SUPPRIMER',
+    deleteModalTitle: 'Tapez {word} pour confirmer',
     deleteModalBody:
-      'Entrez votre mot de passe actuel et tapez DELETE (majuscules) pour supprimer définitivement ce compte. Vos résultats de compétition conservent votre nom.',
-    deleteConfirmationLabel: 'Tapez DELETE pour confirmer',
+      'Entrez votre mot de passe actuel et tapez {word} pour supprimer définitivement ce compte. Vos résultats de compétition conservent votre nom.',
+    deleteConfirmationLabel: 'Tapez {word} pour confirmer',
     deleteConfirmAction: 'Supprimer le compte',
     errors: {
       wrongCurrentPassword: 'Mot de passe actuel incorrect.',
       changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
       tooManyTries: 'Trop de tentatives. Attendez une heure, puis réessayez.',
-      confirmationMismatch: 'Tapez DELETE (majuscules) dans le champ de confirmation.',
+      confirmationMismatch: "La confirmation n'a pas été acceptée. Tapez le mot à nouveau.",
       deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
       setPasswordLinkFailed: "Impossible d'envoyer le lien. Réessayez dans un instant.",
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',

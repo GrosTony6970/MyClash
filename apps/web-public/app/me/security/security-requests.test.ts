@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   accountDeletionRefusalKey,
+  DELETE_CONFIRMATION,
   passwordChangeRefusalKey,
   passwordSetLinkRefusalKey,
   readSecurityStatus,
@@ -52,7 +53,7 @@ afterEach(() => {
 
 const DOORS = {
   'the password change': () => requestPasswordChange(API, 'current', 'A-much-Longer-passw0rd!'),
-  'the account deletion': () => requestAccountDeletion(API, 'current', 'DELETE'),
+  'the account deletion': () => requestAccountDeletion(API, 'current'),
 };
 
 describe.each(Object.entries(DOORS))('%s', (_door, ask) => {
@@ -114,6 +115,17 @@ describe.each(Object.entries(DOORS))('%s', (_door, ask) => {
     const [, init] = fetched.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('include');
     expect(JSON.parse(String(init.body))).toMatchObject({ currentPassword: 'current' });
+  });
+});
+
+describe('the word a deletion sends', () => {
+  it("is the API's own, whatever word the person typed", () => {
+    const dto = readFileSync(
+      join(__dirname, '../../../../api/src/modules/auth/dto/security.dto.ts'),
+      'utf8',
+    );
+    expect(dto).toContain("confirmation: z.enum(['DELETE']),");
+    expect(DELETE_CONFIRMATION).toBe('DELETE');
   });
 });
 
@@ -351,7 +363,7 @@ describe('the security page', () => {
 
   it('asks both doors through the request module, with no fetch of its own for them', () => {
     expect(page).toContain('await requestPasswordChange(apiUrl, currentPassword, newPassword)');
-    expect(page).toContain('await requestAccountDeletion(apiUrl, currentPassword, confirmation)');
+    expect(page).toContain('await requestAccountDeletion(apiUrl, currentPassword)');
     expect(page).toContain('setError(t(passwordChangeRefusalKey(answer)));');
     expect(page).toContain('setError(t(accountDeletionRefusalKey(answer)));');
     expect(page).not.toContain('/api/v1/me/change-password');

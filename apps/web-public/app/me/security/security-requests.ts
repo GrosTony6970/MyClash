@@ -121,15 +121,20 @@ export async function requestPasswordChange(
   return answerOf(result);
 }
 
+/**
+ * The word the API's DTO takes (`apps/api/src/modules/auth/dto/security.dto.ts`, pinned by a
+ * test). The person types the word of their own language; the page always sends this one.
+ */
+export const DELETE_CONFIRMATION = 'DELETE';
+
 export async function requestAccountDeletion(
   apiUrl: string,
   currentPassword: string,
-  confirmation: string,
 ): Promise<SecurityAnswer> {
   return answerOf(
     await apiRequest(apiUrl, '/api/v1/me/account', {
       method: 'DELETE',
-      body: { currentPassword, confirmation },
+      body: { currentPassword, confirmation: DELETE_CONFIRMATION },
     }),
   );
 }

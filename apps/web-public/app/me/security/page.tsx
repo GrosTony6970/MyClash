@@ -21,6 +21,7 @@ import {
   type SecurityStatus,
 } from './security-requests';
 import { SessionEnded } from './SessionEnded';
+import { deleteWordTyped } from './delete-word';
 
 export default function SecurityPage() {
   const { t } = useI18n();
@@ -213,10 +214,11 @@ function DeleteAccountSection({
   const [error, setError] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
 
-  // Password re-auth only for accounts that have a password; Google-only
-  // accounts delete via the typed confirmation alone.
+  // The reader's own word (DELETE, SUPPRIMER), in any case (quick-win M3). Password re-auth only
+  // for accounts that have a password; Google-only accounts delete via the typed word alone.
+  const word = t('publicApp.security.deleteWord');
   const canSubmit =
-    confirmation === 'DELETE' && (status.hasPassword ? Boolean(currentPassword) : true);
+    deleteWordTyped(confirmation, word) && (status.hasPassword ? Boolean(currentPassword) : true);
 
   async function submit(): Promise<void> {
     setBusy(true);
@@ -224,7 +226,7 @@ function DeleteAccountSection({
     setSessionEnded(false);
     // Neither call throws: the request module answers a code, and the way out of a
     // deleted account catches its own faults. The button stays busy while the page leaves.
-    const answer = await requestAccountDeletion(apiUrl, currentPassword, confirmation);
+    const answer = await requestAccountDeletion(apiUrl, currentPassword);
     if (answer !== 'ok') {
       setBusy(false);
       if (answer === 'session_ended') setSessionEnded(true);
@@ -254,12 +256,14 @@ function DeleteAccountSection({
           className="mt-3 rounded-md border border-danger/40 bg-danger/10 p-4"
           role="alertdialog"
           aria-modal="true"
-          aria-label={t('publicApp.security.deleteModalTitle')}
+          aria-label={t('publicApp.security.deleteModalTitle', { word })}
         >
           <p className="text-sm font-bold text-danger">
-            {t('publicApp.security.deleteModalTitle')}
+            {t('publicApp.security.deleteModalTitle', { word })}
           </p>
-          <p className="mt-2 text-sm text-danger">{t('publicApp.security.deleteModalBody')}</p>
+          <p className="mt-2 text-sm text-danger">
+            {t('publicApp.security.deleteModalBody', { word })}
+          </p>
           <form
             className="mt-3 space-y-3"
             noValidate
@@ -286,13 +290,13 @@ function DeleteAccountSection({
             )}
             <label className="block">
               <span className="text-sm font-semibold text-foreground">
-                {t('publicApp.security.deleteConfirmationLabel')}
+                {t('publicApp.security.deleteConfirmationLabel', { word })}
               </span>
               <input
                 type="text"
                 value={confirmation}
                 onChange={(e) => setConfirmation(e.target.value)}
-                placeholder="DELETE"
+                placeholder={word}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm uppercase text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                 autoComplete="off"
               />

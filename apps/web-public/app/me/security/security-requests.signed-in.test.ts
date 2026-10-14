@@ -90,7 +90,7 @@ describe('a door that counted too many tries', () => {
     expect(await requestPasswordChange(API, 'current', 'A-much-Longer-passw0rd!')).toBe(
       'throttled',
     );
-    expect(await requestAccountDeletion(API, 'current', 'DELETE')).toBe('throttled');
+    expect(await requestAccountDeletion(API, 'current')).toBe('throttled');
     expect(passwordChangeRefusalKey('throttled')).toBe('publicApp.security.errors.tooManyTries');
     expect(accountDeletionRefusalKey('throttled')).toBe('publicApp.security.errors.tooManyTries');
   });

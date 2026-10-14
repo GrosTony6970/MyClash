@@ -981,17 +981,19 @@ export const publicApp = {
     deleteSubtitle:
       'This is permanent. Your sign-in and personal details are removed, and your profiles are unlinked. Your name stays on published competition results, which are a public record.',
     deleteAction: 'Delete my account',
-    deleteModalTitle: 'Type DELETE to confirm',
+    // The word typed to confirm a deletion, in the reader's language (operator, 2026-10-14).
+    deleteWord: 'DELETE',
+    deleteModalTitle: 'Type {word} to confirm',
     deleteModalBody:
-      'Enter your current password and type DELETE (uppercase) to permanently remove this account. Your competition results keep your name.',
-    deleteConfirmationLabel: 'Type DELETE to confirm',
+      'Enter your current password and type {word} to permanently remove this account. Your competition results keep your name.',
+    deleteConfirmationLabel: 'Type {word} to confirm',
     deleteConfirmAction: 'Delete account',
     errors: {
       wrongCurrentPassword: 'Current password is incorrect.',
       changePasswordFailed: 'Could not update the password. Try again.',
       // Ten checks of a current password an hour, per account (ruling 359).
       tooManyTries: 'Too many tries. Wait an hour, then try again.',
-      confirmationMismatch: 'Type DELETE (uppercase) in the confirmation field.',
+      confirmationMismatch: 'The confirmation was not accepted. Type the word again.',
       deleteFailed: 'Could not delete the account. Try again.',
       setPasswordLinkFailed: 'Could not send the link. Try again in a moment.',
       network: 'Could not reach the MyClash server. Try again.',
