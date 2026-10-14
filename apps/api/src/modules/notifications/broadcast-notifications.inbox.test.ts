@@ -19,7 +19,7 @@ const RECIPIENT_ROW = {
     title: 'Piste 3 delayed',
     body: '20 minutes.',
     created_at: '2026-10-14T07:12:00Z',
-    events: { slug: 'fal', name: 'FAL 2026', timezone: 'Europe/Paris' },
+    events: { slug: 'fal', name: 'FAL 2026', timezone: 'Europe/Lisbon' },
   },
 };
 
@@ -55,7 +55,7 @@ describe('BroadcastNotificationsService.listUserBroadcasts', () => {
         eventId: 'event-1',
         eventSlug: 'fal',
         eventName: 'FAL 2026',
-        eventTimezone: 'Europe/Paris',
+        eventTimezone: 'Europe/Lisbon',
         severity: 'warning',
         targetType: 'all',
         title: 'Piste 3 delayed',

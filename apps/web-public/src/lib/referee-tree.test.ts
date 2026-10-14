@@ -55,13 +55,18 @@ describe('buildRefereeTree order', () => {
     expect(names(buildRefereeTree(history, '?'))).toEqual(['A', 'B']);
   });
 
-  it('puts an Event with no planned time last', () => {
-    const history = [
+  it('puts an Event with no planned time last, whichever comes first in the history', () => {
+    const noTime = [
       bout({ eventId: 'ev-x', eventName: 'No time', scheduledAt: null }),
       bout({ eventId: 'ev-x', eventName: 'No time', scheduledAt: null }),
-      bout({}),
     ];
-    expect(names(buildRefereeTree(history, '?'))).toEqual(['Open 2025', 'No time']);
+    const timed = [bout({})];
+    for (const history of [
+      [...noTime, ...timed],
+      [...timed, ...noTime],
+    ]) {
+      expect(names(buildRefereeTree(history, '?'))).toEqual(['Open 2025', 'No time']);
+    }
   });
 
   it('keeps the bigger Event first when two share the same latest time', () => {
