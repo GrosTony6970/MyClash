@@ -17,14 +17,13 @@ import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
 import {
-  assignFailureText,
   lockRefusal,
   type LockRefusedDuty,
   type PickerReason,
   type RefereeConflictEntry,
 } from '@/lib/referee-reasons';
 import { BoardCandidatePicker } from './_components/BoardCandidatePicker';
-import type { AssignAnswer } from './_components/useAssignmentBoard';
+import { postAssignment, type AssignAnswer } from './_components/assign-referee';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
@@ -977,19 +976,15 @@ function AssignmentsTab({
   ): Promise<AssignAnswer> {
     setRunning(true);
     try {
-      const r = await apiRequest<AssignmentBoard>(
-        apiUrl,
-        `/api/v1/events/${eventId}/referee-assignments`,
-        { method: 'POST', body: { poolId, role, personId, ...(confirm ? { confirm } : {}) } },
-      );
-      if (!r.ok) {
-        // The one checker refuses by reason (ADR-016) — the sentence the operator
-        // needs in order to pick somebody else, or confirm. The picker shows it (O8).
-        const failed = t('organizer.refereesPage.assignmentApplyFailed');
-        return { assigned: false, refusal: assignFailureText(t, r, failed) };
+      const failed = t('organizer.refereesPage.assignmentApplyFailed');
+      const pick = { poolId, role, personId, confirm };
+      const sent = await postAssignment<AssignmentBoard>(apiUrl, eventId, pick, t, failed);
+      if (sent.board) {
+        setBoard(sent.board);
+        // An older refusal's line would read as if this assignment failed.
+        setError(null);
       }
-      setBoard(r.data);
-      return { assigned: true, refusal: null };
+      return sent.answer;
     } finally {
       setRunning(false);
     }

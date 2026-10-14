@@ -21,7 +21,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { assignFailureText, type PickerReason } from '@/lib/referee-reasons';
+import type { PickerReason } from '@/lib/referee-reasons';
+import { postAssignment, type AssignAnswer } from './assign-referee';
 export interface AssignmentBoardCandidate {
   userId: string | null;
   /** `global_persons.id`: the referee's identity, and what an assign sends. */
@@ -99,9 +100,7 @@ interface RefereeSkill {
   color: string;
 }
 
-/** What an assign came to. `refusal` is null when there are no words (an aborted send). */
-export type AssignAnswer =
-  { assigned: true; refusal: null } | { assigned: false; refusal: string | null };
+export type { AssignAnswer };
 
 export interface UseAssignmentBoard {
   board: AssignmentBoard | null;
@@ -231,18 +230,20 @@ export function useAssignmentBoard(
     ): Promise<AssignAnswer> => {
       setBusy(true);
       try {
-        const r = await apiRequest<AssignmentBoard>(
+        const pick = { poolId, role, personId, confirm };
+        const sent = await postAssignment<AssignmentBoard>(
           apiUrl,
-          `/api/v1/events/${eventId}/referee-assignments`,
-          { method: 'POST', body: { poolId, role, personId, ...(confirm ? { confirm } : {}) } },
+          eventId,
+          pick,
+          t,
+          messages.mutationFailed,
         );
-        if (!r.ok) {
-          // The one checker refuses by reason (ADR-016) — the sentence the operator
-          // needs in order to pick somebody else, or confirm.
-          return { assigned: false, refusal: assignFailureText(t, r, messages.mutationFailed) };
+        if (sent.board) {
+          setBoard(sent.board);
+          // An older refusal's line would read as if this assignment failed.
+          setError(null);
         }
-        setBoard(r.data);
-        return { assigned: true, refusal: null };
+        return sent.answer;
       } finally {
         setBusy(false);
       }

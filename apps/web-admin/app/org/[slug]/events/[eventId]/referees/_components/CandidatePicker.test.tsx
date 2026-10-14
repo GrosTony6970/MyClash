@@ -200,6 +200,25 @@ describe('the picker of a board', () => {
     expect(pickButtons().every((button) => !button.disabled)).toBe(true);
   });
 
+  it('sends one assignment for two clicks that land before the screen draws again', async () => {
+    const assign = vi.fn(() => new Promise<AssignAnswer>(() => undefined));
+    await open(assign);
+    await act(async () => {
+      pickButtons()[0]!.click();
+      pickButtons()[1]!.click();
+    });
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot be cancelled while an assignment is out: its refusal would show nowhere', async () => {
+    await open(vi.fn(() => new Promise<AssignAnswer>(() => undefined)));
+    await pickFirst();
+    const cancel = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((b) => b.textContent === 'Cancel')!;
+    expect(cancel.disabled).toBe(true);
+  });
+
   it('offers nothing to pick while the board is busy', async () => {
     await open(
       vi.fn(async () => SAVED),

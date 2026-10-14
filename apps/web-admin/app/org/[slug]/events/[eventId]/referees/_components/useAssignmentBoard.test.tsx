@@ -108,6 +108,31 @@ describe('useAssignmentBoard.manualAssign', () => {
     expect(hook.error).toBeNull();
   });
 
+  it('clears an older refusal line once an assignment is saved (review m2)', async () => {
+    const served = vi.mocked(apiRequest).getMockImplementation()!;
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) =>
+      init?.method === 'DELETE'
+        ? ({
+            ok: false,
+            kind: 'http',
+            status: 500,
+            detail: null,
+            validationErrors: null,
+            code: null,
+            details: null,
+          } as never)
+        : served(base, path, init),
+    );
+    await act(async () => {
+      await hook.unassign('ra-1');
+    });
+    expect(hook.error).toBe('save failed');
+    await act(async () => {
+      await hook.manualAssign('pool-1', 'declarant', 'gp-lea');
+    });
+    expect(hook.error).toBeNull();
+  });
+
   it('sends the confirmation when the organiser picks from "Needs confirmation"', async () => {
     await act(async () => {
       await hook.manualAssign('pool-1', 'declarant', 'gp-lea', true);

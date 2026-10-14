@@ -60,7 +60,9 @@ export function CandidatePicker({
         <button
           type="button"
           onClick={onCancel}
-          className="text-sm text-muted hover:text-foreground"
+          // Closed while an assignment is out: its refusal would show nowhere.
+          disabled={busy}
+          className="text-sm text-muted hover:text-foreground disabled:opacity-50"
         >
           {t('organizer.refereeBoard.cancel')}
         </button>
