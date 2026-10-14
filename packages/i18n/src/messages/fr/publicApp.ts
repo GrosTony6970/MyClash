@@ -758,6 +758,11 @@ export const publicApp = {
     matchHistoryEmpty: 'Aucun match.',
     errors: {
       dobFormat: 'La date de naissance doit respecter le format affiche.',
+      fixBeforeSaving: "Rien n'a été enregistré. Corrigez les champs en rouge.",
+      yearRange: 'Saisissez une année entre {min} et {max}.',
+      medalCompetitionMissing: 'Indiquez la compétition.',
+      medalYearMissing: "Indiquez l'année.",
+      medalWeaponMissing: "Choisissez l'arme de cette médaille.",
     },
   },
   meInsight: {

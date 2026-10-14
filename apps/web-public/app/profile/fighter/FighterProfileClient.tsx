@@ -19,6 +19,13 @@ import { InsightCard } from './InsightCard';
 import { NoLinkedProfile } from './NoLinkedProfile';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
 import { matchHemaRating, medalGlyph, placeHeadline, weaponKey } from '@/lib/weapon-stats';
+import {
+  hasProblems,
+  medalRowIsEmpty,
+  PROFILE_YEAR_MIN,
+  profileFormProblems,
+  type MedalProblem,
+} from '@/lib/fighter-profile-checks';
 
 // Profile-photo upload limits. Mirrors the server cap (15 MB) and the
 // PNG/JPEG/WebP allowlist enforced by FightersService.uploadMyPhoto.
@@ -362,6 +369,14 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The year of the last Save press: from then on the form's problems show beside their fields,
+  // read live from the form (a removed medal row cannot leave its message on the next row).
+  const [checkedYear, setCheckedYear] = useState<number | null>(null);
+  const problems = checkedYear === null ? null : profileFormProblems(form, checkedYear);
+  const yearRange = t('publicApp.fighterProfile.errors.yearRange', {
+    min: PROFILE_YEAR_MIN,
+    max: checkedYear ?? PROFILE_YEAR_MIN,
+  });
   // Profile-photo upload: a picked file opens the cropper (cropImageSrc holds
   // its object URL); a successful crop uploads and updates the header preview.
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -637,22 +652,23 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     if (form.dateOfBirth.trim()) {
       const parsed = dateFormat.parse(form.dateOfBirth);
       if (!parsed) {
+        setMessage(null);
         setError(t('publicApp.fighterProfile.errors.dobFormat'));
         return;
       }
       dateOfBirthIso = parsed;
     }
-    // Year the fighter started HEMA. Send null (clear) unless it's a plausible
-    // 4-digit year in the DTO's accepted range, to avoid a 400 on partial input.
-    const practicingSinceRaw = form.practicingSince.trim();
-    const practicingSinceNum = Number(practicingSinceRaw);
-    const practicingSinceYear =
-      practicingSinceRaw &&
-      Number.isInteger(practicingSinceNum) &&
-      practicingSinceNum >= 1900 &&
-      practicingSinceNum <= 2100
-        ? practicingSinceNum
-        : null;
+    // A half-typed year or an unfinished medal stops the save and is shown beside its field
+    // (quick-win M1): sending it would clear the year or delete the medal on the server.
+    const thisYear = new Date().getFullYear();
+    setCheckedYear(thisYear);
+    if (hasProblems(profileFormProblems(form, thisYear))) {
+      setMessage(null);
+      setError(t('publicApp.fighterProfile.errors.fixBeforeSaving'));
+      return;
+    }
+    // Checked above: an empty start year clears it, any other is a year in range.
+    const practicingSince = form.practicingSince.trim();
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -673,7 +689,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         websiteUrl: form.websiteUrl.trim() || null,
         instagramUrl: form.instagramUrl.trim() || null,
         youtubeUrl: form.youtubeUrl.trim() || null,
-        practicingSinceYear,
+        practicingSinceYear: practicingSince ? Number(practicingSince) : null,
         publicVisibility: form.visibility,
         listedInDirectory: form.listedInDirectory,
         // Never send an indexed-but-unlisted pair: the DTO rejects it and
@@ -684,9 +700,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         secondaryClubs: form.secondaryClubs.map(toClubInput),
         previousClubs: form.previousClubs.map(toClubInput),
         weapons: selectedWeaponRows,
-        // Drop incomplete rows client-side; the DTO enforces the rest.
+        // A row with nothing typed in it is dropped; an unfinished one stopped the save above.
         medals: form.medals
-          .filter((medal) => medal.competition.trim() && medal.weapon && Number(medal.year))
+          .filter((medal) => !medalRowIsEmpty(medal))
           .map((medal) => ({
             competition: medal.competition.trim(),
             year: Number(medal.year),
@@ -835,6 +851,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
               updateField('practicingSince', value.replace(/[^\d]/g, '').slice(0, 4))
             }
             placeholder={t('publicApp.fighterProfile.practicingSincePlaceholder')}
+            error={problems?.practicingSince ? yearRange : undefined}
           />
         </div>
 
@@ -950,80 +967,98 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             {t('publicApp.fighterProfile.medalsImportHint')}
           </p>
           <div className="space-y-2">
-            {form.medals.map((medal, index) => (
-              <div
-                key={index}
-                className="grid gap-2 rounded-lg border border-border bg-background px-3 py-2 sm:grid-cols-[1fr_6rem_8rem_1fr_auto] sm:items-end"
-              >
-                <label className="block text-xs">
-                  <span className="text-foreground-secondary">
-                    {t('publicApp.fighterProfile.medalCompetition')}
-                  </span>
-                  <input
-                    type="text"
-                    aria-label={t('publicApp.fighterProfile.medalCompetition')}
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    value={medal.competition}
-                    onChange={(event) => updateMedal(index, { competition: event.target.value })}
-                  />
-                </label>
-                <label className="block text-xs">
-                  <span className="text-foreground-secondary">
-                    {t('publicApp.fighterProfile.medalYear')}
-                  </span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    aria-label={t('publicApp.fighterProfile.medalYear')}
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    value={medal.year}
-                    onChange={(event) => updateMedal(index, { year: event.target.value })}
-                  />
-                </label>
-                <label className="block text-xs">
-                  <span className="text-foreground-secondary">
-                    {t('publicApp.fighterProfile.medalRank')}
-                  </span>
-                  <select
-                    aria-label={t('publicApp.fighterProfile.medalRank')}
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    value={medal.rank}
-                    onChange={(event) =>
-                      updateMedal(index, { rank: Number(event.target.value) as 1 | 2 | 3 })
-                    }
-                  >
-                    <option value={1}>{t('publicApp.fighterProfile.medalRankGold')}</option>
-                    <option value={2}>{t('publicApp.fighterProfile.medalRankSilver')}</option>
-                    <option value={3}>{t('publicApp.fighterProfile.medalRankBronze')}</option>
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  <span className="text-foreground-secondary">
-                    {t('publicApp.fighterProfile.medalWeaponLabel')}
-                  </span>
-                  <select
-                    aria-label={t('publicApp.fighterProfile.medalWeaponLabel')}
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                    value={medal.weapon}
-                    onChange={(event) => updateMedal(index, { weapon: event.target.value })}
-                  >
-                    <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
-                    {weapons.map((weapon) => (
-                      <option key={weapon.id} value={weapon.name}>
-                        {weapon.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => removeMedal(index)}
-                  className="justify-self-start text-xs font-semibold text-danger hover:underline sm:pb-2 sm:justify-self-auto"
+            {form.medals.map((medal, index) => {
+              const rowProblems = problems?.medals[index] ?? [];
+              const problemsId = `medal-problems-${index}`;
+              const invalid = (...kinds: MedalProblem[]) =>
+                kinds.some((kind) => rowProblems.includes(kind))
+                  ? { 'aria-invalid': true, 'aria-describedby': problemsId }
+                  : {};
+              return (
+                <div
+                  key={index}
+                  data-testid="medal-row"
+                  className="grid gap-2 rounded-lg border border-border bg-background px-3 py-2 sm:grid-cols-[1fr_6rem_8rem_1fr_auto] sm:items-end"
                 >
-                  {t('publicApp.fighterProfile.medalRemove')}
-                </button>
-              </div>
-            ))}
+                  <label className="block text-xs">
+                    <span className="text-foreground-secondary">
+                      {t('publicApp.fighterProfile.medalCompetition')}
+                    </span>
+                    <input
+                      type="text"
+                      aria-label={t('publicApp.fighterProfile.medalCompetition')}
+                      {...invalid('competitionMissing')}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent aria-[invalid=true]:border-danger"
+                      value={medal.competition}
+                      onChange={(event) => updateMedal(index, { competition: event.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs">
+                    <span className="text-foreground-secondary">
+                      {t('publicApp.fighterProfile.medalYear')}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      aria-label={t('publicApp.fighterProfile.medalYear')}
+                      {...invalid('yearMissing', 'yearRange')}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent aria-[invalid=true]:border-danger"
+                      value={medal.year}
+                      onChange={(event) => updateMedal(index, { year: event.target.value })}
+                    />
+                  </label>
+                  <label className="block text-xs">
+                    <span className="text-foreground-secondary">
+                      {t('publicApp.fighterProfile.medalRank')}
+                    </span>
+                    <select
+                      aria-label={t('publicApp.fighterProfile.medalRank')}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent aria-[invalid=true]:border-danger"
+                      value={medal.rank}
+                      onChange={(event) =>
+                        updateMedal(index, { rank: Number(event.target.value) as 1 | 2 | 3 })
+                      }
+                    >
+                      <option value={1}>{t('publicApp.fighterProfile.medalRankGold')}</option>
+                      <option value={2}>{t('publicApp.fighterProfile.medalRankSilver')}</option>
+                      <option value={3}>{t('publicApp.fighterProfile.medalRankBronze')}</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs">
+                    <span className="text-foreground-secondary">
+                      {t('publicApp.fighterProfile.medalWeaponLabel')}
+                    </span>
+                    <select
+                      aria-label={t('publicApp.fighterProfile.medalWeaponLabel')}
+                      {...invalid('weaponMissing')}
+                      className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent aria-[invalid=true]:border-danger"
+                      value={medal.weapon}
+                      onChange={(event) => updateMedal(index, { weapon: event.target.value })}
+                    >
+                      <option value="">{t('publicApp.fighterProfile.statsForWeapon')}</option>
+                      {weapons.map((weapon) => (
+                        <option key={weapon.id} value={weapon.name}>
+                          {weapon.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeMedal(index)}
+                    className="justify-self-start text-xs font-semibold text-danger hover:underline sm:pb-2 sm:justify-self-auto"
+                  >
+                    {t('publicApp.fighterProfile.medalRemove')}
+                  </button>
+                  <MedalProblems
+                    id={problemsId}
+                    problems={rowProblems}
+                    yearRange={yearRange}
+                    t={t}
+                  />
+                </div>
+              );
+            })}
           </div>
           <button
             type="button"
@@ -1161,7 +1196,11 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
             {t('actions.save')}
           </Button>
           {message && <p className="text-sm text-success">{message}</p>}
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
         </div>
       </Card>
 
@@ -1256,6 +1295,7 @@ function Field({
   onChange,
   type = 'text',
   hint,
+  error,
   placeholder,
   maxLength,
 }: {
@@ -1264,10 +1304,13 @@ function Field({
   onChange: (value: string) => void;
   type?: string;
   hint?: string;
+  /** Why Save refused this field; shown in place of the hint. */
+  error?: string;
   placeholder?: string;
   maxLength?: number;
 }) {
   const inputId = useId();
+  const errorId = `${inputId}-error`;
   return (
     <label className="block text-sm" htmlFor={inputId}>
       <span className="text-foreground-secondary">{label}</span>
@@ -1275,14 +1318,52 @@ function Field({
         id={inputId}
         type={type}
         aria-label={label}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         placeholder={placeholder}
         maxLength={maxLength}
-        className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+        className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent aria-[invalid=true]:border-danger"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}
+      {error ? (
+        <span id={errorId} role="alert" className="mt-1 block text-xs text-danger">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="mt-1 block text-xs text-muted">{hint}</span>
+      )}
     </label>
+  );
+}
+
+const MEDAL_PROBLEM_KEYS = {
+  competitionMissing: 'publicApp.fighterProfile.errors.medalCompetitionMissing',
+  yearMissing: 'publicApp.fighterProfile.errors.medalYearMissing',
+  weaponMissing: 'publicApp.fighterProfile.errors.medalWeaponMissing',
+} as const;
+
+/** Why Save refused one medal row, under the row. `yearRange` comes worded: it carries values. */
+function MedalProblems({
+  id,
+  problems,
+  yearRange,
+  t,
+}: {
+  id: string;
+  problems: MedalProblem[];
+  yearRange: string;
+  t: (key: string) => string;
+}) {
+  if (problems.length === 0) return null;
+  return (
+    <ul id={id} role="alert" className="text-xs text-danger sm:col-span-5">
+      {problems.map((problem) => (
+        <li key={problem}>
+          {problem === 'yearRange' ? yearRange : t(MEDAL_PROBLEM_KEYS[problem])}
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -756,6 +756,11 @@ export const publicApp = {
     matchHistoryEmpty: 'No matches yet.',
     errors: {
       dobFormat: 'Date of birth must match the placeholder format.',
+      fixBeforeSaving: 'Nothing was saved. Fix the fields marked in red.',
+      yearRange: 'Enter a year from {min} to {max}.',
+      medalCompetitionMissing: 'Name the competition.',
+      medalYearMissing: 'Enter the year.',
+      medalWeaponMissing: 'Choose the weapon of this medal.',
     },
   },
   meInsight: {
