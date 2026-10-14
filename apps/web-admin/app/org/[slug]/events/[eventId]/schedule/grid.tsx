@@ -1792,6 +1792,12 @@ export function ScheduleGrid({
               type="text"
               value={newLiceName}
               onChange={(e) => setNewLiceName(e.target.value)}
+              // Enter adds the piste, as Add does, and not twice while one is out (O25).
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                if (!addLiceBusy) void addLice();
+              }}
               placeholder={t('organizer.schedulePage.grid.newLicePlaceholder')}
               maxLength={50}
               className="rounded-md border border-border px-2 py-1 text-xs"

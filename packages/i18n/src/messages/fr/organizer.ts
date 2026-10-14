@@ -80,6 +80,11 @@ export const organizer = {
     addArea: 'Ajouter',
     newAreaPlaceholder: 'Tapis 1',
     removeArea: 'Retirer',
+    removeAreaPrompt: 'Retirer la zone « {name} » ?',
+    areaLeavesIntro: "Ceux-ci n'auront plus de zone :",
+    areaLeavesNothing: "Aucune piste ni séance d'atelier ne l'utilise.",
+    areaLeavesPiste: 'Piste {name} ({event})',
+    areaLeavesSession: 'Atelier {name} ({event})',
     licesSection: 'Pistes',
     licesHelp:
       'Définissez les pistes de ce lieu une fois. Les nouveaux événements à ce lieu pre-remplissent leurs pistes à partir d’ici.',

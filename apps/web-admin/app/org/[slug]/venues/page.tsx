@@ -12,13 +12,16 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { AreaLeavesList, type AreaLeaves } from './_components/AreaLeaves';
 
 interface VenueArea {
   id: string;
   name: string;
   sort_order: number;
+  /** What removing the area would leave without one; from the club's venue list (O25). */
+  leaves?: AreaLeaves;
 }
 
 // Venue lices share the area shape (id/name/sort_order).
@@ -363,6 +366,7 @@ interface VenueFormModalProps {
 
 function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormModalProps) {
   const { locale, t } = useI18n();
+  const { confirm, confirmDialog } = useConfirm();
   const isEdit = venue !== null;
   const [name, setName] = useState(venue?.name ?? '');
   const [address, setAddress] = useState(venue?.address ?? '');
@@ -499,7 +503,13 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
   };
 
   // Add/remove work in both modes: in EDIT they hit the API immediately; in
-  // CREATE they buffer locally (temp id) and get persisted on save().
+  // CREATE they buffer locally (temp id) and get persisted on save(). A refusal
+  // says why inside the window (O25), and the next write that lands clears it.
+  const landed = <T,>(res: ApiResult<T>): res is { ok: true; data: T } => {
+    setError(res.ok ? null : failureReason(res, t) || t('organizer.venues.saveError'));
+    return res.ok;
+  };
+
   const addArea = async () => {
     const value = newArea.trim();
     if (!value) return;
@@ -508,23 +518,32 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setNewArea(nextAreaName(areas.length + 1));
       return;
     }
-    // Silent on failure by design — the operator can retry from the same field.
     const res = await apiRequest<VenueArea>(apiUrl, `/api/v1/venues/${venue!.id}/areas`, {
       method: 'POST',
       body: { name: value },
     });
-    if (!res.ok) return;
+    if (!landed(res)) return;
     setAreas([...areas, res.data]);
     setNewArea(nextAreaName(areas.length + 1));
   };
 
-  const removeArea = async (areaId: string) => {
+  // Removing an area unlinks the pistes and sessions it holds: it asks first, naming them
+  // (O25). One the window has only buffered holds nothing, and goes at once.
+  const removeArea = async (area: VenueArea) => {
     if (!isEdit) {
-      setAreas(areas.filter((a) => a.id !== areaId));
+      setAreas(areas.filter((a) => a.id !== area.id));
       return;
     }
-    const res = await apiRequest(apiUrl, `/api/v1/venue-areas/${areaId}`, { method: 'DELETE' });
-    if (res.ok) setAreas(areas.filter((a) => a.id !== areaId));
+    const sure = await confirm({
+      title: t('organizer.venues.removeAreaPrompt', { name: area.name }),
+      description: <AreaLeavesList leaves={area.leaves} />,
+      confirmLabel: t('organizer.venues.removeArea'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+    });
+    if (!sure) return;
+    const res = await apiRequest(apiUrl, `/api/v1/venue-areas/${area.id}`, { method: 'DELETE' });
+    if (landed(res)) setAreas(areas.filter((a) => a.id !== area.id));
   };
 
   const addLice = async () => {
@@ -535,12 +554,11 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setNewLice(nextLiceName(lices.length + 1));
       return;
     }
-    // Silent on failure by design — the operator can retry from the same field.
     const res = await apiRequest<VenueLice>(apiUrl, `/api/v1/venues/${venue!.id}/lices`, {
       method: 'POST',
       body: { name: value },
     });
-    if (!res.ok) return;
+    if (!landed(res)) return;
     setLices([...lices, res.data]);
     setNewLice(nextLiceName(lices.length + 1));
   };
@@ -551,7 +569,14 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       return;
     }
     const res = await apiRequest(apiUrl, `/api/v1/venue-lices/${liceId}`, { method: 'DELETE' });
-    if (res.ok) setLices(lices.filter((l) => l.id !== liceId));
+    if (landed(res)) setLices(lices.filter((l) => l.id !== liceId));
+  };
+
+  /** Enter in a "new piste" or "new area" field adds it, as its button does (O25). */
+  const enterAdds = (add: () => Promise<void>) => (event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    void add();
   };
 
   return (
@@ -654,6 +679,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
               <input
                 value={newLice}
                 onChange={(ev) => setNewLice(ev.target.value)}
+                onKeyDown={enterAdds(addLice)}
                 placeholder={t('organizer.venues.newLicePlaceholder')}
                 className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm font-normal"
               />
@@ -682,7 +708,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
                   <span>{area.name}</span>
                   <button
                     type="button"
-                    onClick={() => void removeArea(area.id)}
+                    onClick={() => void removeArea(area)}
                     className="text-xs text-danger hover:underline"
                   >
                     {t('organizer.venues.removeArea')}
@@ -694,6 +720,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
               <input
                 value={newArea}
                 onChange={(ev) => setNewArea(ev.target.value)}
+                onKeyDown={enterAdds(addArea)}
                 placeholder={t('organizer.venues.newAreaPlaceholder')}
                 className="flex-1 rounded-md border border-border px-3 py-1.5 text-sm font-normal"
               />
@@ -737,8 +764,13 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
           )}
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p className="text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
       </div>
+      {confirmDialog}
     </Modal>
   );
 }

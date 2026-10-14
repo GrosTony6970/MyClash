@@ -87,6 +87,12 @@ export const organizer = {
     addArea: 'Add',
     newAreaPlaceholder: 'Mat 1',
     removeArea: 'Remove',
+    // O25: removing an area asks first, naming what it holds.
+    removeAreaPrompt: 'Remove the area "{name}"?',
+    areaLeavesIntro: 'These will no longer have an area:',
+    areaLeavesNothing: 'No piste or workshop session uses it.',
+    areaLeavesPiste: 'Piste {name} ({event})',
+    areaLeavesSession: 'Workshop {name} ({event})',
     licesSection: 'Lices (pistes)',
     licesHelp:
       'Define this venue’s lices once. New events at this venue pre-fill their lices from here.',
