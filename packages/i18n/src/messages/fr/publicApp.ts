@@ -19,7 +19,6 @@ export const publicApp = {
     thanksTitle: 'Merci',
     thanksBody: 'Votre réponse a été enregistrée.',
   },
-  name: 'MyClash',
   eventKind: {
     clubBadge: 'Événement de club',
     clubBadgeHelp:

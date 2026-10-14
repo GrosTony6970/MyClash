@@ -17,7 +17,6 @@ export const publicApp = {
     thanksTitle: 'Thank you',
     thanksBody: 'Your answer has been recorded.',
   },
-  name: 'MyClash',
   // Shared by every public/personal surface that tags a club event (event
   // list card + row, event header, /me events), so the same sentence cannot
   // drift three ways.
