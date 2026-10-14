@@ -2,49 +2,20 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, CountryCombobox, formatCountryName } from '@myclash/ui';
-import { EVENT_KINDS, DEFAULT_EVENT_KIND, type EventKind } from '@myclash/types';
+import { Button, CountryCombobox, formatCountryName, useLeaveGuard } from '@myclash/ui';
+import { EVENT_KINDS } from '@myclash/types';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-interface CatalogueVenue {
-  id: string;
-  name: string;
-  address: string | null;
-  hosts_tournament: boolean;
-  hosts_workshop: boolean;
-  // Reusable per-venue catalogues — pre-fill the event's lices/areas when this
-  // venue is picked.
-  venue_lices?: Array<{ id: string; name: string }> | null;
-  venue_areas?: Array<{ id: string; name: string }> | null;
-}
-
-type VenueMode = 'existing' | 'new';
-
-interface WizardState {
-  step: 1 | 2 | 3 | 4;
-  name: string;
-  slug: string;
-  startDate: string;
-  endDate: string;
-  city: string;
-  country: string | null;
-  venueMode: VenueMode;
-  selectedVenueId: string | null;
-  newVenueName: string;
-  newVenueAddress: string;
-  newVenueHostsTournament: boolean;
-  newVenueHostsWorkshop: boolean;
-  liceNames: string[];
-  areaNames: string[];
-  logoUrl: string;
-  eventKind: EventKind;
-  submitting: boolean;
-  error: string | null;
-}
+import {
+  INITIAL,
+  wizardDirty,
+  type CatalogueVenue,
+  type VenueMode,
+  type WizardState,
+} from './wizard-state';
 
 type Action =
   | { type: 'SET_FIELD'; field: keyof WizardState; value: unknown }
@@ -78,28 +49,6 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 }
-
-const INITIAL: WizardState = {
-  step: 1,
-  name: '',
-  slug: '',
-  startDate: '',
-  endDate: '',
-  city: '',
-  country: null,
-  venueMode: 'new',
-  selectedVenueId: null,
-  newVenueName: '',
-  newVenueAddress: '',
-  newVenueHostsTournament: true,
-  newVenueHostsWorkshop: false,
-  liceNames: ['Lice 1', 'Lice 2'],
-  areaNames: [],
-  logoUrl: '',
-  eventKind: DEFAULT_EVENT_KIND,
-  submitting: false,
-  error: null,
-};
 
 function reducer(state: WizardState, action: Action): WizardState {
   switch (action.type) {
@@ -861,6 +810,15 @@ export default function NewEventPage() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueVenue[]>([]);
   const [catalogueLoading, setCatalogueLoading] = useState(true);
+  // O12 (ruled 2026-10-14): four steps of typing are not lost to a stray click. The wizard's
+  // own exits, a link of the site and closing the browser tab ask first.
+  const { askToLeave, confirmDialog } = useLeaveGuard(wizardDirty(state, logoFile !== null), {
+    t,
+    navigate: router.push,
+  });
+  const leaveToOrg = async () => {
+    if (await askToLeave()) router.push(`/org/${slug}`);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1122,7 +1080,7 @@ export default function NewEventPage() {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <div className="mb-6 flex items-center gap-3">
-        <Button type="button" variant="back" size="sm" onClick={() => router.push(`/org/${slug}`)}>
+        <Button type="button" variant="back" size="sm" onClick={() => void leaveToOrg()}>
           {t('organizer.newEvent.backToOrg', { slug })}
         </Button>
         <span className="text-muted">/</span>
@@ -1220,7 +1178,7 @@ export default function NewEventPage() {
           variant={state.step === 1 ? 'cancel' : 'back'}
           onClick={() => {
             if (state.step === 1) {
-              router.push(`/org/${slug}`);
+              void leaveToOrg();
             } else {
               setStepError(null);
               dispatch({ type: 'BACK' });
@@ -1247,6 +1205,7 @@ export default function NewEventPage() {
           </Button>
         )}
       </div>
+      {confirmDialog}
     </main>
   );
 }
