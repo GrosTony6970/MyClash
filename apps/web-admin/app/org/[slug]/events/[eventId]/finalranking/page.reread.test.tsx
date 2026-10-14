@@ -119,6 +119,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 async function openPage() {
@@ -191,6 +192,5 @@ describe('Print / PDF of the final ranking', () => {
     expect(document.body.textContent).toContain(
       'Your browser blocked the print window. Allow pop-ups for this site and try again.',
     );
-    vi.unstubAllGlobals();
   });
 });

@@ -83,6 +83,7 @@ describe('saving a pay plan', () => {
     page = await openEventPage(<OrgCompensationPlansPage />, READS);
     await press('Edit');
     await press('Save rates');
+    expect(page.writes()).toEqual([RATES]);
     expect(toasts()).not.toContain('Rates saved');
   });
 });
