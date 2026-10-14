@@ -116,16 +116,16 @@ Size: **S** = under about one hour, **M** = about half a day.
 
 ## M — the signed-in personal space (`apps/web-public/app/me`, `app/profile`)
 
-| #   | Today                                                                                       | Fix                                                        | What it brings                                                   | Where                                                          | Size |
-| --- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------- | ---- |
-| M1  | Profile save says "saved" while it drops a half-typed start year and incomplete medal rows. | Validate both before saving, as the birth date already is. | No medal found missing from a public profile weeks later.        | `profile/fighter/FighterProfileClient.tsx:649-655, 688-689`    | S    |
-| M2  | A refused photo shows its reason a full form-length below the photo button.                 | Show it under the photo, or as a toast.                    | The fighter knows why at once, and picks another file.           | same file `:567-627` set, `:1163` render                       | S    |
-| M3  | Typing "delete" shows as DELETE but the button stays dead.                                  | Store the upper-cased value.                               | Account deletion — a GDPR right — is not a dead end on a phone.  | `me/security/page.tsx:210, 280`                                | S    |
-| M4  | Switching profile tab discards unsaved edits.                                               | A dirty flag and `useConfirm` before the switch.           | Nobody retypes a bio after glancing at another tab.              | `me/profile/ProfileTabs.tsx:86-92`                             | M    |
-| M5  | The notification inbox has no dates, and says "empty" while loading or signed out.          | Show the time; add loading and sign-in states.             | "Piste 3 delayed 20 min" can be told from this morning's notice. | `notifications/NotificationSettingsClient.tsx:24, 98, 277-298` | S    |
-| M6  | An instructor's attendee list never retries after one failed load.                          | Clear the error flag on reopen.                            | The roster arrives on the second tap, not after a full reload.   | `me/instructor/InstructorDashboard.tsx:~560-575`               | S    |
-| M7  | Referee history is ordered by number of bouts, not by date.                                 | Sort by the latest bout.                                   | Yesterday's bouts come first.                                    | `profile/referee/RefereeProfileClient.tsx:243`                 | S    |
-| M8  | The security page is blank while loading; Enter does not submit.                            | A spinner and a real `<form>`.                             | Password managers and keyboards work.                            | `me/security/page.tsx:51-72, 129-160`                          | S    |
+| #      | Today                                                                                                            | Fix                                                        | What it brings                                                   | Where                                                          | Size |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------- | ---- |
+| ~~M1~~ | ~~Profile save says "saved" while it drops a half-typed start year and incomplete medal rows.~~ Done `db94b485`. | Validate both before saving, as the birth date already is. | No medal found missing from a public profile weeks later.        | `profile/fighter/FighterProfileClient.tsx:649-655, 688-689`    | S    |
+| ~~M2~~ | ~~A refused photo shows its reason a full form-length below the photo button.~~ Done `34918926`.                 | Show it under the photo, or as a toast.                    | The fighter knows why at once, and picks another file.           | same file `:567-627` set, `:1163` render                       | S    |
+| ~~M3~~ | ~~Typing "delete" shows as DELETE but the button stays dead.~~ Done `932c6da9`.                                  | Store the upper-cased value.                               | Account deletion — a GDPR right — is not a dead end on a phone.  | `me/security/page.tsx:210, 280`                                | S    |
+| ~~M4~~ | ~~Switching profile tab discards unsaved edits.~~ Done `dda07e4c`.                                               | A dirty flag and `useConfirm` before the switch.           | Nobody retypes a bio after glancing at another tab.              | `me/profile/ProfileTabs.tsx:86-92`                             | M    |
+| ~~M5~~ | ~~The notification inbox has no dates, and says "empty" while loading or signed out.~~ Done `de65be0c`.          | Show the time; add loading and sign-in states.             | "Piste 3 delayed 20 min" can be told from this morning's notice. | `notifications/NotificationSettingsClient.tsx:24, 98, 277-298` | S    |
+| ~~M6~~ | ~~An instructor's attendee list never retries after one failed load.~~ Done `805d8b1f`.                          | Clear the error flag on reopen.                            | The roster arrives on the second tap, not after a full reload.   | `me/instructor/InstructorDashboard.tsx:~560-575`               | S    |
+| ~~M7~~ | ~~Referee history is ordered by number of bouts, not by date.~~ Done `0c886b5b`.                                 | Sort by the latest bout.                                   | Yesterday's bouts come first.                                    | `profile/referee/RefereeProfileClient.tsx:243`                 | S    |
+| ~~M8~~ | ~~The security page is blank while loading; Enter does not submit.~~ Done `c0db46e5`.                            | A spinner and a real `<form>`.                             | Password managers and keyboards work.                            | `me/security/page.tsx:51-72, 129-160`                          | S    |
 
 ## O — the organiser (`apps/web-admin/app/org/[slug]/events/[eventId]`, shortened to `EV`)
 
@@ -1864,6 +1864,97 @@ Named, not fixed (each read in code):
 - The fighter profile's share card is still hidden on phones on the public fighter page.
 - Not provable here: the share panel itself on a real phone. A story records the call the page
   makes.
+
+## Built on 2026-10-14: the M rows, the signed-in personal space
+
+The operator picked the M rows. All eight are built, reviewed and falsified: eighteen commits,
+`5177d8ed` to `371517d5`. The recon read every row again in code first: all eight faults were
+still there, and two were worse than the row said (M1, M5).
+
+The operator ruled six times, each asked with a story:
+
+| Asked                                                                                                                                          | Ruling                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Léa reads her inbox at home in Montréal; the message was sent at 09:12 in Lyon. Which time does she see?                                       | **The Event's clock**, with the zone's name. The server adds the Event's zone to each message.                                                               |
+| A push tap opens `/notifications`, a bare page with no personal space. Her login is two hours old: the read is refused, the page says "empty". | **Send the phone on to `/me/notifications`**, where the personal space renews the login.                                                                     |
+| Léa types a long bio and does not save. Which ways out ask first?                                                                              | **A tab switch, a link of the personal space, and closing or reloading the browser tab.**                                                                    |
+| A 12 MB photo is refused. Where does the reason show?                                                                                          | **Under the photo.** A failed upload closes the cropper.                                                                                                     |
+| Camille reads the site in French and deletes her account. Which word does she type?                                                            | **SUPPRIMER** in French, **DELETE** in English, small letters and spaces accepted. The page sends DELETE.                                                    |
+| Léa adds a medal and forgets its weapon, then presses Save.                                                                                    | **Stop and point at the row.** A row with nothing typed is dropped. Years: **2000 to this year**, on the server too, for "practising since" and for a medal. |
+
+What people get:
+
+- **M1** (`5177d8ed` server, `db94b485` page). Save stops on a half-typed year or an unfinished
+  medal, and says why beside the field: a year from 2000 to this year, the competition, the year,
+  the weapon. It used to say "Profile saved." while the server CLEARED the start year ("20" was
+  sent as nothing) or DELETED a saved medal (medals are replaced whole). The server takes the same
+  range, on the fighter's own route and on the organiser's.
+- **M2** (`34918926`). A refused photo says why under the photo; a failed upload closes the
+  cropper, which used to stay open over the message.
+- **M3** (`932c6da9`, `cff6fd87`). The word that confirms a deletion is the reader's own, in any
+  case. A refused deletion no longer blames the word: the page always sends DELETE.
+- **M4** (`dda07e4c`, `d2d5bb29`, `f55b9995`, `dbf041b2`). An unsaved profile asks "Leave without
+  saving?" before a tab switch or a link of the site, and the browser asks before the tab closes or
+  reloads. A word typed while a save is out is kept, and stays unsaved. A new photo never counts as
+  unsaved: it saves at once.
+- **M5** (`c199db2a` server, `de65be0c` page). The inbox shows each message's time on its Event's
+  clock ("14 Oct, 09:12 CEST"), a placeholder while it reads, and renews a lapsed login; a login
+  that did not come back goes to sign-in. `/notifications` sends the phone on to
+  `/me/notifications`: every push already sent still opens the inbox.
+- **M6** (`805d8b1f`, `39bebaad`). An instructor's roster is read again after a failed read. An
+  older read that answers after an accept's newer one is not shown.
+- **M7** (`0c886b5b`). Referee history lists the Event of the latest bout first, and the latest
+  Tournament first inside it.
+- **M8** (`c0db46e5`). The security page shows a spinner while it reads. Change password, change
+  email and the delete dialog are real forms: Enter submits them, and a password manager is told
+  whose password it is.
+
+### The review and the seeded breaks
+
+One cold review read the first eleven commits: no blocker, one major, three minors, four nits.
+Each was read again in code before its fix.
+
+- **On a phone, the menu drawer stayed open** under the page a guarded link opened (`d2d5bb29`).
+  The guard stopped the click from reaching the link's own handler, which closes the drawer. Next's
+  `Link` gives up on a prevented click by itself: the guard now only prevents it.
+- **A word typed while the profile saved was lost** (`f55b9995`). Older than this work, but the new
+  guard promised that unsaved edits are kept.
+- **A refused deletion said "type the word again"** (`cff6fd87`): impossible, the page sends the
+  word itself.
+- **An older roster read could answer last** and put an accepted fighter back on the waitlist
+  (`39bebaad`).
+- Nits: a fallback that cannot fire removed from the API (`fd0d3b85`); a sentence built only when
+  shown.
+
+83 seeded breaks ran over the rows and their fixes: 77 red. Of the six green ones, three were
+three copies of one rule ("a tab that left the form holds nothing unsaved"): two copies are gone,
+the form is the one owner, and a story holds it (`dbf041b2`). One was a rule no story used (a
+photo upload is not an unsaved edit): a story now holds it. Two were tests whose value equalled
+the break's (`371517d5`). The five ran again: red. 82 cases, 82 red.
+
+Then the gate chain (36 of 36), API coverage (green) and the whole browser suite (400 passed,
+10.8 min; 29 stories are new). No migration, no route, no OpenAPI change.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **"This year" on the server is the year at UTC+14**, the latest year anywhere, so a phone just
+  past New Year is not refused. The page checks the phone's own year.
+- **A profile saved earlier with a year before 2000 cannot be saved** until that year is changed.
+  The page points at the field.
+- **An empty "practising since" still clears it.**
+- **The browser's Back button is not guarded.** Next has no clean way to stop it.
+- **Referee history is ordered by the bouts' planned time**, not their end time: the history
+  carries no end time, and this needs no server change.
+- **A new message in French shows its zone as "UTC+2"**, where English shows "CEST": that is the
+  browser's own short name.
+
+Named, not fixed (each read in code):
+
+- The delete dialog asks a Google-only account for "your current password", which it has not.
+- A fighter can write medals to the database directly (the table's owner policy, migration 0123):
+  the year range holds at the API only.
+- The referee history and the fighter profile read by raw `fetch`: no login renewal there.
+- A guarded link that carries its own `replace` or `scroll` loses them: no profile link has one.
 
 ## Still not checked
 
