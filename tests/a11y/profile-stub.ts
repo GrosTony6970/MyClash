@@ -98,6 +98,10 @@ export async function openProfile(page: Page, fixture: ProfileFixture = {}): Pro
   // No insight written yet: the API answers null.
   await page.route('**/api/v1/me/insight*', (route) => route.fulfill({ json: null }));
   await page.route('**/api/v1/weapons', (route) => route.fulfill({ json: WEAPONS }));
+  // The Referee tab: a fighter who has refereed nothing yet.
+  await page.route('**/api/v1/fighters/me/referee-stats', (route) =>
+    route.fulfill({ json: { history: [], bestBuddies: [] } }),
+  );
   await page.route('**/api/v1/fighters/me/dashboard', (route) =>
     route.fulfill({ json: dashboardOf(fixture) }),
   );

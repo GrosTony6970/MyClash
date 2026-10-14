@@ -423,6 +423,11 @@ export const publicApp = {
     },
     profile: {
       tabsLabel: 'Basculer entre les profils combattant, arbitre et atelier',
+      leaveTitle: 'Quitter sans enregistrer ?',
+      leaveBody:
+        'Vos modifications de ce profil ne sont pas encore enregistrées. Elles seront perdues.',
+      leaveConfirm: 'Quitter',
+      leaveCancel: 'Rester',
     },
     events: {
       title: 'Mes événements',

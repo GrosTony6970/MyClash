@@ -359,12 +359,31 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
   };
 }
 
-export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
+/** The form differs from what the server last gave. The photo saves at once: it never counts. */
+function formIsDirty(form: FormState, saved: FormState | null): boolean {
+  if (!saved) return false;
+  return JSON.stringify({ ...form, photoUrl: '' }) !== JSON.stringify({ ...saved, photoUrl: '' });
+}
+
+export function FighterProfileClient({
+  apiUrl,
+  onDirtyChange,
+}: {
+  apiUrl: string;
+  /** Told whenever the form starts or stops holding unsaved edits (quick-win M4). */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const { t, locale } = useI18n();
   const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [weapons, setWeapons] = useState<WeaponCatalogEntry[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
+  // What the server last gave (load or save): the form is dirty when it differs.
+  const [savedForm, setSavedForm] = useState<FormState | null>(null);
+  const dirty = formIsDirty(form, savedForm);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -458,7 +477,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         setDashboard(nextDashboard);
         setWeapons(nextWeapons);
         setError(null);
-        setForm(formFromProfile(nextDashboard.profile, dateFormat.format));
+        const loaded = formFromProfile(nextDashboard.profile, dateFormat.format);
+        setForm(loaded);
+        setSavedForm(loaded);
       })
       .catch(() => {
         setError(t('publicApp.fighterProfile.loadError'));
@@ -721,7 +742,9 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         if (!response.ok) throw new Error('save');
         const profile = (await response.json()) as FighterProfile;
         setDashboard((current) => (current ? { ...current, profile } : current));
-        setForm(formFromProfile(profile, dateFormat.format));
+        const saved = formFromProfile(profile, dateFormat.format);
+        setForm(saved);
+        setSavedForm(saved);
         setMessage(t('publicApp.fighterProfile.saveSuccess'));
       })
       .catch(() => {

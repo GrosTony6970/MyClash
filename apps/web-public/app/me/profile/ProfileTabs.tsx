@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SegmentedTabs } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useLeaveGuard } from '@/components/me/use-leave-guard';
 import { useI18n } from '@myclash/next-i18n/client';
 import { FighterProfileClient } from '../../profile/fighter/FighterProfileClient';
 import { RefereeProfileClient } from '../../profile/referee/RefereeProfileClient';
@@ -31,8 +32,14 @@ export function ProfileTabs() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab: ProfileTab = parseTab(searchParams.get('tab'));
+  // Only the Fighter tab holds a form. Its edits are lost when it unmounts, so a tab switch, a
+  // link or closing the page asks first (quick-win M4).
+  const [fighterDirty, setFighterDirty] = useState(false);
+  const { askToLeave, confirmDialog } = useLeaveGuard(tab === 'fighter' && fighterDirty);
 
-  const setTab = (next: ProfileTab) => {
+  const setTab = async (next: ProfileTab) => {
+    if (next === tab || !(await askToLeave())) return;
+    setFighterDirty(false);
     router.replace(next === 'fighter' ? '/me/profile' : `/me/profile?tab=${next}`, {
       scroll: false,
     });
@@ -71,7 +78,7 @@ export function ProfileTabs() {
           <SegmentedTabs<ProfileTab>
             aria-label={t('publicApp.me.profile.tabsLabel')}
             value={tab}
-            onChange={setTab}
+            onChange={(next) => void setTab(next)}
             tabs={[
               { value: 'fighter', label: t('publicApp.personalShell.nav.fighter') },
               { value: 'referee', label: t('publicApp.personalShell.nav.referee') },
@@ -85,8 +92,9 @@ export function ProfileTabs() {
         ) : tab === 'workshop' ? (
           <WorkshopProfileClient apiUrl={apiUrl} />
         ) : (
-          <FighterProfileClient apiUrl={apiUrl} />
+          <FighterProfileClient apiUrl={apiUrl} onDirtyChange={setFighterDirty} />
         )}
+        {confirmDialog}
       </div>
     </main>
   );
