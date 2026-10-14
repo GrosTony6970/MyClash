@@ -511,8 +511,9 @@ describe('ArchiveService', () => {
         review_type: 'second_black_card',
         status: 'pending',
         black_card_count: 2,
-        // match_penalties.id values, in an array inside a JSON column.
-        payload_json: { penaltyIds: ['mp-1'] },
+        // match_penalties.id values, in an array inside a JSON column, and the one
+        // card that reopened a dismissed review.
+        payload_json: { penaltyIds: ['mp-1'], reopenedFrom: 'dismissed', reopenedBy: 'mp-1' },
       },
     ],
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
@@ -703,6 +704,8 @@ describe('ArchiveService', () => {
       expect(penaltyId, 'the penalty is copied under a new id').not.toBe('mp-1');
       expect(inserted.tournament_penalty_reviews?.[0]?.payload_json).toEqual({
         penaltyIds: [penaltyId],
+        reopenedFrom: 'dismissed',
+        reopenedBy: penaltyId,
       });
     });
 

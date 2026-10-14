@@ -390,11 +390,14 @@ const TABLES = {
       event: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
       tournament: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
     },
-    // penalties.service.ts `createSecondBlackCardReviewIfNeeded` stores the
-    // match_penalties.ids that triggered the review. No FK is declared on them,
-    // so nothing would ever have complained about a copy naming another event's
-    // cards.
-    json: [{ path: 'payload_json.penaltyIds[]', map: 'matchPenalties' }],
+    // second-black-card-review.ts stores the match_penalties.ids the review
+    // counts, and the one card that reopened a dismissed review. No FK is
+    // declared on them, so nothing would ever have complained about a copy
+    // naming another event's cards.
+    json: [
+      { path: 'payload_json.penaltyIds[]', map: 'matchPenalties' },
+      { path: 'payload_json.reopenedBy', map: 'matchPenalties' },
+    ],
   },
 
   // ── Workshops and the programme ───────────────────────────────────────────

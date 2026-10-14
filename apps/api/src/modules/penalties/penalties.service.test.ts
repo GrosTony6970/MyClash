@@ -302,7 +302,7 @@ describe('PenaltiesService', () => {
       events: {
         maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
       },
-      tournament_penalty_reviews: { upsert: { id: 'review-1', status: 'pending' } },
+      tournament_penalty_reviews: { maybeSingle: null },
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -322,13 +322,71 @@ describe('PenaltiesService', () => {
       { userId: 'scorekeeper-1' },
     );
 
-    expect(supabase.upserted.tournament_penalty_reviews?.[0]).toMatchObject({
+    expect(supabase.inserted.tournament_penalty_reviews?.[0]).toMatchObject({
       tournament_id: 'tournament-1',
       registration_id: 'reg-red',
       review_type: 'second_black_card',
       status: 'pending',
       black_card_count: 2,
     });
+  });
+
+  // A tablet sends again a card whose first send met a 500 after the card was written: the
+  // server answers with the card it holds, and that answer is the only chance to write the
+  // review the first send missed (ruled 2026-10-14).
+  it.each([
+    [{ card: 'black', voided: false }, 1],
+    [{ card: 'black', voided: true }, 0],
+    [{ card: 'yellow', voided: false }, 0],
+  ])('brings the review up to date when %o is sent again', async (stored, reviews) => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: {
+          id: 'penalty-2',
+          tournament_id: 'tournament-1',
+          registration_id: 'reg-red',
+          ...stored,
+        },
+        select: [{ id: 'penalty-1' }, { id: 'penalty-2' }],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-2',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      tournament_penalty_reviews: { maybeSingle: null },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    const answer = await service.createPenalty(
+      'match-2',
+      {
+        clientUuid: 'client-2',
+        sequence: 2,
+        registrationId: 'reg-red',
+        directCard: 'black',
+        reason: 'second black card',
+        occurredAt: '2026-05-05T10:10:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(answer).toMatchObject({ id: 'penalty-2' });
+    expect(supabase.inserted.match_penalties).toBeUndefined();
+    expect(supabase.inserted.tournament_penalty_reviews ?? []).toHaveLength(reviews);
   });
 
   // The penalty ruleset's per-card-point columns override the engine's hardcoded

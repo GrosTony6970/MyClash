@@ -38,6 +38,7 @@ import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
+import { answeredPayload, syncSecondBlackCardReview } from './second-black-card-review';
 import type {
   AssignPenaltyRulesetDto,
   CreatePenaltyDto,
@@ -917,7 +918,7 @@ export class PenaltiesService {
       .select('*')
       .eq('client_uuid', dto.clientUuid)
       .maybeSingle();
-    if (existing) return existing;
+    if (existing) return this.replayAnswer(existing as Row);
     // Every refusal AFTER the replay answer, in a hit's order: a card the server holds is not
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
@@ -1018,7 +1019,7 @@ export class PenaltiesService {
           .select('*')
           .eq('client_uuid', dto.clientUuid)
           .maybeSingle();
-        if (raceExisting) return raceExisting;
+        if (raceExisting) return this.replayAnswer(raceExisting as Row);
       }
       throw new BadRequestException(error.message);
     }
@@ -1078,7 +1079,12 @@ export class PenaltiesService {
           .update({ status: 'disqualified' })
           .eq('id', dto.registrationId);
       }
-      await this.createSecondBlackCardReviewIfNeeded(match.tournamentId, dto.registrationId);
+      await syncSecondBlackCardReview(
+        this.supabase.service,
+        match.tournamentId,
+        dto.registrationId,
+        String((data as Row)['id']),
+      );
     }
 
     return data;
@@ -1218,6 +1224,7 @@ export class PenaltiesService {
         reviewed_by_user_id: userId ?? null,
         reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        payload_json: answeredPayload(review['payload_json']),
       })
       .eq('id', reviewId)
       .select('*')
@@ -1455,28 +1462,21 @@ export class PenaltiesService {
     if (this.orgs) await this.orgs.assertOrgRole(orgId, userId, 'scorekeeper');
   }
 
-  private async createSecondBlackCardReviewIfNeeded(tournamentId: string, registrationId: string) {
-    const { data, error } = await this.supabase.service
-      .from('match_penalties')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .eq('registration_id', registrationId)
-      .eq('card', 'black')
-      .eq('voided', false)
-      .order('occurred_at', { ascending: true });
-    if (error) throw new BadRequestException(error.message);
-    const count = (data ?? []).length;
-    if (count < 2) return;
-
-    await this.supabase.service.from('tournament_penalty_reviews').upsert({
-      tournament_id: tournamentId,
-      registration_id: registrationId,
-      review_type: 'second_black_card',
-      status: 'pending',
-      black_card_count: count,
-      payload_json: { penaltyIds: (data ?? []).map((row) => (row as Row)['id']) },
-      updated_at: new Date().toISOString(),
-    });
+  /**
+   * A card the server already holds is answered as it is. If it is a live black card, its
+   * review is brought up to date first: the first send may have written the card and then
+   * failed on the review, and the tablet's retry is the only send left to repair it.
+   */
+  private async replayAnswer(stored: Row): Promise<Row> {
+    if (stored['card'] === 'black' && stored['voided'] !== true) {
+      await syncSecondBlackCardReview(
+        this.supabase.service,
+        String(stored['tournament_id']),
+        String(stored['registration_id']),
+        String(stored['id']),
+      );
+    }
+    return stored;
   }
 
   private async replaceEntries(

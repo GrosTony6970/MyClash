@@ -4,8 +4,8 @@
  * Penalty reviews — the second-black-card disqualification queue.
  *
  * A fighter's second non-voided black card in a tournament auto-creates a
- * pending `tournament_penalty_reviews` row (penalties.service.ts
- * createSecondBlackCardReviewIfNeeded). Confirming disqualifies the
+ * pending `tournament_penalty_reviews` row (the API's
+ * second-black-card-review.ts). Confirming disqualifies the
  * registration; dismissing closes the review. Before this page the state
  * machine was WRITE-ONLY: no UI listed or resolved the reviews, so the
  * disqualification rule never actually enforced.
