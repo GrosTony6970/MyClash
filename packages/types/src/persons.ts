@@ -80,21 +80,47 @@ export interface UpdatePersonDto {
 
 // ── CSV import report ─────────────────────────────────────────────────────────
 
-export interface CsvImportDuplicate {
-  row: number;
-  name: string;
-  existingEmail: string; // masked
+/**
+ * Why an imported row was skipped or refused. The server sends the code and
+ * each page words it in the reader's language; both CSV imports (an Event's
+ * roster, the super admin's Global Profiles) use it.
+ */
+export const IMPORT_ROW_REASONS = [
+  'no_file',
+  'unreadable_file',
+  'missing_given_name',
+  'missing_family_name',
+  'invalid_email',
+  'invalid_date_of_birth',
+  'already_on_roster',
+  'repeated_in_file',
+  'not_saved',
+  'no_profile_to_overwrite',
+] as const;
+export type ImportRowReason = (typeof IMPORT_ROW_REASONS)[number];
+
+/** A reason, with the cell it is about as the file holds it (a bad email or date). */
+export interface ImportRowProblem {
+  reason: ImportRowReason;
+  value?: string;
 }
 
-export interface CsvImportInvalid {
-  row: number;
-  reason: string;
+export interface CsvImportDuplicate {
+  /** The row's line in the file; the header is line 1. */
+  line: number;
+  name: string;
+  reason: 'already_on_roster' | 'repeated_in_file';
+  existingEmail: string | null; // masked
+}
+
+export interface CsvImportInvalid extends ImportRowProblem {
+  /** The row's line in the file (the header is line 1); null when the whole file is refused. */
+  line: number | null;
   raw: string;
 }
 
 export interface CsvImportReport {
   created: number;
-  updated: number;
   duplicates: CsvImportDuplicate[];
   invalid: CsvImportInvalid[];
   newClubsForReview: string[];
@@ -124,12 +150,17 @@ export interface GlobalPersonCandidate {
 }
 
 export interface PreviewRow {
+  /** The row's place among the file's rows, from 0: the key a decision names. */
   index: number;
+  /** The row's line in the file (the header is line 1); null when the whole file is refused. */
+  line: number | null;
   givenName: string;
   familyName: string;
   email?: string;
   status: 'ok' | 'duplicate' | 'invalid';
-  invalidReason?: string;
+  /** Why a duplicate or invalid row is skipped. */
+  reason?: ImportRowReason;
+  value?: string;
   clubResolution?: ClubResolution;
   globalPersonMatch?: GlobalPersonCandidate;
   defaultAction: 'link' | 'create_new';

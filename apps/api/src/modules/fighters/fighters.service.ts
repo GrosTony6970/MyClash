@@ -4,10 +4,11 @@ import {
   ForbiddenException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { asEventKind, countsTowardStats } from '@myclash/types';
+import { asEventKind, countsTowardStats, type ImportRowProblem } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import { firstPubliclyKnown, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
@@ -306,6 +307,8 @@ const DEFAULT_WEAPONS = [
 
 @Injectable()
 export class FightersService {
+  private readonly logger = new Logger(FightersService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly csvImport: CsvImportService,
@@ -2239,7 +2242,8 @@ export class FightersService {
     rows: Array<{
       index: number;
       status: 'ok' | 'invalid' | 'duplicate';
-      reasons: string[];
+      /** Why an invalid row is refused; null on the others. */
+      problem: ImportRowProblem | null;
       duplicate: { id: string; displayName: string } | null;
       raw: string;
       fields: {
@@ -2303,9 +2307,9 @@ export class FightersService {
 
     for (const inv of invalidRows) {
       out.push({
-        index: inv.row,
+        index: inv.line,
         status: 'invalid',
-        reasons: [inv.reason],
+        problem: { reason: inv.reason, value: inv.value },
         duplicate: null,
         raw: inv.raw ?? '',
         fields: {
@@ -2334,9 +2338,9 @@ export class FightersService {
       const dupByHema = row.hema_ratings_id ? hemaMatches.get(row.hema_ratings_id) : undefined;
       const duplicate = dupByName ?? dupByHema ?? null;
       out.push({
-        index: row.rowNumber,
+        index: row.line,
         status: duplicate ? 'duplicate' : 'ok',
-        reasons: [],
+        problem: null,
         duplicate,
         raw: '',
         fields: {
@@ -2379,13 +2383,20 @@ export class FightersService {
     created: number;
     updated: number;
     skipped: number;
-    failed: Array<{ index: number; reason: string }>;
+    failed: Array<{ index: number } & ImportRowProblem>;
     newClubs: string[];
   }> {
     let created = 0;
     let updated = 0;
     let skipped = 0;
-    const failed: Array<{ index: number; reason: string }> = [];
+    const failed: Array<{ index: number } & ImportRowProblem> = [];
+    // The admin reads "not saved" on the row; the database's own words stay here.
+    const notSaved = (index: number, cause: unknown) => {
+      this.logger.warn(
+        `global import: row on line ${index} not saved: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+      failed.push({ index, reason: 'not_saved' });
+    };
     const newClubs: string[] = [];
 
     for (const decision of decisions) {
@@ -2397,7 +2408,8 @@ export class FightersService {
       const givenName = decision.givenName?.trim();
       const familyName = decision.familyName?.trim();
       if (!givenName || !familyName) {
-        failed.push({ index: decision.index, reason: 'Missing given_name or family_name' });
+        const reason = givenName ? 'missing_family_name' : 'missing_given_name';
+        failed.push({ index: decision.index, reason });
         continue;
       }
 
@@ -2417,10 +2429,7 @@ export class FightersService {
       const emailRaw = decision.email?.trim().toLowerCase() || null;
       const dobRaw = decision.dateOfBirth?.trim() || null;
       if (dobRaw && !/^\d{4}-\d{2}-\d{2}$/.test(dobRaw)) {
-        failed.push({
-          index: decision.index,
-          reason: `Invalid date_of_birth: ${dobRaw} (expected YYYY-MM-DD)`,
-        });
+        failed.push({ index: decision.index, reason: 'invalid_date_of_birth', value: dobRaw });
         continue;
       }
       // The super-admin has reviewed every row in the table; trust the
@@ -2446,10 +2455,7 @@ export class FightersService {
         let globalPersonId: string | null = null;
         if (decision.action === 'overwrite') {
           if (!decision.targetGlobalPersonId) {
-            failed.push({
-              index: decision.index,
-              reason: 'targetGlobalPersonId required for overwrite',
-            });
+            failed.push({ index: decision.index, reason: 'no_profile_to_overwrite' });
             continue;
           }
           const { error } = await this.supabase.service
@@ -2457,7 +2463,7 @@ export class FightersService {
             .update({ ...payload, updated_at: new Date().toISOString() })
             .eq('id', decision.targetGlobalPersonId);
           if (error) {
-            failed.push({ index: decision.index, reason: error.message });
+            notSaved(decision.index, new Error(error.message));
             continue;
           }
           globalPersonId = decision.targetGlobalPersonId;
@@ -2471,7 +2477,7 @@ export class FightersService {
             .select('id')
             .single();
           if (error) {
-            failed.push({ index: decision.index, reason: error.message });
+            notSaved(decision.index, new Error(error.message));
             continue;
           }
           globalPersonId = data ? String((data as Row)['id']) : null;
@@ -2487,10 +2493,7 @@ export class FightersService {
           );
         }
       } catch (err) {
-        failed.push({
-          index: decision.index,
-          reason: err instanceof Error ? err.message : 'Unknown error',
-        });
+        notSaved(decision.index, err);
       }
     }
 

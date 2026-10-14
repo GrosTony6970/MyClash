@@ -2710,6 +2710,7 @@ Pierre,Martin,,,,,,,referee
   "rows": [
     {
       "index": 0,
+      "line": 2,
       "givenName": "Jean",
       "familyName": "Dupont",
       "email": "jean@example.com",
@@ -2732,19 +2733,30 @@ Pierre,Martin,,,,,,,referee
 }
 ```
 
-When a row has `globalPersonMatch`, the organizer can override `defaultAction` (`link` | `create_new`) before committing. The `decisions[]` array is sent as a JSON form field alongside the re-uploaded file.
+When a row has `globalPersonMatch`, the organizer can override `defaultAction` (`link` | `create_new`) before committing. The `decisions[]` array is sent as a JSON form field alongside the re-uploaded file; a decision names its row by `index` (the row's place among the file's rows, from 0).
+
+`line` is the row's line in the file (the header is line 1; blank lines and a quoted cell over several lines count), so the organiser finds the row in her spreadsheet. A `duplicate` or `invalid` row carries a `reason` code (`ImportRowReason` in `@myclash/types`) and, for a bad email or date, the cell as `value`; the page words the code in the reader's language (`apps/web-admin/src/lib/import-reasons.ts`). The server never sends its own sentences, nor a database message (it logs it and says `not_saved`). The super admin's Global Profiles import (`POST /api/v1/global-persons/import/preview` and `/import`) uses the same parser and the same codes.
 
 **Commit response shape (`CsvImportReport`):**
 
 ```json
 {
   "created": 44,
-  "updated": 0,
-  "duplicates": [{ "row": 12, "name": "Jean Dupont", "existingEmail": "j***@gmail.com" }],
-  "invalid": [{ "row": 18, "reason": "Missing given_name", "raw": ",Martin,,,,," }],
-  "newClubsForReview": ["Hammaborg"]
+  "duplicates": [
+    {
+      "line": 12,
+      "name": "Jean Dupont",
+      "reason": "already_on_roster",
+      "existingEmail": "j***@gmail.com"
+    }
+  ],
+  "invalid": [{ "line": 18, "reason": "missing_given_name", "raw": ",Martin,,,,," }],
+  "newClubsForReview": ["Hammaborg"],
+  "unmatchableIdentities": []
 }
 ```
+
+The import only creates: a row whose person is already on the roster (`already_on_roster`) or repeats an earlier row of the file (`repeated_in_file`) is skipped and listed, never updated.
 
 Manual creation uses the same form, single-row, in `/org/[orgSlug]/events/[eventId]/persons/new`.
 

@@ -94,8 +94,15 @@ Jean,Dupont,not-an-email`;
 
       const result = service.parse(Buffer.from(csv, 'utf-8'));
       expect(result.rows).toHaveLength(0);
-      expect(result.invalid).toHaveLength(1);
-      expect(result.invalid[0]?.reason).toContain('Invalid email');
+      expect(result.invalid).toEqual([
+        {
+          index: 0,
+          line: 2,
+          reason: 'invalid_email',
+          value: 'not-an-email',
+          raw: 'Jean,Dupont,not-an-email',
+        },
+      ]);
     });
 
     it('marks rows with missing given_name as invalid', () => {
@@ -104,8 +111,50 @@ Jean,Dupont,not-an-email`;
 
       const result = service.parse(Buffer.from(csv, 'utf-8'));
       expect(result.rows).toHaveLength(0);
-      expect(result.invalid).toHaveLength(1);
-      expect(result.invalid[0]?.reason).toContain('Missing given_name');
+      expect(result.invalid).toEqual([
+        { index: 0, line: 2, reason: 'missing_given_name', raw: ',Dupont,jean@example.com' },
+      ]);
+    });
+
+    it('marks rows with missing family_name as invalid', () => {
+      const result = service.parse(Buffer.from('given_name,family_name\nJean,', 'utf-8'));
+      expect(result.invalid.map((r) => r.reason)).toEqual(['missing_family_name']);
+    });
+
+    it('names a date of birth it cannot read, as the file holds it', () => {
+      const csv = 'given_name,family_name,date_of_birth\nJean,Dupont,03-15-1990';
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.invalid).toEqual([
+        expect.objectContaining({ line: 2, reason: 'invalid_date_of_birth', value: '03-15-1990' }),
+      ]);
+    });
+
+    // The header is line 1. A blank line moves every row under it, and a quoted
+    // cell over two lines puts the next row two lines down: the organiser reads
+    // the number in her spreadsheet, so it must be the file's own line.
+    it("gives each row the file's own line", () => {
+      const csv = 'given_name,family_name\n\nAda,Lovelace\n"Multi\nline",Smith\n\n,Jones\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.rows.map((r) => [r.index, r.line, r.family_name])).toEqual([
+        [0, 3, 'Lovelace'],
+        [1, 4, 'Smith'],
+      ]);
+      expect(result.invalid.map((r) => [r.index, r.line, r.reason])).toEqual([
+        [2, 7, 'missing_given_name'],
+      ]);
+    });
+
+    it("counts a Windows file's lines the same way", () => {
+      const csv = 'given_name,family_name\r\n\r\nAda,Lovelace\r\nBob,Jones\r\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.rows.map((r) => r.line)).toEqual([3, 4]);
+    });
+
+    it('refuses a file it cannot read, at the line where it stopped', () => {
+      const csv = 'given_name,family_name\nAda,Lovelace\n"Bob,Jones\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.rows).toEqual([]);
+      expect(result.invalid).toEqual([{ index: 0, line: 3, reason: 'unreadable_file', raw: '' }]);
     });
 
     it('handles quoted commas in fields', () => {

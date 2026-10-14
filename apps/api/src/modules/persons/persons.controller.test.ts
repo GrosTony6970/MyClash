@@ -274,3 +274,23 @@ describe('PersonsController authorization', () => {
     expect(persons.createPerson).toHaveBeenCalledWith(EVENT_A, { givenName: 'Eve' }, 'u-editor-a');
   });
 });
+
+describe('an import with no file', () => {
+  const noFile = () => ({ ...req('u-editor-a'), parts: vi.fn(() => (async function* () {})()) });
+
+  // The import page reads every field of the report: one left out broke its last screen.
+  it('answers a whole report, with no line, and reaches no import', async () => {
+    expect(await controller.importCsv(EVENT_A, noFile() as never)).toEqual({
+      created: 0,
+      duplicates: [],
+      invalid: [{ line: null, reason: 'no_file', raw: '' }],
+      newClubsForReview: [],
+      unmatchableIdentities: [],
+    });
+    expect(await controller.previewImport(EVENT_A, noFile() as never)).toMatchObject({
+      rows: [{ line: null, status: 'invalid', reason: 'no_file' }],
+    });
+    expect(persons.importCsv).not.toHaveBeenCalled();
+    expect(persons.previewImport).not.toHaveBeenCalled();
+  });
+});

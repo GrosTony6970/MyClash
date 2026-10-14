@@ -7,18 +7,21 @@
 
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
-import { getDateFormat } from '@myclash/types';
+import { getDateFormat, type ImportRowProblem } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { importProblemText } from '@/lib/import-reasons';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';
 type RowAction = 'skip' | 'create_new' | 'overwrite';
 
 interface PreviewRow {
+  /** The row's line in the file; the header is line 1. */
   index: number;
   status: RowStatus;
-  reasons: string[];
+  /** Why an invalid row is refused; null on the others. */
+  problem: ImportRowProblem | null;
   duplicate: { id: string; displayName: string } | null;
   raw: string;
   fields: {
@@ -52,7 +55,7 @@ interface CommitReport {
   created: number;
   updated: number;
   skipped: number;
-  failed: Array<{ index: number; reason: string }>;
+  failed: Array<{ index: number } & ImportRowProblem>;
   newClubs: string[];
 }
 
@@ -517,14 +520,8 @@ export default function GlobalPersonsImportPage() {
                         </label>
                       </td>
                       <td className="px-3 py-2 text-xs">
-                        {row.status === 'invalid' && (
-                          <span className="text-danger">
-                            {t('admin.globalPersonsImport.invalidLine', {
-                              reasons:
-                                row.reasons.join(', ') ||
-                                t('admin.globalPersonsImport.reasonsUnknown'),
-                            })}
-                          </span>
+                        {row.status === 'invalid' && row.problem && (
+                          <span className="text-danger">{importProblemText(t, row.problem)}</span>
                         )}
                         {row.status === 'duplicate' && row.duplicate && (
                           <span className="text-warning">
@@ -608,7 +605,8 @@ export default function GlobalPersonsImportPage() {
               <ul className="space-y-0.5 text-xs text-danger list-disc list-inside">
                 {report.failed.map((f) => (
                   <li key={f.index}>
-                    {t('organizer.personsImport.rowPrefix', { n: f.index })} {f.reason}
+                    {t('organizer.personsImport.rowPrefix', { n: f.index })}{' '}
+                    {importProblemText(t, f)}
                   </li>
                 ))}
               </ul>

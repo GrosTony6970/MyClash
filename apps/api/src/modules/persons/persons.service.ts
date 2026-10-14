@@ -24,7 +24,7 @@ import type { ResolveGlobalPersonResult } from '../identity/global-person-resolv
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
-import { detectDuplicate, personNameKey } from './duplicate-guard';
+import { detectDuplicate, importDuplicateReason, personNameKey } from './duplicate-guard';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
 @Injectable()
@@ -279,45 +279,39 @@ export class PersonsService {
     const existingByEmail = this.indexByEmail(existingPersons);
     const existingByName = this.indexByName(existingPersons);
 
-    const previewRows: PreviewRow[] = [];
+    const previewRows: PreviewRow[] = invalid.map(({ index, line, reason, value }) => ({
+      index,
+      line,
+      givenName: '',
+      familyName: '',
+      status: 'invalid',
+      reason,
+      value,
+      defaultAction: 'create_new',
+    }));
 
-    // Intra-batch tracking (no DB writes)
-    const batchEmails = new Set<string>();
-    const batchNames = new Set<string>();
-
-    for (const inv of invalid) {
-      previewRows.push({
-        index: inv.row - 2, // convert back to 0-based
-        givenName: '',
-        familyName: '',
-        status: 'invalid',
-        invalidReason: inv.reason,
-        defaultAction: 'create_new',
-      });
-    }
+    // Intra-batch tracking (no DB writes): the rows of this file read so far.
+    const earlierRows = { emails: new Set<string>(), names: new Set<string>() };
 
     for (const row of rows) {
       const nameKey = personNameKey(row.given_name, row.family_name);
       const emailKey = row.email?.toLowerCase();
 
       // Shared rule (duplicate-guard.ts): the email decides when there is one,
-      // the name only when there is not. `batch*` extends the roster with rows
+      // the name only when there is not, against the roster and then the rows
       // earlier in this same file, so a CSV that repeats someone self-detects.
-      const duplicate = detectDuplicate({
-        hasEmail: Boolean(emailKey),
-        emailMatch: Boolean(
-          emailKey && (existingByEmail.has(emailKey) || batchEmails.has(emailKey)),
-        ),
-        nameMatch: existingByName.has(nameKey) || batchNames.has(nameKey),
-      });
+      const roster = { emails: existingByEmail, names: existingByName };
+      const reason = importDuplicateReason(emailKey, nameKey, roster, earlierRows);
 
-      if (duplicate) {
+      if (reason) {
         previewRows.push({
-          index: row.rowNumber - 2,
+          index: row.index,
+          line: row.line,
           givenName: row.given_name,
           familyName: row.family_name,
           email: row.email,
           status: 'duplicate',
+          reason,
           defaultAction: 'create_new',
         });
         continue;
@@ -338,7 +332,8 @@ export class PersonsService {
       );
 
       previewRows.push({
-        index: row.rowNumber - 2,
+        index: row.index,
+        line: row.line,
         givenName: row.given_name,
         familyName: row.family_name,
         email: row.email,
@@ -348,8 +343,8 @@ export class PersonsService {
         defaultAction: globalPersonMatch ? 'link' : 'create_new',
       });
 
-      if (emailKey) batchEmails.add(emailKey);
-      batchNames.add(nameKey);
+      if (emailKey) earlierRows.emails.add(emailKey);
+      earlierRows.names.add(nameKey);
     }
 
     const okRows = previewRows.filter((r) => r.status === 'ok');
@@ -381,9 +376,8 @@ export class PersonsService {
 
     const report: CsvImportReport = {
       created: 0,
-      updated: 0,
       duplicates: [],
-      invalid,
+      invalid: invalid.map(({ index: _index, ...problem }) => problem),
       newClubsForReview: [],
       unmatchableIdentities: [],
     };
@@ -391,6 +385,9 @@ export class PersonsService {
     const existingPersons = await this.fetchExistingPersons(eventId);
     const existingByEmail = this.indexByEmail(existingPersons);
     const existingByName = this.indexByName(existingPersons);
+    const roster = { emails: existingByEmail, names: existingByName };
+    // The rows of this file saved so far: a repeat of one is skipped too.
+    const earlierRows = { emails: new Set<string>(), names: new Set<string>() };
 
     // Index decisions by row index for O(1) lookup
     const decisionByIndex = new Map<number, ImportDecision>();
@@ -401,20 +398,16 @@ export class PersonsService {
     for (const row of rows) {
       const emailKey = row.email?.toLowerCase();
       const nameKey = personNameKey(row.given_name, row.family_name);
-      const rowIndex = row.rowNumber - 2;
 
-      const duplicate = detectDuplicate({
-        hasEmail: Boolean(emailKey),
-        emailMatch: Boolean(emailKey && existingByEmail.has(emailKey)),
-        nameMatch: existingByName.has(nameKey),
-      });
-
-      if (duplicate) {
+      const reason = importDuplicateReason(emailKey, nameKey, roster, earlierRows);
+      if (reason) {
         const ep = emailKey ? existingByEmail.get(emailKey) : existingByName.get(nameKey);
         report.duplicates.push({
-          row: row.rowNumber,
+          line: row.line,
           name: `${row.given_name} ${row.family_name}`,
-          existingEmail: ep?.email ? this.csv.maskEmail(ep.email) : '(no email)',
+          reason,
+          existingEmail:
+            reason === 'already_on_roster' && ep?.email ? this.csv.maskEmail(ep.email) : null,
         });
         continue;
       }
@@ -445,9 +438,11 @@ export class PersonsService {
         .single();
 
       if (error) {
+        // The organiser reads "not saved" on the row; the database's own words stay here.
+        this.logger.warn(`import: row on line ${row.line} not saved: ${error.message}`);
         report.invalid.push({
-          row: row.rowNumber,
-          reason: `DB error: ${error.message}`,
+          line: row.line,
+          reason: 'not_saved',
           raw: `${row.given_name},${row.family_name},${emailKey ?? ''}`,
         });
         continue;
@@ -456,7 +451,7 @@ export class PersonsService {
       const personId = (newPerson as { id: string }).id;
 
       // Handle global person decision
-      const decision = decisionByIndex.get(rowIndex);
+      const decision = decisionByIndex.get(row.index);
       const minted = await this.applyGlobalPersonDecision(
         personId,
         row,
@@ -471,19 +466,8 @@ export class PersonsService {
       }
 
       // Track for intra-batch dedup
-      if (emailKey)
-        existingByEmail.set(emailKey, {
-          id: personId,
-          email: emailKey,
-          givenName: row.given_name,
-          familyName: row.family_name,
-        });
-      existingByName.set(nameKey, {
-        id: personId,
-        email: emailKey ?? null,
-        givenName: row.given_name,
-        familyName: row.family_name,
-      });
+      if (emailKey) earlierRows.emails.add(emailKey);
+      earlierRows.names.add(nameKey);
 
       report.created++;
     }

@@ -19,6 +19,7 @@ import type {
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useEventStatus } from '../../_hooks/useEventStatus';
+import { ImportDone, ImportRowList, LineLabel, type ListedRow } from './_components/import-rows';
 
 type Step = 'upload' | 'preview' | 'done';
 
@@ -113,8 +114,7 @@ function ConflictCard({
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
           <p className="font-semibold text-foreground">
-            {t('organizer.personsImport.rowPrefix', { n: row.index + 1 })} {row.givenName}{' '}
-            {row.familyName}
+            <LineLabel line={row.line} className="" /> {row.givenName} {row.familyName}
           </p>
           {row.email && <p className="text-muted text-xs">{row.email}</p>}
           {row.clubResolution && (
@@ -382,7 +382,18 @@ export default function CsvImportPage() {
       {step === 'preview' &&
         preview &&
         (() => {
-          const invalidRows = preview.rows.filter((r) => r.status === 'invalid');
+          const listed = (status: 'invalid' | 'duplicate') =>
+            preview.rows
+              .filter((r) => r.status === status && r.reason)
+              .map((r): ListedRow => ({
+                key: String(r.index),
+                line: r.line,
+                name: `${r.givenName} ${r.familyName}`.trim() || undefined,
+                reason: r.reason!,
+                value: r.value,
+              }));
+          const invalidRows = listed('invalid');
+          const skippedRows = listed('duplicate');
           // Counts driven by current decisions so the bar + section
           // chips react as the operator changes radios.
           const willLink = conflictRows.filter(
@@ -429,6 +440,9 @@ export default function CsvImportPage() {
                   </span>
                   <span className="text-info">
                     <strong>{willLink}</strong> {t('organizer.personsImport.willLinkChip')}
+                  </span>
+                  <span className="text-warning">
+                    <strong>{skippedRows.length}</strong> {t('organizer.personsImport.skippedChip')}
                   </span>
                   <span className="text-danger">
                     <strong>{invalidRows.length}</strong> {t('organizer.personsImport.invalidChip')}
@@ -522,9 +536,7 @@ export default function CsvImportPage() {
                       className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-success/30 bg-success/5 px-3 py-1.5 text-xs"
                     >
                       <span>
-                        <span className="font-mono text-success">
-                          {t('organizer.personsImport.rowPrefix', { n: row.index + 1 })}
-                        </span>{' '}
+                        <LineLabel line={row.line} className="text-success" />{' '}
                         <span className="font-medium text-foreground">
                           {row.givenName} {row.familyName}
                         </span>
@@ -572,6 +584,16 @@ export default function CsvImportPage() {
                 </div>
               </SectionAccordion>
 
+              {/* Skipped — already on the roster, or earlier in this file. */}
+              <SectionAccordion
+                title={t('organizer.personsImport.sectionSkipped')}
+                count={skippedRows.length}
+                tone="amber"
+                defaultOpen={skippedRows.length <= 10}
+              >
+                <ImportRowList rows={skippedRows} tone="warning" />
+              </SectionAccordion>
+
               {/* Invalid — auto-skipped on import. */}
               <SectionAccordion
                 title={t('organizer.personsImport.sectionInvalid')}
@@ -579,19 +601,7 @@ export default function CsvImportPage() {
                 tone="red"
                 defaultOpen={invalidRows.length <= 10}
               >
-                <div className="flex flex-col gap-1">
-                  {invalidRows.map((r) => (
-                    <div
-                      key={r.index}
-                      className="rounded border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs"
-                    >
-                      <span className="font-mono text-danger">
-                        {t('organizer.personsImport.rowPrefix', { n: r.index + 1 })}
-                      </span>{' '}
-                      {r.invalidReason}
-                    </div>
-                  ))}
-                </div>
+                <ImportRowList rows={invalidRows} tone="danger" />
               </SectionAccordion>
             </div>
           );
@@ -599,45 +609,10 @@ export default function CsvImportPage() {
 
       {/* ── Step: Done ── */}
       {step === 'done' && report && (
-        <div className="text-center py-8">
-          <p className="text-4xl mb-3">✅</p>
-          <h2 className="font-display font-semibold text-lg sm:text-xl mb-2">
-            {t('organizer.personsImport.doneTitle')}
-          </h2>
-          <p className="text-muted text-sm mb-6">
-            {t('organizer.personsImport.doneSummary', {
-              created: report.created,
-              updated: report.updated,
-              skipped: report.duplicates.length,
-              invalid: report.invalid.length,
-            })}
-          </p>
-          {report.unmatchableIdentities.length > 0 && (
-            /* These rows minted an identity with nothing to match on next time.
-               Named rather than counted: the fix is per person — give them a
-               club, a HEMA Ratings id or an email — so the organiser needs to
-               know who, not how many. */
-            <div className="mx-auto mb-6 max-w-xl rounded-lg border border-warning/30 bg-warning/10 p-4 text-left">
-              <p className="text-sm font-semibold text-warning">
-                {t('organizer.personsImport.unmatchableTitle', {
-                  count: report.unmatchableIdentities.length,
-                })}
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                {t('organizer.personsImport.unmatchableBody')}
-              </p>
-              <p className="mt-2 text-xs text-foreground-secondary">
-                {report.unmatchableIdentities.join(', ')}
-              </p>
-            </div>
-          )}
-          <button
-            onClick={() => router.push(`/org/${slug}/events/${eventId}/persons`)}
-            className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
-          >
-            {t('organizer.personsImport.backToRoster')}
-          </button>
-        </div>
+        <ImportDone
+          report={report}
+          onBack={() => router.push(`/org/${slug}/events/${eventId}/persons`)}
+        />
       )}
     </main>
   );

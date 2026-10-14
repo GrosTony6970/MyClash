@@ -42,8 +42,6 @@ export const admin = {
     clubPlaceholder: 'Club',
     abvPlaceholder: 'Abv',
     optionalPlaceholder: 'optionnel',
-    invalidLine: 'Invalide : {reasons}',
-    reasonsUnknown: 'inconnu',
     duplicateOfPrefix: 'Doublon de',
     doneSummary: '{created} créés, {updated} mis à jour.',
     nothingImportedTitle: "Rien n'a été importé.",

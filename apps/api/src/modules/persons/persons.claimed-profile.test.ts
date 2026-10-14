@@ -207,7 +207,10 @@ describe('the organiser imports a roster file', () => {
       },
     };
     const report = await service(seed).importCsv(OPEN, FILE, 'u-claire');
-    expect(report).toMatchObject({ created: 1, duplicates: [{ row: 2 }] });
+    expect(report).toMatchObject({
+      created: 1,
+      duplicates: [{ line: 2, reason: 'already_on_roster', existingEmail: 'l***@e***.com' }],
+    });
     expect(handedProfiles()).toEqual([HER_PROFILE]);
   });
 });

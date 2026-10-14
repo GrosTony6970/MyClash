@@ -28,9 +28,9 @@ test('import participants from a CSV file', async ({ page }) => {
   await expect(commit).toBeEnabled();
   await commit.click();
 
-  // Done step: assert the import actually created/updated at least one row.
+  // Done step: assert the import actually created at least one row (it never updates one).
   await expect(page.getByText(/Import complete/i)).toBeVisible();
   const summary = page.getByText(/created ·/i);
   await expect(summary).toBeVisible();
-  expect(await summary.textContent()).toMatch(/[1-9]\d* (created|updated)/);
+  expect(await summary.textContent()).toMatch(/[1-9]\d* created/);
 });

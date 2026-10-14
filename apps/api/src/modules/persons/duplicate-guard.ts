@@ -47,3 +47,31 @@ export function detectDuplicate({
   if (hasEmail) return emailMatch ? 'email' : null;
   return nameMatch ? 'name' : null;
 }
+
+/** The emails and name keys of a set of people: a roster, or the rows of a file read so far. */
+export interface PeopleKeys {
+  emails: { has: (email: string) => boolean };
+  names: { has: (nameKey: string) => boolean };
+}
+
+/**
+ * Why the CSV import skips a row, by the same rule: its person was on the
+ * roster before the import, or an earlier row of the same file already holds
+ * them. The roster is asked first. Both the preview and the import ask here,
+ * so the two screens cannot word one row two ways.
+ */
+export function importDuplicateReason(
+  emailKey: string | undefined,
+  nameKey: string,
+  roster: PeopleKeys,
+  earlierRows: PeopleKeys,
+): 'already_on_roster' | 'repeated_in_file' | null {
+  const holds = (people: PeopleKeys) =>
+    detectDuplicate({
+      hasEmail: Boolean(emailKey),
+      emailMatch: Boolean(emailKey && people.emails.has(emailKey)),
+      nameMatch: people.names.has(nameKey),
+    }) !== null;
+  if (holds(roster)) return 'already_on_roster';
+  return holds(earlierRows) ? 'repeated_in_file' : null;
+}

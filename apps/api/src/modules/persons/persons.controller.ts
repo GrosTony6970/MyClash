@@ -31,6 +31,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
+import { noFilePreview, noFileReport } from './import-no-file';
 import { AssignmentsService } from '../registrations/assignments.service';
 import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
@@ -155,22 +156,7 @@ export class PersonsController {
   ) {
     await assertCanManageEvent(this.authz, eventId, await requireRequestUserId(req, this.supabase));
     const { buffer } = await readMultipart(req);
-    if (!buffer) {
-      return {
-        summary: { toCreate: 0, toLink: 0, duplicates: 0, invalid: 1 },
-        newClubs: [],
-        rows: [
-          {
-            index: 0,
-            givenName: '',
-            familyName: '',
-            status: 'invalid',
-            invalidReason: 'No file uploaded',
-            defaultAction: 'create_new',
-          },
-        ],
-      };
-    }
+    if (!buffer) return noFilePreview();
     return this.persons.previewImport(eventId, buffer);
   }
 
@@ -199,15 +185,7 @@ export class PersonsController {
     await assertCanManageEvent(this.authz, eventId, userId);
     const { buffer, fields } = await readMultipart(req);
 
-    if (!buffer) {
-      return {
-        created: 0,
-        updated: 0,
-        duplicates: [],
-        newClubsForReview: [],
-        invalid: [{ row: 0, reason: 'No file uploaded', raw: '' }],
-      };
-    }
+    if (!buffer) return noFileReport();
 
     let decisions: ImportDecision[] = [];
     if (fields['decisions']) {

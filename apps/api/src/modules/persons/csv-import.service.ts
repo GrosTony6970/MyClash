@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
-import { getDateFormat, type CsvImportReport } from '@myclash/types';
+import { getDateFormat, type ImportRowProblem } from '@myclash/types';
+import { recordLine } from './csv-lines';
 
 export interface CsvRow {
   given_name: string;
@@ -50,9 +51,75 @@ function parseCsvDate(input: string): string | null {
   return null;
 }
 
+/** Where a record sits: its place among the file's rows (from 0) and its line (header = 1). */
+export interface RowPlace {
+  index: number;
+  line: number;
+}
+
+export type InvalidCsvRow = RowPlace & ImportRowProblem & { raw: string };
+
 export interface ParsedCsvResult {
-  rows: Array<CsvRow & { rowNumber: number }>;
-  invalid: CsvImportReport['invalid'];
+  rows: Array<CsvRow & RowPlace>;
+  invalid: InvalidCsvRow[];
+}
+
+/** A file csv-parse gave up on: one refusal, at the line where it stopped. */
+function unreadableFile(err: unknown): ParsedCsvResult {
+  const line = (err as { lines?: unknown }).lines;
+  return {
+    rows: [],
+    invalid: [
+      { index: 0, line: typeof line === 'number' ? line : 1, reason: 'unreadable_file', raw: '' },
+    ],
+  };
+}
+
+/** One record as csv-parse gives it with `info` and `raw`. */
+interface ParsedRecord {
+  record: Record<string, string>;
+  info: { lines: number };
+  raw: string;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A record's cells keyed by header (lower case, spaces as `_`), or why the record is refused. */
+function checkRecord(cells: Record<string, string>): CsvRow | ImportRowProblem {
+  const cell = (key: string) => (cells[key] ?? '').trim();
+  const givenName = cell('given_name');
+  const familyName = cell('family_name');
+  const email = cell('email').toLowerCase();
+  if (!givenName) return { reason: 'missing_given_name' };
+  if (!familyName) return { reason: 'missing_family_name' };
+  // Email is optional — validate format only when present
+  if (email && !EMAIL_RE.test(email)) return { reason: 'invalid_email', value: email };
+  // date_of_birth is optional — accept DD/MM/YYYY (preferred, French convention)
+  // or ISO YYYY-MM-DD (legacy fallback) and normalize to ISO before downstream.
+  // MM/DD/YYYY stays ambiguous and gets rejected — admins re-save as ISO.
+  const rawDob = cell('date_of_birth');
+  const isoDob = rawDob ? parseCsvDate(rawDob) : null;
+  if (rawDob && !isoDob) return { reason: 'invalid_date_of_birth', value: rawDob };
+  const optional = (key: string) => cell(key) || undefined;
+  return {
+    given_name: givenName,
+    family_name: familyName,
+    display_name: optional('display_name'),
+    email: email || undefined,
+    date_of_birth: isoDob ?? undefined,
+    club: optional('club'),
+    club_abv: optional('club_abv'),
+    club_city: optional('club_city'),
+    hema_ratings_id: optional('hema_ratings_id'),
+    gender_category: optional('gender_category'),
+    notes: optional('notes'),
+    weapons: optional('weapons'),
+    event_codes: optional('event_codes'),
+    roles: optional('roles'),
+    is_fighter: optional('is_fighter'),
+    is_referee: optional('is_referee'),
+    is_workshop_participant: optional('is_workshop_participant'),
+  };
 }
 
 /**
@@ -112,97 +179,38 @@ export class CsvImportService {
       content = content.slice(1);
     }
 
-    const delimiter = detectCsvDelimiter(content);
-
-    let rawRows: Record<string, string>[];
+    let records: ParsedRecord[];
     try {
-      rawRows = parse(content, {
+      records = parse(content, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
         relax_column_count: true,
         bom: true,
-        delimiter,
-      }) as Record<string, string>[];
+        delimiter: detectCsvDelimiter(content),
+        info: true,
+        raw: true,
+      }) as ParsedRecord[];
     } catch (err) {
-      this.logger.error(`CSV parse error: ${String(err)}`);
-      return {
-        rows: [],
-        invalid: [{ row: 0, reason: `CSV parse error: ${String(err)}`, raw: '' }],
-      };
+      this.logger.warn(`CSV parse error: ${String(err)}`);
+      return unreadableFile(err);
     }
 
     const rows: ParsedCsvResult['rows'] = [];
-    const invalid: CsvImportReport['invalid'] = [];
-
-    rawRows.forEach((raw, idx) => {
-      const rowNumber = idx + 2; // 1-indexed, +1 for header row
-      const rawStr = Object.values(raw).join(',');
-
+    const invalid: ParsedCsvResult['invalid'] = [];
+    records.forEach(({ record, info, raw }, index) => {
+      const place = { index, line: recordLine(info.lines, raw) };
       // Normalize column names (handle case variations)
-      const normalized: Record<string, string> = {};
-      for (const [k, v] of Object.entries(raw)) {
-        normalized[k.toLowerCase().trim().replace(/\s+/g, '_')] = v ?? '';
+      const cells: Record<string, string> = {};
+      for (const [k, v] of Object.entries(record)) {
+        cells[k.toLowerCase().trim().replace(/\s+/g, '_')] = v ?? '';
       }
-
-      const givenName = (normalized['given_name'] ?? '').trim();
-      const familyName = (normalized['family_name'] ?? '').trim();
-      const rawEmail = (normalized['email'] ?? '').trim().toLowerCase();
-
-      if (!givenName) {
-        invalid.push({ row: rowNumber, reason: 'Missing given_name', raw: rawStr });
-        return;
+      const checked = checkRecord(cells);
+      if ('reason' in checked) {
+        invalid.push({ ...place, ...checked, raw: Object.values(record).join(',') });
+      } else {
+        rows.push({ ...place, ...checked });
       }
-      if (!familyName) {
-        invalid.push({ row: rowNumber, reason: 'Missing family_name', raw: rawStr });
-        return;
-      }
-
-      // Email is optional — validate format only when present
-      if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
-        invalid.push({ row: rowNumber, reason: `Invalid email: ${rawEmail}`, raw: rawStr });
-        return;
-      }
-
-      // date_of_birth is optional — accept DD/MM/YYYY (preferred,
-      // French convention) or ISO YYYY-MM-DD (legacy fallback) and
-      // normalize to ISO before downstream. MM/DD/YYYY stays
-      // ambiguous and gets rejected — admins re-save as ISO.
-      const rawDob = (normalized['date_of_birth'] ?? '').trim();
-      let isoDob: string | undefined;
-      if (rawDob) {
-        const parsed = parseCsvDate(rawDob);
-        if (!parsed) {
-          invalid.push({
-            row: rowNumber,
-            reason: `Invalid date_of_birth: ${rawDob} (expected DD/MM/YYYY)`,
-            raw: rawStr,
-          });
-          return;
-        }
-        isoDob = parsed;
-      }
-
-      rows.push({
-        rowNumber,
-        given_name: givenName,
-        family_name: familyName,
-        display_name: (normalized['display_name'] ?? '').trim() || undefined,
-        email: rawEmail || undefined,
-        date_of_birth: isoDob,
-        club: (normalized['club'] ?? '').trim() || undefined,
-        club_abv: (normalized['club_abv'] ?? '').trim() || undefined,
-        club_city: (normalized['club_city'] ?? '').trim() || undefined,
-        hema_ratings_id: (normalized['hema_ratings_id'] ?? '').trim() || undefined,
-        gender_category: (normalized['gender_category'] ?? '').trim() || undefined,
-        notes: (normalized['notes'] ?? '').trim() || undefined,
-        weapons: (normalized['weapons'] ?? '').trim() || undefined,
-        event_codes: (normalized['event_codes'] ?? '').trim() || undefined,
-        roles: (normalized['roles'] ?? '').trim() || undefined,
-        is_fighter: (normalized['is_fighter'] ?? '').trim() || undefined,
-        is_referee: (normalized['is_referee'] ?? '').trim() || undefined,
-        is_workshop_participant: (normalized['is_workshop_participant'] ?? '').trim() || undefined,
-      });
     });
 
     return { rows, invalid };
