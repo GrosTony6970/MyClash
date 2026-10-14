@@ -257,8 +257,9 @@ export class BroadcastNotificationsService {
         eventId: broadcast?.['event_id'],
         eventSlug: event?.['slug'] ?? null,
         eventName: event?.['name'] ?? null,
-        // The inbox shows a message's time on its Event's clock (quick-win M5).
-        eventTimezone: event?.['timezone'] ?? null,
+        // The inbox shows a message's time on its Event's clock (quick-win M5). `events.timezone`
+        // is NOT NULL (migration 0102): no fallback.
+        eventTimezone: event?.['timezone'],
         severity: broadcast?.['severity'],
         targetType: broadcast?.['target_type'],
         title: broadcast?.['title'],
