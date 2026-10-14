@@ -14,6 +14,7 @@ import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 
 import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
+import { eachDay, initialDay } from '@myclash/schedule-core';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
 import {
@@ -846,9 +847,14 @@ function AssignmentsTab({
       timezone?: string | null;
     }>(apiUrl, `/api/v1/events/${eventId}`, { signal: controller.signal }).then((r) => {
       if (!r.ok) return;
+      const timeZone = r.data.timezone ?? DEFAULT_EVENT_TIMEZONE;
       setEventStartDateIso(r.data.start_date ?? null);
       setEventEndDateIso(r.data.end_date ?? null);
-      setEventTz(r.data.timezone ?? DEFAULT_EVENT_TIMEZONE);
+      setEventTz(timeZone);
+      // Today when the Event runs today (O6), else "All days". A day already picked stays.
+      const days = eachDay(r.data.start_date, r.data.end_date);
+      const today = initialDay(days, timeZone, new Date().toISOString());
+      setSelectedDayIso((picked) => picked ?? today);
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);

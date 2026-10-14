@@ -116,3 +116,29 @@ describe('schedule board banner against the 30 s re-read', () => {
     expect(board.fetchError).toBe(firstLoad);
   });
 });
+
+describe('the day the schedule board opens on (O6)', () => {
+  const twoDays = (timezone: string) => ({
+    ok: true,
+    data: { ...BOOTSTRAP_OK.data, timezone, days: ['2025-05-03', '2025-05-04'] },
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("opens on today, read on the Event's clock, when the Event runs today", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // 23:30 UTC on the 3rd is already the 4th in Paris.
+    vi.setSystemTime(new Date('2025-05-03T23:30:00Z'));
+    vi.mocked(loadBootstrap).mockResolvedValue(twoDays('Europe/Paris') as never);
+    await openBoard();
+    expect(board.activeDay).toBe('2025-05-04');
+  });
+
+  it('opens on day 1 when the Event does not run today', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2025-05-10T09:00:00Z'));
+    vi.mocked(loadBootstrap).mockResolvedValue(twoDays('Europe/Paris') as never);
+    await openBoard();
+    expect(board.activeDay).toBe('2025-05-03');
+  });
+});

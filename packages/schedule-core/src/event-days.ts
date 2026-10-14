@@ -2,6 +2,7 @@
  * Shared event-day helpers — used by the event schedule grid and the
  * workshop schedule board so day tabs render identically. Pure, UTC-based.
  */
+import { zonedDay } from '@myclash/time';
 
 /**
  * Return every ISO date (YYYY-MM-DD) between start and end inclusive.
@@ -17,6 +18,20 @@ export function eachDay(start: string, end: string | null | undefined): string[]
     days.push(d.toISOString().slice(0, 10));
   }
   return days.length > 0 ? days : [start];
+}
+
+/**
+ * The day a planning board opens on (quick win O6, ruled 2026-10-14): today in the
+ * Event's zone when today is one of `days`, else null and the board keeps its own default.
+ * On day 2, nobody drops a Pool onto yesterday.
+ */
+export function initialDay(
+  days: readonly string[],
+  timeZone: string,
+  nowIso: string,
+): string | null {
+  const today = zonedDay(nowIso, timeZone);
+  return today && days.includes(today) ? today : null;
 }
 
 /** Day-of-week + DD MMM, French locale (the rest of the admin app is FR-leaning). */

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
+import { initialDay } from '@myclash/schedule-core';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { createRefetchGate, type RefetchGate } from './realtime-refetch-gate';
@@ -236,7 +237,10 @@ export function useScheduleData(args: {
       setMatches(result.data.matches);
       setEventTz(result.data.timezone);
       setDays(result.data.days);
-      if (result.data.days[0]) setActiveDay(result.data.days[0]);
+      // Today when the Event runs today (O6), else day 1.
+      const { days, timezone } = result.data;
+      const opening = initialDay(days, timezone, new Date().toISOString()) ?? days[0];
+      if (opening) setActiveDay(opening);
       setProgrammeBlocks(result.data.programmeBlocks);
     });
     return () => controller.abort();

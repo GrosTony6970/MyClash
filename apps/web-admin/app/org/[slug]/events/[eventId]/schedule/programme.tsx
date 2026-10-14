@@ -10,6 +10,9 @@ import type {
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
+import { eachDay, initialDay } from '@myclash/schedule-core';
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 import { loadPlannerBlocks } from './schedule-reads';
 import { mutateSchedule, refusalText } from './schedule-mutations';
@@ -105,7 +108,10 @@ export function ProgrammePlanner({
 
   // Null until the sheet loads: the browser holds no defaults of its own (ADR-018).
   const config = sheet.config;
-  const [activeDay, setActiveDay] = useState(0);
+  /** The day tab the organiser picked; null = the opening day, derived below. */
+  const [pickedDay, setActiveDay] = useState<number | null>(null);
+  /** Today's place among the Event's days (O6); null when the Event does not run today. */
+  const [todayIndex, setTodayIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   /** Load failed → the board is not a trustworthy base for a replace-all save. */
   const [loadFailed, setLoadFailed] = useState(false);
@@ -129,6 +135,8 @@ export function ProgrammePlanner({
 
   // Number of days from blocks
   const numDays = Math.max(1, ...blocks.map((b) => b.dayIndex + 1));
+  // Opens on today when today has a tab (O6), else on day 1.
+  const activeDay = pickedDay ?? (todayIndex !== null && todayIndex < numDays ? todayIndex : 0);
   // Workshops live on their own board — never list legacy workshop blocks here.
   const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay && b.blockType !== 'workshop');
 
@@ -151,6 +159,26 @@ export function ProgrammePlanner({
       })
       .finally(() => setLoading(false));
   }, [eventId, apiUrl, programmeRefreshKey]);
+
+  // Quiet: a failed read only leaves the planner on day 1, as before.
+  useEffect(() => {
+    const controller = new AbortController();
+    void apiRequest<{ start_date: string; end_date?: string | null; timezone?: string | null }>(
+      apiUrl,
+      `/api/v1/events/${eventId}`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      const days = eachDay(r.data.start_date, r.data.end_date);
+      const today = initialDay(
+        days,
+        r.data.timezone ?? DEFAULT_EVENT_TIMEZONE,
+        new Date().toISOString(),
+      );
+      setTodayIndex(today ? days.indexOf(today) : null);
+    });
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
 
   // ── Auto-suggest ───────────────────────────────────────────────────────────
 

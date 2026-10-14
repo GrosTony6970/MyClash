@@ -31,6 +31,7 @@ import {
   unscheduledWorkshops,
   zoomToSlotHeight,
   formatDayLabel,
+  initialDay,
   type AreaColumn,
   type BoardVenue,
   type BoardWorkshop,
@@ -115,6 +116,11 @@ function readGridWindow(): { startHour: number; endHour: number } {
   return { startHour: GRID_START_HOUR, endHour: 20 };
 }
 
+/** Today when the Event runs today (O6), else day 1. */
+function openingDay(days: readonly string[], timezone: string): string {
+  return initialDay(days, timezone, new Date().toISOString()) ?? days[0] ?? '';
+}
+
 export function WorkshopScheduleBoard({
   workshops,
   venues,
@@ -132,11 +138,11 @@ export function WorkshopScheduleBoard({
 }: Props) {
   const { t } = useI18n();
   const toast = useToast();
-  const [activeDay, setActiveDay] = useState<string>(days[0] ?? '');
+  const [activeDay, setActiveDay] = useState<string>(() => openingDay(days, timezone));
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- keep activeDay valid when the days list changes; behaviour-preserving
-    if (days.length > 0 && !days.includes(activeDay)) setActiveDay(days[0]!);
-  }, [days, activeDay]);
+    if (days.length > 0 && !days.includes(activeDay)) setActiveDay(openingDay(days, timezone));
+  }, [days, activeDay, timezone]);
 
   // Zoom (row height) — persisted on toggle, no setState-in-effect.
   const [slotHeightPx, setSlotHeightPx] = useState<number>(() => {
