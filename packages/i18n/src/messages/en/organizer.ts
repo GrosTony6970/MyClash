@@ -1489,6 +1489,12 @@ export const organizer = {
     messageBody: 'Message',
     people: 'People',
     searchPeople: 'Search people',
+    // O5: the picker of "Specific persons".
+    selectAllShown: 'Select all shown',
+    clearPicked: 'Clear',
+    picked: '{count} picked',
+    pickedHidden: '{count} picked, {hidden} of them hidden by the search',
+    tooMany: 'A message goes to {max} people at most: {count} are picked.',
     preview: 'Preview',
     send: 'Send notification',
     confirmTitle: 'Send "{title}"?',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useConfirm } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -10,17 +10,11 @@ import { BackLink } from '@/components/BackLink';
 import { PageAlert, errorOutcome, successOutcome, type Outcome } from '@/components/PageAlert';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { broadcastQuestion, narrowedToTournament } from './broadcast-question';
+import { MAX_RECIPIENTS, type Recipient } from './recipients';
+import { RecipientPicker } from './_components/RecipientPicker';
 
 type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
-
-interface Person {
-  id: string;
-  givenName: string;
-  familyName: string;
-  email: string;
-  clubLabel: string | null;
-}
 
 interface BroadcastHistory {
   id: string;
@@ -65,9 +59,8 @@ export default function EventNotificationsPage() {
   const [title, setTitle] = useState(searchParams.get('title') ?? '');
   const [body, setBody] = useState(searchParams.get('body') ?? '');
   const [tournamentId] = useState(searchParams.get('tournamentId'));
-  const [people, setPeople] = useState<Person[]>([]);
+  const [people, setPeople] = useState<Recipient[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
   const [history, setHistory] = useState<BroadcastHistory[]>([]);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -75,7 +68,7 @@ export default function EventNotificationsPage() {
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
-      apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, {
+      apiRequest<Recipient[]>(apiUrl, `/api/v1/events/${eventId}/persons`, {
         signal: controller.signal,
       }),
       apiRequest<BroadcastHistory[]>(apiUrl, `/api/v1/events/${eventId}/notifications/broadcasts`, {
@@ -96,15 +89,8 @@ export default function EventNotificationsPage() {
     return () => controller.abort();
   }, [apiUrl, eventId, t]);
 
-  const filteredPeople = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return people;
-    return people.filter((person) =>
-      `${person.givenName} ${person.familyName} ${person.email} ${person.clubLabel ?? ''}`
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [people, search]);
+  // Above the server's limit the page says so in the picker, and sends nothing (O5).
+  const tooMany = targetType === 'specific_persons' && selected.size > MAX_RECIPIENTS;
 
   /** The question before a broadcast leaves: which message, to whom, as what. */
   function askBeforeSend(): Promise<boolean> {
@@ -161,15 +147,6 @@ export default function EventNotificationsPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function togglePerson(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   }
 
   const targetOptions: Array<{ value: TargetType; label: string }> = [
@@ -230,38 +207,7 @@ export default function EventNotificationsPage() {
           </div>
 
           {targetType === 'specific_persons' && (
-            <div className="mb-5 rounded-lg border border-border p-3">
-              <label className="mb-2 block text-sm font-medium text-foreground-secondary">
-                {t('organizer.broadcast.people')}
-              </label>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('organizer.broadcast.searchPeople')}
-                className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
-              />
-              <div className="max-h-52 overflow-auto">
-                {filteredPeople.length === 0 ? (
-                  <p className="text-sm text-muted">{t('organizer.broadcast.emptyPeople')}</p>
-                ) : (
-                  filteredPeople.map((person) => (
-                    <label key={person.id} className="flex items-center gap-3 py-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(person.id)}
-                        onChange={() => togglePerson(person.id)}
-                      />
-                      <span>
-                        <span className="font-medium">
-                          {person.givenName} {person.familyName}
-                        </span>
-                        <span className="ml-2 text-muted">{person.email}</span>
-                      </span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
+            <RecipientPicker people={people} picked={selected} onPick={setSelected} />
           )}
 
           <div className="mb-5">
@@ -316,7 +262,7 @@ export default function EventNotificationsPage() {
 
           <button
             type="button"
-            disabled={busy || !title.trim() || !body.trim() || isReadOnly}
+            disabled={busy || !title.trim() || !body.trim() || isReadOnly || tooMany}
             title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             onClick={() => void sendBroadcast()}
             className="mt-5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:bg-border"
