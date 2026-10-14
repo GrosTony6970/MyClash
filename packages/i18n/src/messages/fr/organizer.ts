@@ -2775,6 +2775,7 @@ export const organizer = {
     preview: 'Prévisualiser la restauration',
     restoreCopy: 'Restaurer une copie',
     confirmation: 'Confirmation de restauration',
+    typePhrase: 'Tapez {phrase} pour restaurer. Les minuscules marchent aussi.',
     uploadMissing: "Sélectionnez d'abord un fichier d'archive.",
     previewError: 'Impossible de prévisualiser cette archive.',
     restoreError: 'Impossible de restaurer cette archive.',

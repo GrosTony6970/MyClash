@@ -2810,6 +2810,7 @@ export const organizer = {
     preview: 'Preview restore',
     restoreCopy: 'Restore copy',
     confirmation: 'Restore confirmation',
+    typePhrase: 'Type {phrase} to restore. Small letters work too.',
     uploadMissing: 'Select an archive file first.',
     previewError: 'Could not preview this archive.',
     restoreError: 'Could not restore this archive.',

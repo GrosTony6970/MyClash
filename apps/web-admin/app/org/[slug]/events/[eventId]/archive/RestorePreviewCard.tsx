@@ -62,6 +62,12 @@ export function RestorePreviewCard({
           {t('organizer.archive.restoreCopy')}
         </button>
       </div>
+      {!restorePhraseTyped(confirmation) && (
+        // Why Restore is off, as P9 said for the pad's reset.
+        <p className="mt-2 text-xs text-muted">
+          {t('organizer.archive.typePhrase', { phrase: RESTORE_CONFIRMATION })}
+        </p>
+      )}
     </div>
   );
 }

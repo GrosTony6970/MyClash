@@ -49,7 +49,11 @@ export function RestoreArchiveForm({
   );
 }
 
-/** The archive file to read, and the button that previews it. */
+/**
+ * The archive file to read, and the button that previews it. The file cannot change
+ * while a preview or a restore is out: the answer of file A would land on file B, and
+ * Restore would send B with A's scope.
+ */
 function FileRow({ busy, onPick }: { busy: boolean; onPick: (file: File | null) => void }) {
   const { t } = useI18n();
   return (
@@ -58,6 +62,7 @@ function FileRow({ busy, onPick }: { busy: boolean; onPick: (file: File | null) 
         type="file"
         name="file"
         accept=".json,.zip"
+        disabled={busy}
         aria-label={t('organizer.archive.archiveFile')}
         onChange={(changeEvent) => onPick(changeEvent.target.files?.[0] ?? null)}
         className="block w-full text-sm text-foreground-secondary"

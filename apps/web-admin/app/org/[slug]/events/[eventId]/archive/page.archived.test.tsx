@@ -125,6 +125,40 @@ describe('the archive page of an archived Event', () => {
     expect(restoreButton()).toBeUndefined();
   });
 
+  it('keeps the file while its preview is out: the answer of A cannot land on B (review M1)', async () => {
+    page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
+    await pick('open-2025.zip');
+    let land: (answer: unknown) => void = () => undefined;
+    const served = vi.mocked(apiRequest).getMockImplementation()!;
+    vi.mocked(apiRequest).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          land = resolve;
+        }) as never,
+    );
+    await press(page, 'Preview restore');
+    expect(fileField().disabled).toBe(true);
+    await act(async () =>
+      land(await served('', '/api/v1/archive/restore-preview', { method: 'POST' })),
+    );
+    await page.settle();
+    expect(fileField().disabled).toBe(false);
+    expect(restoreButton()).toBeDefined();
+  });
+
+  it('says why Restore is off until the phrase is typed', async () => {
+    page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
+    await pick('open-2025.zip');
+    await press(page, 'Preview restore');
+    const hint = 'Type RESTORE MYCLASH ARCHIVE to restore. Small letters work too.';
+    expect(document.body.textContent).toContain(hint);
+    const sentence = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="RESTORE MYCLASH ARCHIVE"]',
+    )!;
+    await act(async () => type(sentence, 'restore myclash archive'));
+    expect(document.body.textContent).not.toContain(hint);
+  });
+
   it('takes the phrase in small letters and with stray spaces, and sends it exact', async () => {
     page = await openArchivedPage(<OrganizerArchivePage />, READS, previewOf('event'));
     await pick('open-2025.zip');
