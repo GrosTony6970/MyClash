@@ -100,8 +100,8 @@ const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'passwo
 /** Digits, with no run and no repeat: a name field takes it, and so does a PIN rule. */
 const TYPED = '482916';
 
-function fillFields(): void {
-  for (const field of document.body.querySelectorAll<HTMLInputElement>('input')) {
+function fillFields(within: ParentNode = document.body): void {
+  for (const field of within.querySelectorAll<HTMLInputElement>('input')) {
     if (closed(field) || field.readOnly) continue;
     const kind = field.getAttribute('type') ?? '';
     if (TEXT_TYPES.has(kind) && field.value === '') type(field, TYPED);
@@ -112,7 +112,7 @@ function fillFields(): void {
       field.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
-  for (const field of document.body.querySelectorAll<HTMLTextAreaElement>('textarea')) {
+  for (const field of within.querySelectorAll<HTMLTextAreaElement>('textarea')) {
     if (!closed(field) && !field.readOnly && field.value === '') type(field, TYPED);
   }
 }
@@ -141,7 +141,7 @@ async function answerDialogs(): Promise<void> {
     await settle();
     const dialog = openDialog();
     if (!dialog) return;
-    await act(async () => fillFields());
+    await act(async () => fillFields(dialog));
     await pressAll('input[type="checkbox"], input[type="radio"]', dialog);
     const yes = liveButtons(dialog).pop();
     if (!yes) break;
