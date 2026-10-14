@@ -16,14 +16,14 @@
  * common correction action.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
 import { noExchangeRewrite } from '../lib/no-exchange-rewrite';
 import { refusalMessage } from '../lib/refusal-copy';
-import { buildUnifiedTimeline, exchangeOptionLabel } from '@myclash/ui';
+import { buildUnifiedTimeline, exchangeOptionLabel, useDialogLayer } from '@myclash/ui';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { BoutNames } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';
@@ -156,15 +156,8 @@ export function MatchCorrectionsDrawer({
   const [askedRewriteId, setAskedRewriteId] = useState<string | null>(null);
   const rewritten = exchangeOptions.find((ev) => ev.rawId === askedRewriteId);
 
-  // Escape closes
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  // Escape closes the drawer, but only when no question is open over it.
+  useDialogLayer(open, onClose);
 
   const disabled = busy || !online || locked;
 

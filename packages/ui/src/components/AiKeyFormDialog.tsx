@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogLayer } from '../hooks/useDialogLayer';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Button } from './Button';
 
@@ -74,6 +75,7 @@ export function AiKeyFormDialog({
   onCancel,
 }: AiKeyFormDialogProps) {
   const dialogRef = useRef<HTMLFormElement>(null);
+  const titleId = useId();
   const [label, setLabel] = useState('');
   const [provider, setProvider] = useState<AiKeyProvider>('anthropic');
   const [model, setModel] = useState<string>('');
@@ -92,14 +94,9 @@ export function AiKeyFormDialog({
     setBudget(initial?.monthlyBudgetEur == null ? '' : String(initial.monthlyBudgetEur));
   }, [open, initial, models]);
 
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) onCancel();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, busy, onCancel]);
+  useDialogLayer(open, () => {
+    if (!busy) onCancel();
+  });
 
   if (!open || typeof document === 'undefined') return null;
 
@@ -144,10 +141,10 @@ export function AiKeyFormDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="ai-key-dialog-title"
+        aria-labelledby={titleId}
         className="w-full max-w-md rounded-lg border border-border bg-surface p-6 dialog-card-enter"
       >
-        <h2 id="ai-key-dialog-title" className="font-display text-xl font-semibold text-foreground">
+        <h2 id={titleId} className="font-display text-xl font-semibold text-foreground">
           {mode === 'create' ? key('addKey') : key('editKey')}
         </h2>
 

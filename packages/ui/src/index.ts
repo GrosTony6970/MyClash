@@ -166,6 +166,7 @@ export type { ToastVariant } from './components/Toast';
 
 export { useFocusTrap } from './hooks/useFocusTrap';
 export { useLeaveGuard } from './hooks/useLeaveGuard';
+export { useDialogLayer } from './hooks/useDialogLayer';
 export { leaveTarget } from './utils/leave-target';
 export type { LinkAttributes, LinkClick } from './utils/leave-target';
 

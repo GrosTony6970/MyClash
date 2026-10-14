@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogLayer } from '../hooks/useDialogLayer';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
@@ -62,15 +63,10 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useFocusTrap(open, dialogRef);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, busy, onClose]);
+  // Escape reaches this window only when no question is open over it.
+  useDialogLayer(open, () => {
+    if (!busy) onClose();
+  });
 
   if (!open || typeof document === 'undefined') return null;
 

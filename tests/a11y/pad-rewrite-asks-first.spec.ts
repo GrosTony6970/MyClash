@@ -136,3 +136,21 @@ test('the two controls of the rewrite are the size of a finger', async ({ page }
   const picker = page.getByRole('combobox', { name: /select an exchange/i });
   expect((await picker.boundingBox())?.height).toBeGreaterThanOrEqual(44);
 });
+
+test('Escape closes the question first, and the drawer only at the next press', async ({
+  page,
+}) => {
+  // O25 (ruled 2026-10-14). The drawer listened on `window` and the question on `document`:
+  // one Escape closed both, and the official lost the drawer with the question.
+  const sent = await openDrawer(page);
+  await rewrite(page).click();
+  await expect(dialog(page)).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(rewrite(page)).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(rewrite(page)).toHaveCount(0);
+  expect(sent).toEqual([]);
+});

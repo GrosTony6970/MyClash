@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogLayer } from '../hooks/useDialogLayer';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
@@ -43,16 +44,12 @@ export function ConfirmDialog({
   busy = false,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Its own id: a question can open over another one.
+  const titleId = useId();
   useFocusTrap(open, dialogRef);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) onCancel();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, busy, onCancel]);
+  useDialogLayer(open, () => {
+    if (!busy) onCancel();
+  });
 
   // Portal to <body> so the dialog escapes any sticky/transformed ancestor
   // (e.g. the schedule board's sticky sidebar) that would otherwise scope its
@@ -74,13 +71,10 @@ export function ConfirmDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+        aria-labelledby={titleId}
         className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 dialog-card-enter"
       >
-        <h2
-          id="confirm-dialog-title"
-          className="font-display text-xl font-medium tracking-tight text-slate-900"
-        >
+        <h2 id={titleId} className="font-display text-xl font-medium tracking-tight text-slate-900">
           {title}
         </h2>
         {description ? (

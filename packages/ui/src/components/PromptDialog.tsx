@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useDialogLayer } from '../hooks/useDialogLayer';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
@@ -58,6 +59,7 @@ export function PromptDialog({
 }: PromptDialogProps) {
   const dialogRef = useRef<HTMLFormElement>(null);
   const [value, setValue] = useState(initialValue);
+  const titleId = useId();
 
   useFocusTrap(open, dialogRef);
 
@@ -65,14 +67,9 @@ export function PromptDialog({
     if (open) setValue(initialValue);
   }, [open, initialValue]);
 
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !busy) onCancel();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, busy, onCancel]);
+  useDialogLayer(open, () => {
+    if (!busy) onCancel();
+  });
 
   // Portal to <body> so the dialog escapes any sticky/transformed ancestor's
   // stacking context (see ConfirmDialog).
@@ -101,13 +98,10 @@ export function PromptDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="prompt-dialog-title"
+        aria-labelledby={titleId}
         className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 dialog-card-enter"
       >
-        <h2
-          id="prompt-dialog-title"
-          className="font-display text-xl font-medium tracking-tight text-slate-900"
-        >
+        <h2 id={titleId} className="font-display text-xl font-medium tracking-tight text-slate-900">
           {title}
         </h2>
         {description ? (
