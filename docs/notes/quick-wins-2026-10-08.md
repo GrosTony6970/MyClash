@@ -136,8 +136,8 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~O3~~  | ~~✔ A message to every participant goes out on one click. No confirm, no count.~~ Done `eceb8c88`.                                                                                                   | `useConfirm`, naming the audience and severity.                                      | No half-written or mis-targeted message to the whole hall.                      | `EV/notifications/page.tsx:103-122`                                                                            | S     |
 | ~~O4~~  | ~~✔ Broadcast failure and success look the same: one grey line.~~ Done `5938c85e`.                                                                                                                   | Split error from notice, or `useToast`.                                              | The organiser knows whether the hall was told.                                  | `EV/notifications/page.tsx:128, 131`                                                                           | S     |
 | O5      | ✔ "Specific persons" has no select-all: 40 people is 40 clicks.                                                                                                                                      | "Select all shown" on the filtered list.                                             | Messaging one club or one Pool takes seconds.                                   | `EV/notifications/page.tsx:144-151, 210-241`                                                                   | S     |
-| O6      | All three planning boards open on day 1, never on today.                                                                                                                                             | Default to the Event's "today" when it is one of its days.                           | On day 2 nobody drops a Pool onto yesterday.                                    | `EV/schedule/useScheduleData.ts:239`; `EV/workshops/WorkshopScheduleBoard.tsx:130`; `EV/referees/page.tsx:589` | S     |
-| O7      | Pools, Swiss, print and archive forget the Tournament on refresh; dashboard links for Tournament #4 open #1.                                                                                         | Read and write `?tournamentId`, as the bracket page does; add it to the links.       | The organiser stays on the Tournament they are running.                         | `EV/pools/page.tsx:199`; `EV/swiss/page.tsx:87`; `EV/print/page.tsx:127`; `EV/page.tsx:669-699`                | S     |
+| ~~O6~~  | ~~All three planning boards open on day 1, never on today.~~ Done `74b7748b`.                                                                                                                        | Default to the Event's "today" when it is one of its days.                           | On day 2 nobody drops a Pool onto yesterday.                                    | `EV/schedule/useScheduleData.ts:239`; `EV/workshops/WorkshopScheduleBoard.tsx:130`; `EV/referees/page.tsx:589` | S     |
+| ~~O7~~  | ~~Pools, Swiss, print and archive forget the Tournament on refresh; dashboard links for Tournament #4 open #1.~~ Done `fd61511b`.                                                                    | Read and write `?tournamentId`, as the bracket page does; add it to the links.       | The organiser stays on the Tournament they are running.                         | `EV/pools/page.tsx:199`; `EV/swiss/page.tsx:87`; `EV/print/page.tsx:127`; `EV/page.tsx:669-699`                | S     |
 | ~~O8~~  | ~~A refused referee assignment shows its reason behind the open picker.~~ Done `6aabcb2d`.                                                                                                           | Show it inside the picker.                                                           | The organiser sees why and picks someone else, instead of clicking again.       | `EV/referees/page.tsx:987, 1344, 1434-1443`                                                                    | S     |
 | ~~O9~~  | ~~The referee picker has no search.~~ Done `39c483cd`.                                                                                                                                               | An autofocused filter input.                                                         | A named referee is two keystrokes away.                                         | `EV/referees/_components/CandidatePicker.tsx:42-79`                                                            | S     |
 | ~~O10~~ | ~~A failed load of one Tournament's penalty reviews looks like "nobody to review".~~ Done `d9cb35a5`.                                                                                                | Show the existing error banner, naming the Tournament.                               | A pending disqualification is not missed because of a network blip.             | `EV/penalties/page.tsx:104`                                                                                    | S     |
@@ -149,17 +149,17 @@ Size: **S** = under about one hour, **M** = about half a day.
 | O16     | Adding walk-ins closes the window after each person; Enter does not save.                                                                                                                            | "Save and add another"; a real `<form>`.                                             | A queue at the desk moves at typing speed.                                      | `EV/persons/page.tsx:466-479, 624, 1559-1902`                                                                  | S–M   |
 | O17     | CSV import: the final screen counts skipped and invalid rows without listing them; reasons come in English from the server.                                                                          | List the rows (the data is already in the report); send a reason code and translate. | The organiser knows whom to add by hand, in their language.                     | `EV/persons/import/page.tsx:589, 606-611`; `apps/api/.../persons/csv-import.service.ts:131-178`                | S + M |
 | O18     | CSV import: the dashed box does not accept a dropped file, and there is no template.                                                                                                                 | Drop handlers; a "Download template" link.                                           | Fewer failed first imports from misspelt headers.                               | `EV/persons/import/page.tsx:337-357`                                                                           | S     |
-| O19     | The roster has no export, and its filters are lost on refresh.                                                                                                                                       | CSV of the filtered list via `escapeCsvCell`; filters in the address.                | A check-in list for the desk in one click.                                      | `EV/persons/page.tsx:152-157, 1004-1021`                                                                       | M     |
+| ~~O19~~ | ~~The roster has no export, and its filters are lost on refresh.~~ Done `9e68f5ea`.                                                                                                                  | CSV of the filtered list via `escapeCsvCell`; filters in the address.                | A check-in list for the desk in one click.                                      | `EV/persons/page.tsx:152-157, 1004-1021`                                                                       | M     |
 | O20     | The Pool standings CSV garbles accents in Excel and has English headers.                                                                                                                             | Mirror `EV/finalranking/page.tsx:117-123`.                                           | "Géraldine" opens as "Géraldine".                                               | `EV/pools/_tabs/StandingsTab.tsx:163-170, 183`                                                                 | S     |
 | ~~O21~~ | ~~"Print / PDF" does nothing under a popup blocker, on final ranking and on referee pay.~~ Done `5bea1676`.                                                                                          | The message the print pack already shows.                                            | The organiser allows popups, instead of thinking print is broken at the awards. | `EV/finalranking/page.tsx:131`; `EV/compensation/page.tsx:231`                                                 | S     |
-| O22     | The print pack prints one Tournament at a time.                                                                                                                                                      | An "All Tournaments" option.                                                         | One print job at 8 a.m. instead of four.                                        | `EV/print/page.tsx:308-325`                                                                                    | M     |
+| ~~O22~~ | ~~The print pack prints one Tournament at a time.~~ Done `9e2aa2a8`.                                                                                                                                 | An "All Tournaments" option.                                                         | One print job at 8 a.m. instead of four.                                        | `EV/print/page.tsx:308-325`                                                                                    | M     |
 | ~~O23~~ | ~~Archive restore: after previewing file A, choosing file B keeps A's preview and restores B.~~ Done `35ccc5c0`.                                                                                     | Clear the preview when the file changes.                                             | Nobody restores an archive they never looked at.                                | `EV/archive/page.tsx:121, 289-296`                                                                             | S     |
 | ~~O24~~ | ~~Saving referee pay rates gives no confirmation.~~ Done `d7bf23ba`.                                                                                                                                 | `toast.success` on each save.                                                        | No reloading to check that money settings were kept.                            | `EV/compensation/plan/page.tsx:228-292`                                                                        | S     |
 | O25     | Removing a piste from a venue is instant and a refusal is silent; Enter does not add a piste, there or on the schedule board.                                                                        | The `confirm()` already in that file; a toast; Enter-to-add.                         | Six pistes are six "type, Enter"; none vanishes by accident.                    | `org/[slug]/venues/page.tsx:521-554, 654-699`; `EV/schedule/grid.tsx:1754-1794`                                | S     |
 | ~~O26~~ | ~~The schedule board forgets Blocks / Detailed view on reload. Its four other settings are kept.~~ Done `479f4232`.                                                                                  | A fifth entry in `useSchedulePrefs`.                                                 | One click less after every reload on the day.                                   | `EV/schedule/grid.tsx:424`; `useSchedulePrefs.ts:30-33`                                                        | S     |
 | O27     | The reset-PIN prompt shows neither the PIN rule nor whose PIN it is.                                                                                                                                 | Pass the hint and the name (`PromptDialog` takes `description`).                     | The PIN is right first time, for the right person.                              | `EV/staff/StaffRoleSection.tsx:36`                                                                             | S     |
-| O28     | ✔ Match detail is a dead end. The page already receives the Tournament and Pool; it does not use them.                                                                                               | One more breadcrumb.                                                                 | Back to the Pool in one click after checking a bout.                            | `EV/matches/[matchId]/page.tsx:85-134, 505-518`                                                                | S     |
-| O29     | Pool matches have no name filter.                                                                                                                                                                    | A name filter and "hide completed".                                                  | "When does Martin fight?" is answered without scrolling 60 rows.                | `EV/pools/_tabs/MatchesTab.tsx:106-115`                                                                        | M     |
+| ~~O28~~ | ~~✔ Match detail is a dead end. The page already receives the Tournament and Pool; it does not use them.~~ Done `9af16813`.                                                                          | One more breadcrumb.                                                                 | Back to the Pool in one click after checking a bout.                            | `EV/matches/[matchId]/page.tsx:85-134, 505-518`                                                                | S     |
+| ~~O29~~ | ~~Pool matches have no name filter.~~ Done `21c2730d`.                                                                                                                                               | A name filter and "hide completed".                                                  | "When does Martin fight?" is answered without scrolling 60 rows.                | `EV/pools/_tabs/MatchesTab.tsx:106-115`                                                                        | M     |
 
 ## X — one class of bug across all three apps (hard rule 6)
 
@@ -1968,6 +1968,7 @@ Each fork was asked with a story:
 | Row            | Ruling                                                                                                                                                                                                      |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | O7             | A page's Tournament: `?tournamentId` in the address first, then the last one picked in this Event on this browser, then the first. Sidebar and dashboard links carry it.                                    |
+| O7, the roster | It reads and writes `?tournamentId` like the other pages. Opened with none, it shows every participant, never the Tournament last picked (asked during push 2).                                             |
 | O12 + O13      | The new-Event wizard asks before its own exits; the browser asks on reload and close (its Back is not guarded, as M4). A retry after a partial failure keeps the Event made and sends only what is missing. |
 | O15            | "Leave without saving?" before a tab switch, a site link, or closing the tab. Each tab reads fresh. The page names the Tournament.                                                                          |
 | O11            | Dismiss asks first; both buttons are off while one saves; a resolved row shows its date; a dismissed row keeps "Disqualify after all".                                                                      |
@@ -2041,6 +2042,82 @@ Named, not fixed (each read in code):
 - Many French strings of the organiser have no accents ("Avance", "Recommande", "deuxieme"): only
   the strings this work touched were fixed. X4's widened lint will not see accents.
 - A bulk selection changed while the bulk write runs is replaced by the refused ones.
+
+## Built on 2026-10-14: push 2 of the O and X rows
+
+Six rows, two faults found beside them, the fixes of their review, and one fix of the test kit:
+fourteen commits, `fd61511b` to `e3a69751`. Pushes 3 to 5 of the plan (O5 O11 O12 O13 O15 to O18 O20 O25 O27, X1
+X2 X4 X5, and the bug of a third black card) are NOT built.
+
+One more ruling of the operator, asked with a story while push 2 was planned: **the roster opened
+bare shows every participant**. It reads and writes `?tournamentId` like the other pages, so a
+dashboard row's link and a refresh keep the Tournament, but it never opens on the one last
+picked.
+
+What people get:
+
+- **O7** (`fd61511b`). Pools, Swiss, print, archive, bracket and final ranking keep the
+  Tournament: the one the address names, then the last one picked in this Event on this
+  browser, then the first. The roster's Tournament tab is in the address too. The dashboard's
+  Tournament rows, Pools to bracket and back, and the readiness "fix it" links open on their
+  Tournament. The archive's three CSV links of one Tournament name it.
+- **O28** (`9af16813`). A bout's page leads back to "Pools · Longsword" (its bouts tab), the
+  Swiss rounds, or the bracket, on its own Tournament.
+- **O22** (`9e2aa2a8`, `5009753b`). The print pack offers "All Tournaments, in one print job".
+  A Tournament the server could not read stops the job and says why.
+- **O6** (`74b7748b`, `0e783e71`). The schedule board, the workshop board and the Configure panel
+  open on today, on the Event's clock, when the Event runs today; the referee board too, else on
+  "All days". A day the organiser picked, "All days" too, is never replaced.
+- **Day tabs** (`1472f40c`, found beside O6). The day tabs said "sam. 03 mai" to an English
+  organiser: they follow the page's language now. The referee board's day pills named the day
+  before on a computer west of UTC.
+- **O29** (`21c2730d`). The Pool bouts tab finds a bout by fighter, club or referee, accents
+  ignored, and hides the completed and voided bouts on request. Both stay in the address.
+- **O19** (`9e68f5ea`, `2abb47ef`). The roster keeps its search and its filters in the address,
+  and "Export CSV" writes the rows on screen: name, club, Tournaments with status and seed,
+  referee, instructor. No email, birth date or notes.
+- **A refused roster read** (`2b8d9598`, found beside O19). It showed only inside the Add window;
+  it is the page's alert now.
+- **A search box kept in the address keeps every letter** (`5bd9a633`, from the review). This app
+  renders every page on the server, so the address moves only when the server has answered. A
+  box bound to the address put back its old value after each key: on slow wifi "ab" became "b".
+  One owner now, `useAddressFilters`: the roster, the Pool bouts tab and the workshop list.
+
+The proof: one cold review (no blocker, two majors, eight minors; fixed or named below), 71 seeded
+breaks (69 red, the two greens got a test, then 2 of 2 red), the gate chain (36 of 36, after the fix below), the browser
+suite (400 passed, 10.6 min). No API code, no migration, no route.
+
+The gate chain was red once, on the archived Workshops page's press-everything test: 45 s alone,
+over 60 s under the chain. The test kit filled the whole page each time it answered a dialog
+left open, so it typed into the list's search after every "Clear filters", and pressed Clear 291
+times; while the box was bound to an address that never moved in the test, the typing did
+nothing. The kit fills only the dialog now (`e3a69751`): 3 s.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The sidebar still does not carry the Tournament**: each page falls back to the remembered
+  one.
+- **The roster's export columns.** One Tournament's tab: name, club, status, seed, referee,
+  instructor. "All": name, club, one cell for the Tournaments ("Longsword (Checked in, seed 3);
+  Sabre (Registered)"), referee, instructor.
+- **"All Tournaments" stays in the address** (a refresh keeps it) and is never remembered for the
+  other pages.
+- **A page that opens bare writes its Tournament into the address** at once (the roster writes
+  "all").
+
+Named, not fixed (each read in code):
+
+- The schedule board goes back to its opening day after every Generate or Save (it remounts):
+  today now, day 1 before.
+- Pick a Tournament, then the one before, faster than the server answers: the page shows the
+  first pick.
+- A Tournament switched while a filter's write is still out drops that filter from the address
+  (the page still shows it; the next key writes it again).
+- The referee board's by-timeslot header shows its day and time on the computer's clock, not the
+  Event's.
+- The roster's status chip shows the raw status word, in English (`persons/page.tsx`): X1's work.
+- The referee board's and the Configure panel's day are tested by their pure rule, not by a
+  mounted page.
 
 ## Still not checked
 
