@@ -381,6 +381,8 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   // its object URL); a successful crop uploads and updates the header preview.
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  // Why a photo was refused, shown under the photo buttons (quick-win M2), not beside Save.
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   // Roster registrations matching the logged-in user's email but not yet
   // claimed — surfaced as a confirm-to-claim step instead of dead-ending when
@@ -577,13 +579,13 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
     event.target.value = '';
     if (!file) return;
     setMessage(null);
-    setError(null);
+    setPhotoError(null);
     if (file.size > PHOTO_MAX_BYTES) {
-      setError(t('publicApp.fighterProfile.photoTooLarge'));
+      setPhotoError(t('publicApp.fighterProfile.photoTooLarge'));
       return;
     }
     if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-      setError(t('publicApp.fighterProfile.photoWrongType'));
+      setPhotoError(t('publicApp.fighterProfile.photoWrongType'));
       return;
     }
     setCropImageSrc(URL.createObjectURL(file));
@@ -598,7 +600,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   // (header avatar + the dashboard profile) so it appears without a reload.
   const onCropSave = (blob: Blob) => {
     setPhotoBusy(true);
-    setError(null);
+    setPhotoError(null);
     const body = new FormData();
     body.append('file', blob, 'avatar.jpg');
     fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
@@ -619,14 +621,18 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         setMessage(t('publicApp.fighterProfile.saveSuccess'));
         closeCropper();
       })
-      .catch(() => setError(t('publicApp.fighterProfile.photoError')))
+      .catch(() => {
+        // The cropper is a modal: closed, so the reason under the photo can be read.
+        closeCropper();
+        setPhotoError(t('publicApp.fighterProfile.photoError'));
+      })
       .finally(() => setPhotoBusy(false));
   };
 
   const onRemovePhoto = () => {
     setPhotoBusy(true);
     setMessage(null);
-    setError(null);
+    setPhotoError(null);
     fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
       method: 'DELETE',
       credentials: 'include',
@@ -639,7 +645,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         );
         window.dispatchEvent(new CustomEvent('myclash:profile-photo', { detail: { url: null } }));
       })
-      .catch(() => setError(t('publicApp.fighterProfile.photoError')))
+      .catch(() => setPhotoError(t('publicApp.fighterProfile.photoError')))
       .finally(() => setPhotoBusy(false));
   };
 
@@ -755,7 +761,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         <InsightCard apiUrl={apiUrl} />
       </div>
       <Card className="order-2 lg:order-none">
-        <div className="mb-5 flex items-center gap-4">
+        <div data-testid="profile-photo" className="mb-5 flex items-center gap-4">
           <Avatar
             size="xl"
             name={form.displayName || form.givenName || '?'}
@@ -796,6 +802,11 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
                 </Button>
               )}
             </div>
+            {photoError && (
+              <p role="alert" className="mt-1 text-xs font-medium text-danger">
+                {photoError}
+              </p>
+            )}
           </div>
         </div>
         {dashboard?.profile.slug && (
