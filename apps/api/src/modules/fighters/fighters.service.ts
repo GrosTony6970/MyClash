@@ -15,6 +15,7 @@ import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
+import { GLOBAL_IMPORT_COLUMNS } from '../persons/csv-columns';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
 import { isFieldPublic, VISIBILITY_FIELDS, type VisibilityField } from './public-visibility';
 import {
@@ -2239,6 +2240,8 @@ export class FightersService {
 
   async previewGlobalPersonsImport(buffer: Buffer): Promise<{
     summary: { total: number; ok: number; invalid: number; duplicate: number };
+    /** The file's headers, as written, that name no column this import reads. */
+    unknownColumns: string[];
     rows: Array<{
       index: number;
       status: 'ok' | 'invalid' | 'duplicate';
@@ -2265,7 +2268,7 @@ export class FightersService {
       };
     }>;
   }> {
-    const parsed = this.csvImport.parse(buffer);
+    const parsed = this.csvImport.parse(buffer, GLOBAL_IMPORT_COLUMNS);
     const validRows = parsed.rows;
     const invalidRows = parsed.invalid;
 
@@ -2376,7 +2379,7 @@ export class FightersService {
       { total: 0, ok: 0, invalid: 0, duplicate: 0 },
     );
 
-    return { summary, rows: out };
+    return { summary, unknownColumns: parsed.unknownColumns, rows: out };
   }
 
   async commitGlobalPersonsImport(decisions: ImportDecisionDto[]): Promise<{

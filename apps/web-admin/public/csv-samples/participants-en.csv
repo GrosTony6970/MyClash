@@ -1,0 +1,4 @@
+﻿given_name,family_name,email,date_of_birth,club,club_abv,club_city,hema_ratings_id,gender_category,weapons,notes
+Jane,Example,jane.example@example.com,14/02/1995,Example Fencing Hall,EFH,Lyon,,F,Longsword:intermediate|Rapier,Left-handed
+Sam,Sample,,,Example Fencing Hall,EFH,Lyon,,,Longsword,
+Alex,Placeholder,alex@example.com,,,,,,,,

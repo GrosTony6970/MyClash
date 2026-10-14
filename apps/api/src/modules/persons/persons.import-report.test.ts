@@ -74,6 +74,14 @@ describe('the preview of a roster file', () => {
       { line: 5, status: 'duplicate', reason: 'repeated_in_file', value: undefined },
     ]);
     expect(preview.rows.find((row) => row.status === 'ok')).toMatchObject({ index: 1, line: 3 });
+    expect(preview.unknownColumns).toEqual([]);
+  });
+
+  it('names the columns the roster import does not read (O18)', async () => {
+    const file = Buffer.from('Prénom;Nom;is_referee\nPaul;Petit;1\n');
+    const preview = await service(ROSTER).previewImport(EVENT, file);
+    expect(preview.unknownColumns).toEqual(['is_referee']);
+    expect(preview.rows).toEqual([expect.objectContaining({ status: 'ok', givenName: 'Paul' })]);
   });
 });
 

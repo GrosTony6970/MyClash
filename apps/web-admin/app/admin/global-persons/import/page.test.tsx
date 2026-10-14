@@ -48,6 +48,7 @@ const FIELDS = {
 };
 const PREVIEW = {
   summary: { total: 2, ok: 1, invalid: 1, duplicate: 0 },
+  unknownColumns: ['notes'],
   rows: [
     { index: 3, status: 'ok', problem: null, duplicate: null, raw: '', fields: FIELDS },
     {
@@ -96,6 +97,10 @@ describe('the Global Profiles import', () => {
     await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
     await press('Preview');
     expect(text()).toContain('This email is not valid: bob@');
+    // O18: the Global Profiles import reads no notes, and says so.
+    expect(document.querySelector('[role="note"]')?.textContent).toBe(
+      'Columns this import does not read: notes',
+    );
 
     await press('Commit');
     expect(text()).toContain('Line 3: Not saved: the server refused this row.');

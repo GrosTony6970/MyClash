@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { getDateFormat, type ImportRowProblem } from '@myclash/types';
+import { columnOf, type CsvColumn } from './csv-columns';
 import { recordLine } from './csv-lines';
 
 export interface CsvRow {
@@ -20,8 +21,6 @@ export interface CsvRow {
   notes?: string;
   /** Pipe-separated weapons, first = favorite, optional level: "Longsword:intermediate|Rapier". */
   weapons?: string;
-  event_codes?: string;
-  roles?: string;
   is_fighter?: string;
   is_referee?: string;
   is_workshop_participant?: string;
@@ -62,6 +61,8 @@ export type InvalidCsvRow = RowPlace & ImportRowProblem & { raw: string };
 export interface ParsedCsvResult {
   rows: Array<CsvRow & RowPlace>;
   invalid: InvalidCsvRow[];
+  /** The file's headers, as written, that name no column this import reads. */
+  unknownColumns: string[];
 }
 
 /** A file csv-parse gave up on: one refusal, at the line where it stopped. */
@@ -69,6 +70,7 @@ function unreadableFile(err: unknown): ParsedCsvResult {
   const line = (err as { lines?: unknown }).lines;
   return {
     rows: [],
+    unknownColumns: [],
     invalid: [
       { index: 0, line: typeof line === 'number' ? line : 1, reason: 'unreadable_file', raw: '' },
     ],
@@ -84,7 +86,7 @@ interface ParsedRecord {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** A record's cells keyed by header (lower case, spaces as `_`), or why the record is refused. */
+/** A record's cells keyed by column (`csv-columns.ts`), or why the record is refused. */
 function checkRecord(cells: Record<string, string>): CsvRow | ImportRowProblem {
   const cell = (key: string) => (cells[key] ?? '').trim();
   const givenName = cell('given_name');
@@ -114,8 +116,6 @@ function checkRecord(cells: Record<string, string>): CsvRow | ImportRowProblem {
     gender_category: optional('gender_category'),
     notes: optional('notes'),
     weapons: optional('weapons'),
-    event_codes: optional('event_codes'),
-    roles: optional('roles'),
     is_fighter: optional('is_fighter'),
     is_referee: optional('is_referee'),
     is_workshop_participant: optional('is_workshop_participant'),
@@ -165,24 +165,34 @@ export function detectCsvDelimiter(content: string): ',' | ';' {
  * Parses a CSV buffer into validated rows.
  * Handles: BOM, quoted commas, accented characters, missing optional columns.
  * Email is optional. Club is expected but absence is valid (Unaffiliated).
- * Accepted columns: given_name, family_name, email, club, club_abv, club_city,
- *                   hema_ratings_id, event_codes, roles
+ * Its columns, and the English and French header names of each, are `csv-columns.ts`;
+ * each caller names the columns its import reads.
  */
 @Injectable()
 export class CsvImportService {
   private readonly logger = new Logger(CsvImportService.name);
 
-  parse(buffer: Buffer): ParsedCsvResult {
+  parse(buffer: Buffer, reads: readonly CsvColumn[]): ParsedCsvResult {
     // Strip BOM if present
     let content = buffer.toString('utf-8');
     if (content.charCodeAt(0) === 0xfeff) {
       content = content.slice(1);
     }
 
+    // Each header becomes the column it names; one this import does not read keeps a
+    // name no column has, and is listed.
+    const unknownColumns: string[] = [];
+    const toColumns = (headers: string[]) =>
+      headers.map((header, i) => {
+        const column = columnOf(header, reads);
+        if (!column && header.trim()) unknownColumns.push(header.trim());
+        return column ?? `unread ${i}`;
+      });
+
     let records: ParsedRecord[];
     try {
       records = parse(content, {
-        columns: true,
+        columns: toColumns,
         skip_empty_lines: true,
         trim: true,
         relax_column_count: true,
@@ -200,12 +210,7 @@ export class CsvImportService {
     const invalid: ParsedCsvResult['invalid'] = [];
     records.forEach(({ record, info, raw }, index) => {
       const place = { index, line: recordLine(info.lines, raw) };
-      // Normalize column names (handle case variations)
-      const cells: Record<string, string> = {};
-      for (const [k, v] of Object.entries(record)) {
-        cells[k.toLowerCase().trim().replace(/\s+/g, '_')] = v ?? '';
-      }
-      const checked = checkRecord(cells);
+      const checked = checkRecord(record);
       if ('reason' in checked) {
         invalid.push({ ...place, ...checked, raw: Object.values(record).join(',') });
       } else {
@@ -213,7 +218,7 @@ export class CsvImportService {
       }
     });
 
-    return { rows, invalid };
+    return { rows, invalid, unknownColumns };
   }
 
   /**

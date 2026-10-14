@@ -8,6 +8,7 @@ export function noFilePreview(): ImportPreviewResponse {
   return {
     summary: { toCreate: 0, toLink: 0, duplicates: 0, invalid: 1 },
     newClubs: [],
+    unknownColumns: [],
     rows: [
       {
         index: 0,

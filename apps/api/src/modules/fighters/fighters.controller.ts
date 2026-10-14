@@ -468,6 +468,7 @@ export class GlobalPersonsController {
     if (!buffer) {
       return {
         summary: { total: 0, ok: 0, invalid: 0, duplicate: 0 },
+        unknownColumns: [],
         rows: [],
       };
     }

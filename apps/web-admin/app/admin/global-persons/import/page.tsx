@@ -6,11 +6,12 @@
  */
 
 import Link from 'next/link';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getDateFormat, type ImportRowProblem } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { CsvDropZone } from '@/components/CsvDropZone';
 import { importProblemText } from '@/lib/import-reasons';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';
@@ -44,6 +45,8 @@ interface PreviewRow {
 
 interface PreviewResponse {
   summary: { total: number; ok: number; invalid: number; duplicate: number };
+  /** The file's headers, as written, that name no column this import reads. */
+  unknownColumns: string[];
   rows: PreviewRow[];
 }
 
@@ -79,7 +82,6 @@ export default function GlobalPersonsImportPage() {
   const [report, setReport] = useState<CommitReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const decisionSummary = useMemo(() => {
     const acc = { skip: 0, create_new: 0, overwrite: 0 };
@@ -226,28 +228,7 @@ export default function GlobalPersonsImportPage() {
             <p className="text-xs text-muted">{t('admin.globalPersonsImport.nextStepHint')}</p>
           </div>
 
-          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
-            >
-              {t('organizer.personsImport.chooseFile')}
-            </button>
-            {file && (
-              <p className="text-sm text-foreground-secondary mt-2">
-                <strong>{file.name}</strong>{' '}
-                {t('organizer.personsImport.sizeKb', { size: (file.size / 1024).toFixed(1) })}
-              </p>
-            )}
-          </div>
+          <CsvDropZone file={file} onFile={setFile} />
 
           <button
             type="button"
@@ -329,6 +310,17 @@ export default function GlobalPersonsImportPage() {
               </button>
             </div>
           </div>
+
+          {preview.unknownColumns.length > 0 && (
+            <p
+              role="note"
+              className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
+            >
+              {t('organizer.personsImport.unknownColumns', {
+                columns: preview.unknownColumns.join(', '),
+              })}
+            </p>
+          )}
 
           <div className="overflow-x-auto border border-border rounded-lg">
             <table className="min-w-full text-sm">

@@ -107,7 +107,11 @@ function fillFields(within: ParentNode = document.body): void {
     if (TEXT_TYPES.has(kind) && field.value === '') type(field, TYPED);
     if (kind === 'number' && field.value === '') type(field, '1234');
     if (kind === 'file') {
-      const file = new File(['x'], 'logo.png', { type: 'image/png' });
+      // A file the box takes: a CSV box refuses a picture, and its page would then stay
+      // quiet for that reason, not for the one under test.
+      const file = field.accept.includes('.csv')
+        ? new File(['given_name,family_name\n'], 'roster.csv', { type: 'text/csv' })
+        : new File(['x'], 'logo.png', { type: 'image/png' });
       Object.defineProperty(field, 'files', { value: [file], configurable: true });
       field.dispatchEvent(new Event('change', { bubbles: true }));
     }

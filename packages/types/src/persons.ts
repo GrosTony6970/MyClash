@@ -169,6 +169,8 @@ export interface PreviewRow {
 export interface ImportPreviewResponse {
   summary: { toCreate: number; toLink: number; duplicates: number; invalid: number };
   newClubs: string[];
+  /** The file's headers, as written, that name no column this import reads. */
+  unknownColumns: string[];
   rows: PreviewRow[];
 }
 

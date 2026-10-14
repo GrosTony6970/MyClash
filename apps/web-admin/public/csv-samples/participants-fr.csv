@@ -1,0 +1,4 @@
+﻿prenom;nom;courriel;date_de_naissance;club;sigle_club;ville_club;id_hema_ratings;categorie;armes;remarques
+Jeanne;Exemple;jeanne.exemple@example.com;14/02/1995;Salle d'Armes Exemple;SAE;Lyon;;F;Longsword:intermediate|Rapier;Gauchère
+Marc;Modèle;;;Salle d'Armes Exemple;SAE;Lyon;;;Longsword;
+Alex;Fictif;alex@example.com;;;;;;;;

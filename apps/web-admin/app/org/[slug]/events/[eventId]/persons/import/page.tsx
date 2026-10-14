@@ -5,10 +5,11 @@
  * Steps: Upload → Preview (with conflict cards) → Commit → Done
  */
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { OrgCrumb } from '@/components/Crumbs';
+import { CsvDropZone } from '@/components/CsvDropZone';
 import { useI18n } from '@myclash/next-i18n/client';
 import type {
   CsvImportReport,
@@ -177,7 +178,7 @@ export default function CsvImportPage() {
   const router = useRouter();
   const { isReadOnly } = useEventStatus(eventId);
   const apiUrl = getPublicApiUrl();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -186,7 +187,6 @@ export default function CsvImportPage() {
   const [decisions, setDecisions] = useState<Record<number, 'link' | 'create_new'>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   function decide(rowIndex: number, action: 'link' | 'create_new') {
     setDecisions((prev) => ({ ...prev, [rowIndex]: action }));
@@ -335,34 +335,23 @@ export default function CsvImportPage() {
       {/* ── Step: Upload ── */}
       {step === 'upload' && (
         <div className="flex flex-col gap-4">
-          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center">
+          <CsvDropZone file={file} onFile={setFile} inputTestId="import-file-input">
             <p className="text-muted text-sm mb-1">
               {t('organizer.personsImport.csvColumnsLabel')}
             </p>
-            <p className="font-mono text-xs text-muted mb-3">
-              {'given_name, family_name, email, club, club_abv, club_city, hema_ratings_id'}
+            <p className="font-mono text-xs text-muted mb-2">
+              {t('organizer.personsImport.csvColumns')}
             </p>
-            <input
-              ref={fileRef}
-              data-testid="import-file-input"
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors"
-            >
-              {t('organizer.personsImport.chooseFile')}
-            </button>
-            {file && (
-              <p className="text-sm text-foreground-secondary mt-2">
-                {t('organizer.personsImport.selectedLabel')} <strong>{file.name}</strong>{' '}
-                {t('organizer.personsImport.sizeKb', { size: (file.size / 1024).toFixed(1) })}
-              </p>
-            )}
-          </div>
+            <p className="text-xs mb-3">
+              <a
+                href={`/csv-samples/participants-${locale === 'fr' ? 'fr' : 'en'}.csv`}
+                download
+                className="text-info hover:underline font-medium"
+              >
+                {t('organizer.personsImport.downloadTemplate')}
+              </a>
+            </p>
+          </CsvDropZone>
 
           <button
             onClick={() => void handlePreview()}
@@ -505,6 +494,17 @@ export default function CsvImportPage() {
                   </button>
                 </div>
               </div>
+
+              {preview.unknownColumns.length > 0 && (
+                <p
+                  role="note"
+                  className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
+                >
+                  {t('organizer.personsImport.unknownColumns', {
+                    columns: preview.unknownColumns.join(', '),
+                  })}
+                </p>
+              )}
 
               {/* Side-effect callout: new clubs that will be created. */}
               {preview.newClubs.length > 0 && (

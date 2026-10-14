@@ -35,6 +35,9 @@ describe('the roster import of an archived Event', () => {
 
     await page.pressEverything();
 
+    // The box took the file: nothing was sent because the Event is archived, not
+    // because the box refused what it was given.
+    expect(document.body.textContent).toContain('roster.csv');
     expect(page.writes()).toEqual([]);
   });
 });

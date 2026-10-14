@@ -32,6 +32,7 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
 const PREVIEW: ImportPreviewResponse = {
   summary: { toCreate: 1, toLink: 0, duplicates: 1, invalid: 1 },
   newClubs: [],
+  unknownColumns: ['prenom2', 'Arbitre'],
   rows: [
     {
       index: 2,
@@ -100,6 +101,25 @@ describe('the rows the roster import will not take', () => {
     expect(text()).not.toContain('Line 3:');
     expect(text()).toContain('Line 2: Léa Martin · Already on the roster.');
     expect(text()).toContain('Line 6: This email is not valid: tom@');
+  });
+
+  // O18: a header the import does not read is named, as the file writes it.
+  it('names the columns of the file this import does not read', async () => {
+    await previewed();
+    expect(document.querySelector('[role="note"]')?.textContent).toBe(
+      'Columns this import does not read: prenom2, Arbitre',
+    );
+  });
+
+  it('offers the template of the page language', async () => {
+    page = await openEventPage(<CsvImportPage />, {
+      [`/api/v1/events/${EVENT_ID}`]: { id: EVENT_ID, name: 'Open', status: 'published' },
+    });
+    const link = [...document.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Download template',
+    );
+    expect(link?.getAttribute('href')).toBe('/csv-samples/participants-en.csv');
+    expect(link?.hasAttribute('download')).toBe(true);
   });
 
   it('lists each skipped and refused row on the last screen, with no "updated"', async () => {

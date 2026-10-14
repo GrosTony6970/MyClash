@@ -23,6 +23,7 @@ import { GlobalPersonResolverService } from '../identity/global-person-resolver.
 import type { ResolveGlobalPersonResult } from '../identity/global-person-resolver.service';
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
+import { EVENT_IMPORT_COLUMNS } from './csv-columns';
 import type { CsvRow } from './csv-import.service';
 import { detectDuplicate, importDuplicateReason, personNameKey } from './duplicate-guard';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
@@ -273,7 +274,7 @@ export class PersonsService {
   // ── Import preview (dry run) ─────────────────────────────────────────────────
 
   async previewImport(eventId: string, buffer: Buffer): Promise<ImportPreviewResponse> {
-    const { rows, invalid } = this.csv.parse(buffer);
+    const { rows, invalid, unknownColumns } = this.csv.parse(buffer, EVENT_IMPORT_COLUMNS);
 
     const existingPersons = await this.fetchExistingPersons(eventId);
     const existingByEmail = this.indexByEmail(existingPersons);
@@ -360,6 +361,7 @@ export class PersonsService {
       newClubs: okRows
         .filter((r) => r.clubResolution?.confidence === 'new')
         .map((r) => r.clubResolution!.resolvedName),
+      unknownColumns,
       rows: previewRows,
     };
   }
@@ -372,7 +374,7 @@ export class PersonsService {
     createdByUserId: string,
     decisions: ImportDecision[] = [],
   ): Promise<CsvImportReport> {
-    const { rows, invalid } = this.csv.parse(buffer);
+    const { rows, invalid } = this.csv.parse(buffer, EVENT_IMPORT_COLUMNS);
 
     const report: CsvImportReport = {
       created: 0,

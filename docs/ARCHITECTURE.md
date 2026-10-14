@@ -2689,17 +2689,18 @@ The organizer admin imports persons via a two-pass wizard:
 **CSV columns (email optional since T-1208):**
 
 ```csv
-given_name,family_name,email,club,club_abv,club_city,hema_ratings_id,event_codes,roles
-Jean,Dupont,jean@example.com,Lyon AMHE,LAMHE,Lyon,12345,longsword-open,competitor
-Marie,Lefèvre,,Cercle PRMD,CPRMD,,,,competitor
-Pierre,Martin,,,,,,,referee
+given_name,family_name,email,date_of_birth,club,club_abv,club_city,hema_ratings_id,gender_category,weapons,notes
+Jean,Dupont,jean@example.com,15/03/1990,Lyon AMHE,LAMHE,Lyon,12345,M,Longsword:intermediate|Rapier,
+Marie,Lefèvre,,,Cercle PRMD,CPRMD,,,,,
 ```
 
+- Each column has an English and a French header name (`prenom`, `nom`, `courriel`, `date_de_naissance`, `sigle_club`, `ville_club`, `id_hema_ratings`, `categorie`, `armes`, `remarques`, …), matched in any case, with accents removed and spaces, hyphens and apostrophes read as `_`: one map, `apps/api/src/modules/persons/csv-columns.ts`. The separator is `,` or `;` (sniffed from the header line).
+- Each import names the columns it reads (`EVENT_IMPORT_COLUMNS`, `GLOBAL_IMPORT_COLUMNS`). A header that names none of them is returned as `unknownColumns` and named on the preview ("Columns this import does not read"): the roster import names `is_referee` or `display_name`, which only the Global Profiles import reads. There is no `event_codes` or `roles` column: no import ever read one.
+- The import page offers a template per language (`apps/web-admin/public/csv-samples/participants-en.csv` with `,`, `participants-fr.csv` with `;`, made-up people, a byte-order mark so a spreadsheet reads the accents), and takes a `.csv` dropped on its box.
 - `email` is **optional**; when absent, duplicate detection falls back to case-insensitive full-name match.
+- `date_of_birth` is `DD/MM/YYYY` (ISO `YYYY-MM-DD` also accepted).
 - `club_abv` — short abbreviation (e.g. `DFDA`). Club lookup: exact abbreviation match > trigram name similarity ≥ 0.85 (`high`) > ≥ 0.40 (`medium`) > auto-create unverified.
 - `club_city` — stored on auto-created clubs.
-- `event_codes` are semicolon-separated event slugs; auto-creates a registration row per code.
-- `roles` semicolon-separated set: `competitor`, `referee`, `workshop_lead`.
 
 **Preview response shape (`ImportPreviewResponse`):**
 
@@ -2707,6 +2708,7 @@ Pierre,Martin,,,,,,,referee
 {
   "summary": { "toCreate": 42, "toLink": 3, "duplicates": 1, "invalid": 1 },
   "newClubs": ["Hammaborg"],
+  "unknownColumns": ["is_referee"],
   "rows": [
     {
       "index": 0,

@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
+import { EVENT_IMPORT_COLUMNS, GLOBAL_IMPORT_COLUMNS } from './csv-columns';
 import { CsvImportService, detectCsvDelimiter } from './csv-import.service';
 
 describe('CsvImportService', () => {
@@ -47,7 +50,7 @@ describe('CsvImportService', () => {
 Jean,Dupont,jean@example.com,Lyon AMHE,12345,longsword-open,competitor
 Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open,competitor`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(2);
       expect(result.invalid).toHaveLength(0);
       expect(result.rows[0]?.given_name).toBe('Jean');
@@ -57,7 +60,7 @@ Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open,competitor`;
 
     it('strips BOM from UTF-8 with BOM files', () => {
       const csv = '\uFEFFgiven_name,family_name,email\nJean,Dupont,jean@example.com';
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(1);
       expect(result.invalid).toHaveLength(0);
     });
@@ -66,7 +69,7 @@ Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open,competitor`;
       const csv = `given_name,family_name,gender_category,notes,weapons
 Jean,Dupont,M,Left-handed,Longsword:intermediate|Rapier
 Marie,Lefevre,,,`;
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.invalid).toHaveLength(0);
       expect(result.rows[0]?.gender_category).toBe('M');
       expect(result.rows[0]?.notes).toBe('Left-handed');
@@ -82,7 +85,7 @@ Marie,Lefevre,,,`;
 Jean,Dupont,
 Marie,Lefèvre,marie@example.com`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(2);
       expect(result.invalid).toHaveLength(0);
       expect(result.rows[0]?.email).toBeUndefined();
@@ -92,7 +95,7 @@ Marie,Lefèvre,marie@example.com`;
       const csv = `given_name,family_name,email
 Jean,Dupont,not-an-email`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(0);
       expect(result.invalid).toEqual([
         {
@@ -109,7 +112,7 @@ Jean,Dupont,not-an-email`;
       const csv = `given_name,family_name,email
 ,Dupont,jean@example.com`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(0);
       expect(result.invalid).toEqual([
         { index: 0, line: 2, reason: 'missing_given_name', raw: ',Dupont,jean@example.com' },
@@ -117,13 +120,16 @@ Jean,Dupont,not-an-email`;
     });
 
     it('marks rows with missing family_name as invalid', () => {
-      const result = service.parse(Buffer.from('given_name,family_name\nJean,', 'utf-8'));
+      const result = service.parse(
+        Buffer.from('given_name,family_name\nJean,', 'utf-8'),
+        EVENT_IMPORT_COLUMNS,
+      );
       expect(result.invalid.map((r) => r.reason)).toEqual(['missing_family_name']);
     });
 
     it('names a date of birth it cannot read, as the file holds it', () => {
       const csv = 'given_name,family_name,date_of_birth\nJean,Dupont,03-15-1990';
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.invalid).toEqual([
         expect.objectContaining({ line: 2, reason: 'invalid_date_of_birth', value: '03-15-1990' }),
       ]);
@@ -134,7 +140,7 @@ Jean,Dupont,not-an-email`;
     // the number in her spreadsheet, so it must be the file's own line.
     it("gives each row the file's own line", () => {
       const csv = 'given_name,family_name\n\nAda,Lovelace\n"Multi\nline",Smith\n\n,Jones\n';
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows.map((r) => [r.index, r.line, r.family_name])).toEqual([
         [0, 3, 'Lovelace'],
         [1, 4, 'Smith'],
@@ -146,13 +152,13 @@ Jean,Dupont,not-an-email`;
 
     it("counts a Windows file's lines the same way", () => {
       const csv = 'given_name,family_name\r\n\r\nAda,Lovelace\r\nBob,Jones\r\n';
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows.map((r) => r.line)).toEqual([3, 4]);
     });
 
     it('refuses a file it cannot read, at the line where it stopped', () => {
       const csv = 'given_name,family_name\nAda,Lovelace\n"Bob,Jones\n';
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toEqual([]);
       expect(result.invalid).toEqual([{ index: 0, line: 3, reason: 'unreadable_file', raw: '' }]);
     });
@@ -161,7 +167,7 @@ Jean,Dupont,not-an-email`;
       const csv = `given_name,family_name,email,club
 Jean,"Dupont, Jr.",jean@example.com,"Club, Paris"`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.family_name).toBe('Dupont, Jr.');
       expect(result.rows[0]?.club).toBe('Club, Paris');
@@ -171,7 +177,7 @@ Jean,"Dupont, Jr.",jean@example.com,"Club, Paris"`;
       const csv = `given_name,family_name,email
 Jean,Dupont,Jean.DUPONT@Example.COM`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows[0]?.email).toBe('jean.dupont@example.com');
     });
 
@@ -179,7 +185,7 @@ Jean,Dupont,Jean.DUPONT@Example.COM`;
       const csv = `given_name,family_name,email
 Élodie,Lefèvre,elodie@example.com`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.given_name).toBe('Élodie');
       expect(result.rows[0]?.family_name).toBe('Lefèvre');
@@ -189,7 +195,7 @@ Jean,Dupont,Jean.DUPONT@Example.COM`;
       const csv = `given_name,family_name,email
 Jean,Dupont,jean@example.com`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.club).toBeUndefined();
       expect(result.rows[0]?.hema_ratings_id).toBeUndefined();
@@ -200,7 +206,7 @@ Jean,Dupont,jean@example.com`;
 Jean;Dupont;jean@example.com
 Marie;Lefèvre;marie@example.com`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toHaveLength(2);
       expect(result.invalid).toHaveLength(0);
       expect(result.rows[0]?.given_name).toBe('Jean');
@@ -224,9 +230,70 @@ Marie;Lefèvre;marie@example.com`;
       const allRows = [...validRows, ...invalidRows];
       const csv = `given_name,family_name,email,club\n${allRows.join('\n')}`;
 
-      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.invalid).toHaveLength(2);
       expect(result.rows).toHaveLength(93);
+    });
+  });
+
+  // ── header names (O18) ─────────────────────────────────────────────────────
+
+  describe('the header names', () => {
+    it('reads French headers, with or without their accents', () => {
+      const csv =
+        'Prénom;Nom;Courriel;Date de naissance;Sigle club\nJeanne;Exemple;J@X.FR;14/02/1995;SAE';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.unknownColumns).toEqual([]);
+      expect(result.rows[0]).toMatchObject({
+        given_name: 'Jeanne',
+        family_name: 'Exemple',
+        email: 'j@x.fr',
+        date_of_birth: '1995-02-14',
+        club_abv: 'SAE',
+      });
+    });
+
+    it('reads English headers in any case, and "E-mail" or "First name"', () => {
+      const csv = 'First name,Last Name,E-mail\nJane,Example,jane@example.com';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.unknownColumns).toEqual([]);
+      expect(result.rows[0]).toMatchObject({ given_name: 'Jane', email: 'jane@example.com' });
+    });
+
+    // Ruled 2026-10-15: a column THIS import does not read is named, though another import
+    // reads it. The roster import never reads a referee flag; the Global Profiles one does.
+    it('names the headers this import does not read, as the file writes them', () => {
+      const csv = 'given_name,family_name,Arbitre,prenom2,\nJane,Example,1,x,';
+      const roster = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(roster.unknownColumns).toEqual(['Arbitre', 'prenom2']);
+      expect(roster.rows[0]?.is_referee).toBeUndefined();
+      const profiles = service.parse(Buffer.from(csv, 'utf-8'), GLOBAL_IMPORT_COLUMNS);
+      expect(profiles.unknownColumns).toEqual(['prenom2']);
+      expect(profiles.rows[0]).toMatchObject({ is_referee: '1' });
+    });
+
+    it('reads no more event_codes or roles, which no import ever used', () => {
+      const csv = 'given_name,family_name,event_codes,roles\nJane,Example,open,competitor';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), GLOBAL_IMPORT_COLUMNS);
+      expect(result.unknownColumns).toEqual(['event_codes', 'roles']);
+    });
+  });
+
+  // The two templates of the roster import (`apps/web-admin/public/csv-samples`): the page
+  // offers them, so each must import whole, every header read, every row valid.
+  describe('the templates the import page offers', () => {
+    const SAMPLES = path.resolve(__dirname, '../../../../web-admin/public/csv-samples');
+
+    it.each(['en', 'fr'])('the %s template imports whole', (locale) => {
+      const file = readFileSync(path.join(SAMPLES, `participants-${locale}.csv`));
+      const result = service.parse(file, EVENT_IMPORT_COLUMNS);
+      expect(result.unknownColumns).toEqual([]);
+      expect(result.invalid).toEqual([]);
+      expect(result.rows).toHaveLength(3);
+      expect(result.rows[0]).toMatchObject({
+        date_of_birth: '1995-02-14',
+        club_abv: expect.any(String),
+      });
     });
   });
 
