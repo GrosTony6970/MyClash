@@ -1,5 +1,5 @@
 import { act, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { openArchivedPage, type, type OpenedPage } from '../archived-page.fixtures';
 import PersonsPage from './page';
@@ -10,12 +10,34 @@ import PersonsPage from './page';
  * the waiting list's promote, removal and new order are refused: the page
  * offered all four.
  */
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ slug: 'org', eventId: 'ev1' }),
-  useRouter: () => ({ replace: () => undefined, push: () => undefined }),
-  usePathname: () => '/org/org/events/ev1/persons',
-  useSearchParams: () => new URLSearchParams(),
-}));
+// The roster keeps its filters in the address: `replace` moves it and draws the page
+// again, as Next does, so the name the kit types still hides rows.
+const ADDRESS = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const state = { search: new URLSearchParams() };
+  const router = {
+    replace: (to: string) => {
+      window.history.replaceState(null, '', to);
+      state.search = new URLSearchParams(window.location.search);
+      listeners.forEach((listener) => listener());
+    },
+    push: () => undefined,
+  };
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  return { state, router, subscribe };
+});
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    useParams: () => ({ slug: 'org', eventId: 'ev1' }),
+    useRouter: () => ADDRESS.router,
+    usePathname: () => '/org/org/events/ev1/persons',
+    useSearchParams: () => useSyncExternalStore(ADDRESS.subscribe, () => ADDRESS.state.search),
+  };
+});
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
     <a href={href}>{children}</a>
@@ -72,7 +94,16 @@ const button = (label: string) =>
   [...document.body.querySelectorAll('button')].find((b) => b.textContent === label);
 
 let page: OpenedPage;
-afterEach(() => page.unmount());
+beforeEach(() => {
+  // jsdom makes no object URL, and "Export CSV" (a download, not a save) asks for one.
+  URL.createObjectURL = () => 'blob:csv';
+  URL.revokeObjectURL = () => undefined;
+  HTMLAnchorElement.prototype.click = () => undefined;
+});
+afterEach(() => {
+  page.unmount();
+  ADDRESS.state.search = new URLSearchParams();
+});
 
 describe('the roster of an archived Event, with everything pressed', () => {
   it('sends a row’s own fields and nothing else', async () => {

@@ -19,6 +19,8 @@ import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global
 import { formatRosterName } from './roster-name';
 import { editPersonBody } from './edit-person-body';
 import { personMatchesFilter, type PersonFilterValue } from './filter-persons';
+import { useRosterFilters } from './useRosterFilters';
+import { rosterCsv, rosterRows } from './roster-export';
 import {
   computeClubPickerRows,
   type ClubSuggestion as ClubPickerSuggestion,
@@ -152,7 +154,6 @@ export default function ParticipantsPage() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
   // The tab is in the address, so a dashboard row's link and a refresh keep it. Opened bare,
   // the roster shows every Tournament: it never opens on the last one picked (ruled 2026-10-14).
   // No choice before the list first lands: "all" would replace a link's Tournament.
@@ -163,10 +164,17 @@ export default function ParticipantsPage() {
     { remember: false },
   );
   const activeTab = chosenTab || ALL_TOURNAMENTS;
-  // Inline header filters: 'all' | 'none' | clubId, and referee tri-state.
-  const [clubFilter, setClubFilter] = useState('all');
-  const [refereeFilter, setRefereeFilter] = useState<PersonFilterValue['referee']>('all');
-  const [instructorFilter, setInstructorFilter] = useState<PersonFilterValue['instructor']>('all');
+  // Inline header filters: 'all' | 'none' | clubId, and referee tri-state. In the address.
+  const {
+    search,
+    setSearch,
+    clubFilter,
+    setClubFilter,
+    refereeFilter,
+    setRefereeFilter,
+    instructorFilter,
+    setInstructorFilter,
+  } = useRosterFilters();
   /** Slice 5: top-level mode toggle. 'persons' shows the existing roster
    *  view; 'waiting-list' renders per-tournament waitlist tables instead. */
   const [mode, setMode] = useState<'persons' | 'waiting-list'>(() => {
@@ -477,6 +485,25 @@ export default function ParticipantsPage() {
     refereePersonIds,
     instructorPersonIds,
   ]);
+
+  /** The rows on screen as a CSV for the desk (O19). */
+  function exportRoster() {
+    const rows = rosterRows(
+      filteredPersons,
+      registrationsByPersonId,
+      activeTab,
+      refereePersonIds,
+      instructorPersonIds,
+      formatRosterName,
+    );
+    const csv = rosterCsv(rows, activeTab !== ALL_TOURNAMENTS, t);
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'roster.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   function closeAddModal() {
     setShowAdd(false);
@@ -1028,6 +1055,15 @@ export default function ParticipantsPage() {
           >
             {t('admin.orgPersons.csvImport')}
           </Link>
+          {/* A read, not a save: open on an archived Event too. */}
+          <button
+            type="button"
+            onClick={exportRoster}
+            disabled={filteredPersons.length === 0}
+            className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {t('organizer.persons.export.button')}
+          </button>
           <button
             onClick={() => setShowAdd(true)}
             data-testid="persons-add"
@@ -1369,7 +1405,9 @@ export default function ParticipantsPage() {
                       <select
                         value={instructorFilter}
                         onChange={(e) =>
-                          setInstructorFilter(e.target.value as PersonFilterValue['instructor'])
+                          setInstructorFilter(
+                            e.target.value as NonNullable<PersonFilterValue['instructor']>,
+                          )
                         }
                         aria-label={t('organizer.persons.filterByInstructor')}
                         className="rounded-lg border border-border px-2 py-1 text-xs font-normal text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-accent"
