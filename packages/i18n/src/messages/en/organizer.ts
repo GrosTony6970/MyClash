@@ -2940,8 +2940,10 @@ export const organizer = {
       checkInPartial: '{failed} check-in(s) were refused.',
       registerRefereeToast: '{count} participant(s) now referee for this event.',
       unregisterRefereeToast: '{count} participant(s) unregistered as referee.',
+      // {reason} is the first refusal, a whole sentence.
       refereePartial:
-        '{done} done, {refused} refused. The refused ones stay selected: press again to retry them.',
+        '{done} done, {refused} refused. {reason} The refused ones stay selected: press again to retry them.',
+      refereeRefusedReason: 'The server refused it.',
       deleteFromEvent: 'Delete from event',
     },
   },

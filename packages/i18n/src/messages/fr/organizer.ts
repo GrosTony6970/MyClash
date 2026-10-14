@@ -2910,7 +2910,8 @@ export const organizer = {
       registerRefereeToast: '{count} participant(s) inscrit(s) comme arbitre pour cet événement.',
       unregisterRefereeToast: '{count} participant(s) desinscrit(s) comme arbitre.',
       refereePartial:
-        '{done} fait(s), {refused} refusé(s). Les refusés restent sélectionnés : appuyez de nouveau pour les réessayer.',
+        '{done} fait(s), {refused} refusé(s). {reason} Les refusés restent sélectionnés : appuyez de nouveau pour les réessayer.',
+      refereeRefusedReason: 'Le serveur l’a refusé.',
       deleteFromEvent: "Supprimer de l'événement",
     },
   },

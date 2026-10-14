@@ -84,8 +84,9 @@ describe('register a selection as referees', () => {
   it('says how many were refused, and keeps them selected', async () => {
     await registerBoth({ [ANA]: {} });
     expect(page.writes()).toEqual([ANA, BO]);
+    // The reason is the server's own words for Bo's refusal (the fixture's refusal).
     expect(toasts()).toContain(
-      '1 done, 1 refused. The refused ones stay selected: press again to retry them.',
+      '1 done, 1 refused. This event is archived and read-only. The refused ones stay selected: press again to retry them.',
     );
     expect(toasts()).not.toContain('now referee');
     expect(rowBox('Ana')?.checked).toBe(false);

@@ -920,6 +920,7 @@ export default function ParticipantsPage() {
   async function bulkReferee(method: 'POST' | 'DELETE', doneKey: string) {
     setBulkLoading(true);
     const refused = new Set<string>();
+    let reason: string | null = null;
     for (const personId of selected) {
       const person = persons.find((p) => p.id === personId);
       // Mirror the single-person path at the "Add referee" toggle:
@@ -929,7 +930,11 @@ export default function ParticipantsPage() {
       const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${targetId}`, {
         method,
       });
-      if (!r.ok) refused.add(personId);
+      if (!r.ok) {
+        refused.add(personId);
+        // The first refusal's words: counts alone do not say what to fix.
+        reason ??= failureMessage(r, t, t('organizer.persons.bulk.refereeRefusedReason'));
+      }
     }
     const done = selected.size - refused.size;
     setSelected(refused);
@@ -937,7 +942,7 @@ export default function ParticipantsPage() {
     refresh();
     if (refused.size === 0) toast.success(t(doneKey, { count: done }));
     else {
-      const counts = { done: String(done), refused: String(refused.size) };
+      const counts = { done: String(done), refused: String(refused.size), reason: reason ?? '' };
       toast.warning(t('organizer.persons.bulk.refereePartial', counts));
     }
   }
