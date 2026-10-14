@@ -84,11 +84,13 @@ describe('the preview of a Global Profiles file', () => {
   it("gives each row its line in the file, and a refused row's code", async () => {
     const db = mockSupabase({ global_persons: { rows: [] } });
     const service = new FightersService(db as never, new CsvImportService());
-    const file = 'given_name,family_name,email\n\nAda,Lovelace,\nBob,Jones,bob@\n';
+    const file = 'given_name,family_name,email,notes\n\nAda,Lovelace,,\nBob,Jones,bob@,\n';
     const preview = await service.previewGlobalPersonsImport(Buffer.from(file));
     expect(preview.rows.map(({ index, status, problem }) => ({ index, status, problem }))).toEqual([
       { index: 3, status: 'ok', problem: null },
       { index: 4, status: 'invalid', problem: { reason: 'invalid_email', value: 'bob@' } },
     ]);
+    // O18: this import reads no notes, and says so.
+    expect(preview.unknownColumns).toEqual(['notes']);
   });
 });

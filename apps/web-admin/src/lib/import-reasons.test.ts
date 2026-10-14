@@ -18,6 +18,12 @@ describe('the import reason words', () => {
     }
   });
 
+  it.each(['en', 'fr'] as const)('words each code its own way in %s', (locale) => {
+    const t = createTranslator(getMessages(locale));
+    const texts = IMPORT_ROW_REASONS.map((reason) => importProblemText(t, { reason }));
+    expect(new Set(texts).size).toBe(IMPORT_ROW_REASONS.length);
+  });
+
   it('names the cell it is about', () => {
     const t = createTranslator(getMessages('en'));
     expect(importProblemText(t, { reason: 'invalid_email', value: 'tom@' })).toBe(

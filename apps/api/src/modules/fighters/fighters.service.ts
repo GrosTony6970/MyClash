@@ -2679,5 +2679,6 @@ export class FightersService {
 export function parseBoolCell(value: string | undefined | null): boolean {
   if (value === undefined || value === null) return false;
   const trimmed = value.trim().toLowerCase();
-  return trimmed === '1' || trimmed === 'true' || trimmed === 'yes';
+  // A French file (its `combattant` / `arbitre` columns, O18) says "oui" / "vrai".
+  return ['1', 'true', 'yes', 'oui', 'vrai'].includes(trimmed);
 }

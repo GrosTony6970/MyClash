@@ -11,7 +11,7 @@ import { getDateFormat, type ImportRowProblem } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { CsvDropZone } from '@/components/CsvDropZone';
+import { CsvDropZone, UnreadColumnsNote } from '@/components/CsvDropZone';
 import { importProblemText } from '@/lib/import-reasons';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';
@@ -311,16 +311,7 @@ export default function GlobalPersonsImportPage() {
             </div>
           </div>
 
-          {preview.unknownColumns.length > 0 && (
-            <p
-              role="note"
-              className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
-            >
-              {t('organizer.personsImport.unknownColumns', {
-                columns: preview.unknownColumns.join(', '),
-              })}
-            </p>
-          )}
+          <UnreadColumnsNote columns={preview.unknownColumns} />
 
           <div className="overflow-x-auto border border-border rounded-lg">
             <table className="min-w-full text-sm">

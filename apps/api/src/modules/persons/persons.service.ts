@@ -408,8 +408,7 @@ export class PersonsService {
           line: row.line,
           name: `${row.given_name} ${row.family_name}`,
           reason,
-          existingEmail:
-            reason === 'already_on_roster' && ep?.email ? this.csv.maskEmail(ep.email) : null,
+          existingEmail: ep?.email ? this.csv.maskEmail(ep.email) : null,
         });
         continue;
       }

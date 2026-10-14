@@ -20,6 +20,20 @@ export function csvFileOf(files: ArrayLike<File> | null): File | Refusal | null 
   return file.name.toLowerCase().endsWith('.csv') ? file : { kind: 'not_csv', name: file.name };
 }
 
+/** The preview's line naming the file's columns this import does not read (O18). */
+export function UnreadColumnsNote({ columns }: { columns: string[] }) {
+  const { t } = useI18n();
+  if (columns.length === 0) return null;
+  return (
+    <p
+      role="note"
+      className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
+    >
+      {t('organizer.personsImport.unknownColumns', { columns: columns.join(', ') })}
+    </p>
+  );
+}
+
 /** "Choose CSV file": the hidden file input, opened by the button. */
 function PickButton({
   inputTestId,

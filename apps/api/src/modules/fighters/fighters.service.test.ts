@@ -784,6 +784,10 @@ describe('parseBoolCell', () => {
     expect(parseBoolCell('YES')).toBe(true);
     expect(parseBoolCell('no')).toBe(false);
     expect(parseBoolCell('NO')).toBe(false);
+    // A French file (O18).
+    expect(parseBoolCell('Oui')).toBe(true);
+    expect(parseBoolCell('vrai')).toBe(true);
+    expect(parseBoolCell('non')).toBe(false);
   });
 
   it('returns false for unrecognised values rather than leaking truthiness', () => {

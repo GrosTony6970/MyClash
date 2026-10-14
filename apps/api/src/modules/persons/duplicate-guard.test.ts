@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectDuplicate, personNameKey } from './duplicate-guard';
+import { detectDuplicate, importDuplicateReason, personNameKey } from './duplicate-guard';
 
 describe('personNameKey', () => {
   it('is case- and edge-whitespace-insensitive', () => {
@@ -35,5 +35,29 @@ describe('detectDuplicate', () => {
   it('never consults a stale emailMatch once the email is gone', () => {
     // Guards against a caller that computes emailMatch from a previous row.
     expect(detectDuplicate({ hasEmail: false, emailMatch: true, nameMatch: false })).toBeNull();
+  });
+});
+
+describe('importDuplicateReason', () => {
+  const people = (emails: string[], names: string[]) => ({
+    emails: new Set(emails),
+    names: new Set(names),
+  });
+
+  // An earlier row, Léa with her own address, took her name; a later row with no
+  // address holds the same name, which the roster holds too. The roster is asked first.
+  it('says on the roster when the roster and an earlier row both hold the person', () => {
+    const roster = people([], ['léa martin']);
+    const earlier = people(['lea@b.fr'], ['léa martin']);
+    expect(importDuplicateReason(undefined, 'léa martin', roster, earlier)).toBe(
+      'already_on_roster',
+    );
+  });
+
+  it('says earlier in the file, or nothing, by the same email-first rule', () => {
+    const earlier = people(['paul@b.fr'], ['paul petit']);
+    const none = people([], []);
+    expect(importDuplicateReason('paul@b.fr', 'x y', none, earlier)).toBe('repeated_in_file');
+    expect(importDuplicateReason('new@b.fr', 'paul petit', none, earlier)).toBeNull();
   });
 });

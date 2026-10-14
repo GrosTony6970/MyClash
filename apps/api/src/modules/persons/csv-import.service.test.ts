@@ -156,11 +156,32 @@ Jean,Dupont,not-an-email`;
       expect(result.rows.map((r) => r.line)).toEqual([3, 4]);
     });
 
-    it('refuses a file it cannot read, at the line where it stopped', () => {
-      const csv = 'given_name,family_name\nAda,Lovelace\n"Bob,Jones\n';
+    // csv-parse names the LAST line for a quote never closed; the stray `"` is on line 3.
+    it('refuses a file with a quote left open, at the line where the quote opens', () => {
+      const csv = 'given_name,family_name\nAda,Lovelace\n"Bob,Jones\nCyd,Moss\nDee,Hill\n';
       const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
       expect(result.rows).toEqual([]);
       expect(result.invalid).toEqual([{ index: 0, line: 3, reason: 'unreadable_file', raw: '' }]);
+    });
+
+    it('refuses another unreadable file at the line csv-parse names', () => {
+      // A stray quote further down is not where this file stopped.
+      const csv = 'given_name,family_name\nAda,Lovelace\nBob,"Jo"nes\nCyd,Moss\nDee,O"Hill\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.invalid).toEqual([{ index: 0, line: 3, reason: 'unreadable_file', raw: '' }]);
+    });
+
+    // An escaped quote ("") on a later line of the open cell does not move where it opened.
+    it('finds the open quote of a cell over several lines that holds an escaped quote', () => {
+      const csv = 'given_name,family_name\n"Ann\nO""Neil,Smith\nBob,Jones\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.invalid).toEqual([{ index: 0, line: 2, reason: 'unreadable_file', raw: '' }]);
+    });
+
+    it('counts a line of spaces as the blank line it is', () => {
+      const csv = 'given_name,family_name\n   \nAda,Lovelace\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows.map((r) => r.line)).toEqual([3]);
     });
 
     it('handles quoted commas in fields', () => {
@@ -270,6 +291,40 @@ Marie;Lefèvre;marie@example.com`;
       const profiles = service.parse(Buffer.from(csv, 'utf-8'), GLOBAL_IMPORT_COLUMNS);
       expect(profiles.unknownColumns).toEqual(['prenom2']);
       expect(profiles.rows[0]).toMatchObject({ is_referee: '1' });
+    });
+
+    // csv-parse lets a later column overwrite an earlier one of the same name, in silence:
+    // a blank "Email" after "Adresse e-mail" wiped every address. The first one is read.
+    it('reads the first of two headers that name one column, and names the other', () => {
+      const csv =
+        'Adresse e-mail,Email,Nom,family_name,Email Address,prenom\nx@y.fr,,Dupont,,z@y.fr,Jean';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows[0]).toMatchObject({
+        email: 'x@y.fr',
+        family_name: 'Dupont',
+        given_name: 'Jean',
+      });
+      expect(result.unknownColumns).toEqual(['Email', 'family_name', 'Email Address']);
+    });
+
+    it('reads "Email Address", the header an English online form exports', () => {
+      const csv = 'First name,Last name,Email Address\nJane,Example,jane@example.com';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows[0]?.email).toBe('jane@example.com');
+    });
+
+    it('names a header it does not read once, however often the file repeats it', () => {
+      const csv = 'given_name,family_name,Remarks,Remarks\nJane,Example,a,b';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.unknownColumns).toEqual(['Remarks']);
+    });
+
+    // "Catégorie" in French HEMA is a Tournament's category, not a gender: it is not read.
+    it('reads "Genre" as the gender category, and not "Catégorie"', () => {
+      const csv = 'prenom;nom;Catégorie;Genre\nJeanne;Exemple;Épée longue;F';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows[0]?.gender_category).toBe('F');
+      expect(result.unknownColumns).toEqual(['Catégorie']);
     });
 
     it('reads no more event_codes or roles, which no import ever used', () => {

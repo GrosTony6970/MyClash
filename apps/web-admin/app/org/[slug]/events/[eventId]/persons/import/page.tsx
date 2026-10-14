@@ -9,7 +9,7 @@ import { useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { OrgCrumb } from '@/components/Crumbs';
-import { CsvDropZone } from '@/components/CsvDropZone';
+import { CsvDropZone, UnreadColumnsNote } from '@/components/CsvDropZone';
 import { useI18n } from '@myclash/next-i18n/client';
 import type {
   CsvImportReport,
@@ -495,16 +495,7 @@ export default function CsvImportPage() {
                 </div>
               </div>
 
-              {preview.unknownColumns.length > 0 && (
-                <p
-                  role="note"
-                  className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning"
-                >
-                  {t('organizer.personsImport.unknownColumns', {
-                    columns: preview.unknownColumns.join(', '),
-                  })}
-                </p>
-              )}
+              <UnreadColumnsNote columns={preview.unknownColumns} />
 
               {/* Side-effect callout: new clubs that will be created. */}
               {preview.newClubs.length > 0 && (

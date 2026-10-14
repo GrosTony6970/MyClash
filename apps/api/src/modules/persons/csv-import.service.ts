@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { getDateFormat, type ImportRowProblem } from '@myclash/types';
 import { columnOf, type CsvColumn } from './csv-columns';
-import { recordLine } from './csv-lines';
+import { openQuoteLine, recordLine } from './csv-lines';
 
 export interface CsvRow {
   given_name: string;
@@ -65,9 +65,13 @@ export interface ParsedCsvResult {
   unknownColumns: string[];
 }
 
-/** A file csv-parse gave up on: one refusal, at the line where it stopped. */
-function unreadableFile(err: unknown): ParsedCsvResult {
-  const line = (err as { lines?: unknown }).lines;
+/**
+ * A file csv-parse gave up on: one refusal, at the line where it stopped, or for a
+ * quote never closed, where that quote opens (csv-parse names the file's last line).
+ */
+function unreadableFile(err: unknown, content: string): ParsedCsvResult {
+  const { code, lines } = err as { code?: unknown; lines?: unknown };
+  const line = (code === 'CSV_QUOTE_NOT_CLOSED' && openQuoteLine(content)) || lines;
   return {
     rows: [],
     unknownColumns: [],
@@ -75,6 +79,29 @@ function unreadableFile(err: unknown): ParsedCsvResult {
       { index: 0, line: typeof line === 'number' ? line : 1, reason: 'unreadable_file', raw: '' },
     ],
   };
+}
+
+/**
+ * Each header becomes the column it names. One this import does not read, or one naming a
+ * column an earlier header already took ("Adresse e-mail" then "Email"), keeps a name no
+ * column has and is listed once: csv-parse would let the later one overwrite the earlier,
+ * in silence.
+ */
+function headerReader(reads: readonly CsvColumn[]) {
+  const unknownColumns: string[] = [];
+  const taken = new Set<CsvColumn>();
+  const toColumns = (headers: string[]) =>
+    headers.map((header, i) => {
+      const column = columnOf(header, reads);
+      if (column && !taken.has(column)) {
+        taken.add(column);
+        return column;
+      }
+      const name = header.trim();
+      if (name && !unknownColumns.includes(name)) unknownColumns.push(name);
+      return `unread ${i}`;
+    });
+  return { toColumns, unknownColumns };
 }
 
 /** One record as csv-parse gives it with `info` and `raw`. */
@@ -179,16 +206,7 @@ export class CsvImportService {
       content = content.slice(1);
     }
 
-    // Each header becomes the column it names; one this import does not read keeps a
-    // name no column has, and is listed.
-    const unknownColumns: string[] = [];
-    const toColumns = (headers: string[]) =>
-      headers.map((header, i) => {
-        const column = columnOf(header, reads);
-        if (!column && header.trim()) unknownColumns.push(header.trim());
-        return column ?? `unread ${i}`;
-      });
-
+    const { toColumns, unknownColumns } = headerReader(reads);
     let records: ParsedRecord[];
     try {
       records = parse(content, {
@@ -203,7 +221,7 @@ export class CsvImportService {
       }) as ParsedRecord[];
     } catch (err) {
       this.logger.warn(`CSV parse error: ${String(err)}`);
-      return unreadableFile(err);
+      return unreadableFile(err, content);
     }
 
     const rows: ParsedCsvResult['rows'] = [];

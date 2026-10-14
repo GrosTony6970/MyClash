@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
+import { apiRequest } from '@myclash/api-client';
 import type { CsvImportReport, ImportPreviewResponse } from '@myclash/types';
 import { EVENT_ID, openEventPage, type OpenedPage } from '../../archived-page.fixtures';
 import CsvImportPage from './page';
@@ -132,5 +133,24 @@ describe('the rows the roster import will not take', () => {
     expect(text()).toContain('Rows not imported');
     expect(text()).toContain('Line 6: This email is not valid: tom@');
     expect(text()).not.toContain('updated');
+  });
+
+  // The server's answer when the upload reached it with no file: a problem of the whole
+  // file, said with no line.
+  it('says a problem of the whole file with no line', async () => {
+    await previewed();
+    vi.mocked(apiRequest).mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...REPORT,
+        created: 0,
+        duplicates: [],
+        invalid: [{ line: null, reason: 'no_file', raw: '' }],
+      },
+    } as never);
+    await act(async () => button('import-commit').click());
+    await page.settle();
+    const listed = [...document.querySelectorAll('li')].map((li) => li.textContent?.trim());
+    expect(listed).toEqual(['No file was sent.']);
   });
 });
