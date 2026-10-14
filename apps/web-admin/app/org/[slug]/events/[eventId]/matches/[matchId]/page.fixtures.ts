@@ -25,6 +25,7 @@ const SUMMARY = {
   blueClub: null,
   weapon: 'Longsword',
   tournamentId: 't-1',
+  tournamentName: 'Longsword',
   scoringConfig: null,
   phaseType: 'pool',
 };

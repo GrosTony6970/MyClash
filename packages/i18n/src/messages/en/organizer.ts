@@ -2242,6 +2242,9 @@ export const organizer = {
   matchDetail: {
     breadcrumbEvent: 'Event',
     breadcrumbMatch: 'Match',
+    crumbPools: 'Pools · {tournament}',
+    crumbSwiss: 'Swiss rounds · {tournament}',
+    crumbBracket: 'Bracket · {tournament}',
     lockedBanner: 'Locked for staff scoring',
     bestOfLine: 'Best of {bestOf} · Round {round} · Rounds',
     unlockMatch: 'Unlock match',

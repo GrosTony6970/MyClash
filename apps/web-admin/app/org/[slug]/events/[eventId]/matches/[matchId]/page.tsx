@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
@@ -30,6 +31,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useEventStatus } from '../../_hooks/useEventStatus';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
+import { phaseCrumb, type PhaseType } from './phase-crumb';
 
 /**
  * One i18n key per reason. The engine owns which reasons exist; this owns
@@ -123,9 +125,10 @@ interface MatchSummary {
   blueClub: string | null;
   weapon: string;
   tournamentId: string;
+  tournamentName: string;
   /** The organiser's configured side colours for this tournament. */
   scoringConfig: TournamentScoringConfig | null;
-  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+  phaseType: PhaseType | null;
   // Best-of-N round state (bestOf = 1 for single-round matches).
   bestOf?: number;
   currentRound?: number;
@@ -491,6 +494,10 @@ export default function MatchDetailPage() {
     setRefreshKey((key) => key + 1);
   }
 
+  const phase = summary
+    ? phaseCrumb(`/org/${slug}/events/${eventId}`, summary.phaseType, summary.tournamentId)
+    : null;
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -512,6 +519,14 @@ export default function MatchDetailPage() {
           fallback={t('organizer.matchDetail.breadcrumbEvent')}
         />
         <span>/</span>
+        {phase && (
+          <>
+            <Link href={phase.href} className="hover:text-foreground-secondary">
+              {t(phase.label, { tournament: summary?.tournamentName ?? '' })}
+            </Link>
+            <span>/</span>
+          </>
+        )}
         <span className="text-foreground font-medium">
           {summary?.roundCode ??
             match?.matchNumberLabel ??
