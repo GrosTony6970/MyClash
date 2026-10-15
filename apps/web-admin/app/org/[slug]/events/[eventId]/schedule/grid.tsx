@@ -2428,7 +2428,7 @@ export function ScheduleGrid({
           </span>
           <button
             type="button"
-            onClick={() => void history.undo()}
+            onClick={() => void history.undoToast()}
             className="rounded bg-white/15 px-2 py-1 font-semibold text-strong-foreground hover:bg-white/25"
           >
             {t('organizer.schedulePage.grid.undoAction')}

@@ -23,6 +23,8 @@ const BLOCK = {
   endTime: '13:00',
 };
 const DELETE: ScheduleUndoEntry = { kind: 'delete-block', label: 'Lunch', block: BLOCK };
+const BLOCK_B = { ...BLOCK, label: 'Briefing', startTime: '08:00', endTime: '08:30' };
+const DELETE_B: ScheduleUndoEntry = { kind: 'delete-block', label: 'Briefing', block: BLOCK_B };
 
 const applyPositions = vi.fn(async () => true);
 const recreateBlock = vi.fn(async () => true);
@@ -72,6 +74,30 @@ describe('Ctrl+Z before a delete is answered', () => {
 
     await act(async () => history.undo());
     expect(applyPositions).toHaveBeenCalledWith([{ id: 'm-1', ...MOVE.from }]);
+  });
+
+  // Review, 2026-10-16: two deletes out, the second's answer first; Ctrl+Z meant the second.
+  it('goes to the delete started last, whichever answer comes first', async () => {
+    const first = history.expectEntry();
+    const second = history.expectEntry();
+    await act(async () => history.undo());
+    await act(async () => second(DELETE_B));
+    expect(recreateBlock).toHaveBeenCalledWith(BLOCK_B);
+    recreateBlock.mockClear();
+    await act(async () => first(DELETE));
+    expect(recreateBlock).not.toHaveBeenCalled();
+    expect(history.toast).toEqual(DELETE);
+  });
+
+  it('the toast undoes the bar it names, not a delete sent since', async () => {
+    await act(async () => history.expectEntry()(DELETE));
+    const later = history.expectEntry();
+    await act(async () => history.undoToast());
+    expect(recreateBlock).toHaveBeenCalledWith(BLOCK);
+    recreateBlock.mockClear();
+    await act(async () => later(DELETE_B));
+    expect(recreateBlock).not.toHaveBeenCalled();
+    expect(history.toast).toEqual(DELETE_B);
   });
 
   it('is not needed when the delete lands first: the entry goes to the history and the toast', async () => {

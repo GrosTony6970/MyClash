@@ -61,7 +61,10 @@ export interface ScheduleUndo {
    * Ctrl+Z waits for it rather than undo the entry before it (ruled 2026-10-15).
    */
   expectEntry: () => (entry: ScheduleUndoEntry | null) => void;
+  /** The last action (Ctrl+Z, the toolbar): while a delete is out, the latest one started. */
   undo: () => Promise<void>;
+  /** The toast's Undo: the entry the toast NAMES, whatever was done or sent since. */
+  undoToast: () => Promise<void>;
   redo: () => Promise<void>;
   dismissToast: () => void;
 }
@@ -94,16 +97,18 @@ export function useScheduleUndo(args: {
   // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of the latest history for the once-bound keyboard handler
   futureRef.current = future;
 
-  // The writes whose entry is still to come, and a Ctrl+Z pressed while one was out.
+  // The writes whose entry is still to come, numbered as they start, and the one a Ctrl+Z
+  // pressed while any was out is meant for: the latest started, whichever answer comes first.
   const waiting = useRef(0);
-  const undoAsked = useRef(false);
+  const started = useRef(0);
+  const undoFor = useRef<number | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of the whole history on day change
     setPast([]);
     setFuture([]);
     setToast(null);
-    undoAsked.current = false;
+    undoFor.current = null;
   }, [activeDay]);
 
   // The toast is a convenience, not the history. Hiding it — by timeout or by
@@ -148,7 +153,7 @@ export function useScheduleUndo(args: {
   const undo = useCallback(async (): Promise<void> => {
     // The last action is still out: undo it when it lands, never the one before it.
     if (waiting.current > 0) {
-      undoAsked.current = true;
+      undoFor.current = started.current;
       return;
     }
     const entry = pastRef.current[pastRef.current.length - 1];
@@ -158,15 +163,25 @@ export function useScheduleUndo(args: {
     await reverse(entry);
   }, [reverse]);
 
+  const undoToast = useCallback(async (): Promise<void> => {
+    const entry = toast;
+    if (!entry) return;
+    setToast(null);
+    setPast((prev) => prev.filter((done) => done !== entry));
+    await reverse(entry);
+  }, [toast, reverse]);
+
   const expectEntry = useCallback(() => {
     waiting.current += 1;
+    started.current += 1;
+    const number = started.current;
     let settled = false;
     return (entry: ScheduleUndoEntry | null) => {
       if (settled) return;
       settled = true;
       waiting.current -= 1;
-      const asked = undoAsked.current && waiting.current === 0;
-      if (asked) undoAsked.current = false;
+      const asked = undoFor.current === number;
+      if (asked) undoFor.current = null;
       // Refused: the bar never left, and the Ctrl+Z meant for it is dropped with it.
       if (!entry) return;
       // Pushed and undone at once: it never shows in the history or the toast.
@@ -202,9 +217,10 @@ export function useScheduleUndo(args: {
       push,
       expectEntry,
       undo,
+      undoToast,
       redo,
       dismissToast,
     }),
-    [past.length, future.length, toast, push, expectEntry, undo, redo, dismissToast],
+    [past.length, future.length, toast, push, expectEntry, undo, undoToast, redo, dismissToast],
   );
 }
