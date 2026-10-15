@@ -234,14 +234,6 @@ export const common = {
       brown: 'Brown',
       pink: 'Pink',
     },
-    bracketSlot: {
-      pending: 'Pending',
-      ready: 'Ready',
-      running: 'Running',
-      completed: 'Completed',
-      forfeit: 'Forfeit',
-      disqualified: 'Disqualified',
-    },
   },
   // A standings column's title, per stat (`standingsColumnLabel` of packages/ui, O20).
   standings: {

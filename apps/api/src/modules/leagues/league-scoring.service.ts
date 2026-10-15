@@ -1,3 +1,4 @@
+import { unknownFighterInEnglish } from '../../common/unknown-name';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -94,8 +95,8 @@ export class LeagueScoringService {
     if (missing.length === 0) return;
 
     const names = missing
-      .map((row) => row.fighterName)
-      .filter(Boolean)
+      // A fighter with no name is named, never dropped from the list (X2).
+      .map((row) => row.fighterName || unknownFighterInEnglish())
       .slice(0, 5)
       .join(', ');
     throw new BadRequestException(

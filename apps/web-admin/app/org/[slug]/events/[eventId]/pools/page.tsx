@@ -21,6 +21,7 @@ import {
   RowActionButton,
   TournamentColorDot,
   useToast,
+  nameOrUnknown,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { MatchesTab } from './_tabs/MatchesTab';
@@ -790,7 +791,7 @@ export default function PoolsPage() {
                           className="group inline-flex items-center gap-1.5 max-w-full bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border transition-colors"
                         >
                           <span className="font-medium text-foreground truncate max-w-[12rem]">
-                            {m.personName}
+                            {nameOrUnknown(m.personName, 'fighter', t)}
                           </span>
                           {m.clubLabel && (
                             <span className="text-muted text-xs truncate max-w-[8rem]">
@@ -1056,7 +1057,9 @@ export default function PoolsPage() {
                         className="flex items-center justify-between gap-2 bg-surface border border-border rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-border"
                       >
                         <div className="min-w-0 flex-1 truncate">
-                          <span className="font-medium text-foreground">{u.personName}</span>
+                          <span className="font-medium text-foreground">
+                            {nameOrUnknown(u.personName, 'fighter', t)}
+                          </span>
                           {u.clubLabel && (
                             <span className="text-muted text-xs ml-1.5">{u.clubLabel}</span>
                           )}

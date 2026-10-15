@@ -57,7 +57,6 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   leagueAttachment: ['requested', 'approved', 'rejected', 'removed'],
   personRole: ['competitor', 'referee', 'workshop_lead'],
   refereeAssignment: ['assigned', 'pending', 'confirmed'],
-  bracketSlot: ['pending', 'ready', 'running', 'completed', 'forfeit', 'disqualified'],
   color: [
     'red',
     'blue',

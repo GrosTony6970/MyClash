@@ -193,14 +193,6 @@ export const common = {
       brown: 'Marron',
       pink: 'Rose',
     },
-    bracketSlot: {
-      pending: 'En attente',
-      ready: 'Prêt',
-      running: 'En cours',
-      completed: 'Terminé',
-      forfeit: 'Forfait',
-      disqualified: 'Disqualifié',
-    },
   },
   standings: {
     score: 'Score',

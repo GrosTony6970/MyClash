@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 
@@ -31,7 +32,8 @@ export function RefereeVerdictBanner({ conflicts }: { conflicts: RefereeConflict
       <ul className="list-disc list-inside space-y-0.5">
         {conflicts.map((c) => (
           <li key={`${c.assignmentId}:${c.role}`}>
-            <strong>{c.personName}</strong> — {c.unitName}: <RefereeReasons reasons={c.reasons} />
+            <strong>{nameOrUnknown(c.personName, 'referee', t)}</strong> — {c.unitName}:{' '}
+            <RefereeReasons reasons={c.reasons} />
           </li>
         ))}
       </ul>

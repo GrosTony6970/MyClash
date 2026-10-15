@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import type { RefereeSwitches, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import { hhmmInZone } from './conflict-detection';
@@ -140,7 +141,7 @@ function CrewGroup({
           <ul className="list-disc list-inside space-y-0.5">
             {conflicts.map((c) => (
               <li key={`${c.assignmentId}:${c.role}`}>
-                <strong>{c.personName}</strong> — {c.unitName}
+                <strong>{nameOrUnknown(c.personName, 'referee', t)}</strong> — {c.unitName}
                 {c.start && ` (${hhmmInZone(c.start, eventTz)})`}:{' '}
                 <RefereeReasons reasons={c.reasons} />
               </li>

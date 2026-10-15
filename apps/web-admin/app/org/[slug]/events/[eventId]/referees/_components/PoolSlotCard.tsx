@@ -208,7 +208,9 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                 key={m.registrationId}
                 className="flex items-center justify-between gap-2 text-sm"
               >
-                <span className="text-foreground-secondary">{m.personName}</span>
+                <span className="text-foreground-secondary">
+                  {nameOrUnknown(m.personName, 'fighter', t)}
+                </span>
                 {m.clubLabel && (
                   <span className="shrink-0 rounded bg-border px-1.5 py-px text-[10px] text-foreground-secondary">
                     {m.clubLabel}

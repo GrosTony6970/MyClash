@@ -3,6 +3,7 @@
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
@@ -139,7 +140,8 @@ export function AssignmentDiagnosticsPanel({
           <ul className="space-y-1">
             {conflicts.map((c) => (
               <li key={`${c.assignmentId}:${c.role}`} className={`text-sm ${theme.item}`}>
-                <span className="font-medium">{c.personName}</span> — {label(c.role)} · {c.unitName}
+                <span className="font-medium">{nameOrUnknown(c.personName, 'referee', t)}</span> —{' '}
+                {label(c.role)} · {c.unitName}
                 {c.start && ` (${hhmm(c.start, locale)})`}
                 <span className="block text-xs">
                   ↳ <RefereeReasons reasons={c.reasons} />

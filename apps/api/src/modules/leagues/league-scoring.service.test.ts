@@ -297,6 +297,12 @@ describe('LeagueScoringService', () => {
     ).toThrow('Unlinked Fighter');
   });
 
+  it('names an unlinked fighter with no name, never leaves the list blank (X2)', () => {
+    expect(() =>
+      service.validateContributionIdentities([contribution('', 1, { fighterName: '' })]),
+    ).toThrow('Missing: Unknown fighter');
+  });
+
   describe('medal derivation from resultKind', () => {
     const input = (
       fighterId: string,

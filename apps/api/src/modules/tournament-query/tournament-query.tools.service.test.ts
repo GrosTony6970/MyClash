@@ -144,7 +144,8 @@ describe('TournamentQueryToolsService · a fighter with no name (X2)', () => {
     status: 'completed',
     red_registration_id: 'reg-anon',
     blue_registration_id: 'r-2',
-    red_name: null,
+    // The view builds trim(given || ' ' || family): a person with no name reads '', not NULL.
+    red_name: '',
     blue_name: 'Blue Two',
     red_score: 1,
     blue_score: 0,

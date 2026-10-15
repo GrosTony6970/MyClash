@@ -5,7 +5,6 @@ import type {
   StaffRole,
   TournamentSideColor,
 } from '@myclash/types';
-import type { Translator } from '../types/translator';
 import type { ColorToken } from './color-token';
 import type { TournamentStatus } from './status-pill';
 
@@ -106,7 +105,6 @@ type LeagueOrgRole = 'owner' | 'admin' | 'member';
 type LeagueAttachmentStatus = 'requested' | 'approved' | 'rejected' | 'removed';
 type PersonRole = 'competitor' | 'referee' | 'workshop_lead';
 type RefereeAssignmentStatus = 'assigned' | 'pending' | 'confirmed';
-type BracketSlotStatus = 'pending' | 'ready' | 'running' | 'completed' | 'forfeit' | 'disqualified';
 
 const SWISS_ROUND: Record<SwissRoundStatus, string> = {
   pending: 'common.status.swissRound.pending',
@@ -163,15 +161,6 @@ const REFEREE_ASSIGNMENT: Record<RefereeAssignmentStatus, string> = {
   confirmed: 'common.status.refereeAssignment.confirmed',
 };
 
-const BRACKET_SLOT: Record<BracketSlotStatus, string> = {
-  pending: 'common.status.bracketSlot.pending',
-  ready: 'common.status.bracketSlot.ready',
-  running: 'common.status.bracketSlot.running',
-  completed: 'common.status.bracketSlot.completed',
-  forfeit: 'common.status.bracketSlot.forfeit',
-  disqualified: 'common.status.bracketSlot.disqualified',
-};
-
 // A colour's name: every ColorToken and every side colour a Tournament may pick.
 const COLOR: Record<ColorToken | TournamentSideColor, string> = {
   red: 'common.status.color.red',
@@ -213,7 +202,6 @@ const STATUS_LABEL_KEYS = {
   personRole: PERSON_ROLE,
   refereeAssignment: REFEREE_ASSIGNMENT,
   color: COLOR,
-  bracketSlot: BRACKET_SLOT,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;
@@ -240,6 +228,10 @@ export function isKnownStatus<Domain extends StatusLabelDomain>(
  * state the database gained after this build) is shown as it is: the maps are pinned to the
  * column's CHECK list by their tests, so only a new state can reach this branch.
  */
-export function statusLabel(domain: StatusLabelDomain, status: string, t: Translator): string {
+export function statusLabel(
+  domain: StatusLabelDomain,
+  status: string,
+  t: (key: string) => string,
+): string {
   return isKnownStatus(domain, status) ? t(statusLabelKey(domain, status)) : status;
 }

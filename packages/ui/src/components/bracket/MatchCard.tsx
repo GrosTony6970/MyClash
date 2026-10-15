@@ -3,7 +3,7 @@ import { resolveMatchWinner } from '@myclash/types';
 import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
 import { SkillBadge } from '../SkillBadge';
 import type { RoundTranslator } from '../../utils/round-label';
-import { isKnownStatus, statusLabelKey } from '../../utils/status-label';
+import { statusLabel } from '../../utils/status-label';
 import type { BracketSlotData, ColorToken } from './types';
 import { BracketHighlightContext } from './highlight-context';
 
@@ -49,11 +49,12 @@ function refStatusDot(status: string): string {
   return 'bg-slate-400';
 }
 
-/** A slot's pill: its colour, and its state in the one word every screen says (X1). */
+/**
+ * A slot's pill: its colour, and its bout's state in the one word every screen says (X1).
+ * The server sends the bout's own `matches.status` (`scheduled` for a slot with no bout yet).
+ */
 function statusPill(status: string, t: RoundTranslator): { label: string; cls: string } {
-  const label = isKnownStatus('bracketSlot', status)
-    ? t(statusLabelKey('bracketSlot', status))
-    : t(statusLabelKey('bracketSlot', 'pending'));
+  const label = statusLabel('match', status, t);
   switch (status) {
     case 'completed':
       return { label, cls: 'bg-emerald-100 text-emerald-700' };

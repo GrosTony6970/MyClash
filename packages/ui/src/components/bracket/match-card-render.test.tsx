@@ -58,12 +58,14 @@ const isClickable = (html: string) => html.includes('role="button"');
 const isDimmed = (html: string) => html.includes('opacity-60');
 
 describe('MatchCard words', () => {
-  it('says its state with the shared word, never an English one of its own (X4)', () => {
+  it("says its bout's state with the shared bout word, never an English one of its own (X1, X4)", () => {
     const html = markup({ status: 'completed' }, null);
-    expect(html).toContain('&lt;common.status.bracketSlot.completed&gt;');
+    expect(html).toContain('&lt;common.status.match.completed&gt;');
     expect(html).not.toContain('Completed');
-    expect(markup({ status: 'forfeit' }, null)).toContain(
-      '&lt;common.status.bracketSlot.forfeit&gt;',
+    // The server sends the bout's own state: a paused bout is Paused, not "Pending".
+    expect(markup({ status: 'paused' }, null)).toContain('&lt;common.status.match.paused&gt;');
+    expect(markup({ status: 'scheduled' }, null)).toContain(
+      '&lt;common.status.match.scheduled&gt;',
     );
   });
 });
