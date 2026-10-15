@@ -116,8 +116,13 @@ describe('every server read of the Event pages sends the login', () => {
    * live block at the first read from the browser.
    */
   it("the home's live block reads with the login from the browser too", () => {
+    // It reads through the live board's reader, whose `apiRequest` sends the login by default.
     const block = read('home', '_components', 'LiveNowSection.tsx');
-    expect(reads(block)).toBe(2);
-    expect((block.match(/credentials: 'include',/g) ?? []).length).toBe(2);
+    expect(reads(block)).toBe(0);
+    expect(block).toContain('useLiveBoard(eventSlug, initialState)');
+    const board = read('live', 'use-live-board.ts');
+    expect(reads(board)).toBe(0);
+    expect(board).toContain('await apiRequest<LiveState>(');
+    expect(board).not.toContain('credentials:');
   });
 });
