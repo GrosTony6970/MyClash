@@ -18,7 +18,7 @@ import type { Translator } from '../types/translator';
  */
 export function downloadServerCsv(href: string, format: Readonly<CsvFormat>): void {
   const link = document.createElement('a');
-  link.href = `${href}?csv=${csvFormatParam(format)}`;
+  link.href = `${href}${href.includes('?') ? '&' : '?'}csv=${csvFormatParam(format)}`;
   link.click();
 }
 

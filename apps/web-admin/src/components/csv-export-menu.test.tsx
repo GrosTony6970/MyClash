@@ -1,10 +1,10 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CSV_EXCEL_FR, CSV_STANDARD, type CsvFormat } from '@myclash/types';
 import { en } from '@myclash/i18n';
 import { useI18n } from '@myclash/next-i18n/client';
-import { CsvExportMenu } from '@myclash/ui';
+import { CsvExportMenu, downloadServerCsv } from '@myclash/ui';
 import { I18nProvider } from '@/i18n/I18nProvider';
 
 /**
@@ -172,5 +172,23 @@ describe('CsvExportMenu', () => {
     expect(trigger().disabled).toBe(true);
     await act(async () => trigger().click());
     expect(menu()).toBeNull();
+  });
+});
+
+describe('downloadServerCsv', () => {
+  it('names the file in the link, after any question the link already asks', () => {
+    const opened: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      opened.push(this.href);
+    });
+    downloadServerCsv('http://api.test/report.csv', CSV_EXCEL_FR);
+    downloadServerCsv('http://api.test/report.csv?group=open', CSV_STANDARD);
+    expect(opened).toEqual([
+      'http://api.test/report.csv?csv=excel-fr',
+      'http://api.test/report.csv?group=open&csv=standard',
+    ]);
+    click.mockRestore();
   });
 });
