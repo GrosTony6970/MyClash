@@ -560,12 +560,11 @@ describe('AssignmentBoardService', () => {
      * No Pools, no Swiss: one single-elimination phase with one bout on a piste.
      * Same positional chain as `queueBoardReads` up to the bracket loader.
      */
-    function queueBracketBoardReads() {
+    function queueBracketBoardReads(handMade = false) {
+      const tournament = { id: 'tournament-1', name: 'Longsword', weapon: 'longsword' };
       fromMock
         .mockReturnValueOnce(makeChain({ data: {}, error: null }))
-        .mockReturnValueOnce(
-          makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
-        )
+        .mockReturnValueOnce(makeChain({ data: [tournament], error: null }))
         .mockReturnValueOnce(makeChain({ data: [], error: null })); // pool phases
       queueCandidateReads();
       fromMock
@@ -588,18 +587,23 @@ describe('AssignmentBoardService', () => {
                 lice_id: 'lice-1',
                 red_registration_id: 'reg-x',
                 blue_registration_id: 'reg-y',
-                bracket_slot_id: 'slot-1',
+                bracket_slot_id: handMade ? null : 'slot-1',
+                match_number_label: handMade ? '7' : '1',
               },
             ],
             error: null,
           }),
-        )
-        .mockReturnValueOnce(
+        );
+      // A bout made by hand holds no bracket place: there are no slots to read.
+      if (!handMade) {
+        fromMock.mockReturnValueOnce(
           makeChain({
             data: [{ id: 'slot-1', phase_id: 'bracket-phase-1', round: 1, position: 1 }],
             error: null,
           }),
-        )
+        );
+      }
+      fromMock
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // swiss phases
         .mockReturnValueOnce(makeChain({ data: [], error: null })); // workshops
     }
@@ -616,8 +620,19 @@ describe('AssignmentBoardService', () => {
         { id: 'bout-1', phaseId: 'bracket-phase-1', plannedDurationOverrideMinutes: null },
       ]);
       expect(selectsFor(fromMock as never, 'matches')).toEqual([
-        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label',
       ]);
+    });
+
+    it('names a bracket bout made by hand by its code, never by its database id', async () => {
+      resolveMatchLengthsMock.mockResolvedValueOnce(new Map([['bout-1', 15]]));
+      queueBracketBoardReads(true);
+
+      const board = await service.getBoard('event-1');
+
+      const unit = board.pools.find((p) => p.id === 'match-bout-1');
+      expect(unit?.name).toBe('LSW-B-M7');
+      expect(unit?.tournamentName).toBe('Longsword');
     });
   });
 

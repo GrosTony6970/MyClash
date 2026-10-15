@@ -1270,7 +1270,7 @@ export class AssignmentBoardService {
     const { data: matches, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id, match_number_label',
       )
       .in(
         'phase_id',
@@ -1287,6 +1287,7 @@ export class AssignmentBoardService {
       red_registration_id: string | null;
       blue_registration_id: string | null;
       bracket_slot_id: string | null;
+      match_number_label: string | null;
     }>;
     if (matchRows.length === 0) return [];
 
@@ -1334,16 +1335,16 @@ export class AssignmentBoardService {
         // bracket page, scoring app, scoreboard, and this referee
         // board all agree. Bracket rounds get the LSW-B-QF-M1 shape;
         // play-ins (round 0) get LSW-B-PI-M5. 2^maxRound derives a
-        // bracketSize the helper uses for QF/SF/F/Rn naming.
-        name: info
-          ? formatRoundCode({
-              weapon: tournament?.weapon ?? null,
-              poolNumber: null,
-              bracketRound: info.round,
-              bracketSize: maxRound > 0 ? 2 ** maxRound : null,
-              matchNumber: info.position,
-            })
-          : `Match ${m.id.slice(0, 6)}`,
+        // bracketSize the helper uses for QF/SF/F/Rn naming. A bout made by
+        // hand holds no bracket place: `LSW-B-M7`, never its id (ruled 2026-10-15).
+        name: formatRoundCode({
+          weapon: tournament?.weapon ?? null,
+          poolNumber: null,
+          bracketRound: info?.round ?? null,
+          bracketSize: info && maxRound > 0 ? 2 ** maxRound : null,
+          inBracket: true,
+          matchNumber: info ? info.position : m.match_number_label,
+        }),
         tournamentId: tournament?.id ?? '',
         tournamentName: tournament?.name ?? '',
         liceId: m.lice_id,

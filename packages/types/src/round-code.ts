@@ -80,6 +80,11 @@ export interface RoundCodeInput {
    */
   wbRounds?: number | null;
   lbRounds?: number | null;
+  /**
+   * The bout is in an elimination phase but holds no bracket place: one made by hand. Its
+   * code still says B, with no round (`LSW-B-M7`). A bracket round, when given, wins.
+   */
+  inBracket?: boolean;
 }
 
 /**
@@ -194,6 +199,8 @@ export function formatRoundCode(input: RoundCodeInput): string {
     // segment stays even when the round can't be labelled (`?? ''`, dropped by
     // the filter below) — the match IS in a bracket, which is what B marks.
     middle = ['B', bracketToken(input) ?? ''];
+  } else if (input.inBracket) {
+    middle = ['B'];
   }
 
   return [w, ...middle, matchSegment(input.matchNumber)].filter(Boolean).join('-');

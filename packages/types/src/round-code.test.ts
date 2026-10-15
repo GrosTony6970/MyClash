@@ -148,6 +148,16 @@ describe('formatRoundCode', () => {
     ).toBe('LSW-B-PI-M5');
   });
 
+  it('produces LSW-B-M7 for a bracket bout made by hand, which holds no bracket place', () => {
+    const handMade = { weapon: 'Longsword', poolNumber: null, bracketRound: null };
+    expect(
+      formatRoundCode({ ...handMade, bracketSize: 16, inBracket: true, matchNumber: '7' }),
+    ).toBe('LSW-B-M7');
+    expect(
+      formatRoundCode({ ...handMade, bracketSize: null, inBracket: true, matchNumber: null }),
+    ).toBe('LSW-B');
+  });
+
   it('produces LSW-B-B2-M3 when bracketSize is unknown — double-B is acceptable', () => {
     // Rare: only fires when bracketSize is null. The 'B' from the
     // new bracket marker collides with the bracketRoundLabel
