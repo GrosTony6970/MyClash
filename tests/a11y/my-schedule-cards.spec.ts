@@ -55,3 +55,28 @@ test('a duty whose role has no name is a plain "Referee"', async ({ page }) => {
   await expect(duty.getByText('Referee · Longsword Open')).toBeVisible();
   await expect(page.getByText(/arbitre/i)).toHaveCount(0);
 });
+
+// A halted bout is still on the piste: the hub calls it "Paused", and so does the card. It had no
+// badge at all, as if the bout were over or not begun.
+test('a running bout says "Live"; a halted one says "Paused"; a coming one says neither', async ({
+  page,
+}) => {
+  await openGuestSchedule(page, {
+    ...emptySchedule,
+    matches: [
+      scheduledBout('m-1', AT_1030, { status: 'running' }),
+      scheduledBout('m-2', AT_1030, { status: 'paused' }),
+      scheduledBout('m-3', AT_1415),
+    ],
+  });
+
+  // The two at 10:30 clash, so each card also names the other: find a card by its own title.
+  const card = (id: string) =>
+    page.getByRole('link').filter({ has: page.getByText(`Pool 1 - ${id}`, { exact: true }) });
+  await expect(card('m-1').getByText('LIVE', { exact: true })).toBeVisible();
+  await expect(card('m-1').getByText('Paused')).toHaveCount(0);
+  await expect(card('m-2').getByText('Paused', { exact: true })).toBeVisible();
+  await expect(card('m-2').getByText('LIVE', { exact: true })).toHaveCount(0);
+  await expect(card('m-3').getByText(/^(LIVE|Paused)$/)).toHaveCount(0);
+  await expectNoCriticalAxeViolations(page);
+});

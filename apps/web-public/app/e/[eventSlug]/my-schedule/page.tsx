@@ -29,6 +29,7 @@ import {
 } from '@/components/me/conflicts';
 import type { PoolSpan } from '@/components/me/types';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
+import { isLiveStatus } from '@myclash/types';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -514,13 +515,19 @@ export default function MySchedulePage() {
                       )}
                     </div>
 
-                    {/* Status badge */}
-                    {item.kind === 'match' && item.data.status === 'running' && (
-                      <span className="flex items-center gap-1 text-xs font-bold text-danger flex-shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-                        {t('publicApp.mySchedule.live')}
-                      </span>
-                    )}
+                    {/* Status badge: a halted bout is still on the piste (`isLiveStatus`), as the hub says */}
+                    {item.kind === 'match' &&
+                      isLiveStatus(item.data.status) &&
+                      (item.data.status === 'paused' ? (
+                        <span className="flex-shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-xs font-bold text-muted">
+                          {t('publicApp.live.paused')}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-xs font-bold text-danger flex-shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                          {t('publicApp.mySchedule.live')}
+                        </span>
+                      ))}
                   </div>
                 </ScheduleCard>
               );
