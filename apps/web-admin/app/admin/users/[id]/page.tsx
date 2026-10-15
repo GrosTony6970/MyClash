@@ -148,7 +148,14 @@ export default function AdminUserEditPage() {
   }, [apiUrl, userId]);
 
   async function lockTempPassword() {
-    if (!(await confirm({ title: t('admin.users.edit.tempPasswordLockConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.users.edit.tempPasswordLockConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusy(true);
     try {
@@ -258,6 +265,8 @@ export default function AdminUserEditPage() {
   async function removeMembership(org: UserOrgMembership) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('admin.users.edit.confirmRemove', { organization: org.name }),
         danger: true,
       }))
@@ -281,7 +290,12 @@ export default function AdminUserEditPage() {
   async function regeneratePassword() {
     if (!user) return;
     if (
-      !(await confirm({ title: t('admin.users.edit.regeneratePasswordConfirm'), danger: true }))
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.users.edit.regeneratePasswordConfirm'),
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -315,7 +329,14 @@ export default function AdminUserEditPage() {
 
   async function sendResetEmail() {
     if (!user) return;
-    if (!(await confirm({ title: t('admin.users.edit.sendResetEmailConfirm') }))) return;
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.users.edit.sendResetEmailConfirm'),
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -340,7 +361,14 @@ export default function AdminUserEditPage() {
    */
   async function savePlatformRole(next: PlatformRole | '') {
     if (!user) return;
-    if (!(await confirm({ title: t('admin.users.edit.platformRoleConfirm'), danger: true }))) {
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.users.edit.platformRoleConfirm'),
+        danger: true,
+      }))
+    ) {
       return;
     }
 

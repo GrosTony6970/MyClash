@@ -375,7 +375,12 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
 
   async function deleteGroup(groupId: string) {
     if (
-      !(await confirm({ title: t('organizer.leagues.manage.groups.deleteConfirm'), danger: true }))
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('organizer.leagues.manage.groups.deleteConfirm'),
+        danger: true,
+      }))
     )
       return;
     setBusy(true);
@@ -401,6 +406,8 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   async function detachTournament(linkId: string) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.leagues.manage.tournaments.detachConfirm'),
         danger: true,
       }))
@@ -454,6 +461,8 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   async function removeOrgRole(organizationId: string) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.leagues.manage.roles.removeOrgConfirm'),
         danger: true,
       }))
@@ -484,6 +493,8 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
   async function removeUserRole(userId: string) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.leagues.manage.roles.removeUserConfirm'),
         danger: true,
       }))

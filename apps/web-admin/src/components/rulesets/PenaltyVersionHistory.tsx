@@ -180,6 +180,7 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingRollback !== null}
         title={
           pendingRollback

@@ -159,6 +159,7 @@ export function AccountsPanel({ tab }: { tab: UsersTab }) {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pending !== null}
         title={
           pending?.kind === 'toggle'

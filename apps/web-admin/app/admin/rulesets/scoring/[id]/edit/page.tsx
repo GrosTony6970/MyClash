@@ -164,6 +164,8 @@ export default function EditRulesetPage() {
   async function handleRestore(snapshot: VersionSnapshot) {
     if (!id) return;
     const confirmed = await confirm({
+      confirmLabel: t('actions.confirm'),
+      cancelLabel: t('actions.cancel'),
       title: t('admin.rulesets.versionRestoreConfirm').replace('{version}', snapshot.version),
     });
     if (!confirmed) return;
@@ -187,6 +189,8 @@ export default function EditRulesetPage() {
   async function handlePublishNewVersion() {
     if (!id) return;
     const nextVersion = await prompt({
+      confirmLabel: t('actions.confirm'),
+      cancelLabel: t('actions.cancel'),
       title: t('admin.rulesets.publishNewVersionPrompt'),
       allowEmpty: true,
     });

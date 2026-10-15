@@ -157,7 +157,14 @@ export function AttachToLeaguePanel({ eventId }: Props) {
   };
 
   const detach = async (attachment: Attachment) => {
-    if (!(await confirm({ title: t('admin.leagues.myRequests.leaveConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.leagues.myRequests.leaveConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setOutcome(null);
     setBusyDetach(attachment.id);

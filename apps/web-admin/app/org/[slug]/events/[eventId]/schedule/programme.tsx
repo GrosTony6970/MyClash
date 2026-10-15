@@ -289,6 +289,7 @@ export function ProgrammePlanner({
    */
   async function confirmAndReset() {
     const ok = await confirm({
+      cancelLabel: t('actions.cancel'),
       title: t('organizer.schedulePage.planner.resetConfirmTitle'),
       description: t('organizer.schedulePage.planner.resetConfirmDescription'),
       confirmLabel: t('organizer.schedulePage.planner.resetConfirmLabel'),
@@ -320,6 +321,7 @@ export function ProgrammePlanner({
 
   async function confirmAndGenerate() {
     const ok = await confirm({
+      cancelLabel: t('actions.cancel'),
       title: t('organizer.schedulePage.planner.generateConfirmTitle'),
       description: t('organizer.schedulePage.planner.generateConfirmDescription'),
       confirmLabel: t('organizer.schedulePage.planner.generateConfirmLabel'),

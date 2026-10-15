@@ -6,6 +6,7 @@ export const actions = {
   back: 'Back',
   cancel: 'Cancel',
   clear: 'Clear',
+  confirm: 'Confirm',
   close: 'Close',
   delete: 'Delete',
   dismiss: 'Dismiss',

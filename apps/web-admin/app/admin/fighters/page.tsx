@@ -499,7 +499,14 @@ export default function AdminFightersPage() {
   }
 
   async function revertMerge(auditId: string) {
-    if (!(await confirm({ title: t('admin.globalProfiles.merge.revertConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.globalProfiles.merge.revertConfirm'),
+        danger: true,
+      }))
+    )
       return;
     const r = await apiRequest(apiUrl, `/api/v1/fighters/merge/${auditId}/revert`, {
       method: 'POST',

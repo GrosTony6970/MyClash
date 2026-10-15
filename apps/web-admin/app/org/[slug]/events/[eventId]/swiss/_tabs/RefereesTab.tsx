@@ -164,6 +164,7 @@ export function RefereesTab({
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingClear !== null}
         title={t('organizer.swiss.referees.clearTitle', { round: pendingClear?.round ?? 0 })}
         description={t('organizer.swiss.referees.clearBody')}

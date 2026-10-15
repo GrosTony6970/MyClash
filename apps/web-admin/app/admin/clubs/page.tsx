@@ -427,6 +427,8 @@ export default function AdminClubsPage() {
   async function removeLogoFromLightbox(club: ClubRow) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('admin.clubs.logoRemoveConfirm', { club: club.name }),
         danger: true,
       }))
@@ -549,7 +551,15 @@ export default function AdminClubsPage() {
           ? 'admin.clubs.confirmArchive'
           : 'admin.clubs.confirmCleanupDelete';
 
-    if (!(await confirm({ title: t(confirmKey, { club: club.name }), danger: true }))) return;
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t(confirmKey, { club: club.name }),
+        danger: true,
+      }))
+    )
+      return;
 
     setDeletingId(club.id);
     setError(null);
@@ -1303,6 +1313,7 @@ export default function AdminClubsPage() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingBulk !== null}
         title={pendingBulk ? t(bulkTitleKey(pendingBulk)) : ''}
         description={

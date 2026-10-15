@@ -102,7 +102,13 @@ export function WaitingListPanel({
       // full, promote anyway?" confirmation never appeared, and promoting the
       // next fighter into a full tournament just said "Could not promote."
       if (fullTournamentRefusal(r)) {
-        if (await confirm({ title: translate('admin.orgPersons.confirmWaitlistPromoteFull') })) {
+        if (
+          await confirm({
+            confirmLabel: translate('actions.confirm'),
+            cancelLabel: translate('actions.cancel'),
+            title: translate('admin.orgPersons.confirmWaitlistPromoteFull'),
+          })
+        ) {
           return promote(reg, true);
         }
         return;
@@ -117,7 +123,12 @@ export function WaitingListPanel({
 
   async function remove(reg: WaitlistRegistration) {
     if (
-      !(await confirm({ title: translate('admin.orgPersons.confirmWaitlistRemove'), danger: true }))
+      !(await confirm({
+        confirmLabel: translate('actions.confirm'),
+        cancelLabel: translate('actions.cancel'),
+        title: translate('admin.orgPersons.confirmWaitlistRemove'),
+        danger: true,
+      }))
     )
       return;
     const r = await apiRequest(apiUrl, `/api/v1/registrations/${reg.id}`, { method: 'DELETE' });

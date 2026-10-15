@@ -443,6 +443,7 @@ export default function AdminPenaltyRulesetsPage() {
       />
 
       <PromptDialog
+        cancelLabel={t('actions.cancel')}
         open={rejectShareTarget !== null}
         title={t('admin.rulesets.rejectAction')}
         description={t('admin.rulesets.rejectReasonPrompt')}

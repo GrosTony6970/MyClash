@@ -174,6 +174,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
     };
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('admin.organizations.actions.confirm', { action: labels[action] }),
       }))
     )
@@ -261,9 +263,16 @@ export default function AdminOrgDetailPage({ params }: Props) {
     setPlatformLoading(false);
   }
 
-  async function submitAssignOwner(body: Record<string, unknown>, confirmLabel?: string) {
+  async function submitAssignOwner(body: Record<string, unknown>, question?: string) {
     if (!orgId || actionLoading) return;
-    if (confirmLabel && !(await confirm({ title: confirmLabel }))) return;
+    if (question) {
+      const sure = await confirm({
+        title: question,
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+      });
+      if (!sure) return;
+    }
 
     setActionLoading(true);
     const r = await apiRequest(apiUrl, `/api/v1/admin/organizations/${orgId}/reassign-owner`, {
@@ -334,6 +343,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
     if (!orgId || actionLoading) return;
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('admin.organizations.detail.confirmRemoveMember', {
           account: member.username || member.email || member.user_id,
         }),

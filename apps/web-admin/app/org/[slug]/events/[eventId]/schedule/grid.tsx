@@ -2308,6 +2308,7 @@ export function ScheduleGrid({
 
       {/* Slice 3: Clear-day confirm modal. */}
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingClear}
         onConfirm={() => void clearActiveDay()}
         onCancel={() => setPendingClear(false)}
@@ -2330,6 +2331,7 @@ export function ScheduleGrid({
 
       {/* Clear-run confirm modal (pool cluster or bracket round). */}
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingRunClear !== null}
         onConfirm={() => pendingRunClear && void clearRun(pendingRunClear)}
         onCancel={() => setPendingRunClear(null)}
@@ -2361,6 +2363,7 @@ export function ScheduleGrid({
 
       {/* Inline block-delete confirm modal. */}
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingBlockDelete !== null}
         onConfirm={() => pendingBlockDelete && void deleteBlock(pendingBlockDelete.id)}
         onCancel={() => setPendingBlockDelete(null)}

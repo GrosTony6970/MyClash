@@ -117,6 +117,8 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
   async function unfollow(follow: PersonFollowing) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('publicApp.me.follows.unfollowConfirm', { name: follow.displayName }),
         danger: true,
       }))

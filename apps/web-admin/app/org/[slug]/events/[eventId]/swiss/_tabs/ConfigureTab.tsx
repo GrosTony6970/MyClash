@@ -285,6 +285,7 @@ export function ConfigureTab({
       </aside>
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={confirmRegenerate}
         title={t('organizer.swiss.configure.regenerateTitle')}
         description={t('organizer.swiss.configure.regenerateBody')}

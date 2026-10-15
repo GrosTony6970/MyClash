@@ -160,6 +160,7 @@ export function RoundsTab({
       ))}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingDelete !== null}
         title={t('organizer.swiss.rounds.deleteTitle', {
           round: pendingDelete?.roundNumber ?? 0,
@@ -184,6 +185,7 @@ export function RoundsTab({
       />
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingSwap !== null}
         title={t('organizer.swiss.rounds.swapWarningTitle')}
         // The WHY, not just "needs confirmation": the engine already said which

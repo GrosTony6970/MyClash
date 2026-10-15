@@ -209,7 +209,12 @@ export default function OrgCompensationPlansPage() {
 
   async function deletePlan(planId: string) {
     if (
-      !(await confirm({ title: t('organizer.compensationSettings.deleteConfirm'), danger: true }))
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('organizer.compensationSettings.deleteConfirm'),
+        danger: true,
+      }))
     )
       return;
     const r = await apiRequest(apiUrl, `/api/v1/compensation-plans/${planId}`, {

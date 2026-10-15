@@ -22,8 +22,9 @@ export interface PromptDialogProps {
   title: React.ReactNode;
   description?: React.ReactNode;
   placeholder?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  /** The two buttons' words, already translated: there is no English default (X4). */
+  confirmLabel: string;
+  cancelLabel: string;
   /** When true, a danger-style confirm button. */
   danger?: boolean;
   /** When true, allow submitting an empty string. Default false. */
@@ -57,8 +58,8 @@ export function PromptDialog({
   title,
   description,
   placeholder,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   allowEmpty = false,
   multiline = false,
@@ -254,8 +255,9 @@ export interface PromptOptions {
   title: ReactNode;
   description?: ReactNode;
   placeholder?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  /** The two buttons' words, already translated: there is no English default (X4). */
+  confirmLabel: string;
+  cancelLabel: string;
   danger?: boolean;
   allowEmpty?: boolean;
   multiline?: boolean;
@@ -276,7 +278,11 @@ export interface PromptOptions {
  * when cancelled. Usage:
  *
  *   const { prompt, promptDialog } = usePrompt();
- *   const reason = await prompt({ title: 'Reason for rejection' });
+ *   const reason = await prompt({
+ *     title: t('…'),
+ *     confirmLabel: t('actions.reject'),
+ *     cancelLabel: t('actions.cancel'),
+ *   });
  *   if (reason === null) return;
  *   // …render {promptDialog} once in the component tree.
  */
@@ -287,6 +293,8 @@ export function usePrompt(): {
   const [state, setState] = useState<PromptOptions & { open: boolean }>({
     open: false,
     title: '',
+    confirmLabel: '',
+    cancelLabel: '',
   });
   const resolver = useRef<((value: string | null) => void) | null>(null);
 

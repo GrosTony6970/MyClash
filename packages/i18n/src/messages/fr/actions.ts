@@ -9,6 +9,7 @@ export const actions = {
   back: 'Retour',
   cancel: 'Annuler',
   clear: 'Effacer',
+  confirm: 'Confirmer',
   close: 'Fermer',
   delete: 'Supprimer',
   dismiss: 'Fermer',

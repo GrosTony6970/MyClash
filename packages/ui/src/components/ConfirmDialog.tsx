@@ -24,8 +24,9 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
   title: React.ReactNode;
   description?: React.ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  /** The two buttons' words, already translated: there is no English default (X4). */
+  confirmLabel: string;
+  cancelLabel: string;
   /** When true, confirm button uses the danger palette. Default false. */
   danger?: boolean;
   /** When true, disables the confirm button. */
@@ -38,8 +39,8 @@ export function ConfirmDialog({
   onCancel,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   busy = false,
 }: ConfirmDialogProps) {

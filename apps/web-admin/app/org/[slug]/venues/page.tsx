@@ -165,6 +165,8 @@ export default function OrgVenuesPage() {
   const onDelete = async (venue: VenueRow) => {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.venues.deleteConfirm').replace('{name}', venue.name),
         danger: true,
       }))

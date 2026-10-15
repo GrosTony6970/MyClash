@@ -305,7 +305,15 @@ export default function EventChatPage() {
   }
 
   async function removeConversation(id: string) {
-    if (!(await confirm({ title: t('organizer.chat.deleteConfirm'), danger: true }))) return;
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('organizer.chat.deleteConfirm'),
+        danger: true,
+      }))
+    )
+      return;
     const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/chat/conversations/${id}`, {
       method: 'DELETE',
     });

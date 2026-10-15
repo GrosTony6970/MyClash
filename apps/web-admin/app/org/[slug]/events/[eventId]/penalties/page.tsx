@@ -70,6 +70,8 @@ export default function PenaltyReviewsPage() {
               name,
               tournament: tournamentName,
             }),
+            confirmLabel: t('actions.confirm'),
+            cancelLabel: t('common.cancel'),
             danger: true,
           }
         : {

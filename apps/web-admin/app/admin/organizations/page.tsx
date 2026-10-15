@@ -758,6 +758,7 @@ export default function AdminOrganizationsPage() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingAction !== null}
         onConfirm={() => void performAction()}
         onCancel={() => setPendingAction(null)}

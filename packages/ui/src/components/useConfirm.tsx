@@ -6,8 +6,9 @@ import { ConfirmDialog } from './ConfirmDialog';
 export interface ConfirmOptions {
   title: ReactNode;
   description?: ReactNode;
-  confirmLabel?: string;
-  cancelLabel?: string;
+  /** The two buttons' words, already translated: there is no English default (X4). */
+  confirmLabel: string;
+  cancelLabel: string;
   /** Use the danger palette for destructive actions. */
   danger?: boolean;
 }
@@ -17,7 +18,13 @@ export interface ConfirmOptions {
  * replacement for `window.confirm`. Usage:
  *
  *   const { confirm, confirmDialog } = useConfirm();
- *   if (!(await confirm({ title: 'Delete this?', danger: true }))) return;
+ *   const sure = await confirm({
+ *     title: t('…'),
+ *     confirmLabel: t('actions.delete'),
+ *     cancelLabel: t('actions.cancel'),
+ *     danger: true,
+ *   });
+ *   if (!sure) return;
  *   // …render {confirmDialog} once in the component tree.
  */
 export function useConfirm(): {
@@ -27,6 +34,8 @@ export function useConfirm(): {
   const [state, setState] = useState<ConfirmOptions & { open: boolean }>({
     open: false,
     title: '',
+    confirmLabel: '',
+    cancelLabel: '',
   });
   const resolver = useRef<((value: boolean) => void) | null>(null);
 

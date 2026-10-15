@@ -355,6 +355,7 @@ export default function AdminRulesetsPage() {
 
       {/* Per-row reject for org-submitted curated rulesets. */}
       <PromptDialog
+        cancelLabel={t('actions.cancel')}
         open={rejectSubmissionTarget !== null}
         title={t('admin.rulesets.rejectAction')}
         description={t('admin.rulesets.rejectReasonPrompt')}
@@ -368,6 +369,7 @@ export default function AdminRulesetsPage() {
       />
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={deleteTarget !== null}
         title={t('admin.rulesets.shared.actions.delete')}
         description={t('admin.rulesets.shared.confirmDelete')}

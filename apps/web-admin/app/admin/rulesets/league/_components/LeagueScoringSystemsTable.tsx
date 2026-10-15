@@ -354,6 +354,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingDelete !== null}
         title={t('admin.rulesets.shared.actions.delete')}
         description={
@@ -369,6 +370,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
       />
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingBulkDelete !== null}
         title={
           pendingBulkDelete

@@ -650,7 +650,14 @@ export default function WorkshopsAdminPage() {
   }
 
   async function handleRemove(sessionId: string, entry: RosterEntry) {
-    if (!(await confirm({ title: t('admin.common.confirmRemoveEnrollment'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.common.confirmRemoveEnrollment'),
+        danger: true,
+      }))
+    )
       return;
     const { path, method } = rosterRequests(sessionId, entry).remove;
     const r = await apiRequest(apiUrl, path, { method });

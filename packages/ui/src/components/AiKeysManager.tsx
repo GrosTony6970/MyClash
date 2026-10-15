@@ -191,8 +191,13 @@ export function AiKeysManager({
   }
 
   async function remove(item: AiKeyItem) {
-    if (!(await confirm({ title: key('deleteConfirm', { label: item.label }), danger: true })))
-      return;
+    const sure = await confirm({
+      title: key('deleteConfirm', { label: item.label }),
+      confirmLabel: t('actions.delete'),
+      cancelLabel: t('actions.cancel'),
+      danger: true,
+    });
+    if (!sure) return;
     setBusy(true);
     setError(null);
     try {

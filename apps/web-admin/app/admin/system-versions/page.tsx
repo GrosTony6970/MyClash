@@ -403,6 +403,7 @@ export default function AdminSystemVersionsPage() {
       ) : null}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pending !== null}
         title={pending ? t(confirmTitleKey, { component: pending.componentLabel }) : ''}
         description={pending ? t(confirmDescriptionKey, { component: pending.componentLabel }) : ''}

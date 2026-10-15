@@ -156,7 +156,14 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
   async function detach(a: Attachment) {
     const eventId = a.tournaments?.event_id;
     if (!eventId) return;
-    if (!(await confirm({ title: t('organizer.leagues.attachments.leaveConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('organizer.leagues.attachments.leaveConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusyDetach(a.id);
     try {

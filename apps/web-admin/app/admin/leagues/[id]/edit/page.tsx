@@ -323,7 +323,14 @@ export default function EditLeaguePage() {
   }
 
   async function deleteGroup(groupId: string) {
-    if (!(await confirm({ title: t('admin.leagues.editPage.groups.deleteConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.leagues.editPage.groups.deleteConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusy(true);
     setError(null);
@@ -520,7 +527,14 @@ export default function EditLeaguePage() {
   }
 
   async function removeLogo() {
-    if (!(await confirm({ title: t('admin.leagues.editPage.logo.removeConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.leagues.editPage.logo.removeConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusy(true);
     setError(null);
@@ -560,7 +574,14 @@ export default function EditLeaguePage() {
   }
 
   async function removeOwner(userIdSel: string) {
-    if (!(await confirm({ title: t('admin.leagues.editPage.owners.detachConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.leagues.editPage.owners.detachConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusy(true);
     setError(null);
@@ -601,7 +622,14 @@ export default function EditLeaguePage() {
   }
 
   async function removeOrg(orgId: string) {
-    if (!(await confirm({ title: t('admin.leagues.editPage.orgs.detachConfirm'), danger: true })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.leagues.editPage.orgs.detachConfirm'),
+        danger: true,
+      }))
+    )
       return;
     setBusy(true);
     setError(null);
@@ -645,6 +673,8 @@ export default function EditLeaguePage() {
   async function removeTournamentLink(linkId: string) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('admin.leagues.editPage.tournaments.detachConfirm'),
         danger: true,
       }))

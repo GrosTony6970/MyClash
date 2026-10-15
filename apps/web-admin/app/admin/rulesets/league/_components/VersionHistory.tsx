@@ -177,6 +177,7 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
       </ul>
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingRollback !== null}
         title={
           pendingRollback

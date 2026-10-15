@@ -352,6 +352,8 @@ export default function MatchDetailPage() {
   async function handleRevert(exchangeId: string) {
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.matchDetail.restoreConfirm'),
         danger: true,
       }))
@@ -477,6 +479,7 @@ export default function MatchDetailPage() {
   async function handleVoidForfeit() {
     if (!activeForfeit) return;
     const ok = await confirm({
+      cancelLabel: t('actions.cancel'),
       title: t('organizer.bracketPage.voidRecordTitle'),
       // One paragraph, like the string this replaces — ConfirmDialog already
       // wraps `description` in a <p>, so nested block elements are invalid.

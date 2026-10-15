@@ -253,6 +253,7 @@ export function TlsCertificatesCard() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={confirmOpen}
         title={t('admin.systemVersions.tls.actions.confirmForceRenewTitle')}
         description={t('admin.systemVersions.tls.actions.confirmForceRenewDescription')}

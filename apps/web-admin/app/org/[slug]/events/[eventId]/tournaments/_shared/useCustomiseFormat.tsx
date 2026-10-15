@@ -27,6 +27,7 @@ export function useCustomiseFormat(tournamentId: string, onDone: () => void) {
 
   async function customise() {
     const ok = await confirm({
+      cancelLabel: t('actions.cancel'),
       title: t('admin.orgTournaments.customiseFormatTitle'),
       description: t('admin.orgTournaments.customiseFormatConfirm'),
       confirmLabel: t('admin.orgTournaments.customiseFormat'),

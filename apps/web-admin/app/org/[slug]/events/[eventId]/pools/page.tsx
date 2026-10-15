@@ -1098,6 +1098,7 @@ export default function PoolsPage() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingDeletePoolId !== null}
         title={t('organizer.pools.page.deletePoolConfirmTitle')}
         description={(() => {
@@ -1116,6 +1117,7 @@ export default function PoolsPage() {
       />
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingDeleteAll}
         title={t('organizer.pools.page.deleteAllButton')}
         description={t('organizer.pools.page.deleteAllDesc')}

@@ -619,6 +619,7 @@ export default function ParticipantsPage() {
         personRes.details?.['resolution'] === 'allowDuplicateName'
       ) {
         const confirmed = await confirm({
+          cancelLabel: t('actions.cancel'),
           title: t('admin.orgPersons.duplicateNameTitle'),
           description: t('admin.orgPersons.duplicateNameBody', {
             name: `${addForm.givenName.trim()} ${addForm.familyName.trim()}`,
@@ -896,7 +897,13 @@ export default function ParticipantsPage() {
 
   async function handleBulkCheckIn() {
     if (selected.size === 0 || activeTab === 'all') return;
-    if (!(await confirm({ title: t('admin.orgPersons.confirmCheckIn', { count: selected.size }) })))
+    if (
+      !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
+        title: t('admin.orgPersons.confirmCheckIn', { count: selected.size }),
+      }))
+    )
       return;
     setBulkLoading(true);
     let checkInFailures = 0;
@@ -1013,6 +1020,8 @@ export default function ParticipantsPage() {
     if (selected.size === 0) return;
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.persons.bulk.registerRefereeConfirm', { count: selected.size }),
       }))
     ) {
@@ -1060,6 +1069,8 @@ export default function ParticipantsPage() {
     if (selected.size === 0) return;
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.persons.bulk.unregisterRefereeConfirm', { count: selected.size }),
         danger: true,
       }))
@@ -2247,6 +2258,7 @@ export default function ParticipantsPage() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={waitlistPrompt !== null && waitlistPrompt.length > 0}
         title={t('organizer.persons.tournamentFullTitle')}
         description={

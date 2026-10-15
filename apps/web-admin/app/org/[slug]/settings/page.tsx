@@ -122,6 +122,8 @@ export default function OrgMembersPage() {
     const label = member.name ?? member.email ?? t('organizer.orgSettings.unknownUser');
     if (
       !(await confirm({
+        confirmLabel: t('actions.confirm'),
+        cancelLabel: t('actions.cancel'),
         title: t('organizer.orgSettings.removeConfirm', { name: label }),
         danger: true,
       }))

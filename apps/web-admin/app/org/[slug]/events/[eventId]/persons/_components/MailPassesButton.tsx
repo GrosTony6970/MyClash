@@ -2,7 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { useConfirm } from '@myclash/ui';
+import { useConfirm, type ConfirmOptions } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -67,7 +67,7 @@ export function MailPassesButton({ eventId, disabled }: Props) {
   );
 }
 
-type Confirm = (opts: { title: string; description: string; danger: boolean }) => Promise<boolean>;
+type Confirm = (opts: ConfirmOptions) => Promise<boolean>;
 
 /**
  * The mail-out, confirmed first.
@@ -113,6 +113,8 @@ function useMailPasses(eventId: string, confirm: Confirm) {
       description: resend
         ? t('admin.orgPersons.passes.confirmResendBody')
         : t('admin.orgPersons.passes.confirmSendBody'),
+      confirmLabel: t('actions.confirm'),
+      cancelLabel: t('actions.cancel'),
       danger: resend,
     }).then((ok) => {
       if (ok) dispatch(resend);

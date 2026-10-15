@@ -530,6 +530,7 @@ export default function AdminLeaguesPage() {
       )}
 
       <ConfirmDialog
+        cancelLabel={t('actions.cancel')}
         open={pendingDelete !== null}
         title={t('admin.adminLeagues.deleteDialogTitle')}
         description={
