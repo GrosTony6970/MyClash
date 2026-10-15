@@ -200,6 +200,10 @@ test('a level round of a best-of bout does the same with no network, and "End ro
   await expect(skull(page)).toBeVisible();
 
   await redHit(page).click();
+  // The official sees the lead, then ends the round. "End round" judges the score on the screen,
+  // and the hit reaches it a moment after the tap: a tap before that read 3 - 3 and was refused as
+  // level (red in CI, 2026-10-14; the page showed 4 - 3 under "Scores are level").
+  await expect(skull(page), 'a fighter leads: sudden death is over').toHaveCount(0);
   await page.getByTestId('clock-end-button').click();
 
   // The round is closed on the tablet for the leader; nothing was sent.
