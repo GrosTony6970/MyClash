@@ -244,6 +244,8 @@ test.describe('schedule grid drag layer', () => {
     await page.getByRole('button', { name: 'Delete Lunch' }).first().click();
     await page.getByRole('button', { name: 'Delete block' }).click();
     await expect.poll(() => api.writes.filter((r) => r.method() === 'DELETE').length).toBe(1);
+    // In the history once ANSWERED, with its toast: a press before then found none (CI, 2026-10).
+    await expect(page.getByText('Deleted "Lunch"')).toBeVisible();
 
     await page.keyboard.press('Control+z');
 
