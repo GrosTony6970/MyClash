@@ -2319,8 +2319,9 @@ What the build chose, not ruled. Say so if one is wrong:
 
 Named, not fixed (each read in code):
 
-- **French Excel may open a comma CSV in one column**: many French setups split on `;`. The
-  import templates already follow that rule; the seven downloads do not. Worth a ruling.
+- ~~**French Excel may open a comma CSV in one column**: many French setups split on `;`. The
+  import templates already follow that rule; the seven downloads do not. Worth a ruling.~~ Ruled
+  and done `853530e0` (section "Built on 2026-10-15: the French Excel file").
 - The public People page's role badges cannot show: the read behind it sends no roles. The new
   words for them are there, unused.
 - "Requested" (the shared word) and "Pending" (two older League lists) for one request state.
@@ -2374,6 +2375,49 @@ Named, not fixed (each read in code; a product choice, so the operator's):
   "Scores are level". It judges what the screen showed at the tap.
 - On the schedule board, Ctrl+Z pressed before the server has answered a bar's delete does
   nothing, and says nothing.
+
+## Built on 2026-10-15: the French Excel file
+
+`853530e0`. A French organiser's CSV opened in one column: French Excel splits on `;`, and reads
+`12.50` as text a total skips.
+
+Rulings, operator, 2026-10-15 (do not ask again):
+
+| Question                     | Ruling                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| What decides the separator?  | A choice at the download: Excel (French) `;`, or Excel (English), other apps `,`.  |
+| Decimals in the French file? | A comma: `12,50`.                                                                  |
+| Which files?                 | The seven the admin pages build. Not the server's CSVs, not the HEMA Ratings feed. |
+| What the choice looks like   | One button, "Export CSV ▾", and a small menu of the two files.                     |
+| Remembered?                  | No: both at every download, the page language's file first.                        |
+
+Built: `CsvExportMenu` (web-admin) on nine buttons of seven pages (the Pool tab has three); the
+rules in `packages/types/src/csv.ts` (a cell holding the separator is quoted, a plain number
+takes the decimal mark, formulas still made harmless). A Pool's section no longer clips its
+header, so the menu of a Pool of one or two fighters shows whole.
+
+The proof: one cold review (no blocker, no major; minors fixed, the rest below), 25 seeded breaks
+(25 red), the gate chain (36 of 36), the browser suite (403 of 403), the whole API and web-admin
+suites. The review's one real fault was found by the API's own tests first: the HEMA Ratings feed
+hands the escaper to `map` point-free, and a separator parameter read `map`'s index and stopped
+quoting its commas. The three exported escapers keep ONE parameter; a test holds it.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **Text that is exactly a decimal is written with a comma too** in the French file: a Pool named
+  "1.1", a Workshop level "1.5". French Excel then reads the number the organiser typed.
+- **The menu shuts on Tab, but not on a blur to nothing**: Safari does not focus a clicked button,
+  so a click on the second choice would have shut the menu under the click.
+
+Named, not fixed:
+
+- The server's CSVs (archive exports, League report, audit log, a person's data export) have no
+  byte-order mark, English column titles and `,`: French Excel shows them with broken accents and
+  in one column. The same job again, on the API side.
+- The workshop file's places cell ("8/20") may be read as a date by Excel, in both files.
+- On a narrow screen the menu opens to the left of its button and can run off the screen.
+- No page test drives the menu on the Swiss, schedule, workshop, pay and final ranking pages; their
+  builders are tested, and the page hands the pick on in one line.
 
 ## Still not checked
 
