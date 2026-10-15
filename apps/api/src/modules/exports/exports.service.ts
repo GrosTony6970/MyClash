@@ -9,15 +9,10 @@
  */
 
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import {
-  allowsRatingsExport,
-  asEventKind,
-  escapeCsvCell,
-  formatRoundCode,
-  roundCodeShapeFromConfig,
-} from '@myclash/types';
+import { allowsRatingsExport, asEventKind } from '@myclash/types';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
+import { FULL_CSV_HEADER, fullCsvLine } from './full-event-csv';
 import {
   buildSubmission,
   type SubmissionClub,
@@ -211,81 +206,44 @@ export class ExportsService {
   // ── Generic CSV export (all matches + exchanges) ──────────────────────────
 
   async generateFullCsv(eventId: string): Promise<string> {
-    const { data: exchanges } = await this.supabase.service
-      .from('exchanges')
-      .select(
-        `
-        id, type, sequence, occurred_at, clock_time_ms,
-        first_striker_color, first_strike_value, afterblow_value,
-        no_exchange_reason, voided, voided_reason,
-        matches (
-          id, match_number_label, status,
-          red_registration_id, blue_registration_id,
-          pools ( sort_order ),
-          bracket_slots ( round ),
-          swiss_rounds ( round_number ),
-          phases ( config_json, tournaments ( name, slug, weapon ) )
-        )
-      `,
-      )
-      .eq('matches.phases.tournaments.event_id', eventId)
-      .order('occurred_at');
+    const exchanges = await this.fetchEventExchanges(eventId);
+    return [FULL_CSV_HEADER, ...exchanges.map(fullCsvLine)].join('\n');
+  }
 
-    const lines = [
-      'tournament,round_code,match,sequence,type,first_striker,first_strike_value,afterblow_value,no_exchange_reason,clock_time_ms,voided,voided_reason',
-    ];
-
-    for (const ex of exchanges ?? []) {
-      const row = ex as Record<string, unknown>;
-      const match = row['matches'] as Record<string, unknown> | null;
-      const phase = match?.['phases'] as Record<string, unknown> | null;
-      const tournament = phase?.['tournaments'] as {
-        name: string;
-        weapon?: string | null;
-      } | null;
-      const phaseConfig = (phase?.['config_json'] ?? null) as Record<string, unknown> | null;
-      const sizeRaw = (phaseConfig?.['bracketSize'] ?? phaseConfig?.['mainBracketSize']) as
-        number | undefined;
-      const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
-      const pool = match?.['pools'] as { sort_order?: number } | null;
-      const bracketSlot = match?.['bracket_slots'] as { round?: number } | null;
-      const swissRound = match?.['swiss_rounds'] as { round_number?: number } | null;
-      const matchLabel = (match?.['match_number_label'] as string | null) ?? '';
-
-      const roundCode = formatRoundCode({
-        weapon: tournament?.weapon ?? null,
-        poolNumber: typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null,
-        bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
-        bracketSize,
-        // Without this a Swiss exchange row exports as a segment-less LSW-M1,
-        // indistinguishable from an unclassifiable match.
-        swissRound: typeof swissRound?.round_number === 'number' ? swissRound.round_number : null,
-        matchNumber: matchLabel || null,
-        // Without the WB/LB split a double-elim bracket falls back to
-        // single-elim labels, so the winners final, the grand final and the
-        // reset all export as "F".
-        ...roundCodeShapeFromConfig(phaseConfig),
-      });
-
-      lines.push(
-        [
-          this.csvEscape(tournament?.name ?? ''),
-          this.csvEscape(roundCode),
-          this.csvEscape(matchLabel),
-          row['sequence'],
-          row['type'],
-          row['first_striker_color'] ?? '',
-          row['first_strike_value'] ?? '',
-          row['afterblow_value'] ?? '',
-          row['no_exchange_reason'] ?? '',
-          row['clock_time_ms'] ?? '',
-          row['voided'] ? 'true' : 'false',
-          this.csvEscape((row['voided_reason'] as string | null) ?? ''),
-        ].join(','),
+  /**
+   * Every hit of this Event, page by page. Each embed on the way to the Event is `!inner`: without
+   * it the nested filter only blanks the Tournament and keeps the row, so the file held the hits
+   * of every Event. One read is cut at `EXPORT_PAGE` rows with no word (`PGRST_DB_MAX_ROWS`), so a
+   * full page asks for the next; `id` after `occurred_at` keeps the pages from overlapping.
+   */
+  private async fetchEventExchanges(eventId: string): Promise<Row[]> {
+    const exchanges: Row[] = [];
+    for (let from = 0; ; from += EXPORT_PAGE) {
+      const page = await this.fetchMany('exchanges', (q) =>
+        q
+          .select(
+            `
+            id, type, sequence, occurred_at, clock_time_ms,
+            first_striker_color, first_strike_value, afterblow_value,
+            no_exchange_reason, voided, voided_reason,
+            matches!inner (
+              id, match_number_label, status,
+              red_registration_id, blue_registration_id,
+              pools ( sort_order ),
+              bracket_slots ( round ),
+              swiss_rounds ( round_number ),
+              phases!inner ( config_json, tournaments!inner ( name, slug, weapon ) )
+            )
+          `,
+          )
+          .eq('matches.phases.tournaments.event_id', eventId)
+          .order('occurred_at')
+          .order('id')
+          .range(from, from + EXPORT_PAGE - 1),
       );
+      exchanges.push(...page);
+      if (page.length < EXPORT_PAGE) return exchanges;
     }
-
-    return lines.join('\n');
   }
 
   // ── JSON export ───────────────────────────────────────────────────────────
@@ -356,15 +314,6 @@ export class ExportsService {
   private chain(table: string): QueryChain {
     return this.supabase.service.from(table) as unknown as QueryChain;
   }
-
-  /**
-   * Formula-safe: full.csv is downloaded and opened in a spreadsheet, and it
-   * carries organiser-written free text (voided_reason, names). See
-   * @myclash/types/csv.
-   */
-  private csvEscape(value: string): string {
-    return escapeCsvCell(value);
-  }
 }
 
 // ── Module helpers ────────────────────────────────────────────────────────────
@@ -380,8 +329,12 @@ type QueryChain = PromiseLike<QueryListResult> & {
   in: (column: string, values: unknown[]) => QueryChain;
   is: (column: string, value: unknown) => QueryChain;
   order: (column: string, options?: Record<string, unknown>) => QueryChain;
+  range: (from: number, to: number) => QueryChain;
   maybeSingle: () => Promise<QuerySingleResult>;
 };
+
+/** PostgREST's cut of one read (`PGRST_DB_MAX_ROWS` in `infra/`). */
+const EXPORT_PAGE = 1000;
 
 /** Phase order, then match label — so a re-export is byte-identical. */
 function sortMatches(rows: Row[]): Row[] {

@@ -112,6 +112,93 @@ const BASE: TableData = {
   clubs: [{ id: 'c1', name: 'Lyon HEMA', country_code: 'FR', city: 'Lyon', website: null }],
 };
 
+/** A hit of `match` (one bout of Tournament "Longsword", Pool 1). */
+function hit(id: string, sequence: number): Row {
+  return {
+    id,
+    type: 'clean',
+    sequence,
+    first_striker_color: 'red',
+    first_strike_value: 1,
+    afterblow_value: null,
+    no_exchange_reason: null,
+    clock_time_ms: 1000,
+    voided: false,
+    voided_reason: null,
+    matches: {
+      match_number_label: 'M1',
+      pools: { sort_order: 0 },
+      bracket_slots: null,
+      swiss_rounds: null,
+      phases: { config_json: null, tournaments: { name: 'Longsword', weapon: null } },
+    },
+  };
+}
+
+/** The exchanges read of the full CSV, answered page by page: each read takes the next page. */
+function pagedExchanges(pages: Row[][], error: { message: string } | null = null) {
+  const reads: { select: string; ranges: [number, number][]; filters: string[] }[] = [];
+  const supabase = {
+    service: {
+      from() {
+        const read = { select: '', ranges: [] as [number, number][], filters: [] as string[] };
+        reads.push(read);
+        const chain: Record<string, unknown> = {
+          select(columns: string) {
+            read.select = columns.replace(/\s+/g, ' ');
+            return chain;
+          },
+          eq(column: string, value: unknown) {
+            read.filters.push(`eq ${column} ${String(value)}`);
+            return chain;
+          },
+          order(column: string) {
+            read.filters.push(`order ${column}`);
+            return chain;
+          },
+          range(from: number, to: number) {
+            read.ranges.push([from, to]);
+            return chain;
+          },
+          then(resolve: (value: unknown) => unknown) {
+            return Promise.resolve(resolve({ data: pages[reads.length - 1] ?? [], error }));
+          },
+        };
+        return chain;
+      },
+    },
+  };
+  return { service: new ExportsService(supabase as never), reads };
+}
+
+describe('ExportsService — the full event CSV', () => {
+  it("reaches the Event through inner joins, so another Event's hit is not in the file", async () => {
+    // Without `!inner` the nested Event filter only blanked the Tournament: every hit of every
+    // Event came back, other clubs' void reasons included.
+    const { service, reads } = pagedExchanges([[hit('x1', 1)]]);
+    await service.generateFullCsv('event-1');
+    expect(reads[0]!.select).toContain('matches!inner (');
+    expect(reads[0]!.select).toContain('phases!inner (');
+    expect(reads[0]!.select).toContain('tournaments!inner (');
+    expect(reads[0]!.filters).toContain('eq matches.phases.tournaments.event_id event-1');
+  });
+
+  it('reads past the 1000 rows one read returns', async () => {
+    const first = Array.from({ length: 1000 }, (_, n) => hit(`a${n}`, n + 1));
+    const { service, reads } = pagedExchanges([first, [hit('b0', 1001)]]);
+    const csv = await service.generateFullCsv('event-1');
+    expect(reads.map((read) => read.ranges)).toEqual([[[0, 999]], [[1000, 1999]]]);
+    // `id` after the time: two hits of the same instant never straddle two pages.
+    expect(reads[0]!.filters).toEqual(expect.arrayContaining(['order occurred_at', 'order id']));
+    expect(csv.split('\n')).toHaveLength(1 + 1001);
+  });
+
+  it('fails the download when the read fails, instead of sending an empty file', async () => {
+    const { service } = pagedExchanges([], { message: 'column does not exist' });
+    await expect(service.generateFullCsv('event-1')).rejects.toThrow(/Export query .* failed/);
+  });
+});
+
 describe('ExportsService — HEMA Ratings submission', () => {
   it('reaches matches through phases.tournament_id, not a tournament_id column', async () => {
     // matches has NO tournament_id column. Filtering directly on it 400s and
