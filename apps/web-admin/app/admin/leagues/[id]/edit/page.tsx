@@ -997,7 +997,9 @@ export default function EditLeaguePage() {
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="font-medium text-foreground">
                     {r.displayName || t('admin.leagues.editPage.owners.nameFallback')}
-                    <span className="ml-2 text-xs font-normal text-muted">{r.role}</span>
+                    <span className="ml-2 text-xs font-normal text-muted">
+                      {statusLabel('leagueUserRole', r.role, t)}
+                    </span>
                   </p>
                   <p className="text-xs text-muted">{r.email}</p>
                   {r.organizations.length > 0 && (
@@ -1118,7 +1120,9 @@ export default function EditLeaguePage() {
                   <p className="font-mono text-xs text-muted">{r.slug}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted">{r.role}</span>
+                  <span className="text-xs text-muted">
+                    {statusLabel('leagueOrgRole', r.role, t)}
+                  </span>
                   <button
                     type="button"
                     onClick={() => void removeOrg(r.organizationId)}
@@ -1260,7 +1264,7 @@ export default function EditLeaguePage() {
                     </select>
                   )}
                   <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold text-foreground-secondary">
-                    {link.status}
+                    {statusLabel('leagueAttachment', link.status, t)}
                   </span>
                   <button
                     type="button"

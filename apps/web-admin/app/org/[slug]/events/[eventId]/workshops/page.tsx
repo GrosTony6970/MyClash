@@ -36,6 +36,7 @@ import {
   useSortableList,
   statusPillClass,
   workshopStatusSemantic,
+  statusLabel,
 } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
@@ -1442,7 +1443,7 @@ export default function WorkshopsAdminPage() {
                 <option value="">{t('organizer.workshopsPage.noColor')}</option>
                 {TOURNAMENT_COLORS.map((c) => (
                   <option key={c} value={c}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                    {statusLabel('color', c, t)}
                   </option>
                 ))}
               </select>

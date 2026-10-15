@@ -2,7 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useRef, useState } from 'react';
-import { useToast } from '@myclash/ui';
+import { useToast, statusLabel } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
 import {
@@ -243,7 +243,7 @@ export function Step3Display({
                   >
                     {COLORS.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {statusLabel('color', c, t)}
                       </option>
                     ))}
                   </select>

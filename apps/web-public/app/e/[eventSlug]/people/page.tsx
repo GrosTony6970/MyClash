@@ -14,6 +14,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
+import { statusLabel } from '@myclash/ui';
 import { fetchEventInfo } from '../_components/EventHeader';
 
 interface PersonResult {
@@ -137,7 +138,7 @@ export default function PeoplePage() {
                                 ROLE_COLORS[role] ?? 'bg-border text-muted border-border',
                               ].join(' ')}
                             >
-                              {role.replace('_', ' ')}
+                              {statusLabel('personRole', role, t)}
                             </span>
                           ))}
                         </div>

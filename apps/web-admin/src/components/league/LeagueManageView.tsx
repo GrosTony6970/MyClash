@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
+import { SegmentedTabs, useConfirm, useToast, statusLabel } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -849,7 +849,7 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
                     <p className="truncate font-medium text-foreground">
                       {r.displayName ?? r.email ?? t('organizer.leagues.manage.roles.unknownUser')}
                     </p>
-                    <p className="text-xs text-muted">{r.role}</p>
+                    <p className="text-xs text-muted">{statusLabel('leagueUserRole', r.role, t)}</p>
                   </div>
                   <button
                     type="button"

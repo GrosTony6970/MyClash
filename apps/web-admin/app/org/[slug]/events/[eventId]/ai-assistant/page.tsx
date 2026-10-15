@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { statusLabel } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -344,7 +345,7 @@ export default function EventAIAssistantPage() {
                   <p className="text-sm text-foreground-secondary">{selectedDraft.summary}</p>
                 </div>
                 <span className="rounded-full bg-border px-3 py-1 text-xs font-semibold text-foreground-secondary">
-                  {selectedDraft.status}
+                  {statusLabel('aiDraft', selectedDraft.status, t)}
                 </span>
               </div>
 
@@ -423,7 +424,9 @@ export default function EventAIAssistantPage() {
                 <span className="block text-sm font-semibold text-foreground">
                   {t(`organizer.aiAssistant.types.${draft.draftType}`)}
                 </span>
-                <span className="mt-1 block text-xs text-muted">{draft.status}</span>
+                <span className="mt-1 block text-xs text-muted">
+                  {statusLabel('aiDraft', draft.status, t)}
+                </span>
               </button>
             ))}
           </div>

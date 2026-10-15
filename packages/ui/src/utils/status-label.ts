@@ -1,5 +1,12 @@
-import type { ClaimStatus, ClockStatus, MatchStatus, StaffRole } from '@myclash/types';
+import type {
+  ClaimStatus,
+  ClockStatus,
+  MatchStatus,
+  StaffRole,
+  TournamentSideColor,
+} from '@myclash/types';
 import type { Translator } from '../types/translator';
+import type { ColorToken } from './color-token';
 import type { TournamentStatus } from './status-pill';
 
 /** `events.status`: the five values of `events_status_check` (pinned by the test). */
@@ -87,6 +94,96 @@ const STAFF_ROLE: Record<StaffRole, string> = {
   gear: 'common.status.staffRole.gear',
 };
 
+// The words a screen showed raw before X1 (operator ruling 2026-10-15), each over its own
+// list of values: a Swiss round, a Pool's standings, an AI draft, a data scan, a League's
+// roles and attachments, a person's part at an Event, a referee's assignment, a colour.
+type SwissRoundStatus = 'pending' | 'running' | 'completed';
+type PoolState = 'in_progress' | 'completed';
+type AiDraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
+type ScanStatus = 'running' | 'completed' | 'failed';
+type LeagueUserRole = 'owner' | 'admin';
+type LeagueOrgRole = 'owner' | 'admin' | 'member';
+type LeagueAttachmentStatus = 'requested' | 'approved' | 'rejected' | 'removed';
+type PersonRole = 'competitor' | 'referee' | 'workshop_lead';
+type RefereeAssignmentStatus = 'assigned' | 'pending' | 'confirmed';
+
+const SWISS_ROUND: Record<SwissRoundStatus, string> = {
+  pending: 'common.status.swissRound.pending',
+  running: 'common.status.swissRound.running',
+  completed: 'common.status.swissRound.completed',
+};
+
+const POOL_STATE: Record<PoolState, string> = {
+  in_progress: 'common.status.poolState.in_progress',
+  completed: 'common.status.poolState.completed',
+};
+
+const AI_DRAFT: Record<AiDraftStatus, string> = {
+  draft: 'common.status.aiDraft.draft',
+  ready: 'common.status.aiDraft.ready',
+  failed: 'common.status.aiDraft.failed',
+  applied: 'common.status.aiDraft.applied',
+  rejected: 'common.status.aiDraft.rejected',
+};
+
+const SCAN: Record<ScanStatus, string> = {
+  running: 'common.status.scan.running',
+  completed: 'common.status.scan.completed',
+  failed: 'common.status.scan.failed',
+};
+
+const LEAGUE_USER_ROLE: Record<LeagueUserRole, string> = {
+  owner: 'common.status.leagueUserRole.owner',
+  admin: 'common.status.leagueUserRole.admin',
+};
+
+const LEAGUE_ORG_ROLE: Record<LeagueOrgRole, string> = {
+  owner: 'common.status.leagueOrgRole.owner',
+  admin: 'common.status.leagueOrgRole.admin',
+  member: 'common.status.leagueOrgRole.member',
+};
+
+const LEAGUE_ATTACHMENT: Record<LeagueAttachmentStatus, string> = {
+  requested: 'common.status.leagueAttachment.requested',
+  approved: 'common.status.leagueAttachment.approved',
+  rejected: 'common.status.leagueAttachment.rejected',
+  removed: 'common.status.leagueAttachment.removed',
+};
+
+const PERSON_ROLE: Record<PersonRole, string> = {
+  competitor: 'common.status.personRole.competitor',
+  referee: 'common.status.personRole.referee',
+  workshop_lead: 'common.status.personRole.workshop_lead',
+};
+
+const REFEREE_ASSIGNMENT: Record<RefereeAssignmentStatus, string> = {
+  assigned: 'common.status.refereeAssignment.assigned',
+  pending: 'common.status.refereeAssignment.pending',
+  confirmed: 'common.status.refereeAssignment.confirmed',
+};
+
+// A colour's name: every ColorToken and every side colour a Tournament may pick.
+const COLOR: Record<ColorToken | TournamentSideColor, string> = {
+  red: 'common.status.color.red',
+  blue: 'common.status.color.blue',
+  green: 'common.status.color.green',
+  yellow: 'common.status.color.yellow',
+  purple: 'common.status.color.purple',
+  orange: 'common.status.color.orange',
+  black: 'common.status.color.black',
+  white: 'common.status.color.white',
+  amber: 'common.status.color.amber',
+  violet: 'common.status.color.violet',
+  teal: 'common.status.color.teal',
+  gold: 'common.status.color.gold',
+  silver: 'common.status.color.silver',
+  bronze: 'common.status.color.bronze',
+  slate: 'common.status.color.slate',
+  grey: 'common.status.color.grey',
+  brown: 'common.status.color.brown',
+  pink: 'common.status.color.pink',
+};
+
 const STATUS_LABEL_KEYS = {
   match: MATCH,
   clock: CLOCK,
@@ -96,6 +193,16 @@ const STATUS_LABEL_KEYS = {
   claim: CLAIM,
   orgRole: ORG_ROLE,
   staffRole: STAFF_ROLE,
+  swissRound: SWISS_ROUND,
+  poolState: POOL_STATE,
+  aiDraft: AI_DRAFT,
+  scan: SCAN,
+  leagueUserRole: LEAGUE_USER_ROLE,
+  leagueOrgRole: LEAGUE_ORG_ROLE,
+  leagueAttachment: LEAGUE_ATTACHMENT,
+  personRole: PERSON_ROLE,
+  refereeAssignment: REFEREE_ASSIGNMENT,
+  color: COLOR,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;

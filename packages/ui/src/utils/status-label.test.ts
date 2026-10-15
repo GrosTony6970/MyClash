@@ -18,7 +18,7 @@ function checkList(constraint: string): string[] {
   let found: string[] | null = null;
   for (const file of readdirSync(MIGRATIONS).sort()) {
     const sql = readFileSync(resolve(MIGRATIONS, file), 'utf8');
-    const at = sql.lastIndexOf(`${constraint} CHECK`);
+    const at = sql.search(new RegExp(`${constraint}\\s+CHECK`));
     if (at < 0) continue;
     const list = /IN\s*\(([^)]*)\)/i.exec(sql.slice(at))?.[1] ?? '';
     found = [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]!);
@@ -48,6 +48,35 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   claim: ['unclaimed', 'guest_active', 'claimed'],
   orgRole: ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead', 'read_only'],
   staffRole: ['scoring', 'checkin', 'gear'],
+  swissRound: ['pending', 'running', 'completed'],
+  poolState: ['in_progress', 'completed'],
+  aiDraft: ['draft', 'ready', 'failed', 'applied', 'rejected'],
+  scan: ['running', 'completed', 'failed'],
+  leagueUserRole: ['owner', 'admin'],
+  leagueOrgRole: ['owner', 'admin', 'member'],
+  leagueAttachment: ['requested', 'approved', 'rejected', 'removed'],
+  personRole: ['competitor', 'referee', 'workshop_lead'],
+  refereeAssignment: ['assigned', 'pending', 'confirmed'],
+  color: [
+    'red',
+    'blue',
+    'green',
+    'yellow',
+    'purple',
+    'orange',
+    'black',
+    'white',
+    'amber',
+    'violet',
+    'teal',
+    'gold',
+    'silver',
+    'bronze',
+    'slate',
+    'grey',
+    'brown',
+    'pink',
+  ],
 };
 
 function wordIn(tree: unknown, key: string): unknown {
@@ -92,6 +121,12 @@ describe('statusLabelKey', () => {
   it('calls a workshop lead an Instructor, as HIERARCHY.md does', () => {
     expect(wordIn(messages.en, statusLabelKey('orgRole', 'workshop_lead'))).toBe('Instructor');
     expect(wordIn(messages.fr, statusLabelKey('orgRole', 'workshop_lead'))).toBe('Instructeur');
+  });
+
+  it('knows exactly the states the database allows for a League attachment', () => {
+    expect([...STATES.leagueAttachment].sort()).toEqual(
+      checkList('league_tournament_links_status_check'),
+    );
   });
 
   it('says a paused bout and a halted clock with the same word, as ruled', () => {

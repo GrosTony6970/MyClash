@@ -48,6 +48,13 @@ let page: OpenedPage;
 afterEach(() => page.unmount());
 
 describe('the AI assistant of an archived Event', () => {
+  it("names a draft's state in words, not as its raw value (X1)", async () => {
+    page = await openArchivedPage(<EventAIAssistantPage />, READS);
+    const spans = [...document.body.querySelectorAll('span')].map((span) => span.textContent);
+    expect(spans).toContain('Ready');
+    expect(spans).not.toContain('ready');
+  });
+
   it('makes, saves, applies and rejects no draft', async () => {
     page = await openArchivedPage(<EventAIAssistantPage />, READS);
 

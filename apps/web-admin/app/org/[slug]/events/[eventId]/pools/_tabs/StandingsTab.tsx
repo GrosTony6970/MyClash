@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { statusLabel } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { escapeCsvCell } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -478,7 +479,7 @@ function StandingsTable({
                         : 'bg-border text-foreground-secondary'
                     }`}
                   >
-                    {row.status}
+                    {statusLabel('poolState', row.status, t)}
                   </span>
                 </td>
               </tr>

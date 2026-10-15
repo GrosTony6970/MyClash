@@ -4,6 +4,7 @@ import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { statusLabel } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -196,7 +197,9 @@ export default function AdminDataQualityPage() {
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         {scans.slice(0, 3).map((scan) => (
           <article key={scan.id} className="rounded-lg border border-border p-4">
-            <div className="text-xs uppercase text-muted">{scan.status}</div>
+            <div className="text-xs uppercase text-muted">
+              {statusLabel('scan', scan.status, t)}
+            </div>
             <div className="mt-2 text-lg font-semibold">{scan.finding_count}</div>
             <div className="text-sm text-muted">
               {t('admin.dataQuality.findingsFromCandidates', {

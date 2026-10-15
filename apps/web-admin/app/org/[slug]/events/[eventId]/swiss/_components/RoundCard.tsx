@@ -54,7 +54,9 @@ export function RoundCard({
           <h3 className="font-display text-lg font-semibold text-foreground">
             {t('organizer.swiss.rounds.roundTitle', { round: round.roundNumber })}
           </h3>
-          <StatusBadge semantic={matchStatusSemantic(round.status)}>{round.status}</StatusBadge>
+          <StatusBadge semantic={matchStatusSemantic(round.status)}>
+            {statusLabel('swissRound', round.status, t)}
+          </StatusBadge>
           {round.manualAdjustments.length > 0 && (
             <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">
               {t('organizer.swiss.rounds.manuallyAdjusted')}

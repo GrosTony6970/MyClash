@@ -13,7 +13,7 @@
  * Server component — fed by the SSR fetch on the tournament page.
  */
 
-import { SkillBadge, tintTextClassFor } from '@myclash/ui';
+import { SkillBadge, tintTextClassFor, statusLabel } from '@myclash/ui';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { groupPoolsByStart } from './pool-sections';
@@ -89,12 +89,6 @@ function statusDot(status: string): string {
   if (status === 'confirmed') return 'bg-success';
   if (status === 'pending') return 'bg-warning';
   return 'bg-muted';
-}
-
-function statusLabel(status: string): string {
-  if (status === 'confirmed') return 'Confirmed';
-  if (status === 'pending') return 'Pending';
-  return status;
 }
 
 // Day + time for the section header, in the active UI locale (24h times).
@@ -273,7 +267,9 @@ export function PoolsCompositionView({
                                   aria-hidden="true"
                                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(r.status)}`}
                                 />
-                                <span className="sr-only">{statusLabel(r.status)}.</span>
+                                <span className="sr-only">
+                                  {statusLabel('refereeAssignment', r.status, t)}.
+                                </span>
                                 <span
                                   className={[
                                     'truncate',

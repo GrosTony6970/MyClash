@@ -18,6 +18,7 @@ import {
   nameOrUnknown,
   tintBgClassFor,
   useToast,
+  statusLabel,
 } from '@myclash/ui';
 
 import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
@@ -442,7 +443,7 @@ function SkillModal({
           >
             {COLOR_OPTIONS.map((c) => (
               <option key={c} value={c}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
+                {statusLabel('color', c, t)}
               </option>
             ))}
           </select>

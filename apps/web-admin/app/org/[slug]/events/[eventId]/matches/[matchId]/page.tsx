@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
-import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
+import { Modal, sideColorsFor, useConfirm, useToast, NO_EXCHANGE_REASON_KEYS } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { FORFEIT_REASONS, OVERRIDE_REASONS, isOverrideReason } from '@myclash/rulesets';
 import { localeToBcp47 } from '@myclash/time';
@@ -163,6 +163,12 @@ interface PendingReviewResponse {
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
 
+/** A no-exchange reason in the pad's own words (`NO_EXCHANGE_REASON_KEYS`), never raw. */
+function noExchangeReasonWord(reason: string, t: Translator): string {
+  const key = (NO_EXCHANGE_REASON_KEYS as Record<string, string | undefined>)[reason];
+  return key ? t(key) : reason;
+}
+
 function exchangeLabel(ex: Exchange, t: Translator): string {
   const color =
     ex.firstStrikerColor === 'red'
@@ -189,7 +195,7 @@ function exchangeLabel(ex: Exchange, t: Translator): string {
     case 'no_exchange':
       return ex.noExchangeReason
         ? t('organizer.matchDetail.exNoExchangeWithReason', {
-            reason: ex.noExchangeReason.replace('_', ' '),
+            reason: noExchangeReasonWord(ex.noExchangeReason, t),
           })
         : t('organizer.matchDetail.exNoExchange');
     default:

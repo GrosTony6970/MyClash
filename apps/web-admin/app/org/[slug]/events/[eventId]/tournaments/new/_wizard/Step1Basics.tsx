@@ -2,7 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { TournamentColorDot, useToast } from '@myclash/ui';
+import { TournamentColorDot, useToast, statusLabel } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
@@ -326,7 +326,7 @@ export function Step1Basics({
             <option value="">{t('organizer.tournaments.settings.colorNone')}</option>
             {TOURNAMENT_COLORS.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {statusLabel('color', c, t)}
               </option>
             ))}
           </select>
