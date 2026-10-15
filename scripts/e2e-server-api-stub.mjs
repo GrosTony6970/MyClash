@@ -76,11 +76,33 @@ function tournament(eventId) {
 const TOURNAMENTS = {
   'longsword-open': { name: 'Longsword Open', status: 'running' },
   'sabre-draft': { name: 'Sabre', status: 'draft', membersOnly: true },
+  'rapier-pools': { name: 'Rapier', status: 'running', pools: true },
 };
 
-/** The read of a Tournament's page: its row, with no Pool and no bracket yet. */
+/**
+ * One Pool of two with its referees: one role the server names, one whose skill was deleted
+ * (no name: the page says "Referee", never the id).
+ */
+const REFEREED_POOL = {
+  id: 'pool-1',
+  name: 'Pool 1',
+  members: ['Ada Lovelace', 'Mary Somerville'].map((fighterName, i) => ({
+    registrationId: `reg-${i + 1}`,
+    fighterName,
+    clubName: null,
+    clubAbbreviation: null,
+    seed: i + 1,
+  })),
+  referees: [
+    { role: 'arbitre_declarant', roleLabel: 'Arbitre déclarant', displayName: 'Rita Ref' },
+    { role: 'custom-8f2a', roleLabel: null, displayName: 'Hugo Ref' },
+  ].map((referee) => ({ ...referee, status: 'confirmed', skillColor: 'slate' })),
+  standings: [],
+};
+
+/** The read of a Tournament's page: its row, with no bracket yet, and a Pool only for one. */
 function tournamentPage(eventSlug, tournamentSlug) {
-  const { name, status } = TOURNAMENTS[tournamentSlug];
+  const { name, status, pools } = TOURNAMENTS[tournamentSlug];
   return {
     tournament: {
       id: `${EVENTS[eventSlug].id}-${tournamentSlug}`,
@@ -89,7 +111,7 @@ function tournamentPage(eventSlug, tournamentSlug) {
       rulesetCode: 'TF_v1',
       status,
     },
-    pools: [],
+    pools: pools ? [REFEREED_POOL] : [],
     bracketSlots: [],
     bracketSize: 0,
     bracketRounds: 0,

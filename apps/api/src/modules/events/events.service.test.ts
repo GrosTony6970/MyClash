@@ -2572,6 +2572,8 @@ describe('EventsService', () => {
             status: 'confirmed',
             person_id: 'person-1',
           },
+          // Her custom skill was deleted since: no name, and never its id as one.
+          { match_id: 'match-1', role: 'custom-8f2a', status: 'pending', person_id: 'person-1' },
         ],
         error: null,
       });
@@ -2580,7 +2582,7 @@ describe('EventsService', () => {
         error: null,
       });
       const refereeSkillsChain = makeAwaitableChain({
-        data: [{ id: 'arbitre_declarant', color: 'red' }],
+        data: [{ id: 'arbitre_declarant', color: 'red', name: 'Arbitre déclarant' }],
         error: null,
       });
 
@@ -2614,11 +2616,21 @@ describe('EventsService', () => {
       expect(s1?.referees).toEqual([
         {
           role: 'arbitre_declarant',
+          roleLabel: 'Arbitre déclarant',
           displayName: 'Rita Ref',
           status: 'confirmed',
           skillColor: 'red',
         },
+        {
+          role: 'custom-8f2a',
+          roleLabel: null,
+          displayName: 'Rita Ref',
+          status: 'pending',
+          skillColor: 'slate',
+        },
       ]);
+      // The double ignores the projection: without `name` every role would read as gone.
+      expect(refereeSkillsChain.select).toHaveBeenCalledWith('id, color, name');
       // Match with no assignment → empty; slot with no match → empty.
       expect(s2?.referees).toEqual([]);
       expect(s3?.referees).toEqual([]);

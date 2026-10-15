@@ -125,6 +125,19 @@ export interface EventLogoUpload {
 /** The columns an Event write sets; leaving draft stamps `first_published_at` with `updated_at`. */
 type EventWrite = Record<string, unknown> & { updated_at: string };
 
+/**
+ * A referee of a Pool or of a bracket bout, as the public Tournament page shows them.
+ * `role` is a `referee_skills.id`, never a word for a reader; `roleLabel` is that skill's
+ * name, or null when the skill is gone (the page then says "Referee").
+ */
+export interface PublicRefereeChip {
+  role: string | null;
+  roleLabel: string | null;
+  displayName: string;
+  status: string;
+  skillColor: string;
+}
+
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
@@ -2722,21 +2735,8 @@ export class EventsService {
   private async getPublishedRefereesByPool(
     eventId: string,
     poolIds: string[],
-  ): Promise<
-    Map<
-      string,
-      Array<{
-        role: string | null;
-        displayName: string;
-        status: string;
-        skillColor: string;
-      }>
-    >
-  > {
-    const byPool = new Map<
-      string,
-      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
-    >();
+  ): Promise<Map<string, PublicRefereeChip[]>> {
+    const byPool = new Map<string, PublicRefereeChip[]>();
     if (poolIds.length === 0) return byPool;
 
     const { data: assignments, error } = await this.supabase.service
@@ -2756,14 +2756,15 @@ export class EventsService {
     }>;
     if (rows.length === 0) return byPool;
 
-    const { nameById, colorById } = await this.resolveRefereeChipMaps(rows);
+    const { nameById, colorById, skillNameById } = await this.resolveRefereeChipMaps(rows);
 
     for (const r of rows) {
       if (!r.pool_id) continue;
       const displayName = r.person_id ? (nameById.get(r.person_id) ?? '—') : '—';
       const skillColor = r.role ? (colorById.get(r.role) ?? 'slate') : 'slate';
       const list = byPool.get(r.pool_id) ?? [];
-      list.push({ role: r.role, displayName, status: r.status, skillColor });
+      const roleLabel = r.role ? (skillNameById.get(r.role) ?? null) : null;
+      list.push({ role: r.role, roleLabel, displayName, status: r.status, skillColor });
       byPool.set(r.pool_id, list);
     }
     return byPool;
@@ -2779,9 +2780,14 @@ export class EventsService {
    */
   private async resolveRefereeChipMaps(
     rows: Array<{ role: string | null; person_id: string | null }>,
-  ): Promise<{ nameById: Map<string, string>; colorById: Map<string, string> }> {
+  ): Promise<{
+    nameById: Map<string, string>;
+    colorById: Map<string, string>;
+    skillNameById: Map<string, string>;
+  }> {
     const nameById = new Map<string, string>();
     const colorById = new Map<string, string>();
+    const skillNameById = new Map<string, string>();
 
     const personIds = Array.from(
       new Set(rows.map((r) => r.person_id).filter((id): id is string => !!id)),
@@ -2805,14 +2811,19 @@ export class EventsService {
     if (skillIds.length > 0) {
       const { data: skillRows } = await this.supabase.service
         .from('referee_skills')
-        .select('id, color')
+        .select('id, color, name')
         .in('id', skillIds);
-      for (const s of (skillRows ?? []) as Array<{ id: string; color: string | null }>) {
+      for (const s of (skillRows ?? []) as Array<{
+        id: string;
+        color: string | null;
+        name: string | null;
+      }>) {
         if (s.color) colorById.set(s.id, s.color);
+        if (s.name?.trim()) skillNameById.set(s.id, s.name.trim());
       }
     }
 
-    return { nameById, colorById };
+    return { nameById, colorById, skillNameById };
   }
 
   /**
@@ -2824,16 +2835,8 @@ export class EventsService {
   private async getPublishedRefereesByMatch(
     eventId: string,
     matchIds: string[],
-  ): Promise<
-    Map<
-      string,
-      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
-    >
-  > {
-    const byMatch = new Map<
-      string,
-      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
-    >();
+  ): Promise<Map<string, PublicRefereeChip[]>> {
+    const byMatch = new Map<string, PublicRefereeChip[]>();
     if (matchIds.length === 0) return byMatch;
 
     const { data: assignments, error } = await this.supabase.service
@@ -2853,14 +2856,15 @@ export class EventsService {
     }>;
     if (rows.length === 0) return byMatch;
 
-    const { nameById, colorById } = await this.resolveRefereeChipMaps(rows);
+    const { nameById, colorById, skillNameById } = await this.resolveRefereeChipMaps(rows);
 
     for (const r of rows) {
       if (!r.match_id) continue;
       const displayName = r.person_id ? (nameById.get(r.person_id) ?? '—') : '—';
       const skillColor = r.role ? (colorById.get(r.role) ?? 'slate') : 'slate';
       const list = byMatch.get(r.match_id) ?? [];
-      list.push({ role: r.role, displayName, status: r.status, skillColor });
+      const roleLabel = r.role ? (skillNameById.get(r.role) ?? null) : null;
+      list.push({ role: r.role, roleLabel, displayName, status: r.status, skillColor });
       byMatch.set(r.match_id, list);
     }
     return byMatch;

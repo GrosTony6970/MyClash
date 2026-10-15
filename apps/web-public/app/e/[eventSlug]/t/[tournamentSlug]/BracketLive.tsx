@@ -23,7 +23,7 @@ import {
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
-import { refereeRoleLabel } from './referee-display';
+import { refereeRoleLabel } from '@/components/me/referee-role';
 import type { BracketSlot } from './page';
 
 interface Props {
@@ -234,7 +234,11 @@ export function BracketLive({
     redRegistrationId: (s as { redRegistrationId?: string | null }).redRegistrationId ?? null,
     blueRegistrationId: (s as { blueRegistrationId?: string | null }).blueRegistrationId ?? null,
     liceName: (s as { liceName?: string | null }).liceName ?? null,
-    referees: s.referees ?? [],
+    // The card shows `roleLabel`: the public site's one wording of a role, never its id.
+    referees: (s.referees ?? []).map((r) => ({
+      ...r,
+      roleLabel: refereeRoleLabel(r.roleLabel, t),
+    })),
   }));
 
   const hasReferees = adminShapeSlots.some((s) => (s.referees?.length ?? 0) > 0);
@@ -300,7 +304,6 @@ export function BracketLive({
         t={t}
         showReferees={showReferees}
         refereeSelfKeys={refereeSelfKeys}
-        refereeRoleLabel={refereeRoleLabel}
       />
       <p className="mt-4 text-xs text-muted">
         {t('publicApp.tournament.bracket.summarySize', { count: bracketSize })}

@@ -17,7 +17,7 @@ import { SkillBadge, tintTextClassFor, statusLabel } from '@myclash/ui';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { groupPoolsByStart } from './pool-sections';
-import { refereeRoleLabel } from './referee-display';
+import { refereeRoleLabel } from '@/components/me/referee-role';
 
 export interface PoolMember {
   registrationId: string;
@@ -28,7 +28,10 @@ export interface PoolMember {
 }
 
 export interface PoolReferee {
+  /** A `referee_skills.id`: it keys the viewer's own row, and is never shown. */
   role: string | null;
+  /** The skill's name, null when the skill is gone: worded by `refereeRoleLabel`. */
+  roleLabel: string | null;
   displayName: string;
   status: string;
   /**
@@ -284,7 +287,10 @@ export function PoolsCompositionView({
                                   </span>
                                 )}
                               </span>
-                              <SkillBadge color={r.skillColor} label={refereeRoleLabel(r.role)} />
+                              <SkillBadge
+                                color={r.skillColor}
+                                label={refereeRoleLabel(r.roleLabel, t)}
+                              />
                             </li>
                           );
                         })}
