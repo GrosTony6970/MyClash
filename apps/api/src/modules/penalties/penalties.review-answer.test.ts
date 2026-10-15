@@ -100,4 +100,33 @@ describe('answering a black card review', () => {
     expect(db.writes.map((w) => w.table)).toEqual(['tournament_penalty_reviews', 'registrations']);
     expect(writesTo(db, 'registrations')[0]?.row).toEqual({ status: 'disqualified' });
   });
+
+  it('puts the review back, and says so, when the disqualification is not written', async () => {
+    const WRITTEN = '2026-10-15T20:00:00.000000+00:00';
+    const db = mockSupabase({
+      platform_roles: ok(null),
+      tournaments: ok({ event_id: 'e-1' }),
+      events: ok({ organization_id: 'o-1' }),
+      registrations: { data: null, error: { message: 'connection reset' } },
+      tournament_penalty_reviews: [
+        ok(REVIEW),
+        ok({ id: 'rv-1', status: 'confirmed', updated_at: WRITTEN }),
+        ok(null),
+      ],
+    });
+    const service = new PenaltiesService(db as never, { recomputeMatchScore: vi.fn() } as never);
+
+    await expect(
+      service.reviewTournamentPenalty(
+        'rv-1',
+        { status: 'confirmed', seenUpdatedAt: SEEN },
+        'organiser-1',
+      ),
+    ).rejects.toThrow(/not disqualified: connection reset/);
+
+    const [answer, putBack] = writesTo(db, 'tournament_penalty_reviews');
+    expect(answer?.row).toMatchObject({ status: 'confirmed' });
+    expect(putBack?.row).toMatchObject({ status: 'pending', payload_json: REVIEW.payload_json });
+    expect(scopedTo(putBack, 'updated_at')).toBe(WRITTEN);
+  });
 });

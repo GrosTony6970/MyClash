@@ -1077,12 +1077,7 @@ export class PenaltiesService {
       // Tournament-wide scope short-circuits the manual review path: mark
       // the registration disqualified immediately. The standard 2nd-black
       // review still gets created for audit/visibility.
-      if (scope === 'tournament') {
-        await this.supabase.service
-          .from('registrations')
-          .update({ status: 'disqualified' })
-          .eq('id', dto.registrationId);
-      }
+      if (scope === 'tournament') await this.disqualify(dto.registrationId);
       await syncSecondBlackCardReview(
         this.supabase.service,
         match.tournamentId,
@@ -1234,14 +1229,37 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw reviewChanged();
 
-    // After the answer is written: a refused answer disqualifies nobody.
+    // After the answer is written: a refused answer disqualifies nobody. A confirmed answer
+    // stands only with its disqualification: if that write fails, the review is put back as the
+    // organiser saw it, so she is told and can answer again.
     if (dto.status === 'confirmed') {
-      await this.supabase.service
-        .from('registrations')
-        .update({ status: 'disqualified' })
-        .eq('id', review['registration_id'] as string);
+      try {
+        await this.disqualify(review['registration_id'] as string);
+      } catch (failure) {
+        await this.supabase.service
+          .from('tournament_penalty_reviews')
+          .update({
+            status: review['status'],
+            reviewed_by_user_id: review['reviewed_by_user_id'] ?? null,
+            reviewed_at: review['reviewed_at'] ?? null,
+            updated_at: new Date().toISOString(),
+            payload_json: review['payload_json'],
+          })
+          .eq('id', reviewId)
+          .eq('updated_at', (data as Row)['updated_at'] as string);
+        throw failure;
+      }
     }
     return data;
+  }
+
+  /** Mark a Registration disqualified. A failed write is thrown, as a server error. */
+  private async disqualify(registrationId: string): Promise<void> {
+    const { error } = await this.supabase.service
+      .from('registrations')
+      .update({ status: 'disqualified' })
+      .eq('id', registrationId);
+    if (error) throw new Error(`Registration ${registrationId} not disqualified: ${error.message}`);
   }
 
   private async computeRulesetPenalty(match: MatchContext, dto: CreatePenaltyDto) {

@@ -571,6 +571,69 @@ describe('PenaltiesService', () => {
     expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
   });
 
+  it('says so when the disqualification of a tournament-scope black card is not written', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: null,
+        insert: { id: 'penalty-1', card: 'black' },
+        select: [{ id: 'penalty-1' }],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: {
+          id: 'tournament-1',
+          event_id: 'event-1',
+          penalty_ruleset_id: 'pr-1',
+          ruleset_config: {
+            forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'disqualified' } } },
+          },
+        },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      penalty_rulesets: {
+        maybeSingle: {
+          id: 'pr-1',
+          accumulation_scope: 'match',
+          yellow_card_points: 0,
+          red_card_points: -1,
+          black_card_points: 0,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      },
+      registrations: { updateError: { message: 'connection reset' } },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await expect(
+      service.createPenalty(
+        'match-1',
+        {
+          clientUuid: 'client-black-dq-fails',
+          sequence: 1,
+          registrationId: 'reg-red',
+          directCard: 'black',
+          reason: 'dangerous action',
+          occurredAt: '2026-05-05T10:00:00.000Z',
+        },
+        { userId: 'scorekeeper-1' },
+      ),
+    ).rejects.toThrow(/reg-red not disqualified: connection reset/);
+  });
+
   // A ruleset-entry penalty (no directCard) derives its card from the entry's
   // sanctions ladder (first occurrence → sanctions[0]) and records ruleset metadata.
   it('records a ruleset-entry penalty with the card + metadata from the entry', async () => {
@@ -655,6 +718,8 @@ type TableState = Record<
     insert?: unknown;
     update?: unknown;
     upsert?: unknown;
+    /** An awaited update of this table answers this error. */
+    updateError?: { message: string };
   }
 >;
 
@@ -780,7 +845,14 @@ function fakeSupabase(state: TableState) {
       }),
       update: vi.fn((row: unknown) => {
         updated[table] = [...(updated[table] ?? []), row];
-        return api;
+        if (!tableState.updateError) return api;
+        const failed = { data: null, error: tableState.updateError };
+        const awaited = {
+          ...api,
+          eq: () => awaited,
+          then: (done: (v: unknown) => void) => done(failed),
+        };
+        return awaited;
       }),
       upsert: vi.fn((row: unknown) => {
         upserted[table] = [...(upserted[table] ?? []), row];
