@@ -872,6 +872,15 @@ export const organizer = {
   newEvent: {
     title: 'New event',
     backToOrg: '{slug}',
+    // Leaving after a Create that stopped half-way: the Event is kept (ruled 2026-10-15).
+    leaveKept: '“{name}” is saved as a draft.',
+    leaveKeptNotAll: '“{name}” is saved as a draft. Not saved: {parts}.',
+    unsaved: {
+      details: 'its edited details',
+      venue: 'the new venue',
+      pistes: 'the pistes',
+      areas: 'the areas',
+    },
     stepsLabel: 'Event creation steps',
     steps: {
       basics: 'Basics',

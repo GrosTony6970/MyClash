@@ -97,3 +97,22 @@ describe('a second Create after a refusal', () => {
     expect(NAVIGATION.pushed).toEqual(['/org/club/events/e-1']);
   });
 });
+
+// Ruled 2026-10-15: it said "Your changes are not saved yet. They will be lost." over an Event
+// the server already held.
+describe('leaving after a Create that stopped half-way', () => {
+  it('says the Event is kept as a draft, and names what is not saved', async () => {
+    page = await openEventPage(
+      <NewEventPage />,
+      { '/api/v1/organizations/org-1/venues': [] },
+      { [EVENT_POST]: { id: 'e-1' } },
+    );
+    await fillTheWizard();
+    await click(byTestId('wizard-create'));
+
+    await click(buttonNamed('club'));
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
+      '“Open 2027” is saved as a draft. Not saved: the new venue, the pistes.',
+    );
+  });
+});

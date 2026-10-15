@@ -16,27 +16,30 @@ import { leaveTarget } from '../utils/leave-target';
  * browser's Back button is not guarded: Next has no clean way to stop it.
  *
  * This package neither translates nor routes by itself: the app hands in its `t` and its
- * router's `push`.
+ * router's `push`. `body`, already translated, replaces the plain "they will be lost" when the
+ * page knows better what is kept (the new-Event wizard after a partial Create).
  */
 export function useLeaveGuard(
   dirty: boolean,
-  { t, navigate }: { t: Translator; navigate: (href: string) => void },
+  { t, navigate, body }: { t: Translator; navigate: (href: string) => void; body?: string },
 ): {
   askToLeave: () => Promise<boolean>;
   confirmDialog: ReactNode;
 } {
   const { confirm, confirmDialog } = useConfirm();
   const dirtyNow = useRef(dirty);
+  const bodyNow = useRef(body);
   useEffect(() => {
     dirtyNow.current = dirty;
-  }, [dirty]);
+    bodyNow.current = body;
+  }, [dirty, body]);
 
   const askToLeave = useCallback(
     async () =>
       !dirtyNow.current ||
       confirm({
         title: t('common.leaveGuard.title'),
-        description: t('common.leaveGuard.body'),
+        description: bodyNow.current ?? t('common.leaveGuard.body'),
         confirmLabel: t('common.leaveGuard.leave'),
         cancelLabel: t('common.leaveGuard.stay'),
         danger: true,

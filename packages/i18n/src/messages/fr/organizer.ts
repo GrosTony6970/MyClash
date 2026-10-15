@@ -868,6 +868,14 @@ export const organizer = {
   newEvent: {
     title: 'Nouvel événement',
     backToOrg: '{slug}',
+    leaveKept: '« {name} » est enregistré en brouillon.',
+    leaveKeptNotAll: '« {name} » est enregistré en brouillon. Non enregistré : {parts}.',
+    unsaved: {
+      details: 'ses informations modifiées',
+      venue: 'le nouveau lieu',
+      pistes: 'les pistes',
+      areas: 'les espaces',
+    },
     stepsLabel: "Étapes de création de l'événement",
     steps: {
       basics: 'Bases',

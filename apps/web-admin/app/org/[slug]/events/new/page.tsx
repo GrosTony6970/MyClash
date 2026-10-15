@@ -16,7 +16,38 @@ import {
   type VenueMode,
   type WizardState,
 } from './wizard-state';
-import { createEventSteps, NO_PROGRESS, type CreateProgress } from './create-event';
+import {
+  createEventSteps,
+  NO_PROGRESS,
+  unsavedParts,
+  type CreateProgress,
+  type UnsavedPart,
+} from './create-event';
+
+const UNSAVED_WORD: Record<UnsavedPart, string> = {
+  details: 'organizer.newEvent.unsaved.details',
+  venue: 'organizer.newEvent.unsaved.venue',
+  pistes: 'organizer.newEvent.unsaved.pistes',
+  areas: 'organizer.newEvent.unsaved.areas',
+};
+
+/**
+ * Leaving after a Create that stopped half-way: the Event is kept, a draft, and the question
+ * says so and names what is not saved (ruled 2026-10-15). Before the Event is made, the plain
+ * question ("they will be lost") is the truth.
+ */
+function leaveBody(
+  state: WizardState,
+  catalogue: CatalogueVenue[],
+  progress: CreateProgress,
+  t: (key: string, values?: Record<string, string>) => string,
+): string | undefined {
+  if (!progress.eventId) return undefined;
+  const name = state.name.trim();
+  const parts = unsavedParts(state, catalogue, progress).map((part) => t(UNSAVED_WORD[part]));
+  if (parts.length === 0) return t('organizer.newEvent.leaveKept', { name });
+  return t('organizer.newEvent.leaveKeptNotAll', { name, parts: parts.join(', ') });
+}
 
 type Action =
   | { type: 'SET_FIELD'; field: keyof WizardState; value: unknown }
@@ -830,6 +861,7 @@ export default function NewEventPage() {
   const { askToLeave, confirmDialog } = useLeaveGuard(wizardDirty(state, logoFile !== null), {
     t,
     navigate: router.push,
+    body: leaveBody(state, catalogue, progress, t),
   });
   const leaveToOrg = async () => {
     if (await askToLeave()) router.push(`/org/${slug}`);

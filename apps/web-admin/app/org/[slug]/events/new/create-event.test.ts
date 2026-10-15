@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ApiResult } from '@myclash/api-client';
-import { createEventSteps, NO_PROGRESS, type CreateProgress, type Send } from './create-event';
+import {
+  createEventSteps,
+  NO_PROGRESS,
+  unsavedParts,
+  type CreateProgress,
+  type Send,
+} from './create-event';
 import { INITIAL, type CatalogueVenue, type WizardState } from './wizard-state';
 
 /**
@@ -169,5 +175,49 @@ describe('createEventSteps', () => {
     ]);
     expect(api.said()).not.toContain('POST /api/v1/organizations/org-1/venues');
     expect(api.calls[1]!.body).toEqual({ name: 'Lice 1', sortOrder: 0, venueId: 'v-9' });
+  });
+});
+
+/**
+ * Ruled 2026-10-15: leaving after a partial Create names what is kept (the Event, a draft) and
+ * what is not. What is not is what the next Create would send.
+ */
+describe('unsavedParts', () => {
+  const workshopVenue = { ...FORM, newVenueHostsWorkshop: true, areaNames: ['Salle A'] };
+
+  it('names nothing before the Event is made: the form is the whole loss', async () => {
+    expect(unsavedParts(FORM, [], NO_PROGRESS)).toEqual([]);
+  });
+
+  it('names the venue and what comes after it when the venue was refused', async () => {
+    const venues = server(['POST /api/v1/organizations/org-1/venues']);
+    const first = await run(workshopVenue, NO_PROGRESS, venues.send);
+    expect(unsavedParts(workshopVenue, [], first.progress)).toEqual(['venue', 'pistes', 'areas']);
+  });
+
+  it('names the pistes alone when one piste was refused', async () => {
+    const first = await run(
+      FORM,
+      NO_PROGRESS,
+      server(['POST /api/v1/events/id-1/lices Lice 2']).send,
+    );
+    expect(unsavedParts(FORM, [], first.progress)).toEqual(['pistes']);
+  });
+
+  it('names the details edited since the Event was made', async () => {
+    const first = await run(
+      FORM,
+      NO_PROGRESS,
+      server(['POST /api/v1/events/id-1/lices Lice 2']).send,
+    );
+    expect(unsavedParts({ ...FORM, city: 'Grenoble' }, [], first.progress)).toEqual([
+      'details',
+      'pistes',
+    ]);
+  });
+
+  it('names nothing once every part is taken', async () => {
+    const all = await run(FORM, NO_PROGRESS, server().send);
+    expect(unsavedParts(FORM, [], all.progress)).toEqual([]);
   });
 });

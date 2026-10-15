@@ -67,29 +67,73 @@ export async function createEventSteps(
   if (outcome.refusal) return outcome;
 
   const venue = venueOf(state, catalogue, outcome.progress);
-  const eventId = outcome.progress.eventId!;
   if (venue.hostsTournament) {
-    const pistes = state.liceNames.map((raw, index) => {
-      const name = raw.trim();
-      const body = { name, sortOrder: index, venueId: venue.id ?? undefined };
-      // Keyed by venue too: a venue changed between tries takes every piste, not only the
-      // ones the first try had not sent.
-      const key = `${venue.id ?? ''}:${index}:${name}`;
-      return { key, path: `/api/v1/events/${eventId}/lices`, body };
-    });
+    const pistes = pisteItems(state, venue, outcome.progress.eventId!);
     outcome = await sendMissing(outcome.progress, 'pistesSent', pistes, 'liceCreateFailed', send);
     if (outcome.refusal) return outcome;
   }
   // Areas only for a workshop venue, and only when the organiser named some.
   if (venue.hostsWorkshop && venue.id) {
-    const areas = state.areaNames.map((raw, index) => {
-      const name = raw.trim();
-      const path = `/api/v1/venues/${venue.id}/areas`;
-      return { key: `${venue.id}:${index}:${name}`, path, body: { name, sortOrder: index } };
-    });
+    const areas = areaItems(state, venue.id);
     outcome = await sendMissing(outcome.progress, 'areasSent', areas, 'areaCreateFailed', send);
   }
   return outcome;
+}
+
+type Venue = ReturnType<typeof venueOf>;
+
+function pisteItems(state: WizardState, venue: Venue, eventId: string) {
+  return state.liceNames.map((raw, index) => {
+    const name = raw.trim();
+    const body = { name, sortOrder: index, venueId: venue.id ?? undefined };
+    // Keyed by venue too: a venue changed between tries takes every piste, not only the
+    // ones the first try had not sent.
+    const key = `${venue.id ?? ''}:${index}:${name}`;
+    return { key, path: `/api/v1/events/${eventId}/lices`, body };
+  });
+}
+
+function areaItems(state: WizardState, venueId: string) {
+  return state.areaNames.map((raw, index) => {
+    const name = raw.trim();
+    const path = `/api/v1/venues/${venueId}/areas`;
+    return { key: `${venueId}:${index}:${name}`, path, body: { name, sortOrder: index } };
+  });
+}
+
+export type UnsavedPart = 'details' | 'venue' | 'pistes' | 'areas';
+
+/**
+ * What the next Create would still send, once the Event is made: the organiser leaving now
+ * keeps the Event, a draft, and loses these (ruled 2026-10-15). Nothing before the Event is
+ * made: then the whole form is the loss, and the plain question says so.
+ */
+export function unsavedParts(
+  state: WizardState,
+  catalogue: CatalogueVenue[],
+  progress: CreateProgress,
+): UnsavedPart[] {
+  if (!progress.eventId) return [];
+  const parts: UnsavedPart[] = [];
+  if (progress.sentBasics !== JSON.stringify(basicsOf(state))) parts.push('details');
+  const newVenue = state.venueMode === 'new' ? newVenueOf(state) : null;
+  if (newVenue && progress.madeVenue?.sent !== JSON.stringify(newVenue)) {
+    // The venue is not made as it stands: nothing that hangs on it is either.
+    parts.push('venue');
+    if (newVenue.hostsTournament) parts.push('pistes');
+    if (newVenue.hostsWorkshop && state.areaNames.length > 0) parts.push('areas');
+    return parts;
+  }
+  const venue = venueOf(state, catalogue, progress);
+  const taken = (list: string[], items: Array<{ key: string }>) =>
+    items.every((item) => list.includes(item.key));
+  if (venue.hostsTournament && !taken(progress.pistesSent, pisteItems(state, venue, ''))) {
+    parts.push('pistes');
+  }
+  if (venue.hostsWorkshop && venue.id && !taken(progress.areasSent, areaItems(state, venue.id))) {
+    parts.push('areas');
+  }
+  return parts;
 }
 
 function basicsOf(state: WizardState) {
