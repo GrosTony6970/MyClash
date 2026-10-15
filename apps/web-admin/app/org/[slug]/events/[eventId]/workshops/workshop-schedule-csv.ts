@@ -4,6 +4,7 @@
  * page hands in the column titles, in the reader's language (O20).
  */
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
+import type { CsvFormat } from '@myclash/types';
 import { csvFile } from '@/lib/csv-file';
 
 export interface CsvVenue {
@@ -52,6 +53,7 @@ export function workshopScheduleToCsv(
   venues: ReadonlyArray<CsvVenue>,
   tz: string,
   headers: WorkshopCsvHeaders,
+  format: CsvFormat,
 ): string {
   const venueName = new Map(venues.map((v) => [v.id, v.name]));
   const areaName = new Map<string, string>();
@@ -94,5 +96,5 @@ export function workshopScheduleToCsv(
     );
 
   // Formula-safe through `csvFile`: workshop titles and instructor names are organiser input.
-  return csvFile([headers, ...rows.map((r) => r.cells)]);
+  return csvFile([headers, ...rows.map((r) => r.cells)], format);
 }

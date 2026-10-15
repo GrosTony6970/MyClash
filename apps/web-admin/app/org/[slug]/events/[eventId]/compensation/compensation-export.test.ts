@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { CompensationReport } from '@myclash/types';
+import { CSV_EXCEL_FR, CSV_STANDARD, type CompensationReport } from '@myclash/types';
 import {
   compensationToCsv,
   compensationToPrintHtml,
@@ -66,11 +66,11 @@ function makeReport(): CompensationReport {
 
 describe('compensationToCsv', () => {
   it("starts with the byte-order mark, in the reader's words", () => {
-    expect(compensationToCsv(makeReport(), WORDS).charCodeAt(0)).toBe(0xfeff);
+    expect(compensationToCsv(makeReport(), WORDS, CSV_STANDARD).charCodeAt(0)).toBe(0xfeff);
   });
 
   it('emits a header, one row per referee, and a grand-total row', () => {
-    const lines = linesOf(compensationToCsv(makeReport(), WORDS));
+    const lines = linesOf(compensationToCsv(makeReport(), WORDS, CSV_STANDARD));
     expect(lines[0]).toBe(
       'Arbitre,Poules,Rondes suisses,Tableau,Finales,Total des jetons,Montant (EUR),Payé',
     );
@@ -79,7 +79,7 @@ describe('compensationToCsv', () => {
   });
 
   it('splits phase tokens into columns and escapes commas/quotes per RFC 4180', () => {
-    const alice = linesOf(compensationToCsv(makeReport(), WORDS))[1];
+    const alice = linesOf(compensationToCsv(makeReport(), WORDS, CSV_STANDARD))[1];
     // name (comma+quotes → quoted/doubled), pool 6.0, swiss 4.0, bracket 6.0,
     // finals 0.0, total 12.0, amount 10.00, paid Yes
     expect(alice).toBe('"Alice, ""Ace""",6.0,4.0,6.0,0.0,12.0,10.00,Oui');
@@ -88,7 +88,7 @@ describe('compensationToCsv', () => {
   it('keeps the total row aligned with the header when a column is added', () => {
     // The total row used to hard-code its blank cells; adding Swiss silently
     // shifted the amount into the Finals column.
-    const lines = linesOf(compensationToCsv(makeReport(), WORDS));
+    const lines = linesOf(compensationToCsv(makeReport(), WORDS, CSV_STANDARD));
     const headerCount = lines[0]!.split(',').length;
     expect(lines[3]!.split(',')).toHaveLength(headerCount);
     expect(lines[3]!.split(',')[headerCount - 2]).toBe('30.00');
@@ -98,17 +98,24 @@ describe('compensationToCsv', () => {
     // Referee names come from the roster, which organisers type and import.
     const report = makeReport();
     report.referees[0]!.displayName = '=cmd|calc';
-    expect(compensationToCsv(report, WORDS)).toContain('"\'=cmd|calc"');
+    expect(compensationToCsv(report, WORDS, CSV_STANDARD)).toContain('"\'=cmd|calc"');
   });
 
   it('keeps amounts numeric so the EUR column still sums', () => {
     // The first thing anyone does with this file is total the amount column.
-    expect(compensationToCsv(makeReport(), WORDS)).toContain(',10.00,');
+    expect(compensationToCsv(makeReport(), WORDS, CSV_STANDARD)).toContain(',10.00,');
+  });
+
+  it('for French Excel, splits on ; and writes the amounts as 10,00, so the column sums', () => {
+    const lines = linesOf(compensationToCsv(makeReport(), WORDS, CSV_EXCEL_FR));
+    expect(lines[0]!.split(';')).toHaveLength(8);
+    expect(lines[1]).toBe('"Alice, ""Ace""";6,0;4,0;6,0;0,0;12,0;10,00;Oui');
+    expect(lines[3]!.split(';')[6]).toBe('30,00');
   });
 
   it('emits header + a zeroed total row for an empty report', () => {
     const empty = { ...makeReport(), referees: [], grandTotal: 0 };
-    const lines = linesOf(compensationToCsv(empty, WORDS));
+    const lines = linesOf(compensationToCsv(empty, WORDS, CSV_STANDARD));
     expect(lines).toHaveLength(2);
     expect(lines[1]).toBe('Total,,,,,,0.00,');
   });

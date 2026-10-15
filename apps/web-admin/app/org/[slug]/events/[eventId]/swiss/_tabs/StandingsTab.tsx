@@ -19,6 +19,8 @@ import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { csvFile, downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
+import type { CsvFormat } from '@myclash/types';
 
 interface StandingsColumn {
   key: string;
@@ -106,13 +108,11 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
           >
             {t('actions.refresh')}
           </button>
-          <button
-            type="button"
-            onClick={() => downloadCsv('swiss-standings.csv', standingsCsv(data, t))}
+          <CsvExportMenu
+            label={t('organizer.swiss.standings.exportCsv')}
+            onExport={(format) => downloadCsv('swiss-standings.csv', standingsCsv(data, t, format))}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
-          >
-            {t('organizer.swiss.standings.exportCsv')}
-          </button>
+          />
         </div>
       </div>
       <SwissTable columns={data.columns} rows={data.rows} />
@@ -239,7 +239,7 @@ function formatStat(column: StandingsColumn, value: unknown, empty = '—'): str
 }
 
 /** The Swiss standings as a file: the reader's words, an empty cell where the screen says —. */
-function standingsCsv(data: SwissStandings, t: Translator): string {
+function standingsCsv(data: SwissStandings, t: Translator, format: CsvFormat): string {
   const header = [
     t('organizer.csvColumns.rank'),
     t('organizer.csvColumns.fighter'),
@@ -254,5 +254,5 @@ function standingsCsv(data: SwissStandings, t: Translator): string {
     ...data.columns.map((c) => formatStat(c, row.stats[c.key], '')),
     row.withdrawn ? (row.withdrawnAtRound ?? '') : '',
   ]);
-  return csvFile([header, ...rows]);
+  return csvFile([header, ...rows], format);
 }

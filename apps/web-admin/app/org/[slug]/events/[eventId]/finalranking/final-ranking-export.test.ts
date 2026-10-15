@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CSV_EXCEL_FR, CSV_STANDARD } from '@myclash/types';
 import {
   rankingToCsv,
   rankingToPrintHtml,
@@ -16,7 +17,7 @@ const ROWS: ExportRow[] = [
 
 describe('rankingToCsv', () => {
   it('emits the BOM, the given header + one CRLF-separated row each, escaping commas/quotes', () => {
-    const csv = rankingToCsv(ROWS, HEADERS);
+    const csv = rankingToCsv(ROWS, HEADERS, CSV_STANDARD);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).split('\r\n');
     expect(lines[0]).toBe('Rang,Combattant,Club,Résultat,Score de poule');
@@ -27,7 +28,7 @@ describe('rankingToCsv', () => {
   });
 
   it('emits header only for an empty ranking', () => {
-    expect(rankingToCsv([], HEADERS)).toBe(
+    expect(rankingToCsv([], HEADERS, CSV_STANDARD)).toBe(
       '\uFEFFRang,Combattant,Club,Résultat,Score de poule\r\n',
     );
   });
@@ -38,6 +39,7 @@ describe('rankingToCsv', () => {
     const csv = rankingToCsv(
       [{ rank: 1, fighter: '=cmd|calc', club: '@SUM(A1)', result: 'Champion', poolScore: '4.00' }],
       HEADERS,
+      CSV_STANDARD,
     );
     expect(csv).toContain('"\'=cmd|calc"');
     expect(csv).toContain('"\'@SUM(A1)"');
@@ -47,8 +49,18 @@ describe('rankingToCsv', () => {
     const csv = rankingToCsv(
       [{ rank: 3, fighter: 'A', club: 'C', result: 'Pools', poolScore: '-1.50' }],
       HEADERS,
+      CSV_STANDARD,
     );
     expect(csv).toContain(',-1.50');
+  });
+
+  it('for French Excel, writes the pool score as -1,50 between ;', () => {
+    const csv = rankingToCsv(
+      [{ rank: 3, fighter: 'A', club: 'C', result: 'Pools', poolScore: '-1.50' }],
+      HEADERS,
+      CSV_EXCEL_FR,
+    );
+    expect(csv.slice(1).split('\r\n')[1]).toBe('3;A;C;Pools;-1,50');
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTranslator, getMessages } from '@myclash/i18n';
+import { CSV_EXCEL_FR, CSV_STANDARD } from '@myclash/types';
 import { formatRosterName } from './roster-name';
 import { rosterCsv, rosterRows } from './roster-export';
 
@@ -46,7 +47,7 @@ const rows = (tab: string) =>
 
 describe('the roster CSV', () => {
   it('lists every Tournament of a person, with its status and seed, on "All"', () => {
-    const csv = rosterCsv(rows('all'), false, t);
+    const csv = rosterCsv(rows('all'), false, t, CSV_STANDARD);
     const [header, ana] = csv.slice(1).split('\r\n');
     expect(header).toBe('Name,Club,Tournaments,Referee,Instructor');
     expect(ana).toBe(
@@ -54,8 +55,15 @@ describe('the roster CSV', () => {
     );
   });
 
+  it('for French Excel, quotes the Tournaments cell: its own ; would split it', () => {
+    const csv = rosterCsv(rows('all'), false, t, CSV_EXCEL_FR);
+    expect(csv.slice(1).split('\r\n')[1]).toBe(
+      'ROUX Hélène;Lyon Escrime;"Longsword (Checked in, seed 3); Sabre (Registered)";Yes;No',
+    );
+  });
+
   it("gives the open Tournament's status and seed a column each", () => {
-    const csv = rosterCsv(rows('t-1'), true, t);
+    const csv = rosterCsv(rows('t-1'), true, t, CSV_STANDARD);
     expect(csv.slice(1).split('\r\n').slice(0, 3)).toEqual([
       'Name,Club,Status,Seed,Referee,Instructor',
       'ROUX Hélène,Lyon Escrime,Checked in,3,Yes,No',
@@ -64,13 +72,13 @@ describe('the roster CSV', () => {
   });
 
   it("holds the open tab's Tournament alone, even when it is not a person's first", () => {
-    const csv = rosterCsv(rows('t-2'), true, t);
+    const csv = rosterCsv(rows('t-2'), true, t, CSV_STANDARD);
     // Ana is in Longsword first, Sabre second: on Sabre's tab her row is Sabre's.
     expect(csv.slice(1).split('\r\n')[1]).toBe('ROUX Hélène,Lyon Escrime,Registered,,Yes,No');
   });
 
   it('starts with the byte-order mark, and never holds an email', () => {
-    const csv = rosterCsv(rows('all'), false, t);
+    const csv = rosterCsv(rows('all'), false, t, CSV_STANDARD);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).not.toContain('@example.test');
   });

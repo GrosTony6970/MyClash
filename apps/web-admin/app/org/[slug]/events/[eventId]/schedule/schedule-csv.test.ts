@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CSV_EXCEL_FR, CSV_STANDARD } from '@myclash/types';
 import { scheduleToCsv, type CsvMatch } from './schedule-csv';
 
 function m(over: Partial<CsvMatch>): CsvMatch {
@@ -41,11 +42,11 @@ const LABELS = {
 
 describe('scheduleToCsv', () => {
   it('starts with the byte-order mark, so a spreadsheet reads accents as written', () => {
-    expect(scheduleToCsv([m({})], lices, TZ, LABELS).charCodeAt(0)).toBe(0xfeff);
+    expect(scheduleToCsv([m({})], lices, TZ, LABELS, CSV_STANDARD).charCodeAt(0)).toBe(0xfeff);
   });
 
   it('emits a header row and one data row per scheduled match', () => {
-    const csv = scheduleToCsv([m({})], lices, TZ, LABELS);
+    const csv = scheduleToCsv([m({})], lices, TZ, LABELS, CSV_STANDARD);
     const lines = linesOf(csv);
     expect(lines[0]).toBe('Day,Lice,Start,Round,Tournament,Pool/Round,Red,Blue,Status');
     expect(lines).toHaveLength(2);
@@ -53,6 +54,20 @@ describe('scheduleToCsv', () => {
     expect(lines[1]).toContain('Lice 1');
     expect(lines[1]).toContain('LSW-P1-M1');
     expect(lines[1]).toContain('Paul Amestoy');
+  });
+
+  it('for French Excel, splits on ; and leaves a comma of a name bare', () => {
+    const csv = scheduleToCsv(
+      [m({ redFighterName: 'Doe, John' })],
+      lices,
+      TZ,
+      LABELS,
+      CSV_EXCEL_FR,
+    );
+    const [header, row] = linesOf(csv);
+    expect(header).toBe('Day;Lice;Start;Round;Tournament;Pool/Round;Red;Blue;Status');
+    expect(row!.split(';')).toHaveLength(9);
+    expect(row).toContain(';Doe, John;');
   });
 
   it('sorts by day, then lice, then start time', () => {
@@ -65,6 +80,7 @@ describe('scheduleToCsv', () => {
       lices,
       TZ,
       LABELS,
+      CSV_STANDARD,
     );
     const rows = linesOf(csv).slice(1);
     // L1 before L2; within L1, 09:00 before 10:00.
@@ -79,6 +95,7 @@ describe('scheduleToCsv', () => {
       lices,
       TZ,
       LABELS,
+      CSV_STANDARD,
     );
     const row = linesOf(csv)[1]!;
     expect(row).toContain('"Doe, John"');
@@ -98,6 +115,7 @@ describe('scheduleToCsv', () => {
       lices,
       'Europe/Paris',
       LABELS,
+      CSV_STANDARD,
     );
 
     expect(linesOf(csv)[1]).toContain('09:00');
@@ -110,6 +128,7 @@ describe('scheduleToCsv', () => {
       lices,
       'Europe/Paris',
       LABELS,
+      CSV_STANDARD,
     );
     const row = linesOf(csv)[1]!;
 
@@ -119,7 +138,13 @@ describe('scheduleToCsv', () => {
   });
 
   it('takes its headers from the caller rather than hardcoding English', () => {
-    const csv = scheduleToCsv([m({})], lices, TZ, { ...LABELS, day: 'Jour', red: 'Rouge' });
+    const csv = scheduleToCsv(
+      [m({})],
+      lices,
+      TZ,
+      { ...LABELS, day: 'Jour', red: 'Rouge' },
+      CSV_STANDARD,
+    );
 
     expect(linesOf(csv)[0]).toBe('Jour,Lice,Start,Round,Tournament,Pool/Round,Rouge,Blue,Status');
   });
@@ -130,6 +155,7 @@ describe('scheduleToCsv', () => {
       lices,
       TZ,
       LABELS,
+      CSV_STANDARD,
     );
     expect(linesOf(csv)).toHaveLength(2); // header + the one kept
   });

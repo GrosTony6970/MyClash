@@ -5,7 +5,7 @@
  * titles, in the reader's language (O20).
  */
 
-import { escapeHtml } from '@myclash/types';
+import { escapeHtml, type CsvFormat } from '@myclash/types';
 import { csvFile } from '@/lib/csv-file';
 
 export interface ExportRow {
@@ -27,8 +27,15 @@ export type RankingHeaders = readonly [string, string, string, string, string];
  * names come from the roster, which organisers type. Plain numbers stay numeric so pool
  * score still sums.
  */
-export function rankingToCsv(rows: ExportRow[], headers: RankingHeaders): string {
-  return csvFile([headers, ...rows.map((r) => [r.rank, r.fighter, r.club, r.result, r.poolScore])]);
+export function rankingToCsv(
+  rows: ExportRow[],
+  headers: RankingHeaders,
+  format: CsvFormat,
+): string {
+  return csvFile(
+    [headers, ...rows.map((r) => [r.rank, r.fighter, r.club, r.result, r.poolScore])],
+    format,
+  );
 }
 
 const htmlEscape = escapeHtml;

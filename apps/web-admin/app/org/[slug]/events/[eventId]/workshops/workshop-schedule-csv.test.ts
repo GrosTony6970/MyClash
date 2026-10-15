@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CSV_EXCEL_FR, CSV_STANDARD } from '@myclash/types';
 import { workshopScheduleToCsv, type CsvVenue, type CsvWorkshop } from './workshop-schedule-csv';
 
 const venues: CsvVenue[] = [
@@ -63,7 +64,7 @@ describe('workshopScheduleToCsv', () => {
     'Niveau',
     'Places',
   ] as const;
-  const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS);
+  const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS, CSV_STANDARD);
   const lines = csv.slice(1).replace(/\r\n$/, '').split('\r\n');
 
   it('starts with the byte-order mark and the given header, and excludes unscheduled workshops', () => {
@@ -79,6 +80,14 @@ describe('workshopScheduleToCsv', () => {
   it('formats 24h times in the event tz and shows slots/capacity', () => {
     expect(lines[2]).toBe(
       '2027-06-01,Main Hall,Mat B,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8/20',
+    );
+  });
+
+  it('for French Excel, splits on ; and quotes the instructors cell, whose names it joins with ;', () => {
+    const two = [{ ...workshops[0]!, instructorNames: ['Rémi Arbache', 'Ana Roux'] }];
+    const french = workshopScheduleToCsv(two, venues, TZ, HEADERS, CSV_EXCEL_FR);
+    expect(french.slice(1).split('\r\n')[1]).toBe(
+      '2027-06-01;Main Hall;Mat B;09:00;10:30;Longsword Basics;"Rémi Arbache; Ana Roux";Longsword;beginner;8/20',
     );
   });
 });

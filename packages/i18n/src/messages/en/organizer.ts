@@ -3274,6 +3274,14 @@ export const organizer = {
       openAudit: 'Open audit history',
     },
   },
+  // The two files a CSV download offers (operator, 2026-10-15): French Excel splits on ";" and
+  // reads "12,50" as a number; English Excel and the other apps want "," and "12.50".
+  csvExport: {
+    excelFrench: 'Excel (French)',
+    excelFrenchHint: 'Columns split by ; · decimals as 12,50',
+    standard: 'Excel (English), other apps',
+    standardHint: 'Columns split by , · decimals as 12.50',
+  },
   // The column headers of every CSV a page builds (O20): one place, so a file says what the
   // screen says, in the organiser's language.
   csvColumns: {

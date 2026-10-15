@@ -10,6 +10,8 @@ import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { csvFile, downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
+import type { CsvFormat } from '@myclash/types';
 
 const apiUrl = getPublicApiUrl();
 
@@ -159,6 +161,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
     columns: StandingsColumn[],
     rows: Array<StandingsRow & { _poolName?: string }>,
     filename: string,
+    format: CsvFormat,
     includePool?: boolean,
   ) {
     const header = [
@@ -177,7 +180,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
       ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
       statusLabel('poolState', row.status, t),
     ]);
-    downloadCsv(filename, csvFile([header, ...lines]));
+    downloadCsv(filename, csvFile([header, ...lines], format));
   }
 
   return (
@@ -221,29 +224,25 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
           </button>
 
           {mode === 'overall' && overall && overall.rows.length > 0 && (
-            <button
-              type="button"
-              onClick={() =>
-                exportStandings(overall.columns, overall.rows, 'overall-standings.csv')
+            <CsvExportMenu
+              label={t('organizer.pools.standings.exportCsv')}
+              onExport={(format) =>
+                exportStandings(overall.columns, overall.rows, 'overall-standings.csv', format)
               }
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
-            >
-              {t('organizer.pools.standings.exportCsv')}
-            </button>
+            />
           )}
           {mode === 'by-pool' && byPool && byPool.pools.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
+            <CsvExportMenu
+              label={t('organizer.pools.standings.exportAllPools')}
+              onExport={(format) => {
                 const allRows = byPool.pools.flatMap((p) =>
                   p.rows.map((r) => ({ ...r, _poolName: p.poolName })),
                 );
-                exportStandings(byPool.columns, allRows, 'all-pools-standings.csv', true);
+                exportStandings(byPool.columns, allRows, 'all-pools-standings.csv', format, true);
               }}
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
-            >
-              {t('organizer.pools.standings.exportAllPools')}
-            </button>
+            />
           )}
         </div>
       </div>
@@ -272,24 +271,24 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         ) : (
           <div className="space-y-6">
             {byPool.pools.map((pool) => (
-              <section
-                key={pool.poolId}
-                className="overflow-hidden rounded-lg border border-border bg-surface"
-              >
+              <section key={pool.poolId} className="rounded-lg border border-border bg-surface">
                 <header className="flex items-center justify-between border-b border-border px-4 py-3">
                   <h3 className="font-display font-semibold text-lg sm:text-xl text-foreground">
                     {pool.poolName}
                   </h3>
                   {pool.rows.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        exportStandings(byPool.columns, pool.rows, `${pool.poolName}-standings.csv`)
+                    <CsvExportMenu
+                      label={t('organizer.pools.standings.exportPool')}
+                      onExport={(format) =>
+                        exportStandings(
+                          byPool.columns,
+                          pool.rows,
+                          `${pool.poolName}-standings.csv`,
+                          format,
+                        )
                       }
                       className="text-xs text-foreground-secondary hover:underline"
-                    >
-                      {t('organizer.pools.standings.exportPool')}
-                    </button>
+                    />
                   )}
                 </header>
                 {pool.rows.length === 0 ? (
@@ -297,7 +296,11 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                     {t('organizer.pools.standings.emptyPool')}
                   </p>
                 ) : (
-                  <StandingsTable columns={byPool.columns} rows={pool.rows} />
+                  // The table alone is clipped to the corners: the header's export menu opens
+                  // below it, and a Pool of one or two rows would cut it off.
+                  <div className="overflow-hidden rounded-b-lg">
+                    <StandingsTable columns={byPool.columns} rows={pool.rows} />
+                  </div>
                 )}
               </section>
             ))}

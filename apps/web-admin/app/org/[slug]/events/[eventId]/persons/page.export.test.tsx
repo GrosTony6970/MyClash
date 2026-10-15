@@ -87,11 +87,16 @@ afterEach(() => {
   NAVIGATION.search = new URLSearchParams();
 });
 
-async function exportCsv(): Promise<string> {
-  const button = [...document.body.querySelectorAll('button')].find(
-    (b) => b.textContent === 'Export CSV',
-  );
-  await act(async () => button!.click());
+const exportButton = () =>
+  [...document.body.querySelectorAll('button')].find((b) => b.textContent === 'Export CSV ▾');
+
+/** Export CSV, then the file of `choice` in its menu. */
+async function exportCsv(choice = 'Excel (English), other apps'): Promise<string> {
+  await act(async () => exportButton()!.click());
+  const item = [...document.body.querySelectorAll('[role="menuitem"]')].find((b) =>
+    b.textContent!.startsWith(choice),
+  ) as HTMLButtonElement;
+  await act(async () => item.click());
   expect(saved).toHaveLength(1);
   return saved[0]!.text();
 }
@@ -119,10 +124,13 @@ describe('the roster’s filters and its export', () => {
       (b) => b.textContent === 'Waiting list',
     );
     await act(async () => waitingList!.click());
-    const button = [...document.body.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Export CSV',
-    );
-    expect(button?.disabled).toBe(true);
+    expect(exportButton()?.disabled).toBe(true);
+  });
+
+  it('writes the French Excel file when that is picked: ; between cells', async () => {
+    page = await openEventPage(<PersonsPage />, READS);
+    const csv = await exportCsv('Excel (French)');
+    expect(csv.split('\r\n')[0]).toBe('Name;Club;Tournaments;Referee;Instructor');
   });
 
   it('exports every row on screen when no filter is set, and never an email', async () => {

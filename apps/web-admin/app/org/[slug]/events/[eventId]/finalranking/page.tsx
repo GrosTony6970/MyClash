@@ -35,6 +35,8 @@ import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
 import { downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
+import type { CsvFormat } from '@myclash/types';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -112,9 +114,12 @@ export default function FinalRankingPage() {
     t('organizer.csvColumns.poolScore'),
   ];
 
-  function exportCsv() {
+  function exportCsv(format: CsvFormat) {
     if (exportRows.length === 0) return;
-    downloadCsv(`final-ranking-${slugify(tournamentName)}.csv`, rankingToCsv(exportRows, headers));
+    downloadCsv(
+      `final-ranking-${slugify(tournamentName)}.csv`,
+      rankingToCsv(exportRows, headers, format),
+    );
   }
 
   function printRanking() {
@@ -153,14 +158,12 @@ export default function FinalRankingPage() {
           <p className="mt-1 text-sm text-muted">{t('organizer.finalRanking.subtitle')}</p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={exportCsv}
+          <CsvExportMenu
+            label={t('organizer.schedulePage.grid.exportCsv')}
+            onExport={exportCsv}
             disabled={!canExport}
             className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {t('organizer.schedulePage.grid.exportCsv')}
-          </button>
+          />
           <button
             type="button"
             onClick={printRanking}

@@ -8,6 +8,7 @@
  * Pure: no React, no I/O.
  */
 import { parseBracketRound } from '@myclash/schedule-core';
+import type { CsvFormat } from '@myclash/types';
 import { csvFile } from '@/lib/csv-file';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
 
@@ -62,6 +63,7 @@ export function scheduleToCsv(
   liceNameById: Map<string, string>,
   tz: string,
   labels: CsvLabels,
+  format: CsvFormat,
 ): string {
   const rows = matches
     .filter((m) => m.scheduledAt && m.liceId)
@@ -97,5 +99,5 @@ export function scheduleToCsv(
     );
 
   // Formula-safe through `csvFile`: fighter, tournament and lice names are organiser input.
-  return csvFile([headerRow(labels), ...rows.map((r) => r.cells)]);
+  return csvFile([headerRow(labels), ...rows.map((r) => r.cells)], format);
 }

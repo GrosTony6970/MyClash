@@ -39,6 +39,8 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
+import type { CsvFormat } from '@myclash/types';
 import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
@@ -498,7 +500,7 @@ export default function ParticipantsPage() {
   ]);
 
   /** The rows on screen as a CSV for the desk (O19). */
-  function exportRoster() {
+  function exportRoster(format: CsvFormat) {
     const rows = rosterRows(
       filteredPersons,
       registrationsByPersonId,
@@ -507,7 +509,7 @@ export default function ParticipantsPage() {
       instructorPersonIds,
       formatRosterName,
     );
-    downloadCsv('roster.csv', rosterCsv(rows, activeTab !== ALL_TOURNAMENTS, t));
+    downloadCsv('roster.csv', rosterCsv(rows, activeTab !== ALL_TOURNAMENTS, t, format));
   }
 
   /** Empties the person and the club; the ticked Tournaments stay (O16, the next walk-in). */
@@ -1136,14 +1138,12 @@ export default function ParticipantsPage() {
           </Link>
           {/* A read, not a save: open on an archived Event too. Closed over the waiting
               list, which is not the rows it would write. */}
-          <button
-            type="button"
-            onClick={exportRoster}
+          <CsvExportMenu
+            label={t('organizer.persons.export.button')}
+            onExport={exportRoster}
             disabled={mode === 'waiting-list' || filteredPersons.length === 0}
             className="border border-border hover:border-border text-foreground-secondary font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
-          >
-            {t('organizer.persons.export.button')}
-          </button>
+          />
           <button
             onClick={() => setShowAdd(true)}
             data-testid="persons-add"

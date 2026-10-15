@@ -3249,6 +3249,12 @@ export const organizer = {
       openAudit: "Ouvrir l'historique d'audit",
     },
   },
+  csvExport: {
+    excelFrench: 'Excel (français)',
+    excelFrenchHint: 'Colonnes séparées par ; · décimales en 12,50',
+    standard: 'Excel (anglais), autres logiciels',
+    standardHint: 'Colonnes séparées par , · décimales en 12.50',
+  },
   csvColumns: {
     rank: 'Rang',
     fighter: 'Combattant',

@@ -74,18 +74,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** Export CSV, then the file of `choice` in its menu; the file's lines. */
+async function exportAs(choice: string): Promise<string[]> {
+  const exportButton = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === `${fr.organizer.pools.standings.exportCsv} ▾`,
+  );
+  await act(async () => exportButton!.click());
+  const item = [...container.querySelectorAll('[role="menuitem"]')].find((button) =>
+    button.textContent!.startsWith(choice),
+  ) as HTMLButtonElement;
+  await act(async () => item.click());
+
+  const bytes = new Uint8Array(await blobs[0]!.arrayBuffer());
+  expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+  return new TextDecoder().decode(bytes.slice(3)).split('\r\n');
+}
+
 describe('the Pool standings file', () => {
   it('is in the reader’s language, with the byte-order mark', async () => {
-    const exportButton = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === fr.organizer.pools.standings.exportCsv,
-    );
-    await act(async () => exportButton!.click());
-
-    const bytes = new Uint8Array(await blobs[0]!.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
-    const lines = new TextDecoder().decode(bytes.slice(3)).split('\r\n');
+    const lines = await exportAs(fr.organizer.csvExport.standard);
     expect(lines[0]).toBe('Rang,Combattant,Club,Victoires,Statut');
     expect(lines[1]).toBe('1,Géraldine Roux,Lyon Escrime,3,En cours');
+  });
+
+  it('is split by ; for French Excel, when that is picked', async () => {
+    const lines = await exportAs(fr.organizer.csvExport.excelFrench);
+    expect(lines[0]).toBe('Rang;Combattant;Club;Victoires;Statut');
+    expect(lines[1]).toBe('1;Géraldine Roux;Lyon Escrime;3;En cours');
   });
 
   it('titles the stat column on screen with the same word', () => {

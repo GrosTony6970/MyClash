@@ -13,7 +13,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { ConfirmDialog, accentClassFor, statusLabel, useToast } from '@myclash/ui';
 import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
-import { resolveBlockAccent } from '@myclash/types';
+import { resolveBlockAccent, type CsvFormat } from '@myclash/types';
 import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
@@ -78,6 +78,7 @@ import {
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
 import { downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
 import { LicePlacementEditor } from './LicePlacementEditor';
 import { mutateSchedule } from './schedule-mutations';
 
@@ -1378,23 +1379,29 @@ export function ScheduleGrid({
     return map;
   }, [lices]);
 
-  function exportCsv() {
+  function exportCsv(format: CsvFormat) {
     // The state cell in the reader's words (X1), as the board says it.
     const worded = matches.map((match) => ({
       ...match,
       status: statusLabel('match', match.status, t),
     }));
-    const csv = scheduleToCsv(worded, liceNameById, eventTz, {
-      day: t('organizer.schedulePage.grid.printColDay'),
-      lice: t('organizer.schedulePage.grid.printColLice'),
-      start: t('organizer.schedulePage.grid.printColStart'),
-      round: t('organizer.schedulePage.grid.printColRound'),
-      tournament: t('organizer.schedulePage.grid.printColTournament'),
-      group: t('organizer.schedulePage.grid.printColGroup'),
-      red: t('organizer.schedulePage.grid.printColRed'),
-      blue: t('organizer.schedulePage.grid.printColBlue'),
-      status: t('organizer.schedulePage.grid.printColStatus'),
-    });
+    const csv = scheduleToCsv(
+      worded,
+      liceNameById,
+      eventTz,
+      {
+        day: t('organizer.schedulePage.grid.printColDay'),
+        lice: t('organizer.schedulePage.grid.printColLice'),
+        start: t('organizer.schedulePage.grid.printColStart'),
+        round: t('organizer.schedulePage.grid.printColRound'),
+        tournament: t('organizer.schedulePage.grid.printColTournament'),
+        group: t('organizer.schedulePage.grid.printColGroup'),
+        red: t('organizer.schedulePage.grid.printColRed'),
+        blue: t('organizer.schedulePage.grid.printColBlue'),
+        status: t('organizer.schedulePage.grid.printColStatus'),
+      },
+      format,
+    );
     downloadCsv(`schedule-${eventId}.csv`, csv);
   }
 
@@ -2023,13 +2030,11 @@ export function ScheduleGrid({
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={exportCsv}
+          <CsvExportMenu
+            label={t('organizer.schedulePage.grid.exportCsv')}
+            onExport={exportCsv}
             className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
-          >
-            {t('organizer.schedulePage.grid.exportCsv')}
-          </button>
+          />
           <button
             type="button"
             onClick={printSchedule}

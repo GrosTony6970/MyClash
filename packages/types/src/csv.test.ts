@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { csvRow, escapeCsvCell, escapeCsvField, toCsvCell } from './csv';
+import {
+  CSV_EXCEL_FR,
+  CSV_STANDARD,
+  csvRow,
+  escapeCsvCell,
+  escapeCsvField,
+  toCsvCell,
+} from './csv';
 
 describe('escapeCsvField (RFC 4180 only)', () => {
   it('quotes separators, quotes and newlines', () => {
@@ -71,8 +78,62 @@ describe('toCsvCell', () => {
   });
 });
 
+describe('the two formats', () => {
+  // Every API CSV reads CSV_STANDARD: a write to it anywhere would change them all.
+  it('cannot be changed', () => {
+    expect(Object.isFrozen(CSV_STANDARD)).toBe(true);
+    expect(Object.isFrozen(CSV_EXCEL_FR)).toBe(true);
+  });
+});
+
+describe('the escapers handed to map', () => {
+  // `map` passes the index as a second argument: an escaper that read one as its separator
+  // stopped quoting the commas of the HEMA Ratings feed (`row.map(escapeCsvField)`).
+  it('quote the same as when called with one value', () => {
+    const values = ['Dupont, Jean', 'a', '=X'];
+    expect(values.map(escapeCsvField)).toEqual(['"Dupont, Jean"', 'a', '=X']);
+    expect(values.map(escapeCsvCell)).toEqual(['"Dupont, Jean"', 'a', '"\'=X"']);
+    expect([...values, null].map(toCsvCell)).toEqual(['"Dupont, Jean"', 'a', '"\'=X"', '']);
+  });
+});
+
 describe('csvRow', () => {
   it('joins values into one safe row', () => {
-    expect(csvRow(['a', 'b,c', null, '=X'])).toBe('a,"b,c",,"\'=X"');
+    expect(csvRow(['a', 'b,c', null, '=X'], CSV_STANDARD)).toBe('a,"b,c",,"\'=X"');
+  });
+
+  it('keeps the point of a decimal in the standard file', () => {
+    expect(csvRow(['12.50', 4.5], CSV_STANDARD)).toBe('12.50,4.5');
+  });
+});
+
+/**
+ * French Excel (operator, 2026-10-15): it splits a row on `;` and reads `12,50` as a number.
+ * Given a comma file, every value lands in the first column; given `12.50`, a total of the pay
+ * column skips it.
+ */
+describe('csvRow, French Excel', () => {
+  it('splits on ; and writes a decimal with a comma', () => {
+    expect(csvRow(['Léa Martin', '12.50', 4.5, '-3.75', 3], CSV_EXCEL_FR)).toBe(
+      'Léa Martin;12,50;4,5;-3,75;3',
+    );
+  });
+
+  it('quotes a cell that holds a ; and leaves a comma of text bare', () => {
+    expect(csvRow(['Longsword (Registered); Sabre (Registered)', 'Roux, Ana'], CSV_EXCEL_FR)).toBe(
+      '"Longsword (Registered); Sabre (Registered)";Roux, Ana',
+    );
+  });
+
+  it('touches no value that is not a plain decimal: times, dates, versions, labels', () => {
+    expect(csvRow(['09:30', '2026-10-15', '1.0.0', 'LSW-P1-M2', '1.5 pts'], CSV_EXCEL_FR)).toBe(
+      '09:30;2026-10-15;1.0.0;LSW-P1-M2;1.5 pts',
+    );
+  });
+
+  it('still neutralises a formula', () => {
+    expect(csvRow(['=SUM(A1)', '-1+1+cmd|calc'], CSV_EXCEL_FR)).toBe(
+      '"\'=SUM(A1)";"\'-1+1+cmd|calc"',
+    );
   });
 });

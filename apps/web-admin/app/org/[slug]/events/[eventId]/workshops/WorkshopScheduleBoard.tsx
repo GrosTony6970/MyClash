@@ -42,6 +42,8 @@ import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import { downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
+import type { CsvFormat } from '@myclash/types';
 import {
   breakTimesFromSlots,
   findWorkshopOverlaps,
@@ -428,7 +430,7 @@ export function WorkshopScheduleBoard({
   for (let s = 0; s <= totalSlots; s += SLOTS_PER_HOUR) hourLines.push(s);
   const nowSlot = nowIso ? nowSlotForDay(nowIso, activeDay, timezone, startHour) : null;
 
-  function exportCsv() {
+  function exportCsv(format: CsvFormat) {
     const csv = workshopScheduleToCsv(
       workshops.map((w) => ({
         title: w.title,
@@ -452,6 +454,7 @@ export function WorkshopScheduleBoard({
         t('organizer.csvColumns.level'),
         t('organizer.csvColumns.slots'),
       ],
+      format,
     );
     downloadCsv('workshops.csv', csv);
   }
@@ -550,13 +553,11 @@ export function WorkshopScheduleBoard({
           >
             +
           </button>
-          <button
-            type="button"
-            onClick={exportCsv}
+          <CsvExportMenu
+            label={t('organizer.schedulePage.grid.exportCsv')}
+            onExport={exportCsv}
             className="ml-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"
-          >
-            {t('organizer.schedulePage.grid.exportCsv')}
-          </button>
+          />
           <button
             type="button"
             onClick={printDay}

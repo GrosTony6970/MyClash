@@ -4,7 +4,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
 import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import type { CompensationReport } from '@myclash/types';
+import type { CompensationReport, CsvFormat } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
@@ -13,6 +13,7 @@ import {
   type CompensationWords,
 } from './compensation-export';
 import { downloadCsv } from '@/lib/csv-file';
+import { CsvExportMenu } from '@/components/CsvExportMenu';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
@@ -246,11 +247,11 @@ export default function CompensationPage() {
     total: t('organizer.csvColumns.total'),
   };
 
-  function exportCsv() {
+  function exportCsv(format: CsvFormat) {
     if (!report || report.referees.length === 0) return;
     downloadCsv(
       `compensation-${slugify(report.planName)}.csv`,
-      compensationToCsv(report, exportWords),
+      compensationToCsv(report, exportWords, format),
     );
   }
 
@@ -395,14 +396,12 @@ export default function CompensationPage() {
             )}
           </p>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={exportCsv}
+            <CsvExportMenu
+              label={t('organizer.eventCompensation.exportCsv')}
+              onExport={exportCsv}
               disabled={!canExport}
               className="text-sm text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {t('organizer.eventCompensation.exportCsv')}
-            </button>
+            />
             <button
               type="button"
               onClick={printReport}

@@ -1,3 +1,4 @@
+import type { CsvFormat } from '@myclash/types';
 import { csvFile } from '@/lib/csv-file';
 import { statusLabelKey, type RegistrationStatus } from '@myclash/ui';
 
@@ -105,6 +106,7 @@ export function rosterCsv(
   rows: readonly RosterExportRow[],
   oneTournament: boolean,
   t: Translator,
+  format: CsvFormat,
 ): string {
   const yesNo = (flag: boolean) =>
     flag ? t('organizer.persons.export.yes') : t('organizer.persons.export.no');
@@ -117,5 +119,5 @@ export function rosterCsv(
     const status = entry ? t(statusLabelKey('registration', entry.status)) : '';
     return [row.name, row.club ?? '', status, entry?.seed ?? '', ...flags];
   });
-  return csvFile([header(oneTournament, t), ...lines]);
+  return csvFile([header(oneTournament, t), ...lines], format);
 }

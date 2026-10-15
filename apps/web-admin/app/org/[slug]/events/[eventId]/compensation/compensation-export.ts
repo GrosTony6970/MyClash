@@ -6,7 +6,7 @@
  * language (O20); the print title is passed in already localized.
  */
 
-import { escapeHtml, type CompensationReport } from '@myclash/types';
+import { escapeHtml, type CompensationReport, type CsvFormat } from '@myclash/types';
 import { csvFile } from '@/lib/csv-file';
 
 type Referee = CompensationReport['referees'][number];
@@ -47,15 +47,18 @@ function refereeCells(r: Referee, words: CompensationWords): string[] {
  * from the roster, which organisers type. Plain numbers stay numeric so the amount column
  * still sums.
  */
-export function compensationToCsv(report: CompensationReport, words: CompensationWords): string {
+export function compensationToCsv(
+  report: CompensationReport,
+  words: CompensationWords,
+  format: CsvFormat,
+): string {
   const totalCells = words.headers.map((_, i) =>
     i === 0 ? words.total : i === AMOUNT_COLUMN ? report.grandTotal.toFixed(2) : '',
   );
-  return csvFile([
-    words.headers,
-    ...report.referees.map((r) => refereeCells(r, words)),
-    totalCells,
-  ]);
+  return csvFile(
+    [words.headers, ...report.referees.map((r) => refereeCells(r, words)), totalCells],
+    format,
+  );
 }
 
 const htmlEscape = escapeHtml;
