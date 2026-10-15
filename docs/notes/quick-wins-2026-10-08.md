@@ -2853,6 +2853,22 @@ differently in code than the sweep wrote them:
 - `web-public` `referee-display.ts:20` keeps its own role map with a raw-id fallback and an English
   "Referee": the public pass.
 
+### Rulings — operator, 2026-10-16: the public site
+
+The public-site round. Each bullet of "The public site" above was read again in code first. Nine
+are plain bugs and need no ruling. One reads differently: the roster page's title does throw on a
+failed Event read, but its body throws the same way, so the reader sees the same error page. One
+is wider than written: signing up by email sends no mail at all (Supabase's admin create never
+mails, and production does not confirm by itself), so there is no link to lose the page on.
+
+| Row          | Story                                                                                                                  | Ruling                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Hidden bout  | Léa, a guest of a test Event, sees "Pool 2 · Bout 3" on her schedule. She taps it: "Not found".                        | **Hide the schedule too**: a draft or test Event's guest schedule says "Page not found", as its other pages do. |
+| People tags  | The People search has code for role badges and a "next item" time; the server sends neither, so they never show.       | **Send the roles**: the badges show; the next-item time is removed.                                             |
+| Sign-up mail | Léa signs up by email. The screen says "check your email"; no mail comes.                                              | **Own confirm mail**: "Confirm your MyClash address"; the link signs her in on the page she started from.       |
+| Share phone  | On a phone the fighter profile hides its share card, so there is no Share button at all.                               | **Share button only** on a phone; no QR code.                                                                   |
+| Ranked name  | A fighter's name on a league's standings looks like plain text until hovered, and is one line of text high on a phone. | **Link look + tall target**: always underlined, a 44px tap area.                                                |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

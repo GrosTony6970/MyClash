@@ -30,9 +30,9 @@ export function isEventUuid(ref: string): boolean {
  * nothing is a 404: the caller asked for a named event that does not exist.
  *
  * Deliberately does NOT apply the public-visibility rule that
- * `getEventBySlug` applies. That rule belongs to the public event page; a
- * participant holding a guest session for a test event still has a schedule and
- * still has a pass.
+ * `getEventBySlug` applies. Each route applies the rule it needs after this: a
+ * participant holding a guest session for a test event still has a pass, and no
+ * longer a schedule (ruling 2026-10-16, `my-schedule.controller.ts`).
  */
 export async function resolveEventId(supabase: SupabaseService, ref: string): Promise<string> {
   if (isEventUuid(ref)) return ref;

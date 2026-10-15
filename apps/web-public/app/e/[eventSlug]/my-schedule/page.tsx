@@ -16,6 +16,7 @@ import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { boutPageHref } from '@/lib/bout-page';
 import { BackLink } from '@/components/BackLink';
+import { NotFoundCard } from '@/components/NotFoundCard';
 import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
   detectConflicts,
@@ -229,6 +230,9 @@ export default function MySchedulePage() {
   if (reason) {
     return <ScheduleNotShown reason={reason} eventSlug={eventSlug} onRetry={mine.retry} />;
   }
+  // A draft or test Event hidden from this visitor, as its other pages are (ruling 2026-10-16).
+  // The read already renewed a lapsed login, so the card has none to renew.
+  if (mine.state === 'notFound') return <NotFoundCard renewLogin={false} />;
   const schedule = mine.schedule;
   if (!schedule) {
     return (

@@ -218,6 +218,26 @@ test('my-schedule page - a read that fails offers Retry, and says nothing about 
   expect(server.reads).toBe(before + 1);
 });
 
+test('my-schedule page - a test Event hidden from its guest says "Page not found", and drops the copy', async ({
+  page,
+}) => {
+  // The phone kept her schedule while the Event was open; it is hidden now (ruling 2026-10-16).
+  await page.addInitScript(
+    (copy) => {
+      localStorage.setItem('myclash:schedule:test-event', copy);
+    },
+    JSON.stringify({ schedule: SCHEDULE, fetchedAt: Date.now() }),
+  );
+  await openMyScheduleAnswering(page, 404);
+  const main = page.locator('main');
+
+  await expect(main.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await expect(main.getByText('Ada Lovelace')).toHaveCount(0);
+  await expect(main.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await expect(main.getByText(/sign in/i)).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('myclash:schedule:test-event'))).toBeNull();
+});
+
 test('my-schedule page - a device the server does not know gets the two doors in', async ({
   page,
 }) => {

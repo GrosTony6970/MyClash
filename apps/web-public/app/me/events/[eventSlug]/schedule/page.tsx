@@ -106,9 +106,11 @@ function ScheduleTab({
   slug: string;
 }) {
   const { t } = useI18n();
-  const { schedule, loading, updatedAt, offline, retry } = useMySchedule(eventId);
+  const { schedule, state, loading, updatedAt, offline, retry } = useMySchedule(eventId);
   const { blocks } = useProgramme(eventId);
   if (loading) return <Skeleton className="h-40 w-full rounded-xl" />;
+  // The Event went hidden from her after the hub listed it (ruling 164): no Retry fixes that.
+  if (state === 'notFound') return <HubNotFound />;
   // No schedule and no copy on the phone: say so and offer the retry. It was a skeleton for ever.
   if (!schedule) {
     return (

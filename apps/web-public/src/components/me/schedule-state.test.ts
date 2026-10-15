@@ -76,6 +76,13 @@ describe('what the page shows after an answer', () => {
     expect(scheduleAfterRead(doors, { kind: 'failed' }, LATER)).toEqual(doors);
   });
 
+  it('a 404 shows NO schedule, whatever was on screen, and a later failure does not unsay it', () => {
+    // A test Event hidden from its guest (ruling 2026-10-16): the phone's copy is not shown either.
+    const gone = scheduleAfterRead(fromCopy, { kind: 'notFound' }, LATER);
+    expect(gone).toEqual({ state: 'notFound', schedule: null, updatedAt: null, offline: false });
+    expect(scheduleAfterRead(gone, { kind: 'failed' }, LATER)).toEqual(gone);
+  });
+
   it('a read that lands after a failure is no longer offline', () => {
     const offline = scheduleAfterRead(fromCopy, { kind: 'failed' }, LATER);
     expect(scheduleAfterRead(offline, { kind: 'data', data: paul }, LATER).offline).toBe(false);
@@ -83,11 +90,12 @@ describe('what the page shows after an answer', () => {
 });
 
 describe('what an answer does to the copy on the phone', () => {
-  it('a schedule is written with its time; a 401 removes the copy; a failure leaves it', () => {
+  it('a schedule is written with its time; a 401 or a 404 removes the copy; a failure leaves it', () => {
     expect(copyAfterRead({ kind: 'data', data: paul }, LATER)).toEqual({
       write: { schedule: paul, fetchedAt: LATER },
     });
     expect(copyAfterRead({ kind: 'signedOut' }, LATER)).toBe('forget');
+    expect(copyAfterRead({ kind: 'notFound' }, LATER)).toBe('forget');
     expect(copyAfterRead({ kind: 'failed' }, LATER)).toBe('leave');
   });
 });

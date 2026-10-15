@@ -49,7 +49,12 @@ describe('readMySchedule', () => {
     expect(await read()).toEqual({ kind: 'signedOut' });
   });
 
-  it.each([400, 403, 404, 429, 500, 502, 503])(
+  it('reads a 404 as not found: the Event is unknown, or hidden from this caller', async () => {
+    answers(response(404));
+    expect(await read()).toEqual({ kind: 'notFound' });
+  });
+
+  it.each([400, 403, 429, 500, 502, 503])(
     'reads a %i as a failed read, not as signed out',
     async (status) => {
       answers(response(status));

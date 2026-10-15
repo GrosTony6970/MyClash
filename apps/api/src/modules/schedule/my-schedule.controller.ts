@@ -14,8 +14,12 @@
 import { Controller, Get, Param, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { publicReader, readableEvent } from '../../common/auth/competition-visibility';
+import { eventNotFound } from '../../common/auth/event-read-gate';
 import { resolveEventId } from '../../common/event-ref';
 import { ParticipantIdentityService } from '../auth/participant-identity.service';
+// Value import, not `import type`: a type import erases the DI metadata.
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 
@@ -31,6 +35,7 @@ export class MyScheduleController {
     // who a participant is. The move also fixed a guest-session cookie for
     // another event resolving to that other event's person.
     private readonly identity: ParticipantIdentityService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /**
@@ -42,11 +47,19 @@ export class MyScheduleController {
    * rendered its logged-out empty state to signed-in fighters. Nothing caught it
    * because the one spec that covers this page mocks the route away.
    */
+  /**
+   * A draft or test Event answers as an unknown one, as every other page of it does
+   * (operator ruling 2026-10-16): its bouts' own pages say "not found" to its guests.
+   * Its club and its active staff still read it. Before the person: a hidden Event
+   * says nothing about who is in it.
+   */
   @Get('events/:eventId/my-schedule')
   @ApiOperation({ summary: "Get authenticated person's unified schedule" })
   @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
   async getMySchedule(@Param('eventId') eventRef: string, @Req() req: FastifyRequest) {
     const eventId = await resolveEventId(this.supabase, eventRef);
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    if (!(await readableEvent(deps, eventId, publicReader(req)))) throw eventNotFound(eventId);
     const personId = await this.identity.requirePersonId(req, eventId);
     // Person can always see their own workshops (requesterPersonId = personId)
     return this.schedule.getSchedule(eventId, personId, personId);

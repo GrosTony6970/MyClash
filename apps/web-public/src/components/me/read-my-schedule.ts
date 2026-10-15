@@ -16,6 +16,8 @@ import { fetchRenewingLogin } from '@myclash/api-client';
 export type ScheduleRead<T> =
   | { kind: 'data'; data: T }
   | { kind: 'signedOut' }
+  /** A 404: no such Event, or a draft or test Event the caller may not see (ruling 2026-10-16). */
+  | { kind: 'notFound' }
   | { kind: 'failed' }
   /** The page left before the answer. */
   | { kind: 'aborted' };
@@ -31,6 +33,7 @@ export async function readMySchedule<T>(
       signal,
     });
     if (res.status === 401) return { kind: 'signedOut' };
+    if (res.status === 404) return { kind: 'notFound' };
     if (!res.ok) return { kind: 'failed' };
     return { kind: 'data', data: (await res.json()) as T };
   } catch {

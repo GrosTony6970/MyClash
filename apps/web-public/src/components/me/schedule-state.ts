@@ -8,10 +8,11 @@ import type { ScheduleRead } from './read-my-schedule';
  * - `shown`: a schedule is on screen. `offline` says the last read failed and
  *   this is the copy the phone kept: it is as old as `updatedAt`.
  * - `signedOut`: the server knows nobody here. NO copy is shown over that.
+ * - `notFound`: no such Event, or one hidden from this visitor. NO copy either.
  * - `failed`: the read failed and the phone keeps nothing. The page offers Retry.
  */
 export interface ScheduleShown<T> {
-  state: 'loading' | 'shown' | 'signedOut' | 'failed';
+  state: 'loading' | 'shown' | 'signedOut' | 'notFound' | 'failed';
   schedule: T | null;
   /** When the server gave the schedule on screen (ms), for "Updated 14:02". */
   updatedAt: number | null;
@@ -43,13 +44,13 @@ export function scheduleAfterRead<T>(
     return { state: 'shown', schedule: answer.data, updatedAt: now, offline: false };
   }
   // The server knows nobody here: what was on screen is not this visitor's to see.
-  if (answer.kind === 'signedOut') {
-    return { state: 'signedOut', schedule: null, updatedAt: null, offline: false };
+  if (answer.kind === 'signedOut' || answer.kind === 'notFound') {
+    return { state: answer.kind, schedule: null, updatedAt: null, offline: false };
   }
   // A failed read keeps what is on screen, and says it is old.
   if (shown.schedule) return { ...shown, state: 'shown', offline: true };
-  // The server said it knows nobody here: a read that fails later does not unsay it.
-  if (shown.state === 'signedOut') return shown;
+  // The server said it knows nobody, or no Event, here: a read that fails later does not unsay it.
+  if (shown.state === 'signedOut' || shown.state === 'notFound') return shown;
   return { state: 'failed', schedule: null, updatedAt: null, offline: false };
 }
 
@@ -59,5 +60,5 @@ export function copyAfterRead<T>(
   now: number,
 ): { write: ScheduleCopy<T> } | 'forget' | 'leave' {
   if (answer.kind === 'data') return { write: { schedule: answer.data, fetchedAt: now } };
-  return answer.kind === 'signedOut' ? 'forget' : 'leave';
+  return answer.kind === 'failed' ? 'leave' : 'forget';
 }
