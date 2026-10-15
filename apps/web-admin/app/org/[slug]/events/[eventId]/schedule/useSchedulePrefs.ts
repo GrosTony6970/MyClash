@@ -19,9 +19,9 @@ import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
  * snapshot is the default, the client snapshot is what is stored, and React
  * reconciles the difference itself.
  *
- * localStorage IS the state here. There is no mirrored copy that can drift from
- * it, and a functional updater reads the stored value rather than a closure, so
- * two changes in the same tick cannot lose one.
+ * localStorage IS the state here. The one copy is `keptInTab`, and only for a
+ * key storage refused to write; a functional updater reads the stored value
+ * rather than a closure, so two changes in the same tick cannot lose one.
  *
  * Snapshots are primitives (boolean, number, string), compared by value — so
  * unlike the object-valued store in `src/components/event-nav-groups.ts` this
@@ -118,17 +118,39 @@ function listenersFor(key: string): Set<() => void> {
   return created;
 }
 
+/**
+ * What this tab chose where storage refused the write: blocked site data throws as soon as a
+ * page names `localStorage`, and a full storage refuses `setItem`. The choice then holds for
+ * the tab, not past a reload. A key leaves it once storage takes a write again.
+ */
+const keptInTab = new Map<string, string>();
+
+function storedRaw(key: string): string | null {
+  if (keptInTab.has(key)) return keptInTab.get(key)!;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 /** Read one preference straight out of storage. */
 function readPref<T>(codec: PrefCodec<T>): T {
   if (typeof window === 'undefined') return codec.fallback;
-  const raw = window.localStorage.getItem(codec.key);
+  const raw = storedRaw(codec.key);
   if (raw === null) return codec.fallback;
   return codec.parse(raw) ?? codec.fallback;
 }
 
 function writePref<T>(codec: PrefCodec<T>, value: T): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(codec.key, codec.serialize(value));
+  const raw = codec.serialize(value);
+  try {
+    window.localStorage.setItem(codec.key, raw);
+    keptInTab.delete(codec.key);
+  } catch {
+    keptInTab.set(codec.key, raw);
+  }
   // `storage` only fires in OTHER tabs, so this tab notifies its own readers.
   for (const listener of listenersFor(codec.key)) listener();
 }
