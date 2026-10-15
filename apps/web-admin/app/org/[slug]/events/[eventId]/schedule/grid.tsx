@@ -153,6 +153,8 @@ export function ScheduleGrid({
   onProgrammeMutated,
   configurePanel,
   sheetVersion,
+  keptDay,
+  onDayChange,
   readOnly,
 }: {
   slug: string;
@@ -172,6 +174,10 @@ export function ScheduleGrid({
   configurePanel?: ReactNode;
   /** Bumped by the page after each planner sheet save. The board re-reads on it. */
   sheetVersion?: number;
+  /** The day shown before the page drew the board again (after a Generate or a Save). */
+  keptDay?: string | null;
+  /** Told each day the board shows, so the page can hand it back as `keptDay`. */
+  onDayChange?: (day: string) => void;
   /** The Event is archived: no drag or resize starts, and the board offers no save. */
   readOnly: boolean;
 }) {
@@ -219,7 +225,10 @@ export function ScheduleGrid({
     refetchLices,
     refetchScheduleAndBlocks,
     refetchWhenIdle,
-  } = useScheduleData({ eventId, apiUrl, isBusy });
+  } = useScheduleData({ eventId, apiUrl, isBusy, keptDay });
+  useEffect(() => {
+    if (activeDay) onDayChange?.(activeDay);
+  }, [activeDay, onDayChange]);
   // eslint-disable-next-line react-hooks/refs -- render-time mirror closing the read/write cycle described above
   refetchRef.current = refetchScheduleAndBlocks;
 

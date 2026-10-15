@@ -34,6 +34,8 @@ export default function SchedulePage() {
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
   const [programmeRefreshKey, setProgrammeRefreshKey] = useState(0);
   const [sheetVersion, setSheetVersion] = useState(0);
+  // The board is drawn again after each Generate and Save: it opens on the day it showed.
+  const [boardDay, setBoardDay] = useState<string | null>(null);
   // The planner's sheet lives here, above the grid's `key`. The grid remounts
   // the planner after Save, Reset and Generate and when its panel collapses; a
   // sheet read by each fresh mount could land before the last mount's save.
@@ -158,6 +160,8 @@ export default function SchedulePage() {
           eventId={eventId}
           onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
           sheetVersion={sheetVersion}
+          keptDay={boardDay}
+          onDayChange={setBoardDay}
           readOnly={isReadOnly}
           configurePanel={
             <div className="rounded-xl border border-border bg-surface p-3">

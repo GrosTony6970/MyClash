@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { initialDay } from '@myclash/schedule-core';
+import { boardOpeningDay } from './board-day';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { createRefetchGate, type RefetchGate } from './realtime-refetch-gate';
@@ -155,8 +155,12 @@ export function useScheduleData(args: {
   apiUrl: string;
   /** True while a local write is in flight — suppresses the realtime refetch. */
   isBusy: () => boolean;
+  /** The day the board showed before the page drew it again: it opens there. */
+  keptDay?: string | null;
 }): ScheduleData {
   const { eventId, apiUrl, isBusy } = args;
+  // The day at mount: the board is drawn again to take a new one, never asked mid-life.
+  const [keptDay] = useState(args.keptDay ?? null);
   const { t } = useI18n();
   const [lices, setLices] = useState<Lice[]>([]);
   const [matches, setMatches] = useState<ScheduleMatch[]>([]);
@@ -238,14 +242,13 @@ export function useScheduleData(args: {
       setMatches(result.data.matches);
       setEventTz(result.data.timezone);
       setDays(result.data.days);
-      // Today when the Event runs today (O6), else day 1.
       const { days, timezone } = result.data;
-      const opening = initialDay(days, timezone, new Date().toISOString()) ?? days[0];
+      const opening = boardOpeningDay(days, timezone, new Date().toISOString(), keptDay);
       if (opening) setActiveDay(opening);
       setProgrammeBlocks(result.data.programmeBlocks);
     });
     return () => controller.abort();
-  }, [eventId, apiUrl, t]);
+  }, [eventId, apiUrl, t, keptDay]);
 
   // Its own effect, not a fifth bootstrap fetch: a refusal here must not blank
   // a board the operator can still schedule on. The refusal is stored rather
