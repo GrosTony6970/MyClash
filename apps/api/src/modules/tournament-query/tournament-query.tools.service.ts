@@ -312,13 +312,13 @@ export class TournamentQueryToolsService {
     for (const match of matches) {
       if (match.red_registration_id)
         names.set(match.red_registration_id, {
-          name: match.red_name || unknownFighterInEnglish(),
+          name: match.red_name ?? '',
           club: match.red_club ?? '',
           pool: match.pool_name ?? '',
         });
       if (match.blue_registration_id)
         names.set(match.blue_registration_id, {
-          name: match.blue_name || unknownFighterInEnglish(),
+          name: match.blue_name ?? '',
           club: match.blue_club ?? '',
           pool: match.pool_name ?? '',
         });
@@ -329,6 +329,7 @@ export class TournamentQueryToolsService {
       .map((row, index) => ({
         Rank: index + 1,
         Pool: row.pool ?? '',
+        // The one place a blank name is worded: the view sends '' for a person nobody named.
         Fighter: row.name || unknownFighterInEnglish(),
         Club: row.club ?? '',
         Wins: row.wins,

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { openArchivedPage, type OpenedPage } from '../archived-page.fixtures';
@@ -53,6 +53,14 @@ describe('the AI assistant of an archived Event', () => {
     const spans = [...document.body.querySelectorAll('span')].map((span) => span.textContent);
     expect(spans).toContain('Ready');
     expect(spans).not.toContain('ready');
+
+    // The open draft's header names its state too.
+    const draftButton = [...document.body.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Ready'),
+    );
+    await act(async () => draftButton!.click());
+    const chip = document.body.querySelector('span.rounded-full.bg-border');
+    expect(chip?.textContent).toBe('Ready');
   });
 
   it('makes, saves, applies and rejects no draft', async () => {

@@ -70,6 +70,25 @@ describe('MatchCard words', () => {
   });
 });
 
+describe('MatchCard referees', () => {
+  it("names a referee duty with no role in the reader's word, never in English", () => {
+    const html = renderToStaticMarkup(
+      <BracketHighlightContext.Provider value={{ showReferees: true }}>
+        <MatchCard
+          t={say}
+          slot={slot({
+            referees: [{ role: null, displayName: 'Léa', status: 'assigned', skillColor: 'slate' }],
+          })}
+          redColor="red"
+          blueColor="blue"
+        />
+      </BracketHighlightContext.Provider>,
+    );
+    expect(html).toContain('&lt;common.bracket.referee&gt;');
+    expect(html).not.toContain('>Referee<');
+  });
+});
+
 describe('MatchCard on a Lice-scoped bracket', () => {
   it('opens a match on this Lice', () => {
     expect(isClickable(markup({ liceId: MINE }, MINE))).toBe(true);
