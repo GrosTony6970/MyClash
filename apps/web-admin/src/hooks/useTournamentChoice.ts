@@ -7,8 +7,11 @@
  * pages keep their tab in the hash) and remembers it.
  *
  * The race: `router.replace` lands a render or more after a click. Until then the click is a
- * `pending` value tied to the address it was made over; once the address moves (to the
- * click, or to a link that names another Tournament) the address speaks again.
+ * `pending` value. An address that is still `ours` (the one the first click was made over, or
+ * one this hook wrote for an earlier click, landing late) does not overrule it: two quick
+ * clicks, t2 then back to t1, keep t1 when the write of t2 lands after it. The pick ends when
+ * the address arrives at it, or moves to a Tournament nobody here wrote (a followed link):
+ * then the address speaks again, a later link back to t1 included.
  *
  * `remember: false` neither reads nor writes the browser's memory (the roster opens on
  * every Tournament unless its address names one; operator, 2026-10-14).
@@ -25,7 +28,7 @@ import {
 
 interface Pending {
   value: string;
-  over: string | null;
+  ours: Array<string | null>;
 }
 
 export function useTournamentChoice(
@@ -36,8 +39,17 @@ export function useTournamentChoice(
   const router = useRouter();
   const fromAddress = useSearchParams().get('tournamentId');
   const [pending, setPending] = useState<Pending | null>(null);
+  // The pick ends when the address MOVES onto it, or onto a word from outside. Not when it
+  // merely equals it: t2 then back to t1 starts on t1, and the late write of t2 is to come.
+  const [seen, setSeen] = useState(fromAddress);
+  if (seen !== fromAddress) {
+    setSeen(fromAddress);
+    if (pending && (fromAddress === pending.value || !pending.ours.includes(fromAddress))) {
+      setPending(null);
+    }
+  }
 
-  const asked = pending && pending.over === fromAddress ? pending.value : fromAddress;
+  const asked = pending && pending.ours.includes(fromAddress) ? pending.value : fromAddress;
   const chosen = chooseTournament(choices, asked, remember ? rememberedTournament(eventId) : null);
 
   useEffect(() => {
@@ -48,7 +60,12 @@ export function useTournamentChoice(
   }, [chosen, fromAddress, eventId, remember, router]);
 
   const choose = useCallback(
-    (tournamentId: string) => setPending({ value: tournamentId, over: fromAddress }),
+    (tournamentId: string) =>
+      setPending((prev) => ({
+        value: tournamentId,
+        // A pick still out may land later: its value is ours too.
+        ours: prev ? [...prev.ours, prev.value] : [fromAddress],
+      })),
     [fromAddress],
   );
 

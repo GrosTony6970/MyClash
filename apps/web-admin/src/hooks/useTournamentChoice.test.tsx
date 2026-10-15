@@ -130,6 +130,36 @@ describe('useTournamentChoice', () => {
     expect(shown).toBe('t3');
   });
 
+  // A pick, then the one before, faster than the server answers: the first write landed
+  // after the second pick and won.
+  it('keeps the second of two quick picks when the first one lands after it', () => {
+    addressSays('tournamentId=t1');
+    render();
+    act(() => choose('t2'));
+    act(() => choose('t1'));
+    expect(shown).toBe('t1');
+    addressSays('tournamentId=t2'); // the first write lands late
+    render();
+    expect(shown).toBe('t1');
+    expect(NAVIGATION.replaced.at(-1)).toBe(
+      '/org/club/events/ev1/pools?q=lea&tournamentId=t1#matches',
+    );
+    addressSays('tournamentId=t1');
+    render();
+    expect(shown).toBe('t1');
+  });
+
+  it('follows a later link back to the Tournament a landed pick left', () => {
+    addressSays('tournamentId=t1');
+    render();
+    act(() => choose('t2'));
+    addressSays('tournamentId=t2');
+    render();
+    addressSays('tournamentId=t1');
+    render();
+    expect(shown).toBe('t1');
+  });
+
   it('with remember off, neither reads nor writes the memory', () => {
     rememberTournament('ev1', 't2');
     render(['all', ...IDS], false);
