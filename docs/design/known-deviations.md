@@ -143,6 +143,14 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
   would have added 18 render sites to the open deviation below. A render test now holds all three
   facts, since prose plainly could not.
 
+**FIXED (2026-10-15) — the `AdminPageHeader` eyebrow and border, on the operator's call:**
+
+- The eyebrow is `text-accent`, as DESIGN.md's `page-header-eyebrow` says — not `text-accent-hover`,
+  the value-exact `#991b1b`, because a hover colour used at rest is the wrong token. It moved
+  red-800 → red-700 on the 22 web-admin pages that use the header. The rule under the header is
+  `border-border` (`#e7e5e4`) instead of `border-slate-200` (`#e2e8f0`).
+  `admin-page-header-render.test.tsx` holds both. The FoilMark's `text-slate-300` stays (below).
+
 **Still open (each needs a value-shift decision or a new token — not a silent sweep):**
 
 - **A second `EmptyState` exists.** `web-admin` carries an unrelated local
@@ -151,8 +159,6 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
   tokenized and imports nothing from `@myclash/ui` — a name collision rather than a divergent copy,
   but one grep away from being mistaken for the shared component, and it did not gain the FoilMark.
 
-- **`AdminPageHeader` eyebrow** is `text-red-800` (`#991b1b`). DESIGN.md says the eyebrow is _the accent_, but the accent is `#b91c1c` (red-700) — so the value-exact token is `accent-hover`, which is semantically the wrong token (a hover colour used at rest inverts under `[data-accent='personal']`). Fixing it to `text-accent` is correct but shifts the eyebrow red-800→red-700 across ~21 admin pages. Left for an explicit call.
-- **`AdminPageHeader` border** `border-slate-200` (`#e2e8f0`) vs `border-border` (`#e7e5e4`, stone-200): sub-perceptual but non-zero.
 - **`FoilMark` / FormField input border** `text-slate-300` / `border-slate-300` (`#cbd5e1`): **no token has this value.** The system has no control-border tier distinct from the card hairline, and no placeholder tier (`slate-400`). Adding those tiers is a token decision.
 - **`FormField`** (its only consumer is the design-system showcase, not shipped chrome): its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap.
 - **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-staff (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.

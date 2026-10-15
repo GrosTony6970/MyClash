@@ -30,13 +30,13 @@ export const AdminPageHeader: React.FC<AdminPageHeaderProps> = ({
 }) => (
   <header
     className={[
-      'mb-10 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between',
+      'mb-10 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between',
       className,
     ].join(' ')}
   >
     <div className="min-w-0">
       {eyebrow ? (
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-red-800">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-accent">
           <span>{eyebrow}</span>
           <FoilMark className="text-slate-300" width={28} />
         </p>
