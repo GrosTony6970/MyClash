@@ -1,9 +1,13 @@
-import type { ClockStatus, MatchStatus } from '@myclash/types';
+import type { ClaimStatus, ClockStatus, MatchStatus } from '@myclash/types';
 import type { Translator } from '../types/translator';
 import type { TournamentStatus } from './status-pill';
 
 /** `events.status`: the five values of `events_status_check` (pinned by the test). */
 export type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'archived';
+
+/** `registrations.status`: the five values of `registration_status_check` (pinned by the test). */
+export type RegistrationStatus =
+  'registered' | 'checked_in' | 'withdrawn' | 'disqualified' | 'waitlist';
 
 /**
  * The one word for each state of each domain, in every app (quick win X1, operator ruling
@@ -45,11 +49,27 @@ const TOURNAMENT: Record<TournamentStatus, string> = {
   archived: 'common.status.tournament.archived',
 };
 
+const REGISTRATION: Record<RegistrationStatus, string> = {
+  registered: 'common.status.registration.registered',
+  checked_in: 'common.status.registration.checked_in',
+  withdrawn: 'common.status.registration.withdrawn',
+  disqualified: 'common.status.registration.disqualified',
+  waitlist: 'common.status.registration.waitlist',
+};
+
+const CLAIM: Record<ClaimStatus, string> = {
+  unclaimed: 'common.status.claim.unclaimed',
+  guest_active: 'common.status.claim.guest_active',
+  claimed: 'common.status.claim.claimed',
+};
+
 const STATUS_LABEL_KEYS = {
   match: MATCH,
   clock: CLOCK,
   event: EVENT,
   tournament: TOURNAMENT,
+  registration: REGISTRATION,
+  claim: CLAIM,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;

@@ -144,6 +144,15 @@ describe('the roster’s Tournament tab', () => {
     expect(container.textContent).toContain('MOREL');
   });
 
+  it("names a claim and a Registration's state in words, not as raw values (X1)", async () => {
+    await openRoster('tournamentId=t-2');
+    const chips = [...container.querySelectorAll('td span')].map((span) => span.textContent);
+    expect(chips).toContain('Unclaimed');
+    expect(chips).toContain('Registered');
+    expect(chips).not.toContain('unclaimed');
+    expect(chips).not.toContain('registered');
+  });
+
   it('opens on the Tournament its address names, and keeps that address', async () => {
     await openRoster('tournamentId=t-2');
     expect(pressedTab()).toBe('Sabre');

@@ -137,5 +137,17 @@ export const common = {
       completed: 'Completed',
       archived: 'Archived',
     },
+    registration: {
+      registered: 'Registered',
+      checked_in: 'Checked in',
+      withdrawn: 'Withdrawn',
+      disqualified: 'Disqualified',
+      waitlist: 'Waiting list',
+    },
+    claim: {
+      unclaimed: 'Unclaimed',
+      guest_active: 'Guest active',
+      claimed: 'Claimed',
+    },
   },
 } as const satisfies MessageTree;

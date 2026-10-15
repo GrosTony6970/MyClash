@@ -96,5 +96,17 @@ export const common = {
       completed: 'Terminé',
       archived: 'Archivé',
     },
+    registration: {
+      registered: 'Inscrit',
+      checked_in: 'Pointé',
+      withdrawn: 'Retiré',
+      disqualified: 'Disqualifié',
+      waitlist: "Liste d'attente",
+    },
+    claim: {
+      unclaimed: 'Non revendiqué',
+      guest_active: 'Invité actif',
+      claimed: 'Revendiqué',
+    },
   },
 } as const satisfies DeepString<typeof enCommon>;

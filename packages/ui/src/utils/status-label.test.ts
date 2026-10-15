@@ -33,6 +33,8 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   clock: ['idle', 'running', 'halted', 'ended'],
   event: ['draft', 'published', 'running', 'completed', 'archived'],
   tournament: ['draft', 'published', 'running', 'completed', 'archived'],
+  registration: ['registered', 'checked_in', 'withdrawn', 'disqualified', 'waitlist'],
+  claim: ['unclaimed', 'guest_active', 'claimed'],
 };
 
 function wordIn(tree: unknown, key: string): unknown {
@@ -63,6 +65,11 @@ describe('statusLabelKey', () => {
     expect([...STATES.event].sort()).toEqual(checkList('events_status_check'));
     // `tournaments.status` has no CHECK: the API's Event and Tournament DTOs take these same five.
     expect([...STATES.tournament].sort()).toEqual(checkList('events_status_check'));
+  });
+
+  it('knows exactly the states the database allows for a Registration and a claim', () => {
+    expect([...STATES.registration].sort()).toEqual(checkList('registration_status_check'));
+    expect([...STATES.claim].sort()).toEqual(checkList('persons_claim_status_check'));
   });
 
   it('says a paused bout and a halted clock with the same word, as ruled', () => {

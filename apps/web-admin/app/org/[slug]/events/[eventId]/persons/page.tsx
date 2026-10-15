@@ -13,8 +13,11 @@ import {
   TournamentColorDot,
   fuzzyMatch,
   nameOrUnknown,
+  statusLabel,
+  statusLabelKey,
   useConfirm,
   useToast,
+  type RegistrationStatus,
 } from '@myclash/ui';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
@@ -56,7 +59,7 @@ interface Registration {
   personId: string;
   tournamentId: string;
   tournamentName: string;
-  status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified' | 'waitlist';
+  status: RegistrationStatus;
   seed: number | null;
   /** Slice 5: position 1..N for waitlist entries; null otherwise. */
   waitlistPosition: number | null;
@@ -105,7 +108,6 @@ const CLAIM_COLORS: Record<string, string> = {
 const REG_STATUS_COLORS: Record<string, string> = {
   registered: 'bg-info/10 text-info',
   checked_in: 'bg-success/10 text-success',
-  done: 'bg-border text-foreground-secondary',
   withdrawn: 'bg-danger/10 text-danger',
   disqualified: 'bg-danger/10 text-danger',
 };
@@ -1543,7 +1545,7 @@ export default function ParticipantsPage() {
                                 CLAIM_COLORS[p.claimStatus] ?? '',
                               ].join(' ')}
                             >
-                              {p.claimStatus.replace('_', ' ')}
+                              {statusLabel('claim', p.claimStatus, t)}
                             </span>
                           </td>
                           <td className="py-2 pr-4">
@@ -1562,7 +1564,7 @@ export default function ParticipantsPage() {
                                       label={
                                         activeTab === 'all'
                                           ? r.tournamentName
-                                          : r.status.replace('_', ' ')
+                                          : statusLabel('registration', r.status, t)
                                       }
                                       tournamentName={r.tournamentName}
                                       color={tour?.color}
@@ -1633,19 +1635,19 @@ export default function ParticipantsPage() {
             </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
-                {t('admin.orgPersons.claimUnclaimed')}
+                {t(statusLabelKey('claim', 'unclaimed'))}
               </span>
               <span>{t('admin.orgPersons.claimUnclaimedHint')}</span>
             </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.guest_active} px-2 py-0.5 rounded-full font-medium`}>
-                {t('admin.orgPersons.claimGuestActive')}
+                {t(statusLabelKey('claim', 'guest_active'))}
               </span>
               <span>{t('admin.orgPersons.claimGuestActiveHint')}</span>
             </span>
             <span className="inline-flex items-center gap-2">
               <span className={`${CLAIM_COLORS.claimed} px-2 py-0.5 rounded-full font-medium`}>
-                {t('admin.orgPersons.claimClaimed')}
+                {t(statusLabelKey('claim', 'claimed'))}
               </span>
               <span>{t('admin.orgPersons.claimClaimedHint')}</span>
             </span>

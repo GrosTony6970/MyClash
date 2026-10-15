@@ -1,4 +1,5 @@
 import { csvRow } from '@myclash/types';
+import { statusLabelKey, type RegistrationStatus } from '@myclash/ui';
 
 /**
  * The roster's CSV (quick win O19, ruled 2026-10-14): exactly the rows on screen, one per
@@ -8,9 +9,6 @@ import { csvRow } from '@myclash/types';
  * With one Tournament's tab open, its status and seed get a column each. On "All", one
  * cell lists each Tournament with its status and seed.
  */
-
-export type RegistrationStatus =
-  'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified' | 'waitlist';
 
 export interface RosterExportRow {
   name: string;
@@ -72,16 +70,6 @@ export function rosterRows(
   });
 }
 
-// Literal keys, so the i18n sweep checks each word both ways.
-const STATUS_WORD: Record<RegistrationStatus, string> = {
-  registered: 'organizer.persons.export.status.registered',
-  checked_in: 'organizer.persons.export.status.checked_in',
-  done: 'organizer.persons.export.status.done',
-  withdrawn: 'organizer.persons.export.status.withdrawn',
-  disqualified: 'organizer.persons.export.status.disqualified',
-  waitlist: 'organizer.persons.export.status.waitlist',
-};
-
 function header(oneTournament: boolean, t: Translator): string[] {
   const name = t('organizer.persons.export.name');
   const club = t('organizer.persons.export.club');
@@ -101,7 +89,10 @@ function header(oneTournament: boolean, t: Translator): string[] {
 function tournamentsCell(entries: RosterExportRow['registrations'], t: Translator): string {
   return entries
     .map((entry) => {
-      const words = { tournament: entry.tournament, status: t(STATUS_WORD[entry.status]) };
+      const words = {
+        tournament: entry.tournament,
+        status: t(statusLabelKey('registration', entry.status)),
+      };
       return entry.seed === null
         ? t('organizer.persons.export.entry', words)
         : t('organizer.persons.export.entrySeeded', { ...words, seed: entry.seed });
@@ -123,7 +114,7 @@ export function rosterCsv(
       return csvRow([row.name, row.club ?? '', tournamentsCell(row.registrations, t), ...flags]);
     }
     const entry = row.registrations[0];
-    const status = entry ? t(STATUS_WORD[entry.status]) : '';
+    const status = entry ? t(statusLabelKey('registration', entry.status)) : '';
     return csvRow([row.name, row.club ?? '', status, entry?.seed ?? '', ...flags]);
   });
   return `\uFEFF${[csvRow(header(oneTournament, t)), ...lines].join('\r\n')}\r\n`;

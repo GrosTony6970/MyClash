@@ -325,12 +325,9 @@ export const admin = {
     edit: 'Modifier',
     delete: 'Supprimer',
     claimStatusLegend: 'Statut de revendication :',
-    claimUnclaimed: 'non revendiqué',
     claimUnclaimedHint:
       "pas encore de compte MyClash ; ajouté par l'organisateur, aucune revendication",
-    claimGuestActive: 'invité actif',
     claimGuestActiveHint: "session invité active (a suivi l'événement, sans compte permanent)",
-    claimClaimed: 'revendiqué',
     claimClaimedHint: 'lié à un véritable compte MyClash',
     addParticipantTitle: 'Ajouter un participant',
     searchGlobalProfiles: 'Rechercher des profils globaux par nom',
