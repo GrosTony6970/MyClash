@@ -3303,7 +3303,10 @@ export const organizer = {
     instructor: 'Instructor',
     category: 'Category',
     level: 'Level',
-    slots: 'Places',
+    booked: 'Booked',
+    capacity: 'Capacity',
+    venueRemoved: 'Venue removed',
+    areaRemoved: 'Area removed',
   },
   // The name of a field whose placeholder is no name (X5): an example, or nothing.
   fieldNames: {

@@ -3276,7 +3276,10 @@ export const organizer = {
     instructor: 'Instructeur',
     category: 'Catégorie',
     level: 'Niveau',
-    slots: 'Places',
+    booked: 'Inscrits',
+    capacity: 'Capacité',
+    venueRemoved: 'Lieu supprimé',
+    areaRemoved: 'Espace supprimé',
   },
   fieldNames: {
     startTime: 'Heure de début',

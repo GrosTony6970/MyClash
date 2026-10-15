@@ -457,8 +457,13 @@ export function WorkshopScheduleBoard({
         t('organizer.csvColumns.instructor'),
         t('organizer.csvColumns.category'),
         t('organizer.csvColumns.level'),
-        t('organizer.csvColumns.slots'),
+        t('organizer.csvColumns.booked'),
+        t('organizer.csvColumns.capacity'),
       ],
+      {
+        venue: t('organizer.csvColumns.venueRemoved'),
+        area: t('organizer.csvColumns.areaRemoved'),
+      },
       format,
     );
     downloadCsv('workshops.csv', csv);

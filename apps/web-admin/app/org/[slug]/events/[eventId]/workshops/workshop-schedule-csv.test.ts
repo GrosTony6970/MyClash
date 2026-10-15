@@ -62,32 +62,49 @@ describe('workshopScheduleToCsv', () => {
     'Instructeur',
     'Catégorie',
     'Niveau',
-    'Places',
+    'Inscrits',
+    'Capacité',
   ] as const;
-  const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS, CSV_STANDARD);
+  const REMOVED = { venue: 'Lieu supprimé', area: 'Espace supprimé' };
+  const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS, REMOVED, CSV_STANDARD);
   const lines = csv.slice(1).replace(/\r\n$/, '').split('\r\n');
 
   it('starts with the byte-order mark and the given header, and excludes unscheduled workshops', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    expect(lines[0]).toBe('Jour,Lieu,Espace,Début,Fin,Atelier,Instructeur,Catégorie,Niveau,Places');
+    expect(lines[0]).toBe(
+      'Jour,Lieu,Espace,Début,Fin,Atelier,Instructeur,Catégorie,Niveau,Inscrits,Capacité',
+    );
     expect(lines).toHaveLength(3); // header + 2 scheduled
   });
 
   it('sorts by day, then venue, then start (Annex before Main Hall)', () => {
-    expect(lines[1]).toBe('2027-06-01,Annex,,08:00,,"Jeux, de mains",,,,3');
+    expect(lines[1]).toBe('2027-06-01,Annex,,08:00,,"Jeux, de mains",,,,3,');
   });
 
-  it('formats 24h times in the event tz and shows slots/capacity', () => {
+  // "8/20" in one cell read as a date in French Excel (ruled 2026-10-15: two number columns).
+  it('formats 24h times in the event tz, and the places booked and the capacity as two numbers', () => {
     expect(lines[2]).toBe(
-      '2027-06-01,Main Hall,Mat B,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8/20',
+      '2027-06-01,Main Hall,Mat B,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8,20',
     );
   });
 
   it('for French Excel, splits on ; and quotes the instructors cell, whose names it joins with ;', () => {
     const two = [{ ...workshops[0]!, instructorNames: ['Rémi Arbache', 'Ana Roux'] }];
-    const french = workshopScheduleToCsv(two, venues, TZ, HEADERS, CSV_EXCEL_FR);
+    const french = workshopScheduleToCsv(two, venues, TZ, HEADERS, REMOVED, CSV_EXCEL_FR);
     expect(french.slice(1).split('\r\n')[1]).toBe(
-      '2027-06-01;Main Hall;Mat B;09:00;10:30;Longsword Basics;"Rémi Arbache; Ana Roux";Longsword;beginner;8/20',
+      '2027-06-01;Main Hall;Mat B;09:00;10:30;Longsword Basics;"Rémi Arbache; Ana Roux";Longsword;beginner;8;20',
+    );
+  });
+
+  // A deleted venue was written as its database id (ruled 2026-10-15: "Venue removed").
+  it('writes a venue or an area deleted since in words, never its id', () => {
+    const session = { ...workshops[0]!.sessions[0]!, venueId: 'v-gone', areaId: 'a-gone' };
+    const gone = [{ ...workshops[0]!, sessions: [session] }];
+    const line = workshopScheduleToCsv(gone, venues, TZ, HEADERS, REMOVED, CSV_STANDARD)
+      .slice(1)
+      .split('\r\n')[1];
+    expect(line).toBe(
+      '2027-06-01,Lieu supprimé,Espace supprimé,09:00,10:30,Longsword Basics,Rémi Arbache,Longsword,beginner,8,20',
     );
   });
 });
