@@ -195,6 +195,13 @@ describe('unsavedParts', () => {
     expect(unsavedParts(workshopVenue, [], first.progress)).toEqual(['venue', 'pistes', 'areas']);
   });
 
+  // Review, 2026-10-16: every piste removed after the refusal, and still "the pistes".
+  it('names no pistes when the organiser removed them all', async () => {
+    const venues = server(['POST /api/v1/organizations/org-1/venues']);
+    const first = await run(FORM, NO_PROGRESS, venues.send);
+    expect(unsavedParts({ ...FORM, liceNames: [] }, [], first.progress)).toEqual(['venue']);
+  });
+
   it('names the pistes alone when one piste was refused', async () => {
     const first = await run(
       FORM,

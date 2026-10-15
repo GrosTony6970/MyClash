@@ -120,7 +120,7 @@ export function unsavedParts(
   if (newVenue && progress.madeVenue?.sent !== JSON.stringify(newVenue)) {
     // The venue is not made as it stands: nothing that hangs on it is either.
     parts.push('venue');
-    if (newVenue.hostsTournament) parts.push('pistes');
+    if (newVenue.hostsTournament && state.liceNames.length > 0) parts.push('pistes');
     if (newVenue.hostsWorkshop && state.areaNames.length > 0) parts.push('areas');
     return parts;
   }
