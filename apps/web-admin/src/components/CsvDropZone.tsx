@@ -2,12 +2,12 @@
 
 /**
  * The box of a CSV import (O18, ruled 2026-10-14): a file is picked with the button OR
- * dropped on the box. Only a `.csv` is taken, whichever way it came: another file is refused
+ * dropped on the page while the box is up. Only a `.csv` is taken, whichever way it came: another file is refused
  * with its name and the reason, and several dropped at once are refused. A refused file
  * leaves the file already picked as it was. Both CSV imports (an Event's roster, the super
  * admin's Global Profiles) use this box.
  */
-import { useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 
 type Refusal = { kind: 'not_csv'; name: string } | { kind: 'several' };
@@ -87,6 +87,37 @@ function PickStatus({ file, refusal }: { file: File | null; refusal: Refusal | n
   );
 }
 
+/**
+ * A file dropped anywhere on the page goes to `onFiles` while the caller is mounted (ruled
+ * 2026-10-15): it used to open in the tab, and the page was lost. Both listeners are needed:
+ * without the drag-over's, the browser never lets the drop happen, and without the drop's, it
+ * opens the file. A drag of text is left alone, so it still drops into a field.
+ */
+function usePageFileDrop(onFiles: (files: FileList) => void) {
+  // The window's listeners read the latest `onFiles`: it closes over the caller's render.
+  const onFilesNow = useRef(onFiles);
+  useEffect(() => {
+    onFilesNow.current = onFiles;
+  });
+  useEffect(() => {
+    const carriesFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false;
+    const over = (e: DragEvent) => {
+      if (carriesFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      onFilesNow.current(e.dataTransfer!.files);
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', drop);
+    };
+  }, []);
+}
+
 export function CsvDropZone({
   file,
   onFile,
@@ -109,15 +140,10 @@ export function CsvDropZone({
     if (picked instanceof File) onFile(picked);
   }
 
-  // Both are needed: without the drag-over's, the browser never lets the drop happen, and
-  // without the drop's, it opens the dropped file in place of the page.
+  usePageFileDrop(take);
+
   return (
     <div
-      onDragOver={(e: DragEvent) => e.preventDefault()}
-      onDrop={(e: DragEvent) => {
-        e.preventDefault();
-        take(e.dataTransfer.files);
-      }}
       data-testid="csv-drop-zone"
       className="border-2 border-dashed border-border rounded-xl p-8 text-center"
     >

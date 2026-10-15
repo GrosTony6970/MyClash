@@ -49,12 +49,17 @@ const zone = () => container.querySelector<HTMLElement>('[data-testid="csv-drop-
 const csv = (name = 'roster.csv') => new File(['given_name\n'], name, { type: 'text/csv' });
 
 /** A drag event as the browser sends it; true when nothing prevented its default. */
-async function send(type: 'dragover' | 'drop', files: File[] = []): Promise<boolean> {
+async function send(
+  type: 'dragover' | 'drop',
+  files: File[] = [],
+  on: EventTarget = zone(),
+  types = ['Files'],
+): Promise<boolean> {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, 'dataTransfer', { value: { files, types: ['Files'] } });
+  Object.defineProperty(event, 'dataTransfer', { value: { files, types } });
   let notPrevented = true;
   await act(async () => {
-    notPrevented = zone().dispatchEvent(event);
+    notPrevented = on.dispatchEvent(event);
   });
   return notPrevented;
 }
@@ -66,6 +71,19 @@ describe('the box of a CSV import', () => {
     expect(picked?.name).toBe('Roster.CSV');
     expect(zone().textContent).toContain('Roster.CSV');
     expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  // A file dropped just outside the box opened in the tab, and the page was lost (ruled
+  // 2026-10-15: a file dropped anywhere on the import page is imported).
+  it('takes a .csv dropped anywhere on the page, outside the box too', async () => {
+    expect(await send('dragover', [], document.body)).toBe(false);
+    expect(await send('drop', [csv()], document.body)).toBe(false);
+    expect(picked?.name).toBe('roster.csv');
+  });
+
+  it('leaves a drag of text alone: it still drops into a field', async () => {
+    expect(await send('dragover', [], document.body, ['text/plain'])).toBe(true);
+    expect(await send('drop', [], document.body, ['text/plain'])).toBe(true);
   });
 
   it('refuses another file, with its name and the reason, and keeps the file picked', async () => {
