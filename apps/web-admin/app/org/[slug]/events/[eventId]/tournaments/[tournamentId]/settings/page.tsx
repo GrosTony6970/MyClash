@@ -48,7 +48,7 @@ export default function TournamentSettingsPage() {
   // switch, a link or closing the browser tab asks first.
   const [dirty, setDirty] = useState(false);
   const { askToLeave, confirmDialog } = useLeaveGuard(dirty, { t, navigate: router.push });
-  const name = useTournamentName(params.tournamentId);
+  const [name, setName] = useTournamentName(params.tournamentId);
   const tab = { tournamentId: params.tournamentId, readOnly: isReadOnly, onDirtyChange: setDirty };
   const [active, setActive] = useState<TabKey>('basics');
 
@@ -107,7 +107,7 @@ export default function TournamentSettingsPage() {
         </nav>
 
         <section>
-          {active === 'basics' && <BasicsTab {...tab} />}
+          {active === 'basics' && <BasicsTab {...tab} onNameSaved={setName} />}
           {active === 'match-format' && <MatchFormatTab {...tab} />}
           {active === 'venues' && <TournamentVenuesEditor {...tab} eventId={params.eventId} />}
           {active === 'display' && <DisplayTab {...tab} />}
@@ -121,8 +121,11 @@ export default function TournamentSettingsPage() {
   );
 }
 
-/** The Tournament's name, for the header; null until it is read, and if the read fails. */
-function useTournamentName(tournamentId: string): string | null {
+/**
+ * The Tournament's name, for the header; null until it is read, and if the read fails. The
+ * setter takes the name Basics saved: the header used to keep the old one.
+ */
+function useTournamentName(tournamentId: string): [string | null, (name: string) => void] {
   const [name, setName] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
@@ -133,5 +136,5 @@ function useTournamentName(tournamentId: string): string | null {
       current = false;
     };
   }, [tournamentId]);
-  return name;
+  return [name, setName];
 }

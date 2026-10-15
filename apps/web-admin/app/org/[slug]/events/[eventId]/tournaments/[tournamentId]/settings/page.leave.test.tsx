@@ -150,4 +150,14 @@ describe('the settings of a Tournament ask before an edit is lost', () => {
     await openTab('basics');
     expect(document.body.querySelector('h1')?.textContent).toBe('Longsword');
   });
+
+  // The header kept the old name after Basics saved a new one.
+  it('names it by its new name once Basics saves one', async () => {
+    await openTab('basics');
+    const name = document.body.querySelector<HTMLInputElement>('section input')!;
+    act(() => type(name, 'Longsword Open'));
+    await tap('Save changes');
+    expect(page.writes()).toEqual([SAVE]);
+    expect(document.body.querySelector('h1')?.textContent).toBe('Longsword Open');
+  });
 });

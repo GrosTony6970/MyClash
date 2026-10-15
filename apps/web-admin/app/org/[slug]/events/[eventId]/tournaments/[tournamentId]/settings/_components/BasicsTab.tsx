@@ -38,7 +38,15 @@ interface TournamentBasics {
 
 const apiUrl = getPublicApiUrl();
 
-export function BasicsTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
+export function BasicsTab({
+  tournamentId,
+  readOnly,
+  onDirtyChange,
+  onNameSaved,
+}: TabProps & {
+  /** The name the server took: the page's header shows it. */
+  onNameSaved?: (name: string) => void;
+}) {
   const { t } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string }>();
@@ -160,6 +168,7 @@ export function BasicsTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
             }
           : saved,
       );
+      onNameSaved?.(sent.name);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);
