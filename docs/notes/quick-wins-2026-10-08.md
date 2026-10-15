@@ -2758,17 +2758,16 @@ Each needs a run, a device or a ruling, not a read:
   360px; long names on a 720p TV; the F13 cache rule on a production build.
 - No cold review ran after the doubles-limit review's three fixes.
 
-### Questions for the operator
+### Rulings — operator, 2026-10-15 evening
 
-- **The pad's "End round" before a hit arrives.** The official taps a hit, then "End round" a
-  moment later, before the hit shows. The tablet says "Scores are level" and refuses
-  (`usePadRounds.ts:196-206`). Should it wait for the hit, or keep refusing?
-- **Ctrl+Z on the schedule board.** The organiser deletes a bar and presses Ctrl+Z before the
-  server answers. Nothing happens and nothing is said (`schedule/useScheduleUndo.ts:113-115`).
-  Should it say "wait", or undo once the answer lands?
-- **The undo's words "which hit".** The wording on the round-break screen is the builder's, never
-  ruled (`:967` above).
-- **The email link wins** stays ruled and not built: it needs three more rulings first (`:1614`).
+| Row             | Story                                                                                                                                                                                          | Ruling                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Order           | About 200 items still hold.                                                                                                                                                                    | **The ten above first, then the rest one app at a time**, with a ruling round before each app.                            |
+| Pad "End round" | Round 1 at 2 – 2. The official taps a hit for red and, half a second later, "End round", before 3 – 2 shows. Today the tablet says "Scores are level" and refuses (`usePadRounds.ts:196-206`). | **Count the hit first.** The tablet judges with the hit it just took: 3 – 2, the round ends for red.                      |
+| Board Ctrl+Z    | The organiser deletes a bar by mistake and presses Ctrl+Z before the server answers the delete. Today nothing happens and nothing is said (`schedule/useScheduleUndo.ts:113-115`).             | **Undo when it lands.** The early Ctrl+Z is remembered; once the server answers the delete, the bar comes back by itself. |
+| Undo words      | Best-of-3, round 1 closed at 2 – 0; "Undo last entry" on the round-break screen.                                                                                                               | **Keep it**: "Cancelled: {entry}. Round {round} stays closed." — the entry named as the corrections list names it.        |
+
+**The email link wins** stays ruled and not built: it needs three more rulings first (`:1614`).
 
 ### Fixed since they were named
 
