@@ -68,6 +68,7 @@ describe('the picker search', () => {
           <CandidatePicker
             pool={{ name: 'Pool A', tournamentName: 'Longsword' }}
             slot={SLOT}
+            skillNameById={new Map()}
             refusal={null}
             busy={false}
             onAssign={vi.fn()}
@@ -132,6 +133,7 @@ describe('the picker of a board', () => {
   async function open(
     manualAssign: (...args: [string, string, string, boolean]) => Promise<AssignAnswer>,
     busy = false,
+    slot = SLOT,
   ) {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     onClose.mockReset();
@@ -144,10 +146,11 @@ describe('the picker of a board', () => {
           <BoardCandidatePicker
             target={{
               pool: { id: 'pool-a', name: 'Pool A', tournamentName: 'Longsword' },
-              slot: SLOT,
+              slot,
             }}
             manualAssign={manualAssign}
             busy={busy}
+            skillNameById={new Map([['custom-8f2a', 'Ring steward']])}
             onClose={onClose}
           />
         </I18nProvider>,
@@ -217,6 +220,24 @@ describe('the picker of a board', () => {
       ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
     ].find((b) => b.textContent === 'Cancel')!;
     expect(cancel.disabled).toBe(true);
+  });
+
+  it("names the slot by its role's name, and a role whose name is gone as removed", async () => {
+    const title = () => document.body.querySelector('[role="dialog"] h2')?.textContent;
+    await open(
+      vi.fn(async () => SAVED),
+      false,
+      { ...SLOT, displayName: null, role: 'custom-8f2a' },
+    );
+    expect(title()).toBe('Pool A - Ring steward');
+    act(() => root.unmount());
+    container.remove();
+    await open(
+      vi.fn(async () => SAVED),
+      false,
+      { ...SLOT, displayName: null, role: 'custom-0bad' },
+    );
+    expect(title()).toBe('Pool A - Role removed');
   });
 
   it('offers nothing to pick while the board is busy', async () => {

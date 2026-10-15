@@ -79,9 +79,10 @@ export interface SkillHealth {
   shortBy: number;
 }
 
+/** `roleName` words a skill id as a person reads it: `refereeRoleName`. */
 export function summariseRosterHealth(
   board: RosterBoardLike,
-  skillNameById: Map<string, string>,
+  roleName: (skillId: string) => string,
 ): SkillHealth[] {
   const slotsOpenBySkill = new Map<string, number>();
   for (const pool of board.pools) {
@@ -105,7 +106,7 @@ export function summariseRosterHealth(
     const qualifiedCount = qualifiedBySkill.get(skillId)?.size ?? 0;
     out.push({
       skillId,
-      skillName: skillNameById.get(skillId) ?? skillId,
+      skillName: roleName(skillId),
       slotsOpen,
       qualifiedCount,
       shortBy: Math.max(0, slotsOpen - qualifiedCount),

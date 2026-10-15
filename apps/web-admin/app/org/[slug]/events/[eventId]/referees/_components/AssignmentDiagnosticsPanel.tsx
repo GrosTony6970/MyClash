@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { nameOrUnknown } from '@myclash/ui';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
+import { refereeRoleName } from '@/lib/referee-role-name';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
@@ -79,14 +80,13 @@ function hhmm(iso: string | null, locale: AppLocale): string {
 export function AssignmentDiagnosticsPanel({
   board,
   skillNameById,
-  roleLabel,
   ruleSettings,
   onChangeRule,
   togglesDisabled,
 }: {
   board: DiagnosticsBoard;
-  skillNameById: Map<string, string>;
-  roleLabel?: (role: string) => string;
+  /** The Event's names of its referee skills: a role is named by `refereeRoleName`. */
+  skillNameById: ReadonlyMap<string, string>;
   /** Per-rule enabled state (from pool-assignment-settings). When provided,
    *  the rules footer becomes a checkbox list with descriptions. */
   ruleSettings?: RuleSettings;
@@ -94,8 +94,9 @@ export function AssignmentDiagnosticsPanel({
   togglesDisabled?: boolean;
 }) {
   const { locale, t } = useI18n();
+  const label = (role: string) => refereeRoleName(role, t, skillNameById);
   const summary = summariseBoard(board);
-  const roster = summariseRosterHealth(board, skillNameById);
+  const roster = summariseRosterHealth(board, label);
   if (summary.totalSlots === 0) return null;
 
   const coverage =
@@ -111,7 +112,6 @@ export function AssignmentDiagnosticsPanel({
   const conflicts = board.conflicts ?? [];
   const capacityWarnings = board.capacityWarnings ?? [];
   const deadEndSlots = board.deadEndSlots ?? [];
-  const label = (role: string) => (roleLabel ? roleLabel(role) : role);
 
   const status = boardHealthStatus({
     openSlots: summary.totalSlots - summary.filledSlots,

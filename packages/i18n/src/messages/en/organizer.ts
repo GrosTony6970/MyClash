@@ -3055,6 +3055,7 @@ export const organizer = {
   },
   refereesPage: {
     addCustomSkill: 'Add custom skill',
+    roleRemoved: 'Role removed',
     tabs: {
       referees: 'List',
       qualifications: 'Qualifications',

@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { slotRoleName } from '@/lib/referee-role-name';
 import { nameOrUnknown } from '@myclash/ui';
 import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
@@ -158,6 +159,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           target={picker}
           manualAssign={manualAssign}
           busy={busy}
+          skillNameById={skillNameById}
           onClose={() => setPicker(null)}
         />
       )}
@@ -253,7 +255,7 @@ function BracketMatchCard({
             ].join(' ')}
           >
             <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
-              {slot.displayName ?? skillNameById.get(slot.role) ?? slot.role}
+              {slotRoleName(slot, t, skillNameById)}
             </p>
             {slot.assignment ? (
               <div className="mt-1 flex items-center justify-between gap-2">

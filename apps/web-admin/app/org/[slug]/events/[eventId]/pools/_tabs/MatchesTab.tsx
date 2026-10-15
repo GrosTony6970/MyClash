@@ -19,6 +19,7 @@ import { countPoolFighters } from './count-pool-fighters';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
 import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { refereeRoleName } from '@/lib/referee-role-name';
 import { useRefereeWrite } from '@/hooks/useRefereeWrite';
 import { RefereeWriteNotice } from '@/components/RefereeRefusalNotice';
 import { matchVisible } from './match-filter';
@@ -530,7 +531,7 @@ export function MatchesTab({
                             referees QUALIFIED for that role. */}
                         {roleConfig.map((role) => (
                           <th key={role.id} className={`w-32 px-4 py-2 ${HEAD_ROW_TH}`}>
-                            {role.displayName}
+                            {role.displayName || refereeRoleName(role.id, t)}
                           </th>
                         ))}
                         <th className={`w-10 px-4 py-2 ${HEAD_ROW_TH}`} />

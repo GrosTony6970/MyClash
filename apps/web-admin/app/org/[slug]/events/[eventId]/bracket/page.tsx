@@ -41,6 +41,7 @@ import {
 } from './DoubleElimPodiumOptions';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { slotRoleName } from '@/lib/referee-role-name';
 import { withTournament } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { correctionFailureMessage } from '@/lib/correction-refusal';
@@ -578,15 +579,6 @@ export default function BracketPage() {
     for (const s of refereeSkills) if (s.name) map.set(s.id, s.name);
     return map;
   }, [refereeSkills]);
-
-  // Resolve a referee role slot to a human label: operator-typed slot name >
-  // DB skill name > i18n label for the three built-in roles > raw key.
-  const roleLabel = (role: string): string => {
-    const fromSkill = skillNameById.get(role);
-    if (fromSkill) return fromSkill;
-    const builtin = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
-    return builtin.includes(role) ? t(`organizer.eventCompensation.roles.${role}`) : role;
-  };
 
   // Role slots for the match being edited (from the board), for the modal.
   // Plain derived value — cheap, and the React Compiler handles memoization.
@@ -1740,7 +1732,7 @@ export default function BracketPage() {
                       className="flex items-center justify-between gap-3 text-sm"
                     >
                       <span className="font-semibold text-foreground-secondary">
-                        {rs.displayName ?? roleLabel(rs.role)}
+                        {slotRoleName(rs, t, skillNameById)}
                       </span>
                       <select
                         value={value}

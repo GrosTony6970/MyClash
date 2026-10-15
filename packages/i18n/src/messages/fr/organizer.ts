@@ -3028,6 +3028,7 @@ export const organizer = {
   },
   refereesPage: {
     addCustomSkill: 'Ajouter une compétence personnalisée',
+    roleRemoved: 'Rôle supprimé',
     tabs: {
       referees: 'Liste',
       qualifications: 'Qualifications',

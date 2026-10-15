@@ -674,17 +674,19 @@ export class AssignmentBoardService {
 
     if (orderedDistinct.length === 0) return { roles: [] };
 
-    const { data: skills } = await this.supabase.service
+    const { data: skills, error } = await this.supabase.service
       .from('referee_skills')
       .select('id, name')
       .in('id', orderedDistinct);
+    if (error) throw new BadRequestException(error.message);
 
     const nameById = new Map<string, string>(
       ((skills ?? []) as Array<{ id: string; name: string }>).map((s) => [s.id, s.name]),
     );
 
+    // A skill deleted since has no name: the page words it ("Role removed"), never the id.
     return {
-      roles: orderedDistinct.map((id) => ({ id, displayName: nameById.get(id) ?? id })),
+      roles: orderedDistinct.map((id) => ({ id, displayName: nameById.get(id) ?? '' })),
     };
   }
 

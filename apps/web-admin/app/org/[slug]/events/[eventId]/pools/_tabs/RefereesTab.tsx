@@ -172,6 +172,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           target={picker}
           manualAssign={manualAssign}
           busy={busy}
+          skillNameById={skillNameById}
           onClose={() => setPicker(null)}
         />
       )}

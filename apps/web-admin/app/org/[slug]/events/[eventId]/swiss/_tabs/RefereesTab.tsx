@@ -159,6 +159,7 @@ export function RefereesTab({
           target={picker}
           manualAssign={manualAssign}
           busy={busy}
+          skillNameById={skillNameById}
           onClose={() => setPicker(null)}
         />
       )}

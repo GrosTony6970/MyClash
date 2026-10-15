@@ -13,6 +13,7 @@
 
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { slotRoleName } from '@/lib/referee-role-name';
 import { nameOrUnknown } from '@myclash/ui';
 import type { RefereeReason, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
 import { RefereeReasons } from '@/components/RefereeReasons';
@@ -148,7 +149,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
               ].join(' ')}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
-                {slot.displayName ?? skillNameById.get(slot.role) ?? slot.role}
+                {slotRoleName(slot, t, skillNameById)}
               </p>
               {slot.assignment ? (
                 <div className="mt-1 flex items-center justify-between gap-2">

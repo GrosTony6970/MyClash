@@ -31,7 +31,8 @@ interface BoardPickerProps {
   ) => Promise<AssignAnswer>;
   /** The board itself is saving something else. */
   busy: boolean;
-  slotLabel?: string;
+  /** The Event's names of its referee skills, to name the slot. */
+  skillNameById: ReadonlyMap<string, string>;
   onClose: () => void;
 }
 
@@ -39,7 +40,7 @@ export function BoardCandidatePicker({
   target,
   manualAssign,
   busy,
-  slotLabel,
+  skillNameById,
   onClose,
 }: BoardPickerProps) {
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function BoardCandidatePicker({
     <CandidatePicker
       pool={target.pool}
       slot={target.slot}
-      slotLabel={slotLabel}
+      skillNameById={skillNameById}
       refusal={refusal}
       busy={busy || sending}
       onAssign={(personId, confirm) => void assign(personId, confirm)}

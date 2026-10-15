@@ -52,11 +52,11 @@ describe('summariseRosterHealth', () => {
       ],
       candidates: [{ personId: 'p1', qualifications: [{ role: 'arbitre_declarant', rating: 4 }] }],
     };
-    const health = summariseRosterHealth(board, new Map([['arbitre_declarant', 'Declarant']]));
+    const health = summariseRosterHealth(board, (role) => `${role} named`);
     expect(health).toEqual([
       {
         skillId: 'arbitre_declarant',
-        skillName: 'Declarant',
+        skillName: 'arbitre_declarant named',
         slotsOpen: 2,
         qualifiedCount: 1,
         shortBy: 1,
@@ -72,7 +72,7 @@ describe('summariseRosterHealth', () => {
         { personId: 'p2', qualifications: [{ role: 'arbitre_table', rating: 4 }] },
       ],
     };
-    const health = summariseRosterHealth(board, new Map([['arbitre_table', 'Table']]));
+    const health = summariseRosterHealth(board, () => 'Table');
     expect(health[0]?.shortBy).toBe(0);
   });
 });

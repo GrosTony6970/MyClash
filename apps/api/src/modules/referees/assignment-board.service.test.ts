@@ -940,6 +940,32 @@ describe('AssignmentBoardService', () => {
         { id: 'custom_skill_1', displayName: 'Chronométreur' },
       ]);
     });
+
+    // A skill deleted since: the page says "Role removed" in its reader's language, never
+    // the id (ruled 2026-10-15). The server knows no language: it sends the name blank.
+    const oneSlot = {
+      pool: [{ index: 1, displayName: null, allowedSkillIds: ['custom-0bad'] }],
+      bracket: [],
+      finals: [],
+      inheritsEventDefault: false,
+      isHardCodedFloor: false,
+    };
+
+    it('sends a role whose skill is gone with no name, never its id', async () => {
+      mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValueOnce(oneSlot);
+      fromMock.mockReturnValueOnce(makeChain({ data: [], error: null }));
+
+      const result = await service.getPoolMatchRoleConfig('tournament-1');
+
+      expect(result.roles).toEqual([{ id: 'custom-0bad', displayName: '' }]);
+    });
+
+    it('throws when the names cannot be read, rather than send every role nameless', async () => {
+      mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValueOnce(oneSlot);
+      fromMock.mockReturnValueOnce(makeChain({ data: null, error: { message: 'down' } }));
+
+      await expect(service.getPoolMatchRoleConfig('tournament-1')).rejects.toThrow('down');
+    });
   });
 
   // ── Clear assignments ─────────────────────────────────────────────────

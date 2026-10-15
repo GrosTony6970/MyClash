@@ -103,9 +103,7 @@ type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'staffing' | 'assignm
 /**
  * `AssignmentRole` was a hard-coded enum (the 3 legacy roles); R2 of the
  * staffing overhaul loosens it to any `referee_skills.id` string so the
- * board can carry custom slots. The legacy `roleLabel` helper still
- * recognises the 3 well-known IDs and falls back to the raw string for
- * everything else.
+ * board can carry custom slots. `refereeRoleName` words any of them.
  */
 type AssignmentRole = string;
 
@@ -481,21 +479,6 @@ function SkillModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-// Takes the translator: this is module scope, where no hook can run, and the
-// module-level `t` is permanently English.
-function roleLabel(t: Translator, role: AssignmentRole, skillNameById?: Map<string, string>) {
-  // Resolution chain (per the "don't display IDs to humans" rule):
-  //   1. operator-typed skill name from referee_skills.name
-  //   2. legacy hand-written translation for built-in roles
-  //   3. raw role string as a dev-only last resort — operators should
-  //      never normally see this.
-  const known = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
-  const skillName = skillNameById?.get(role);
-  if (skillName) return skillName;
-  if (known.includes(role)) return t(`organizer.eventCompensation.roles.${role}`);
-  return role;
-}
-
 function formatTime(t: Translator, value: string | null, locale: AppLocale) {
   if (!value) return t('organizer.refereesPage.unscheduled');
   return new Intl.DateTimeFormat(localeToBcp47(locale), {
@@ -516,7 +499,7 @@ function AssignmentsTab({
   isReadOnly: boolean;
   /**
    * Resolves a slot's role (a skill id) back to the operator-typed name.
-   * Falls back through roleLabel() if missing — see the rule documented
+   * Falls back through refereeRoleName() if missing — see the rule documented
    * in feedback_no_raw_ids_in_ui.md.
    */
   skillNameById: Map<string, string>;
@@ -1384,7 +1367,6 @@ function AssignmentsTab({
               <AssignmentDiagnosticsPanel
                 board={board}
                 skillNameById={skillNameById}
-                roleLabel={(role) => roleLabel(t, role, skillNameById)}
                 {...(ruleSettings ? { ruleSettings } : {})}
                 onChangeRule={(key, value) => void changeRule(key, value)}
                 togglesDisabled={isReadOnly || running || previewing}
@@ -1441,7 +1423,7 @@ function AssignmentsTab({
       {picker && (
         <BoardCandidatePicker
           target={picker}
-          slotLabel={picker.slot.displayName ?? roleLabel(t, picker.slot.role, skillNameById)}
+          skillNameById={skillNameById}
           manualAssign={manualAssign}
           busy={running}
           onClose={() => setPicker(null)}
@@ -1553,7 +1535,7 @@ export default function RefereesPage() {
   } | null>(null);
   /**
    * id → human name lookup for resolving a slot's role (a skill id) back
-   * to the operator-typed name. Fed into roleLabel() at every assignment
+   * to the operator-typed name. Fed into refereeRoleName() at every assignment
    * render site so custom skills never surface as raw ids like
    * `custom-bed9d10f-a1b2c3`.
    */

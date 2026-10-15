@@ -17,6 +17,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { Modal, nameOrUnknown } from '@myclash/ui';
 import { PageAlert, errorOutcome } from '@/components/PageAlert';
 import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
+import { slotRoleName } from '@/lib/referee-role-name';
 import { filterCandidates } from './candidate-filter';
 import type {
   AssignmentBoardPool,
@@ -27,7 +28,7 @@ import type {
 export function CandidatePicker({
   pool,
   slot,
-  slotLabel,
+  skillNameById,
   refusal,
   busy,
   onAssign,
@@ -35,8 +36,8 @@ export function CandidatePicker({
 }: {
   pool: Pick<AssignmentBoardPool, 'name' | 'tournamentName'>;
   slot: AssignmentBoardRoleSlot;
-  /** The slot's name as the screen shows it; the slot's own display name by default. */
-  slotLabel?: string;
+  /** The Event's names of its referee skills: the slot is named by `slotRoleName`. */
+  skillNameById: ReadonlyMap<string, string>;
   /** Why the last pick was refused, shown in the picker itself (O8). */
   refusal: string | null;
   /** An assignment is out: nothing can be picked. */
@@ -54,7 +55,7 @@ export function CandidatePicker({
       onClose={onCancel}
       busy={busy}
       size="lg"
-      title={`${pool.name} - ${slotLabel ?? slot.displayName ?? slot.role}`}
+      title={`${pool.name} - ${slotRoleName(slot, t, skillNameById)}`}
       description={pool.tournamentName}
       footer={
         <button
