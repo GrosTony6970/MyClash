@@ -366,8 +366,8 @@ export function RulesetForm({
             value={matchFormatDefaults.timerMode}
             disabled={disabled}
             options={[
-              { value: 'countdown', label: 'Countdown' },
-              { value: 'countup', label: 'Count-up' },
+              { value: 'countdown', label: t('admin.srcComponents.timerModeCountdown') },
+              { value: 'countup', label: t('admin.srcComponents.timerModeCountup') },
             ]}
             onChange={(v) =>
               setMatchFormatDefaults({
@@ -381,8 +381,11 @@ export function RulesetForm({
             value={matchFormatDefaults.scoringDirection}
             disabled={disabled}
             options={[
-              { value: 'normal', label: 'Normal' },
-              { value: 'reverse_zero_loses', label: 'Reverse (zero loses)' },
+              { value: 'normal', label: t('admin.srcComponents.scoringDirectionNormal') },
+              {
+                value: 'reverse_zero_loses',
+                label: t('admin.srcComponents.scoringDirectionReverse'),
+              },
             ]}
             onChange={(v) =>
               setMatchFormatDefaults({

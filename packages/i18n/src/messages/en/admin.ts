@@ -462,7 +462,11 @@ export const admin = {
       'Defaults that a new tournament inherits when this ruleset is selected. Operators can still override any of these per tournament from the Match-format settings tab.',
     pointCapLabel: 'Point cap',
     timerModeLabel: 'Timer mode',
+    timerModeCountdown: 'Countdown',
+    timerModeCountup: 'Count-up',
     scoringDirectionLabel: 'Scoring direction',
+    scoringDirectionNormal: 'Normal',
+    scoringDirectionReverse: 'Reverse (zero loses)',
     timeLimitPoolLabel: 'Time limit · pool (s)',
     timeLimitBracketLabel: 'Time limit · bracket (s)',
     timeLimitFinalsLabel: 'Time limit · finals (s)',
@@ -1189,6 +1193,12 @@ export const admin = {
       'Compose a formula using the variable and operator chips. The formula is evaluated per fighter.',
     formulaEmpty: 'No tokens yet. Add a variable or a number to start.',
     formulaInvalid: 'Formula is invalid.',
+    // Why the formula editor cannot read what was composed.
+    formulaError: {
+      empty: 'Empty formula',
+      invalid: 'Invalid expression',
+      parens: 'Mismatched parentheses',
+    },
     tiebreakersTitle: 'Tie-breakers',
     tiebreakersHelp:
       'Applied in order when fighters have the same score. Highest = larger values rank higher.',

@@ -62,7 +62,7 @@ export function FormulaEditor({
   function commit(next: Token[]) {
     setTokens(next);
     const { ast: parsed, error: err } = parseTokens(next);
-    onChange(parsed, err);
+    onChange(parsed, err ? t(FORMULA_ERROR_KEY[err]) : null);
   }
 
   function appendVar(v: VariableKey) {
@@ -210,7 +210,8 @@ export function FormulaEditor({
         {ast ? (
           <code className="font-mono text-foreground">{renderAst(ast, t)}</code>
         ) : (
-          <span className="italic text-danger">{error ?? t('admin.rulesets.formulaInvalid')}</span>
+          // No formula means a reason: the parser always gives one.
+          <span className="italic text-danger">{t(FORMULA_ERROR_KEY[error!])}</span>
         )}
       </div>
     </div>
@@ -262,8 +263,17 @@ function precedence(op: BinaryOperator): number {
   return op === '+' || op === '-' ? 1 : 2;
 }
 
-function parseTokens(tokens: Token[]): { ast: FormulaNode | null; error: string | null } {
-  if (tokens.length === 0) return { ast: null, error: 'Empty formula' };
+/** Why a formula does not parse; the editor words it in the reader's language. */
+type FormulaError = 'empty' | 'invalid' | 'parens';
+
+const FORMULA_ERROR_KEY: Record<FormulaError, string> = {
+  empty: 'admin.rulesets.formulaError.empty',
+  invalid: 'admin.rulesets.formulaError.invalid',
+  parens: 'admin.rulesets.formulaError.parens',
+};
+
+function parseTokens(tokens: Token[]): { ast: FormulaNode | null; error: FormulaError | null } {
+  if (tokens.length === 0) return { ast: null, error: 'empty' };
 
   const output: FormulaNode[] = [];
   const ops: Array<{ kind: 'op'; op: BinaryOperator } | { kind: 'lparen' }> = [];
@@ -289,26 +299,26 @@ function parseTokens(tokens: Token[]): { ast: FormulaNode | null; error: string 
         ops[ops.length - 1]!.kind === 'op' &&
         precedence((ops[ops.length - 1] as { op: BinaryOperator }).op) >= precedence(token.op)
       ) {
-        if (!applyOp()) return { ast: null, error: 'Invalid expression' };
+        if (!applyOp()) return { ast: null, error: 'invalid' };
       }
       ops.push(token);
     } else if (token.kind === 'lparen') {
       ops.push({ kind: 'lparen' });
     } else if (token.kind === 'rparen') {
       while (ops.length > 0 && ops[ops.length - 1]!.kind === 'op') {
-        if (!applyOp()) return { ast: null, error: 'Invalid expression' };
+        if (!applyOp()) return { ast: null, error: 'invalid' };
       }
       const top = ops.pop();
-      if (!top || top.kind !== 'lparen') return { ast: null, error: 'Mismatched parentheses' };
+      if (!top || top.kind !== 'lparen') return { ast: null, error: 'parens' };
     }
   }
 
   while (ops.length > 0) {
     const top = ops[ops.length - 1]!;
-    if (top.kind === 'lparen') return { ast: null, error: 'Mismatched parentheses' };
-    if (!applyOp()) return { ast: null, error: 'Invalid expression' };
+    if (top.kind === 'lparen') return { ast: null, error: 'parens' };
+    if (!applyOp()) return { ast: null, error: 'invalid' };
   }
 
-  if (output.length !== 1) return { ast: null, error: 'Invalid expression' };
+  if (output.length !== 1) return { ast: null, error: 'invalid' };
   return { ast: output[0]!, error: null };
 }

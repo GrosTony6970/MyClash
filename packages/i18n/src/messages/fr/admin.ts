@@ -469,7 +469,11 @@ export const admin = {
       "Valeurs par défaut héritées par un nouveau tournoi lorsque ce règlement est sélectionné. Les organisateurs peuvent toujours les remplacer pour chaque tournoi depuis l'onglet des réglages du format d'assaut.",
     pointCapLabel: 'Plafond de points',
     timerModeLabel: 'Mode du chronomètre',
+    timerModeCountdown: 'Compte à rebours',
+    timerModeCountup: 'Chronomètre croissant',
     scoringDirectionLabel: 'Sens du score',
+    scoringDirectionNormal: 'Normal',
+    scoringDirectionReverse: 'Inversé (zéro perd)',
     timeLimitPoolLabel: 'Limite de temps · poule (s)',
     timeLimitBracketLabel: 'Limite de temps · tableau (s)',
     timeLimitFinalsLabel: 'Limite de temps · finales (s)',
@@ -1187,6 +1191,11 @@ export const admin = {
       "Composer une formule à l'aide des chips de variables et d'opérateurs. La formule est évaluée par combattant.",
     formulaEmpty: 'Aucun jeton pour le moment. Ajouter une variable ou un nombre pour commencer.',
     formulaInvalid: 'Formule invalide.',
+    formulaError: {
+      empty: 'Formule vide',
+      invalid: 'Expression invalide',
+      parens: 'Parenthèses mal appariées',
+    },
     tiebreakersTitle: 'Tie-breakers',
     tiebreakersHelp:
       "Appliqués dans l'ordre quand les combattants ont le même score. Plus haut = les plus grandes valeurs sont mieux classées.",
