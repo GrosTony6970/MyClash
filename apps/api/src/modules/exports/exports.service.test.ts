@@ -52,11 +52,21 @@ function makeService(data: TableData, error: { message: string } | null = null) 
             entry.filters.push({ op: 'order', column, value: null });
             return chain;
           },
+          limit(count: number) {
+            entry.filters.push({ op: 'limit', column: '', value: count });
+            return chain;
+          },
+          // A paged read: the page after the last row is empty, so the read ends.
+          gt(column: string, value: unknown) {
+            entry.filters.push({ op: 'gt', column, value });
+            return chain;
+          },
           maybeSingle() {
             return Promise.resolve({ data: (Array.isArray(rows) ? rows[0] : rows) ?? null, error });
           },
           then(resolve: (value: unknown) => unknown) {
-            return Promise.resolve(resolve(listResult));
+            const pastTheEnd = entry.filters.some((f) => f.op === 'gt');
+            return Promise.resolve(resolve(pastTheEnd ? { data: [], error } : listResult));
           },
         };
         return chain;
@@ -252,6 +262,46 @@ describe('ExportsService — HEMA Ratings submission', () => {
       value: ['t1'],
     });
     expect(matchQuery!.filters.some((f) => f.column === 'tournament_id')).toBe(false);
+  });
+
+  // One read stops at 1000 rows with no word: a big Event sent HEMA Ratings a short submission.
+  it('reads the bouts and the forfeits page by page, each page after the last id', async () => {
+    const { service, recorded } = makeService(BASE);
+    await service.previewHemaRatingsSubmission('event-1');
+
+    const paging = (table: string) =>
+      recorded
+        .filter((entry) => entry.table === table)
+        .map((entry) => entry.filters.filter((f) => ['order', 'limit', 'gt'].includes(f.op)));
+    expect(paging('matches')).toEqual([
+      [
+        { op: 'order', column: 'id', value: null },
+        { op: 'limit', column: '', value: 1000 },
+      ],
+      [
+        { op: 'order', column: 'id', value: null },
+        { op: 'limit', column: '', value: 1000 },
+        { op: 'gt', column: 'id', value: 'm1' },
+      ],
+    ]);
+    expect(paging('match_forfeits')).toHaveLength(1);
+    expect(recorded.find((entry) => entry.table === 'match_forfeits')!.select).toBe('id, match_id');
+  });
+
+  it('reads the fighters by pieces of 200 ids, so the request line holds', async () => {
+    const bouts = Array.from({ length: 101 }, (_, n) => ({
+      ...MATCH_ROWS[0],
+      id: `m${String(n).padStart(3, '0')}`,
+      red_reg: { id: `r${2 * n}`, person_id: `p${2 * n}` },
+      blue_reg: { id: `r${2 * n + 1}`, person_id: `p${2 * n + 1}` },
+    }));
+    const { service, recorded } = makeService({ ...BASE, matches: bouts });
+    await service.previewHemaRatingsSubmission('event-1');
+
+    const pieces = recorded
+      .filter((entry) => entry.table === 'persons')
+      .map((entry) => (entry.filters.find((f) => f.op === 'in')!.value as string[]).length);
+    expect(pieces).toEqual([200, 2]);
   });
 
   it('only counts un-voided forfeits', async () => {

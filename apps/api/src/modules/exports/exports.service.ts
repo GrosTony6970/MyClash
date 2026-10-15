@@ -11,7 +11,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { allowsRatingsExport, asEventKind } from '@myclash/types';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
-import { READ_PAGE } from '../../common/postgrest-in-list';
+import { inListChunks, READ_PAGE } from '../../common/postgrest-in-list';
 import { createStoredZip } from '../../common/stored-zip';
 import { FULL_CSV_HEADER, fullCsvRow } from './full-event-csv';
 import {
@@ -125,14 +125,18 @@ export class ExportsService {
     return { clubs, fighters, tournaments: submissionTournaments };
   }
 
-  /** Completed matches for these tournaments, plus the set that was forfeited. */
+  /**
+   * Completed matches for these tournaments, plus the set that was forfeited. Both are read page
+   * by page: one read stops at 1000 rows with no word, and a big Event then sent HEMA Ratings a
+   * short submission.
+   */
   private async fetchMatches(tournamentIds: string[]): Promise<[Row[], Set<string>]> {
     // `matches` has NO tournament_id column — the only route from a match to a
     // tournament is phase_id → phases.tournament_id. Filtering on the embedded
     // column with !inner is what makes this work; a direct .eq('tournament_id')
     // 400s and (if the error is swallowed) yields a silently empty export.
     const [matchRows, forfeitRows] = await Promise.all([
-      this.fetchMany('matches', (q) =>
+      this.fetchAllByKey('matches', (q) =>
         q
           .select(
             `
@@ -157,9 +161,9 @@ export class ExportsService {
       // and this set is what drops a match from the HEMA Ratings submission as
       // a walk-over. A corrected result is a real bout that was really fought
       // — excluding it would silently delete it from the fighters' ratings.
-      this.fetchMany('match_forfeits', (q) =>
+      this.fetchAllByKey('match_forfeits', (q) =>
         q
-          .select('match_id')
+          .select('id, match_id')
           .in('tournament_id', tournamentIds)
           .in('reason', [...FORFEIT_REASONS])
           .is('voided_at', null),
@@ -174,13 +178,14 @@ export class ExportsService {
   ): Promise<[SubmissionFighter[], SubmissionClub[]]> {
     if (personIds.length === 0) return [[], []];
 
-    const personRows = await this.fetchMany('persons', (q) =>
+    // By pieces of ids: every Fighter's id in one URL outgrows the request line of a big Event.
+    const personRows = await this.fetchByIds('persons', personIds, (q, ids) =>
       q
         .select(
           `id, given_name, family_name, club_id, hema_ratings_id, gender_category,
            global_persons ( country_code, hema_ratings_id )`,
         )
-        .in('id', personIds),
+        .in('id', ids),
     );
 
     const clubIds = [
@@ -190,12 +195,9 @@ export class ExportsService {
           .filter((id): id is string => typeof id === 'string'),
       ),
     ];
-    const clubRows =
-      clubIds.length === 0
-        ? []
-        : await this.fetchMany('clubs', (q) =>
-            q.select('id, name, country_code, city, website').in('id', clubIds),
-          );
+    const clubRows = await this.fetchByIds('clubs', clubIds, (q, ids) =>
+      q.select('id, name, country_code, city, website').in('id', ids),
+    );
 
     const clubs: SubmissionClub[] = clubRows.map(toSubmissionClub);
     const clubCountryById = new Map(clubs.map((club) => [club.id, club.countryCode]));
@@ -214,41 +216,30 @@ export class ExportsService {
   /**
    * Every hit of this Event, in the order they were struck. Each embed on the way to the Event is
    * `!inner`: without it the nested filter only blanks the Tournament and keeps the row, so the
-   * file held the hits of every Event. One read is cut at 1000 rows with no word, so the hits are
-   * read page by page BY KEY, each page after the last id, until a page comes back empty
-   * (`READ_PAGE`). The race, named: the download runs while pads send hits, some with an old time
-   * (a pad back online); by offset, a hit landing between two pages shifted a row onto both. The
+   * file held the hits of every Event. The hits are read page by page (`fetchAllByKey`), and the
    * file's order is then made here, by time and id.
    */
   private async fetchEventExchanges(eventId: string): Promise<Row[]> {
-    const exchanges: Row[] = [];
-    for (;;) {
-      const after = exchanges.at(-1)?.['id'];
-      const page = await this.fetchMany('exchanges', (q) => {
-        const query = q
-          .select(
-            `
-            id, type, sequence, occurred_at, clock_time_ms,
-            first_striker_color, first_strike_value, afterblow_value,
-            no_exchange_reason, voided, voided_reason,
-            matches!inner (
-              id, match_number_label, status,
-              red_registration_id, blue_registration_id,
-              pools ( sort_order ),
-              bracket_slots ( round ),
-              swiss_rounds ( round_number ),
-              phases!inner ( config_json, tournaments!inner ( name, slug, weapon ) )
-            )
-          `,
+    const exchanges = await this.fetchAllByKey('exchanges', (q) =>
+      q
+        .select(
+          `
+          id, type, sequence, occurred_at, clock_time_ms,
+          first_striker_color, first_strike_value, afterblow_value,
+          no_exchange_reason, voided, voided_reason,
+          matches!inner (
+            id, match_number_label, status,
+            red_registration_id, blue_registration_id,
+            pools ( sort_order ),
+            bracket_slots ( round ),
+            swiss_rounds ( round_number ),
+            phases!inner ( config_json, tournaments!inner ( name, slug, weapon ) )
           )
-          .eq('matches.phases.tournaments.event_id', eventId)
-          .order('id')
-          .limit(READ_PAGE);
-        return after === undefined ? query : query.gt('id', after);
-      });
-      if (page.length === 0) return exchanges.sort(byTimeThenId);
-      exchanges.push(...page);
-    }
+        `,
+        )
+        .eq('matches.phases.tournaments.event_id', eventId),
+    );
+    return exchanges.sort(byTimeThenId);
   }
 
   // ── JSON export ───────────────────────────────────────────────────────────
@@ -303,6 +294,37 @@ export class ExportsService {
       throw new InternalServerErrorException(`Export query on "${table}" failed: ${error.message}`);
     }
     return data ?? [];
+  }
+
+  /**
+   * Every row a read matches. One read is cut at 1000 rows with no word, so the rows are read page
+   * by page BY KEY, each page after the last id, until a page comes back empty (`READ_PAGE`). The
+   * race, named: an export runs while pads send hits and bouts end; by offset, a row landing
+   * between two pages shifted another onto both. `build` selects `id` and sets the filters.
+   */
+  private async fetchAllByKey(table: string, build: (query: QueryChain) => QueryChain) {
+    const rows: Row[] = [];
+    for (;;) {
+      const after = rows.at(-1)?.['id'];
+      const page = await this.fetchMany(table, (q) => {
+        const query = build(q).order('id').limit(READ_PAGE);
+        return after === undefined ? query : query.gt('id', after);
+      });
+      if (page.length === 0) return rows;
+      rows.push(...page);
+    }
+  }
+
+  /** The rows of these ids, read by pieces of ids that fit in one request line (`IN_LIST_MAX`). */
+  private async fetchByIds(
+    table: string,
+    ids: readonly string[],
+    build: (query: QueryChain, ids: string[]) => PromiseLike<QueryListResult>,
+  ): Promise<Row[]> {
+    const pieces = await Promise.all(
+      inListChunks([...new Set(ids)]).map((piece) => this.fetchMany(table, (q) => build(q, piece))),
+    );
+    return pieces.flat();
   }
 
   private async fetchOne(
