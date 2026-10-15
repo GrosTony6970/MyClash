@@ -98,6 +98,23 @@ describe('the round of a bout with no number', () => {
     ]);
   });
 
+  // Review, 2026-10-16: the round only names a bout; a failed read must not refuse a delete.
+  it('leaves the bout named by its Tournament alone when the read fails', async () => {
+    summariesMock.mockRejectedValueOnce(new Error('pools: down'));
+
+    const report = await service.getEventAssignments('event-1', 'person-1');
+
+    expect(report.blockingMatches).toEqual([
+      {
+        matchId: 'm-by-hand',
+        label: '',
+        status: 'running',
+        reason: 'fighter',
+        tournamentName: 'Longsword Open',
+      },
+    ]);
+  });
+
   it('is not read when every bout has its number', async () => {
     const numbered = (TABLES['vw_tournament_query_matches'] as unknown[]).slice(0, 1);
     fromMock.mockImplementation((table: string) =>

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -69,6 +70,8 @@ export interface BlockingMatchEntry extends Partial<BoutRound> {
   tournamentName?: string;
 }
 
+const roundLogger = new Logger('AssignmentsService');
+
 /** The round of each bout of `bouts` that has no number, from the one builder of a bout's round. */
 async function roundsOfUnnumbered(
   db: SupabaseClient,
@@ -76,7 +79,16 @@ async function roundsOfUnnumbered(
 ): Promise<Map<string, BoutRound>> {
   const ids = [...new Set(bouts.filter((bout) => !bout.label).map((bout) => bout.matchId!))];
   if (ids.length === 0) return new Map();
-  const summaries = await matchSummaries(db, ids);
+  // The round only NAMES a bout: a failed read must not refuse a delete that needs none
+  // (review, 2026-10-16). The window then names the Tournament alone.
+  let summaries: Awaited<ReturnType<typeof matchSummaries>>;
+  try {
+    summaries = await matchSummaries(db, ids);
+  } catch (err) {
+    const why = err instanceof Error ? err.message : String(err);
+    roundLogger.warn(`The rounds of ${ids.length} bout(s) with no number were not read: ${why}`);
+    return new Map();
+  }
   const rounds = new Map<string, BoutRound>();
   for (const id of ids) {
     const summary = summaries.get(id);

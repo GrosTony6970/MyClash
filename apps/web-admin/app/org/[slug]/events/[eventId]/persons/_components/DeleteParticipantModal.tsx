@@ -27,8 +27,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, boutName, statusLabel, type BoutNameParts } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
+import { TournamentAfter } from './TournamentAfter';
 
-/** A bout with no number also carries its Tournament and its round: `boutName` words it. */
 interface BlockingMatch extends BoutNameParts {
   matchId: string;
   label: string;
@@ -368,8 +368,8 @@ function PersonAssignmentCard({ row }: { row: Row }) {
               <li key={`f-${m.matchId}`}>
                 {t('admin.orgPersons.fightingMatch')}{' '}
                 <span className="font-mono">{boutName(m, t)}</span> (
-                {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
-                <span className="italic">{m.tournamentName}</span>
+                {statusLabel('match', m.status ?? '', t)})
+                <TournamentAfter bout={m} separator={t('admin.orgPersons.separator')} />
               </li>
             ))}
           {r.matchesAsReferee
@@ -378,8 +378,8 @@ function PersonAssignmentCard({ row }: { row: Row }) {
               <li key={`r-${m.matchId}`}>
                 {t('admin.orgPersons.refereeingMatch')}{' '}
                 <span className="font-mono">{boutName(m, t)}</span> (
-                {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
-                <span className="italic">{m.tournamentName}</span>
+                {statusLabel('match', m.status ?? '', t)})
+                <TournamentAfter bout={m} separator={t('admin.orgPersons.separator')} />
               </li>
             ))}
         </ul>

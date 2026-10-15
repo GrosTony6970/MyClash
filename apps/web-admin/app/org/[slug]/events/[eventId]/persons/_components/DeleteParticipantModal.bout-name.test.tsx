@@ -60,5 +60,7 @@ describe('a bout with no number in the remove-a-fighter window', () => {
     expect(text).not.toContain(BY_HAND);
     expect(text).toContain('Longsword Open · Bracket');
     expect(text).toContain('Longsword Open · Quarter Final');
+    // Named once: not "Longsword Open · Quarter Final (Scheduled) — Longsword Open".
+    expect(text.split('Longsword Open').length - 1).toBe(2);
   });
 });
