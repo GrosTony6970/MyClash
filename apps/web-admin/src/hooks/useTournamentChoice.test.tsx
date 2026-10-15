@@ -2,6 +2,7 @@ import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rememberTournament, rememberedTournament } from '@/lib/tournament-choice';
+import { useAddressFilters } from './useAddressFilters';
 import { useTournamentChoice } from './useTournamentChoice';
 
 /**
@@ -158,6 +159,29 @@ describe('useTournamentChoice', () => {
     addressSays('tournamentId=t1');
     render();
     expect(shown).toBe('t1');
+  });
+
+  // The two writers of the address, on one page: the filter write is still out.
+  it('keeps a filter still being written when the Tournament is switched', () => {
+    window.history.replaceState(null, '', '/org/club/events/ev1/persons?tournamentId=t1#list');
+    addressSays('tournamentId=t1');
+    let filter: (change: { q?: string }) => void = () => undefined;
+    function Both() {
+      const [chosen, pick] = useTournamentChoice('ev1', IDS);
+      const [, setFilters] = useAddressFilters({ q: '' });
+      useEffect(() => {
+        shown = chosen;
+        choose = pick;
+        filter = setFilters;
+      });
+      return null;
+    }
+    act(() => root.render(<Both />));
+    act(() => filter({ q: 'lea' }));
+    act(() => choose('t2'));
+    expect(NAVIGATION.replaced.at(-1)).toBe(
+      '/org/club/events/ev1/persons?tournamentId=t2&q=lea#list',
+    );
   });
 
   it('with remember off, neither reads nor writes the memory', () => {

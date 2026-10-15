@@ -19,11 +19,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { forgetLanded, writeAddress } from '@/lib/address-write';
 import {
   chooseTournament,
   rememberTournament,
   rememberedTournament,
-  withTournament,
 } from '@/lib/tournament-choice';
 
 interface Pending {
@@ -37,8 +37,10 @@ export function useTournamentChoice(
   { remember = true }: { remember?: boolean } = {},
 ): [string, (tournamentId: string) => void] {
   const router = useRouter();
-  const fromAddress = useSearchParams().get('tournamentId');
+  const searchParams = useSearchParams();
+  const fromAddress = searchParams.get('tournamentId');
   const [pending, setPending] = useState<Pending | null>(null);
+  useEffect(forgetLanded, [searchParams]);
   // The pick ends when the address MOVES onto it, or onto a word from outside. Not when it
   // merely equals it: t2 then back to t1 starts on t1, and the late write of t2 is to come.
   const [seen, setSeen] = useState(fromAddress);
@@ -56,7 +58,8 @@ export function useTournamentChoice(
     if (!chosen) return;
     if (remember) rememberTournament(eventId, chosen);
     if (fromAddress === chosen) return;
-    router.replace(withTournament(window.location.href, chosen), { scroll: false });
+    // Through the one door: a filter write still out stays in the address.
+    writeAddress((href) => router.replace(href, { scroll: false }), { tournamentId: chosen });
   }, [chosen, fromAddress, eventId, remember, router]);
 
   const choose = useCallback(

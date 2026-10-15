@@ -10,13 +10,15 @@
  * key, and on slow wifi two quick keys left one letter. So the address is read once, when
  * the page opens, and every change goes to the copy at once and to the address after it.
  *
- * One write holds every filter of the group, built on the address as it is NOW (the page may
- * keep a Tournament there, and its tab in the hash: written without the hash, a `hashchange`
- * sends it to another tab). A filter at its default leaves the address.
+ * One write holds every filter of the group, through `writeAddress`: built on the address
+ * with the writes still out (the page may keep a Tournament there, and its tab in the hash:
+ * written without the hash, a `hashchange` sends it to another tab). A filter at its default
+ * leaves the address.
  */
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { forgetLanded, writeAddress } from '@/lib/address-write';
 
 export function useAddressFilters<K extends string>(
   defaults: Readonly<Record<K, string>>,
@@ -30,16 +32,16 @@ export function useAddressFilters<K extends string>(
     }
     return opened;
   });
+  useEffect(forgetLanded, [searchParams]);
 
   function update(change: Partial<Record<K, string>>) {
     const next = { ...values, ...change };
     setValues(next);
-    const url = new URL(window.location.href);
+    const words: Record<string, string | null> = {};
     for (const key of Object.keys(defaults) as K[]) {
-      if (next[key] && next[key] !== defaults[key]) url.searchParams.set(key, next[key]);
-      else url.searchParams.delete(key);
+      words[key] = next[key] && next[key] !== defaults[key] ? next[key] : null;
     }
-    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+    writeAddress((href) => router.replace(href, { scroll: false }), words);
   }
 
   return [values, update];
