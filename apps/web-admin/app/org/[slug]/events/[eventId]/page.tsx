@@ -14,6 +14,8 @@ import {
   statusPillTone,
   tournamentStatusSemantic,
   useConfirm,
+  statusLabel,
+  statusLabelKey,
 } from '@myclash/ui';
 import {
   calendarGapBetweenDays,
@@ -467,7 +469,7 @@ export default function EventDetailPage() {
                   statusPillTone(tournamentStatusSemantic(event.status), 'light').className
                 }`}
               >
-                {event.status}
+                {statusLabel('event', event.status, t)}
               </span>
               <StatusHelp domain="event" status={event.status} t={t} />
             </span>
@@ -749,7 +751,7 @@ export default function EventDetailPage() {
                         {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
                           (status) => (
                             <option key={status} value={status}>
-                              {t(`organizer.events.statuses.${status}`) || status}
+                              {t(statusLabelKey('tournament', status))}
                             </option>
                           ),
                         )}
@@ -768,8 +770,7 @@ export default function EventDetailPage() {
                             ? t('organizer.eventHub.dashboard.setPublic')
                             : tournament.status === 'published'
                               ? t('organizer.eventHub.dashboard.setDraft')
-                              : (t(`organizer.events.statuses.${tournament.status}`) ??
-                                tournament.status)
+                              : statusLabel('tournament', tournament.status, t)
                         }
                         disabled={
                           !canToggleVisibility || tournamentBusy === tournament.id || isReadOnly
@@ -794,8 +795,7 @@ export default function EventDetailPage() {
                           ? t('organizer.eventHub.dashboard.visibilityDraft')
                           : tournament.status === 'published'
                             ? t('organizer.eventHub.dashboard.visibilityPublic')
-                            : (t(`organizer.events.statuses.${tournament.status}`) ??
-                              tournament.status)}
+                            : statusLabel('tournament', tournament.status, t)}
                       </button>
                     </DataTableCell>
                   </DataTableRow>

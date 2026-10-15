@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '@myclash/next-i18n/client';
+import { statusLabel } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -622,37 +623,39 @@ export default function NewLeaguePage() {
                       </p>
                     ) : (
                       <ul className="space-y-1">
-                        {(tournamentsByEvent[ev.id] ?? []).map((t) => {
-                          const picked = selectedTournaments.some((x) => x.tournamentId === t.id);
+                        {(tournamentsByEvent[ev.id] ?? []).map((tour) => {
+                          const picked = selectedTournaments.some(
+                            (x) => x.tournamentId === tour.id,
+                          );
                           return (
                             <li
-                              key={t.id}
+                              key={tour.id}
                               className="flex items-center justify-between gap-2 text-xs"
                             >
                               <span className="flex items-center gap-1.5">
-                                <span>{t.name ?? '(unnamed)'}</span>
-                                {t.weapon && <span className="text-muted">· {t.weapon}</span>}
-                                {t.status && (
+                                <span>{tour.name ?? '(unnamed)'}</span>
+                                {tour.weapon && <span className="text-muted">· {tour.weapon}</span>}
+                                {tour.status && (
                                   <span
                                     className={[
                                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-                                      t.status === 'published'
+                                      tour.status === 'published'
                                         ? 'bg-success/10 text-success'
-                                        : t.status === 'draft'
+                                        : tour.status === 'draft'
                                           ? 'bg-warning/10 text-warning'
-                                          : t.status === 'completed'
+                                          : tour.status === 'completed'
                                             ? 'bg-background text-foreground-secondary'
                                             : 'bg-background text-muted',
                                     ].join(' ')}
                                   >
-                                    {t.status}
+                                    {statusLabel('tournament', tour.status, t)}
                                   </span>
                                 )}
                               </span>
                               <button
                                 type="button"
                                 disabled={picked}
-                                onClick={() => pickTournament(t, ev.name)}
+                                onClick={() => pickTournament(tour, ev.name)}
                                 className={[
                                   'rounded px-2 py-0.5 font-semibold',
                                   picked

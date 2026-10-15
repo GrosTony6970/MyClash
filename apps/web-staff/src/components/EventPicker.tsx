@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SegmentedTabs } from '@myclash/ui';
+import { SegmentedTabs, statusLabel } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useRememberedEvent } from '../lib/last-event';
 import { eventKindTone, type EventKindTone } from '../lib/event-kind-badge';
@@ -21,15 +21,6 @@ interface Props {
   selectedId: string | null;
   onSelect: (event: PickerEvent) => void;
 }
-
-// Literal keys, never a template. A computed t() key is invisible to
-// t-key-references.test.ts, so the French string would ship missing and no gate
-// would notice.
-const STATUS_KEYS: Record<string, string> = {
-  draft: 'scoring.login.picker.statusDraft',
-  published: 'scoring.login.picker.statusPublished',
-  running: 'scoring.login.picker.statusRunning',
-};
 
 /**
  * Pick the event before the credentials.
@@ -151,7 +142,7 @@ function EventRow({
         )}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-        <span>{t(STATUS_KEYS[event.status] ?? 'scoring.login.picker.statusPublished')}</span>
+        <span>{statusLabel('event', event.status, t)}</span>
         <span>
           {event.startDate === null
             ? t('scoring.login.picker.noDate')

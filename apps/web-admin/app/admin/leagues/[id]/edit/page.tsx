@@ -11,7 +11,7 @@ import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
 import { RecomputePreflight } from './RecomputePreflight';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
-import { useConfirm, useToast } from '@myclash/ui';
+import { statusLabel, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -1342,7 +1342,7 @@ export default function EditLeaguePage() {
                                               : 'bg-background text-muted',
                                       ].join(' ')}
                                     >
-                                      {tour.status}
+                                      {statusLabel('tournament', tour.status, t)}
                                     </span>
                                   )}
                                 </span>

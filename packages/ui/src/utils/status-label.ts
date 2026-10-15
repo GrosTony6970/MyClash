@@ -1,5 +1,9 @@
 import type { ClockStatus, MatchStatus } from '@myclash/types';
 import type { Translator } from '../types/translator';
+import type { TournamentStatus } from './status-pill';
+
+/** `events.status`: the five values of `events_status_check` (pinned by the test). */
+export type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'archived';
 
 /**
  * The one word for each state of each domain, in every app (quick win X1, operator ruling
@@ -25,9 +29,27 @@ const CLOCK: Record<ClockStatus, string> = {
   ended: 'common.status.clock.ended',
 };
 
+const EVENT: Record<EventStatus, string> = {
+  draft: 'common.status.event.draft',
+  published: 'common.status.event.published',
+  running: 'common.status.event.running',
+  completed: 'common.status.event.completed',
+  archived: 'common.status.event.archived',
+};
+
+const TOURNAMENT: Record<TournamentStatus, string> = {
+  draft: 'common.status.tournament.draft',
+  published: 'common.status.tournament.published',
+  running: 'common.status.tournament.running',
+  completed: 'common.status.tournament.completed',
+  archived: 'common.status.tournament.archived',
+};
+
 const STATUS_LABEL_KEYS = {
   match: MATCH,
   clock: CLOCK,
+  event: EVENT,
+  tournament: TOURNAMENT,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;

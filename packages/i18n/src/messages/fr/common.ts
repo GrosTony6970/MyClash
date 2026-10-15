@@ -82,5 +82,19 @@ export const common = {
       halted: 'En pause',
       ended: 'Terminé',
     },
+    event: {
+      draft: 'Brouillon',
+      published: 'Publié',
+      running: 'En cours',
+      completed: 'Terminé',
+      archived: 'Archivé',
+    },
+    tournament: {
+      draft: 'Brouillon',
+      published: 'Publié',
+      running: 'En cours',
+      completed: 'Terminé',
+      archived: 'Archivé',
+    },
   },
 } as const satisfies DeepString<typeof enCommon>;

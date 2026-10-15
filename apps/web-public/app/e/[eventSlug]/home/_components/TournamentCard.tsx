@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import { StatusBadge, accentClassFor, tournamentStatusSemantic } from '@myclash/ui';
+import { StatusBadge, accentClassFor, statusLabel, tournamentStatusSemantic } from '@myclash/ui';
 import { type Tournament } from '../_lib/public-event-data';
 
 /**
@@ -44,7 +44,7 @@ export function TournamentCard({
           </div>
           {t.status && (
             <StatusBadge semantic={tournamentStatusSemantic(t.status)} surface="light">
-              {t.status}
+              {statusLabel('tournament', t.status, tr)}
             </StatusBadge>
           )}
         </div>

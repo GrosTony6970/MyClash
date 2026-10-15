@@ -31,6 +31,8 @@ import {
   tournamentStatusSemantic,
   useSortableList,
   type SortableHeaderProps,
+  statusLabel,
+  statusLabelKey,
 } from '@myclash/ui';
 import { allowsDirectHardDelete, asEventKind, EVENT_KINDS, type EventKind } from '@myclash/types';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
@@ -758,7 +760,7 @@ export default function OrgEventsListPage() {
                               .className,
                           ].join(' ')}
                         >
-                          {t('organizer.events.statuses.published') ?? 'published'}
+                          {t(statusLabelKey('event', 'published'))}
                         </span>
                         <button
                           type="button"
@@ -777,7 +779,7 @@ export default function OrgEventsListPage() {
                           statusPillTone(tournamentStatusSemantic(event.status), 'light').className,
                         ].join(' ')}
                       >
-                        {t(`organizer.events.statuses.${event.status}`) ?? event.status}
+                        {statusLabel('event', event.status, t)}
                       </span>
                     )}
                   </DataTableCell>
@@ -969,7 +971,7 @@ export default function OrgEventsListPage() {
                   {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
                     (status) => (
                       <option key={status} value={status}>
-                        {t(`organizer.events.statuses.${status}`) || status}
+                        {t(statusLabelKey('event', status))}
                       </option>
                     ),
                   )}

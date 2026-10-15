@@ -63,6 +63,17 @@ const pick = async (status: string) => {
 };
 
 describe('the status menu of a Tournament', () => {
+  it('names each state in words, not as its raw value (X1)', async () => {
+    await open();
+    expect([...statusMenu().options].map((option) => option.textContent)).toEqual([
+      'Draft',
+      'Published',
+      'Running',
+      'Completed',
+      'Archived',
+    ]);
+  });
+
   it('sends "published" at once: nobody is told and nothing is hidden', async () => {
     await open();
     await pick('published');

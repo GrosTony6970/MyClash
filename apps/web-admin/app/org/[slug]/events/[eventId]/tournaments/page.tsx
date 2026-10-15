@@ -12,6 +12,7 @@ import {
   statusPillClass,
   tournamentStatusSemantic,
   useConfirm,
+  statusLabelKey,
 } from '@myclash/ui';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
@@ -409,10 +410,10 @@ export default function EventTournamentsPage() {
                           'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
                         ].join(' ')}
                       >
-                        {['draft', 'published', 'running', 'completed', 'archived'].map(
+                        {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
                           (status) => (
                             <option key={status} value={status}>
-                              {status}
+                              {t(statusLabelKey('tournament', status))}
                             </option>
                           ),
                         )}

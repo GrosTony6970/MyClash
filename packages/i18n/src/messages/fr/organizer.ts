@@ -414,13 +414,6 @@ export const organizer = {
     publishCta: 'Publier',
     statusHelp:
       "Modifiez le statut pour passer l'événement en cours, termine, ou le repasser en brouillon. Enregistre avec le reste du formulaire.",
-    statuses: {
-      draft: 'Brouillon',
-      published: 'Publie',
-      running: 'En cours',
-      completed: 'Termine',
-      archived: 'Archive',
-    },
     save: 'Enregistrer',
     saved: 'Événement mis à jour.',
     saveError: "Impossible de mettre à jour l'événement.",

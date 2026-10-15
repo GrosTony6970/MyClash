@@ -31,6 +31,8 @@ function checkList(constraint: string): string[] {
 const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> } = {
   match: ['scheduled', 'running', 'paused', 'completed', 'voided'],
   clock: ['idle', 'running', 'halted', 'ended'],
+  event: ['draft', 'published', 'running', 'completed', 'archived'],
+  tournament: ['draft', 'published', 'running', 'completed', 'archived'],
 };
 
 function wordIn(tree: unknown, key: string): unknown {
@@ -55,6 +57,12 @@ describe('statusLabelKey', () => {
     expect(checkList('match_status_check').every((status) => isKnownStatus('match', status))).toBe(
       true,
     );
+  });
+
+  it('knows exactly the states the database allows for an Event', () => {
+    expect([...STATES.event].sort()).toEqual(checkList('events_status_check'));
+    // `tournaments.status` has no CHECK: the API's Event and Tournament DTOs take these same five.
+    expect([...STATES.tournament].sort()).toEqual(checkList('events_status_check'));
   });
 
   it('says a paused bout and a halted clock with the same word, as ruled', () => {

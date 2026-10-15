@@ -123,5 +123,19 @@ export const common = {
       halted: 'Paused',
       ended: 'Ended',
     },
+    event: {
+      draft: 'Draft',
+      published: 'Published',
+      running: 'Running',
+      completed: 'Completed',
+      archived: 'Archived',
+    },
+    tournament: {
+      draft: 'Draft',
+      published: 'Published',
+      running: 'Running',
+      completed: 'Completed',
+      archived: 'Archived',
+    },
   },
 } as const satisfies MessageTree;
