@@ -33,6 +33,10 @@ test('a tab switch asks first: Stay keeps the bio, Leave opens the tab', async (
   await page.getByRole('link', { name: 'Settings' }).first().click();
   await expect(page).toHaveURL(`${PUBLIC}/me/settings`);
   await expect(asks(page)).toHaveCount(0);
+  // The two panels that threw on an unanswered read have drawn their answers: a fault of either
+  // is in `issues` by now, every time.
+  await expect(page.getByText('No keys yet. Add one to generate your insights.')).toBeVisible();
+  await expect(page.getByText(/^Version 2026-01 · /)).toHaveCount(2);
   await expectNoPageIssues(issues);
 });
 
