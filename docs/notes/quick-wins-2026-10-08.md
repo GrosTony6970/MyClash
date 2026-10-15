@@ -2807,6 +2807,52 @@ Each needs a run, a device or a ruling, not a read:
 | Request word | A league request is "Requested" on the club's page and "Pending" on the league admin's list.                                     | **"Pending" / "En attente"** everywhere.                                                     |
 | Bulk ticks   | Ten ticked, two more ticked while the bulk action runs, three refused: today the ticks become the three alone.                   | **Refused + new ones**: the three refused stay ticked, and so do the two added while it ran. |
 
+### Built on 2026-10-16: the organiser pass
+
+Every item of "The organiser" above, and "Board Ctrl+Z", is built (session fed6021c). Two read
+differently in code than the sweep wrote them:
+
+| Item         | Built in                           | What it turned out to be                                                                                                                                                                   |
+| ------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Request word | `a259af51`                         | **Reversed in the sweep.** The league admin said "Requested" (`statusLabel`); the club's two pages each kept their own "Pending". Both now read `statusLabel`; six keys gone.              |
+| Bout name    | `dc55f892`, `18394713`, `3a6f51aa` | The window shows `boutName` ("Longsword Open · Quarter Final"); the board names a hand-made bracket bout by code (`LSW-B-M7`, ruled below). A failed round read never refuses a delete.    |
+| Lost role    | `9f1af4fe`, `f3f4ac04`             | Ruled below. `refereeRoleName` / `slotRoleName`: seven sites. The pickers of three tabs showed the id of a custom skill even when its name was known.                                      |
+| Places cell  | `8620e50a`                         | "Booked" and "Capacity"; "Venue removed", and "Area removed" by analogy (not ruled on its own).                                                                                            |
+| Leave wizard | `4ca51b54`, `d715fd1a`             | **The wizard makes no Tournaments.** It names what it does make and did not save: its edited details, the new venue, the pistes, the areas (`unsavedParts`).                               |
+| Missed drop  | `f17b4285`                         | While the box is up. A drop on the preview step still opens the file (named below).                                                                                                        |
+| Bulk ticks   | `23b8d010`                         | `ticksAfterBulk` for three actions; check-in and assign used to clear the refused ones too.                                                                                                |
+| Board Ctrl+Z | `f08c2add`, `086427e4`             | `expectEntry`: an early Ctrl+Z waits for the delete started last. The toast's Undo puts back the bar it names (`undoToast`), found by the review.                                          |
+| Plain bugs   | `92cf303a` … `c68b9e6c`            | Storage guarded; the board keeps its day; two quick Tournament picks; `writeAddress`, one door for the address; the Event's clock; the header's name; the import hint; the bib; the words. |
+
+### Rulings — operator, 2026-10-16, asked during the organiser pass
+
+| Row        | Story                                                                                                                  | Ruling                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Board name | A bout added by hand into a bracket has no bracket place; the board said "Match 1a2b3c". The server knows no language. | **A code, like its neighbours**: "LSW-B", or "LSW-B-M7". |
+| Lost role  | A referee role whose custom skill was deleted showed its raw id, "custom-8f2a", in five places.                        | **"Role removed" / "Rôle supprimé"**, through one owner. |
+
+### What the build chose, not ruled
+
+- An area deleted since says "Area removed", by analogy with the venue.
+- After a partial Create, the leave question names the parts in the order the Create sends them; its
+  title stays "Leave without saving?".
+- A Ctrl+Z pressed twice while a delete is out counts once. A refused delete drops the remembered press.
+- A refused bulk action keeps a person ticked even if they were unticked while it ran (the ruling's
+  words: "the three refused stay ticked").
+- The kept board settings hold for the tab, not past a reload, where storage refuses the write.
+
+### Named, not fixed
+
+- A CSV dropped on the import page's preview step still opens in the tab: the box is not mounted there.
+- Two hand-made bracket bouts with no number both read "LSW-B" on the board.
+- A delete that lands after a day change goes into the new day's undo history (older than this pass).
+- `writeAddress` forgets a write only when the address shows it or the page changes: a write that never
+  commits on the same page is written again with the next one (review, not reproduced).
+- The force-delete refusal (409) still prints the server's English sentence with raw ids, in the race
+  between the check and the delete (`assignments.service.ts`, `forceDelete…`).
+- `web-public` `referee-display.ts:20` keeps its own role map with a raw-id fallback and an English
+  "Referee": the public pass.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
