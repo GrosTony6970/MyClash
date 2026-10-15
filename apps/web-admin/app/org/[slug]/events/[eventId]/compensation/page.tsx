@@ -15,6 +15,7 @@ import {
 import { downloadCsv } from '@/lib/csv-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { refereeRoleName } from '@/lib/referee-role-name';
 import { openPrintWindow } from '@/lib/print-window';
 import { CsvExportMenu, nameOrUnknown, useToast } from '@myclash/ui';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -533,7 +534,7 @@ export default function CompensationPage() {
                               return (
                                 <tr key={i} className="text-foreground-secondary">
                                   <td className="py-0.5">
-                                    {skillNameById[line.role] ?? line.role}
+                                    {refereeRoleName(line.role, t, skillNameById)}
                                   </td>
                                   <td className="py-0.5">
                                     {phaseLabelKey ? t(phaseLabelKey) : line.phase}

@@ -9,6 +9,7 @@ import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { refereeRoleName } from '@/lib/referee-role-name';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
 interface RefereeSkill {
@@ -688,7 +689,7 @@ function PlanDetails({
               {roleIds.map((roleId) => (
                 <tr key={roleId}>
                   <td className="text-foreground-secondary pr-3 py-0.5">
-                    {skillNameById[roleId] ?? roleId}
+                    {refereeRoleName(roleId, t, skillNameById)}
                   </td>
                   {PHASES.map((p) => {
                     const rr = plan.roleRates.find(
