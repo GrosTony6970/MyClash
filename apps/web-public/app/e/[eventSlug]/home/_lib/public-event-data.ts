@@ -7,6 +7,7 @@
  */
 
 import { requestLoginHeader } from '@/lib/login-cookie';
+import type { LiveState } from '../../live/use-live-board';
 
 export interface Tournament {
   id: string;
@@ -180,17 +181,9 @@ export async function fetchParticipantsCounts(
   }
 }
 
-/** The live-state envelope: current match state, one entry per lice. */
-interface LiveStateResponse {
-  lices?: Array<{
-    lice: { name: string };
-    runningMatch: Omit<HighlightMatch, 'liceName'> | null;
-    nextMatch: Omit<HighlightMatch, 'liceName'> | null;
-  }>;
-}
-
 /**
- * Matches to feature on the event home ("Live Now" + "Schedule Highlights").
+ * The Event's live state, the first picture of the event home's "Live Now" +
+ * "Schedule Highlights" (`highlightsOf` cuts it; `useLiveBoard` reads it again).
  *
  * This used to GET `events/:eventSlug/highlights`, which has never existed —
  * T-604 shipped this call and touched no api files. It 404'd, this returned [],
@@ -208,25 +201,15 @@ interface LiveStateResponse {
  * five that might all be on the same piste. PublicHome still caps the upcoming
  * list at 5.
  */
-export async function fetchHighlights(
-  eventSlug: string,
-  apiUrl: string,
-): Promise<HighlightMatch[]> {
+export async function fetchLiveState(eventSlug: string, apiUrl: string): Promise<LiveState | null> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
       cache: 'no-store',
       headers: await requestLoginHeader(),
     });
-    if (!res.ok) return [];
-    const data = (await res.json()) as LiveStateResponse;
-
-    return (data.lices ?? []).flatMap((state) =>
-      [state.runningMatch, state.nextMatch]
-        .filter((m): m is Omit<HighlightMatch, 'liceName'> => m !== null)
-        // liceName isn't on the match itself — it comes from the enclosing lice.
-        .map((m) => ({ ...m, liceName: state.lice.name })),
-    );
+    // No first picture: the browser's first read draws the block.
+    return res.ok ? ((await res.json()) as LiveState) : null;
   } catch {
-    return [];
+    return null;
   }
 }

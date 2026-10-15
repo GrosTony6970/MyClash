@@ -63,11 +63,15 @@ function useSecondsWhile(ticking: boolean): number {
  * every thirty seconds, at each change the live channel announces, and when
  * that channel drops or comes back. A read that fails keeps the last picture,
  * and the freshness says so once three polls in a row have not landed.
+ *
+ * Every live block of an Event reads through here: the board, the Event home's
+ * "Live now" and the display hub's "Now live". `seed` is the server's first
+ * picture, drawn before the browser's first read lands.
  */
-export function useLiveBoard(eventSlug: string): LiveBoardView {
+export function useLiveBoard(eventSlug: string, seed: LiveState | null = null): LiveBoardView {
   const apiUrl = getPublicApiUrl();
-  const [state, setState] = useState<LiveState | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<LiveState | null>(seed);
+  const [loading, setLoading] = useState(seed === null);
   // Stamped only when a read LANDS: a poll that fires and fails must not look
   // like one that works.
   const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);

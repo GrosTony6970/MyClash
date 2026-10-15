@@ -4,10 +4,9 @@
  * LiveNowSection — the auto-refreshing "what's happening right now" block on the
  * public event home. Two independent live inputs under one roof:
  *
- *   • Matches — polled from the public `/live-state` endpoint (seeded by the SSR
- *     snapshot so there's no flash), refreshed by a 30s interval AND a Supabase
- *     realtime channel on `matches` filtered to the event's lices. Scores tick
- *     live without a reload. Data layer mirrors the standalone /live page.
+ *   • Matches — the live board's own reader, `useLiveBoard` (seeded by the SSR
+ *     snapshot so there's no flash): its poll and its realtime channel, and its
+ *     word on how fresh the picture is, which the block shows when it is not live.
  *   • Workshops — have no realtime state; they move purely by the clock, so
  *     "live" / "starting soon" is a pure derivation off the shared `useClientClock`
  *     minute store, which also honours an active super-admin time simulation. The
@@ -18,107 +17,37 @@
  */
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { isLiveStatus } from '@myclash/types';
-import { useClientClock } from '@myclash/ui';
+import { FreshnessChip, useClientClock } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
-import type { HighlightMatch, PublicWorkshop } from '../_lib/public-event-data';
+import { useLiveBoard, type LiveState } from '../../live/use-live-board';
+import { highlightsOf } from '../_lib/live-highlights';
+import type { PublicWorkshop } from '../_lib/public-event-data';
 import { liveWorkshops, upcomingWorkshops } from '../_lib/live-workshops';
 import { LiveMatchCard } from './LiveMatchCard';
 import { WorkshopCard } from './WorkshopCard';
 
-/** The raw `/live-state` envelope — carries lice ids the flattened highlights drop. */
-interface LiveStateResponse {
-  lices?: Array<{
-    lice: { id: string; name: string };
-    runningMatch: Omit<HighlightMatch, 'liceName'> | null;
-    nextMatch: Omit<HighlightMatch, 'liceName'> | null;
-  }>;
-}
-
-function flattenHighlights(data: LiveStateResponse): HighlightMatch[] {
-  return (data.lices ?? []).flatMap((state) =>
-    [state.runningMatch, state.nextMatch]
-      .filter((m): m is Omit<HighlightMatch, 'liceName'> => m !== null)
-      .map((m) => ({ ...m, liceName: state.lice.name })),
-  );
-}
-
 interface Props {
   eventSlug: string;
-  initialHighlights: HighlightMatch[];
+  /** The server's read of the live state, or null when it failed. */
+  initialState: LiveState | null;
   workshops: PublicWorkshop[];
   tz: string;
   /** Server render time (ISO) — seeds the workshop clock so SSR and hydration agree. */
   nowIso: string;
 }
 
-export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, nowIso }: Props) {
+export function LiveNowSection({ eventSlug, initialState, workshops, tz, nowIso }: Props) {
   const { t, locale } = useI18n();
   const tag = localeToBcp47(locale);
   const apiUrl = getPublicApiUrl();
 
-  // ── Matches: seed from SSR, then poll + realtime (mirrors /live page). ────────
-  const [highlights, setHighlights] = useState<HighlightMatch[]>(initialHighlights);
-  const [liceIds, setLiceIds] = useState<string[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function fetchState() {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-        cache: 'no-store',
-        credentials: 'include',
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as LiveStateResponse;
-      setHighlights(flattenHighlights(data));
-      setLiceIds((data.lices ?? []).map((l) => l.lice.id));
-    } catch {
-      // Keep the last known highlights.
-    }
-  }
-
-  useEffect(() => {
-    // Inlined mount fetch (not `fetchState()`): the setState lands inside a `.then`
-    // callback, which the react-hooks/set-state-in-effect rule allows — a bare
-    // synchronous `fetchState()` in the effect body would trip it. Mirrors /live.
-    const controller = new AbortController();
-    // With the visitor's login, as the server's first read: a club member's draft
-    // Event would lose its live block at the first read from the browser.
-    fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-      cache: 'no-store',
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as LiveStateResponse;
-        setHighlights(flattenHighlights(data));
-        setLiceIds((data.lices ?? []).map((l) => l.lice.id));
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
-    timerRef.current = setInterval(() => void fetchState(), 30_000);
-    return () => {
-      controller.abort();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventSlug]);
-
-  useRealtimeWithFallback({
-    channelName: `home-live-${eventSlug}`,
-    table: 'matches',
-    filter: `lice_id=in.(${liceIds.join(',')})`,
-    event: 'UPDATE',
-    enabled: liceIds.length > 0,
-    onEvent: () => void fetchState(),
-    onFallbackPoll: () => void fetchState(),
-  });
+  // ── Matches: seed from SSR, then the live board's reads (with the login). ─────
+  const { state, freshness } = useLiveBoard(eventSlug, initialState);
+  const highlights = highlightsOf(state);
 
   // Paused counts as live: the fighters are on the strip waiting to resume,
   // and dropping the card made pistes blink off the board on every halt.
@@ -139,10 +68,14 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
     <>
       {hasLive && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-success">
-            <span className="inline-block h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
-            {t('publicApp.eventHome.liveNow')}
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-success">
+              <span className="inline-block h-2 w-2 rounded-full bg-success motion-safe:animate-pulse" />
+              {t('publicApp.eventHome.liveNow')}
+            </h2>
+            {/* Says nothing while live; says it when the scores may be old (quick win F5's rule). */}
+            <FreshnessChip freshness={freshness} t={t} quietWhenLive />
+          </div>
           <div className="flex flex-col gap-3">
             {liveMatches.map((m) => (
               <LiveMatchCard

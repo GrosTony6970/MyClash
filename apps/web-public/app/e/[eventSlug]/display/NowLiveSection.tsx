@@ -13,34 +13,11 @@
  * SCHEDULED bouts under a LIVE banner on three separate surfaces.
  */
 
-import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { isLiveStatus, placementLabel, type HubLice } from '@myclash/types';
-import { nameOrUnknown } from '@myclash/ui';
-import { getPublicApiUrl } from '@/lib/api-url';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
+import { FreshnessChip, nameOrUnknown } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-
-interface LiveMatch {
-  id: string;
-  matchNumberLabel: string;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  status: string;
-  tournamentName: string | null;
-  redScore: number;
-  blueScore: number;
-}
-
-interface LiveLiceState {
-  lice: { id: string; name: string; sortOrder: number };
-  runningMatch: LiveMatch | null;
-  nextMatch: LiveMatch | null;
-}
-
-interface LiveStateResponse {
-  lices: LiveLiceState[];
-}
+import { useLiveBoard, type LiveMatch } from '../live/use-live-board';
 
 interface Props {
   eventSlug: string;
@@ -48,67 +25,15 @@ interface Props {
   lices: HubLice[];
 }
 
-/**
- * Both live-state reads send the login: a club member's screen also lists the
- * bouts of its unpublished Tournaments on a test day (ruling 90).
- */
-const LIVE_STATE_READ: RequestInit = { cache: 'no-store', credentials: 'include' };
-
 export function NowLiveSection({ eventSlug, lices }: Props) {
   const { t } = useI18n();
-  const apiUrl = getPublicApiUrl();
-  const [state, setState] = useState<LiveStateResponse | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function fetchState() {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-        ...LIVE_STATE_READ,
-      });
-      if (res.ok) setState((await res.json()) as LiveStateResponse);
-    } catch {
-      // Keep the last known state — a wall screen that blanks on one failed
-      // poll is worse than one showing a bout thirty seconds stale.
-    }
-  }
-
-  useEffect(() => {
-    // Inlined mount fetch (not `fetchState()`): the setState lands inside a
-    // `.then` callback, which the react-hooks/set-state-in-effect rule allows.
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-      ...LIVE_STATE_READ,
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setState((await res.json()) as LiveStateResponse);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
-    timerRef.current = setInterval(() => void fetchState(), 30_000);
-    return () => {
-      controller.abort();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventSlug]);
-
-  const liceIds = (state?.lices ?? []).map((l) => l.lice.id);
-  useRealtimeWithFallback({
-    channelName: `display-hub-${eventSlug}`,
-    table: 'matches',
-    filter: `lice_id=in.(${liceIds.join(',')})`,
-    event: 'UPDATE',
-    enabled: liceIds.length > 0,
-    // Explicit rather than defaulted: this hub sits unattended on a venue
-    // screen, and a `matches` binding that ever falls out of the realtime
-    // publication kills the channel permanently with no rejoin. The poll is
-    // the only thing that keeps the board honest when that happens.
-    fallbackPollMs: 30_000,
-    onEvent: () => void fetchState(),
-    onFallbackPoll: () => void fetchState(),
-  });
+  // The live board's reader, with the login: a club member's screen also lists the bouts of
+  // its unpublished Tournaments on a test day (ruling 90). A failed read keeps the last
+  // picture — a wall screen that blanks on one failed poll is worse than one thirty seconds
+  // stale — and the chip says when the picture is old.
+  // It polls whatever its channel says: a `matches` binding that falls out of the realtime
+  // publication kills the channel with no rejoin, and this hub sits unattended on a venue screen.
+  const { state, freshness } = useLiveBoard(eventSlug);
 
   const placements = new Map(lices.map((lice) => [lice.id, lice]));
   const live = (state?.lices ?? [])
@@ -124,7 +49,11 @@ export function NowLiveSection({ eventSlug, lices }: Props) {
 
   return (
     <section className="mt-6">
-      <h2 className="font-display text-lg font-semibold">{t('publicApp.display.nowLive')}</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-lg font-semibold">{t('publicApp.display.nowLive')}</h2>
+        {/* Says nothing while live, as an unattended screen should; says it when the picture is old. */}
+        <FreshnessChip freshness={freshness} t={t} quietWhenLive />
+      </div>
       {live.length === 0 ? (
         // Deliberately a message, not a hidden section: an operator has to be
         // able to tell "nothing running" from "this widget is broken".

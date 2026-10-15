@@ -22,7 +22,7 @@ import { LiveNowSection } from './_components/LiveNowSection';
 import { MyScheduleCard } from './_components/MyScheduleCard';
 import { liveBlockPlace } from './_lib/live-block-place';
 import {
-  fetchHighlights,
+  fetchLiveState,
   fetchParticipantsCounts,
   fetchTournaments,
   fetchVenues,
@@ -49,8 +49,8 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
   const tr = createTranslator(getMessages(locale));
   const tag = localeToBcp47(locale);
   const event = await eventOrNotFound(eventSlug);
-  const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
-    fetchHighlights(eventSlug, apiUrl),
+  const [liveState, tournaments, participantsCounts, venues, workshops] = await Promise.all([
+    fetchLiveState(eventSlug, apiUrl),
     fetchTournaments(event.id, apiUrl),
     fetchParticipantsCounts(eventSlug, apiUrl),
     fetchVenues(eventSlug, apiUrl),
@@ -92,7 +92,7 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
   const liveNow = (
     <LiveNowSection
       eventSlug={eventSlug}
-      initialHighlights={highlights}
+      initialState={liveState}
       workshops={workshops}
       tz={tz}
       nowIso={new Date().toISOString()}
