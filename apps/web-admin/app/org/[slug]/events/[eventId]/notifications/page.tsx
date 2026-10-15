@@ -89,8 +89,11 @@ export default function EventNotificationsPage() {
     return () => controller.abort();
   }, [apiUrl, eventId, t]);
 
-  // Above the server's limit the page says so in the picker, and sends nothing (O5).
+  // Above the server's limit the page says so in the picker, and sends nothing (O5). With
+  // nobody picked it sends nothing either: the server refuses an empty list, and the
+  // picker's count already reads "0 picked".
   const tooMany = targetType === 'specific_persons' && selected.size > MAX_RECIPIENTS;
+  const nobodyPicked = targetType === 'specific_persons' && selected.size === 0;
 
   /** The question before a broadcast leaves: which message, to whom, as what. */
   function askBeforeSend(): Promise<boolean> {
@@ -262,7 +265,9 @@ export default function EventNotificationsPage() {
 
           <button
             type="button"
-            disabled={busy || !title.trim() || !body.trim() || isReadOnly || tooMany}
+            disabled={
+              busy || !title.trim() || !body.trim() || isReadOnly || tooMany || nobodyPicked
+            }
             title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             onClick={() => void sendBroadcast()}
             className="mt-5 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:bg-border"

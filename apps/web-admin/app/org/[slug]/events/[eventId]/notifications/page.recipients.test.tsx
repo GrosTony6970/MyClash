@@ -85,6 +85,23 @@ describe('the people picker of a broadcast', () => {
     expect(picked()).toBe('0 picked');
   });
 
+  it('sends nothing while nobody is picked, and sends once someone is', async () => {
+    await open();
+    act(() => {
+      type(document.body.querySelector<HTMLInputElement>('input[maxlength="120"]')!, 'Lunch');
+      type(document.body.querySelector('textarea')!, 'Back at 14:00.');
+    });
+    const send = () =>
+      [...document.body.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Send notification',
+      )!;
+    expect(picked()).toBe('0 picked');
+    expect(send().disabled).toBe(true);
+
+    await act(async () => boxes()[0]!.click());
+    expect(send().disabled).toBe(false);
+  });
+
   it('says so above 500 people, and sends nothing', async () => {
     const crowd = Array.from({ length: 501 }, (_, i) => person(`p-${i}`, `Fighter${i}`, null));
     await open(crowd);
