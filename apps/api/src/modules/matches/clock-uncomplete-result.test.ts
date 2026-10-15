@@ -108,6 +108,11 @@ describe('ClockService.clockAction — a bout taken out of completed (ruling 331
       ended_at: null,
       back_in_play_at: MARK,
     });
+    // Taking it out of `completed` is the point here: no "not completed" guard on this write.
+    expect(writesTo(db, 'matches')[0]?.filters).not.toContainEqual({
+      method: 'neq',
+      args: ['status', 'completed'],
+    });
   });
 
   it('a Resume on a completed bout whose clock is halted leaves none, and no start time', async () => {

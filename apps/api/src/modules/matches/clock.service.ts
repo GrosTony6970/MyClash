@@ -34,6 +34,7 @@ import { eventResultsFrozen } from './event-results-frozen';
 import {
   againOnCollision,
   alreadyTrue,
+  boutCompleted,
   ClockRowCollided,
   elapsedAt,
   eventStatusOf,
@@ -368,7 +369,7 @@ export class ClockService {
    * can't diagnose. A press sent late that loses its sequence, or its own id,
    * to another writer says so with `ClockRowCollided`: `latePress` asks again.
    */
-  private async insertRow(matchId: string, step: ClockStep, at: string): Promise<void> {
+  private async insertRow(matchId: string, step: ClockStep, at: string): Promise<number> {
     const sequence = await this.nextSequence(matchId);
     const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
@@ -380,7 +381,7 @@ export class ClockService {
       occurred_at: at,
       ...(step.press ? { client_uuid: step.press.clientUuid } : {}),
     });
-    if (!error) return;
+    if (!error) return sequence;
     if (step.press && error.code === UNIQUE_VIOLATION) throw new ClockRowCollided();
     throw new BadRequestException(error.message);
   }
@@ -395,6 +396,40 @@ export class ClockService {
     if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
   }
 
+  /**
+   * Put a bout in play (Start, Halt, Resume, or a Reopen that un-completes nothing) only while it
+   * is not completed. The race, named: the bout's status was read before the clock row, and a
+   * closing hit, a forfeit, an End from another tablet or a PATCH can complete it in between.
+   * Unguarded, the write left it running with its winner kept and its bracket already moved on.
+   * The refusal is in the write itself, as `MatchesService.updateStatus` does (ruling 338). When
+   * the completion won, the clock row just written is taken back, so a resend is judged afresh,
+   * and the press meets the refusal a press sent late on a completed bout already meets.
+   */
+  private async writeBoutInPlay(
+    matchId: string,
+    sequence: number,
+    columns: Record<string, unknown>,
+  ): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(columns)
+      .eq('id', matchId)
+      .neq('status', 'completed')
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
+    if (data) return;
+    const { error: takeBack } = await this.supabase.service
+      .from('match_events')
+      .delete()
+      .eq('match_id', matchId)
+      .eq('sequence', sequence);
+    if (takeBack) {
+      throw new Error(`Bout ${matchId} completed meanwhile, clock row kept: ${takeBack.message}`);
+    }
+    throw boutCompleted();
+  }
+
   /** Write one clock row, and what it does to the bout. */
   private async record(
     matchId: string,
@@ -405,38 +440,26 @@ export class ClockService {
     const { action, ending, uncompletes } = step;
     // The time of the row: now, or where a press sent late or the server's own is placed.
     const now = step.at ?? new Date().toISOString();
-    await this.insertRow(matchId, step, now);
+    const sequence = await this.insertRow(matchId, step, now);
+    // Ruling 331 takes a bout out of `completed` on purpose; any other press puts in play only
+    // a bout that is not completed when it is written.
+    const inPlay = (columns: Record<string, unknown>) =>
+      uncompletes
+        ? this.writeBout(matchId, columns)
+        : this.writeBoutInPlay(matchId, sequence, columns);
 
     // Ruling 331: out of `completed`, no result. An End read the old winner first.
     // And the mark of a bout put back in play, in the same write.
     const noResult = uncompletes ? { ...noResultColumns(), ...backInPlayColumns(now) } : {};
     if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
-      await this.writeBout(matchId, { status: 'running', ...started, ...noResult });
+      await inPlay({ status: 'running', ...started, ...noResult });
     } else if (action === 'halt') {
-      await this.writeBout(matchId, { status: 'paused', ...noResult });
+      await inPlay({ status: 'paused', ...noResult });
     } else if (action === 'end') {
       await this.completeOnEnd(matchId, match, current, ending, now);
     } else if (action === 'reopen') {
-      // Reverses a prior 'end': clock goes back to halted with the
-      // accumulated active time preserved (computeClockState reads the
-      // same event-sourced timeline). Clears ended_at + locked_at so
-      // scoring can resume.
-      const reopenUpdates: Record<string, unknown> = {
-        ...reopenedResultColumns(),
-        locked_at: null,
-        duration_total_ms: null,
-      };
-      // Best-of: pop the round that ended the series so it reopens for
-      // correction. A series a forfeit ended keeps its closed rounds.
-      const poppedRound = popClinchingRoundColumns(match);
-      if (poppedRound) Object.assign(reopenUpdates, poppedRound);
-      // A Reopen on a bout that is not completed moves the clock alone, and
-      // leaves no mark: the Reopen "Start round N+1" makes itself
-      // (`round-advance.ts`), and the one a referee presses on a clock a
-      // forfeit ended, after the forfeit was taken back.
-      if (uncompletes) Object.assign(reopenUpdates, backInPlayColumns(now));
-      await this.writeBout(matchId, reopenUpdates);
+      await inPlay(reopenColumns(match, uncompletes, now));
     }
 
     this.logger.log(`Match ${matchId}: clock ${action}`);
@@ -609,4 +632,31 @@ export class ClockService {
 
     return ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
   }
+}
+
+/**
+ * What a Reopen writes on its bout. It reverses a prior 'end': the clock goes back to halted with
+ * the accumulated active time preserved (computeClockState reads the same event-sourced
+ * timeline), and ended_at + locked_at are cleared so scoring can resume.
+ */
+function reopenColumns(
+  match: Record<string, unknown>,
+  uncompletes: boolean,
+  now: string,
+): Record<string, unknown> {
+  const columns: Record<string, unknown> = {
+    ...reopenedResultColumns(),
+    locked_at: null,
+    duration_total_ms: null,
+  };
+  // Best-of: pop the round that ended the series so it reopens for
+  // correction. A series a forfeit ended keeps its closed rounds.
+  const poppedRound = popClinchingRoundColumns(match);
+  if (poppedRound) Object.assign(columns, poppedRound);
+  // A Reopen on a bout that is not completed moves the clock alone, and
+  // leaves no mark: the Reopen "Start round N+1" makes itself
+  // (`round-advance.ts`), and the one a referee presses on a clock a
+  // forfeit ended, after the forfeit was taken back.
+  if (uncompletes) Object.assign(columns, backInPlayColumns(now));
+  return columns;
 }

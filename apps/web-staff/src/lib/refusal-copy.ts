@@ -65,6 +65,7 @@ const HELD_BEFORE_RESET = 'scoring.quarantine.scoredBeforeReset';
 const HELD_LOCKED = 'scoring.quarantine.boutLocked';
 const BOUT_LOCKED = 'scoring.corrections.boutLocked';
 const NOT_STARTED = 'scoring.corrections.boutNotStarted';
+const COMPLETED_MEANWHILE = 'scoring.corrections.boutCompletedMeanwhile';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
@@ -125,6 +126,9 @@ const REFUSED_WHOLE = new Map([
   // The clock, started between two rounds of a best-of bout: this tablet's
   // screen is behind the table's, which shows "Round complete".
   ['round_awaits_advance', START_NEXT_ROUND_FIRST],
+  // A clock press made now, met by a completion on its way: a closing hit or
+  // another tablet's End. A press sent late reads HELD_PRESS's words instead.
+  ['bout_completed', COMPLETED_MEANWHILE],
 ]);
 
 /**

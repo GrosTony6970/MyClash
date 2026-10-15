@@ -440,6 +440,8 @@ export const scoring = {
     eventOver:
       'Cet événement est terminé et ses résultats sont clos. Adressez-vous à un organisateur.',
     boutNotStarted: "Cet assaut n'est pas commencé. Démarrez-le, puis réessayez.",
+    boutCompletedMeanwhile:
+      "Cet assaut vient de se terminer : le chrono n'a pas bougé. Rouvrez-le pour continuer.",
     boutLocked: 'Cet assaut est verrouillé. Rouvrez-le, puis réessayez.',
     accountCannotScore:
       "Le compte connecté sur cette tablette n'a pas de rôle pour scorer cet événement : rien ne sera enregistré. Déconnectez ce compte, ou adressez-vous à un organisateur.",

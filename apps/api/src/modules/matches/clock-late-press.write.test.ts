@@ -261,6 +261,59 @@ describe('two writers on one bout', () => {
     );
   });
 
+  /**
+   * The bout's status is read before the clock row is written. A closing hit, a forfeit or another
+   * tablet's End can complete it in between: the write must not put it back in play with its
+   * winner kept. The guard is in the write; when the completion won, the clock row goes too.
+   */
+  function completedMeanwhile(db: ReturnType<typeof setup>['db']) {
+    const real = db.service.from;
+    db.service.from = vi.fn((table: string) => {
+      const chain = real(table);
+      if (table !== 'matches') return chain;
+      // The guarded write finds no bout that is not completed: it answers no row.
+      chain.update = vi.fn(() => supabaseChain({ data: null, error: null })) as never;
+      return chain;
+    }) as never;
+  }
+
+  it('a Resume on a bout completed between its read and its write is refused, row taken back', async () => {
+    const { db, clock } = setup(HALTED);
+    completedMeanwhile(db);
+
+    expect(await refusalOf(clock.latePress(BOUT, 'resume', press('10:05:00')))).toEqual({
+      status: 409,
+      code: 'bout_completed',
+    });
+    const events = writesTo(db, 'match_events');
+    expect(events.map((write) => write.op)).toEqual(['insert', 'delete']);
+    expect(events[1]?.filters).toEqual(
+      expect.arrayContaining([
+        { method: 'eq', args: ['match_id', BOUT] },
+        { method: 'eq', args: ['sequence', 3] },
+      ]),
+    );
+  });
+
+  it('the same race holds for the press of the pad of before, with no id', async () => {
+    const { db, clock } = setup(HALTED);
+    completedMeanwhile(db);
+
+    await expect(clock.clockAction(BOUT, 'resume')).rejects.toMatchObject({
+      response: { code: 'bout_completed' },
+    });
+    expect(writesTo(db, 'match_events').map((write) => write.op)).toEqual(['insert', 'delete']);
+  });
+
+  it('puts a bout in play only while it is not completed, in the write itself', async () => {
+    const { db, clock } = setup(HALTED);
+
+    await clock.clockAction(BOUT, 'resume');
+
+    const [update] = writesTo(db, 'matches');
+    expect(update?.filters).toContainEqual({ method: 'neq', args: ['status', 'completed'] });
+  });
+
   it('any other failure of the insert is an error at once', async () => {
     const { db, clock } = setup(HALTED);
     const real = db.service.from;

@@ -256,6 +256,22 @@ describe('refusalMessage', () => {
     );
   });
 
+  it('says the bout was just completed, for a clock press made now that a completion beat', () => {
+    expect(
+      refusalMessage(
+        refusal(409, { code: 'bout_completed', detail: 'Bout completed' }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.corrections.boutCompletedMeanwhile');
+    expect(en.scoring.corrections.boutCompletedMeanwhile).toBe(
+      'This bout was just completed, so the clock did not move. Reopen it to go on.',
+    );
+    expect(fr.scoring.corrections.boutCompletedMeanwhile).toBe(
+      "Cet assaut vient de se terminer : le chrono n'a pas bougé. Rouvrez-le pour continuer.",
+    );
+  });
+
   it('says the Event is over, instead of the API sentence', () => {
     expect(
       refusalMessage(

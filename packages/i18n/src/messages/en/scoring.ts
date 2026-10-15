@@ -461,6 +461,10 @@ export const scoring = {
       'This correction would change who won a round that is closed. Later rounds were fought from that result, so it was not applied.',
     eventOver: 'This event is over and its results are closed. Ask an organiser.',
     boutNotStarted: 'This bout is not started. Start it, then try again.',
+    // The API's `bout_completed` on a clock press made now: a closing hit or another tablet's
+    // End completed the bout while this press was on its way.
+    boutCompletedMeanwhile:
+      'This bout was just completed, so the clock did not move. Reopen it to go on.',
     // The API's `match_locked`: the lock came after this screen read the bout.
     boutLocked: 'This bout is locked. Reopen it, then try again.',
     accountCannotScore:
