@@ -34,5 +34,6 @@ describe('a bout being fought names a side with no name', () => {
     const hub = read('display', 'NowLiveSection.tsx');
     expect(hub).not.toContain("?? '?'");
     expect(hub).toContain("nameOrUnknown(match.redFighterName, 'fighter', t)");
+    expect(hub).toContain("nameOrUnknown(match.blueFighterName, 'fighter', t)");
   });
 });
