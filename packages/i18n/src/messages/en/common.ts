@@ -119,6 +119,10 @@ export const common = {
     columnFinals: 'Finals',
     columnSemiFinals: 'Semi Finals',
     columnQuarterFinals: 'Quarter Finals',
+    // A bout made by hand holds no round: it is named by its phase.
+    phasePool: 'Pools',
+    phaseSwiss: 'Swiss',
+    phaseBracket: 'Bracket',
   },
   // One word per state, per domain, on every screen (quick win X1): asked through
   // `statusLabelKey` / `statusLabel` of packages/ui, never built from the raw value.

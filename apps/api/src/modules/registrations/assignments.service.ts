@@ -4,6 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { matchSummaries } from '../matches/match-summaries';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { isRefereeBoardLocked, refereeBoardLocked } from '../referees/referee-lock';
@@ -31,9 +33,9 @@ function isBlocking(status: string | null | undefined): boolean {
   return (BLOCKING_MATCH_STATUSES as readonly string[]).includes(status ?? '');
 }
 
-export interface AssignmentSummary {
+/** `poolName` names a Pool entry, and the Pool of a bout with no number. */
+export interface AssignmentSummary extends Partial<BoutRound> {
   poolId?: string;
-  poolName?: string;
   slotId?: string;
   round?: number;
   position?: number;
@@ -48,11 +50,44 @@ export interface AssignmentSummary {
   tournamentName: string;
 }
 
-export interface BlockingMatchEntry {
+/**
+ * What names a bout that has no number (one made by hand): its round, for the window to say
+ * "Longsword Open · Quarter Final" (ruled 2026-10-15). Only such a bout carries it.
+ */
+export interface BoutRound {
+  roundToken: string | null;
+  poolName: string | null;
+  phaseType: string | null;
+}
+
+export interface BlockingMatchEntry extends Partial<BoutRound> {
   matchId: string;
   label: string;
   status: string;
   reason: 'fighter' | 'referee';
+  /** With the round, on a bout with no number only. */
+  tournamentName?: string;
+}
+
+/** The round of each bout of `bouts` that has no number, from the one builder of a bout's round. */
+async function roundsOfUnnumbered(
+  db: SupabaseClient,
+  bouts: AssignmentSummary[],
+): Promise<Map<string, BoutRound>> {
+  const ids = [...new Set(bouts.filter((bout) => !bout.label).map((bout) => bout.matchId!))];
+  if (ids.length === 0) return new Map();
+  const summaries = await matchSummaries(db, ids);
+  const rounds = new Map<string, BoutRound>();
+  for (const id of ids) {
+    const summary = summaries.get(id);
+    if (!summary) continue;
+    rounds.set(id, {
+      roundToken: summary.roundToken ?? null,
+      poolName: summary.poolName || null,
+      phaseType: summary.phaseType,
+    });
+  }
+  return rounds;
 }
 
 export interface AssignmentReport {
@@ -333,29 +368,29 @@ export class AssignmentsService {
       }
     }
 
-    const matchesAsReferee = Array.from(matchesAsRefereeMap.values());
+    // A bout with no number carries its round, so the window can name it.
+    const rounds = await roundsOfUnnumbered(this.supabase.service, [
+      ...matchesAsFighter,
+      ...matchesAsRefereeMap.values(),
+    ]);
+    const named = (m: AssignmentSummary) => ({ ...m, ...rounds.get(m.matchId!) });
+    matchesAsFighter = matchesAsFighter.map(named);
+    const matchesAsReferee = Array.from(matchesAsRefereeMap.values(), named);
 
     // 7. Compute blocking set across both fighter + referee surfaces.
     const blockingMatches: BlockingMatchEntry[] = [];
+    const blocking = (m: AssignmentSummary, reason: BlockingMatchEntry['reason']) => ({
+      matchId: m.matchId!,
+      label: m.label!,
+      status: m.status!,
+      reason,
+      ...(m.label ? {} : { tournamentName: m.tournamentName, ...rounds.get(m.matchId!) }),
+    });
     for (const m of matchesAsFighter) {
-      if (isBlocking(m.status)) {
-        blockingMatches.push({
-          matchId: m.matchId!,
-          label: m.label!,
-          status: m.status!,
-          reason: 'fighter',
-        });
-      }
+      if (isBlocking(m.status)) blockingMatches.push(blocking(m, 'fighter'));
     }
     for (const m of matchesAsReferee) {
-      if (isBlocking(m.status)) {
-        blockingMatches.push({
-          matchId: m.matchId!,
-          label: m.label!,
-          status: m.status!,
-          reason: 'referee',
-        });
-      }
+      if (isBlocking(m.status)) blockingMatches.push(blocking(m, 'referee'));
     }
 
     return {

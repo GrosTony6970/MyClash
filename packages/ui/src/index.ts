@@ -274,7 +274,13 @@ export type {
 } from './utils/bout-flow';
 
 export { exchangeDeltaLabel, afterblowDefenderLabel } from './utils/exchange-delta-label';
-export { roundLabel, roundColumnLabel, type RoundTranslator } from './utils/round-label';
+export {
+  boutName,
+  roundLabel,
+  roundColumnLabel,
+  type BoutNameParts,
+  type RoundTranslator,
+} from './utils/round-label';
 
 export type { ExchangeRow, ExchangeType, PenaltyCard } from './types/match-events';
 

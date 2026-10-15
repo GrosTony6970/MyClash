@@ -78,6 +78,9 @@ export const common = {
     columnFinals: 'Finale',
     columnSemiFinals: 'Demi-finales',
     columnQuarterFinals: 'Quarts de finale',
+    phasePool: 'Poules',
+    phaseSwiss: 'Rondes suisses',
+    phaseBracket: 'Tableau',
   },
   status: {
     match: {

@@ -41,6 +41,36 @@ const PLURAL_KEYS: Record<string, string> = {
   'common.round.quarterFinal': 'common.round.columnQuarterFinals',
 };
 
+/** A phase as one word, for a bout that holds no round of its own: one made by hand. */
+const PHASE_KEYS: Record<string, string> = {
+  pool: 'common.round.phasePool',
+  swiss: 'common.round.phaseSwiss',
+  single_elim: 'common.round.phaseBracket',
+  double_elim: 'common.round.phaseBracket',
+};
+
+export interface BoutNameParts {
+  /** `matches.match_number_label`. */
+  label?: string | null;
+  tournamentName?: string | null;
+  roundToken?: string | null;
+  poolName?: string | null;
+  phaseType?: string | null;
+}
+
+/**
+ * A bout as a person reads it: its number, or, when it has none, its Tournament and its round
+ * ("Longsword Open · Quarter Final", "Longsword Open · Pool 2"). Never its id (ruled 2026-10-15).
+ */
+export function boutName(parts: BoutNameParts, t: RoundTranslator): string {
+  const label = parts.label?.trim();
+  if (label) return label;
+  const phaseKey = parts.phaseType ? PHASE_KEYS[parts.phaseType] : undefined;
+  const round =
+    roundLabel(parts.roundToken, t) || parts.poolName?.trim() || (phaseKey ? t(phaseKey) : null);
+  return [parts.tournamentName?.trim(), round].filter(Boolean).join(' · ');
+}
+
 export function roundColumnLabel(
   token: string | null | undefined,
   t: RoundTranslator,

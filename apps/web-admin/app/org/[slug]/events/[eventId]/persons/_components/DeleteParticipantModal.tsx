@@ -24,20 +24,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Modal, statusLabel } from '@myclash/ui';
+import { Modal, boutName, statusLabel, type BoutNameParts } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 
-interface BlockingMatch {
+/** A bout with no number also carries its Tournament and its round: `boutName` words it. */
+interface BlockingMatch extends BoutNameParts {
   matchId: string;
   label: string;
   status: string;
   reason: 'fighter' | 'referee';
 }
 
-interface AssignmentEntry {
+interface AssignmentEntry extends BoutNameParts {
   poolId?: string;
-  poolName?: string;
   slotId?: string;
   round?: number;
   position?: number;
@@ -338,7 +338,7 @@ function PersonAssignmentCard({ row }: { row: Row }) {
               {m.reason === 'fighter'
                 ? t('admin.orgPersons.fightingMatch')
                 : t('admin.orgPersons.refereeingMatch')}{' '}
-              <span className="font-mono">{m.label || m.matchId}</span> (
+              <span className="font-mono">{boutName(m, t)}</span> (
               {statusLabel('match', m.status, t)})
             </li>
           ))}
@@ -367,7 +367,7 @@ function PersonAssignmentCard({ row }: { row: Row }) {
             .map((m) => (
               <li key={`f-${m.matchId}`}>
                 {t('admin.orgPersons.fightingMatch')}{' '}
-                <span className="font-mono">{m.label || m.matchId}</span> (
+                <span className="font-mono">{boutName(m, t)}</span> (
                 {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
                 <span className="italic">{m.tournamentName}</span>
               </li>
@@ -377,7 +377,7 @@ function PersonAssignmentCard({ row }: { row: Row }) {
             .map((m) => (
               <li key={`r-${m.matchId}`}>
                 {t('admin.orgPersons.refereeingMatch')}{' '}
-                <span className="font-mono">{m.label || m.matchId}</span> (
+                <span className="font-mono">{boutName(m, t)}</span> (
                 {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
                 <span className="italic">{m.tournamentName}</span>
               </li>
