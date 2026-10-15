@@ -2490,6 +2490,299 @@ Named, not fixed:
 - Archives made before this push list their tables in another order (`data` arrays): a byte diff
   against an older archive differs; a restore does not care.
 
+## Swept on 2026-10-15: what the named lists still hold
+
+Every "Named … not fixed" block above, and the "NOT fixed" bugs, were checked against `8c6f251c`.
+Three read-only passes, one per third of this file; I then re-opened 13 of the claims myself, and
+all 13 held. Of 279 bullets: **about 200 are still true** (213 before repeats are merged), 44 are
+fixed, 21 cannot be told from code. Each line below is still true today, with where it shows.
+Line numbers are today's. Where a bullet above named a defect twice, it appears here once.
+
+### Read these first — proposed, not ruled
+
+Ten that a person meets, or that lose data. Each would be its own slice; none is planned.
+
+1. **The public Event page never shows its hero image.** `fetchEventTheme` reads `event.theme`,
+   but the API sends `themes` (`apps/web-public/src/theme/fetch-theme.ts:29`;
+   `events.service.ts:572`). It also sends no login, so a draft's club could not see it either.
+2. **The HEMA Ratings feed stops at 1000 bouts**, so a big Event sends a short submission
+   (`exports.service.ts:135, 297-306`).
+3. **A CSV import counts a quoted cell holding CRLF as two lines**, so every later row reports the
+   wrong line (`persons/csv-lines.ts:11-12`). And a repeat of a row the import failed to save is
+   created at commit (`persons.service.ts:445-452`).
+4. **"Specific people" with nobody ticked still lets Send go** (`notifications/page.tsx:265`).
+5. **The Event pages' loading label is English for everyone** — it uses the English-bound module
+   `t` (`app/e/[eventSlug]/loading.tsx:8`).
+6. **An unknown fighter shows as `?`** on the live board and the live card
+   (`live/page.tsx:56,58,240`; `LiveMatchCard.tsx:53,63`; `NowLiveSection.tsx:187`).
+7. **French words without accents**: "a", "Se deconnecter", "reconnecte", "annule masque",
+   "assaut programme" (`fr/scoring.ts:20,79-80,431,543,556`); "Avance", "Recommande", "deuxieme"
+   (`fr/organizer.ts:302,304,624,682,689,709`; also `fr/admin.ts:605,1551`,
+   `fr/publicApp.ts:240,878`).
+8. **The shared confirm dialog** is raw colours (`ConfirmDialog.tsx:61-62,90`) with buttons under
+   44px (`:90,98`) — and the pad's card panel uses it (`DirectCardPanel.tsx:192`).
+9. **Confirming a penalty review sets "disqualified" without reading the write's error**, and so
+   does the black card's out-of-Tournament write (`penalties.service.ts:1080-1084, 1239-1243`).
+10. **A Start, Pause or Resume can put a completed bout back in play with its winner kept**:
+    the clock's bout write has no "not completed" filter (`clock.service.ts:393-395`; compare
+    `matches.service.ts:273`).
+
+### The pad (`apps/web-staff/src`)
+
+Kept copies and lists:
+
+- The bout and its hit and card lists are kept by separate reads, so score and list can disagree
+  (`offline/kept-bout.ts:55-65` against `:89-95`); the copy notice dates the bout only (`MatchView.tsx:741-748`).
+- An empty list answer from a list route replaces a good kept list (`lib/bout-list-read.ts:42-46`).
+- Reloaded offline, the next hit is numbered from the queue alone (`MatchView.tsx:146-157`).
+- A double voided elsewhere after the last good read still counts on the copy (`bout-list-read.ts:55-56`).
+- Nothing removes a copy at sign-out (`components/EventBanner.tsx:164-174`); a copy kept ahead
+  stays after its bout starts on another tablet (`lib/keep-piste.ts:72-77`).
+- A store blocked by another tab stays on "Loading" (`offline/db.ts:323-380`, no `blocked` handler).
+- The pools and bracket panels read the network only (`hooks/useLazyFetch.ts:40`); the QR decoder
+  is not kept until a first scan with a network (`lib/scan/decoder.ts:28`); `/offline` is kept and
+  never served (`public/sw.js:39`); with no `GIT_COMMIT` the worker cache is never renewed
+  (`lib/served-commit.ts:16-17`).
+- With no wifi, an older server tile beats a newer kept order, and a bout moved to another piste
+  keeps its Next tile (`hooks/usePadNeighbours.ts:20-27`).
+
+The send queue and the bar:
+
+- The result screen covers the bar's Review button (`MatchResultOverlay.tsx:285-290`).
+- A bout with a held row and only queued rows sends nothing, so an ended login goes unseen (`offline/sync.ts:592-601`).
+- Retry requeues a curable row behind an incurable one of the same bout (`outbox.ts:273-296`; `press-queue.ts:130-133`).
+- Undoing a refused hit leaves its bout held for the rest of that send (`press-send.ts:158`).
+- A hit queued between the two steps of a Discard is not sent by it (`sync.ts:798-801`).
+- The bar calls a refused card a "hit" and says "the match" across two matches (`lib/sync-bar.ts:94-101`).
+- The bar reads ONLINE from the browser alone — wifi with no internet looks online (`sync-bar.ts:21-22`);
+  with no network it says "queued locally" even when nothing waits (`:141`).
+- Two pad tabs each run a send; one can delete what the other sends (`sync.ts:148, 849-853`).
+- A listener that throws after a refusal files it as "no network" (`sync.ts:225-227, 701-706`).
+- A "Discard all" on a line another tab handled deletes nothing and says nothing (`press-queue.ts:176`; `QuarantineInbox.tsx:132-135`).
+- Each retry with an entry makes the bout screen read the bout again (`offline/use-sync-state.ts:59-71`).
+- The bout page and the piste list each wire the three sends (`app/matches/[matchId]/page.tsx:106-108`; `hooks/usePisteQueue.ts:31-40`).
+- A press's age is wrong when the tablet's time is corrected (`offline/press-age.ts:57-62`); a
+  slow Start send after a login renewal carries a stale time (`press-send.ts:22-30`).
+- A round row with no button named goes to the "Start round" door (`press-send.ts:56`); a hit
+  tapped while "Start round 2" is held takes the round on screen (`outbox.ts:56-61`).
+
+Rounds, ends and the result screen:
+
+- A tablet reloaded mid-send shows its closed rounds as 0 – 0 (`hooks/usePadRounds.ts:133-138`, React state only);
+  one bout's screen can lag while others' rows are sent (`sync.ts:553-556`).
+- A bout read without its summary has no phase, best-of 1 and default rules (`offline/bout-read.ts:96,139,144`);
+  the level button and the doubles limit then use the defaults (`MatchView.tsx:166`; `pad-series.ts:168`).
+- The corrections drawer takes a card on a decided series (`MatchCorrectionsDrawer.tsx:382-397`);
+  its reason field is never emptied (`:361`); its buttons are under 44px (`:216,245,253`); with it
+  open, "End drill" cannot be tapped (`:198`; `OfflineDrillBanner.tsx:52`).
+- The resume warning opens in the soft zone, but "time finished" starts at 0:00 (`resume-guard.ts:32-33`; `end-guard.ts:147-148`);
+  a tap on its backdrop closes it (`MatchPauseDialogs.tsx:95-97`).
+- A level "End match" is judged on the tablet's clock and can then be refused by the server (`end-guard.ts:146`).
+- "End round" is one tap (`ScoringCenterControls.tsx:428`) and cannot be undone on the round-break
+  screen (`lib/clear-last.ts:130-131`); the undo's reason is drawn twice (`MatchPauseDialogs.tsx:252-260`; `ScoringCenterControls.tsx:576-584`).
+- An undo in the gap after the server takes "End round" gives a second undo (`hooks/useUndoLast.ts:94`);
+  with an empty round on screen, the undo cancels an entry of the round before (`clear-last.ts:81-91`);
+  a cap-closed round that one cancel does not bring under the cap stays up with no word (`MatchView.tsx:689-690`).
+- With wifi, the level step leaves the queue at once, so the undo can cancel the hit that made it level (`clear-last.ts:192-219`).
+- A double tap on Start can read as Start then Pause (`MatchView.tsx:403-424`).
+- Reopen and Reset still need the network (`MatchView.tsx:423`).
+- The tablet's own result differs from the server's until confirmed: a card on a wiped board
+  (`end-guard.ts:105-107`); a series of double-loss rounds reads "Draw, 0 – 0" (`MatchView.tsx:562`);
+  under "draw at the limit" a closed round keeps its points (`pad-series.ts:302-303`); points the
+  server holds at zero cannot count as below zero (`:234-237`); fixed-value rulesets count another
+  way (`pad-server-score.ts:50-56`; `generic_points_cap/index.ts:114-126`); an old hit list makes a
+  real 0 – 0 read cap to cap (`pad-server-score.ts:45-65`).
+- The score of a discarded "End match" stays in memory (`usePadClock.ts:184`; `pad-clock.ts:206-211`).
+- A bout that ends while the card question is up still takes the yes (`ScoringColumn.tsx:524-527`).
+- A failed local card write shows a raw message or "Network error", against hard rule 6 (`ScoringColumn.tsx:211`).
+- A 500 with no list yet reads "No next match"; on a bout read, "Match unavailable" (`hooks/useLiceMatches.ts:66-75`);
+  Retry on "bout not loaded" has no busy state (`MatchView.tsx:1004-1022`).
+- D and U are read by key position, not letter (`lib/pad-keys.ts:14,25`).
+
+Drill and sign-in:
+
+- During a drill the reads and the heartbeat still reach the server (`offline/drill-request.ts:22-30`; `offline/heartbeat.ts`);
+  "End drill" in one tab leaves another in the drill (`offline/drill.ts:163,170`).
+- A network drop between the sign-in read and the piste read shows "could not load", then Retry
+  opens the last piste (`app/lices/page.tsx:85-88,105-112`); routes carry no mount prefix (`:91,122`).
+- An email-link organiser on a tablet that holds a PIN session sees the PIN person's pistes
+  (`app/lices/page.tsx:70-74`) — this is "the email link wins", ruled and not built.
+- "Choose your event first" stays after an event is tapped (`app/login/useStaffPinLogin.ts:47-53`);
+  a failed events read says "No events are set up" (`lib/usePickerEvents.ts:36-38`); "Check your
+  email" shows a second logo with the PIN form above (`app/login/MagicLinkForm.tsx:98-104`).
+- `MatchClock.tsx`'s default export is rendered nowhere, and `reconcileFromServer` has no caller (`components/MatchClock.tsx:51`; `offline/reconcile.ts:102`).
+
+### The public site (`apps/web-public`)
+
+- A guest of a draft or test Event is shown bouts whose page says "not found" (`api/schedule/my-schedule.controller.ts:48`).
+- Signing up by email loses the page to return to (`api/auth/auth.service.ts:1537-1579`).
+- "Live now" and "Now live" do not say how fresh they are (`home/_components/LiveNowSection.tsx:113`; `display/NowLiveSection.tsx:126`);
+  the guest schedule's "Live" badge ignores a paused bout (`my-schedule/page.tsx:514`).
+- `referee-display.ts` is a second hard-coded list of role names (`t/[tournamentSlug]/referee-display.ts:13-21`).
+- Signing in by the mailed link on a phone that holds someone else's schedule copy shows that copy
+  (`src/components/me/schedule-copy.ts:15,38`; nothing removes it in the link's landing).
+- The people search and the Workshop page have no "could not load" (`people/page.tsx:52-54`; `w/[workshopSlug]/page.tsx:129-131,189-194`);
+  the People page's role badges can never show — the read sends no roles (`people/page.tsx:132`; `api/persons/lookup.controller.ts:28-41`).
+- The Tournament stats read sends no login (`t/[tournamentSlug]/stats-data.ts:101-109`).
+- Three hand-written copies of the schedule types; two personal-space callers show nothing on a
+  failed first read (`app/me/events/[eventSlug]/page.tsx:112`; `workshops/page.tsx:64`).
+- The Tournament page draws its own "not found" and does not renew a login (`t/[tournamentSlug]/page.tsx:118-128`);
+  the roster page's title read throws on a failed Event read (`participants/page.tsx:66`).
+- The personal-space Event tabs read "My event · MyClash" for every Event (`app/me/events/[eventSlug]/layout.ts:8`; `schedule/layout.ts:4`).
+- A recent result with no Event address links to `#` (`app/fighters/[slug]/page.tsx:658,695`); the
+  profile's share card is hidden on phones (`:517`).
+- A ranked name is a text-height target that looks like a link only on hover (`leagues/[slug]/StandingsGroups.tsx:81`);
+  the Share button is hand-drawn (`src/components/ShareButton.tsx:47-51`).
+- The delete dialog's sentence asks every account for its password, Google-only ones too; the
+  field itself is hidden for them (`app/me/security/page.tsx:264-266`).
+- Referee history and the fighter profile read by raw `fetch`, with no login renewal (`RefereeProfileClient.tsx:89`; `FighterProfileClient.tsx:420,447,464`).
+
+### The organiser (`apps/web-admin`)
+
+- The schedule board's kept settings read storage with no guard (`schedule/useSchedulePrefs.ts:124,131`);
+  it returns to its opening day after every Generate or Save (`schedule/page.tsx:156`).
+- A bulk selection changed during the bulk write is replaced by the refused ones (`persons/page.tsx:1060`).
+- Picking a Tournament, then the one before, faster than the server answers loses the second pick
+  (`src/hooks/useTournamentChoice.ts:40,51`); switching Tournament while a filter write is out drops
+  that filter (`src/hooks/useAddressFilters.ts:37-42`).
+- The referee board's by-timeslot header uses the computer's clock, not the Event's (`referees/page.tsx:1167-1168`).
+- After a half-done Create, the leave question still says changes will be lost (`events/new/page.tsx:830`).
+- The Tournament settings header keeps the old name after Basics saves (`tournaments/[tournamentId]/settings/page.tsx:51`).
+- A file dropped just outside the CSV box opens in the browser (`src/components/CsvDropZone.tsx:116-118`);
+  the super admin's import hint is English (`admin/global-persons/import/page.tsx:213-215`).
+- "Requested" and "Pending" name one request state (`en/common.ts:210`; `en/admin.ts:2029`).
+- The recompute check lists "Unknown fighter" with no bib (`admin/leagues/[id]/edit/RecomputePreflight.tsx:84`).
+- Two raw ids remain: a bout id in the delete-participants window (`DeleteParticipantModal.tsx:341,370`)
+  and a custom skill id on a bracket card (`bracket/_tabs/RefereesTab.tsx:256`).
+- English outside JSX: the ruleset form's option labels and the formula editor's errors (`rulesets/RulesetForm.tsx:369-385`; `FormulaEditor.tsx:266,292,302,308`).
+- The workshop CSV writes a venue's id when the venue is gone (`workshops/workshop-schedule-csv.ts:66`),
+  and its "8/20" places cell may read as a date in Excel (`:71`).
+- The referee board's assignment list names a bracket bout with no round "Match 1a2b3c" (`api/referees/assignment-board.service.ts:1346`).
+
+### The server (`apps/api/src/modules`)
+
+Scoring and the clock:
+
+- A late "End round" gives the round to the leader as the server reads it on arrival (`matches/scoring.service.ts:1053-1054`).
+- Two "Start round 2" at once: the second can reset a clock the first started (`matches/round-advance.ts:203-210, 229-236, 300-305`).
+- A best-of winner moves on in the bracket only through the clock End, which can fail silently (`scoring.service.ts:261-269, 653-667`).
+- The back-in-play mark can move back: a late card's time overwrites a later Reopen's (`matches/reopen-match-columns.ts:58-60`);
+  a press and a Reopen in the same moment — the press is written anyway (`clock.service.ts:393-395`).
+- A forfeit taken back can leave a bout running with an ended clock (`matches/match-forfeits.service.ts:703-721`);
+  a bout a forfeit ended between rounds cannot be reopened by Start (`clock.service.ts:232-237`).
+- Start, Pause, Resume on a completed best-of bout do not put back the series-ending round (`clock.service.ts:413-417`);
+  the `reopenClosedRound` comment says the clock stays halted, but it is ended (`scoring.service.ts:968-969`).
+- A bout decided "less far below zero", reopened and ended by "End match", reads 0 – 0 with no winner (`matches/time-limit-result.ts:137-166`).
+- A Start whose count fails leaves the TV at 0 – 0 (`scoring.service.ts:1367, 1402-1409`); a card
+  before such a Start is not counted (`matches/start-count.ts:94`).
+- `PATCH /matches/:id/status` sets "running" with no clock and no count (`matches/matches.service.ts:262-274`).
+- A press whose clock row saved but whose bout update failed is answered "done" next time (`clock.service.ts:330`).
+- A row from another device between the read of the last row and the write can sort after a late
+  step or a late press (`matches/level-step.ts:274-275`; `matches/late-press.ts:117-120, 227-232`).
+- A clock Reset or Reopen does not put the level chain back to its first step (`clock.service.ts:553-567`).
+- The end time is the time of arrival when the clock never ran (`scoring.service.ts:187, 776`);
+  "scored before the last reset" reads the tablet's time of day (`matches/bout-not-started.ts:53`).
+- A clock press with no id on an archived Event is refused in English with no code (`staff/staff.service.ts:1504-1505, 1606-1609`).
+- Referee statistics sort clock rows by time alone (`fighters/referee-stats.ts:301-303`).
+
+Rulesets:
+
+- A bout started offline is still "scheduled" on the server, so a rules change moves it (`phases/match-ruleset.ts:109-114`).
+- The engine comes from the bout but the settings from the Tournament at each hit (`scoring.service.ts:405, 434-436`).
+- Pools generated in the same seconds as a ruleset change can land on the old one (`phases/phases.service.ts:371`).
+- "Acknowledge" answers done when the hash write failed; an unreadable Tournament row writes an
+  empty hash; two saves at once — the later wins (`events/ruleset-hash.service.ts:60-90, 132-141`).
+- A failed Tournament read at generation stamps TF_v1 (`phases/match-ruleset.ts:49-59, 168-180`);
+  a failed club-ruleset read scores with TF_v1 for 5 s (`matches/ruleset-resolver.service.ts:138, 149-157`).
+- A club ruleset can be edited or deleted while finished bouts carry it; corrections then score
+  with TF_v1 (`rulesets/custom-rulesets.service.ts:742-764, 1339`).
+- Two server answers give the doubles limit as stored, not as it applies (`staff/staff.service.ts:1732, 1891`).
+- One bad stored format fails the whole piste read (`matches/match-summaries.ts:188`).
+- A withdrawal take-back reads every Pool bout's ruleset, even ones it leaves alone (`match-forfeits.service.ts:570-579`).
+
+Other:
+
+- A list route answers `[]`, not a refusal, to an unknown caller (`matches/matches.controller.ts:379`; `penalties/penalties.controller.ts:298`).
+- An organiser with no PIN gets no piste kept, and the admin mount has no worker (`staff/staff.service.ts:1306-1311`).
+- A good PIN sign-in counts against the ten tries per hour (`common/throttling/throttle-by-staff-account.ts:64-73`).
+- The workshop booking count reads 0 on a failed read and stops at the row limit (`workshops/workshops.service.ts:1059-1071`);
+  a venue area's list of what it holds is unpaged (`venues/venue-area-leaves.ts:38-45`).
+- The league page reads one Event after another per unclaimed fighter (`common/auth/hidden-entrants.ts:122-124`).
+- `events.start_date` is free text (`packages/db/migrations/0001_init.sql:168`); a fighter's
+  medal years hold at the API only, not in the table (`0123_fighter_manual_medals.sql:27`).
+- An import's commit reads the file again, so a file changed after the preview is imported as it
+  is then (`persons/persons.controller.ts:186`); the persons `ImportDecisionDto` is unused (`persons/dto/persons.dto.ts:68`).
+- The public roster puts a person with no name first (`events/events.service.ts:2403`).
+- An Event the caller may not see answers the guest schedule as a failed read (`apps/web-public/src/components/me/read-my-schedule.ts:33-34`).
+- TF_v1 stays version 1.0.0 although its end decision changed (`packages/rulesets/src/tf_v1/index.ts:49`).
+
+### Shared (`packages/`)
+
+- The finished-bout chart shows "doubles 1/4" on a bracket bout — it ignores the phase (`ui/src/utils/bout-flow.ts:326-333`).
+- Under countdown with "result stands", both at zero and at the limit is a draw, not "less far below zero" (`rules/src/match-format.ts:861, 869`).
+- In a phase with no time limit the time is always "finished", so a second tap takes the next level step (`match-format.ts:592`).
+- The "waiting for next match" card shows the Event and piste in phone sizes (`ui/src/components/LiceWaitingDisplay.tsx:70-72`);
+  `MatchScoreboard` keeps its own fixed sizes (`MatchScoreboard.tsx:67,72`).
+- A guarded link loses its own `replace` and `scroll` (`ui/src/hooks/useLeaveGuard.ts:77-80`).
+- Two dialogs opened in one render stack in effect order (`ui/src/hooks/useDialogLayer.ts:16-19`).
+- The AI-keys panel takes any answer as a list (`ui/src/components/AiKeysManager.tsx:112,129,292`).
+- The CSV menu opens to the left and can run off a narrow screen (`ui/src/components/CsvExportMenu.tsx:171`).
+- Lint gaps: words in object props, default params and all-caps words (`eslint-rules/no-literal-string.mjs:55`);
+  the field rule matches `id` by text and passes any spread (`eslint-rules/require-field-name.mjs:61,66,74`);
+  `gen-i18n-baseline.mjs` does not scan `packages/ui` (`scripts/gen-i18n-baseline.mjs:22`).
+
+### Behaviours no test holds
+
+- Pad: "Discard all" on a best-of bout (`tests/a11y/pad-discard-bout.spec.ts`); a refused clock
+  press after a Reopen (`pad-press-before-reopen.spec.ts`); a refused level step in the inbox
+  (`pad-level-no-network.spec.ts:164-177`); a drill ended by its time (`pad-offline-drill.spec.ts:90`).
+- Test 16 confirms a card by the list's first sanction (`tests/e2e/16-pad-ui.spec.ts:290,298`);
+  e2e 06 and 40 default to the admin mount (`06-offline-sync.spec.ts:38`; `40-offline-bout.spec.ts:32`).
+- Public: the single-bout TV; the two piste-TV races (`use-piste-screen.ts:37`); a Tournament of a
+  TEST Event (`scripts/e2e-server-api-stub.mjs:42`); the doors that remove a kept schedule, held by
+  text pins only (`schedule-state.test.ts:166-186`); the title sweep skips a hand-written layout
+  `generateMetadata` (`app/page-titles.test.ts`).
+- Organiser: the referee board's and Configure panel's opening day on a mounted page; the CSV menu
+  on the Swiss, schedule, workshop, pay, final ranking and league edit pages; which of the unload
+  prompt's two calls raises it (`src/hooks/useLeaveGuard.test.tsx:84-91`).
+
+### Cannot be told from code
+
+Each needs a run, a device or a ruling, not a read:
+
+- Deployed-stack runs never made: tests 06, 10, 16, 40, 41; the nightly run's staging certificate;
+  slice 5's tests; the hand-run real-worker probe (not in the repo).
+- Browser or device: two Space presses with no gap; a late Resume at 0:00 beeping twice; an earlier
+  hit racing the undo; P1's alert on a one-column screen; the French clock pill "PAS COMMENCÉ" on a
+  tablet; the not-found tab under an Event; the share panel on a real phone; the site header at
+  360px; long names on a 720p TV; the F13 cache rule on a production build.
+- No cold review ran after the doubles-limit review's three fixes.
+
+### Questions for the operator
+
+- **The pad's "End round" before a hit arrives.** The official taps a hit, then "End round" a
+  moment later, before the hit shows. The tablet says "Scores are level" and refuses
+  (`usePadRounds.ts:196-206`). Should it wait for the hit, or keep refusing?
+- **Ctrl+Z on the schedule board.** The organiser deletes a bar and presses Ctrl+Z before the
+  server answers. Nothing happens and nothing is said (`schedule/useScheduleUndo.ts:113-115`).
+  Should it say "wait", or undo once the answer lands?
+- **The undo's words "which hit".** The wording on the round-break screen is the builder's, never
+  ruled (`:967` above).
+- **The email link wins** stays ruled and not built: it needs three more rulings first (`:1614`).
+
+### Fixed since they were named
+
+44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
+`e3316812` with `79757c14`, `a9cdf706`, `6e96acc1` — a bout made by hand now gets its
+Tournament's ruleset too). The rest: `8dab2ce0`, `f2da59d8`, `b416adc0`, `d43507ed`, `688a9747`,
+`35c028b2`, `45d70354`, `d9076f71`, `ef32a780`, `f14f8156`, `b0d511d6`, `eed5c3fd`, `641cccaf`,
+`96818d5e`, `2ffa26d0`, `d632ce37`, `6011c214`, `6ceb204b`, `06694b47`, `c626976b`, `cd6ce459`,
+`dd079586`, `fd814eea`, `adacd5c9`, `c8940aac`, `b977fda9`, `e9c2564d`, `b35de7df`, `2c7ebeb0`,
+`1120d6ce`, `f23cd7e2`, `e8908caa`, `50d62804`, `087b3aa8`, `853530e0`, `d01d3125`.
+
+One line above is wrong as written: `:769` says an Event's default-penalty change leaves bouts on
+the old fingerprint. `a9cdf706` moves them (`penalties.service.ts:850-853`).
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
