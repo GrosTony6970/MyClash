@@ -987,6 +987,8 @@ export const publicApp = {
     deleteModalTitle: 'Tapez {word} pour confirmer',
     deleteModalBody:
       'Entrez votre mot de passe actuel et tapez {word} pour supprimer définitivement ce compte. Vos résultats de compétition conservent votre nom.',
+    deleteModalBodyNoPassword:
+      'Tapez {word} pour supprimer définitivement ce compte. Vos résultats de compétition conservent votre nom.',
     deleteConfirmationLabel: 'Tapez {word} pour confirmer',
     deleteConfirmAction: 'Supprimer le compte',
     errors: {

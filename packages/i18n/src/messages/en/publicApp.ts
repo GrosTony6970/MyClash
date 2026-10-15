@@ -981,6 +981,9 @@ export const publicApp = {
     deleteModalTitle: 'Type {word} to confirm',
     deleteModalBody:
       'Enter your current password and type {word} to permanently remove this account. Your competition results keep your name.',
+    // An account that signs in with Google alone has no password to enter.
+    deleteModalBodyNoPassword:
+      'Type {word} to permanently remove this account. Your competition results keep your name.',
     deleteConfirmationLabel: 'Type {word} to confirm',
     deleteConfirmAction: 'Delete account',
     errors: {

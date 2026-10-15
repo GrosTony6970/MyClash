@@ -8,10 +8,10 @@ import { LEA, PUBLIC, signInAsLea } from './me-stub';
  * literal, DELETE.
  */
 
-async function openDeletion(page: Page) {
+async function openDeletion(page: Page, hasPassword = true) {
   await signInAsLea(page);
   await page.route('**/api/v1/me/security-status', (route) =>
-    route.fulfill({ json: { hasPassword: true, email: LEA.email } }),
+    route.fulfill({ json: { hasPassword, email: LEA.email } }),
   );
   await page.route('**/api/v1/persons/me/email-change', (route) => route.fulfill({ json: null }));
   const deletions: unknown[] = [];
@@ -42,6 +42,23 @@ test.describe('in English', () => {
     await confirm.click();
     await expect(dialog.getByRole('alert')).toBeVisible();
     expect(deletions).toEqual([{ currentPassword: 'old-Password-1!', confirmation: 'DELETE' }]);
+  });
+
+  // An account that signs in with Google alone has no password: the field was hidden, and the
+  // sentence above it still said "Enter your current password".
+  test('an account with no password is not asked for one, in the words either', async ({
+    page,
+  }) => {
+    await openDeletion(page, false);
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Type DELETE to confirm' });
+
+    await expect(
+      dialog.getByText('Type DELETE to permanently remove this account.', { exact: false }),
+    ).toBeVisible();
+    await expect(dialog.getByText(/password/i)).toHaveCount(0);
+    await dialog.getByLabel('Type DELETE to confirm').fill('delete');
+    await expect(dialog.getByRole('button', { name: 'Delete account' })).toBeEnabled();
   });
 });
 

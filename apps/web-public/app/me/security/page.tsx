@@ -262,7 +262,13 @@ function DeleteAccountSection({
             {t('publicApp.security.deleteModalTitle', { word })}
           </p>
           <p className="mt-2 text-sm text-danger">
-            {t('publicApp.security.deleteModalBody', { word })}
+            {/* The password is asked only of an account that has one (`hasPassword`, below). */}
+            {t(
+              status.hasPassword
+                ? 'publicApp.security.deleteModalBody'
+                : 'publicApp.security.deleteModalBodyNoPassword',
+              { word },
+            )}
           </p>
           <form
             className="mt-3 space-y-3"
