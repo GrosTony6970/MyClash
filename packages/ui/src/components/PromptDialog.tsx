@@ -4,6 +4,15 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { createPortal } from 'react-dom';
 import { useDialogLayer } from '../hooks/useDialogLayer';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import {
+  DIALOG_BACKDROP,
+  DIALOG_CANCEL,
+  DIALOG_CARD,
+  DIALOG_DESCRIPTION,
+  DIALOG_FIELD,
+  DIALOG_TITLE,
+  dialogConfirmClasses,
+} from './dialog-classes';
 
 /**
  * PromptDialog — accessible focus-trapped modal that asks for a single text
@@ -91,9 +100,6 @@ export function PromptDialog({
   // The reason waits for the first key: an empty field is closed by the rule above anyway.
   const reason = validate && value !== '' ? validate(value) : null;
   const canConfirm = (allowEmpty || value.trim().length > 0) && reason === null;
-  const confirmClasses = danger
-    ? 'bg-red-800 hover:bg-red-900 text-white'
-    : 'bg-slate-900 hover:bg-slate-700 text-white';
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -103,7 +109,7 @@ export function PromptDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-overlay flex items-center justify-center bg-slate-950/40 p-4 dialog-enter"
+      className={DIALOG_BACKDROP}
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onCancel();
       }}
@@ -114,14 +120,12 @@ export function PromptDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 dialog-card-enter"
+        className={DIALOG_CARD}
       >
-        <h2 id={titleId} className="font-display text-xl font-medium tracking-tight text-slate-900">
+        <h2 id={titleId} className={DIALOG_TITLE}>
           {title}
         </h2>
-        {description ? (
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
-        ) : null}
+        {description ? <p className={DIALOG_DESCRIPTION}>{description}</p> : null}
         <div className="mt-4">
           {multiline ? (
             <textarea
@@ -131,7 +135,7 @@ export function PromptDialog({
               placeholder={placeholder}
               aria-label={fieldLabel}
               rows={3}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+              className={DIALOG_FIELD}
             />
           ) : (
             <PromptInput
@@ -146,18 +150,13 @@ export function PromptDialog({
           )}
         </div>
         <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-          >
+          <button type="button" onClick={onCancel} disabled={busy} className={DIALOG_CANCEL}>
             {cancelLabel}
           </button>
           <button
             type="submit"
             disabled={busy || !canConfirm}
-            className={`rounded-md px-4 py-2 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 ${confirmClasses}`}
+            className={dialogConfirmClasses(danger)}
           >
             {confirmLabel}
           </button>
@@ -215,7 +214,7 @@ function PromptInput({
           placeholder={placeholder}
           aria-invalid={reason !== null}
           aria-describedby={reason !== null ? `${fieldId}-reason` : undefined}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-800/20"
+          className={DIALOG_FIELD}
         />
         {masked && revealable && (
           <RevealButton shown={shown} onToggle={() => setShown((now) => !now)} words={revealable} />
