@@ -2411,13 +2411,84 @@ What the build chose, not ruled. Say so if one is wrong:
 
 Named, not fixed:
 
-- The server's CSVs (archive exports, League report, audit log, a person's data export) have no
+- ~~The server's CSVs (archive exports, League report, audit log, a person's data export) have no
   byte-order mark, English column titles and `,`: French Excel shows them with broken accents and
-  in one column. The same job again, on the API side.
+  in one column. The same job again, on the API side.~~ Ruled and done for five of them `d01d3125`
+  (section "Built on 2026-10-15: the server's CSVs").
 - The workshop file's places cell ("8/20") may be read as a date by Excel, in both files.
 - On a narrow screen the menu opens to the left of its button and can run off the screen.
 - No page test drives the menu on the Swiss, schedule, workshop, pay and final ranking pages; their
   builders are tested, and the page hands the pick on in one line.
+
+## Built on 2026-10-15: the server's CSVs
+
+The CSVs the server builds came out with `,`, `12.50` and no byte-order mark: French Excel showed
+them in one column, with broken accents. The recon found two faults beside them, fixed first.
+
+Rulings, operator, 2026-10-15 (do not ask again):
+
+| Question                   | Ruling                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Which server files?        | The Archive page's Matches, Exchanges and Rankings of a Tournament, and its Full event file; the League final report (league edit page and public league page). |
+| Not these                  | The audit log, "Download my data", the archive zip's own copies, the HEMA Ratings feed.                                                                         |
+| Column titles in French?   | Kept as they are (`match_id`, `red_score`…), in both files. Only the separator, the decimals and the mark change.                                               |
+| Byte-order mark?           | In both files.                                                                                                                                                  |
+| The Full event leak        | Fixed first, own commit.                                                                                                                                        |
+| The archive's 1000-row cut | Fixed in this push, own commit.                                                                                                                                 |
+
+Built:
+
+- `b7a0612c` **The Full event CSV held every Event's hits.** Its filter reached the Event through
+  three nested reads with no `!inner`, so PostgREST blanked the Tournament and kept the row: other
+  clubs' hits, void reasons included, reached an organiser. Now `!inner` on each; a failed read
+  fails the download.
+- `a7648666` **An archive lost every row past 1000**, with no word: a Tournament of 1,100 hits was
+  archived with 1,000, and its restore and its Exchanges CSV lost the rest. Each read is now cut in
+  pieces of 200 parents and paged. A test checks each table's key against the migrations; it found
+  `event_referee_days` keys on `day` since 0210, not `day_index`.
+- `0202b47b` The "Export CSV ▾" menu moved to `packages/ui`, the file's shape (`csvFile`) to
+  `packages/types`: the public page and the server use the same ones.
+- `d01d3125` The five downloads ask which file. The link names it, `?csv=excel-fr` or
+  `?csv=standard`; no value is standard, any other a 400. The league's double-hit average is the
+  one decimal: `1,5` in the French file. The archive zip's copies stay byte for byte.
+- `293f9a1a` (review) **The paging read by offset raced a live Event**: a hit sent between two
+  pages shifted a row onto both, and a restore of that archive failed on the duplicate id. A
+  table keyed by `id` is now read by key; both reads go on until a page is empty, so a lower cut
+  on the server costs reads, not rows.
+- `375cdd68` (review) The Matches and Exchanges files came out in id order, a random uuid: each
+  bout's hits were mixed through the file. The reports now order bouts by phase then label, and a
+  bout's hits by sequence.
+- `6f1c4a15` (review) A link that already asks something keeps its question when the file is named.
+
+The proof: one cold review (no blocker; two majors and three minors fixed, in `293f9a1a`
+`375cdd68` `6f1c4a15`; the rest below), 43 seeded breaks (40 red; the three greens got a story
+each, `50761637`, then red), the gate chain (36 of 36), API coverage, the browser suite (404 of
+404).
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The standard file changes too**: it gains the mark AND CRLF line ends, as the admin's files
+  have. A script that read the old bytes sees three bytes before the first title and a `\r` at
+  each line end.
+- **The league report is now an attachment** (`Content-Disposition`): a pick never opens the text
+  in the tab.
+- **A link with no `?csv=` gets the standard file**, so a bookmark or a script made before keeps
+  working.
+- **An unknown query word on these five routes is a 400**, the league's public route too: a link
+  shared with `?utm_source=…` is refused. The repo's other queries are strict; this one followed.
+- **The public league page's download needs the page to be live** (it is a menu now): before, it
+  was a plain link that worked with no script, and could be copied or opened in a new tab.
+- **The eight small settings tables keyed by several columns are still read by offset**: a write
+  to one of them during a download can shift its page. They hold a few rows per Event.
+
+Named, not fixed:
+
+- The HEMA Ratings feed's reads (`exports.service.ts`, its bouts and forfeits) are not paged: an
+  Event of more than 1000 finished bouts would send a short submission. Same class, own slice.
+- No page test drives the league edit page's menu; the shared menu is tested, and the page hands
+  the pick on in one line.
+- Archives made before this push list their tables in another order (`data` arrays): a byte diff
+  against an older archive differs; a restore does not care.
 
 ## Still not checked
 
