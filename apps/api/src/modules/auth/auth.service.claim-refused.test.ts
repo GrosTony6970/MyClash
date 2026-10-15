@@ -162,7 +162,9 @@ describe('the emailed claim link (ruling 300)', () => {
     ]);
     expect(reply.redirect.mock.calls).toEqual([
       [
-        `https://app.myclash.localhost/e/spring-open/claim?personId=${ROW}&claimRefused=already_at_event`,
+        `https://app.myclash.localhost/auth/signed-in?next=${encodeURIComponent(
+          `/e/spring-open/claim?personId=${ROW}&claimRefused=already_at_event`,
+        )}`,
       ],
     ]);
   });

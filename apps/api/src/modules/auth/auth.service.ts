@@ -27,7 +27,7 @@ import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { assertNotReadOnly } from '../../common/read-only-mode';
 import { isPlatformStaff, readPlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
-import { mailedLink, signInDoor } from '../mail/mailed-link';
+import { mailedLink, signedInLanding, signInDoor } from '../mail/mailed-link';
 import {
   knownRosterRows,
   publiclyKnownProfileIds,
@@ -486,7 +486,12 @@ export class AuthService {
             ? '/dashboard'
             : safeRedirect
           : safeRedirect;
-    const destination = this.buildPostAuthRedirectUrl(refusedPath ?? path, type);
+    // On the public site the phone may hold another person's schedule: its page removes it.
+    const landing = refusedPath ?? path;
+    const destination = this.buildPostAuthRedirectUrl(
+      type === 'login' ? landing : signedInLanding(landing),
+      type,
+    );
     void reply.redirect(destination);
   }
 

@@ -303,7 +303,9 @@ describe('a mailed link whose door fails for another reason', () => {
 
     await land('public_login');
 
-    expect(reply.redirect.mock.calls).toEqual([['https://app.myclash.localhost/somewhere']]);
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/auth/signed-in?next=%2Fsomewhere'],
+    ]);
     expect(reply.setCookie).toHaveBeenCalledTimes(2);
   });
 

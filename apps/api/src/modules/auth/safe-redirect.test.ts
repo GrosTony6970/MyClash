@@ -125,8 +125,8 @@ describe('the sign-in doors never answer an address of another site', () => {
 
   it.each([
     ['login', 'https://admin.myclash.localhost/dashboard'],
-    ['public_login', 'https://app.myclash.localhost/me'],
-    ['claim', 'https://app.myclash.localhost/'],
+    ['public_login', 'https://app.myclash.localhost/auth/signed-in?next=%2Fme'],
+    ['claim', 'https://app.myclash.localhost/auth/signed-in?next=%2F'],
   ])('the mailed link (%s) lands on its own page', async (type, landing) => {
     const { service, reply } = build();
 

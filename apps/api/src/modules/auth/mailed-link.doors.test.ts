@@ -122,7 +122,9 @@ describe('a mailed link reaches its door with its code (ruling 303)', () => {
     // asked as 'magiclink', the code of an address with no account yet is refused.
     expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'c0de', type: 'email' });
     expect(reply.setCookie).toHaveBeenCalledTimes(2);
-    expect(reply.redirect).toHaveBeenCalledWith('https://app.myclash.localhost/me');
+    expect(reply.redirect).toHaveBeenCalledWith(
+      'https://app.myclash.localhost/auth/signed-in?next=%2Fme',
+    );
   });
 
   it('the sign-up mail signs her in and makes her club', async () => {

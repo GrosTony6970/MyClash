@@ -70,8 +70,9 @@ describe('AuthService.handleCallback — claim', () => {
     global_person_id: null,
     events: { slug: 'other-open' },
   };
+  const landed = (path: string) => `${APP}/auth/signed-in?next=${encodeURIComponent(path)}`;
   const claimPage = (reason: string) =>
-    `${APP}/e/spring-open/claim?personId=${ROW}&claimRefused=${reason}`;
+    landed(`/e/spring-open/claim?personId=${ROW}&claimRefused=${reason}`);
 
   let service: AuthService;
 
@@ -136,11 +137,11 @@ describe('AuthService.handleCallback — claim', () => {
     expect(scopedTo(claim, 'id')).toBe(ROW);
   });
 
-  // Where a successful claim lands is unchanged by ruling 57: the `next` the
-  // link carries, on the app domain, and the app's home when it carries none.
+  // Where a successful claim lands is unchanged by ruling 57: the `next` the link carries, by
+  // the page that clears the phone's kept schedules (`landed`), and the home when it has none.
   it.each([
-    [undefined, `${APP}/`],
-    ['/e/spring-open', `${APP}/e/spring-open`],
+    [undefined, landed('/')],
+    ['/e/spring-open', landed('/e/spring-open')],
   ])('sends a successful claim with next=%s where it went before: %s', async (next, url) => {
     signedInAs(EMAIL);
     withRow({ email: EMAIL, claim_status: 'unclaimed', claimed_by_user_id: null });
@@ -212,7 +213,7 @@ describe('AuthService.handleCallback — claim', () => {
     await callback(reply);
 
     expect(signedIn(reply)).toEqual(['sb-access-token', 'sb-refresh-token']);
-    expect(reply.redirect).toHaveBeenCalledWith(`${APP}/me?claimRefused=not_found`);
+    expect(reply.redirect).toHaveBeenCalledWith(landed('/me?claimRefused=not_found'));
     expect(writesTo(seeded, 'persons')).toEqual([]);
   });
 
@@ -227,7 +228,7 @@ describe('AuthService.handleCallback — claim', () => {
 
     await callback(reply);
 
-    expect(reply.redirect).toHaveBeenCalledWith(`${APP}/me?claimRefused=check_failed`);
+    expect(reply.redirect).toHaveBeenCalledWith(landed('/me?claimRefused=check_failed'));
     expect(writesTo(seeded, 'persons')).toEqual([]);
   });
 
@@ -240,8 +241,8 @@ describe('AuthService.handleCallback — claim', () => {
       seedTables(seed);
       const reply = makeReply();
       await callback(reply);
-      const url = new URL(reply.redirect.mock.calls[0]?.[0] as string);
-      reasons.add(url.searchParams.get('claimRefused') ?? '');
+      const next = new URL(reply.redirect.mock.calls[0]?.[0] as string).searchParams.get('next');
+      reasons.add(new URL(next ?? '', APP).searchParams.get('claimRefused') ?? '');
     };
     const row = (fields: Record<string, unknown>) => ({
       persons: { rows: [{ id: ROW, events: { slug: 'spring-open' }, ...fields }] },
@@ -303,7 +304,7 @@ describe('AuthService.handleCallback — claim', () => {
     await callback(reply);
 
     expect(scopedTo(writesTo(seeded, 'persons')[0], 'id')).toBe(ROW);
-    expect(reply.redirect).toHaveBeenCalledWith(`${APP}/`);
+    expect(reply.redirect).toHaveBeenCalledWith(landed('/'));
     // The owner is read, or "already claimed by me" cannot be told from
     // "already claimed by someone else", and the Event's slug names the claim
     // page a refusal goes to — the double ignores projections.

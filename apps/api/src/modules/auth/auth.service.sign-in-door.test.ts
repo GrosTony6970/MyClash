@@ -194,7 +194,9 @@ describe('the admin sign-in door during the maintenance lockdown (ruling 308)', 
 
     await land();
 
-    expect(reply.redirect.mock.calls).toEqual([['https://app.myclash.localhost/me']]);
+    expect(reply.redirect.mock.calls).toEqual([
+      ['https://app.myclash.localhost/auth/signed-in?next=%2Fme'],
+    ]);
   });
 
   // A spent or unknown code names no account: the page says the link is dead (ruling 362),

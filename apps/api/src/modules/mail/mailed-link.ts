@@ -27,3 +27,13 @@ export function signInDoor(domain: string, type: string, next: string, personId?
   const claimed = personId ? `&personId=${personId}` : '';
   return `https://api.${domain}/api/v1/auth/callback?type=${type}${claimed}&next=${encodeURIComponent(next)}`;
 }
+
+/**
+ * Where a mailed link that signed somebody in on the public site sends them first:
+ * `/auth/signed-in`, which removes the schedules the phone kept for whoever held it
+ * before (`forgetSchedules`), then opens `path`. A password or Google sign-in does the
+ * same on its own page; this door is the server's, so it needs a page to do it on.
+ */
+export function signedInLanding(path: string): string {
+  return `/auth/signed-in?next=${encodeURIComponent(path)}`;
+}
