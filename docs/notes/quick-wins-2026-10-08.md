@@ -150,7 +150,7 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~O17~~ | ~~CSV import: the final screen counts skipped and invalid rows without listing them; reasons come in English from the server.~~ Done `46dd0ca3`, `34a7a99d`.                                         | List the rows (the data is already in the report); send a reason code and translate. | The organiser knows whom to add by hand, in their language.                     | `EV/persons/import/page.tsx:589, 606-611`; `apps/api/.../persons/csv-import.service.ts:131-178`                | S + M |
 | ~~O18~~ | ~~CSV import: the dashed box does not accept a dropped file, and there is no template.~~ Done `86b530a7`, `34a7a99d`.                                                                                | Drop handlers; a "Download template" link.                                           | Fewer failed first imports from misspelt headers.                               | `EV/persons/import/page.tsx:337-357`                                                                           | S     |
 | ~~O19~~ | ~~The roster has no export, and its filters are lost on refresh.~~ Done `9e68f5ea`.                                                                                                                  | CSV of the filtered list via `escapeCsvCell`; filters in the address.                | A check-in list for the desk in one click.                                      | `EV/persons/page.tsx:152-157, 1004-1021`                                                                       | M     |
-| O20     | The Pool standings CSV garbles accents in Excel and has English headers.                                                                                                                             | Mirror `EV/finalranking/page.tsx:117-123`.                                           | "Géraldine" opens as "Géraldine".                                               | `EV/pools/_tabs/StandingsTab.tsx:163-170, 183`                                                                 | S     |
+| ~~O20~~ | ~~The Pool standings CSV garbles accents in Excel and has English headers.~~ Done `655da3f7`.                                                                                                        | Mirror `EV/finalranking/page.tsx:117-123`.                                           | "Géraldine" opens as "Géraldine".                                               | `EV/pools/_tabs/StandingsTab.tsx:163-170, 183`                                                                 | S     |
 | ~~O21~~ | ~~"Print / PDF" does nothing under a popup blocker, on final ranking and on referee pay.~~ Done `5bea1676`.                                                                                          | The message the print pack already shows.                                            | The organiser allows popups, instead of thinking print is broken at the awards. | `EV/finalranking/page.tsx:131`; `EV/compensation/page.tsx:231`                                                 | S     |
 | ~~O22~~ | ~~The print pack prints one Tournament at a time.~~ Done `9e2aa2a8`.                                                                                                                                 | An "All Tournaments" option.                                                         | One print job at 8 a.m. instead of four.                                        | `EV/print/page.tsx:308-325`                                                                                    | M     |
 | ~~O23~~ | ~~Archive restore: after previewing file A, choosing file B keeps A's preview and restores B.~~ Done `35ccc5c0`.                                                                                     | Clear the preview when the file changes.                                             | Nobody restores an archive they never looked at.                                | `EV/archive/page.tsx:121, 289-296`                                                                             | S     |
@@ -163,13 +163,13 @@ Size: **S** = under about one hour, **M** = about half a day.
 
 ## X — one class of bug across all three apps (hard rule 6)
 
-| #      | Today                                                                                  | Fix                                           | What it brings                                                    | Where                                                                                                                                                          | Size |
-| ------ | -------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| X1     | Statuses and roles appear as raw English enums (`running`, `halted`, `workshop_lead`). | One label helper per domain, en + fr.         | A French organiser reads French; nobody asks what "halted" means. | `EV/tournaments/page.tsx:406`; `EV/page.tsx:464`; `EV/pools/_tabs/MatchesTab.tsx:775`; `org/[slug]/settings/page.tsx:182`; pad `ScoringCenterControls.tsx:354` | M    |
-| X2     | A fighter with no name shows as an id fragment (`Reg 1a2b3c4d`).                       | "Unknown fighter", en + fr.                   | No code read aloud at the table.                                  | `EV/bracket/page.tsx:538`; `EV/pools/_tabs/MatchesTab.tsx:230`; `EV/persons/page.tsx:840`                                                                      | S    |
-| ~~X3~~ | ~~Breadcrumbs show the organisation's slug, not its name.~~ Done `0348ca3d`.           | Use the name the Events list already loads.   | The organiser reads their club's name.                            | `EV/tournaments/page.tsx:250`; `EV/persons/page.tsx:985`                                                                                                       | S    |
-| X4     | Platform admin pages have hardcoded English headings.                                  | Move to keys, as `admin/ai/page.tsx:71` does. | The admin area follows the same rule as the rest.                 | `admin/leagues/page.tsx:273-275`; `admin/clubs/page.tsx:786`; `admin/feature-flags/page.tsx:133`                                                               | S    |
-| X5     | Search boxes and form fields with a placeholder and no accessible name.                | `aria-label` from the placeholder key.        | Screen-reader users can tell the fields apart.                    | `t/[tournamentSlug]/PoolMatchesView.tsx:248-254`; `EV/staff/CreateStaffAccountForm.tsx:40-88`                                                                  | S    |
+| #      | Today                                                                                                                                | Fix                                           | What it brings                                                    | Where                                                                                                                                                          | Size |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| ~~X1~~ | ~~Statuses and roles appear as raw English enums (`running`, `halted`, `workshop_lead`).~~ Done `e8908caa` … `f8a6f564`, `d8bf82fb`. | One label helper per domain, en + fr.         | A French organiser reads French; nobody asks what "halted" means. | `EV/tournaments/page.tsx:406`; `EV/page.tsx:464`; `EV/pools/_tabs/MatchesTab.tsx:775`; `org/[slug]/settings/page.tsx:182`; pad `ScoringCenterControls.tsx:354` | M    |
+| ~~X2~~ | ~~A fighter with no name shows as an id fragment (`Reg 1a2b3c4d`).~~ Done `bc324240`, `d8bf82fb`.                                    | "Unknown fighter", en + fr.                   | No code read aloud at the table.                                  | `EV/bracket/page.tsx:538`; `EV/pools/_tabs/MatchesTab.tsx:230`; `EV/persons/page.tsx:840`                                                                      | S    |
+| ~~X3~~ | ~~Breadcrumbs show the organisation's slug, not its name.~~ Done `0348ca3d`.                                                         | Use the name the Events list already loads.   | The organiser reads their club's name.                            | `EV/tournaments/page.tsx:250`; `EV/persons/page.tsx:985`                                                                                                       | S    |
+| ~~X4~~ | ~~Platform admin pages have hardcoded English headings.~~ Done `c8940aac`, `6f8bf9e3`.                                               | Move to keys, as `admin/ai/page.tsx:71` does. | The admin area follows the same rule as the rest.                 | `admin/leagues/page.tsx:273-275`; `admin/clubs/page.tsx:786`; `admin/feature-flags/page.tsx:133`                                                               | S    |
+| ~~X5~~ | ~~Search boxes and form fields with a placeholder and no accessible name.~~ Done `83b9b525`.                                         | `aria-label` from the placeholder key.        | Screen-reader users can tell the fields apart.                    | `t/[tournamentSlug]/PoolMatchesView.tsx:248-254`; `EV/staff/CreateStaffAccountForm.tsx:40-88`                                                                  | S    |
 
 ---
 
@@ -2257,6 +2257,86 @@ Named, not fixed (each read in code):
   (`--repeat-each=10`): the profile's AI keys panel (`packages/ui` `AiKeysManager.tsx:112, 129`)
   takes whatever the keys read answers as a list, and the story never stubs that read. Push 3
   saw it once and called it a cold compile. It is a race of the story and a trust of the panel.
+
+## Built on 2026-10-15: push 5 of the O and X rows
+
+Five rows (X2, X1, O20, X4, X5), the fixes of their review and the tests of the seeded breaks:
+twelve commits, `bc324240` to `8edcf1bc`. Every O and X row is now done. The build detail of
+this push: `C:\Users\Tony\.claude\plans\push5-x-rows.md`.
+
+Three rulings of the operator, 2026-10-15, asked with a story (do not ask them again):
+
+| Row       | Ruling                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| X2, reach | The server stops sending a code as a name. Every screen says "Unknown fighter (bib 12)" or "Unknown referee"; the archive's results CSV says "Unknown fighter" too.                  |
+| X1, bouts | One set everywhere: Scheduled, Running, Paused, Completed, Voided (Prévu, En cours, En pause, Terminé, Annulé); the clock: Not started, Running, Paused, Ended.                      |
+| X1, scope | The six families go through the one helper, and so does every word shown raw. The families that already translate keep their own lists; their missing French accents are named here. |
+
+What people get:
+
+- **X2** (`bc324240`, `d8bf82fb`, `8edcf1bc`). A person nobody named is "Unknown fighter (bib
+  12)" or "Unknown referee", in the reader's language: on the public participants pages (it used
+  to show the code to everyone), the referee board, its pickers and conflict banners, the Pools
+  page, the pay report (table, CSV, print), the printed Pool sheet, the bracket picker, the
+  waiting list, the league ranking and its recompute check. The archive's results CSV and the AI
+  assistant's tables say it in English, as the rest of those files.
+- **X1** (`e8908caa`, `3d35eb96`, `50d62804`, `546e3d0a`, `f8a6f564`, `d8bf82fb`). One word for
+  each state, from one helper, on every screen: a bout, its clock, an Event, a Tournament, a
+  Registration, a profile's claim, a staff role, a club role ("workshop lead" is now
+  "Instructor"), a Swiss round, a Pool's standings, an AI draft, a data scan, a League's roles and
+  its Tournaments' requests, a colour's name, a no-exchange reason. A paused bout no longer reads
+  "Paused" on one screen, "Halted" ("Arrete") on another and "PAUSED" on a third. Two French
+  strings that printed "{rôle}" are fixed.
+- **O20** (`655da3f7`). All seven CSVs built in the browser (not six) open in Excel with their
+  accents and with column titles in the reader's language: Pool and Swiss standings, final
+  ranking, pay, workshops, bout schedule, roster. A stat column says "Victoires", not the
+  ruleset's English "Wins", in the files and on every standings screen, the pad's included.
+- **X4** (`c8940aac`, `6f8bf9e3`). No question asks with English "Confirm" / "Cancel" any more
+  (67 did). The i18n lint reads five more props, the strings inside `{…}`, every word of a
+  question, and runs in the shared package; the 72 strings it found moved (bracket, bulk bar,
+  country picker, super-admin headers, league pages, review queue, delete window…).
+- **X5** (`83b9b525`). The 75 fields that showed a placeholder and had no name have one; a lint
+  rule (`require-field-name`) keeps it so in the three apps and the shared package.
+
+The proof: one cold review (no blocker, two majors, ten minors; the majors and four minors
+fixed, the rest below), 66 seeded breaks (63 red; the three greens got a test or lost a second
+owner, then 66 of 66), the gate chain (36 of 36), API coverage (green), the browser suite
+(402 passed, 1 failed, 11.1 min: `profile-leave-guard.spec.ts:16`, the same `keys.map` fault push 4 measured, not of this push). No migration, no new route, no request body changed; several answers now carry a
+blank name where they carried an id.
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The fields are named by `aria-label`, not by a new visible label.** The ruling says "a
+  visible label where there is room": I added none, so no layout moved. Most names are the word
+  already printed above the field.
+- **The super admin's account lists keep an id as the last resort**, after the name and the
+  email: they are accounts, not fighters, and the question asked was about fighters and referees.
+- **A public participants row with no name says "Unknown fighter" with no bib**: a row can hold
+  several Tournaments, each with its own bib. A referee-only row says "Unknown referee".
+- **The piste list's chip says the bout's state** ("Running") where it said its colour's group
+  ("LIVE"), and a bracket card says "Scheduled" / "Paused" where it said "Pending".
+- **A Registration's `done` left the pages**: the database refuses it.
+
+Named, not fixed (each read in code):
+
+- **French Excel may open a comma CSV in one column**: many French setups split on `;`. The
+  import templates already follow that rule; the seven downloads do not. Worth a ruling.
+- The public People page's role badges cannot show: the read behind it sends no roles. The new
+  words for them are there, unused.
+- "Requested" (the shared word) and "Pending" (two older League lists) for one request state.
+- The public roster puts a person with no name first (an empty name sorts first).
+- The recompute check lists "Unknown fighter" with no bib to tell them apart.
+- Two raw ids remain on lines this push touched: a bout with no label shows its id in the
+  delete-participants window, and a referee duty of a custom skill with no name shows the skill's
+  id on a bracket card.
+- The lint does not read words in an object passed as a prop, default parameters, or words in
+  capitals ("LIVE"); it reads test files too. The field rule matches an `id` to a `htmlFor` of the
+  same file by its text, lets any spread pass, and does not check the callers of a wrapper.
+- The French clock pill "PAS COMMENCÉ" is wider than the English one (not measured on a tablet).
+- English words left outside JSX, which the lint cannot see: the ruleset form's option labels and
+  the formula editor's error messages.
+- The workshop CSV writes a venue's id when the venue is gone.
+- `scripts/gen-i18n-baseline.mjs` does not scan `packages/ui` (its baseline is empty anyway).
 
 ## Still not checked
 
