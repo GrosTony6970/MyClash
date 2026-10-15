@@ -211,9 +211,7 @@ export default function GlobalPersonsImportPage() {
               {t('admin.globalPersonsImport.csvColumnsLabel')}
             </p>
             <p className="font-mono text-xs text-muted mb-3">
-              {'given_name, family_name, display_name, club, club_abv, club_city, ' +
-                'hema_ratings_id, email, date_of_birth, is_fighter, is_referee, ' +
-                'is_workshop_participant'}
+              {t('admin.globalPersonsImport.csvColumns')}
             </p>
             <p className="text-xs text-muted mb-3">{t('admin.globalPersonsImport.dobHint')}</p>
             <p className="text-xs text-muted mb-3">

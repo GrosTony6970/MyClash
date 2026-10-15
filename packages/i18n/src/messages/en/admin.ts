@@ -6,6 +6,8 @@ export const admin = {
     subtitle:
       'Bulk-create or update global profiles from a CSV file. Review each row before committing.',
     csvColumnsLabel: 'Expected CSV columns:',
+    csvColumns:
+      'given_name, family_name, display_name, club, club_abv, club_city, hema_ratings_id, email, date_of_birth, is_fighter, is_referee, is_workshop_participant',
     dobHint:
       'email and date_of_birth are optional. date_of_birth must be DD/MM/YYYY (ISO YYYY-MM-DD also accepted for legacy uploads). When a row resolves to an existing global profile, email and DOB are only written if the existing row has them unset — no overwrite.',
     downloadSample: 'Download sample CSV',

@@ -9,6 +9,8 @@ export const admin = {
     subtitle:
       'Créez ou mettez à jour des profils globaux en masse depuis un fichier CSV. Vérifiez chaque ligne avant de valider.',
     csvColumnsLabel: 'Colonnes CSV attendues :',
+    csvColumns:
+      'prenom, nom, nom_affiche, club, sigle_club, ville_club, id_hema_ratings, courriel, date_de_naissance, combattant, arbitre, participant_atelier',
     dobHint:
       "email et date_of_birth sont optionnels. date_of_birth doit être au format DD/MM/YYYY (l'ISO YYYY-MM-DD est aussi accepté pour les anciens fichiers). Quand une ligne correspond à un profil global existant, l'e-mail et la date de naissance ne sont écrits que si le profil ne les a pas déjà — pas d'écrasement.",
     downloadSample: "Télécharger l'exemple CSV",
