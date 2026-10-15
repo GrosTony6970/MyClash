@@ -3078,7 +3078,8 @@ export class PhasesService {
       const skill = skillById.get(row.role);
       const entry: RoleAssignment = {
         refereeId: row.person_id,
-        refereeName: display || row.person_id,
+        // Blank when no name is known: the page words it (`nameOrUnknown`), never the id.
+        refereeName: display.trim(),
         // A deleted or event-scoped-elsewhere skill still has to render: the raw
         // id beats a blank chip.
         roleLabel: skill?.name ?? row.role,

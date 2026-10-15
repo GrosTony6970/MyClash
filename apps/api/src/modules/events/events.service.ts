@@ -2271,7 +2271,8 @@ export class EventsService {
         row = {
           personId: person.id,
           globalPersonId: person.global_person_id ?? person.id,
-          displayName: `${person.given_name} ${person.family_name}`.trim() || person.id,
+          // Blank when nobody typed a name: the page words it (`nameOrUnknown`), never the id.
+          displayName: `${person.given_name} ${person.family_name}`.trim(),
           clubName: club?.name ?? null,
           clubAbbrev: club?.abbreviation ?? null,
           isReferee: person.global_person_id
@@ -2335,7 +2336,7 @@ export class EventsService {
           staffRows.push({
             personId: sp.id,
             globalPersonId: sp.global_person_id,
-            displayName: `${sp.given_name} ${sp.family_name}`.trim() || sp.global_person_id,
+            displayName: `${sp.given_name} ${sp.family_name}`.trim(),
             clubId: sp.club_id,
           });
         }
@@ -2357,8 +2358,7 @@ export class EventsService {
             if (gp.club_id) extraClubIds.add(gp.club_id);
             const name =
               `${gp.given_name ?? ''} ${gp.family_name ?? ''}`.trim() ||
-              (gp.display_name ?? '').trim() ||
-              gp.id;
+              (gp.display_name ?? '').trim();
             staffRows.push({
               personId: null,
               globalPersonId: gp.id,

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { isDoubleLossBout } from '@myclash/rulesets';
+import { unknownFighterInEnglish, unknownRefereeInEnglish } from '../../common/unknown-name';
 import type {
   MatchStatus,
   PhaseFilter,
@@ -250,7 +251,7 @@ export class TournamentQueryToolsService {
     const fighterName =
       relevant.find((match) => match.red_registration_id === fighterId)?.red_name ??
       relevant.find((match) => match.blue_registration_id === fighterId)?.blue_name ??
-      fighterId;
+      unknownFighterInEnglish();
     return {
       render_hint: 'card',
       title: `Stats for ${fighterName}`,
@@ -311,13 +312,13 @@ export class TournamentQueryToolsService {
     for (const match of matches) {
       if (match.red_registration_id)
         names.set(match.red_registration_id, {
-          name: match.red_name ?? match.red_registration_id,
+          name: match.red_name ?? unknownFighterInEnglish(),
           club: match.red_club ?? '',
           pool: match.pool_name ?? '',
         });
       if (match.blue_registration_id)
         names.set(match.blue_registration_id, {
-          name: match.blue_name ?? match.blue_registration_id,
+          name: match.blue_name ?? unknownFighterInEnglish(),
           club: match.blue_club ?? '',
           pool: match.pool_name ?? '',
         });
@@ -328,7 +329,7 @@ export class TournamentQueryToolsService {
       .map((row, index) => ({
         Rank: index + 1,
         Pool: row.pool ?? '',
-        Fighter: row.name ?? row.id,
+        Fighter: row.name ?? unknownFighterInEnglish(),
         Club: row.club ?? '',
         Wins: row.wins,
         Losses: row.losses,
@@ -436,7 +437,7 @@ export class TournamentQueryToolsService {
     if (refs.length === 0) return empty('No judge assignments found', 'get_judge_stats', args);
     return {
       render_hint: 'card',
-      title: `Judge stats for ${refs[0]?.judge_name ?? judgeId}`,
+      title: `Judge stats for ${refs[0]?.judge_name ?? unknownRefereeInEnglish()}`,
       card: {
         Assignments: refs.length,
         Pools: unique(refs.map((row) => row.pool_id).filter(nonEmpty)).length,
@@ -638,7 +639,7 @@ export class TournamentQueryToolsService {
         const poolReferees = unique(
           refs
             .filter((ref) => ref.pool_name === pool)
-            .map((ref) => ref.judge_name ?? ref.person_id)
+            .map((ref) => ref.judge_name ?? unknownRefereeInEnglish())
             .filter(nonEmpty),
         );
         return {

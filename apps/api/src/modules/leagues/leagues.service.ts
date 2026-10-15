@@ -2169,8 +2169,7 @@ export class LeaguesService {
       const fighter = registration['global_persons'] as Row | null;
       const name =
         String(fighter?.['display_name'] ?? '').trim() ||
-        `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim() ||
-        registrationId;
+        `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim();
       inputs.push({
         leagueId,
         tournamentId: String(tournament['id']),

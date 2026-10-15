@@ -14,7 +14,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { Modal } from '@myclash/ui';
+import { Modal, nameOrUnknown } from '@myclash/ui';
 import { PageAlert, errorOutcome } from '@/components/PageAlert';
 import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
 import { filterCandidates } from './candidate-filter';
@@ -210,7 +210,9 @@ function CandidateLine({
   const { t } = useI18n();
   return (
     <div className="min-w-0">
-      <p className="truncate font-medium text-foreground">{candidate.displayName}</p>
+      <p className="truncate font-medium text-foreground">
+        {nameOrUnknown(candidate.displayName, 'referee', t)}
+      </p>
       {candidate.clubLabel && (
         <p className="truncate text-[10px] text-muted">{candidate.clubLabel}</p>
       )}

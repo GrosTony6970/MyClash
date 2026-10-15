@@ -172,7 +172,8 @@ export function useScheduleData(args: {
 
   // Passed into the pure conflict module, which the i18n lint rule cannot reach
   // and which must not carry English of its own.
-  const unknownFighterLabel = t('organizer.schedulePage.grid.unknownFighter');
+  const unknownFighterLabel = t('common.unknownName.fighter');
+  const unknownRefereeLabel = t('common.unknownName.referee');
   const conflicts = useMemo(
     () => detectConflicts(matches, eventTz, unknownFighterLabel),
     [matches, eventTz, unknownFighterLabel],
@@ -189,9 +190,9 @@ export function useScheduleData(args: {
       registrations: refereeInputs.registrations,
       rules: refereeInputs.rules,
       tz: eventTz,
-      unknownPersonLabel: unknownFighterLabel,
+      unknownPersonLabel: unknownRefereeLabel,
     });
-  }, [matches, refereeInputs, eventTz, unknownFighterLabel]);
+  }, [matches, refereeInputs, eventTz, unknownRefereeLabel]);
 
   const refetchLices = useCallback(async (): Promise<void> => {
     // Silent by design: the lice strip keeps what it has, and every path that

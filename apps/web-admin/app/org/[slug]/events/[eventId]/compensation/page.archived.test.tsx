@@ -55,6 +55,16 @@ const READS = {
         paidAt: null,
         breakdown: [],
       },
+      {
+        // A referee nobody named: the server sends a blank name (X2).
+        personId: 'gp-anon-4f2a',
+        displayName: '',
+        totalTokens: 0,
+        amountOwed: 0,
+        paid: false,
+        paidAt: null,
+        breakdown: [],
+      },
     ],
   },
 };
@@ -66,6 +76,9 @@ describe('the compensation page of an archived Event', () => {
   it('shows the report and saves neither the plan nor a paid mark', async () => {
     page = await openArchivedPage(<CompensationPage />, READS);
     expect(document.body.textContent).toContain('Ana Roux');
+    // X2: a referee with no name is worded, never shown blank or as an id.
+    expect(document.body.textContent).toContain('Unknown referee');
+    expect(document.body.textContent).not.toContain('gp-anon');
 
     await page.pressEverything();
 

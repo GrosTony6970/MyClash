@@ -36,6 +36,12 @@ export const common = {
   optional: 'Facultatif',
   saving: 'Enregistrement...',
   unknown: 'Inconnu',
+  unknownName: {
+    fighter: 'Combattant inconnu',
+    fighterWithBib: 'Combattant inconnu (dossard {bib})',
+    referee: 'Arbitre inconnu',
+    person: 'Personne inconnue',
+  },
   leaveGuard: {
     title: 'Quitter sans enregistrer ?',
     body: 'Vos modifications ne sont pas encore enregistrées. Elles seront perdues.',

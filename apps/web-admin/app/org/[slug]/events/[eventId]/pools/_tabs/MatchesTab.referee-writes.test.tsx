@@ -64,6 +64,13 @@ const READS: Record<string, unknown> = {
       clubLabel: null,
       qualifications: [{ skillId: 'arbitre_declarant', rating: null }],
     },
+    {
+      // A referee nobody named: the server sends a blank name (X2).
+      personId: 'gp-anon-4f2a',
+      displayName: '',
+      clubLabel: null,
+      qualifications: [{ skillId: 'arbitre_declarant', rating: null }],
+    },
   ],
   '/api/v1/tournaments/t-1/pool-match-role-config': {
     roles: [{ id: 'arbitre_declarant', displayName: 'Déclarant' }],
@@ -152,6 +159,14 @@ const writes = () =>
     .map(([, path, init]) => [path, init?.body]);
 
 describe('the Pools page referee dropdowns', () => {
+  it('offers a referee with no name as "Unknown referee", never a piece of their id (X2)', () => {
+    const { pool, bout } = refereeSelects();
+    for (const select of [pool, bout]) {
+      const option = [...select.options].find((o) => o.value === 'gp-anon-4f2a');
+      expect(option?.textContent).toBe('Unknown referee');
+    }
+  });
+
   it('a bout sends its role and referee to the per-bout door', async () => {
     await pick(refereeSelects().bout, 'gp-lea');
     expect(writes()).toStrictEqual([

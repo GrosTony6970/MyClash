@@ -18,7 +18,7 @@ export interface PackContext {
 /** What one Tournament's reads print as. Pure: the page reads, this draws. */
 export function packInput(pack: TournamentPack, context: PackContext): PrintPackInput {
   const { detail, bracket } = pack;
-  const pools = poolsToPrint(pack.pools, context.lices);
+  const pools = poolsToPrint(pack.pools, context.lices, context.labels.unknownReferee);
   const bracketRounds = bracket
     ? bracketToPrint(bracket.slots, bracket.rounds, context.lices, context.roundName)
     : [];

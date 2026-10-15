@@ -12,6 +12,7 @@ import {
   SkillBadge,
   TournamentColorDot,
   fuzzyMatch,
+  nameOrUnknown,
   useConfirm,
   useToast,
 } from '@myclash/ui';
@@ -945,9 +946,11 @@ export default function ParticipantsPage() {
     const erroredNames: string[] = [];
     for (const personId of selected) {
       const person = persons.find((p) => p.id === personId);
-      const personName = person
-        ? `${person.givenName} ${person.familyName}`.trim()
-        : personId.slice(0, 8);
+      const personName = nameOrUnknown(
+        person ? `${person.givenName} ${person.familyName}` : null,
+        'fighter',
+        t,
+      );
       const body = { personId };
       const outcome = await tryRegisterInTournament(apiUrl, tournamentId, body);
       if (outcome.status === 'full') {
@@ -1654,7 +1657,7 @@ export default function ParticipantsPage() {
               eventId={eventId}
               persons={deleteModal.persons.map((p) => ({
                 id: p.id,
-                displayName: `${p.givenName} ${p.familyName}`.trim() || p.id,
+                displayName: nameOrUnknown(`${p.givenName} ${p.familyName}`, 'person', t),
               }))}
               tournamentId={deleteModal.scope}
               registrationsInScope={registrations.map((r) => ({

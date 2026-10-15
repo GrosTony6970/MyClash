@@ -20,7 +20,7 @@ import { BackLink } from '@/components/BackLink';
 import { ShareButton } from '@/components/ShareButton';
 import { publicCanOpenTournament } from '@/lib/share-link';
 import { readEventOnce } from '../../_lib/event-or-not-found';
-import { MedalPodium } from '@myclash/ui';
+import { MedalPodium, nameOrUnknown, type Translator } from '@myclash/ui';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
 import { PoolMatchesView } from './PoolMatchesView';
@@ -199,6 +199,7 @@ export default async function TournamentPage({ params }: Props) {
     eventSlug,
     tournamentSlug,
     apiUrl,
+    t,
   );
 
   // Published AI recap (organizer-reviewed). Null when none is published.
@@ -540,6 +541,7 @@ async function fetchTournamentParticipants(
   eventSlug: string,
   tournamentSlug: string,
   apiUrl: string,
+  t: Translator,
 ): Promise<ParticipantsTabEntry[]> {
   type ParticipantRow = {
     personId: string;
@@ -570,7 +572,8 @@ async function fetchTournamentParticipants(
     if (!tournamentEntry) continue;
     entries.push({
       personId: person.personId,
-      displayName: person.displayName,
+      // The server sends a blank name, never an id: worded here, before the tab sorts it.
+      displayName: nameOrUnknown(person.displayName, 'fighter', t),
       clubName: person.clubName,
       clubAbbrev: person.clubAbbrev,
       registrationState: tournamentEntry.registrationState,

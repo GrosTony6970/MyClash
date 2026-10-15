@@ -115,6 +115,61 @@ describe('TournamentQueryToolsService · get_judge_stats', () => {
     expect(result.render_hint).toBe('empty');
     expect(result.metadata?.notes).toContain('No judge assignments found');
   });
+
+  it('names a judge with no name "Unknown referee", never their id (X2)', async () => {
+    fromMock.mockImplementation((tableName: string) =>
+      awaitableChain({
+        data:
+          tableName === 'vw_tournament_query_referees'
+            ? [{ ...refereeRows[0], person_id: 'gp-anon', judge_name: null }]
+            : [],
+        error: null,
+      }),
+    );
+
+    const result = await service.execute(tournament, 'get_judge_stats', { judge_id: 'gp-anon' });
+
+    expect(result.title).toBe('Judge stats for Unknown referee');
+  });
+});
+
+describe('TournamentQueryToolsService · a fighter with no name (X2)', () => {
+  let service: TournamentQueryToolsService;
+  const nameless = {
+    tournament_id: 't-1',
+    match_id: 'm-1',
+    phase_type: 'pool',
+    pool_id: 'pool-1',
+    pool_name: 'Pool A',
+    status: 'completed',
+    red_registration_id: 'reg-anon',
+    blue_registration_id: 'r-2',
+    red_name: null,
+    blue_name: 'Blue Two',
+    red_score: 1,
+    blue_score: 0,
+    winner_registration_id: 'reg-anon',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new TournamentQueryToolsService(mockSupabase as never);
+    fromMock.mockImplementation((tableName: string) =>
+      awaitableChain({
+        data: tableName === 'vw_tournament_query_matches' ? [nameless] : [],
+        error: null,
+      }),
+    );
+  });
+
+  it('says "Unknown fighter" in the pool standings and the fighter card, never the id', async () => {
+    const standings = await service.execute(tournament, 'get_pool_standings', {});
+    const card = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'reg-anon' });
+
+    expect(JSON.stringify(standings)).not.toContain('reg-anon');
+    expect(JSON.stringify(standings)).toContain('"Fighter":"Unknown fighter"');
+    expect(card.title).toBe('Stats for Unknown fighter');
+  });
 });
 
 describe('TournamentQueryToolsService · the doubles ceiling', () => {

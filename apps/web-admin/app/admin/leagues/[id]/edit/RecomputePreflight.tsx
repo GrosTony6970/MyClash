@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -80,7 +81,7 @@ export function RecomputePreflight({
             {blocking.map((row) => (
               <li key={row.tournamentName} className="text-xs text-foreground-secondary">
                 <span className="font-semibold">{row.tournamentName}</span>{' '}
-                {row.fighterNames.join(', ')}
+                {row.fighterNames.map((name) => nameOrUnknown(name, 'fighter', t)).join(', ')}
               </li>
             ))}
           </ul>

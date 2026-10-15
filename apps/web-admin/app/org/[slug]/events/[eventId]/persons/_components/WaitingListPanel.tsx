@@ -6,6 +6,7 @@ import {
   DataTableCell,
   DataTableHead,
   DataTableRow,
+  nameOrUnknown,
   useConfirm,
   useToast,
 } from '@myclash/ui';
@@ -260,12 +261,16 @@ function WaitingListTable({
                 {reg.waitlistPosition}
               </DataTableCell>
               <DataTableCell className="font-medium text-foreground">
-                {person
-                  ? formatRosterName({
-                      familyName: person.familyName,
-                      givenName: person.givenName,
-                    })
-                  : reg.personId}
+                {nameOrUnknown(
+                  person
+                    ? formatRosterName({
+                        familyName: person.familyName,
+                        givenName: person.givenName,
+                      })
+                    : null,
+                  'fighter',
+                  t,
+                )}
               </DataTableCell>
               <DataTableCell className="text-foreground-secondary">
                 {person?.clubLabel ?? '—'}

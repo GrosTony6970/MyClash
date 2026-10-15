@@ -11,7 +11,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { EventCrumb, OrgCrumb } from '@/components/Crumbs';
-import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  Modal,
+  SkillBadge,
+  nameOrUnknown,
+  tintBgClassFor,
+  useToast,
+} from '@myclash/ui';
 
 import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
 import { eachDay, initialDay } from '@myclash/schedule-core';
@@ -2146,7 +2153,9 @@ export default function RefereesPage() {
                     <tr key={ref.personId} className="border-b border-border hover:bg-background">
                       {/* Name cell */}
                       <td className="py-3 pr-4 align-top">
-                        <p className="font-medium text-foreground">{ref.displayName}</p>
+                        <p className="font-medium text-foreground">
+                          {nameOrUnknown(ref.displayName, 'referee', t)}
+                        </p>
                         {ref.clubLabel && <p className="text-xs text-muted">{ref.clubLabel}</p>}
                         <span className="text-xs text-success font-medium">
                           {t('organizer.refereesPage.globalProfileLinked')}

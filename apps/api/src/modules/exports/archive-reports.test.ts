@@ -284,28 +284,28 @@ describe('rankings', () => {
 });
 
 describe('names', () => {
-  it('falls back to the registration id when the archive has no person for it', () => {
-    // Deliberate, and pinned so nobody "fixes" it into a blank cell: this is a
-    // downloaded file, not a UI surface, and a report that silently drops a
-    // competitor is worse than one naming a row an organiser can look up.
+  it('names a fighter with no name "Unknown fighter (bib N)", never the id (X2)', () => {
     const reports = buildTournamentReports(
       TOURNAMENT,
       tables({
-        persons: [],
-        registrations: [{ id: 'r-1', tournament_id: 't-1', person_id: 'p-gone' }],
+        persons: [{ id: 'p-blank', given_name: '', family_name: ' ' }],
+        registrations: [
+          { id: 'reg-gone', tournament_id: 't-1', person_id: 'p-gone', bib_number: 12 },
+          { id: 'reg-blank', tournament_id: 't-1', person_id: 'p-blank', bib_number: null },
+        ],
         phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }],
         matches: [
-          {
-            id: 'm-1',
-            phase_id: 'ph-1',
-            red_registration_id: 'r-1',
-            match_number_label: 1,
-          },
+          { id: 'm-1', phase_id: 'ph-1', red_registration_id: 'reg-gone' },
+          { id: 'm-2', phase_id: 'ph-1', blue_registration_id: 'reg-blank' },
         ],
       }),
     );
 
-    expect(reports.resultsCsv).toContain('r-1');
+    expect(reports.resultsCsv).toContain(',Unknown fighter (bib 12),,');
+    expect(reports.resultsCsv).toContain(',,Unknown fighter,');
+    expect(reports.resultsCsv).not.toContain('reg-');
+    expect(reports.rankingsCsv).not.toContain('reg-');
+    expect(reports.rankingsCsv).toContain('Unknown fighter (bib 12)');
   });
 
   it('leaves an absent side as an empty cell', () => {

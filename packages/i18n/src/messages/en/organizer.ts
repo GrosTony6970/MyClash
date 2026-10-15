@@ -323,7 +323,6 @@ export const organizer = {
     resolvedTitle: 'Resolved ({count})',
     statusConfirmed: 'disqualified',
     statusDismissed: 'dismissed',
-    unknownFighter: 'Unknown fighter',
   },
   orgSettings: {
     membersTitle: 'Organization members',
@@ -2048,9 +2047,6 @@ export const organizer = {
       saveFailedOffline: 'The server could not be reached.',
       conflictCountSingular: '⚠ {count} scheduling conflict',
       conflictCountPlural: '⚠ {count} scheduling conflicts',
-      // Shown when no match in the schedule carries the fighter's name. Never
-      // a registration id — see the no-raw-ids rule.
-      unknownFighter: 'Unknown fighter',
       conflictSegIsInBoth: 'is in both',
       conflictSegAnd: 'and',
       conflictSegAt: 'at',

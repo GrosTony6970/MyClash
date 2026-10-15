@@ -1844,6 +1844,52 @@ describe('EventsService', () => {
       expect(carol?.isReferee).toBe(false);
       expect(carol?.tournaments).toEqual([]);
     });
+
+    it('sends a blank name for a person nobody named, never their id (X2)', async () => {
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword', color: 'red', status: 'published' },
+      ];
+      const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
+      const persons = [
+        { id: 'p1', given_name: '', family_name: ' ', club_id: null, global_person_id: 'g1' },
+      ];
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(
+          makeAwaitableChain({ data: [{ person_id: 'g2' }, { person_id: 'g3' }], error: null }),
+        ) // event_referees
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_instructors
+        .mockReturnValueOnce(
+          makeAwaitableChain({
+            data: [
+              { id: 'p2', given_name: '', family_name: '', club_id: null, global_person_id: 'g2' },
+            ],
+            error: null,
+          }),
+        ) // staff persons (pass 1)
+        .mockReturnValueOnce(
+          makeAwaitableChain({
+            data: [
+              { id: 'g3', given_name: null, family_name: null, display_name: ' ', club_id: null },
+            ],
+            error: null,
+          }),
+        ); // global_persons fallback (pass 2)
+
+      const result = await service.listPublicParticipants('fal-2027', MEMBER, {
+        includeStaff: true,
+      });
+
+      expect(result.map((row) => [row.globalPersonId, row.displayName]).sort()).toEqual([
+        ['g1', ''],
+        ['g2', ''],
+        ['g3', ''],
+      ]);
+    });
   });
 
   describe('listEvents (public)', () => {

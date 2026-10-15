@@ -27,6 +27,7 @@ import {
   DataTableHead,
   DataTableRow,
   SkillBadge,
+  nameOrUnknown,
   tintBgClassFor,
 } from '@myclash/ui';
 import { reorderOwnSkills } from './reorder-own-skills';
@@ -347,7 +348,9 @@ function SkillDrillDownDrawer({
                 return (
                   <li key={ref.userId} className="py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{ref.displayName}</p>
+                      <p className="font-medium text-foreground truncate">
+                        {nameOrUnknown(ref.displayName, 'referee', t)}
+                      </p>
                       {ref.clubLabel && (
                         <p className="text-xs text-muted truncate">{ref.clubLabel}</p>
                       )}

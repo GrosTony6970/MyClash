@@ -93,7 +93,14 @@ const BLUE_GLOBAL_ID = 'person-b-global';
  * referee days. Shared by every board fixture so a change to the candidate
  * pipeline is edited once instead of per-fixture.
  */
-function queueCandidateReads(refereeDays: unknown[] = [], failing?: FailingRead) {
+function queueCandidateReads(
+  refereeDays: unknown[] = [],
+  failing?: FailingRead,
+  pureRefereeName: { given_name: string; family_name: string } = {
+    given_name: 'Pure',
+    family_name: 'Referee',
+  },
+) {
   fromMock
     .mockReturnValueOnce(
       makeChain({
@@ -126,8 +133,7 @@ function queueCandidateReads(refereeDays: unknown[] = [], failing?: FailingRead)
           {
             id: PURE_REF_GLOBAL_ID,
             claimed_by_user_id: 'user-b',
-            given_name: 'Pure',
-            family_name: 'Referee',
+            ...pureRefereeName,
             club_id: null,
           },
         ],
@@ -161,6 +167,8 @@ interface BoardReadOptions {
   refereeDays?: unknown[];
   /** One read that fails, by table. */
   failing?: FailingRead;
+  /** The pure referee's profile name, when a test needs another one. */
+  pureRefereeName?: { given_name: string; family_name: string };
 }
 
 type FailingRead = 'events' | 'event_referee_tournaments' | 'event_referee_days';
@@ -220,7 +228,7 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
       }),
     );
   // event_referees → … → referee days
-  queueCandidateReads(options.refereeDays ?? [], options.failing);
+  queueCandidateReads(options.refereeDays ?? [], options.failing, options.pureRefereeName);
   fromMock
     // registrations — now joined with persons(global_person_id) so the
     // map keys live in the same id-space as the candidate side.
@@ -306,6 +314,15 @@ describe('AssignmentBoardService', () => {
       ]),
     );
     expect(board.missingSlots.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('sends a blank name for a candidate nobody named, never their id (X2)', async () => {
+    queueBoardReads([], { pureRefereeName: { given_name: '', family_name: ' ' } });
+
+    const board = await service.getBoard('event-1');
+
+    const pure = board.candidates.find((candidate) => candidate.userId === 'user-b');
+    expect(pure?.displayName).toBe('');
   });
 
   it('getBoard does NOT run the auto-assign engine — no proposal chips appear', async () => {

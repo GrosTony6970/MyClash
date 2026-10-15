@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { BackLink } from '@/components/BackLink';
 import { createTranslator, defaultLocale, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
-import { formatCountryName } from '@myclash/ui';
+import { formatCountryName, type Translator } from '@myclash/ui';
 import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
@@ -11,6 +11,7 @@ import type { EventInfo } from '../_components/EventHeader';
 import { eventOrNotFound } from '../_lib/event-or-not-found';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
+import { participantName } from './_components/participant-name';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -28,7 +29,7 @@ function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | 
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> {
+async function fetchParticipants(eventSlug: string, t: Translator): Promise<ParticipantLike[]> {
   const apiUrl = getServerApiUrl();
   try {
     const res = await fetch(
@@ -36,7 +37,8 @@ async function fetchParticipants(eventSlug: string): Promise<ParticipantLike[]> 
       { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return [];
-    return (await res.json()) as ParticipantLike[];
+    const rows = (await res.json()) as ParticipantLike[];
+    return rows.map((row) => ({ ...row, displayName: participantName(row, t) }));
   } catch {
     return [];
   }
@@ -81,7 +83,7 @@ export default async function ParticipantsPage({
   const t = createTranslator(getMessages(locale));
   const [event, participants] = await Promise.all([
     eventOrNotFound(eventSlug),
-    fetchParticipants(eventSlug),
+    fetchParticipants(eventSlug, t),
   ]);
 
   return (

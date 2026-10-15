@@ -4,7 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
-import { sideStyle, statusPillTone, matchStatusSemantic, StatusHelp } from '@myclash/ui';
+import {
+  nameOrUnknown,
+  sideStyle,
+  statusPillTone,
+  matchStatusSemantic,
+  StatusHelp,
+} from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, resolveMatchWinner } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
@@ -236,10 +242,7 @@ export function MatchesTab({
   }
 
   function refereeLabel(r: Referee): string {
-    if (r.displayName) return r.displayName;
-    // Anonymous fallback — keeps the picker readable when a person row
-    // has no display name on file, instead of surfacing a raw UUID.
-    return `Anonymous (${r.personId.slice(0, 6)})`;
+    return nameOrUnknown(r.displayName, 'referee', t);
   }
 
   async function updateMatchRoleAssignment(
@@ -257,7 +260,8 @@ export function MatchesTab({
           const others = m.referees.filter((a) => a.role !== role);
           if (refereeId === null) return { ...m, referees: others };
           const ref = referees.find((r) => r.personId === refereeId);
-          const refName = ref ? refereeLabel(ref) : refereeId;
+          // The name as the server would send it: blank when none is known, never the id.
+          const refName = ref?.displayName ?? '';
           return {
             ...m,
             referees: [...others, { role, refereeId, refereeName: refName }],
@@ -299,7 +303,7 @@ export function MatchesTab({
 
   async function applyPoolReferee(poolId: string, role: string, refereeId: string | null) {
     const ref = refereeId ? referees.find((r) => r.personId === refereeId) : null;
-    const refName = ref ? refereeLabel(ref) : (refereeId ?? '');
+    const refName = ref?.displayName ?? '';
     setPools((prev) =>
       prev.map((pool) => {
         if (pool.poolId !== poolId) return pool;

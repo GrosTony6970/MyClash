@@ -484,7 +484,8 @@ export class CompensationService {
       const payment = paymentMap.get(personId);
       referees.push({
         personId,
-        displayName: displayNames.get(personId) ?? personId,
+        // Blank when no name is known: the page words it (`nameOrUnknown`), never the id.
+        displayName: displayNames.get(personId) ?? '',
         totalTokens,
         amountOwed,
         paid: payment?.paid ?? false,

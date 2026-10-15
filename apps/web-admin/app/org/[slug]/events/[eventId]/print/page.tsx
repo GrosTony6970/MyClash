@@ -98,6 +98,7 @@ function sheetLabels(t: (key: string) => string): PrintLabels {
     red: t('organizer.printPack.sheet.red'),
     blue: t('organizer.printPack.sheet.blue'),
     notes: t('organizer.printPack.sheet.notes'),
+    unknownReferee: t('common.unknownName.referee'),
   };
 }
 

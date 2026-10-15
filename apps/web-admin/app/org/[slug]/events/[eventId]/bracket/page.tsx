@@ -16,6 +16,7 @@ import {
   Modal,
   TournamentColorDot,
   fuzzyMatch,
+  nameOrUnknown,
   type BracketSlotData,
   type BracketConfig,
   type ColorToken,
@@ -496,7 +497,6 @@ export default function BracketPage() {
         bib_number: number | null;
         seed: number | null;
         persons?: { given_name?: string | null; family_name?: string | null } | null;
-        global_persons?: { display_name?: string | null } | null;
       }>
     >(apiUrl, `/api/v1/tournaments/${selectedTournament}/registrations`, {
       signal: controller.signal,
@@ -504,11 +504,10 @@ export default function BracketPage() {
       if (!r.ok) return;
       const raw = r.data;
       const mapped: PickerRegistration[] = raw.map((row) => {
-        const composed = `${row.persons?.given_name ?? ''} ${
+        // Blank when nobody typed a name: the row words it (`nameOrUnknown`), never the id.
+        const displayName = `${row.persons?.given_name ?? ''} ${
           row.persons?.family_name ?? ''
         }`.trim();
-        const displayName =
-          row.global_persons?.display_name?.trim() || composed || `Reg ${row.id.slice(0, 8)}`;
         return {
           id: row.id,
           displayName,
@@ -1674,7 +1673,9 @@ export default function BracketPage() {
                                   : 'text-foreground-secondary hover:bg-surface',
                               ].join(' ')}
                             >
-                              <span className="truncate">{reg.displayName}</span>
+                              <span className="truncate">
+                                {nameOrUnknown(reg.displayName, 'fighter', t, reg.bibNumber)}
+                              </span>
                               {reg.bibNumber !== null && (
                                 <span className="shrink-0 rounded bg-border px-1 py-px text-[10px] text-foreground-secondary">
                                   #{reg.bibNumber}
@@ -1754,12 +1755,14 @@ export default function BracketPage() {
                       >
                         <option value="">{t('organizer.bracket.overrideModal.refereeNone')}</option>
                         {currentMissing && rs.assignment && (
-                          <option value={current ?? ''}>{rs.assignment.displayName}</option>
+                          <option value={current ?? ''}>
+                            {nameOrUnknown(rs.assignment.displayName, 'referee', t)}
+                          </option>
                         )}
                         {options.map((c) =>
                           c.personId ? (
                             <option key={c.personId} value={c.personId}>
-                              {c.displayName}
+                              {nameOrUnknown(c.displayName, 'referee', t)}
                             </option>
                           ) : null,
                         )}

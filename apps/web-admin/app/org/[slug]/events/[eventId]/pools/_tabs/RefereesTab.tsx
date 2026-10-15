@@ -27,6 +27,7 @@
 import { useMemo, useState } from 'react';
 import { type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
 import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
@@ -203,7 +204,7 @@ function ConcurrentPoolsPanel({
         {pools.map((pool) => {
           const assigned = pool.roleSlots
             .filter((s) => s.assignment !== null)
-            .map((s) => s.assignment!.displayName);
+            .map((s) => nameOrUnknown(s.assignment!.displayName, 'referee', t));
           return (
             <li key={pool.id} className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-semibold text-foreground">

@@ -2265,6 +2265,30 @@ describe('PhasesService', () => {
     // `referees[]` array (one entry per scope_type='match' row in
     // `referee_assignments`) so the FE renders one column per role
     // with the referee's NAME instead of a single column of UUIDs.
+    it('sends a blank refereeName for a referee nobody named, never their id (X2)', async () => {
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [viewMatch('m-1', { match_number_label: 'L1-PA-M1' }), ...VIEW_DECOYS],
+        },
+        referee_assignments: {
+          rows: [
+            assignment({
+              match_id: 'm-1',
+              role: 'arbitre_declarant',
+              person_id: 'person-1',
+              global_persons: { display_name: null, given_name: null, family_name: '' },
+            }),
+          ],
+        },
+        referee_skills: { rows: [] },
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      const match = result[0]!.matches[0] as { referees: Array<{ refereeName: string }> };
+      expect(match.referees.map((referee) => referee.refereeName)).toEqual(['']);
+    });
+
     it('includes a referees[] array per match with role + refereeId + refereeName', async () => {
       const { service, supabase } = listService({
         vw_tournament_query_matches: {

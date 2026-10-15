@@ -1703,9 +1703,8 @@ export class AssignmentBoardService {
 
     return eventReferees.map((referee): AssignmentBoardCandidate => {
       const gp = gpById.get(referee.person_id) ?? null;
-      const name = gp
-        ? `${gp.given_name} ${gp.family_name}`.trim() || referee.person_id
-        : referee.person_id;
+      // Blank when no name is known: the page words it (`nameOrUnknown`), never the id.
+      const name = gp ? `${gp.given_name} ${gp.family_name}`.trim() : '';
       return {
         personId: referee.person_id,
         userId: gp?.claimed_by_user_id ?? null,

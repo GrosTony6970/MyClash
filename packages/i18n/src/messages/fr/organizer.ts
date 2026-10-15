@@ -318,7 +318,6 @@ export const organizer = {
     resolvedTitle: 'Traitées ({count})',
     statusConfirmed: 'disqualifie',
     statusDismissed: 'rejetée',
-    unknownFighter: 'Combattant inconnu',
   },
   orgSettings: {
     membersTitle: "Membres de l'organisation",
@@ -2016,7 +2015,6 @@ export const organizer = {
       saveFailedOffline: 'Le serveur est injoignable.',
       conflictCountSingular: '⚠ {count} conflit de programmation',
       conflictCountPlural: '⚠ {count} conflits de programmation',
-      unknownFighter: 'Tireur inconnu',
       conflictSegIsInBoth: 'est à la fois dans',
       conflictSegAnd: 'et',
       conflictSegAt: 'à',

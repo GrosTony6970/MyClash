@@ -11,7 +11,7 @@ import { compensationToCsv, compensationToPrintHtml } from './compensation-expor
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
-import { useToast } from '@myclash/ui';
+import { nameOrUnknown, useToast } from '@myclash/ui';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
@@ -135,7 +135,15 @@ export default function CompensationPage() {
         if (message) setError(message);
         return;
       }
-      setReport(r.data);
+      // A referee with no name is sent blank: worded once here, so the table, the CSV and
+      // the print all say "Unknown referee", never an id.
+      setReport({
+        ...r.data,
+        referees: r.data.referees.map((referee) => ({
+          ...referee,
+          displayName: nameOrUnknown(referee.displayName, 'referee', t),
+        })),
+      });
     } finally {
       setLoadingReport(false);
     }

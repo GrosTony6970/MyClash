@@ -13,6 +13,7 @@
 
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import type { RefereeReason, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
 import { RefereeReasons } from '@/components/RefereeReasons';
 import { assignmentChipClasses } from './assignment-chip-classes';
@@ -152,7 +153,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
               {slot.assignment ? (
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">
-                    {slot.assignment.displayName}
+                    {nameOrUnknown(slot.assignment.displayName, 'referee', t)}
                     {slot.assignment.isProposal && (
                       <span className="ml-1.5 inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
                         {t('organizer.refereesPage.proposedTag')}

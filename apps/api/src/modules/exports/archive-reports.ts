@@ -15,6 +15,7 @@
  * different rules. Numbers are exempt on purpose.
  */
 import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { unknownFighterInEnglish } from '../../common/unknown-name';
 import type { ArchiveRow, ArchiveTables, TournamentArchiveReports } from './archive.types';
 
 export function buildTournamentReports(
@@ -284,12 +285,9 @@ function buildRankingsCsv(
 }
 
 /**
- * The fighter's name, or the raw registration id when no person matches.
- *
- * The id fallback is deliberate and stays: this is a downloaded FILE, not a UI
- * surface, and a report that silently blanks a competitor is worse than one
- * naming a row an organiser can look up. Reached only when a registration
- * points at a person the archive does not carry.
+ * The fighter's name, or "Unknown fighter (bib 12)" when the archive holds no name for them:
+ * never the registration id (operator ruling, X2, 2026-10-15). The machine-readable CSVs of the
+ * same archive keep the ids, so a row can still be looked up there.
  */
 function registrationName(
   registrationId: unknown,
@@ -299,8 +297,10 @@ function registrationName(
   if (typeof registrationId !== 'string') return '';
   const registration = registrations.find((row) => row['id'] === registrationId);
   const person = persons.find((row) => row['id'] === registration?.['person_id']);
-  if (!person) return registrationId;
-  return `${person['given_name'] as string} ${person['family_name'] as string}`;
+  const name = `${(person?.['given_name'] as string | null) ?? ''} ${(person?.['family_name'] as string | null) ?? ''}`;
+  if (name.trim()) return name.trim();
+  const bib = registration?.['bib_number'];
+  return unknownFighterInEnglish(typeof bib === 'number' ? bib : null);
 }
 
 function ids(rows: ArchiveRow[]): string[] {

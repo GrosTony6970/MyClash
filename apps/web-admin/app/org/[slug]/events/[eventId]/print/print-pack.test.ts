@@ -32,6 +32,7 @@ const LABELS: PrintLabels = {
   red: 'Rouge',
   blue: 'Bleu',
   notes: 'Notes',
+  unknownReferee: 'Arbitre inconnu',
 };
 
 const META: PrintTournamentMeta = {
@@ -93,7 +94,7 @@ function apiPool(overrides: Partial<ApiPoolWithMatches> = {}): ApiPoolWithMatche
 
 describe('poolsToPrint', () => {
   it('derives the roster from the bouts, deduped and in first-appearance order', () => {
-    const [pool] = poolsToPrint([apiPool()], LICES);
+    const [pool] = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
     expect(pool?.fighters).toEqual([
       { name: 'Jean Dupont', club: 'LYA' },
       { name: 'Marie Martin', club: null },
@@ -101,8 +102,15 @@ describe('poolsToPrint', () => {
     ]);
   });
 
+  it('prints a referee with no name as "unknown referee", never dropped and never an id (X2)', () => {
+    const pool = apiPool();
+    pool.matches[0]!.referees = [{ refereeName: ' ' }, { refereeName: 'Paul Durand' }];
+    const [printed] = poolsToPrint([pool], LICES, LABELS.unknownReferee);
+    expect(printed?.matches[0]?.referees).toEqual(['Arbitre inconnu', 'Paul Durand']);
+  });
+
   it('resolves lice ids to names', () => {
-    const [pool] = poolsToPrint([apiPool()], LICES);
+    const [pool] = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
     expect(pool?.matches[0]?.liceName).toBe('Piste 1');
   });
 
@@ -112,7 +120,7 @@ describe('poolsToPrint', () => {
    * `scheduledAt` is required on `PrintMatch`, so a hardcoded null compiles.
    */
   it('carries the planned start through, and null for an unplaced bout', () => {
-    const [pool] = poolsToPrint([apiPool()], LICES);
+    const [pool] = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
     expect(pool?.matches[0]?.scheduledAt).toBe('2026-06-06T14:30:00.000Z');
     expect(pool?.matches[1]?.scheduledAt).toBeNull();
   });
@@ -122,7 +130,7 @@ describe('poolsToPrint', () => {
     // reads as a bug — see the no-raw-ids rule.
     const pool = apiPool();
     pool.matches[0]!.lice_id = 'lice-that-was-deleted';
-    const [printed] = poolsToPrint([pool], LICES);
+    const [printed] = poolsToPrint([pool], LICES, LABELS.unknownReferee);
     expect(printed?.matches[0]?.liceName).toBeNull();
   });
 });
@@ -179,7 +187,7 @@ describe('bracketToPrint', () => {
 });
 
 describe('printPackHtml', () => {
-  const pools = poolsToPrint([apiPool()], LICES);
+  const pools = poolsToPrint([apiPool()], LICES, LABELS.unknownReferee);
   const bracketRounds = bracketToPrint(
     [{ round: 1, position: 1, redFighterName: 'A', blueFighterName: 'B', roundCode: 'F' }],
     1,
@@ -240,7 +248,7 @@ describe('printPackHtml', () => {
     const html = printPackHtml({
       meta: META,
       labels: LABELS,
-      pools: poolsToPrint([nasty], LICES),
+      pools: poolsToPrint([nasty], LICES, LABELS.unknownReferee),
       bracketRounds: [],
       allMatches: [],
       sections: ['pools'],
@@ -259,7 +267,7 @@ describe('printJoinedPacksHtml (O22: "All Tournaments")', () => {
   const pack = (tournamentName: string, poolName: string) => ({
     meta: { ...META, tournamentName },
     labels: LABELS,
-    pools: poolsToPrint([apiPool({ poolName })], LICES),
+    pools: poolsToPrint([apiPool({ poolName })], LICES, LABELS.unknownReferee),
     bracketRounds: [],
     allMatches: [],
     sections: ['pools'] as const,

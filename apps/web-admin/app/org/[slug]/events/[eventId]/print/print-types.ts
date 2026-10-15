@@ -100,4 +100,6 @@ export interface PrintLabels {
   red: string;
   blue: string;
   notes: string;
+  /** A referee whose name is blank: never their id (X2). */
+  unknownReferee: string;
 }

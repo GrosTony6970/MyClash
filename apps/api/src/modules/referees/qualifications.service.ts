@@ -772,9 +772,10 @@ export class QualificationsService {
 
     return rows.map((r) => {
       const gp = gpById.get(r.person_id) ?? null;
+      // Blank when no name is known: the page words it (`nameOrUnknown`), never the id.
       const displayName = gp
-        ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || r.person_id
-        : r.person_id;
+        ? `${gp.given_name} ${gp.family_name}`.trim() || (gp.display_name ?? '').trim()
+        : '';
       const qualifications = qualsByPerson.get(r.person_id) ?? [];
       const personAssignments = assignmentMap.get(r.person_id);
 

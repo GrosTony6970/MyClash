@@ -169,6 +169,8 @@ export { useLeaveGuard } from './hooks/useLeaveGuard';
 export { useDialogLayer } from './hooks/useDialogLayer';
 export { leaveTarget } from './utils/leave-target';
 export type { LinkAttributes, LinkClick } from './utils/leave-target';
+export { nameOrUnknown } from './utils/name-or-unknown';
+export type { UnknownNameKind } from './utils/name-or-unknown';
 
 // ── Phase 4: bulk actions ─────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useConfirm, useToast } from '@myclash/ui';
+import { nameOrUnknown, useConfirm, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -60,9 +60,7 @@ export default function PenaltyReviewsPage() {
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   async function resolve(review: PenaltyReview, status: 'confirmed' | 'dismissed') {
-    const name =
-      personByRegistration.get(review.registration_id) ||
-      t('organizer.penaltyReviews.unknownFighter');
+    const name = nameOrUnknown(personByRegistration.get(review.registration_id), 'fighter', t);
     const tournamentName = tournaments.find((tour) => tour.id === review.tournament_id)?.name ?? '';
     // Both answers ask first (O11): a mis-tap must not close a disqualification case.
     const ok = await confirm(
@@ -114,7 +112,7 @@ export default function PenaltyReviewsPage() {
   const resolved = reviews.filter((r) => r.status !== 'pending');
   const tournamentName = (id: string) => tournaments.find((tour) => tour.id === id)?.name ?? '—';
   const fighterName = (registrationId: string) =>
-    personByRegistration.get(registrationId) || t('organizer.penaltyReviews.unknownFighter');
+    nameOrUnknown(personByRegistration.get(registrationId), 'fighter', t);
   const answerClosed = writing || isReadOnly;
   const answeredAt = (review: PenaltyReview) =>
     reviewedAt(review.reviewed_at, event?.timezone, localeToBcp47(locale));

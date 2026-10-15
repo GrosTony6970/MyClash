@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { BoardCandidatePicker } from '../../referees/_components/BoardCandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
 import {
@@ -256,7 +257,9 @@ function BracketMatchCard({
             </p>
             {slot.assignment ? (
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">{slot.assignment.displayName}</p>
+                <p className="text-sm font-medium">
+                  {nameOrUnknown(slot.assignment.displayName, 'referee', t)}
+                </p>
                 <button
                   type="button"
                   disabled={isReadOnly || busy}

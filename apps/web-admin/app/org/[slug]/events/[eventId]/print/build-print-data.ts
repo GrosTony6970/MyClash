@@ -69,6 +69,7 @@ function liceNameOf(
 export function poolsToPrint(
   pools: readonly ApiPoolWithMatches[],
   lices: ReadonlyMap<string, string>,
+  unknownReferee: string,
 ): PrintPool[] {
   return pools.map((pool) => ({
     poolName: pool.poolName,
@@ -81,7 +82,8 @@ export function poolsToPrint(
       blueClub: match.blue_club_abbrev,
       liceName: liceNameOf(match.lice_id, lices),
       scheduledAt: match.scheduled_at ?? null,
-      referees: match.referees.map((referee) => referee.refereeName).filter(Boolean),
+      // The server sends a blank name, never an id: the sheet says "Unknown referee".
+      referees: match.referees.map((referee) => referee.refereeName.trim() || unknownReferee),
     })),
   }));
 }

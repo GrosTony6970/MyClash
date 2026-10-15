@@ -2582,3 +2582,33 @@ describe('LeaguesService.getRecomputePreflight', () => {
     expect(result.blocking).toEqual([]);
   });
 });
+
+describe('LeaguesService.toContributionInputs — names', () => {
+  it('gives a blank name for a fighter nobody named, never the registration id (X2)', () => {
+    const service = new LeaguesService({ service: {} } as never, {} as never, {} as never);
+    const toInputs = (
+      service as unknown as {
+        toContributionInputs: (...args: unknown[]) => Array<{ fighterName: string }>;
+      }
+    ).toContributionInputs.bind(service);
+
+    const inputs = toInputs(
+      'L1',
+      { id: 'T1', event_id: 'e1', weapon: 'Longsword' },
+      null,
+      [
+        { id: 'reg-blank', persons: { given_name: '', family_name: ' ' }, global_persons: null },
+        { id: 'reg-gone', persons: null, global_persons: null },
+      ],
+      new Map(),
+      {
+        byRegistrationId: new Map([
+          ['reg-blank', { place: 1, resultKind: 'placed' }],
+          ['reg-gone', { place: 2, resultKind: 'placed' }],
+        ]),
+      },
+    );
+
+    expect(inputs.map((input) => input.fighterName)).toEqual(['', '']);
+  });
+});

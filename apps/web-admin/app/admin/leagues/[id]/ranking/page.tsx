@@ -2,9 +2,9 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, nameOrUnknown } from '@myclash/ui';
 import type { LeagueRankingDimensions } from '@myclash/types';
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -67,10 +67,8 @@ interface ClubStandingsPayload {
 
 const apiUrl = getPublicApiUrl();
 
-function fighterDisplayName(row: RankingRow): string {
-  const name = row.global_persons?.display_name?.trim();
-  if (name) return name;
-  return `Fighter ${row.fighter_id.slice(0, 8)}`;
+function fighterDisplayName(row: RankingRow, t: Translator): string {
+  return nameOrUnknown(row.global_persons?.display_name, 'fighter', t);
 }
 
 function fighterClubLabel(row: RankingRow): string | null {
@@ -233,7 +231,9 @@ export default function AdminLeagueRankingPage() {
                           {row.rank}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-foreground">{fighterDisplayName(row)}</p>
+                          <p className="font-medium text-foreground">
+                            {fighterDisplayName(row, t)}
+                          </p>
                           {club && <p className="mt-0.5 text-xs text-muted">{club}</p>}
                         </td>
                         <td className="px-4 py-3 text-center text-foreground-secondary tabular-nums">

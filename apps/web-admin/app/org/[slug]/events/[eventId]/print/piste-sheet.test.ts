@@ -33,6 +33,7 @@ const LABELS: PrintLabels = {
   red: 'Rouge',
   blue: 'Bleu',
   notes: 'Notes',
+  unknownReferee: 'Arbitre inconnu',
 };
 
 const META: PrintTournamentMeta = {

@@ -686,6 +686,41 @@ describe('QualificationsService — referees list', () => {
       expect(row.totalMatchCount).toBe(0);
     });
 
+    it('sends a blank name for a referee nobody named, never their id (X2)', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      // gp-a has a profile with no name at all; gp-b has no profile row.
+      const gpRows = [
+        {
+          id: 'gp-a',
+          claimed_by_user_id: null,
+          given_name: '',
+          family_name: '',
+          display_name: null,
+          club_id: null,
+        },
+      ];
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(
+          makeResolvedChain({ data: [{ person_id: 'gp-a' }, { person_id: 'gp-b' }], error: null }),
+        ) // event_referees
+        .mockReturnValueOnce(makeResolvedChain({ data: [], error: null })) // referee_qualifications
+        .mockReturnValueOnce(makeResolvedChain({ data: gpRows, error: null })) // global_persons
+        .mockReturnValueOnce(makeResolvedChain({ data: [], error: null })) // tournaments
+        .mockReturnValueOnce(makeResolvedChain({ data: [], error: null })) // event_referee_tournaments
+        .mockReturnValueOnce(makeResolvedChain({ data: [], error: null })); // event_referee_days
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+
+      expect(result.map((row) => [row.personId, row.displayName])).toEqual([
+        ['gp-a', ''],
+        ['gp-b', ''],
+      ]);
+    });
+
     it('returns empty array when no event_referees rows exist', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 

@@ -63,6 +63,14 @@ export const common = {
   optional: 'Optional',
   saving: 'Saving...',
   unknown: 'Unknown',
+  // A person whose name is blank, worded by `nameOrUnknown` (packages/ui). Never
+  // their id: an organiser reads the cell aloud at the table.
+  unknownName: {
+    fighter: 'Unknown fighter',
+    fighterWithBib: 'Unknown fighter (bib {bib})',
+    referee: 'Unknown referee',
+    person: 'Unknown person',
+  },
   // The question of `useLeaveGuard` (packages/ui): a page with unsaved edits asks
   // before a link, a tab switch or its own Cancel leaves it.
   leaveGuard: {
