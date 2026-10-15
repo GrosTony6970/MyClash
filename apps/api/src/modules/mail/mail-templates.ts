@@ -69,23 +69,52 @@ function button(url: string, label: string): string {
   return `  <p style="margin:32px 0"><a href="${escapeHtml(url)}" style="${BUTTON_STYLE}">${label}</a></p>`;
 }
 
+/** What a mailed link is for. `confirm`: the address of a new account (sign-up). */
+export type MagicLinkType = 'claim' | 'login' | 'recovery' | 'confirm';
+
+/**
+ * The words of each kind of mailed link: the subject, the line above the button, the button.
+ * One table, keyed by kind, so a new kind cannot be mailed with another kind's words: a
+ * password reset was once mailed as "Your MyClash login link".
+ */
+export const MAGIC_LINK_WORDS: Record<
+  MagicLinkType,
+  { subject: string; intro: string; label: string }
+> = {
+  claim: {
+    subject: 'Confirmez votre profil MyClash / Confirm your MyClash profile',
+    intro:
+      '<p>Cliquez sur le lien ci-dessous pour confirmer votre profil et acceder a votre planning.</p><p>Click the link below to confirm your profile and access your schedule.</p>',
+    label: 'Confirmer mon profil / Confirm my profile',
+  },
+  recovery: {
+    // ASCII like every other subject and body in this file: the mail surface stays
+    // unaccented so a client that mangles encodings cannot turn it into mojibake.
+    subject: 'Reinitialisez votre mot de passe MyClash / Reset your MyClash password',
+    intro:
+      '<p>Cliquez sur le lien ci-dessous pour definir un nouveau mot de passe.</p><p>Click the link below to set a new password.</p>',
+    label: 'Definir un mot de passe / Set a password',
+  },
+  login: {
+    subject: 'Votre lien de connexion MyClash / Your MyClash login link',
+    intro:
+      '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>',
+    label: 'Se connecter / Log in',
+  },
+  confirm: {
+    subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
+    intro:
+      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Click the link below to confirm your address and log in to MyClash.</p>',
+    label: 'Confirmer mon adresse / Confirm my address',
+  },
+};
+
 export function magicLinkHtml(
   logoUrl: string,
-  opts: { magicLink: string; type: 'claim' | 'login' | 'recovery'; displayName?: string },
+  opts: { magicLink: string; type: MagicLinkType; displayName?: string },
 ): string {
   const greeting = opts.displayName ? `Bonjour ${escapeHtml(opts.displayName)},` : 'Bonjour,';
-  const intro =
-    opts.type === 'claim'
-      ? '<p>Cliquez sur le lien ci-dessous pour confirmer votre profil et acceder a votre planning.</p><p>Click the link below to confirm your profile and access your schedule.</p>'
-      : opts.type === 'recovery'
-        ? '<p>Cliquez sur le lien ci-dessous pour definir un nouveau mot de passe.</p><p>Click the link below to set a new password.</p>'
-        : '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>';
-  const label =
-    opts.type === 'claim'
-      ? 'Confirmer mon profil / Confirm my profile'
-      : opts.type === 'recovery'
-        ? 'Definir un mot de passe / Set a password'
-        : 'Se connecter / Log in';
+  const { intro, label } = MAGIC_LINK_WORDS[opts.type];
 
   return page(
     logoUrl,

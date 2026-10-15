@@ -60,7 +60,7 @@ describe('requestPasswordSignIn', () => {
 });
 
 describe('requestSignUp', () => {
-  const signUp = () => requestSignUp(API, 'lea@example.com', 'a-password');
+  const signUp = () => requestSignUp(API, 'lea@example.com', 'a-password', '/e/fal-2026');
 
   it('reads "sign-ups are off" from the code of the API\'s 503', async () => {
     answers(503, { status: 503, code: 'signups_disabled' });
@@ -84,6 +84,14 @@ describe('requestSignUp', () => {
       expect(await signUp()).toBe('failed');
     },
   );
+
+  // Ruling 2026-10-16: the mailed confirmation link signs her in on the page she began on.
+  it('sends the page the sign-up started from, for the confirmation link', async () => {
+    answers(202, { message: 'sent' });
+    await signUp();
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toMatchObject({ next: '/e/fal-2026' });
+  });
 
   it('still reads the stale agreement and the success', async () => {
     answers(400, { status: 400, code: 'legal_version_stale' });

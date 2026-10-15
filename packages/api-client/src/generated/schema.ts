@@ -9728,6 +9728,7 @@ export interface components {
       /** Format: email */
       email: string;
       password: string;
+      next?: string;
       acceptedTerms: string;
       acceptedPrivacy: string;
     };

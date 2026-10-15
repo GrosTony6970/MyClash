@@ -7,9 +7,11 @@ import {
   broadcastHtml,
   emailChangeHtml,
   eventPassHtml,
+  MAGIC_LINK_WORDS,
   magicLinkHtml,
   notificationHtml,
   ownerWelcomeHtml,
+  type MagicLinkType,
 } from './mail-templates';
 
 export interface MagicLinkEmailOptions {
@@ -17,15 +19,14 @@ export interface MagicLinkEmailOptions {
   magicLink: string;
   /**
    * 'claim' = participant claiming their profile; 'login' = a sign-in link;
-   * 'recovery' = setting a new password.
+   * 'recovery' = setting a new password; 'confirm' = a new account's address.
    *
    * Recovery used to be sent as 'login', so someone who pressed "forgot my
    * password" was mailed a "Your MyClash login link" with a "Log in" button and
-   * was never told a password reset was underway. Both switches below branch on
-   * this — neither is exhaustive-checked by the compiler, so a fourth value
-   * needs both touched by hand.
+   * was never told a password reset was underway. The subject and the body now
+   * read one table keyed by this (`MAGIC_LINK_WORDS`): a new kind is checked.
    */
-  type: 'claim' | 'login' | 'recovery';
+  type: MagicLinkType;
   /** Display name shown in the email body */
   displayName?: string;
 }
@@ -109,15 +110,7 @@ export class MailService {
 
   async sendMagicLink(opts: MagicLinkEmailOptions): Promise<void> {
     if (await this.shouldSkip('sendMagicLink')) return;
-    const subject =
-      opts.type === 'claim'
-        ? 'Confirmez votre profil MyClash / Confirm your MyClash profile'
-        : opts.type === 'recovery'
-          ? // ASCII like every other subject and body in this file: the mail
-            // surface stays unaccented so a client that mangles encodings
-            // cannot turn a security email into mojibake.
-            'Reinitialisez votre mot de passe MyClash / Reset your MyClash password'
-          : 'Votre lien de connexion MyClash / Your MyClash login link';
+    const { subject } = MAGIC_LINK_WORDS[opts.type];
     await this.deliver('sendMagicLink', opts.to, subject, magicLinkHtml(this.logoUrl, opts));
   }
 

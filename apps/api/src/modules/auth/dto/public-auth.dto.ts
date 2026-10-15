@@ -14,6 +14,8 @@ const publicSignupSchema = z
   .object({
     email: z.email().max(254),
     password: z.string().max(256),
+    // The page the sign-up started from: the confirmation link lands there (safeRedirectPath).
+    next: z.string().max(2048).optional(),
     // Account creation — see accepted-legal.schema.ts. Login below carries no
     // such fields: an existing account that is behind on a revised policy is
     // asked by the banner, never blocked from signing in.

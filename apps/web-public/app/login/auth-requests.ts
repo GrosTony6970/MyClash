@@ -55,10 +55,12 @@ export async function requestPasswordSignIn(
 /** `maintenance` is read-only mode's refusal, by its code (operator ruling 341). */
 export type SignUpCode = 'ok' | 'signups_disabled' | 'maintenance' | 'legal_stale' | 'failed';
 
+/** `landing` is where the mailed confirmation link sends its reader: `afterSignIn` chose it. */
 export async function requestSignUp(
   apiUrl: string,
   email: string,
   password: string,
+  landing: string,
 ): Promise<SignUpCode> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/auth/public-signup`, {
@@ -68,6 +70,7 @@ export async function requestSignUp(
       body: JSON.stringify({
         email: email.trim(),
         password,
+        next: landing,
         // Checked server-side against the published registry; a stale pair is
         // refused so a tab open across a policy revision cannot consent to the
         // old text.

@@ -34,10 +34,13 @@ function build(tables: Record<string, TableSeed> = {}) {
   const updateUserById = vi.fn().mockResolvedValue({ error: null });
   const deleteUser = vi.fn().mockResolvedValue({ error: null });
   const redactSubject = vi.fn();
-  const createUser = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
+  const generateLink = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
   const supabase = {
     getAuthUser: vi.fn().mockResolvedValue(LEA),
-    service: { from: db.service.from, auth: { admin: { updateUserById, deleteUser, createUser } } },
+    service: {
+      from: db.service.from,
+      auth: { admin: { updateUserById, deleteUser, generateLink } },
+    },
   };
   const service = new AuthService(
     supabase as never,
@@ -56,7 +59,16 @@ function build(tables: Record<string, TableSeed> = {}) {
     deleteAccount: () =>
       service.deleteAccount(signedIn, 'right-password', 'DELETE', reply as never),
   };
-  return { service, supabase, doors, reply, updateUserById, deleteUser, redactSubject, createUser };
+  return {
+    service,
+    supabase,
+    doors,
+    reply,
+    updateUserById,
+    deleteUser,
+    redactSubject,
+    generateLink,
+  };
 }
 
 type Door = 'login' | 'changePassword' | 'deleteAccount';
@@ -244,7 +256,7 @@ describe('the participant sign-up during read-only mode (ruling 341)', () => {
 
     expect(refusal).toBeInstanceOf(OperationalUnavailableException);
     expect((refusal as HttpException).getResponse()).toMatchObject({ code: READ_ONLY_MODE_CODE });
-    expect(built.createUser).not.toHaveBeenCalled();
+    expect(built.generateLink).not.toHaveBeenCalled();
   });
 
   it('makes the account while read-only mode is off', async () => {
@@ -253,6 +265,6 @@ describe('the participant sign-up during read-only mode (ruling 341)', () => {
     expect(await answer).toEqual({
       message: 'If this email is new, a confirmation link has been sent.',
     });
-    expect(built.createUser).toHaveBeenCalledOnce();
+    expect(built.generateLink).toHaveBeenCalledOnce();
   });
 });

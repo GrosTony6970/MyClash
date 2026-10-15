@@ -121,7 +121,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
     }
     setBusy(true);
     reset();
-    const code = await requestSignUp(apiUrl, email, password);
+    const code = await requestSignUp(apiUrl, email, password, landing);
     setBusy(false);
     if (code === 'ok') {
       setMessage(t('publicApp.login.signupCheckEmail', { email: email.trim() }));

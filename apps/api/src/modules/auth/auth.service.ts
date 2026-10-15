@@ -1534,16 +1534,21 @@ export class AuthService {
   // ── §7: public email + password account ────────────────────────────────
 
   /**
-   * POST /auth/public-signup — create a Supabase auth.users row with
-   * the supplied email + password. Email confirmation is required
-   * before login can succeed (Supabase sends its built-in
-   * confirmation template; copy/branding is dashboard-side, not code).
+   * POST /auth/public-signup — create a Supabase auth.users row with the supplied
+   * email + password, and mail its confirmation link (operator ruling 2026-10-16).
+   * Email confirmation is required before a password sign-in can succeed.
+   *
+   * The server mails the link itself, as every other link (ruling 303): GoTrue's
+   * admin calls never mail, and production does not confirm an address on its own,
+   * so the account this made used to wait for a mail that never came. The link
+   * signs its reader in and lands on `next`, the page the sign-up started from.
    */
   async publicSignup(
     email: string,
     password: string,
     accepted: { terms?: string; privacy?: string },
     context: AcceptanceContext = {},
+    next?: string,
   ): Promise<{ message: string }> {
     await this.assertPublicSignupsOpen();
     // Before the account exists, so a stale-policy client is turned away without
@@ -1558,10 +1563,11 @@ export class AuthService {
     }
     const normalized = email.trim().toLowerCase();
 
-    const { data, error } = await this.supabase.service.auth.admin.createUser({
+    // One call makes the unconfirmed account AND the code of its confirmation link.
+    const { data, error } = await this.supabase.service.auth.admin.generateLink({
+      type: 'signup',
       email: normalized,
       password,
-      email_confirm: false,
     });
     if (error) {
       // Already exists, weak password caught server-side, etc.
@@ -1577,11 +1583,32 @@ export class AuthService {
     const createdUserId = data?.user?.id;
     if (createdUserId) {
       await this.legal.recordForUser(createdUserId, versions, context);
+      await this.mailSignupConfirmation(normalized, data.properties, next);
     }
 
     return {
       message: 'If this email is new, a confirmation link has been sent.',
     };
+  }
+
+  /**
+   * Mail a new account its confirmation link: the public site's sign-in door, which spends
+   * the code, signs its reader in and opens `next`. No code, no mail: a link that cannot work
+   * is worse than none, and the log says so.
+   */
+  private async mailSignupConfirmation(
+    email: string,
+    properties: { hashed_token?: string } | null | undefined,
+    next: string | undefined,
+  ): Promise<void> {
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    const door = signInDoor(domain, 'public_login', safeRedirectPath(next));
+    const magicLink = mailedLink(door, properties);
+    if (!magicLink) {
+      this.logger.error(`public-signup: no confirmation code for ${email}`);
+      return;
+    }
+    await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm' });
   }
 
   /**

@@ -102,10 +102,10 @@ export class AuthController {
   /**
    * POST /api/v1/auth/public-signup
    *
-   * Create a Supabase auth.users row with email + password. Supabase
-   * sends its built-in confirmation email; the user can't log in
-   * until they click the link. Gated by the disable_public_signups
-   * feature flag.
+   * Create a Supabase auth.users row with email + password, and mail its
+   * confirmation link (the server mails it: GoTrue's admin calls never do).
+   * The user can't sign in with the password until they click the link.
+   * Gated by the disable_public_signups feature flag.
    */
   @Post('public-signup')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -123,6 +123,7 @@ export class AuthController {
       dto.password,
       acceptedVersionsOf(dto),
       requestAcceptanceContext(request),
+      dto.next,
     );
   }
 
