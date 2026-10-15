@@ -2032,9 +2032,6 @@ export const admin = {
     requestError: 'Impossible de demander le rattachement.',
     myRequests: {
       existingTitle: 'Vos demandes en cours',
-      statusPending: 'En attente',
-      statusApproved: 'Acceptée',
-      statusRejected: 'Refusée',
       group: 'Groupe',
       withdraw: 'Annuler',
       leaveLeague: 'Quitter la ligue',

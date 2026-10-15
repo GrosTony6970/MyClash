@@ -207,7 +207,7 @@ export const common = {
       member: 'Member',
     },
     leagueAttachment: {
-      requested: 'Requested',
+      requested: 'Pending',
       approved: 'Approved',
       rejected: 'Rejected',
       removed: 'Removed',

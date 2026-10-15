@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useConfirm, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
+import { useConfirm, statusLabel, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -183,13 +183,6 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
     }
   }
 
-  const statusLabel = (status: Attachment['status']) =>
-    status === 'requested'
-      ? t('organizer.leagues.attachments.statusPending')
-      : status === 'approved'
-        ? t('organizer.leagues.attachments.statusApproved')
-        : t('organizer.leagues.attachments.statusRejected');
-
   return (
     <div className="mt-3 border-t border-border pt-3">
       <button
@@ -236,7 +229,7 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
                       <span
                         className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusPillTone(reviewStatusSemantic(a.status), 'light').className}`}
                       >
-                        {statusLabel(a.status)}
+                        {statusLabel('leagueAttachment', a.status, t)}
                       </span>
                       {canDetach && (
                         <button

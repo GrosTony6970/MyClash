@@ -2026,9 +2026,6 @@ export const admin = {
     requestError: 'Could not request league attachment.',
     myRequests: {
       existingTitle: 'Your existing requests',
-      statusPending: 'Pending',
-      statusApproved: 'Approved',
-      statusRejected: 'Rejected',
       group: 'Group',
       withdraw: 'Withdraw',
       leaveLeague: 'Leave league',

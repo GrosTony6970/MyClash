@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
+import { createTranslator, getMessages } from '@myclash/i18n';
+import { statusLabel } from '@myclash/ui';
 import { EVENT_ID, openEventPage, type OpenedPage } from '../../archived-page.fixtures';
 import { AttachToLeaguePanel } from './AttachToLeaguePanel';
 
@@ -68,5 +70,25 @@ describe('the league request outcome', () => {
     await openAndRequest({ [REQUEST]: {} });
     expect(statusLine()?.textContent).toBe('Request sent.');
     expect(alertLine()).toBeNull();
+  });
+});
+
+describe('the league request word', () => {
+  it('a request not yet answered says the word the league admin reads', async () => {
+    const asked = { id: 'l-1', tournament_id: 't-1', league_id: 'lg-1', status: 'requested' };
+    page = await openEventPage(<AttachToLeaguePanel eventId={EVENT_ID} />, {
+      ...READS,
+      [`/api/v1/events/${EVENT_ID}/league-attachments`]: [asked],
+    });
+    await press('Request league attachment');
+    const adminWord = statusLabel(
+      'leagueAttachment',
+      'requested',
+      createTranslator(getMessages('en')),
+    );
+    const pill = [...document.body.querySelectorAll('section li span')].find(
+      (span) => span.textContent === adminWord,
+    );
+    expect(pill).toBeDefined();
   });
 });

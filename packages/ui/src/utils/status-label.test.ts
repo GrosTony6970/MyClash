@@ -129,6 +129,11 @@ describe('statusLabelKey', () => {
     );
   });
 
+  it('calls a League request not yet answered "Pending" on every page, as ruled', () => {
+    expect(wordIn(messages.en, statusLabelKey('leagueAttachment', 'requested'))).toBe('Pending');
+    expect(wordIn(messages.fr, statusLabelKey('leagueAttachment', 'requested'))).toBe('En attente');
+  });
+
   it('says a paused bout and a halted clock with the same word, as ruled', () => {
     const word = (key: string) => wordIn(messages.en, key);
     expect(word(statusLabelKey('match', 'paused'))).toBe('Paused');
