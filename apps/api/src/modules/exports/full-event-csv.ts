@@ -1,18 +1,30 @@
 /**
- * full-event-csv.ts — one line of the full event CSV (`events/:id/exports/full.csv`) per hit.
+ * full-event-csv.ts — one row of the full event CSV (`events/:id/exports/full.csv`) per hit.
  *
- * Pure: the read is `ExportsService.fetchEventExchanges`. Formula-safe on every free-text cell:
- * the file is opened in a spreadsheet and carries organiser-written text (Tournament names, void
- * reasons). See @myclash/types/csv.
+ * Pure: the read is `ExportsService.fetchEventExchanges`, the file is written by `csvDownload`,
+ * whose every cell is formula-safe: the file is opened in a spreadsheet and carries
+ * organiser-written text (Tournament names, void reasons). See @myclash/types/csv.
  */
-import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import type { Row } from './hema-ratings-rows';
 
-export const FULL_CSV_HEADER =
-  'tournament,round_code,match,sequence,type,first_striker,first_strike_value,afterblow_value,no_exchange_reason,clock_time_ms,voided,voided_reason';
+export const FULL_CSV_HEADER = [
+  'tournament',
+  'round_code',
+  'match',
+  'sequence',
+  'type',
+  'first_striker',
+  'first_strike_value',
+  'afterblow_value',
+  'no_exchange_reason',
+  'clock_time_ms',
+  'voided',
+  'voided_reason',
+];
 
 /** A hit read with its bout, Pool or bracket slot, phase and Tournament embedded. */
-export function fullCsvLine(row: Row): string {
+export function fullCsvRow(row: Row): unknown[] {
   const match = row['matches'] as Record<string, unknown> | null;
   const phase = match?.['phases'] as Record<string, unknown> | null;
   const tournament = phase?.['tournaments'] as {
@@ -44,17 +56,17 @@ export function fullCsvLine(row: Row): string {
   });
 
   return [
-    escapeCsvCell(tournament?.name ?? ''),
-    escapeCsvCell(roundCode),
-    escapeCsvCell(matchLabel),
+    tournament?.name,
+    roundCode,
+    matchLabel,
     row['sequence'],
     row['type'],
-    row['first_striker_color'] ?? '',
-    row['first_strike_value'] ?? '',
-    row['afterblow_value'] ?? '',
-    row['no_exchange_reason'] ?? '',
-    row['clock_time_ms'] ?? '',
+    row['first_striker_color'],
+    row['first_strike_value'],
+    row['afterblow_value'],
+    row['no_exchange_reason'],
+    row['clock_time_ms'],
     row['voided'] ? 'true' : 'false',
-    escapeCsvCell((row['voided_reason'] as string | null) ?? ''),
-  ].join(',');
+    row['voided_reason'],
+  ];
 }

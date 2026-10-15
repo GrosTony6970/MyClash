@@ -246,12 +246,12 @@ describe('ArchiveService', () => {
       ],
     });
 
-    const reports = await service.generateTournamentCsvReports('tournament-1', 'user-1');
+    const reports = await service.generateTournamentReportRows('tournament-1', 'user-1');
 
-    expect(reports.resultsCsv).toContain('"Bob Club, Jr."');
-    expect(reports.matchesCsv).toContain('Final');
-    expect(reports.exchangesCsv).toContain('first_striker');
-    expect(reports.rankingsCsv).toContain('rank,name');
+    expect(reports.results[1]).toContain('Bob Club, Jr.');
+    expect(reports.matches[1]).toContain('Final');
+    expect(reports.exchanges[0]).toContain('first_striker');
+    expect(reports.rankings[0]?.slice(0, 2)).toEqual(['rank', 'name']);
   });
 
   it('rejects unsupported archives during restore preview', async () => {

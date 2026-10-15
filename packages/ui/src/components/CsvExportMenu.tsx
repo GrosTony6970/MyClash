@@ -9,8 +9,18 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react';
-import { CSV_EXCEL_FR, CSV_STANDARD, type CsvFormat } from '@myclash/types';
+import { CSV_EXCEL_FR, CSV_STANDARD, csvFormatParam, type CsvFormat } from '@myclash/types';
 import type { Translator } from '../types/translator';
+
+/**
+ * Download the server's CSV at `href` in `format` (`?csv=`), as a link to it would: the browser
+ * sends the login, and the server's `Content-Disposition: attachment` keeps the page where it is.
+ */
+export function downloadServerCsv(href: string, format: Readonly<CsvFormat>): void {
+  const link = document.createElement('a');
+  link.href = `${href}?csv=${csvFormatParam(format)}`;
+  link.click();
+}
 
 const CHOICES = [
   {

@@ -37,8 +37,15 @@ export function splitCsvRow(line: string): string[] {
   return fields;
 }
 
-/** Non-empty lines of a CSV body. */
-export const linesOf = (csv: string): string[] => csv.split('\n').filter((line) => line.length > 0);
+/**
+ * Non-empty lines of a CSV body. A file a person downloads starts with the byte-order mark and
+ * ends its lines with CRLF (`csvFile`); a file inside a zip has neither. Both read the same here.
+ */
+export const linesOf = (csv: string): string[] =>
+  csv
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0);
 
 /**
  * Rows of a CSV with a header line, keyed by column name.

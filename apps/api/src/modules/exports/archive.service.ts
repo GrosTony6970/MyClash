@@ -10,7 +10,12 @@ import { archivedEventRefusal } from '../../common/event-readonly/event-readonly
 import { dropRestoredPins } from './archive-pins';
 import { readArchivedRows } from './archive-read';
 import { danglingReferences, describeDangling } from './archive-references';
-import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
+import {
+  buildTournamentReportRows,
+  buildTournamentReports,
+  safeFilename,
+  type TournamentReportRows,
+} from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
 import type { CollectContext, CollectRule, IdMapName } from './archive.table-spec';
 import {
@@ -37,7 +42,6 @@ import type {
   RestoreOptions,
   RestorePreview,
   RestoreResult,
-  TournamentArchiveReports,
 } from './archive.types';
 
 type QueryResult<T> = { data: T | null; error: { message: string } | null };
@@ -154,14 +158,14 @@ export class ArchiveService {
     return this.buildArchive('tournament', event, tournament, tables, options.include);
   }
 
-  async generateTournamentCsvReports(
+  /** The four reports of one Tournament, as rows: a single download writes the file asked for. */
+  async generateTournamentReportRows(
     tournamentId: string,
     userId: string,
-  ): Promise<TournamentArchiveReports> {
-    const archive = await this.generateTournamentArchive(tournamentId, userId, {
-      include: 'scoring',
-    });
-    return archive.reports.tournaments[0] ?? emptyTournamentReports(tournamentId);
+  ): Promise<TournamentReportRows> {
+    const { event, tournament } = await this.assertTournamentAdmin(tournamentId, userId);
+    const tables = await this.collectTournamentTables(event, tournament, 'scoring');
+    return buildTournamentReportRows(tournament, tables);
   }
 
   async previewRestore(buffer: Buffer, _userId: string): Promise<RestorePreview> {

@@ -8,20 +8,52 @@
  * double-elim round-code split had no direct test at all. Out here they are
  * called directly.
  *
- * Every value that reaches a cell goes through `escapeCsvCell`, NOT
- * `escapeCsvField`: these files are downloaded and opened in a spreadsheet, and
- * they carry organiser-written names and labels. See @myclash/types/csv for the
- * split — `escapeCsvField` is the HEMA Ratings submission escaper and has
- * different rules. Numbers are exempt on purpose.
+ * The builders return ROWS, header first; the file is written by its caller. Every cell is
+ * formula-safe (`csvRow` → `escapeCsvCell`'s rules, NOT `escapeCsvField`'s): these files are
+ * opened in a spreadsheet and carry organiser-written names and labels. Numbers are exempt on
+ * purpose. The archive keeps its copies as they always were: the standard format, `\n` between
+ * rows, no byte-order mark. A Tournament's single download (`csvDownload`) writes the file the
+ * organiser picked (operator, 2026-10-15).
  */
-import { escapeCsvCell, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
+import { CSV_STANDARD, csvRow, formatRoundCode, roundCodeShapeFromConfig } from '@myclash/types';
 import { unknownFighterInEnglish } from '../../common/unknown-name';
 import type { ArchiveRow, ArchiveTables, TournamentArchiveReports } from './archive.types';
 
+/** One CSV report: its header, then a row per line. */
+export type ReportRows = unknown[][];
+
+/** The four reports of one Tournament. */
+export interface TournamentReportRows {
+  matches: ReportRows;
+  exchanges: ReportRows;
+  results: ReportRows;
+  rankings: ReportRows;
+}
+
+/** The reports as the archive carries them: byte for byte what an archive always held. */
 export function buildTournamentReports(
   tournament: ArchiveRow,
   tables: ArchiveTables,
 ): TournamentArchiveReports {
+  const rows = buildTournamentReportRows(tournament, tables);
+  return {
+    tournamentId: tournament['id'] as string,
+    tournamentName: tournament['name'] as string,
+    matchesCsv: archiveCsvText(rows.matches),
+    exchangesCsv: archiveCsvText(rows.exchanges),
+    resultsCsv: archiveCsvText(rows.results),
+    rankingsCsv: archiveCsvText(rows.rankings),
+  };
+}
+
+function archiveCsvText(rows: ReportRows): string {
+  return rows.map((row) => csvRow(row, CSV_STANDARD)).join('\n');
+}
+
+export function buildTournamentReportRows(
+  tournament: ArchiveRow,
+  tables: ArchiveTables,
+): TournamentReportRows {
   const tournamentId = tournament['id'] as string;
   const registrations = tables.registrations.filter((row) => row['tournament_id'] === tournamentId);
   const phaseIds = ids(tables.phases.filter((row) => row['tournament_id'] === tournamentId));
@@ -38,31 +70,10 @@ export function buildTournamentReports(
   const roundCodes = computeRoundCodes(tournament, matches, tables);
 
   return {
-    tournamentId,
-    tournamentName: tournament['name'] as string,
-    matchesCsv: buildMatchesCsv(matches, roundCodes),
-    exchangesCsv: buildExchangesCsv(exchanges),
-    resultsCsv: buildResultsReportCsv(matches, registrations, tables.persons, roundCodes),
-    rankingsCsv: buildRankingsCsv(matches, registrations, tables.persons),
-  };
-}
-
-/**
- * Header-only reports for a tournament that produced none.
- *
- * `tournamentName` is the id: this is the last-resort fallback for a caller that
- * asked for reports and must be handed a well-formed bundle rather than a
- * throw, and there is no name to use. Every header row is still emitted, so the
- * download opens as a valid CSV.
- */
-export function emptyTournamentReports(tournamentId: string): TournamentArchiveReports {
-  return {
-    tournamentId,
-    tournamentName: tournamentId,
-    matchesCsv: buildMatchesCsv([]),
-    exchangesCsv: buildExchangesCsv([]),
-    resultsCsv: buildResultsReportCsv([], [], []),
-    rankingsCsv: buildRankingsCsv([], [], []),
+    matches: matchesRows(matches, roundCodes),
+    exchanges: exchangesRows(exchanges),
+    results: resultsRows(matches, registrations, tables.persons, roundCodes),
+    rankings: rankingsRows(matches, registrations, tables.persons),
   };
 }
 
@@ -147,94 +158,107 @@ function computeRoundCodes(
   return out;
 }
 
-function buildMatchesCsv(matches: ArchiveRow[], roundCodes?: Map<string, string>): string {
-  const lines = [
-    'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id,end_reason',
+function matchesRows(matches: ArchiveRow[], roundCodes: Map<string, string>): ReportRows {
+  return [
+    [
+      'match_id',
+      'round_code',
+      'match_label',
+      'status',
+      'red_registration_id',
+      'blue_registration_id',
+      'red_score',
+      'blue_score',
+      'winner_registration_id',
+      'end_reason',
+    ],
+    ...matches.map((match) => [
+      match['id'],
+      roundCodes.get(match['id'] as string) ?? '',
+      String(match['match_number_label'] ?? ''),
+      match['status'],
+      match['red_registration_id'],
+      match['blue_registration_id'],
+      match['red_score'],
+      match['blue_score'],
+      match['winner_registration_id'],
+      // Without it a 0-0 double loss is indistinguishable in the archive from
+      // a genuine draw, and the fact is gone for good once the event is.
+      match['end_reason'],
+    ]),
   ];
-  for (const match of matches) {
-    const code = roundCodes?.get(match['id'] as string) ?? '';
-    lines.push(
-      [
-        match['id'],
-        escapeCsvCell(code),
-        escapeCsvCell(String(match['match_number_label'] ?? '')),
-        match['status'] ?? '',
-        match['red_registration_id'] ?? '',
-        match['blue_registration_id'] ?? '',
-        match['red_score'] ?? '',
-        match['blue_score'] ?? '',
-        match['winner_registration_id'] ?? '',
-        // Without it a 0-0 double loss is indistinguishable in the archive from
-        // a genuine draw, and the fact is gone for good once the event is.
-        match['end_reason'] ?? '',
-      ].join(','),
-    );
-  }
-  return lines.join('\n');
 }
 
-function buildExchangesCsv(exchanges: ArchiveRow[]): string {
-  const lines = [
-    'exchange_id,match_id,sequence,type,first_striker,first_strike_value,afterblow_value,voided',
+function exchangesRows(exchanges: ArchiveRow[]): ReportRows {
+  return [
+    [
+      'exchange_id',
+      'match_id',
+      'sequence',
+      'type',
+      'first_striker',
+      'first_strike_value',
+      'afterblow_value',
+      'voided',
+    ],
+    ...exchanges.map((exchange) => [
+      exchange['id'],
+      exchange['match_id'],
+      exchange['sequence'],
+      exchange['type'],
+      exchange['first_striker_color'],
+      exchange['first_strike_value'],
+      exchange['afterblow_value'],
+      exchange['voided'] ? 'true' : 'false',
+    ]),
   ];
-  for (const exchange of exchanges) {
-    lines.push(
-      [
-        exchange['id'],
-        exchange['match_id'],
-        exchange['sequence'] ?? '',
-        exchange['type'] ?? '',
-        exchange['first_striker_color'] ?? '',
-        exchange['first_strike_value'] ?? '',
-        exchange['afterblow_value'] ?? '',
-        exchange['voided'] ? 'true' : 'false',
-      ].join(','),
-    );
-  }
-  return lines.join('\n');
 }
 
-function buildResultsReportCsv(
+function resultsRows(
   matches: ArchiveRow[],
   registrations: ArchiveRow[],
   persons: ArchiveRow[],
-  roundCodes?: Map<string, string>,
-): string {
+  roundCodes: Map<string, string>,
+): ReportRows {
   // Human-readable report an organiser opens in Excel, so the columns are
   // named for the SIDES, not for a colour. `red`/`blue` here held fighter
   // NAMES, and read as a lie for any tournament not run red-vs-blue. The
   // machine-readable archive CSVs keep their DB column names — those
   // round-trip on re-import.
-  const lines = ['round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner,end_reason'];
-  for (const match of matches) {
-    const red = registrationName(match['red_registration_id'], registrations, persons);
-    const blue = registrationName(match['blue_registration_id'], registrations, persons);
-    const winner = registrationName(match['winner_registration_id'], registrations, persons);
-    const code = roundCodes?.get(match['id'] as string) ?? '';
-    lines.push(
-      [
-        escapeCsvCell(code),
-        escapeCsvCell(String(match['match_number_label'] ?? '')),
-        escapeCsvCell(red),
-        escapeCsvCell(blue),
-        match['red_score'] ?? '',
-        match['blue_score'] ?? '',
-        escapeCsvCell(winner),
-        // The winner cell is empty for every bout the engine gave no winner —
-        // a time-out, a genuine draw and a double loss all read the same
-        // without this. The organiser opens this one in Excel.
-        escapeCsvCell(String(match['end_reason'] ?? '')),
-      ].join(','),
-    );
-  }
-  return lines.join('\n');
+  return [
+    [
+      'round_code',
+      'match_label',
+      'fighter_1',
+      'fighter_2',
+      'score_1',
+      'score_2',
+      'winner',
+      'end_reason',
+    ],
+    ...matches.map((match) => [
+      roundCodes.get(match['id'] as string) ?? '',
+      String(match['match_number_label'] ?? ''),
+      registrationName(match['red_registration_id'], registrations, persons),
+      registrationName(match['blue_registration_id'], registrations, persons),
+      match['red_score'],
+      match['blue_score'],
+      registrationName(match['winner_registration_id'], registrations, persons),
+      // The winner cell is empty for every bout the engine gave no winner —
+      // a time-out, a genuine draw and a double loss all read the same
+      // without this. The organiser opens this one in Excel.
+      String(match['end_reason'] ?? ''),
+    ]),
+  ];
 }
 
-function buildRankingsCsv(
+const NO_SCORE = Object.freeze({ wins: 0, pointsFor: 0, pointsAgainst: 0 });
+
+function rankingsRows(
   matches: ArchiveRow[],
   registrations: ArchiveRow[],
   persons: ArchiveRow[],
-): string {
+): ReportRows {
   const points = new Map<string, { wins: number; pointsFor: number; pointsAgainst: number }>();
   for (const registration of registrations) {
     points.set(registration['id'] as string, { wins: 0, pointsFor: 0, pointsAgainst: 0 });
@@ -256,32 +280,27 @@ function buildRankingsCsv(
     if (match['winner_registration_id'] === blueId) blue.wins += 1;
   }
   const ranked = [...registrations].sort((a, b) => {
-    const left = points.get(a['id'] as string) ?? { wins: 0, pointsFor: 0, pointsAgainst: 0 };
-    const right = points.get(b['id'] as string) ?? { wins: 0, pointsFor: 0, pointsAgainst: 0 };
+    const left = points.get(a['id'] as string) ?? NO_SCORE;
+    const right = points.get(b['id'] as string) ?? NO_SCORE;
     return (
       right.wins - left.wins ||
       right.pointsFor - left.pointsFor ||
       left.pointsAgainst - right.pointsAgainst
     );
   });
-  const lines = ['rank,name,wins,points_for,points_against'];
-  ranked.forEach((registration, index) => {
-    const score = points.get(registration['id'] as string) ?? {
-      wins: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-    };
-    lines.push(
-      [
+  return [
+    ['rank', 'name', 'wins', 'points_for', 'points_against'],
+    ...ranked.map((registration, index) => {
+      const score = points.get(registration['id'] as string) ?? NO_SCORE;
+      return [
         index + 1,
-        escapeCsvCell(registrationName(registration['id'], registrations, persons)),
+        registrationName(registration['id'], registrations, persons),
         score.wins,
         score.pointsFor,
         score.pointsAgainst,
-      ].join(','),
-    );
-  });
-  return lines.join('\n');
+      ];
+    }),
+  ];
 }
 
 /**

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/types';
+import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -2040,26 +2040,32 @@ export class LeaguesService {
     return candidate;
   }
 
-  async finalReportCsv(leagueId: string): Promise<string> {
+  /**
+   * The season report, as rows: the route writes the file asked for (`csvDownload`). In the French
+   * Excel file the double-hit average (`1.5`) is written `1,5`; it is the one decimal column.
+   */
+  async finalReportRows(leagueId: string): Promise<unknown[][]> {
     const standings = await this.standings(leagueId);
-    const lines = [
-      'ranking_group,league_rank,fighter,total_points,participation_count,medal_count,double_hit_average',
+    return [
+      [
+        'ranking_group',
+        'league_rank',
+        'fighter',
+        'total_points',
+        'participation_count',
+        'medal_count',
+        'double_hit_average',
+      ],
+      ...(standings.rows as Row[]).map((row) => [
+        row['ranking_group_key'],
+        row['rank'],
+        (row['global_persons'] as Row | null)?.['display_name'] ?? row['global_person_id'],
+        row['total_points'],
+        row['participation_count'],
+        row['medal_count'],
+        row['double_hit_average'],
+      ]),
     ];
-    for (const row of standings.rows as Row[]) {
-      const fighter = row['global_persons'] as Row | null;
-      lines.push(
-        [
-          csv(row['ranking_group_key']),
-          csv(row['rank']),
-          csv(fighter?.['display_name'] ?? row['global_person_id']),
-          csv(row['total_points']),
-          csv(row['participation_count']),
-          csv(row['medal_count']),
-          csv(row['double_hit_average']),
-        ].join(','),
-      );
-    }
-    return `${lines.join('\n')}\n`;
   }
 
   async finalReportHtml(leagueId: string): Promise<string> {
@@ -2422,15 +2428,8 @@ function slugifyLeagueName(name: string): string {
 }
 
 /**
- * Formula-safe: league standings are downloaded and opened in a spreadsheet, and
- * fighter and club names come from the roster. See @myclash/types/csv — plain
- * numbers stay numeric so points columns still sum.
- */
-const csv = toCsvCell;
-
-/**
- * Coercion only — the escaping itself belongs to `@myclash/types`, same as `csv`
- * above. This used to be a private escaper that missed `'`, which is exactly the
+ * Coercion only — the escaping itself belongs to `@myclash/types`, as the CSV's
+ * does. This used to be a private escaper that missed `'`, which is exactly the
  * divergence the shared one exists to prevent.
  */
 const html = (value: unknown): string => escapeHtml(String(value ?? ''));

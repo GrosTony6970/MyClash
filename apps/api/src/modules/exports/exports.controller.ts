@@ -31,6 +31,7 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isPlatformStaff } from '../../common/auth/platform-role';
 import { ANONYMOUS_USER_ID, resolveRequestUserId } from '../../common/auth/request-user';
+import { CsvDownloadQueryDto, csvDownload } from '../../common/csv-download';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ArchiveService } from './archive.service';
@@ -88,16 +89,14 @@ export class ExportsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async fullCsv(
     @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: CsvDownloadQueryDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
     await this.archives.assertEventAdmin(eventId, userId);
-    const csv = await this.exports.generateFullCsv(eventId);
-    void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="exchanges.csv"')
-      .send(csv);
+    const rows = await this.exports.generateFullCsvRows(eventId);
+    sendCsv(reply, 'exchanges.csv', csvDownload(rows, query));
   }
 
   // ── Full JSON export ──────────────────────────────────────────────────────
@@ -170,15 +169,13 @@ export class ExportsController {
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async tournamentMatchesCsv(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Query() query: CsvDownloadQueryDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
-    const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
-    void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="matches.csv"')
-      .send(reports.matchesCsv);
+    const reports = await this.archives.generateTournamentReportRows(tournamentId, userId);
+    sendCsv(reply, 'matches.csv', csvDownload(reports.matches, query));
   }
 
   @Get('tournaments/:tournamentId/exports/exchanges.csv')
@@ -187,15 +184,13 @@ export class ExportsController {
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async tournamentExchangesCsv(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Query() query: CsvDownloadQueryDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
-    const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
-    void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="exchanges.csv"')
-      .send(reports.exchangesCsv);
+    const reports = await this.archives.generateTournamentReportRows(tournamentId, userId);
+    sendCsv(reply, 'exchanges.csv', csvDownload(reports.exchanges, query));
   }
 
   @Get('tournaments/:tournamentId/exports/rankings.csv')
@@ -204,15 +199,13 @@ export class ExportsController {
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async tournamentRankingsCsv(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Query() query: CsvDownloadQueryDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ) {
     const userId = await resolveRequestUserId(req, this.supabase);
-    const reports = await this.archives.generateTournamentCsvReports(tournamentId, userId);
-    void reply
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', 'attachment; filename="rankings.csv"')
-      .send(reports.rankingsCsv);
+    const reports = await this.archives.generateTournamentReportRows(tournamentId, userId);
+    sendCsv(reply, 'rankings.csv', csvDownload(reports.rankings, query));
   }
 
   @Post('archive/restore-preview')
@@ -271,6 +264,13 @@ export class ExportsController {
       .header('Content-Disposition', `attachment; filename="${safeName}.archive.zip"`)
       .send(this.archives.archiveToZipBuffer(archive));
   }
+}
+
+function sendCsv(reply: FastifyReply, filename: string, text: string): void {
+  void reply
+    .header('Content-Type', 'text/csv; charset=utf-8')
+    .header('Content-Disposition', `attachment; filename="${filename}"`)
+    .send(text);
 }
 
 async function readUploadedArchive(req: FastifyRequest): Promise<Buffer> {

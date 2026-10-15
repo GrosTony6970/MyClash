@@ -15982,7 +15982,9 @@ export interface operations {
   };
   LeaguesController_finalReportCsv: {
     parameters: {
-      query?: never;
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+      };
       header?: never;
       path: {
         leagueId: string;
@@ -25650,7 +25652,9 @@ export interface operations {
   };
   ExportsController_fullCsv: {
     parameters: {
-      query?: never;
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+      };
       header?: never;
       path: {
         eventId: string;
@@ -25732,7 +25736,9 @@ export interface operations {
   };
   ExportsController_tournamentMatchesCsv: {
     parameters: {
-      query?: never;
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+      };
       header?: never;
       path: {
         tournamentId: string;
@@ -25751,7 +25757,9 @@ export interface operations {
   };
   ExportsController_tournamentExchangesCsv: {
     parameters: {
-      query?: never;
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+      };
       header?: never;
       path: {
         tournamentId: string;
@@ -25770,7 +25778,9 @@ export interface operations {
   };
   ExportsController_tournamentRankingsCsv: {
     parameters: {
-      query?: never;
+      query?: {
+        csv?: 'excel-fr' | 'standard';
+      };
       header?: never;
       path: {
         tournamentId: string;

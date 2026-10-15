@@ -30,6 +30,7 @@ import {
   UpdateLeagueGroupDto,
 } from './dto/leagues.dto';
 import { Public } from '../../common/auth/public.decorator';
+import { CsvDownloadQueryDto, csvDownload } from '../../common/csv-download';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { LeaguesService } from './leagues.service';
 
@@ -91,9 +92,14 @@ export class LeaguesController {
   @Public()
   @Get('leagues/:leagueId/final-report.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
+  // A download, never a page: the menu's pick opens this address in the tab it was made in.
+  @Header('Content-Disposition', 'attachment; filename="final-report.csv"')
   @ApiOperation({ summary: 'Export league final report as CSV' })
-  async finalReportCsv(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
-    return this.leagues.finalReportCsv(leagueId);
+  async finalReportCsv(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Query() query: CsvDownloadQueryDto,
+  ) {
+    return csvDownload(await this.leagues.finalReportRows(leagueId), query);
   }
 
   @Public()

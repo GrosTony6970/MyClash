@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
+import { CsvExportMenu, downloadServerCsv } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 import { BackLink } from '@/components/BackLink';
@@ -15,6 +16,16 @@ import { RestoreArchiveForm } from './RestoreArchiveForm';
 type ArchiveScope = 'event' | 'tournament';
 type ArchiveInclude = 'structure' | 'scoring';
 type ArchiveFormat = 'zip' | 'json';
+
+/** One Tournament's three CSVs, each asking which file (operator, 2026-10-15). */
+const TOURNAMENT_CSVS = [
+  { file: 'matches.csv', labelKey: 'organizer.archive.downloadMatches' },
+  { file: 'exchanges.csv', labelKey: 'organizer.archive.downloadExchanges' },
+  { file: 'rankings.csv', labelKey: 'organizer.archive.downloadRankings' },
+] as const;
+
+const DOWNLOAD_CLASS =
+  'rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground';
 
 interface EventInfo {
   id: string;
@@ -35,7 +46,7 @@ export default function OrganizerArchivePage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { isArchived } = useEventStatus(eventId);
 
   const [event, setEvent] = useState<EventInfo | null>(null);
@@ -154,34 +165,31 @@ export default function OrganizerArchivePage() {
           >
             {t('organizer.archive.downloadArchive')}
           </a>
-          {selectedTournamentId && (
-            <>
-              <a
-                href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/matches.csv`}
-                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-              >
-                {t('organizer.archive.downloadMatches', csvOf)}
-              </a>
-              <a
-                href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/exchanges.csv`}
-                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-              >
-                {t('organizer.archive.downloadExchanges', csvOf)}
-              </a>
-              <a
-                href={`${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/rankings.csv`}
-                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-              >
-                {t('organizer.archive.downloadRankings', csvOf)}
-              </a>
-            </>
-          )}
-          <a
-            href={`${apiUrl}/api/v1/events/${eventId}/exports/full.csv`}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"
-          >
-            {t('organizer.archive.downloadFullCsv')}
-          </a>
+          {selectedTournamentId &&
+            TOURNAMENT_CSVS.map(({ file, labelKey }) => (
+              <CsvExportMenu
+                key={file}
+                t={t}
+                locale={locale}
+                label={t(labelKey, csvOf)}
+                onExport={(csvFormat) =>
+                  downloadServerCsv(
+                    `${apiUrl}/api/v1/tournaments/${selectedTournamentId}/exports/${file}`,
+                    csvFormat,
+                  )
+                }
+                className={DOWNLOAD_CLASS}
+              />
+            ))}
+          <CsvExportMenu
+            t={t}
+            locale={locale}
+            label={t('organizer.archive.downloadFullCsv')}
+            onExport={(csvFormat) =>
+              downloadServerCsv(`${apiUrl}/api/v1/events/${eventId}/exports/full.csv`, csvFormat)
+            }
+            className={DOWNLOAD_CLASS}
+          />
           <a
             href={`${apiUrl}/api/v1/events/${eventId}/exports/full.json`}
             className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground"

@@ -118,7 +118,7 @@ export function csvRow(values: readonly unknown[], format: CsvFormat): string {
  * formula-safe; CRLF line ends, as RFC 4180 writes them. The ONE owner of that file's shape.
  */
 export function csvFile(rows: ReadonlyArray<readonly unknown[]>, format: CsvFormat): string {
-  return `﻿${rows.map((row) => csvRow(row, format)).join('\r\n')}\r\n`;
+  return `\uFEFF${rows.map((row) => csvRow(row, format)).join('\r\n')}\r\n`;
 }
 
 /** How a download link names the file it asks for (`?csv=`): a page and the server read one list. */

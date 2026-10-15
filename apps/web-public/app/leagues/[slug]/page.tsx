@@ -10,6 +10,7 @@ import {
   type LeagueStandingRow,
   type LeagueStandingsColumn,
 } from './StandingsGroups';
+import { LeagueReportCsv } from './LeagueReportCsv';
 import {
   ClubStandingsSection,
   type ClubStandingRow,
@@ -188,15 +189,13 @@ export default async function PublicLeagueStandingsPage({
             </p>
           )}
           {rows.length > 0 && (
-            <p className="mt-3 flex flex-wrap gap-4 text-sm">
+            // A div: the CSV menu holds one, which a <p> may not.
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
               {/* getPublicApiUrl: these hrefs land in HTML — the SSR-side
                   getServerApiUrl() would leak the docker-internal host here. */}
-              <a
+              <LeagueReportCsv
                 href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.csv`}
-                className="font-semibold text-accent hover:text-accent-hover"
-              >
-                {t('publicApp.leagues.downloadReport')}
-              </a>
+              />
               <a
                 href={`${getPublicApiUrl()}/api/v1/leagues/${league.id}/final-report.print.html`}
                 target="_blank"
@@ -205,7 +204,7 @@ export default async function PublicLeagueStandingsPage({
               >
                 {t('publicApp.leagues.printableReport')}
               </a>
-            </p>
+            </div>
           )}
         </div>
       </section>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
+import { buildTournamentReports, safeFilename } from './archive-reports';
 import type { ArchiveRow, ArchiveTables } from './archive.types';
 
 /**
@@ -365,17 +365,15 @@ describe('scoping', () => {
   });
 });
 
-describe('empty reports', () => {
+describe('a Tournament with no bout', () => {
   it('still emits every header row', () => {
-    const reports = emptyTournamentReports('t-1');
+    const reports = buildTournamentReports({ id: 't-1', name: 'Longsword' }, tables());
 
     expect(reports.matchesCsv.split('\n')).toHaveLength(1);
     expect(reports.matchesCsv).toContain('match_id,round_code');
     expect(reports.exchangesCsv).toContain('exchange_id,match_id');
     expect(reports.resultsCsv).toContain('round_code,match_label');
     expect(reports.rankingsCsv).toContain('rank,name');
-    // No name to use — the id is the documented last resort.
-    expect(reports.tournamentName).toBe('t-1');
   });
 });
 

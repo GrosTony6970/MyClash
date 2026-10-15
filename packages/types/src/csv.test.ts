@@ -157,7 +157,7 @@ describe('csvFile', () => {
         ],
         CSV_STANDARD,
       ),
-    ).toBe(`﻿Name,Score\r\n"'=SUM(A1)",3\r\n"Ana, Roux",\r\n`);
+    ).toBe(`\uFEFFName,Score\r\n"'=SUM(A1)",3\r\n"Ana, Roux",\r\n`);
   });
 
   it('writes the French Excel file with ; and decimal commas', () => {
@@ -169,7 +169,7 @@ describe('csvFile', () => {
         ],
         CSV_EXCEL_FR,
       ),
-    ).toBe(`﻿Nom;Montant\r\nAna, Roux;12,50\r\n`);
+    ).toBe(`\uFEFFNom;Montant\r\nAna, Roux;12,50\r\n`);
   });
 });
 

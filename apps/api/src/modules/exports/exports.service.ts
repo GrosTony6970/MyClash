@@ -12,7 +12,7 @@ import { BadRequestException, Injectable, InternalServerErrorException } from '@
 import { allowsRatingsExport, asEventKind } from '@myclash/types';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
-import { FULL_CSV_HEADER, fullCsvLine } from './full-event-csv';
+import { FULL_CSV_HEADER, fullCsvRow } from './full-event-csv';
 import {
   buildSubmission,
   type SubmissionClub,
@@ -205,9 +205,9 @@ export class ExportsService {
 
   // ── Generic CSV export (all matches + exchanges) ──────────────────────────
 
-  async generateFullCsv(eventId: string): Promise<string> {
+  async generateFullCsvRows(eventId: string): Promise<unknown[][]> {
     const exchanges = await this.fetchEventExchanges(eventId);
-    return [FULL_CSV_HEADER, ...exchanges.map(fullCsvLine)].join('\n');
+    return [FULL_CSV_HEADER, ...exchanges.map(fullCsvRow)];
   }
 
   /**

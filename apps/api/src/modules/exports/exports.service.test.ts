@@ -176,7 +176,7 @@ describe('ExportsService — the full event CSV', () => {
     // Without `!inner` the nested Event filter only blanked the Tournament: every hit of every
     // Event came back, other clubs' void reasons included.
     const { service, reads } = pagedExchanges([[hit('x1', 1)]]);
-    await service.generateFullCsv('event-1');
+    await service.generateFullCsvRows('event-1');
     expect(reads[0]!.select).toContain('matches!inner (');
     expect(reads[0]!.select).toContain('phases!inner (');
     expect(reads[0]!.select).toContain('tournaments!inner (');
@@ -186,16 +186,30 @@ describe('ExportsService — the full event CSV', () => {
   it('reads past the 1000 rows one read returns', async () => {
     const first = Array.from({ length: 1000 }, (_, n) => hit(`a${n}`, n + 1));
     const { service, reads } = pagedExchanges([first, [hit('b0', 1001)]]);
-    const csv = await service.generateFullCsv('event-1');
+    const rows = await service.generateFullCsvRows('event-1');
     expect(reads.map((read) => read.ranges)).toEqual([[[0, 999]], [[1000, 1999]]]);
     // `id` after the time: two hits of the same instant never straddle two pages.
     expect(reads[0]!.filters).toEqual(expect.arrayContaining(['order occurred_at', 'order id']));
-    expect(csv.split('\n')).toHaveLength(1 + 1001);
+    expect(rows).toHaveLength(1 + 1001);
+    expect(rows[1]).toEqual([
+      'Longsword',
+      expect.any(String),
+      'M1',
+      1,
+      'clean',
+      'red',
+      1,
+      null,
+      null,
+      1000,
+      'false',
+      null,
+    ]);
   });
 
   it('fails the download when the read fails, instead of sending an empty file', async () => {
     const { service } = pagedExchanges([], { message: 'column does not exist' });
-    await expect(service.generateFullCsv('event-1')).rejects.toThrow(/Export query .* failed/);
+    await expect(service.generateFullCsvRows('event-1')).rejects.toThrow(/Export query .* failed/);
   });
 });
 

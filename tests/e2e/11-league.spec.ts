@@ -354,7 +354,9 @@ test.describe('league', () => {
     expect(namesOf(published.rows)).toEqual(namesOf(standings.rows));
 
     const csv = await (await api.ok(await api.get(`leagues/${league.id}/final-report.csv`))).text();
-    const lines = csv.trimEnd().split('\n');
+    // A downloaded file: the byte-order mark, then CRLF lines (`csvFile`).
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    const lines = csv.slice(1).trimEnd().split('\r\n');
     expect(lines[0]).toBe(CSV_HEADER);
     expect(lines).toHaveLength(ROSTER_SIZE + 1);
     // The champion's row, cell for cell — the report is what a federation files.

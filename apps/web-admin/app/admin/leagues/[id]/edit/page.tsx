@@ -11,7 +11,7 @@ import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
 import { RecomputePreflight } from './RecomputePreflight';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
-import { statusLabel, useConfirm, useToast } from '@myclash/ui';
+import { CsvExportMenu, downloadServerCsv, statusLabel, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -1453,12 +1453,15 @@ export default function EditLeaguePage() {
           {t('admin.adminLeagues.exportsTitle')}
         </h2>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <a
-            href={`${apiUrl}/api/v1/leagues/${leagueId}/final-report.csv`}
+          <CsvExportMenu
+            t={t}
+            locale={locale}
+            label={t('admin.adminLeagues.downloadReportCsv')}
+            onExport={(format) =>
+              downloadServerCsv(`${apiUrl}/api/v1/leagues/${leagueId}/final-report.csv`, format)
+            }
             className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-foreground"
-          >
-            {t('admin.adminLeagues.downloadReportCsv')}
-          </a>
+          />
           <a
             href={`${apiUrl}/api/v1/leagues/${leagueId}/final-report.print.html`}
             target="_blank"

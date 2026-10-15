@@ -82,7 +82,7 @@ const EXPECTED_ROUNDS: Readonly<Record<string, number>> = {
 };
 
 const MATCHES_CSV_HEADER =
-  'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id';
+  'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id,end_reason';
 const EXCHANGES_CSV_HEADER =
   'exchange_id,match_id,sequence,type,first_striker,first_strike_value,afterblow_value,voided';
 const RANKINGS_CSV_HEADER = 'rank,name,wins,points_for,points_against';
@@ -213,6 +213,16 @@ test.describe('exports', () => {
     const rankingLines = linesOf(rankingsCsv);
     expect(rankingLines[0]).toBe(RANKINGS_CSV_HEADER);
     expect(rankingLines).toHaveLength(ROSTER_SIZE + 1);
+    // A downloaded file starts with the byte-order mark and ends its lines CRLF; French Excel's
+    // file, asked by `?csv=excel-fr`, splits on ";" (operator, 2026-10-15).
+    expect(rankingsCsv.startsWith('\uFEFFrank,name')).toBe(true);
+    expect(rankingsCsv).toContain('\r\n');
+    const frenchRankings = await csvText(
+      api,
+      `tournaments/${tournament.id}/exports/rankings.csv?csv=excel-fr`,
+    );
+    expect(linesOf(frenchRankings)[0]).toBe(RANKINGS_CSV_HEADER.replaceAll(',', ';'));
+    expect(linesOf(frenchRankings)).toHaveLength(ROSTER_SIZE + 1);
 
     const rankingRows = rankingLines.slice(1).map((line) => {
       const [rank, name, wins, pointsFor, pointsAgainst] = splitCsvRow(line);
