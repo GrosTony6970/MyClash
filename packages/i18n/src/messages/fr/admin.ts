@@ -12,7 +12,7 @@ export const admin = {
     csvColumns:
       'prenom, nom, nom_affiche, club, sigle_club, ville_club, id_hema_ratings, courriel, date_de_naissance, combattant, arbitre, participant_atelier',
     dobHint:
-      "email et date_of_birth sont optionnels. date_of_birth doit être au format DD/MM/YYYY (l'ISO YYYY-MM-DD est aussi accepté pour les anciens fichiers). Quand une ligne correspond à un profil global existant, l'e-mail et la date de naissance ne sont écrits que si le profil ne les a pas déjà — pas d'écrasement.",
+      "courriel et date_de_naissance sont optionnels. date_de_naissance doit être au format JJ/MM/AAAA (l'ISO AAAA-MM-JJ est aussi accepté pour les anciens fichiers). Quand une ligne correspond à un profil global existant, l'e-mail et la date de naissance ne sont écrits que si le profil ne les a pas déjà — pas d'écrasement.",
     downloadSample: "Télécharger l'exemple CSV",
     nextStepHint:
       "L'étape suivante affichera chaque ligne analysée ainsi que les doublons avec le profil existant, et vous permettra de modifier chaque champ avant validation.",
