@@ -2491,7 +2491,9 @@ describe('LeaguesService.getFreshness gathering', () => {
 });
 
 describe('LeaguesService.getRecomputePreflight', () => {
-  function makePreflightService(inputs: Array<{ fighterId: string | null; fighterName: string }>) {
+  function makePreflightService(
+    inputs: Array<{ fighterId: string | null; fighterName: string; bib?: number | null }>,
+  ) {
     const links: Record<string, unknown> = {
       select: vi.fn(() => links),
       eq: vi.fn((col: string) =>
@@ -2570,8 +2572,17 @@ describe('LeaguesService.getRecomputePreflight', () => {
 
     expect(result.blocking).toHaveLength(1);
     expect(result.blocking[0]!.tournamentName).toBe('Longsword');
-    expect(result.blocking[0]!.fighterNames).toHaveLength(8);
-    expect(result.blocking[0]!.fighterNames).toContain('Fighter 8');
+    expect(result.blocking[0]!.fighters).toHaveLength(8);
+    expect(result.blocking[0]!.fighters).toContainEqual({ name: 'Fighter 8', bib: null });
+  });
+
+  // Two fighters with no name read "Unknown fighter, Unknown fighter": the bib tells them apart.
+  it('sends each blocked fighter with the bib, for a fighter nobody named', async () => {
+    const service = makePreflightService([{ fighterId: null, fighterName: '', bib: 12 }]);
+
+    const result = await service.getRecomputePreflight('L1', 'user-1');
+
+    expect(result.blocking[0]!.fighters).toEqual([{ name: '', bib: 12 }]);
   });
 
   it('reports nothing blocking when every contributor carries an identity', async () => {
@@ -2597,7 +2608,12 @@ describe('LeaguesService.toContributionInputs — names', () => {
       { id: 'T1', event_id: 'e1', weapon: 'Longsword' },
       null,
       [
-        { id: 'reg-blank', persons: { given_name: '', family_name: ' ' }, global_persons: null },
+        {
+          id: 'reg-blank',
+          bib_number: 12,
+          persons: { given_name: '', family_name: ' ' },
+          global_persons: null,
+        },
         { id: 'reg-gone', persons: null, global_persons: null },
       ],
       new Map(),
@@ -2610,5 +2626,6 @@ describe('LeaguesService.toContributionInputs — names', () => {
     );
 
     expect(inputs.map((input) => input.fighterName)).toEqual(['', '']);
+    expect(inputs.map((input) => (input as { bib?: number | null }).bib)).toEqual([12, null]);
   });
 });

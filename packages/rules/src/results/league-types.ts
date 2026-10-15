@@ -41,6 +41,8 @@ export interface TournamentContributionInput {
    *  rank 1/2/3 → medal. */
   resultKind?: FinalRankingResultKind;
   doubleHits: number;
+  /** The fighter's bib in that Tournament: names a fighter nobody named. Never stored. */
+  bib?: number | null;
 }
 
 export interface LeagueTournamentContribution {

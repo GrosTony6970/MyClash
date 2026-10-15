@@ -96,7 +96,7 @@ export class LeagueScoringService {
 
     const names = missing
       // A fighter with no name is named, never dropped from the list (X2).
-      .map((row) => row.fighterName || unknownFighterInEnglish())
+      .map((row) => row.fighterName || unknownFighterInEnglish(row.bib))
       .slice(0, 5)
       .join(', ');
     throw new BadRequestException(

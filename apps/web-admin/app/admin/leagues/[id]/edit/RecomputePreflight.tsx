@@ -7,7 +7,11 @@ import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Preflight {
-  blocking: Array<{ tournamentName: string; fighterNames: string[] }>;
+  /** A fighter nobody named comes blank, with the bib that tells two of them apart. */
+  blocking: Array<{
+    tournamentName: string;
+    fighters: Array<{ name: string; bib: number | null }>;
+  }>;
   unstableIdentities: string[];
 }
 
@@ -81,7 +85,9 @@ export function RecomputePreflight({
             {blocking.map((row) => (
               <li key={row.tournamentName} className="text-xs text-foreground-secondary">
                 <span className="font-semibold">{row.tournamentName}</span>{' '}
-                {row.fighterNames.map((name) => nameOrUnknown(name, 'fighter', t)).join(', ')}
+                {row.fighters
+                  .map((fighter) => nameOrUnknown(fighter.name, 'fighter', t, fighter.bib))
+                  .join(', ')}
               </li>
             ))}
           </ul>

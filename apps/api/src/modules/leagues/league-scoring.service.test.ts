@@ -303,6 +303,14 @@ describe('LeagueScoringService', () => {
     ).toThrow('Missing: Unknown fighter');
   });
 
+  it('names an unlinked fighter with no name by the bib, when there is one', () => {
+    expect(() =>
+      service.validateContributionIdentities([
+        { ...contribution('', 1, { fighterName: '' }), bib: 12 },
+      ]),
+    ).toThrow(/^League calculation .* Missing: Unknown fighter \(bib 12\)$/);
+  });
+
   describe('medal derivation from resultKind', () => {
     const input = (
       fighterId: string,

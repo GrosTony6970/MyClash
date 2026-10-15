@@ -1643,7 +1643,11 @@ export class LeaguesService {
 
     // This walks a single League's links, so there is no batch of tournament
     // rows to draw on — each is still read on its own below.
-    const blocking: Array<{ tournamentName: string; fighterNames: string[] }> = [];
+    // A name is sent blank when nobody gave one: the page words it, with the bib (X2).
+    const blocking: Array<{
+      tournamentName: string;
+      fighters: Array<{ name: string; bib: number | null }>;
+    }> = [];
     const contributorIds = new Set<string>();
 
     for (const link of await this.approvedLinks(leagueId)) {
@@ -1652,7 +1656,11 @@ export class LeaguesService {
       const tournamentName = String((link['tournaments'] as { name?: string } | null)?.name ?? '');
       const missing = inputs.filter((input) => !input.fighterId);
       if (missing.length > 0) {
-        blocking.push({ tournamentName, fighterNames: missing.map((input) => input.fighterName) });
+        const fighters = missing.map((input) => ({
+          name: input.fighterName,
+          bib: input.bib ?? null,
+        }));
+        blocking.push({ tournamentName, fighters });
       }
       for (const input of inputs) if (input.fighterId) contributorIds.add(input.fighterId);
     }
@@ -2193,6 +2201,7 @@ export class LeaguesService {
         finalRank: placement.place,
         resultKind: placement.resultKind as TournamentContributionInput['resultKind'],
         doubleHits: doubleHits.get(registrationId) ?? 0,
+        bib: (registration['bib_number'] as number | null | undefined) ?? null,
       });
     }
     return inputs;
