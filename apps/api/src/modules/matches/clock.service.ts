@@ -4,6 +4,8 @@
  * Match clock service — persists clock state as match_events rows.
  * Clock state is always recomputed from the match_events timeline,
  * never stored as a separate field. This makes it lossless and replayable.
+ * One row is ever taken back: a press whose bout was completed between its
+ * read and its write (`writeBoutInPlay`).
  *
  * Clock actions: start | halt | resume | end | reopen | reset_clock
  *
@@ -404,6 +406,9 @@ export class ClockService {
    * The refusal is in the write itself, as `MatchesService.updateStatus` does (ruling 338). When
    * the completion won, the clock row just written is taken back, so a resend is judged afresh,
    * and the press meets the refusal a press sent late on a completed bout already meets.
+   * A narrower window stays, named: a resend landing between the insert and the take-back is
+   * answered "saved" by `pressIsSaved`. It heals: the take-back is a `match_events` change, which
+   * the live views read again, and the bout is completed either way.
    */
   private async writeBoutInPlay(
     matchId: string,

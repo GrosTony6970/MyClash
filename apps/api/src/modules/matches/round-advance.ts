@@ -6,6 +6,7 @@ import { eventResultsFrozen } from './event-results-frozen';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 import {
   againOnCollision,
+  BOUT_COMPLETED,
   boutCompleted,
   ClockRowCollided,
   eventStatusOf,
@@ -210,6 +211,14 @@ async function resetClock(
       await clock.clockAction(matchId, 'reset_clock', 'next round', opensLock, false, at);
     }
   } catch (err) {
+    // Any other failure is a fault the pad sends again. A bout completed while this round opened
+    // is not: a resend would be answered "saved". It stays `bout_completed`, which the pad holds.
+    if (
+      err instanceof ConflictException &&
+      (err.getResponse() as { code?: unknown }).code === BOUT_COMPLETED
+    ) {
+      throw err;
+    }
     const why = err instanceof Error ? err.message : String(err);
     throw new Error(`Clock of bout ${matchId} not put to zero for round ${round}: ${why}`, {
       cause: err,

@@ -126,8 +126,9 @@ const REFUSED_WHOLE = new Map([
   // The clock, started between two rounds of a best-of bout: this tablet's
   // screen is behind the table's, which shows "Round complete".
   ['round_awaits_advance', START_NEXT_ROUND_FIRST],
-  // A clock press made now, met by a completion on its way: a closing hit or
-  // another tablet's End. A press sent late reads HELD_PRESS's words instead.
+  // A Reopen or Reset asked of the server at once (`askServerClock`), which met
+  // the bout completed on its way. Start, Halt and Resume go through the queue,
+  // so their refusal reads HELD_PRESS's words instead.
   ['bout_completed', COMPLETED_MEANWHILE],
 ]);
 

@@ -11,6 +11,7 @@ import {
   row,
   wroteNothing,
 } from './clock-late-press.fixtures';
+import { boutCompleted } from './late-press';
 import { SAVED, STAFF, WAITS, advance, series, written } from './round-advance.fixtures';
 
 /** A round advance that fails half way, that meets another writer, or that carries no id. */
@@ -35,6 +36,17 @@ describe('a round advance that fails half way', () => {
     await expect(sent).rejects.not.toBeInstanceOf(HttpException);
     expect(written(db)).toEqual(['match_events round_advance']);
     expect(recompute).not.toHaveBeenCalled();
+  });
+
+  it('stays "completed" when the bout was completed while the round opened', async () => {
+    // A resend would be answered "saved": this refusal is the one a pad must hold.
+    const { clock, scoring } = series();
+    vi.spyOn(clock, 'clockAction').mockRejectedValue(boutCompleted());
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+      status: 409,
+      code: 'bout_completed',
+    });
   });
 
   it('is a fault a pad sends again, also when the clock itself refuses with a 400', async () => {
