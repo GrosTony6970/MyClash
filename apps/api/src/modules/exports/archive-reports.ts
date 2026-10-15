@@ -57,11 +57,18 @@ export function buildTournamentReportRows(
   const tournamentId = tournament['id'] as string;
   const registrations = tables.registrations.filter((row) => row['tournament_id'] === tournamentId);
   const phaseIds = ids(tables.phases.filter((row) => row['tournament_id'] === tournamentId));
-  const matches = tables.matches.filter(
-    (row) => row['tournament_id'] === tournamentId || phaseIds.includes(row['phase_id'] as string),
+  const matches = inBoutOrder(
+    tables.matches.filter(
+      (row) =>
+        row['tournament_id'] === tournamentId || phaseIds.includes(row['phase_id'] as string),
+    ),
+    tables.phases,
   );
   const matchIds = ids(matches);
-  const exchanges = tables.exchanges.filter((row) => matchIds.includes(row['match_id'] as string));
+  const exchanges = inHitOrder(
+    tables.exchanges.filter((row) => matchIds.includes(row['match_id'] as string)),
+    matchIds,
+  );
 
   // Pre-compute a matchId → roundCode map once per tournament. The pool
   // sort_order + bracket round + tournament weapon/size all come from
@@ -75,6 +82,35 @@ export function buildTournamentReportRows(
     results: resultsRows(matches, registrations, tables.persons, roundCodes),
     rankings: rankingsRows(matches, registrations, tables.persons),
   };
+}
+
+/**
+ * The reports' order is made HERE, whatever order the tables were read in (by key, a random
+ * uuid): bouts by phase, then by label as a person counts ("M2" before "M10"), then id; a bout's
+ * hits after its bout, by sequence. An organiser reads each bout's hits together.
+ */
+function inBoutOrder(matches: ArchiveRow[], phases: ArchiveRow[]): ArchiveRow[] {
+  const phaseOrder = new Map(
+    phases.map((phase) => [phase['id'], Number(phase['sort_order'] ?? 0)]),
+  );
+  const label = (match: ArchiveRow) => String(match['match_number_label'] ?? '');
+  return [...matches].sort(
+    (a, b) =>
+      (phaseOrder.get(a['phase_id']) ?? 0) - (phaseOrder.get(b['phase_id']) ?? 0) ||
+      label(a).localeCompare(label(b), undefined, { numeric: true }) ||
+      String(a['id']).localeCompare(String(b['id'])),
+  );
+}
+
+function inHitOrder(exchanges: ArchiveRow[], matchIds: string[]): ArchiveRow[] {
+  const boutOrder = new Map(matchIds.map((id, index) => [id, index]));
+  return [...exchanges].sort(
+    (a, b) =>
+      (boutOrder.get(a['match_id'] as string) ?? 0) -
+        (boutOrder.get(b['match_id'] as string) ?? 0) ||
+      Number(a['sequence'] ?? 0) - Number(b['sequence'] ?? 0) ||
+      String(a['id']).localeCompare(String(b['id'])),
+  );
 }
 
 export function safeFilename(value: string): string {

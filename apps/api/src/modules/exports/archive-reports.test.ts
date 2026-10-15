@@ -365,6 +365,41 @@ describe('scoping', () => {
   });
 });
 
+describe('order', () => {
+  it('lists bouts by phase then label, and each bout’s hits together, whatever the read order', () => {
+    // An archive reads its tables by key, a random uuid: the reports make their own order.
+    const reports = buildTournamentReports(
+      TOURNAMENT,
+      tables({
+        phases: [
+          { id: 'ph-b', tournament_id: 't-1', type: 'single_elim', sort_order: 1 },
+          { id: 'ph-p', tournament_id: 't-1', type: 'pool', sort_order: 0 },
+        ],
+        matches: [
+          { id: 'f', phase_id: 'ph-b', match_number_label: 'M1' },
+          { id: 'c', phase_id: 'ph-p', match_number_label: 'M10' },
+          { id: 'a', phase_id: 'ph-p', match_number_label: 'M2' },
+        ],
+        exchanges: [
+          { id: 'x4', match_id: 'c', sequence: 2 },
+          { id: 'x1', match_id: 'a', sequence: 2 },
+          { id: 'x3', match_id: 'c', sequence: 1 },
+          { id: 'x5', match_id: 'f', sequence: 1 },
+          { id: 'x2', match_id: 'a', sequence: 1 },
+        ],
+      }),
+    );
+
+    const firstCells = (csv: string) =>
+      csv
+        .split('\n')
+        .slice(1)
+        .map((line) => line.split(',')[0]);
+    expect(firstCells(reports.matchesCsv)).toEqual(['a', 'c', 'f']);
+    expect(firstCells(reports.exchangesCsv)).toEqual(['x2', 'x1', 'x3', 'x4', 'x5']);
+  });
+});
+
 describe('a Tournament with no bout', () => {
   it('still emits every header row', () => {
     const reports = buildTournamentReports({ id: 't-1', name: 'Longsword' }, tables());
