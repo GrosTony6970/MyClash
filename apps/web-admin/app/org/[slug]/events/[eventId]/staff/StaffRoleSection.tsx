@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SegmentedTabs, usePrompt } from '@myclash/ui';
+import { SegmentedTabs, statusLabelKey, usePrompt } from '@myclash/ui';
 import { STAFF_ROLES, type StaffRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { CreateStaffAccountForm } from './CreateStaffAccountForm';
 import { StaffAccountList } from './StaffAccountList';
 import { pinPromptOptions } from './pin-feedback';
-import { isStaffRoleTab, STAFF_TAB_HINT_KEYS, STAFF_TAB_LABEL_KEYS } from './types';
+import { isStaffRoleTab, STAFF_TAB_HINT_KEYS } from './types';
 import type { StaffAccount } from './types';
 import type { useStaffAccounts } from './useStaffAccounts';
 
@@ -95,7 +95,7 @@ function RoleTabs({
       <SegmentedTabs
         tabs={STAFF_ROLES.map((role) => ({
           value: role,
-          label: `${t(STAFF_TAB_LABEL_KEYS[role])} (${countByRole(accounts, role)})`,
+          label: `${t(statusLabelKey('staffRole', role))} (${countByRole(accounts, role)})`,
         }))}
         value={tab}
         onChange={onChange}

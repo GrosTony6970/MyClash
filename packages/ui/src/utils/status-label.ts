@@ -1,4 +1,4 @@
-import type { ClaimStatus, ClockStatus, MatchStatus } from '@myclash/types';
+import type { ClaimStatus, ClockStatus, MatchStatus, StaffRole } from '@myclash/types';
 import type { Translator } from '../types/translator';
 import type { TournamentStatus } from './status-pill';
 
@@ -8,6 +8,13 @@ export type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'arc
 /** `registrations.status`: the five values of `registration_status_check` (pinned by the test). */
 export type RegistrationStatus =
   'registered' | 'checked_in' | 'withdrawn' | 'disqualified' | 'waitlist';
+
+/**
+ * `organization_members.role`. No CHECK: pinned by the test to the ladder of `has_org_role`,
+ * the one SQL that names every role.
+ */
+export type OrgMemberRole =
+  'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only';
 
 /**
  * The one word for each state of each domain, in every app (quick win X1, operator ruling
@@ -63,6 +70,23 @@ const CLAIM: Record<ClaimStatus, string> = {
   claimed: 'common.status.claim.claimed',
 };
 
+// Roles say the words of docs/HIERARCHY.md: `workshop_lead` is an Instructor.
+const ORG_ROLE: Record<OrgMemberRole, string> = {
+  owner: 'common.status.orgRole.owner',
+  admin: 'common.status.orgRole.admin',
+  editor: 'common.status.orgRole.editor',
+  scorekeeper: 'common.status.orgRole.scorekeeper',
+  referee: 'common.status.orgRole.referee',
+  workshop_lead: 'common.status.orgRole.workshop_lead',
+  read_only: 'common.status.orgRole.read_only',
+};
+
+const STAFF_ROLE: Record<StaffRole, string> = {
+  scoring: 'common.status.staffRole.scoring',
+  checkin: 'common.status.staffRole.checkin',
+  gear: 'common.status.staffRole.gear',
+};
+
 const STATUS_LABEL_KEYS = {
   match: MATCH,
   clock: CLOCK,
@@ -70,6 +94,8 @@ const STATUS_LABEL_KEYS = {
   tournament: TOURNAMENT,
   registration: REGISTRATION,
   claim: CLAIM,
+  orgRole: ORG_ROLE,
+  staffRole: STAFF_ROLE,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;

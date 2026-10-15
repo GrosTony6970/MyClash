@@ -18,6 +18,8 @@ import {
   DataTableRow,
   useConfirm,
   useToast,
+  statusLabel,
+  statusLabelKey,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -179,7 +181,9 @@ export default function OrgMembersPage() {
                       </p>
                       {m.name && m.email && <p className="text-xs text-muted">{m.email}</p>}
                     </DataTableCell>
-                    <DataTableCell className="text-foreground">{m.role}</DataTableCell>
+                    <DataTableCell className="text-foreground">
+                      {statusLabel('orgRole', m.role, t)}
+                    </DataTableCell>
                     <DataTableCell className="text-right">
                       {m.role !== 'owner' && (
                         <button
@@ -220,7 +224,7 @@ export default function OrgMembersPage() {
                 >
                   {MEMBER_ROLES.map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {t(statusLabelKey('orgRole', r))}
                     </option>
                   ))}
                 </select>

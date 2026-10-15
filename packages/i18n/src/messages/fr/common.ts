@@ -108,5 +108,19 @@ export const common = {
       guest_active: 'Invité actif',
       claimed: 'Revendiqué',
     },
+    orgRole: {
+      owner: 'Propriétaire',
+      admin: 'Administrateur',
+      editor: 'Éditeur',
+      scorekeeper: 'Teneur de score',
+      referee: 'Arbitre',
+      workshop_lead: 'Instructeur',
+      read_only: 'Lecture seule',
+    },
+    staffRole: {
+      scoring: 'Scoring',
+      checkin: 'Accueil',
+      gear: 'Contrôle du matériel',
+    },
   },
 } as const satisfies DeepString<typeof enCommon>;

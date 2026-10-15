@@ -27,6 +27,17 @@ function checkList(constraint: string): string[] {
   return found.sort();
 }
 
+/** Every club member role, as the newest `has_org_role` lists them for `read_only`. */
+function ladderOfOrgRoles(): string[] {
+  let found = '';
+  for (const file of readdirSync(MIGRATIONS).sort()) {
+    const sql = readFileSync(resolve(MIGRATIONS, file), 'utf8');
+    const rung = /WHEN 'read_only'\s+THEN role IN \(([^)]*)\)/.exec(sql);
+    if (rung) found = rung[1]!;
+  }
+  return [...found.matchAll(/'([^']+)'/g)].map((match) => match[1]!).sort();
+}
+
 /** Every value of a domain, as the helper knows it. */
 const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> } = {
   match: ['scheduled', 'running', 'paused', 'completed', 'voided'],
@@ -35,6 +46,8 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   tournament: ['draft', 'published', 'running', 'completed', 'archived'],
   registration: ['registered', 'checked_in', 'withdrawn', 'disqualified', 'waitlist'],
   claim: ['unclaimed', 'guest_active', 'claimed'],
+  orgRole: ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead', 'read_only'],
+  staffRole: ['scoring', 'checkin', 'gear'],
 };
 
 function wordIn(tree: unknown, key: string): unknown {
@@ -70,6 +83,15 @@ describe('statusLabelKey', () => {
   it('knows exactly the states the database allows for a Registration and a claim', () => {
     expect([...STATES.registration].sort()).toEqual(checkList('registration_status_check'));
     expect([...STATES.claim].sort()).toEqual(checkList('persons_claim_status_check'));
+  });
+
+  it('knows exactly the club member roles the access ladder names', () => {
+    expect([...STATES.orgRole].sort()).toEqual(ladderOfOrgRoles());
+  });
+
+  it('calls a workshop lead an Instructor, as HIERARCHY.md does', () => {
+    expect(wordIn(messages.en, statusLabelKey('orgRole', 'workshop_lead'))).toBe('Instructor');
+    expect(wordIn(messages.fr, statusLabelKey('orgRole', 'workshop_lead'))).toBe('Instructeur');
   });
 
   it('says a paused bout and a halted clock with the same word, as ruled', () => {

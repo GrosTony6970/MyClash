@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useConfirm } from '@myclash/ui';
+import { statusLabel, useConfirm } from '@myclash/ui';
 import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
@@ -573,7 +573,7 @@ export default function AdminUserEditPage() {
                 >
                   {ORG_ROLES.map((role) => (
                     <option key={role} value={role}>
-                      {role}
+                      {statusLabel('orgRole', role, t)}
                     </option>
                   ))}
                 </select>
@@ -620,7 +620,7 @@ export default function AdminUserEditPage() {
             >
               {ORG_ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {statusLabel('orgRole', role, t)}
                 </option>
               ))}
             </select>

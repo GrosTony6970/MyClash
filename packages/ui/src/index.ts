@@ -173,6 +173,7 @@ export { nameOrUnknown } from './utils/name-or-unknown';
 export { isKnownStatus, statusLabel, statusLabelKey } from './utils/status-label';
 export type {
   EventStatus,
+  OrgMemberRole,
   RegistrationStatus,
   StatusLabelDomain,
   StatusOf,

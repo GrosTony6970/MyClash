@@ -149,5 +149,19 @@ export const common = {
       guest_active: 'Guest active',
       claimed: 'Claimed',
     },
+    orgRole: {
+      owner: 'Owner',
+      admin: 'Admin',
+      editor: 'Editor',
+      scorekeeper: 'Scorekeeper',
+      referee: 'Referee',
+      workshop_lead: 'Instructor',
+      read_only: 'Read only',
+    },
+    staffRole: {
+      scoring: 'Scoring',
+      checkin: 'Check-in',
+      gear: 'Gear check',
+    },
   },
 } as const satisfies MessageTree;

@@ -2729,11 +2729,6 @@ export const organizer = {
     loading: 'Loading staff accounts...',
     loadError: 'Could not load staff accounts.',
     tabsLabel: 'Staff role',
-    tabs: {
-      scoring: 'Scoring',
-      checkin: 'Check-in',
-      gear: 'Gear check',
-    },
     tabHint: {
       scoring: 'Runs a piste with the scoring pad. Assign the Lices this account covers.',
       checkin: 'Runs the check-in desk, marking fighters as arrived. No piste assignment.',

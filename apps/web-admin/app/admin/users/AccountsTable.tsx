@@ -8,6 +8,7 @@ import {
   DataTableRow,
   rowActionClasses,
   type RowActionVariant,
+  statusLabel,
 } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -48,6 +49,7 @@ function ActionButton({
 
 /** Org membership pills — the Role column on the Organisers tab. */
 function OrgPills({ user }: { user: AdminUser }) {
+  const { t } = useI18n();
   const orgs = user.organizations ?? [];
   if (orgs.length === 0) return <span className="text-muted">—</span>;
   return (
@@ -58,7 +60,7 @@ function OrgPills({ user }: { user: AdminUser }) {
           className="rounded-full border border-border bg-background px-2 py-0.5"
           title={org.name}
         >
-          {org.name} <span className="text-muted">· {org.role}</span>
+          {org.name} <span className="text-muted">· {statusLabel('orgRole', org.role, t)}</span>
         </span>
       ))}
       {orgs.length > 3 && (

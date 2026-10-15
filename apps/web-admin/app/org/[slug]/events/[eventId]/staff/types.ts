@@ -38,19 +38,14 @@ export function isStaffRoleTab(value: string | null): value is StaffRole {
 /**
  * Literal key maps, never a template literal.
  *
- * `t('organizer.staff.tabs.' + role)` would be invisible to
- * `t-key-references.test.ts` — it cannot see a key it has to compute — so a
- * missing French string would ship silently. Worse, handing the reverse sweep
- * the bare prefix `organizer.staff.` whitelists the whole subtree and blinds
- * the orphan check for every key on this page. Exact literals keep both gates
- * working. (StaffAccountCard.tsx carries the same note for the same reason.)
+ * A key built from the role would be invisible to `t-key-references.test.ts`
+ * — it cannot see a key it has to compute — so a missing French string would
+ * ship silently. Worse, handing the reverse sweep the bare prefix
+ * `organizer.staff.` whitelists the whole subtree and blinds the orphan check
+ * for every key on this page. Exact literals keep both gates working.
+ * (StaffAccountCard.tsx carries the same note for the same reason.) The role's
+ * own word is `statusLabelKey('staffRole', role)` of @myclash/ui.
  */
-export const STAFF_TAB_LABEL_KEYS: Record<StaffRole, string> = {
-  scoring: 'organizer.staff.tabs.scoring',
-  checkin: 'organizer.staff.tabs.checkin',
-  gear: 'organizer.staff.tabs.gear',
-};
-
 export const STAFF_TAB_HINT_KEYS: Record<StaffRole, string> = {
   scoring: 'organizer.staff.tabHint.scoring',
   checkin: 'organizer.staff.tabHint.checkin',

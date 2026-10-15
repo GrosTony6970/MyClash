@@ -1013,7 +1013,7 @@ export default function EditLeaguePage() {
                           key={o.id}
                           className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
                         >
-                          {o.name} · {o.role}
+                          {o.name} · {statusLabel('orgRole', o.role, t)}
                         </span>
                       ))}
                     </div>
@@ -1060,7 +1060,7 @@ export default function EditLeaguePage() {
                           key={o.id}
                           className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px]"
                         >
-                          {o.name} · {o.role}
+                          {o.name} · {statusLabel('orgRole', o.role, t)}
                         </span>
                       ))}
                     </span>

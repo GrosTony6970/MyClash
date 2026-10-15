@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import { STAFF_ROLES, staffRoleUsesLices, type StaffRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { StaffLoginLink } from './StaffLoginLink';
-import { STAFF_TAB_LABEL_KEYS, type Lice, type StaffAccount } from './types';
+import { statusLabelKey } from '@myclash/ui';
+import { type Lice, type StaffAccount } from './types';
 
 interface Props {
   account: StaffAccount;
@@ -135,7 +136,7 @@ function RoleSwitcher({ account, onSetRole }: Pick<Props, 'account' | 'onSetRole
           onClick={() => onSetRole(account, role)}
           className="rounded border border-border px-2 py-1 text-xs font-semibold"
         >
-          {t(STAFF_TAB_LABEL_KEYS[role])}
+          {t(statusLabelKey('staffRole', role))}
         </button>
       ))}
     </div>

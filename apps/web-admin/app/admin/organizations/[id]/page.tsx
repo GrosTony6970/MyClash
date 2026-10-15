@@ -10,6 +10,7 @@ import {
   useConfirm,
   useToast,
   StatusBadge,
+  statusLabel,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -511,7 +512,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   <DataTableCell>
                     {member.role === 'owner' ? (
                       <span className="inline-block rounded bg-gold/10 px-2 py-0.5 text-xs font-medium text-gold-text">
-                        {member.role}
+                        {statusLabel('orgRole', member.role, t)}
                       </span>
                     ) : (
                       <select
@@ -522,7 +523,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                       >
                         {ASSIGNABLE_ROLES.map((role) => (
                           <option key={role} value={role}>
-                            {role}
+                            {statusLabel('orgRole', role, t)}
                           </option>
                         ))}
                       </select>
@@ -620,7 +621,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
               >
                 {ADDABLE_ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {role}
+                    {statusLabel('orgRole', role, t)}
                   </option>
                 ))}
               </select>
@@ -783,7 +784,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                             </span>
                           ) : row.isMember ? (
                             <span className="ml-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
-                              {row.role}
+                              {statusLabel('orgRole', row.role ?? '', t)}
                             </span>
                           ) : null}
                         </span>

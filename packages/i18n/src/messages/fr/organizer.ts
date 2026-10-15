@@ -1394,7 +1394,7 @@ export const organizer = {
     saveRates: 'Sauvegarder les taux',
     saveTiers: 'Sauvegarder les paliers',
     saving: 'Sauvegarde...',
-    rateInputLabel: '{rôle} {phase} jetons par match',
+    rateInputLabel: '{role} {phase} jetons par match',
     minTokensRow: 'Points minimum de la ligne {row}',
     maxTokensRow: 'Points maximum de la ligne {row}',
     amountRow: 'Montant de la ligne {row}',
@@ -2694,11 +2694,6 @@ export const organizer = {
     loading: 'Chargement des comptes staff...',
     loadError: 'Impossible de charger les comptes staff.',
     tabsLabel: 'Rôle du staff',
-    tabs: {
-      scoring: 'Scoring',
-      checkin: 'Accueil',
-      gear: 'Contrôle du matériel',
-    },
     tabHint: {
       scoring:
         'Tient une piste avec la tablette de scoring. Affectez les lices couvertes par ce compte.',

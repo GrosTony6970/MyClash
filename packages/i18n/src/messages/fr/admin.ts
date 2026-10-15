@@ -910,7 +910,7 @@ export const admin = {
       success: 'Compte cree',
       loginEmail: 'Email de connexion',
       temporaryPassword: 'Mot de passe temporaire',
-      roleGranted: 'Rôle plateforme accorde : {rôle}',
+      roleGranted: 'Rôle plateforme accordé : {role}',
     },
     actions: {
       edit: 'Modifier',
