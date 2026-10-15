@@ -2636,6 +2636,8 @@ export const organizer = {
       },
     },
     matches: {
+      refereeRolesUnread:
+        "Les rôles d'arbitre n'ont pas pu être lus : les colonnes d'arbitrage sont masquées. Actualisez pour réessayer.",
       round: 'Manche',
       red: 'Combattant 1',
       blue: 'Combattant 2',

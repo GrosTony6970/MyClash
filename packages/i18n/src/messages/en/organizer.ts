@@ -2674,6 +2674,8 @@ export const organizer = {
       },
     },
     matches: {
+      refereeRolesUnread:
+        'The referee roles could not be read: the referee columns are hidden. Refresh to try again.',
       round: 'Round',
       red: 'Fighter 1',
       blue: 'Fighter 2',

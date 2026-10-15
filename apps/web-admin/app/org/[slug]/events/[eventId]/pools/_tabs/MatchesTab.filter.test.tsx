@@ -1,7 +1,7 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
-import { openEventPage, type OpenedPage } from '../../archived-page.fixtures';
+import { FAILED_READ, openEventPage, type OpenedPage } from '../../archived-page.fixtures';
 import { MatchesTab } from './MatchesTab';
 
 /**
@@ -99,6 +99,24 @@ afterEach(() => {
   page.unmount();
   NAVIGATION.search = new URLSearchParams();
   NAVIGATION.replaced.length = 0;
+});
+
+// Review, 2026-10-16: a failed read of the roles hid the referee columns without a word.
+describe('the referee roles of the bouts tab', () => {
+  it('says when they could not be read', async () => {
+    page = await openEventPage(tab, {
+      ...READS,
+      '/api/v1/tournaments/t-1/pool-match-role-config': FAILED_READ,
+    });
+    expect(document.body.querySelector('[role="status"]')?.textContent).toContain(
+      'The referee roles could not be read',
+    );
+  });
+
+  it('says nothing when they are read', async () => {
+    page = await openEventPage(tab, READS);
+    expect(document.body.textContent).not.toContain('The referee roles could not be read');
+  });
 });
 
 describe('the filter of the bouts tab', () => {

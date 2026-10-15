@@ -127,6 +127,8 @@ export function MatchesTab({
   const [lices, setLices] = useState<Lice[]>([]);
   const [referees, setReferees] = useState<Referee[]>([]);
   const [roleConfig, setRoleConfig] = useState<RoleConfig[]>([]);
+  // The roles' read failed: the referee columns are hidden, and the tab says why.
+  const [rolesUnread, setRolesUnread] = useState(false);
   const [qualifiedRefereesByRole, setQualifiedRefereesByRole] = useState<Map<string, Set<string>>>(
     () => new Map(),
   );
@@ -171,6 +173,7 @@ export function MatchesTab({
       const refs = refereesRes.ok ? refereesRes.data : [];
       setReferees(refs);
       setRoleConfig(roleConfigRes.ok ? (roleConfigRes.data.roles ?? []) : []);
+      setRolesUnread(!roleConfigRes.ok);
       // Build role → Set<personId> map for fast filtering when
       // populating each role-column's dropdown options. Source of truth
       // is the qualifications array embedded on each EventRefereeRow.
@@ -361,6 +364,11 @@ export function MatchesTab({
   return (
     <div className="space-y-6">
       <RefereeWriteNotice write={refereeWrite} />
+      {rolesUnread && (
+        <p role="status" className="text-sm text-warning">
+          {t('organizer.pools.matches.refereeRolesUnread')}
+        </p>
+      )}
       <div className="flex items-center justify-end gap-3">
         <MatchListFilterBar {...filters} />
         <button
