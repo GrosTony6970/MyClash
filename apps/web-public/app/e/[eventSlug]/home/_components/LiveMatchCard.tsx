@@ -19,12 +19,7 @@ export interface LiveMatchCardMatch {
   tournamentName?: string | null;
 }
 
-export function LiveMatchCard({
-  match,
-  href,
-  pausedLabel,
-  t,
-}: {
+interface LiveMatchCardProps {
   match: LiveMatchCardMatch;
   href: string;
   /**
@@ -39,7 +34,9 @@ export function LiveMatchCard({
    * translated: this card is hook-free so it renders on the server too.
    */
   pausedLabel?: string | null;
-}) {
+}
+
+export function LiveMatchCard({ match, href, pausedLabel, t }: LiveMatchCardProps) {
   const meta = [match.tournamentName, match.matchNumberLabel, match.liceName]
     .filter((v): v is string => Boolean(v))
     .join(' · ');

@@ -1236,21 +1236,26 @@ export class PenaltiesService {
       try {
         await this.disqualify(review['registration_id'] as string);
       } catch (failure) {
-        await this.supabase.service
-          .from('tournament_penalty_reviews')
-          .update({
-            status: review['status'],
-            reviewed_by_user_id: review['reviewed_by_user_id'] ?? null,
-            reviewed_at: review['reviewed_at'] ?? null,
-            updated_at: new Date().toISOString(),
-            payload_json: review['payload_json'],
-          })
-          .eq('id', reviewId)
-          .eq('updated_at', (data as Row)['updated_at'] as string);
+        await this.putReviewBack(review, (data as Row)['updated_at'] as string);
         throw failure;
       }
     }
     return data;
+  }
+
+  /** A review as it was read, written back over the answer that was written at `answeredAt`. */
+  private async putReviewBack(review: Row, answeredAt: string): Promise<void> {
+    await this.supabase.service
+      .from('tournament_penalty_reviews')
+      .update({
+        status: review['status'],
+        reviewed_by_user_id: review['reviewed_by_user_id'] ?? null,
+        reviewed_at: review['reviewed_at'] ?? null,
+        updated_at: new Date().toISOString(),
+        payload_json: review['payload_json'],
+      })
+      .eq('id', review['id'] as string)
+      .eq('updated_at', answeredAt);
   }
 
   /** Mark a Registration disqualified. A failed write is thrown, as a server error. */

@@ -31,36 +31,22 @@ function makeService(data: TableData, error: { message: string } | null = null) 
         const rows = (data[table as keyof TableData] ?? []) as Row[] | Row | null;
         const listResult = { data: Array.isArray(rows) ? rows : [], error };
 
+        const filter = (op: string) => (column: string, value: unknown) => {
+          entry.filters.push({ op, column, value });
+          return chain;
+        };
         const chain: Record<string, unknown> = {
           select(columns: string) {
             entry.select = columns;
             return chain;
           },
-          eq(column: string, value: unknown) {
-            entry.filters.push({ op: 'eq', column, value });
-            return chain;
-          },
-          in(column: string, value: unknown) {
-            entry.filters.push({ op: 'in', column, value });
-            return chain;
-          },
-          is(column: string, value: unknown) {
-            entry.filters.push({ op: 'is', column, value });
-            return chain;
-          },
-          order(column: string) {
-            entry.filters.push({ op: 'order', column, value: null });
-            return chain;
-          },
-          limit(count: number) {
-            entry.filters.push({ op: 'limit', column: '', value: count });
-            return chain;
-          },
+          eq: filter('eq'),
+          in: filter('in'),
+          is: filter('is'),
           // A paged read: the page after the last row is empty, so the read ends.
-          gt(column: string, value: unknown) {
-            entry.filters.push({ op: 'gt', column, value });
-            return chain;
-          },
+          gt: filter('gt'),
+          order: (column: string) => filter('order')(column, null),
+          limit: (count: number) => filter('limit')('', count),
           maybeSingle() {
             return Promise.resolve({ data: (Array.isArray(rows) ? rows[0] : rows) ?? null, error });
           },

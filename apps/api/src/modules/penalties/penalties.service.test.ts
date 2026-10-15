@@ -803,6 +803,16 @@ describe('PenaltiesService.listRulesetCatalogForOrg', () => {
   });
 });
 
+/** A write that answers `error` once awaited, through any number of `.eq()`. */
+function failingWrite<T extends object>(api: T, error: { message: string }) {
+  const awaited: T & { eq: () => unknown; then: (done: (v: unknown) => void) => void } = {
+    ...api,
+    eq: () => awaited,
+    then: (done) => done({ data: null, error }),
+  };
+  return awaited;
+}
+
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
   const updated: Record<string, unknown[]> = {};
@@ -845,14 +855,7 @@ function fakeSupabase(state: TableState) {
       }),
       update: vi.fn((row: unknown) => {
         updated[table] = [...(updated[table] ?? []), row];
-        if (!tableState.updateError) return api;
-        const failed = { data: null, error: tableState.updateError };
-        const awaited = {
-          ...api,
-          eq: () => awaited,
-          then: (done: (v: unknown) => void) => done(failed),
-        };
-        return awaited;
+        return tableState.updateError ? failingWrite(api, tableState.updateError) : api;
       }),
       upsert: vi.fn((row: unknown) => {
         upserted[table] = [...(upserted[table] ?? []), row];
