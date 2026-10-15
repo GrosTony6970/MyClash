@@ -75,6 +75,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
         {t('admin.reviewQueue.rejectReasonLabel')}
       </label>
       <textarea
+        aria-label={t('admin.reviewQueue.rejectReasonLabel')}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         rows={4}

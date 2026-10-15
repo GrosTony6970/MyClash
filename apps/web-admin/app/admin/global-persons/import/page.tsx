@@ -397,6 +397,7 @@ export default function GlobalPersonsImportPage() {
                       </td>
                       <td className="px-3 py-2">
                         <input
+                          aria-label={t('admin.globalPersonsImport.clubPlaceholder')}
                           value={row.fields.clubLabel ?? ''}
                           onChange={(e) =>
                             updateRowField(row.index, 'clubLabel', e.target.value || null)
@@ -406,6 +407,7 @@ export default function GlobalPersonsImportPage() {
                           disabled={row.action === 'skip'}
                         />
                         <input
+                          aria-label={t('admin.fieldNames.clubAbbreviation')}
                           value={row.fields.clubAbbreviation ?? ''}
                           onChange={(e) =>
                             updateRowField(row.index, 'clubAbbreviation', e.target.value || null)
@@ -427,6 +429,7 @@ export default function GlobalPersonsImportPage() {
                       </td>
                       <td className="px-3 py-2">
                         <input
+                          aria-label={t('admin.fieldNames.email')}
                           type="email"
                           value={row.fields.email ?? ''}
                           onChange={(e) =>
@@ -439,6 +442,7 @@ export default function GlobalPersonsImportPage() {
                       </td>
                       <td className="px-3 py-2">
                         <input
+                          aria-label={t('admin.fieldNames.dateOfBirth')}
                           type="text"
                           inputMode="numeric"
                           value={dateFormat.format(row.fields.dateOfBirth ?? '')}

@@ -177,6 +177,7 @@ export function FormulaEditor({
           )
         </button>
         <input
+          aria-label={t('admin.rulesets.numberPlaceholder')}
           type="number"
           value={literalDraft}
           onChange={(e) => setLiteralDraft(e.target.value)}

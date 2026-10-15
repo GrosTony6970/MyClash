@@ -58,6 +58,7 @@ export function NewGroupForm({
       className={styles.form}
     >
       <input
+        aria-label={t('publicApp.me.groups.createPlaceholder')}
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}

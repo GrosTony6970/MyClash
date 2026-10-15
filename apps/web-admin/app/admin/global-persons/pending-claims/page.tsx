@@ -191,6 +191,7 @@ export default function PendingClaimsPage() {
                   {rejectingId === row.id ? (
                     <div className="flex flex-col gap-2 items-end">
                       <input
+                        aria-label={t('admin.pendingClaims.rejectReasonPlaceholder')}
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         placeholder={t('admin.pendingClaims.rejectReasonPlaceholder')}

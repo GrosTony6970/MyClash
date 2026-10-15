@@ -81,6 +81,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
           </p>
           <p className="mt-2 text-sm text-danger">{t('admin.reviewQueue.approveTypeDelete')}</p>
           <input
+            aria-label={t('admin.reviewQueue.approveTypeDelete')}
             type="text"
             value={confirmInput}
             onChange={(e) => setConfirmInput(e.target.value)}

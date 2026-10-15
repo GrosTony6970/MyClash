@@ -247,6 +247,7 @@ export function PoolMatchesView({
   return (
     <div className="flex flex-col gap-6">
       <input
+        aria-label={t('publicApp.tournament.poolMatchesSearch')}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

@@ -421,6 +421,7 @@ function SkillModal({
             {t('organizer.refereesPage.skillName')}
           </label>
           <input
+            aria-label={t('organizer.refereesPage.skillName')}
             type="text"
             value={name}
             disabled={isSystem}
@@ -464,6 +465,7 @@ function SkillModal({
             {t('organizer.refereesPage.skillDescription')}
           </label>
           <textarea
+            aria-label={t('organizer.refereesPage.skillDescription')}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={500}
@@ -1997,6 +1999,7 @@ export default function RefereesPage() {
               </p>
               <div className="relative">
                 <input
+                  aria-label={t('organizer.refereesPage.searchParticipantPlaceholder')}
                   type="search"
                   value={search}
                   disabled={isReadOnly}

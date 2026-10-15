@@ -2760,4 +2760,13 @@ export const admin = {
       },
     },
   },
+  // The name of a field whose placeholder is no name (X5): an example, or nothing.
+  fieldNames: {
+    mergeConfirmation: 'Confirmation',
+    clubAbbreviation: 'Club abbreviation',
+    email: 'Email',
+    dateOfBirth: 'Date of birth',
+    weaponName: 'Weapon name',
+    targetName: 'Target name',
+  },
 } as const satisfies MessageTree;

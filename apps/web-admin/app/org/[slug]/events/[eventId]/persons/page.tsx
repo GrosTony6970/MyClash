@@ -1748,6 +1748,7 @@ export default function ParticipantsPage() {
                   {t('admin.orgPersons.searchGlobalProfiles')}
                 </label>
                 <input
+                  aria-label={t('admin.orgPersons.searchNamePlaceholder')}
                   type="search"
                   value={globalSearch}
                   onChange={(e) => {
@@ -1864,6 +1865,7 @@ export default function ParticipantsPage() {
                     {t('admin.orgPersons.club')}
                   </label>
                   <input
+                    aria-label={t('admin.orgPersons.clubSearchPlaceholder')}
                     type="search"
                     value={clubSearch}
                     onChange={(e) => {
@@ -1950,6 +1952,7 @@ export default function ParticipantsPage() {
                     {t('admin.orgPersons.hemaRatingsIdOptional')}
                   </label>
                   <input
+                    aria-label={t('admin.orgPersons.hemaRatingsIdOptional')}
                     type="text"
                     value={addForm.hemaRatingsId}
                     onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
@@ -2105,6 +2108,7 @@ export default function ParticipantsPage() {
                     {t('admin.orgPersons.club')}
                   </label>
                   <input
+                    aria-label={t('admin.orgPersons.searchClubPlaceholder')}
                     type="search"
                     value={editClubSearch}
                     onChange={(e) => {
@@ -2159,6 +2163,7 @@ export default function ParticipantsPage() {
                     {t('admin.orgPersons.hemaRatingsId')}
                   </label>
                   <input
+                    aria-label={t('admin.orgPersons.hemaRatingsId')}
                     type="text"
                     value={editForm.hemaRatingsId}
                     onChange={(e) => setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}

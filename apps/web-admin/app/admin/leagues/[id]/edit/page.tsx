@@ -1065,6 +1065,7 @@ export default function EditLeaguePage() {
         )}
         <div className="border-t border-border pt-4">
           <input
+            aria-label={t('admin.leagues.editPage.owners.searchPlaceholder')}
             type="search"
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
@@ -1234,6 +1235,7 @@ export default function EditLeaguePage() {
         )}
         <div className="flex items-center gap-2">
           <input
+            aria-label={t('admin.leagues.editPage.groups.newNamePlaceholder')}
             type="text"
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
@@ -1315,6 +1317,7 @@ export default function EditLeaguePage() {
             {t('admin.leagues.editPage.tournaments.addHeading')}
           </p>
           <input
+            aria-label={t('admin.leagues.editPage.tournaments.eventSearchPlaceholder')}
             type="search"
             value={eventQuery}
             onChange={(e) => setEventQuery(e.target.value)}

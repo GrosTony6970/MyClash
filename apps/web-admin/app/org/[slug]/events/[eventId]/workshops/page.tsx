@@ -1241,6 +1241,7 @@ export default function WorkshopsAdminPage() {
                 {t('organizer.workshopsPage.categoryLabel')}
               </label>
               <input
+                aria-label={t('organizer.workshopsPage.categoryLabel')}
                 type="text"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
@@ -1253,6 +1254,7 @@ export default function WorkshopsAdminPage() {
                 {t('organizer.workshopsPage.levelLabel')}
               </label>
               <input
+                aria-label={t('organizer.workshopsPage.levelLabel')}
                 type="text"
                 value={form.level}
                 onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
@@ -1296,6 +1298,7 @@ export default function WorkshopsAdminPage() {
                 {t('organizer.workshopsPage.durationLabel')}
               </label>
               <input
+                aria-label={t('organizer.workshopsPage.durationLabel')}
                 type="number"
                 value={form.durationMinutes}
                 min={1}
@@ -1523,6 +1526,7 @@ export default function WorkshopsAdminPage() {
                       ) : linkingEnrollmentId === entry.id ? (
                         <div className="relative">
                           <input
+                            aria-label={t('organizer.workshopsPage.searchGlobalPersonPlaceholder')}
                             type="search"
                             value={gpSearch}
                             onChange={(e) => setGpSearch(e.target.value)}
@@ -1679,6 +1683,7 @@ export default function WorkshopsAdminPage() {
                 {t('organizer.schedulePage.planner.labelLabel')}
               </label>
               <input
+                aria-label={t('organizer.schedulePage.planner.labelLabel')}
                 type="text"
                 value={breakForm.label}
                 placeholder={t('organizer.workshopsPage.breakLabelPlaceholder')}

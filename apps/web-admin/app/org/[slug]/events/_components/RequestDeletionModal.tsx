@@ -166,6 +166,7 @@ export function RequestDeletionModal({
           ))}
         </div>
         <textarea
+          aria-label={t('organizer.fieldNames.deletionReason')}
           ref={textareaRef}
           value={reason}
           onChange={(e) => setReason(e.target.value)}

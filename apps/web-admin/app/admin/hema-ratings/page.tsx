@@ -345,6 +345,7 @@ export default function HemaRatingsAdminPage() {
       {/* Search */}
       <div className="mb-4">
         <input
+          aria-label={t('admin.hemaRatings.searchPlaceholder')}
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

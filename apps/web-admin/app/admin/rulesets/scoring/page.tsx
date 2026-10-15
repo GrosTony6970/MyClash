@@ -355,6 +355,7 @@ export default function AdminRulesetsPage() {
 
       {/* Per-row reject for org-submitted curated rulesets. */}
       <PromptDialog
+        fieldLabel={t('admin.rulesets.rejectReasonPrompt')}
         cancelLabel={t('actions.cancel')}
         open={rejectSubmissionTarget !== null}
         title={t('admin.rulesets.rejectAction')}

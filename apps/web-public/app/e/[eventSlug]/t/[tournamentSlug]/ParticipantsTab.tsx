@@ -114,6 +114,7 @@ export function ParticipantsTab({ entries }: Props) {
       </div>
 
       <input
+        aria-label={t('publicApp.tournament.participants.search')}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

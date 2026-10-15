@@ -90,6 +90,16 @@ function enter(target: HTMLElement) {
 }
 
 describe('adding walk-ins', () => {
+  it('names every field of the window that shows a placeholder (X5)', async () => {
+    await openAdd();
+    const fields = [...document.body.querySelectorAll('[role="dialog"] [placeholder]')];
+    const unnamed = fields
+      .filter((field) => !field.getAttribute('aria-label') && !field.closest('label'))
+      .map((field) => field.getAttribute('placeholder'));
+    expect(fields.length).toBeGreaterThan(1);
+    expect(unnamed).toEqual([]);
+  });
+
   it('picks the first club with Enter in the club field, and sends nothing', async () => {
     await openAdd();
     act(() => type(clubField(), 'Lyon'));

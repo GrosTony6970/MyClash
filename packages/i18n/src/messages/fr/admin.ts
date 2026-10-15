@@ -2771,4 +2771,12 @@ export const admin = {
       },
     },
   },
+  fieldNames: {
+    mergeConfirmation: 'Confirmation',
+    clubAbbreviation: 'Sigle du club',
+    email: 'Adresse e-mail',
+    dateOfBirth: 'Date de naissance',
+    weaponName: "Nom de l'arme",
+    targetName: 'Nom de la cible',
+  },
 } as const satisfies DeepString<typeof enAdmin>;

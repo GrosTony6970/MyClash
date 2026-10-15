@@ -426,6 +426,7 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
               {t('organizer.staffing.slotLabel', { index: slot.index })}
             </div>
             <input
+              aria-label={t('organizer.staffing.displayNamePlaceholder')}
               type="text"
               value={slot.displayName}
               disabled={!editable}

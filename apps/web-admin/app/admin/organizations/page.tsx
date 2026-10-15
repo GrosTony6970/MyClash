@@ -612,6 +612,7 @@ export default function AdminOrganizationsPage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <input
+          aria-label={t('admin.organizations.searchPlaceholder')}
           type="search"
           placeholder={t('admin.organizations.searchPlaceholder')}
           value={search}

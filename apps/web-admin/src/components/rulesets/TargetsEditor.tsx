@@ -87,6 +87,7 @@ function TargetRow({
   return (
     <li className="grid grid-cols-[1fr_6rem_2rem] items-center gap-2">
       <input
+        aria-label={t('admin.fieldNames.targetName')}
         type="text"
         value={target.name}
         maxLength={40}

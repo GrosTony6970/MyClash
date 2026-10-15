@@ -1203,6 +1203,7 @@ export default function BracketPage() {
                   {t('organizer.bracketPage.qualifyCountLabel')}
                 </label>
                 <input
+                  aria-label={t('organizer.bracketPage.qualifyCountLabel')}
                   type="number"
                   value={qualifyCount}
                   onChange={(e) =>
@@ -1627,6 +1628,7 @@ export default function BracketPage() {
             }
           >
             <input
+              aria-label={t('organizer.bracket.overrideModal.filterPlaceholder')}
               type="text"
               value={pickerFilter}
               onChange={(e) => setPickerFilter(e.target.value)}

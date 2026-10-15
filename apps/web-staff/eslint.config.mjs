@@ -5,6 +5,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
+import requireFieldNameRule from '../../eslint-rules/require-field-name.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
 import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
 import noRawPaletteColorRule from '../../eslint-rules/no-raw-palette-color.mjs';
@@ -20,6 +21,7 @@ export default tseslint.config(
       myclash: {
         rules: {
           'no-literal-string': noLiteralStringRule,
+          'require-field-name': requireFieldNameRule,
           'no-literal-locale': noLiteralLocaleRule,
           'no-module-translator-in-client': noModuleTranslatorRule,
           'no-raw-palette-color': noRawPaletteColorRule,
@@ -41,6 +43,8 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-element-interactions': 'off',
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
+      // A field with a placeholder has a name of its own (X5).
+      'myclash/require-field-name': 'error',
       'myclash/no-literal-locale': 'error',
       'myclash/no-module-translator-in-client': 'error',
       // This app is the reason the rule exists — it sets data-theme on <body>,

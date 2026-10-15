@@ -262,6 +262,7 @@ function GroupSection(props: GroupSectionProps) {
           {t('admin.penaltyRulesets.groupHeader', { n: groupNumber })}
         </span>
         <input
+          aria-label={t('admin.penaltyRulesets.groupLabelPlaceholder')}
           type="text"
           value={label}
           disabled={disabled}

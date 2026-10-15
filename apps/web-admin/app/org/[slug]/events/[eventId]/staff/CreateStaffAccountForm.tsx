@@ -40,6 +40,7 @@ function PinField({
   return (
     <div className="relative">
       <input
+        aria-label={t('organizer.staff.pin')}
         required
         value={value}
         type={shown ? 'text' : 'password'}
@@ -73,6 +74,7 @@ function IdentityFields({
   return (
     <>
       <input
+        aria-label={t('organizer.staff.displayName')}
         required
         value={form.displayName}
         onChange={(event) =>
@@ -82,6 +84,7 @@ function IdentityFields({
         className="h-fit rounded border border-border px-3 py-2 text-sm"
       />
       <input
+        aria-label={t('organizer.staff.username')}
         required
         value={form.username}
         onChange={(event) => onChange((current) => ({ ...current, username: event.target.value }))}

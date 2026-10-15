@@ -686,6 +686,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
             </ul>
             <div className="flex gap-2">
               <input
+                aria-label={t('organizer.fieldNames.newPisteName')}
                 value={newLice}
                 onChange={(ev) => setNewLice(ev.target.value)}
                 onKeyDown={enterAdds(addLice)}
@@ -727,6 +728,7 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
             </ul>
             <div className="flex gap-2">
               <input
+                aria-label={t('organizer.fieldNames.newAreaName')}
                 value={newArea}
                 onChange={(ev) => setNewArea(ev.target.value)}
                 onKeyDown={enterAdds(addArea)}

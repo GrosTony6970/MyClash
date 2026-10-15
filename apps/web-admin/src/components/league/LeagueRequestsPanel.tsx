@@ -430,6 +430,7 @@ function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectIn
   return (
     <div className="mt-2 flex items-center gap-2">
       <input
+        aria-label={t('admin.leagues.requestsPanel.reasonPlaceholder')}
         type="text"
         value={reason}
         onChange={(e) => setReason(e.target.value)}

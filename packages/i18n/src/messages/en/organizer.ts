@@ -3307,4 +3307,13 @@ export const organizer = {
     level: 'Level',
     slots: 'Places',
   },
+  // The name of a field whose placeholder is no name (X5): an example, or nothing.
+  fieldNames: {
+    startTime: 'Start time',
+    endTime: 'End time',
+    buttonName: 'Button {n} name',
+    deletionReason: 'Reason',
+    newPisteName: 'New piste name',
+    newAreaName: 'New area name',
+  },
 } as const satisfies MessageTree;

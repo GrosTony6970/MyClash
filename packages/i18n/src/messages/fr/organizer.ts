@@ -3280,4 +3280,12 @@ export const organizer = {
     level: 'Niveau',
     slots: 'Places',
   },
+  fieldNames: {
+    startTime: 'Heure de début',
+    endTime: 'Heure de fin',
+    buttonName: 'Nom du bouton {n}',
+    deletionReason: 'Motif',
+    newPisteName: 'Nom de la nouvelle piste',
+    newAreaName: 'Nom du nouvel espace',
+  },
 } as const satisfies DeepString<typeof enOrganizer>;

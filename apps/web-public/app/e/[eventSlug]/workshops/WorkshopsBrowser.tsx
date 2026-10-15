@@ -91,6 +91,7 @@ export function WorkshopsBrowser({
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
+          aria-label={t('publicApp.workshops.searchPlaceholder')}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

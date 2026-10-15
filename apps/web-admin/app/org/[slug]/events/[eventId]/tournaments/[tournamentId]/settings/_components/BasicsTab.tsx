@@ -360,6 +360,7 @@ export function BasicsTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
        *  'Add to waitlist instead?' confirmation. */}
       <Field label={t('admin.orgTournaments.maxParticipants')}>
         <input
+          aria-label={t('admin.orgTournaments.maxParticipants')}
           type="number"
           min={1}
           value={data.maxParticipants ?? ''}
@@ -376,6 +377,7 @@ export function BasicsTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
 
       <Field label={t('admin.orgTournaments.maxWaitlist')}>
         <input
+          aria-label={t('admin.orgTournaments.maxWaitlist')}
           type="number"
           min={0}
           value={data.maxWaitlist ?? ''}

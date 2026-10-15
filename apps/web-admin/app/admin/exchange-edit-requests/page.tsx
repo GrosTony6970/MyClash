@@ -353,6 +353,7 @@ export default function ExchangeEditRequestsPage() {
           }
         >
           <textarea
+            aria-label={t('admin.adminDesignReq.rejectReasonPlaceholder')}
             value={rejectReason}
             onChange={(event) => setRejectReason(event.target.value)}
             rows={4}

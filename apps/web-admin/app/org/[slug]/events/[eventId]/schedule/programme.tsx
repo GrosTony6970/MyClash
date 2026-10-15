@@ -759,6 +759,7 @@ function BlockRow({
             which renders AM/PM in 12-hour locales). Matches the config form. */}
         <div className="flex items-center gap-1 text-xs text-muted font-mono flex-shrink-0">
           <input
+            aria-label={t('organizer.fieldNames.startTime')}
             type="text"
             inputMode="numeric"
             pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
@@ -770,6 +771,7 @@ function BlockRow({
           />
           <span>–</span>
           <input
+            aria-label={t('organizer.fieldNames.endTime')}
             type="text"
             inputMode="numeric"
             pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$"

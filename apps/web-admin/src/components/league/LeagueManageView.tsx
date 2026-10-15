@@ -752,6 +752,7 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
           </ul>
           <div className="flex gap-2">
             <input
+              aria-label={t('organizer.leagues.manage.groups.namePlaceholder')}
               type="text"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}

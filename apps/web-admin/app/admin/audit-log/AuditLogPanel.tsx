@@ -170,18 +170,21 @@ export function AuditLogPanel() {
       <section className="border border-border rounded-lg p-4 mb-5">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_160px_150px_150px]">
           <input
+            aria-label={t('admin.auditLog.filters.actorPlaceholder')}
             value={draftFilters.actor}
             onChange={(event) => updateDraft('actor', event.target.value)}
             placeholder={t('admin.auditLog.filters.actorPlaceholder')}
             className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
+            aria-label={t('admin.auditLog.filters.actionPlaceholder')}
             value={draftFilters.action}
             onChange={(event) => updateDraft('action', event.target.value)}
             placeholder={t('admin.auditLog.filters.actionPlaceholder')}
             className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <input
+            aria-label={t('admin.auditLog.filters.entityTypePlaceholder')}
             value={draftFilters.entityType}
             onChange={(event) => updateDraft('entityType', event.target.value)}
             placeholder={t('admin.auditLog.filters.entityTypePlaceholder')}

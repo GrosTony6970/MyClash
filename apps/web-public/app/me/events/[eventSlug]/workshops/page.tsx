@@ -293,6 +293,7 @@ function WorkshopRatingControl({ workshopId, api }: { workshopId: string; api: s
         ))}
       </div>
       <textarea
+        aria-label={t('publicApp.me.workshops.rateCommentPlaceholder')}
         rows={2}
         value={comment}
         maxLength={2000}

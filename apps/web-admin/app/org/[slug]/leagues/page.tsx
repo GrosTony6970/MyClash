@@ -474,6 +474,7 @@ export default function OrgLeaguesPage() {
                       ) : (
                         <>
                           <input
+                            aria-label={t('organizer.leagues.messagePlaceholder')}
                             type="text"
                             value={messageDraft[league.id] ?? ''}
                             onChange={(e) =>

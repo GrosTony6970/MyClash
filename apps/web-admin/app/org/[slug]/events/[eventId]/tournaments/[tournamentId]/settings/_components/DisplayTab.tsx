@@ -304,6 +304,7 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
         {data.buttons.clean.map((btn, i) => (
           <div key={i} className="flex gap-2 items-center">
             <input
+              aria-label={t('organizer.fieldNames.buttonName', { n: i + 1 })}
               value={btn.label}
               onChange={(e) =>
                 setData({
@@ -405,6 +406,7 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
           {data.buttons.afterblow.map((btn, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input
+                aria-label={t('organizer.fieldNames.buttonName', { n: i + 1 })}
                 value={btn.label}
                 onChange={(e) =>
                   setData({

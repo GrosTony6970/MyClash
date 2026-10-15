@@ -98,6 +98,7 @@ export default function PeoplePage() {
       {/* Search input */}
       <div className="relative mb-4">
         <input
+          aria-label={t('publicApp.people.searchPlaceholder')}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

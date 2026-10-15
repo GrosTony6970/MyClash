@@ -472,6 +472,7 @@ export default function NewLeaguePage() {
           </div>
         )}
         <input
+          aria-label={t('admin.adminLeagues.userSearchPlaceholder')}
           type="search"
           value={userSearch}
           onChange={(e) => setUserSearch(e.target.value)}
@@ -562,6 +563,7 @@ export default function NewLeaguePage() {
           {leagueGroups.map((g) => (
             <div key={g.tmpId} className="flex items-center gap-2">
               <input
+                aria-label={t('admin.adminLeagues.groupNamePlaceholder')}
                 type="text"
                 value={g.name}
                 onChange={(e) => updateGroupName(g.tmpId, e.target.value)}
@@ -592,6 +594,7 @@ export default function NewLeaguePage() {
           {t('admin.adminLeagues.linkedTournamentsHeading')}
         </h2>
         <input
+          aria-label={t('admin.adminLeagues.eventSearchPlaceholder')}
           type="search"
           value={eventQuery}
           onChange={(e) => setEventQuery(e.target.value)}

@@ -238,6 +238,7 @@ export default function AdminWeaponsPage() {
       )}
 
       <PromptDialog
+        fieldLabel={t('admin.fieldNames.weaponName')}
         open={addOpen}
         title={t('admin.weapons.addTitle')}
         placeholder={t('admin.weapons.addPlaceholder')}

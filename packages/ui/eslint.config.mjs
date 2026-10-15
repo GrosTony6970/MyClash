@@ -15,6 +15,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noRawPaletteColorRule from '../../eslint-rules/no-raw-palette-color.mjs';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
+import requireFieldNameRule from '../../eslint-rules/require-field-name.mjs';
 
 /**
  * RATCHET — files with pre-existing theme debt, exempted so the gate can go on
@@ -78,6 +79,7 @@ export default tseslint.config(
         rules: {
           'no-raw-palette-color': noRawPaletteColorRule,
           'no-literal-string': noLiteralStringRule,
+          'require-field-name': requireFieldNameRule,
         },
       },
     },
@@ -90,6 +92,8 @@ export default tseslint.config(
       'myclash/no-raw-palette-color': 'error',
       // A shared component words nothing in English: the app hands it translated words (X4).
       'myclash/no-literal-string': 'error',
+      // A field with a placeholder has a name of its own (X5).
+      'myclash/require-field-name': 'error',
     },
     languageOptions: {
       parserOptions: {

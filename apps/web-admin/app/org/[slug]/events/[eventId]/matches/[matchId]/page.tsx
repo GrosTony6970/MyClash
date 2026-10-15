@@ -940,6 +940,7 @@ export default function MatchDetailPage() {
               {t('organizer.matchDetail.voidReasonLabel')}
             </label>
             <textarea
+              aria-label={t('organizer.matchDetail.voidReasonLabel')}
               value={voidReason}
               onChange={(e) => setVoidReason(e.target.value)}
               rows={3}

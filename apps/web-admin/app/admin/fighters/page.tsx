@@ -622,6 +622,7 @@ export default function AdminFightersPage() {
           {/* Live debounced server-side search — query fires ~250 ms after typing stops. */}
           <div className="mb-4 flex items-center gap-2">
             <input
+              aria-label={t('admin.globalProfiles.searchByName')}
               value={personQuery}
               onChange={(e) => setPersonQuery(e.target.value)}
               placeholder={t('admin.globalProfiles.searchByName')}
@@ -770,6 +771,7 @@ export default function AdminFightersPage() {
                 {t('admin.globalProfiles.displayNameLabel')}
               </label>
               <input
+                aria-label={t('admin.globalProfiles.displayNameLabel')}
                 value={form.displayName}
                 onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
                 placeholder={
@@ -797,6 +799,7 @@ export default function AdminFightersPage() {
                 {t('admin.globalProfiles.email')}
               </label>
               <input
+                aria-label={t('admin.globalProfiles.email')}
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -810,6 +813,7 @@ export default function AdminFightersPage() {
                 {t('admin.globalProfiles.dateOfBirth')}
               </label>
               <input
+                aria-label={t('admin.globalProfiles.dateOfBirth')}
                 type="text"
                 inputMode="numeric"
                 value={form.dateOfBirth}
@@ -830,6 +834,7 @@ export default function AdminFightersPage() {
               </label>
               <div className="relative">
                 <input
+                  aria-label={t('admin.globalProfiles.clubLabel')}
                   value={form.clubQuery}
                   onChange={(e) => {
                     setForm((f) => ({ ...f, clubQuery: e.target.value, clubId: '', clubName: '' }));
@@ -906,12 +911,14 @@ export default function AdminFightersPage() {
               {!form.clubId && form.clubQuery.trim() && (
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <input
+                    aria-label={t('admin.globalProfiles.clubAbbreviation')}
                     value={form.clubAbbreviation}
                     onChange={(e) => setForm((f) => ({ ...f, clubAbbreviation: e.target.value }))}
                     placeholder={t('admin.globalProfiles.clubAbbreviation')}
                     className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
                   />
                   <input
+                    aria-label={t('admin.globalProfiles.clubCity')}
                     value={form.clubCity}
                     onChange={(e) => setForm((f) => ({ ...f, clubCity: e.target.value }))}
                     placeholder={t('admin.globalProfiles.clubCity')}
@@ -1010,6 +1017,7 @@ export default function AdminFightersPage() {
           <section className="border border-border rounded-lg p-4 mb-6">
             <div className="flex gap-2">
               <input
+                aria-label={t('admin.globalProfiles.merge.searchPlaceholder')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -1085,12 +1093,14 @@ export default function AdminFightersPage() {
             </h2>
             <div className="grid gap-3 lg:grid-cols-2">
               <input
+                aria-label={t('admin.globalProfiles.merge.reasonPlaceholder')}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder={t('admin.globalProfiles.merge.reasonPlaceholder')}
                 className="border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
               <input
+                aria-label={t('admin.fieldNames.mergeConfirmation')}
                 value={confirmName}
                 onChange={(e) => setConfirmName(e.target.value)}
                 placeholder={
