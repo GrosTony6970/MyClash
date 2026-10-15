@@ -2338,6 +2338,43 @@ Named, not fixed (each read in code):
 - The workshop CSV writes a venue's id when the venue is gone.
 - `scripts/gen-i18n-baseline.mjs` does not scan `packages/ui` (its baseline is empty anyway).
 
+## Fixed on 2026-10-15: three unstable browser stories, and one not found
+
+The operator's pick. Each story was red now and then on code that did not change. Each cause
+was found, then proved with a probe that makes the gap wide: the old story is red every time or
+often, the fixed one green. All three were faults of the STORY, not of the app.
+
+- `profile-leave-guard.spec.ts:16`: `087b3aa8`. The story ends on Settings, whose AI keys and
+  legal panels threw on the stub's catch-all `{}`, a moment after the address changed (4 in 20
+  red). The stub now answers the five Settings reads as the API answers, and the story waits for
+  both panels to draw before it checks for page faults.
+- `pad-level-no-network.spec.ts:180`: `d3313984`. A hit, then "End round" at once: the hit
+  reaches the round view a moment after the tap, so End read 3 - 3 and refused it as level. The
+  story waits for the sudden-death mark to go, as the first story of the file does (CPU slowed
+  six times: 1 in 10 red before, 30 of 30 green after).
+- `tests/drag/schedule-grid.spec.ts:241`: `6011c214`. A deleted bar enters the undo history when
+  the server has answered the DELETE; the story pressed Ctrl+Z when it was only sent. It waits for
+  the "Deleted" toast (answer held back 0.5 s: 3 of 3 red before, green after). The spec is 401
+  lines, accepted in the complexity ledger.
+
+The proof: one cold review (no blocker, no major, four minors, all fixed), the gate chain (36 of
+36 after the bundle gates were run again with no dev server holding `.next`), the browser suite
+(403 of 403, 10.8 min).
+
+**Not found: `share-button.spec.ts:135`** ("Copied!" did not turn back into "Share" within 5 s,
+once in CI on 2026-10-15). About 200 local runs, none red: alone, in the file's order, with the
+CPU slowed, with taps every few ms from page load, with closed ports refusing at once as on
+Linux. A probe that logged every 2 s timer and every clear of one saw no clear. Ruled out: the
+dev Strict Mode cleanup, React's Activity (off without Cache Components), the bout page's live
+socket (this story opens none). Left as it is.
+
+Named, not fixed (each read in code; a product choice, so the operator's):
+
+- On the pad, "End round" tapped in the moment before a hit reaches the screen is refused as
+  "Scores are level". It judges what the screen showed at the tap.
+- On the schedule board, Ctrl+Z pressed before the server has answered a bar's delete does
+  nothing, and says nothing.
+
 ## Still not checked
 
 - Whether the site header overflows at 360px for an account with admin access — needs a browser.
