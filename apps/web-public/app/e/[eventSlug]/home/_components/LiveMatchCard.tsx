@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { nameOrUnknown, type Translator } from '@myclash/ui';
 
 /**
  * One live match card — the red–blue scoreboard tile shared by the event home
@@ -22,9 +23,15 @@ export function LiveMatchCard({
   match,
   href,
   pausedLabel,
+  t,
 }: {
   match: LiveMatchCardMatch;
   href: string;
+  /**
+   * Words a side with no name: both sides of a bout being fought are filled, so a
+   * missing name is a person with no name — "Unknown fighter", never a `?`.
+   */
+  t: Translator;
   /**
    * Rendered as a badge when the bout is halted. A paused bout still holds
    * its piste, so it stays on the board — but the spectator has to be able
@@ -50,7 +57,9 @@ export function LiveMatchCard({
         )}
       </div>
       <div className="flex items-center justify-between">
-        <p className="font-bold text-foreground">{match.redFighterName ?? '?'}</p>
+        <p className="font-bold text-foreground">
+          {nameOrUnknown(match.redFighterName, 'fighter', t)}
+        </p>
         <p className="text-2xl font-black tabular-nums text-foreground">
           <span className={match.redScore > match.blueScore ? 'text-success' : undefined}>
             {match.redScore}
@@ -60,7 +69,9 @@ export function LiveMatchCard({
             {match.blueScore}
           </span>
         </p>
-        <p className="font-bold text-foreground">{match.blueFighterName ?? '?'}</p>
+        <p className="font-bold text-foreground">
+          {nameOrUnknown(match.blueFighterName, 'fighter', t)}
+        </p>
       </div>
     </Link>
   );

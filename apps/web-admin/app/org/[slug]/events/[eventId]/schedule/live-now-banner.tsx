@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@myclash/api-client';
 import { formatInZone, localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { nameOrUnknown } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface LiveMatch {
@@ -137,8 +138,8 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   </span>
                   <span className="text-muted truncate">
                     {t('organizer.schedulePage.liveBanner.versus', {
-                      a: ls.runningMatch.redFighterName ?? '?',
-                      b: ls.runningMatch.blueFighterName ?? '?',
+                      a: nameOrUnknown(ls.runningMatch.redFighterName, 'fighter', t),
+                      b: nameOrUnknown(ls.runningMatch.blueFighterName, 'fighter', t),
                     })}
                   </span>
                 </div>

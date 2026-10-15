@@ -1,7 +1,7 @@
 'use client';
 
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
-import { FreshnessChip } from '@myclash/ui';
+import { FreshnessChip, nameOrUnknown } from '@myclash/ui';
 import { boutPageHref } from '@/lib/bout-page';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -149,6 +149,7 @@ export default function LivePage() {
                 `/e/${eventSlug}/live?lice=${ls.lice.id}`,
               )}
               pausedLabel={ls.runningMatch.status === 'paused' ? t('publicApp.live.paused') : null}
+              t={t}
             />
           </div>
         ) : (
@@ -237,9 +238,9 @@ export default function LivePage() {
                     {ls.runningMatch.matchNumberLabel}
                   </p>
                   <p className="text-sm text-foreground-secondary mt-0.5">
-                    {ls.runningMatch.redFighterName ?? '?'}{' '}
+                    {nameOrUnknown(ls.runningMatch.redFighterName, 'fighter', t)}{' '}
                     <span className="text-muted text-xs">{t('scoring.liveMatch.versus')}</span>{' '}
-                    {ls.runningMatch.blueFighterName ?? '?'}
+                    {nameOrUnknown(ls.runningMatch.blueFighterName, 'fighter', t)}
                   </p>
                   {/* Red's score first, as the names above. The whole tile is a
                       link to its piste, so the shared card (a link) cannot sit here. */}

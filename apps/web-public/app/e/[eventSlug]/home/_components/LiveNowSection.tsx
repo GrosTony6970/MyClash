@@ -150,6 +150,7 @@ export function LiveNowSection({ eventSlug, initialHighlights, workshops, tz, no
                 match={m}
                 href={`/e/${eventSlug}/match/${m.id}`}
                 pausedLabel={m.status === 'paused' ? t('publicApp.live.paused') : null}
+                t={t}
               />
             ))}
           </div>

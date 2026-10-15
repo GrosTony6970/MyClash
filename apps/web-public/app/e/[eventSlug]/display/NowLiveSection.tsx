@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { isLiveStatus, placementLabel, type HubLice } from '@myclash/types';
+import { nameOrUnknown } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -184,9 +185,9 @@ function LiveCard({
         {where && <span className="mt-0.5 text-sm text-muted">{where}</span>}
         <p className="mt-2 text-sm font-bold text-foreground">{match.matchNumberLabel}</p>
         <p className="mt-0.5 text-sm text-foreground-secondary">
-          {match.redFighterName ?? '?'}{' '}
+          {nameOrUnknown(match.redFighterName, 'fighter', t)}{' '}
           <span className="text-xs text-muted">{t('scoring.liveMatch.versus')}</span>{' '}
-          {match.blueFighterName ?? '?'}
+          {nameOrUnknown(match.blueFighterName, 'fighter', t)}
         </p>
         <p className="mt-1 text-sm font-bold text-foreground">
           {match.redScore} – {match.blueScore}
