@@ -2928,7 +2928,7 @@ Each Next.js app wraps its root layout with its own `src/i18n/I18nProvider`, a s
 
 1. Add the key to `packages/i18n/src/messages/en/<namespace>.ts`
 2. Add the French translation at the matching path in `messages/fr/<namespace>.ts`; every key must exist in both — the FR module is typed against the EN one, and `packages/i18n/src/t-key-references.test.ts` fails on misses either way
-3. Use `t('key')` in the component via the `useI18n()` hook — never the module-level `t`, which is bound to `defaultLocale` and is banned in client components by `myclash/no-module-translator-in-client`
+3. Use `t('key')` in the component via the `useI18n()` hook — never the module-level `t`, which is bound to `defaultLocale` and is banned in the apps, client and server, by `myclash/no-module-translator` (on the server, use `await getServerT()`)
 4. If the key belongs to a namespace a surface does not yet carry, add it to that surface in `packages/i18n/src/surfaces/`
 
 ---

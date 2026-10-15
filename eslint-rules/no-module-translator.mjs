@@ -1,22 +1,24 @@
 /**
- * myclash/no-module-translator-in-client
+ * myclash/no-module-translator
  *
- * Bans `import { t } from '@myclash/i18n'` in a `'use client'` module.
+ * Bans `import { t } from '@myclash/i18n'` in the three apps.
  *
  * That `t` is `createTranslator(getMessages(defaultLocale))` — a module-init
- * singleton permanently bound to English. In a client component it renders
- * English no matter what the visitor chose, and nothing says so: the French
- * string exists, the switcher works, the page just never asks for it.
+ * singleton permanently bound to English. It renders English no matter what the
+ * visitor chose, and nothing says so: the French string exists, the switcher
+ * works, the page just never asks for it.
  *
  * It reached 73 client components and 991 render-position calls before anyone
  * noticed — whole pages (the clubs console, the event persons list) were English
- * for a French organiser. The fix is `const { t } = useI18n()` from
+ * for a French organiser. The fix there is `const { t } = useI18n()` from
  * @myclash/next-i18n/client; for a module-scope helper that cannot call a hook,
  * take the translator as a parameter (`t: Translator`).
  *
- * Server components are untouched: there `t` is still wrong for a different
- * reason (use `getServerT()`), but this rule only claims what it can prove from
- * the directive.
+ * Until 2026-10-15 the rule read only `'use client'` modules, because the
+ * directive is all it can prove. Four server `loading.tsx` screens then showed
+ * "Loading" in English to every visitor for months. On the server the fix is
+ * `await getServerT()` from @myclash/next-i18n/server, so the rule now reads
+ * every module.
  *
  * `global-error.tsx` is exempt and always will be: it REPLACES the root layout,
  * so I18nProvider is not above it and useI18n() would read the context default
@@ -24,25 +26,15 @@
  */
 const EXEMPT_FILENAMES = [/global-error\.tsx?$/];
 
-function isClientModule(sourceCode) {
-  for (const statement of sourceCode.ast.body) {
-    if (statement.type !== 'ExpressionStatement') break;
-    const value = statement.directive ?? statement.expression?.value;
-    if (typeof value !== 'string') break;
-    if (value === 'use client') return true;
-  }
-  return false;
-}
-
 export default {
   meta: {
     type: 'problem',
     docs: {
-      description: "disallow the English-bound module `t` in 'use client' modules",
+      description: 'disallow the English-bound module `t` in the apps',
     },
     messages: {
       moduleTranslator:
-        '`t` from @myclash/i18n is bound to the default locale at module init, so this renders English whatever the visitor chose. Use `const { t } = useI18n()` from @myclash/next-i18n/client, or take `t: Translator` as a parameter in a module-scope helper.',
+        '`t` from @myclash/i18n is bound to the default locale at module init, so this renders English whatever the visitor chose. In a client component use `const { t } = useI18n()` from @myclash/next-i18n/client; on the server use `await getServerT()` from @myclash/next-i18n/server; in a module-scope helper take `t: Translator` as a parameter.',
     },
     schema: [],
   },
@@ -51,7 +43,6 @@ export default {
     const filename = context.filename ?? context.getFilename();
 
     if (EXEMPT_FILENAMES.some((pattern) => pattern.test(filename))) return {};
-    if (!isClientModule(sourceCode)) return {};
 
     return {
       ImportDeclaration(node) {

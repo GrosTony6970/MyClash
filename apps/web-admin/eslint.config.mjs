@@ -7,7 +7,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import requireFieldNameRule from '../../eslint-rules/require-field-name.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
-import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
+import noModuleTranslatorRule from '../../eslint-rules/no-module-translator.mjs';
 import noRawApiFetchRule from '../../eslint-rules/no-raw-api-fetch.mjs';
 
 export default tseslint.config(
@@ -22,7 +22,7 @@ export default tseslint.config(
           'no-literal-string': noLiteralStringRule,
           'require-field-name': requireFieldNameRule,
           'no-literal-locale': noLiteralLocaleRule,
-          'no-module-translator-in-client': noModuleTranslatorRule,
+          'no-module-translator': noModuleTranslatorRule,
           'no-raw-api-fetch': noRawApiFetchRule,
         },
       },
@@ -46,7 +46,7 @@ export default tseslint.config(
       // A field with a placeholder has a name of its own (X5).
       'myclash/require-field-name': 'error',
       'myclash/no-literal-locale': 'error',
-      'myclash/no-module-translator-in-client': 'error',
+      'myclash/no-module-translator': 'error',
       // A ratchet. The hand-rolled fetches that predate it are counted in
       // eslint-rules/no-raw-api-fetch-baseline.json, and that count only shrinks.
       'myclash/no-raw-api-fetch': 'error',

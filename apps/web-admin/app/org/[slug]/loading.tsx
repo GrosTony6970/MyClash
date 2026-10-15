@@ -1,8 +1,9 @@
-import { t } from '@myclash/i18n';
+import { getServerT } from '@myclash/next-i18n/server';
 import { Spinner } from '@myclash/ui';
 
 /** Route-level loading state — slow organizer navigations used to show a blank page. */
-export default function Loading() {
+export default async function Loading() {
+  const t = await getServerT();
   return (
     <main className="flex min-h-[50vh] items-center justify-center" aria-busy="true">
       <Spinner size="lg" className="text-muted" label={t('common.loading')} />
