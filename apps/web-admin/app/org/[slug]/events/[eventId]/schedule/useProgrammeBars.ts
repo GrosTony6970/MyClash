@@ -112,8 +112,8 @@ export function useProgrammeBars(args: {
   refetch: () => Promise<void>;
   /** Lets the Configure planner re-read a bar this changed server-side. */
   onProgrammeMutated?: () => void;
-  /** Stages the undo entry for a deleted bar. */
-  pushUndo: (entry: ScheduleUndoEntry) => void;
+  /** Tells the undo history a delete is out; its entry follows with the answer. */
+  expectUndo: () => (entry: ScheduleUndoEntry | null) => void;
 }): ProgrammeBars {
   const {
     apiUrl,
@@ -125,7 +125,7 @@ export function useProgrammeBars(args: {
     commit,
     refetch,
     onProgrammeMutated,
-    pushUndo,
+    expectUndo,
   } = args;
   const { t } = useI18n();
   // Memoized so it can be an honest dependency below rather than a fresh object
@@ -187,11 +187,14 @@ export function useProgrammeBars(args: {
     async (blockId: string): Promise<void> => {
       // Snapshot the row BEFORE the DELETE, so undo has something to POST back.
       const row = programmeBlocks.find((b) => b.id === blockId);
+      // A Ctrl+Z pressed before the answer waits for it (ruled 2026-10-15).
+      const landed = expectUndo();
+      let entry: ScheduleUndoEntry | null = null;
       setDeletingBlockId(blockId);
       try {
         await sendBars([deleteBarRequest(target, blockId)], () => {
           if (!row) return;
-          pushUndo({
+          entry = {
             kind: 'delete-block',
             label: row.label,
             block: {
@@ -201,14 +204,15 @@ export function useProgrammeBars(args: {
               startTime: row.startTime,
               endTime: row.endTime,
             },
-          });
+          };
         });
       } finally {
+        landed(entry);
         setDeletingBlockId(null);
         setPendingBlockDelete(null);
       }
     },
-    [target, programmeBlocks, pushUndo, sendBars],
+    [target, programmeBlocks, expectUndo, sendBars],
   );
 
   /**

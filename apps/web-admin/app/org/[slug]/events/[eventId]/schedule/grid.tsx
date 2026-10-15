@@ -420,7 +420,7 @@ export function ScheduleGrid({
     commit,
     refetch: refetchScheduleAndBlocks,
     onProgrammeMutated,
-    pushUndo: history.push,
+    expectUndo: history.expectEntry,
   });
   const {
     movingBlockId,
