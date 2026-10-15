@@ -1,3 +1,4 @@
+import { HEADERS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 import { LeaguesController } from './leagues.controller';
 import { LeaguesService } from './leagues.service';
@@ -31,6 +32,19 @@ const HEADER =
   'ranking_group;league_rank;fighter;total_points;participation_count;medal_count;double_hit_average';
 
 describe('the season report CSV', () => {
+  it('is sent as a download, so a pick never opens the text in the tab', () => {
+    const headers = Reflect.getMetadata(
+      HEADERS_METADATA,
+      LeaguesController.prototype.finalReportCsv,
+    ) as Array<{ name: string; value: string }>;
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        { name: 'Content-Type', value: 'text/csv; charset=utf-8' },
+        { name: 'Content-Disposition', value: 'attachment; filename="final-report.csv"' },
+      ]),
+    );
+  });
+
   it('writes the French Excel file when asked: ;, and the average as 1,5', async () => {
     const csv = await controllerReporting([LEA]).finalReportCsv('league-1', { csv: 'excel-fr' });
     expect(csv).toBe(`\uFEFF${HEADER}\r\nopen;1;Léa Martin;42;2;1;1,5\r\n`);

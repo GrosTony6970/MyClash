@@ -258,6 +258,38 @@ describe('rankings', () => {
     ]);
   });
 
+  it('ranks a win above more points', () => {
+    // Bo won with 1 point; Ada lost with 4. A table read by points alone would put Ada first.
+    const reports = buildTournamentReports(
+      TOURNAMENT,
+      tables({
+        persons: [
+          { id: 'p-1', given_name: 'Ada', family_name: 'One' },
+          { id: 'p-2', given_name: 'Bo', family_name: 'Two' },
+        ],
+        registrations: [
+          { id: 'r-1', tournament_id: 't-1', person_id: 'p-1' },
+          { id: 'r-2', tournament_id: 't-1', person_id: 'p-2' },
+        ],
+        phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }],
+        matches: [
+          {
+            id: 'm-1',
+            phase_id: 'ph-1',
+            status: 'completed',
+            red_registration_id: 'r-1',
+            blue_registration_id: 'r-2',
+            red_score: 4,
+            blue_score: 1,
+            winner_registration_id: 'r-2',
+          },
+        ],
+      }),
+    );
+
+    expect(reports.rankingsCsv.split('\n').slice(1)).toEqual(['1,Bo Two,1,1,4', '2,Ada One,0,4,1']);
+  });
+
   it('ignores a match that is not completed', () => {
     const reports = buildTournamentReports(
       TOURNAMENT,
@@ -397,6 +429,8 @@ describe('order', () => {
         .map((line) => line.split(',')[0]);
     expect(firstCells(reports.matchesCsv)).toEqual(['a', 'c', 'f']);
     expect(firstCells(reports.exchangesCsv)).toEqual(['x2', 'x1', 'x3', 'x4', 'x5']);
+    // A hit whose row holds no `voided` was not voided: the cell says so, never empty.
+    expect(reports.exchangesCsv.split('\n')[1]?.endsWith(',false')).toBe(true);
   });
 });
 
