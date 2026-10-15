@@ -113,11 +113,12 @@ const BASE: TableData = {
 };
 
 /** A hit of `match` (one bout of Tournament "Longsword", Pool 1). */
-function hit(id: string, sequence: number): Row {
+function hit(id: string, sequence: number, occurredAt = '2026-03-14T09:00:00+00:00'): Row {
   return {
     id,
     type: 'clean',
     sequence,
+    occurred_at: occurredAt,
     first_striker_color: 'red',
     first_strike_value: 1,
     afterblow_value: null,
@@ -135,13 +136,16 @@ function hit(id: string, sequence: number): Row {
   };
 }
 
-/** The exchanges read of the full CSV, answered page by page: each read takes the next page. */
+/**
+ * The exchanges read of the full CSV, answered page by page: each read takes the next page, and a
+ * read past the last page is answered empty.
+ */
 function pagedExchanges(pages: Row[][], error: { message: string } | null = null) {
-  const reads: { select: string; ranges: [number, number][]; filters: string[] }[] = [];
+  const reads: { select: string; filters: string[] }[] = [];
   const supabase = {
     service: {
       from() {
-        const read = { select: '', ranges: [] as [number, number][], filters: [] as string[] };
+        const read = { select: '', filters: [] as string[] };
         reads.push(read);
         const chain: Record<string, unknown> = {
           select(columns: string) {
@@ -156,8 +160,12 @@ function pagedExchanges(pages: Row[][], error: { message: string } | null = null
             read.filters.push(`order ${column}`);
             return chain;
           },
-          range(from: number, to: number) {
-            read.ranges.push([from, to]);
+          gt(column: string, value: unknown) {
+            read.filters.push(`gt ${column} ${String(value)}`);
+            return chain;
+          },
+          limit(count: number) {
+            read.filters.push(`limit ${count}`);
             return chain;
           },
           then(resolve: (value: unknown) => unknown) {
@@ -183,13 +191,18 @@ describe('ExportsService — the full event CSV', () => {
     expect(reads[0]!.filters).toContain('eq matches.phases.tournaments.event_id event-1');
   });
 
-  it('reads past the 1000 rows one read returns', async () => {
-    const first = Array.from({ length: 1000 }, (_, n) => hit(`a${n}`, n + 1));
+  it('reads past the 1000 rows one read returns, each page after the last id', async () => {
+    const first = Array.from({ length: 1000 }, (_, n) =>
+      hit(`a${String(n).padStart(4, '0')}`, n + 1),
+    );
     const { service, reads } = pagedExchanges([first, [hit('b0', 1001)]]);
     const rows = await service.generateFullCsvRows('event-1');
-    expect(reads.map((read) => read.ranges)).toEqual([[[0, 999]], [[1000, 1999]]]);
-    // `id` after the time: two hits of the same instant never straddle two pages.
-    expect(reads[0]!.filters).toEqual(expect.arrayContaining(['order occurred_at', 'order id']));
+    // By key, not by offset: a hit a pad sends between two pages cannot shift a row onto both.
+    expect(reads.map((read) => read.filters.filter((f) => !f.startsWith('eq ')))).toEqual([
+      ['order id', 'limit 1000'],
+      ['order id', 'limit 1000', 'gt id a0999'],
+      ['order id', 'limit 1000', 'gt id b0'],
+    ]);
     expect(rows).toHaveLength(1 + 1001);
     expect(rows[1]).toEqual([
       'Longsword',
@@ -205,6 +218,15 @@ describe('ExportsService — the full event CSV', () => {
       'false',
       null,
     ]);
+  });
+
+  it('writes the hits in the order they were struck, whatever order the reads gave', async () => {
+    const { service } = pagedExchanges([
+      [hit('a', 2, '2026-03-14T09:05:00+00:00'), hit('b', 1, '2026-03-14T09:01:00+00:00')],
+      [hit('c', 3, '2026-03-14T09:01:00+00:00')],
+    ]);
+    const rows = await service.generateFullCsvRows('event-1');
+    expect(rows.slice(1).map((row) => row[3])).toEqual([1, 3, 2]);
   });
 
   it('fails the download when the read fails, instead of sending an empty file', async () => {

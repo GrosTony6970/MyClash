@@ -16,25 +16,39 @@ function answersAsPostgrest<T extends { current: unknown[] }>(chain: T): T {
   return chain;
 }
 
+type Row = Record<string, unknown>;
+
+/**
+ * The read half of the chain: each call narrows `current` as PostgREST would. `order` keeps the
+ * rows as given (a fixture lists them in key order); `gt` compares as text, as a uuid compares.
+ */
+function readsOf<T extends { current: Row[] }>(chain: T) {
+  const narrow = (pick: (rows: Row[]) => Row[]) => {
+    chain.current = pick(chain.current);
+    return chain;
+  };
+  return {
+    eq: vi.fn((column: string, value: unknown) =>
+      narrow((rows) => rows.filter((row) => row[column] === value)),
+    ),
+    in: vi.fn((column: string, values: unknown[]) =>
+      narrow((rows) => rows.filter((row) => values.includes(row[column]))),
+    ),
+    gt: vi.fn((column: string, value: unknown) =>
+      narrow((rows) => rows.filter((row) => String(row[column]) > String(value))),
+    ),
+    order: vi.fn(() => chain),
+    range: vi.fn((start: number, end: number) => narrow((rows) => rows.slice(start, end + 1))),
+    limit: vi.fn((count: number) => narrow((rows) => rows.slice(0, count))),
+  };
+}
+
 function makeSupabase(rows: TableRows) {
   const inserted: Record<string, Record<string, unknown>[]> = {};
   const from = vi.fn((table: string) => {
     const tableRows = rows[table] ?? [];
     const chain = {
       select: vi.fn(() => chain),
-      eq: vi.fn((column: string, value: unknown) => {
-        chain.current = chain.current.filter((row) => row[column] === value);
-        return chain;
-      }),
-      in: vi.fn((column: string, values: unknown[]) => {
-        chain.current = chain.current.filter((row) => values.includes(row[column]));
-        return chain;
-      }),
-      order: vi.fn(() => chain),
-      range: vi.fn((start: number, end: number) => {
-        chain.current = chain.current.slice(start, end + 1);
-        return chain;
-      }),
       insert: vi.fn((payload: Record<string, unknown> | Record<string, unknown>[]) => {
         const items = Array.isArray(payload) ? payload : [payload];
         inserted[table] = [...(inserted[table] ?? []), ...items];
@@ -56,7 +70,7 @@ function makeSupabase(rows: TableRows) {
       current: [...tableRows],
       then: undefined as unknown,
     };
-    return answersAsPostgrest(chain);
+    return answersAsPostgrest(Object.assign(chain, readsOf(chain)));
   });
 
   return {
@@ -150,7 +164,8 @@ describe('ArchiveService', () => {
         { id: 'match-1', tournament_id: 'tournament-1', phase_id: 'phase-1', status: 'completed' },
       ],
       exchanges: Array.from({ length: 1005 }, (_, n) => ({
-        id: `exchange-${n}`,
+        // Zero-padded: listed in key order, as a read by key returns them.
+        id: `exchange-${String(n).padStart(4, '0')}`,
         match_id: 'match-1',
         sequence: n + 1,
         type: 'clean',

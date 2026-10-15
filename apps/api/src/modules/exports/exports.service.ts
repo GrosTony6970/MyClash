@@ -11,6 +11,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { allowsRatingsExport, asEventKind } from '@myclash/types';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
+import { READ_PAGE } from '../../common/postgrest-in-list';
 import { createStoredZip } from '../../common/stored-zip';
 import { FULL_CSV_HEADER, fullCsvRow } from './full-event-csv';
 import {
@@ -211,16 +212,20 @@ export class ExportsService {
   }
 
   /**
-   * Every hit of this Event, page by page. Each embed on the way to the Event is `!inner`: without
-   * it the nested filter only blanks the Tournament and keeps the row, so the file held the hits
-   * of every Event. One read is cut at `EXPORT_PAGE` rows with no word (`PGRST_DB_MAX_ROWS`), so a
-   * full page asks for the next; `id` after `occurred_at` keeps the pages from overlapping.
+   * Every hit of this Event, in the order they were struck. Each embed on the way to the Event is
+   * `!inner`: without it the nested filter only blanks the Tournament and keeps the row, so the
+   * file held the hits of every Event. One read is cut at 1000 rows with no word, so the hits are
+   * read page by page BY KEY, each page after the last id, until a page comes back empty
+   * (`READ_PAGE`). The race, named: the download runs while pads send hits, some with an old time
+   * (a pad back online); by offset, a hit landing between two pages shifted a row onto both. The
+   * file's order is then made here, by time and id.
    */
   private async fetchEventExchanges(eventId: string): Promise<Row[]> {
     const exchanges: Row[] = [];
-    for (let from = 0; ; from += EXPORT_PAGE) {
-      const page = await this.fetchMany('exchanges', (q) =>
-        q
+    for (;;) {
+      const after = exchanges.at(-1)?.['id'];
+      const page = await this.fetchMany('exchanges', (q) => {
+        const query = q
           .select(
             `
             id, type, sequence, occurred_at, clock_time_ms,
@@ -237,12 +242,12 @@ export class ExportsService {
           `,
           )
           .eq('matches.phases.tournaments.event_id', eventId)
-          .order('occurred_at')
           .order('id')
-          .range(from, from + EXPORT_PAGE - 1),
-      );
+          .limit(READ_PAGE);
+        return after === undefined ? query : query.gt('id', after);
+      });
+      if (page.length === 0) return exchanges.sort(byTimeThenId);
       exchanges.push(...page);
-      if (page.length < EXPORT_PAGE) return exchanges;
     }
   }
 
@@ -329,12 +334,16 @@ type QueryChain = PromiseLike<QueryListResult> & {
   in: (column: string, values: unknown[]) => QueryChain;
   is: (column: string, value: unknown) => QueryChain;
   order: (column: string, options?: Record<string, unknown>) => QueryChain;
-  range: (from: number, to: number) => QueryChain;
+  gt: (column: string, value: unknown) => QueryChain;
+  limit: (count: number) => QueryChain;
   maybeSingle: () => Promise<QuerySingleResult>;
 };
 
-/** PostgREST's cut of one read (`PGRST_DB_MAX_ROWS` in `infra/`). */
-const EXPORT_PAGE = 1000;
+/** The full CSV's order: the time a hit was struck, then its id. */
+function byTimeThenId(a: Row, b: Row): number {
+  const at = String(a['occurred_at']).localeCompare(String(b['occurred_at']));
+  return at !== 0 ? at : String(a['id']).localeCompare(String(b['id']));
+}
 
 /** Phase order, then match label — so a re-export is byte-identical. */
 function sortMatches(rows: Row[]): Row[] {

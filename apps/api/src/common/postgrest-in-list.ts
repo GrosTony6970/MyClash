@@ -8,6 +8,13 @@
 export const IN_LIST_MAX = 200;
 
 /**
+ * The most rows one paged read asks for. PostgREST cuts a read at `PGRST_DB_MAX_ROWS` (1000 in
+ * `infra/`) and says nothing, so a paged read goes on until a page comes back EMPTY, never until
+ * one comes back short: a lower cut on the server then costs more reads, not rows.
+ */
+export const READ_PAGE = 1000;
+
+/**
  * `values` cut into pieces of at most `IN_LIST_MAX`, in order. No values, no
  * pieces — so a caller that reads once per piece reads nothing.
  */
