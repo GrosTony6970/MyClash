@@ -311,6 +311,10 @@ export class ExportsService {
         return after === undefined ? query : query.gt('id', after);
       });
       if (page.length === 0) return rows;
+      // A page with no id would be read again and again: the next page starts after it.
+      if (page.at(-1)?.['id'] === undefined) {
+        throw new InternalServerErrorException(`Export query on "${table}" selects no id`);
+      }
       rows.push(...page);
     }
   }

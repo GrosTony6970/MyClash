@@ -290,6 +290,13 @@ describe('ExportsService — HEMA Ratings submission', () => {
     expect(pieces).toEqual([200, 2]);
   });
 
+  it('refuses a paged read whose rows carry no id, instead of reading one page forever', async () => {
+    const noId = makeService({ ...BASE, matches: [{ ...MATCH_ROWS[0], id: undefined }] });
+    await expect(noId.service.previewHemaRatingsSubmission('event-1')).rejects.toThrow(
+      'Export query on "matches" selects no id',
+    );
+  });
+
   it('only counts un-voided forfeits', async () => {
     const { service, recorded } = makeService(BASE);
     await service.previewHemaRatingsSubmission('event-1');
