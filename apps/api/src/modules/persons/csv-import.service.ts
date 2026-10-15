@@ -205,6 +205,10 @@ export class CsvImportService {
     if (content.charCodeAt(0) === 0xfeff) {
       content = content.slice(1);
     }
+    // One kind of line break. csv-parse counts the CR and the LF of a Windows break inside a
+    // quoted cell as two lines, while `recordLine` counts LFs, so every row after such a cell
+    // was named one line too low. A lone CR (an old Mac file) is a break too.
+    content = content.replace(/\r\n?/g, '\n');
 
     const { toColumns, unknownColumns } = headerReader(reads);
     let records: ParsedRecord[];

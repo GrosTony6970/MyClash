@@ -156,6 +156,26 @@ Jean,Dupont,not-an-email`;
       expect(result.rows.map((r) => r.line)).toEqual([3, 4]);
     });
 
+    // csv-parse counted the CR and the LF of a break inside a quoted cell as two lines: the
+    // cell's own row and every row after it were named one line too low.
+    it('counts a Windows break inside a quoted cell as one line', () => {
+      const csv = 'given_name,family_name\r\n"Multi\r\nline",Smith\r\nAda,Lovelace\r\n';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows.map((r) => [r.line, r.family_name])).toEqual([
+        [2, 'Smith'],
+        [4, 'Lovelace'],
+      ]);
+    });
+
+    it('reads a break of a lone CR, as an old Mac file writes it', () => {
+      const csv = 'given_name,family_name\rAda,Lovelace\rBob,Jones\r';
+      const result = service.parse(Buffer.from(csv, 'utf-8'), EVENT_IMPORT_COLUMNS);
+      expect(result.rows.map((r) => [r.line, r.family_name])).toEqual([
+        [2, 'Lovelace'],
+        [3, 'Jones'],
+      ]);
+    });
+
     // csv-parse names the LAST line for a quote never closed; the stray `"` is on line 3.
     it('refuses a file with a quote left open, at the line where the quote opens', () => {
       const csv = 'given_name,family_name\nAda,Lovelace\n"Bob,Jones\nCyd,Moss\nDee,Hill\n';
