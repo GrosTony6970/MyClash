@@ -78,7 +78,6 @@
     "apps/web-public/src/components/me/hooks.ts": 4,
     "apps/web-public/src/components/me/useUnreadBroadcasts.ts": 1,
     "apps/web-public/src/hooks/useWeaponOptions.ts": 1,
-    "apps/web-public/src/theme/fetch-theme.ts": 1,
     "apps/web-staff/app/matches/[matchId]/page.tsx": 2,
     "apps/web-staff/src/hooks/useExchanges.ts": 1,
     "apps/web-staff/src/hooks/useHeartbeat.ts": 1,
