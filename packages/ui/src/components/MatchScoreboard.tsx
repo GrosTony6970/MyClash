@@ -14,6 +14,9 @@ import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
 import { sideColorsFor } from '../utils/side-color';
 import { statusLabel } from '../utils/status-label';
 
+/** The product's name, the title of a scoreboard with no Event name: the same in every language. */
+const PRODUCT_NAME = 'MyClash';
+
 export interface MatchScoreboardProps {
   /** The caller's translator. See src/types/translator.ts for why it is a prop. */
   t: Translator;
@@ -45,6 +48,7 @@ function FighterPanel({
   score,
   club,
   penalties,
+  penaltyCardsLabel,
 }: {
   /** Already-resolved hex for this side, clamped for the dark stage. */
   color: string;
@@ -52,6 +56,8 @@ function FighterPanel({
   score: number;
   club: { name: string; logoUrl: string | null } | null;
   penalties: Penalty[];
+  /** The cards row's name, already translated. */
+  penaltyCardsLabel: string;
 }): React.ReactElement {
   return (
     <div className="text-center">
@@ -81,7 +87,10 @@ function FighterPanel({
         )}
       </div>
       {penalties.length > 0 && (
-        <div className="mt-4 flex items-center justify-center gap-1.5" aria-label="Penalty cards">
+        <div
+          className="mt-4 flex items-center justify-center gap-1.5"
+          aria-label={penaltyCardsLabel}
+        >
           {penalties.map((p) => (
             <span
               key={p.id}
@@ -212,7 +221,7 @@ export function MatchScoreboard({
               {t('scoring.liveMatch.displayTitle')}
             </p>
             <h1 className="mt-2 text-3xl font-black uppercase tracking-wide">
-              {titleSegments.join(' · ') || match.event?.name || 'MyClash'}
+              {titleSegments.join(' · ') || match.event?.name || PRODUCT_NAME}
             </h1>
             {match.roundCode && (
               <p className="mt-1 font-mono text-xs uppercase tracking-widest text-amber-300/80">
@@ -245,6 +254,7 @@ export function MatchScoreboard({
             score={panels[0].score}
             club={panels[0].club}
             penalties={panels[0].penalties}
+            penaltyCardsLabel={t('scoring.liveMatch.penaltyCards')}
           />
           <div className="self-center text-7xl font-black text-gray-500">-</div>
           <FighterPanel
@@ -253,6 +263,7 @@ export function MatchScoreboard({
             score={panels[1].score}
             club={panels[1].club}
             penalties={panels[1].penalties}
+            penaltyCardsLabel={t('scoring.liveMatch.penaltyCards')}
           />
         </section>
 

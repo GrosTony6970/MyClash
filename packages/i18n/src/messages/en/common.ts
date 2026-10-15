@@ -63,6 +63,11 @@ export const common = {
   optional: 'Optional',
   saving: 'Saving...',
   unknown: 'Unknown',
+  bulkActions: 'Bulk actions',
+  country: {
+    clear: 'Clear country',
+    noMatch: 'No country matches',
+  },
   // A person whose name is blank, worded by `nameOrUnknown` (packages/ui). Never
   // their id: an organiser reads the cell aloud at the table.
   unknownName: {
@@ -229,6 +234,14 @@ export const common = {
       brown: 'Brown',
       pink: 'Pink',
     },
+    bracketSlot: {
+      pending: 'Pending',
+      ready: 'Ready',
+      running: 'Running',
+      completed: 'Completed',
+      forfeit: 'Forfeit',
+      disqualified: 'Disqualified',
+    },
   },
   // A standings column's title, per stat (`standingsColumnLabel` of packages/ui, O20).
   standings: {
@@ -249,5 +262,19 @@ export const common = {
     sonnebornBerger: 'Sonneborn-Berger',
     opponentWinPct: "Opponents' win %",
     headToHead: 'Head-to-head',
+  },
+  // The shared bracket's words (BracketView, MatchCard of packages/ui), handed in by the app.
+  bracket: {
+    goldSilverMatch: 'Gold & Silver Match',
+    bronzeMatch: 'Bronze Match',
+    summary: '{rounds}-round bracket · bout slots: {count}',
+    withBronze: ' · with a bronze match',
+    winnersBracket: 'Winners Bracket',
+    losersBracket: 'Losers Bracket',
+    finals: 'Finals',
+    playIns: 'Play-ins',
+    lice: 'Lice: {name}',
+    referee: 'Referee',
+    overrideSlot: 'Change this slot',
   },
 } as const satisfies MessageTree;

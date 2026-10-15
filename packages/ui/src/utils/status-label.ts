@@ -106,6 +106,7 @@ type LeagueOrgRole = 'owner' | 'admin' | 'member';
 type LeagueAttachmentStatus = 'requested' | 'approved' | 'rejected' | 'removed';
 type PersonRole = 'competitor' | 'referee' | 'workshop_lead';
 type RefereeAssignmentStatus = 'assigned' | 'pending' | 'confirmed';
+type BracketSlotStatus = 'pending' | 'ready' | 'running' | 'completed' | 'forfeit' | 'disqualified';
 
 const SWISS_ROUND: Record<SwissRoundStatus, string> = {
   pending: 'common.status.swissRound.pending',
@@ -162,6 +163,15 @@ const REFEREE_ASSIGNMENT: Record<RefereeAssignmentStatus, string> = {
   confirmed: 'common.status.refereeAssignment.confirmed',
 };
 
+const BRACKET_SLOT: Record<BracketSlotStatus, string> = {
+  pending: 'common.status.bracketSlot.pending',
+  ready: 'common.status.bracketSlot.ready',
+  running: 'common.status.bracketSlot.running',
+  completed: 'common.status.bracketSlot.completed',
+  forfeit: 'common.status.bracketSlot.forfeit',
+  disqualified: 'common.status.bracketSlot.disqualified',
+};
+
 // A colour's name: every ColorToken and every side colour a Tournament may pick.
 const COLOR: Record<ColorToken | TournamentSideColor, string> = {
   red: 'common.status.color.red',
@@ -203,6 +213,7 @@ const STATUS_LABEL_KEYS = {
   personRole: PERSON_ROLE,
   refereeAssignment: REFEREE_ASSIGNMENT,
   color: COLOR,
+  bracketSlot: BRACKET_SLOT,
 } as const;
 
 export type StatusLabelDomain = keyof typeof STATUS_LABEL_KEYS;

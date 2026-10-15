@@ -633,7 +633,7 @@ export default function NewLeaguePage() {
                               className="flex items-center justify-between gap-2 text-xs"
                             >
                               <span className="flex items-center gap-1.5">
-                                <span>{tour.name ?? '(unnamed)'}</span>
+                                <span>{tour.name ?? t('admin.adminLeagues.unnamed')}</span>
                                 {tour.weapon && <span className="text-muted">· {tour.weapon}</span>}
                                 {tour.status && (
                                   <span
@@ -663,7 +663,7 @@ export default function NewLeaguePage() {
                                     : 'bg-info/10 text-info hover:bg-info/20',
                                 ].join(' ')}
                               >
-                                {picked ? 'Added' : 'Add'}
+                                {picked ? t('admin.adminLeagues.added') : t('actions.add')}
                               </button>
                             </li>
                           );
@@ -699,7 +699,7 @@ export default function NewLeaguePage() {
                       <option value="">{t('admin.adminLeagues.noGroupOption')}</option>
                       {leagueGroups.map((g) => (
                         <option key={g.tmpId} value={g.tmpId}>
-                          {g.name.trim() || '(unnamed)'}
+                          {g.name.trim() || t('admin.adminLeagues.unnamed')}
                         </option>
                       ))}
                     </select>
@@ -735,7 +735,7 @@ export default function NewLeaguePage() {
           disabled={submitting || !name.trim() || !slug.trim()}
           className="rounded-md bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
         >
-          {submitting ? 'Creating…' : 'Create league'}
+          {submitting ? t('admin.adminLeagues.creating') : t('admin.adminLeagues.createLeague')}
         </button>
       </div>
     </main>

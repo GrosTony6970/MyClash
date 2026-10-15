@@ -26,11 +26,11 @@ export interface ClubComboboxProps {
   /** When true, offer a "+ create" row for the typed text with no exact match. */
   allowCreate?: boolean;
   /** i18n'd label for the create row, given the typed text. */
-  createLabel?: (query: string) => string;
+  createLabel: (query: string) => string;
   /** i18n'd "no matches" text. */
-  noMatchLabel?: string;
+  noMatchLabel: string;
   'aria-label'?: string;
-  clearLabel?: string;
+  clearLabel: string;
   id?: string;
   className?: string;
 }
@@ -47,9 +47,9 @@ export function ClubCombobox({
   searchClubs,
   placeholder,
   allowCreate = true,
-  createLabel = (q) => `Create “${q}”`,
-  noMatchLabel = 'No clubs match',
-  clearLabel = 'Clear club',
+  createLabel,
+  noMatchLabel,
+  clearLabel,
   id,
   className = '',
   ...rest

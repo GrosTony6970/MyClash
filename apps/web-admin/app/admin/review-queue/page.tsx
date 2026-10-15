@@ -242,7 +242,7 @@ export default function ReviewQueuePage() {
 
       {/* Count */}
       <div className="mb-3 text-sm text-muted">
-        {loading ? 'Loading…' : `${items.length} item${items.length !== 1 ? 's' : ''}`}
+        {loading ? t('common.loading') : t('admin.reviewQueue.itemCount', { count: items.length })}
       </div>
 
       {/* Table */}

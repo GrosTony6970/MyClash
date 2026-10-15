@@ -10,7 +10,7 @@ export default function LeagueScoringSystemsListPage() {
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Rulesets"
+        eyebrow={t('admin.rulesets.eyebrow')}
         title={t('admin.rulesets.league.title')}
         subtitle={t('admin.rulesets.league.subtitle')}
       />

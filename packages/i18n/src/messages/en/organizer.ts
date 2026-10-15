@@ -1145,6 +1145,8 @@ export const organizer = {
       removed: 'Removed from this piste: {names}',
     },
     state: {
+      queuedRefused: '✖ {queued} waiting · {refused} refused',
+      queued: '▲ {queued} waiting',
       attention: 'Needs attention',
       no_scorer: 'No scorer',
       stuck: 'Sync stuck',
@@ -2993,6 +2995,7 @@ export const organizer = {
     },
   },
   deletionRequest: {
+    moreCharacters: '{count} more characters required',
     requestDeletion: 'Request deletion',
     requestDeletionModalTitleEvent: 'Request event deletion',
     requestDeletionModalTitleTournament: 'Request tournament deletion',

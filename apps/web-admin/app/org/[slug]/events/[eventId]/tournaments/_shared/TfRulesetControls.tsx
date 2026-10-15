@@ -188,7 +188,7 @@ function DefaultAffordance({
       type="button"
       onClick={onReset}
       className="text-xs text-muted underline hover:text-foreground"
-      title={`Reset to ${defaultLabel}`}
+      title={t('admin.orgTournaments.resetTo', { value: defaultLabel })}
     >
       {t('admin.orgTournaments.reset')}
     </button>
@@ -201,7 +201,7 @@ function ModifiedBadge({ show, defaultLabel }: { show: boolean; defaultLabel: st
   if (!show) return null;
   return (
     <span
-      title={`Default: ${defaultLabel}`}
+      title={t('admin.orgTournaments.defaultValue', { value: defaultLabel })}
       className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
     >
       {t('admin.orgTournaments.modifiedBadge')}

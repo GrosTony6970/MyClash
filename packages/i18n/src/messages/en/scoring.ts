@@ -574,6 +574,7 @@ export const scoring = {
     disabled: 'Live updates off',
   },
   liveMatch: {
+    penaltyCards: 'Penalty cards',
     red: 'Fighter 1',
     blue: 'Fighter 2',
     noExchanges: 'No exchanges yet.',

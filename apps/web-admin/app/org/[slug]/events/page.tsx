@@ -1030,6 +1030,8 @@ export default function OrgEventsListPage() {
               <label className="grid gap-1 text-sm font-semibold text-foreground-secondary">
                 {t('organizer.newEvent.country')}
                 <CountryCombobox
+                  clearLabel={t('common.country.clear')}
+                  noMatchLabel={t('common.country.noMatch')}
                   value={form.country}
                   onChange={(code) => setForm({ ...form, country: code })}
                   locale={locale}

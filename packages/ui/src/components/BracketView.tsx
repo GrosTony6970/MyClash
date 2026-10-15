@@ -64,12 +64,11 @@ export interface BracketViewProps {
    *  value like `gap-24` without affecting other brackets. */
   roundGapClass?: string;
   /**
-   * Translator for the round column headers (lib is i18n-free — the app owns
-   * the messages, same as `youLabel` and `<TVFooter t={…}>`). Omitted → the
-   * English defaults this component has always rendered, which is why a French
-   * viewer read "Semi-finals" above a bracket in an otherwise French page.
+   * The app's translator (lib is i18n-free — the app owns the messages, same as
+   * `youLabel` and `<TVFooter t={…}>`). Required: every word of the bracket is
+   * the reader's (X4); its English defaults are gone.
    */
-  t?: RoundTranslator;
+  t: RoundTranslator;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
@@ -155,6 +154,7 @@ export function BracketView({
       roundCodeFor={roundCodeFor}
       pitchPx={pitchPx}
       roundGapClass={roundGapClass}
+      t={t}
     />
   ) : (
     <SingleElimLayout
@@ -207,13 +207,13 @@ interface SingleElimLayoutProps {
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
   pitchPx: number;
   roundGapClass: string;
-  t?: RoundTranslator;
+  t: RoundTranslator;
 }
 
 function SingleElimLayout({
   slots,
   rounds,
-  playInLabel = 'Play-ins',
+  playInLabel,
   onMatchClick,
   onOverrideSlot,
   redColor,
@@ -267,7 +267,7 @@ function SingleElimLayout({
       else if (remaining === 3) out[r] = 'Quarter-finals';
       else out[r] = `Round of ${1 << remaining}`;
     }
-    if (roundNumbers.includes(0)) out[0] = playInLabel;
+    if (roundNumbers.includes(0)) out[0] = playInLabel ?? t('common.bracket.playIns');
     return { ...out, ...(roundLabels ?? {}) };
   }, [roundNumbers, playInLabel, roundLabels, t]);
 
@@ -346,7 +346,7 @@ function SingleElimLayout({
                             className="absolute left-0 right-0 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700"
                             style={{ top: `${center - CARD_HEIGHT_PX / 2 - 18}px` }}
                           >
-                            Gold &amp; Silver Match
+                            {t('common.bracket.goldSilverMatch')}
                           </p>
                         )}
                         <div
@@ -354,6 +354,7 @@ function SingleElimLayout({
                           style={{ top: `${center - CARD_HEIGHT_PX / 2}px` }}
                         >
                           <MatchCard
+                            t={t}
                             slot={slot}
                             redColor={redColor}
                             blueColor={blueColor}
@@ -373,13 +374,14 @@ function SingleElimLayout({
                         className="absolute left-0 right-0 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700"
                         style={{ top: `${bronzeCenter - CARD_HEIGHT_PX / 2 - 18}px` }}
                       >
-                        Bronze Match
+                        {t('common.bracket.bronzeMatch')}
                       </p>
                       <div
                         className="absolute left-0 right-0"
                         style={{ top: `${bronzeCenter - CARD_HEIGHT_PX / 2}px` }}
                       >
                         <MatchCard
+                          t={t}
                           slot={bronzeMatch}
                           redColor={redColor}
                           blueColor={blueColor}
@@ -399,8 +401,8 @@ function SingleElimLayout({
         </div>
       </div>
       <p className="text-xs text-slate-500">
-        {rounds}-round bracket · {slots.length} match slot{slots.length === 1 ? '' : 's'}
-        {bronzeMatch ? ' · bronze match' : ''}
+        {t('common.bracket.summary', { rounds, count: slots.length })}
+        {bronzeMatch ? t('common.bracket.withBronze') : null}
       </p>
     </div>
   );
@@ -419,6 +421,7 @@ interface DoubleElimLayoutProps {
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
   pitchPx: number;
   roundGapClass: string;
+  t: RoundTranslator;
 }
 
 function DoubleElimLayout({
@@ -432,6 +435,7 @@ function DoubleElimLayout({
   roundCodeFor,
   pitchPx,
   roundGapClass,
+  t,
 }: DoubleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -467,10 +471,11 @@ function DoubleElimLayout({
       <div ref={containerRef} className="relative w-full space-y-8">
         <BracketConnectors cardRefs={cardRefs.current} edges={edges} containerRef={containerRef} />
         <Lane
-          title="Winners Bracket"
+          title={t('common.bracket.winnersBracket')}
           slots={wbSlots}
           renderCard={(slot) => (
             <MatchCard
+              t={t}
               key={slot.id}
               slot={slot}
               redColor={redColor}
@@ -483,7 +488,7 @@ function DoubleElimLayout({
           )}
           accent="text-amber-600"
           roundLabelFn={(round, idx) =>
-            round === 0 ? 'Play-ins' : `R${idx + (hasPlayIn ? 0 : 1)}`
+            round === 0 ? t('common.bracket.playIns') : `R${idx + (hasPlayIn ? 0 : 1)}`
           }
           edgeOptions={{ refPrefix: 'WB' }}
           pitchPx={pitchPx}
@@ -491,10 +496,11 @@ function DoubleElimLayout({
         />
         {lbSlots.length > 0 && (
           <Lane
-            title="Losers Bracket"
+            title={t('common.bracket.losersBracket')}
             slots={lbSlots}
             renderCard={(slot) => (
               <MatchCard
+                t={t}
                 key={slot.id}
                 slot={slot}
                 redColor={redColor}
@@ -513,10 +519,11 @@ function DoubleElimLayout({
         )}
         {gfSlots.length > 0 && (
           <Lane
-            title="Finals"
+            title={t('common.bracket.finals')}
             slots={gfSlots}
             renderCard={(slot) => (
               <MatchCard
+                t={t}
                 key={slot.id}
                 slot={slot}
                 redColor={redColor}
@@ -528,7 +535,9 @@ function DoubleElimLayout({
               />
             )}
             accent="text-violet-600"
-            roundLabelFn={(round) => (round === gfRound ? 'Grand Final' : 'Reset')}
+            roundLabelFn={(round) =>
+              round === gfRound ? t('common.round.grandFinal') : t('common.round.grandFinalReset')
+            }
             pitchPx={pitchPx}
             roundGapClass={roundGapClass}
           />

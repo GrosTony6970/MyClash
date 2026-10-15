@@ -819,11 +819,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                               if (isSuperAdmin) return;
                               void handleAddMember(account);
                             }}
-                            title={
-                              isSuperAdmin
-                                ? 'Super-admin — cannot belong to an organization.'
-                                : undefined
-                            }
+                            title={isSuperAdmin ? t('admin.adminMisc.superAdminNoOrg') : undefined}
                             className="w-full rounded-md border border-border px-4 py-3 text-left transition hover:border-info/30 hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <span className="block font-semibold text-foreground">

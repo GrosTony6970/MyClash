@@ -402,7 +402,7 @@ function NumberField({
         {label}
         {modified && (
           <span
-            title={`Default: ${defaultValue}`}
+            title={t('admin.orgTournaments.defaultValue', { value: String(defaultValue) })}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             {t('admin.orgTournaments.modifiedBadge')}
@@ -413,7 +413,7 @@ function NumberField({
             type="button"
             onClick={onReset}
             className="ml-auto text-xs text-muted underline hover:text-foreground"
-            title={`Reset to ${defaultValue}`}
+            title={t('admin.orgTournaments.resetTo', { value: String(defaultValue) })}
           >
             {t('admin.orgTournaments.reset')}
           </button>
@@ -461,7 +461,7 @@ function SelectField({
         {label}
         {modified && (
           <span
-            title={`Default: ${defaultValue}`}
+            title={t('admin.orgTournaments.defaultValue', { value: String(defaultValue) })}
             className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
           >
             {t('admin.orgTournaments.modifiedBadge')}
@@ -472,7 +472,7 @@ function SelectField({
             type="button"
             onClick={onReset}
             className="ml-auto text-xs text-muted underline hover:text-foreground"
-            title={`Reset to ${defaultValue}`}
+            title={t('admin.orgTournaments.resetTo', { value: String(defaultValue) })}
           >
             {t('admin.orgTournaments.reset')}
           </button>

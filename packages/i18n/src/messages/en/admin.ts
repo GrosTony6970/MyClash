@@ -119,6 +119,13 @@ export const admin = {
     rejectConfirm: 'Reject',
   },
   adminLeagues: {
+    eyebrow: 'Leagues',
+    pageSubtitle: 'Manage league setup, scoring, member orgs, and linked tournaments.',
+    unnamed: '(unnamed)',
+    added: 'Added',
+    creating: 'Creating…',
+    createLeague: 'Create league',
+    deleteConfirmBody: 'Delete league "{name}"? This cannot be undone.',
     ffamheTf2026Option: 'FFAMHE TF 2026',
     versionOption: 'v{version} · {date}',
     toastDeleted: 'Deleted "{name}"',
@@ -261,6 +268,7 @@ export const admin = {
     cancelButton: 'Cancel',
   },
   adminMisc: {
+    superAdminNoOrg: 'Super-admin — cannot belong to an organization.',
     hemaHealthLine: '{status} · {latency}ms',
     close: 'Close',
     ownerBadge: 'owner',
@@ -274,6 +282,13 @@ export const admin = {
     current: 'current',
   },
   orgPersons: {
+    deleteScopeTournament:
+      'Reviewing pool / bracket / match assignments inside the selected tournament. Started or completed matches block removal — those participants stay.',
+    deleteScopeEvent:
+      'Reviewing every place these participants are plumbed in across the event. Started or completed matches block removal — those participants stay.',
+    deleteLoading: 'Loading {count}…',
+    deleteBlocked: '{blocked} blocked, {clean} will be removed.',
+    deleteClean: '{clean} will be removed.',
     close: 'Close',
     loadError: 'Could not load the roster.',
     loadingName: 'Loading {name}…',
@@ -384,6 +399,8 @@ export const admin = {
     availabilityAll: 'all',
   },
   orgTournaments: {
+    defaultValue: 'Default: {value}',
+    resetTo: 'Reset to {value}',
     tfRulesetLegend: 'Ruleset (TF v1) — per-tournament overrides',
     tfRulesetHint:
       'Defaults come from the ruleset. Any value you change here is stored as a per-tournament override; use "Reset" to restore the ruleset default.',
@@ -457,6 +474,10 @@ export const admin = {
     rulesetPreviewRow: 'Fighter {n} · {wins}W {ties}T {losses}L',
   },
   common: {
+    color: 'Colour',
+    yes: 'Yes',
+    no: 'No',
+    working: 'Working…',
     sortAscLabel: 'Sort ascending',
     sortDescLabel: 'Sort descending',
     searchPlaceholder: 'Search…',
@@ -622,6 +643,10 @@ export const admin = {
     current: 'Current',
   },
   hemaRatings: {
+    healthOk: 'Working',
+    healthFailed: 'Failing',
+    collapse: 'Collapse',
+    expand: 'Expand',
     title: 'HEMA Ratings',
     subtitle: 'Last sync: {relative}',
     runSyncNow: 'Run sync now',
@@ -985,6 +1010,7 @@ export const admin = {
     },
   },
   featureFlags: {
+    eyebrow: 'Flags',
     title: 'Feature Flags',
     description: 'Platform-wide toggles for opt-in features and incident mitigations.',
     loading: 'Loading...',
@@ -1066,6 +1092,7 @@ export const admin = {
     },
   },
   rulesets: {
+    eyebrow: 'Rulesets',
     shared: {
       columns: {
         name: 'Name',
@@ -1413,6 +1440,7 @@ export const admin = {
     },
   },
   penaltyRulesets: {
+    entryCount: 'Entries: {count}',
     title: 'Penalty rulesets',
     description:
       'Card-based penalty libraries (yellow/red/black) that tournaments reference for referee decisions.',
@@ -1724,6 +1752,9 @@ export const admin = {
     },
   },
   reviewQueue: {
+    approving: 'Approving…',
+    rejecting: 'Rejecting…',
+    itemCount: 'Items: {count}',
     navTitle: 'Review queue',
     pageTitle: 'Review queue',
     pendingBadge: '{count} pending',
@@ -1866,6 +1897,7 @@ export const admin = {
     },
   },
   clubs: {
+    eyebrow: 'Clubs',
     title: 'Clubs',
     description: 'Edit club names, abbreviations, and locations.',
     loadError: 'Failed to load clubs.',
@@ -1931,8 +1963,7 @@ export const admin = {
     unverifySuccess: '{club} marked as unverified.',
     selectAll: 'Select all clubs',
     selectRow: 'Select {club}',
-    bulkUnitSingular: 'club',
-    bulkUnitPlural: 'clubs',
+    bulkSelected: '{count} clubs selected',
     bulkVerifyAction: 'Verify all',
     bulkUnverifyAction: 'Unverify all',
     bulkArchiveAction: 'Archive all',

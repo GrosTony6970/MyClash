@@ -13,8 +13,11 @@ import * as React from 'react';
 export interface BulkActionBarProps {
   /** Number of currently selected rows. The bar is hidden below `minCount`. */
   count: number;
-  /** Optional label for the unit. Defaults to "item" / "items". */
-  itemLabel?: { singular: string; plural: string };
+  /**
+   * The bar's words, already translated (X4): the region's name, the count sentence
+   * ("3 clubs selected") and the Clear button.
+   */
+  labels: { region: string; selected: string; clear: string };
   /** Action buttons on the right. */
   children: React.ReactNode;
   /** Optional clear-selection callback. Renders a "Clear" link if provided. */
@@ -32,7 +35,7 @@ export interface BulkActionBarProps {
 
 export function BulkActionBar({
   count,
-  itemLabel = { singular: 'item', plural: 'items' },
+  labels,
   children,
   onClear,
   placement = 'bottom-floating',
@@ -40,7 +43,6 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   if (count < minCount) return null;
 
-  const noun = count === 1 ? itemLabel.singular : itemLabel.plural;
   // z-sticky (20), not the bare z-30 this used to carry: 30 is the page
   // header's layer, and a tie meant the pinned bar painted over the shell
   // header instead of sliding under it.
@@ -50,21 +52,19 @@ export function BulkActionBar({
       : 'bulk-bar-enter fixed inset-x-4 bottom-4 z-sidebar mx-auto flex w-[min(960px,calc(100%-2rem))] items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-5 py-3 shadow-lg';
 
   return (
-    <div role="region" aria-label="Bulk actions" className={layoutClass}>
+    <div role="region" aria-label={labels.region} className={layoutClass}>
       <div className="flex items-center gap-3">
         <span className="inline-flex h-7 min-w-[2rem] items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold text-white">
           {count}
         </span>
-        <p className="text-sm font-medium text-slate-700">
-          {count} {noun} selected
-        </p>
+        <p className="text-sm font-medium text-slate-700">{labels.selected}</p>
         {onClear ? (
           <button
             type="button"
             onClick={onClear}
             className="ml-2 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-900"
           >
-            Clear
+            {labels.clear}
           </button>
         ) : null}
       </div>

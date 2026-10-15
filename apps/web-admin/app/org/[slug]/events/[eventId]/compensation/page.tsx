@@ -461,7 +461,7 @@ export default function CompensationPage() {
                   >
                     <td className="py-2.5 px-4 font-medium text-foreground">
                       <span aria-hidden="true" className="mr-1 text-muted text-xs">
-                        {expandedRows.has(referee.personId) ? 'v' : '>'}
+                        {expandedRows.has(referee.personId) ? '▾' : '▸'}
                       </span>
                       {referee.displayName}
                     </td>

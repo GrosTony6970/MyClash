@@ -203,7 +203,7 @@ export default function AdminPenaltyRulesetsPage() {
   return (
     <main className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Rulesets"
+        eyebrow={t('admin.rulesets.eyebrow')}
         title={t('admin.penaltyRulesets.title')}
         subtitle={t('admin.penaltyRulesets.description')}
       />

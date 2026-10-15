@@ -14,6 +14,7 @@ import nextPlugin from '@next/eslint-plugin-next';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noRawPaletteColorRule from '../../eslint-rules/no-raw-palette-color.mjs';
+import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 
 /**
  * RATCHET — files with pre-existing theme debt, exempted so the gate can go on
@@ -76,6 +77,7 @@ export default tseslint.config(
       myclash: {
         rules: {
           'no-raw-palette-color': noRawPaletteColorRule,
+          'no-literal-string': noLiteralStringRule,
         },
       },
     },
@@ -86,6 +88,8 @@ export default tseslint.config(
     linterOptions: { reportUnusedDisableDirectives: 'off' },
     rules: {
       'myclash/no-raw-palette-color': 'error',
+      // A shared component words nothing in English: the app hands it translated words (X4).
+      'myclash/no-literal-string': 'error',
     },
     languageOptions: {
       parserOptions: {

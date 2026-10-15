@@ -130,7 +130,7 @@ export default function AdminFeatureFlagsPage() {
   return (
     <main className="mx-auto max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Flags"
+        eyebrow={t('admin.featureFlags.eyebrow')}
         title={t('admin.featureFlags.title')}
         subtitle={t('admin.featureFlags.description')}
       />

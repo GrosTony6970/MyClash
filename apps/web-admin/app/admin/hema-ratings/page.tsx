@@ -327,7 +327,9 @@ export default function HemaRatingsAdminPage() {
           <p className="mt-3 inline-block rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-mono">
             <span
               className={health.ok ? 'text-success' : 'text-danger'}
-              aria-label={health.ok ? 'ok' : 'failed'}
+              aria-label={
+                health.ok ? t('admin.hemaRatings.healthOk') : t('admin.hemaRatings.healthFailed')
+              }
             >
               ●
             </span>{' '}
@@ -393,7 +395,11 @@ export default function HemaRatingsAdminPage() {
                       <td className="px-3 py-2 align-top">
                         <button
                           type="button"
-                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          aria-label={
+                            isExpanded
+                              ? t('admin.hemaRatings.collapse')
+                              : t('admin.hemaRatings.expand')
+                          }
                           onClick={() => toggleExpanded(f.globalPersonId)}
                           className="text-muted hover:text-foreground-secondary"
                         >

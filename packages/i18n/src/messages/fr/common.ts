@@ -36,6 +36,11 @@ export const common = {
   optional: 'Facultatif',
   saving: 'Enregistrement...',
   unknown: 'Inconnu',
+  bulkActions: 'Actions groupées',
+  country: {
+    clear: 'Effacer le pays',
+    noMatch: 'Aucun pays ne correspond',
+  },
   unknownName: {
     fighter: 'Combattant inconnu',
     fighterWithBib: 'Combattant inconnu (dossard {bib})',
@@ -188,6 +193,14 @@ export const common = {
       brown: 'Marron',
       pink: 'Rose',
     },
+    bracketSlot: {
+      pending: 'En attente',
+      ready: 'Prêt',
+      running: 'En cours',
+      completed: 'Terminé',
+      forfeit: 'Forfait',
+      disqualified: 'Disqualifié',
+    },
   },
   standings: {
     score: 'Score',
@@ -207,5 +220,18 @@ export const common = {
     sonnebornBerger: 'Sonneborn-Berger',
     opponentWinPct: '% de victoires des adversaires',
     headToHead: 'Confrontation directe',
+  },
+  bracket: {
+    goldSilverMatch: 'Finale (or et argent)',
+    bronzeMatch: 'Petite finale',
+    summary: 'Tableau en {rounds} tours · places de combat : {count}',
+    withBronze: ' · avec petite finale',
+    winnersBracket: 'Tableau principal',
+    losersBracket: 'Tableau des perdants',
+    finals: 'Finales',
+    playIns: 'Barrages',
+    lice: 'Lice : {name}',
+    referee: 'Arbitre',
+    overrideSlot: 'Modifier cette place',
   },
 } as const satisfies DeepString<typeof enCommon>;

@@ -270,9 +270,9 @@ export default function AdminLeaguesPage() {
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Leagues"
+        eyebrow={t('admin.adminLeagues.eyebrow')}
         title={t('admin.adminLeagues.pageTitle')}
-        subtitle="Manage league setup, scoring, member orgs, and linked tournaments."
+        subtitle={t('admin.adminLeagues.pageSubtitle')}
         actions={
           <Link
             href="/admin/leagues/new"
@@ -491,7 +491,9 @@ export default function AdminLeaguesPage() {
                     <option value="archived">{t('admin.adminLeagues.statusArchived')}</option>
                   </select>
                 </DataTableCell>
-                <DataTableCell>{league.public_visibility ? 'Yes' : 'No'}</DataTableCell>
+                <DataTableCell>
+                  {league.public_visibility ? t('admin.common.yes') : t('admin.common.no')}
+                </DataTableCell>
                 <DataTableCell>
                   <div className="flex flex-wrap gap-2">
                     <Link
@@ -534,9 +536,11 @@ export default function AdminLeaguesPage() {
         open={pendingDelete !== null}
         title={t('admin.adminLeagues.deleteDialogTitle')}
         description={
-          pendingDelete ? `Delete league "${pendingDelete.name}"? This cannot be undone.` : ''
+          pendingDelete
+            ? t('admin.adminLeagues.deleteConfirmBody', { name: pendingDelete.name })
+            : ''
         }
-        confirmLabel="Delete"
+        confirmLabel={t('actions.delete')}
         danger
         busy={busyId === pendingDelete?.id}
         onCancel={() => setPendingDelete(null)}

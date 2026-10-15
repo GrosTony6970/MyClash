@@ -120,6 +120,8 @@ export function EventFilterBar({
             {t('publicApp.home.filterCountryLabel')}
           </label>
           <CountryCombobox
+            clearLabel={t('common.country.clear')}
+            noMatchLabel={t('common.country.noMatch')}
             id="public-events-country"
             value={filters.country}
             locale={locale}

@@ -46,7 +46,7 @@ async function press(button: HTMLButtonElement | undefined) {
 /** Opens the override panel of the first bout, `m1`. */
 async function openPanel() {
   await press(
-    document.body.querySelector<HTMLButtonElement>('button[aria-label="Override slot"]')!,
+    document.body.querySelector<HTMLButtonElement>('button[aria-label="Change this slot"]')!,
   );
 }
 

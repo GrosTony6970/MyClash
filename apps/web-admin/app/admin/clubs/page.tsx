@@ -793,7 +793,7 @@ export default function AdminClubsPage() {
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Clubs"
+        eyebrow={t('admin.clubs.eyebrow')}
         title={t('admin.clubs.title')}
         subtitle={t('admin.clubs.description')}
         actions={
@@ -964,9 +964,10 @@ export default function AdminClubsPage() {
         count={selection.count}
         placement="top-sticky"
         minCount={2}
-        itemLabel={{
-          singular: t('admin.clubs.bulkUnitSingular'),
-          plural: t('admin.clubs.bulkUnitPlural'),
+        labels={{
+          region: t('common.bulkActions'),
+          selected: t('admin.clubs.bulkSelected', { count: selection.count }),
+          clear: t('actions.clear'),
         }}
         onClear={() => selection.clear()}
       >

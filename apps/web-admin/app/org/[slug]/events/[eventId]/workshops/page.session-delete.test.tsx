@@ -17,6 +17,9 @@ import WorkshopsAdminPage from './page';
  * says "0 booked" for every Workshop here, as a list loaded before the first
  * booking does.
  */
+/** The stub board's button text: a test's handle, not a word a person reads. */
+const unscheduleLabel = (sessionId: string) => `unschedule ${sessionId}`;
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ slug: 'club', eventId: 'ev1' }),
   useRouter: () => ({ replace: () => undefined, push: () => undefined }),
@@ -48,7 +51,7 @@ vi.mock('./WorkshopScheduleBoard', () => ({
       {workshops.flatMap((workshop) =>
         workshop.sessions.map((session) => (
           <button key={session.id} type="button" onClick={() => onUnschedule?.(session.id)}>
-            {`unschedule ${session.id}`}
+            {unscheduleLabel(session.id)}
           </button>
         )),
       )}

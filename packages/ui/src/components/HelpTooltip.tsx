@@ -37,7 +37,7 @@ export const HelpTooltip: React.FC<HelpTooltipProps> = ({ text, ariaLabel, child
     <span className="group relative inline-flex">
       <button
         type="button"
-        aria-label={ariaLabel ?? `Help: ${text}`}
+        aria-label={ariaLabel ?? text}
         aria-describedby={id}
         className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-800/30"
       >

@@ -119,9 +119,12 @@ export function BoardRowView({
           {row.health === null
             ? t('organizer.live.unknown')
             : row.health.rejectedCount > 0
-              ? `✖ ${row.health.outboxDepth}q·${row.health.rejectedCount}r`
+              ? t('organizer.live.state.queuedRefused', {
+                  queued: row.health.outboxDepth,
+                  refused: row.health.rejectedCount,
+                })
               : row.health.outboxDepth > 0
-                ? `▲ ${row.health.outboxDepth}q`
+                ? t('organizer.live.state.queued', { queued: row.health.outboxDepth })
                 : t('organizer.live.state.synced')}
         </span>
         <span className="w-32 shrink-0">

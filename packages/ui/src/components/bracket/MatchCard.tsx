@@ -2,11 +2,15 @@ import * as React from 'react';
 import { resolveMatchWinner } from '@myclash/types';
 import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
 import { SkillBadge } from '../SkillBadge';
+import type { RoundTranslator } from '../../utils/round-label';
+import { isKnownStatus, statusLabelKey } from '../../utils/status-label';
 import type { BracketSlotData, ColorToken } from './types';
 import { BracketHighlightContext } from './highlight-context';
 
 export interface MatchCardProps {
   slot: BracketSlotData;
+  /** The app's translator: the card words nothing in English itself (X4). */
+  t: RoundTranslator;
   /**
    * The tournament's configured side colours. Required, not defaulted: a
    * silent `'red'`/`'blue'` fallback here is exactly how a green-vs-purple
@@ -45,25 +49,29 @@ function refStatusDot(status: string): string {
   return 'bg-slate-400';
 }
 
-function statusPill(status: string): { label: string; cls: string } {
+/** A slot's pill: its colour, and its state in the one word every screen says (X1). */
+function statusPill(status: string, t: RoundTranslator): { label: string; cls: string } {
+  const label = isKnownStatus('bracketSlot', status)
+    ? t(statusLabelKey('bracketSlot', status))
+    : t(statusLabelKey('bracketSlot', 'pending'));
   switch (status) {
     case 'completed':
-      return { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' };
+      return { label, cls: 'bg-emerald-100 text-emerald-700' };
     case 'running':
-      return { label: 'Live', cls: 'bg-amber-100 text-amber-800' };
+      return { label, cls: 'bg-amber-100 text-amber-800' };
     case 'ready':
-      return { label: 'Ready', cls: 'bg-amber-100 text-amber-700' };
+      return { label, cls: 'bg-amber-100 text-amber-700' };
     case 'forfeit':
-      return { label: 'WO', cls: 'bg-slate-200 text-slate-600' };
     case 'disqualified':
-      return { label: 'DQ', cls: 'bg-slate-200 text-slate-600' };
+      return { label, cls: 'bg-slate-200 text-slate-600' };
     default:
-      return { label: 'Pending', cls: 'bg-slate-100 text-slate-600' };
+      return { label, cls: 'bg-slate-100 text-slate-600' };
   }
 }
 
 export function MatchCard({
   slot,
+  t,
   redColor,
   blueColor,
   onClick,
@@ -78,7 +86,7 @@ export function MatchCard({
   const isLive = slot.status === 'running';
   const isReadyOrLive = slot.status === 'ready' || slot.status === 'running';
   const isCompleted = slot.status === 'completed';
-  const pill = statusPill(slot.status);
+  const pill = statusPill(slot.status, t);
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
 
@@ -234,7 +242,7 @@ export function MatchCard({
           )}
           {slot.liceName && (
             <span
-              title={`Lice: ${slot.liceName}`}
+              title={t('common.bracket.lice', { name: slot.liceName })}
               className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
             >
               {slot.liceName}
@@ -288,7 +296,7 @@ export function MatchCard({
                   label={
                     refereeRoleLabel
                       ? refereeRoleLabel(r.role)
-                      : (r.roleLabel ?? r.role ?? 'Referee')
+                      : (r.roleLabel ?? r.role ?? t('common.bracket.referee'))
                   }
                 />
               </li>
@@ -300,7 +308,7 @@ export function MatchCard({
       {onOverride && (
         <button
           type="button"
-          aria-label="Override slot"
+          aria-label={t('common.bracket.overrideSlot')}
           onClick={(e) => {
             e.stopPropagation();
             onOverride(slot.id);

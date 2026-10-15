@@ -69,7 +69,7 @@ export function ApproveModal({ item, apiUrl, onClose, onApproved }: ApproveModal
             disabled={submitting || !canSubmit}
             className="rounded-md bg-success px-4 py-2 text-sm font-semibold text-white hover:bg-success-hover disabled:opacity-50"
           >
-            {submitting ? 'Approving…' : t('admin.reviewQueue.approve')}
+            {submitting ? t('admin.reviewQueue.approving') : t('admin.reviewQueue.approve')}
           </button>
         </>
       }

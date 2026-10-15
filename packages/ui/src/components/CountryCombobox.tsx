@@ -10,6 +10,9 @@ export interface CountryComboboxProps {
   locale: string;
   placeholder?: string;
   'aria-label'?: string;
+  /** The clear button's name and the empty list's line, already translated (X4). */
+  clearLabel: string;
+  noMatchLabel: string;
   id?: string;
   /** Optional Tailwind classes applied to the outer wrapper. */
   className?: string;
@@ -28,6 +31,8 @@ export function CountryCombobox({
   placeholder,
   id,
   className = '',
+  clearLabel,
+  noMatchLabel,
   ...rest
 }: CountryComboboxProps): React.JSX.Element {
   const options = React.useMemo(() => getCountryOptions(locale), [locale]);
@@ -122,7 +127,7 @@ export function CountryCombobox({
       {value && !open && (
         <button
           type="button"
-          aria-label="Clear country"
+          aria-label={clearLabel}
           onClick={() => commit(null)}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
         >
@@ -136,7 +141,7 @@ export function CountryCombobox({
           className="absolute z-overlay mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-gray-500">No country matches</li>
+            <li className="px-3 py-2 text-sm text-gray-500">{noMatchLabel}</li>
           ) : (
             filtered.map((opt, i) => (
               <li

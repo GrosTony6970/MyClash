@@ -112,6 +112,8 @@ function ColumnFilters({
           {t('publicApp.fighters.colCountry')}
         </label>
         <CountryCombobox
+          clearLabel={t('common.country.clear')}
+          noMatchLabel={t('common.country.noMatch')}
           id="fighter-country"
           value={filters.country}
           locale={locale}

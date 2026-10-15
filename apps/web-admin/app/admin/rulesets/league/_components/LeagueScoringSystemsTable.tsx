@@ -340,7 +340,11 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
       {!readOnly && (
         <BulkActionBar
           count={selection.count}
-          itemLabel={{ singular: 'system', plural: 'systems' }}
+          labels={{
+            region: t('common.bulkActions'),
+            selected: t('admin.rulesets.league.bulk.countLabel', { n: selection.count }),
+            clear: t('actions.clear'),
+          }}
           onClear={selection.clear}
         >
           <button

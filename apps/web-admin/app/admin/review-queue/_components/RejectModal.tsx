@@ -66,7 +66,7 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
             disabled={submitting || !isValid}
             className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-white hover:bg-danger-hover disabled:opacity-50"
           >
-            {submitting ? 'Rejecting…' : t('admin.reviewQueue.reject')}
+            {submitting ? t('admin.reviewQueue.rejecting') : t('admin.reviewQueue.reject')}
           </button>
         </>
       }

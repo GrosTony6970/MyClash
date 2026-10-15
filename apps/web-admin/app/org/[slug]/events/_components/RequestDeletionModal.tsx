@@ -176,7 +176,9 @@ export function RequestDeletionModal({
         />
         <div className="flex justify-between mt-1">
           <span className={`text-xs ${reasonLen < 10 ? 'text-danger' : 'text-muted'}`}>
-            {reasonLen < 10 ? `${10 - reasonLen} more characters required` : ''}
+            {reasonLen < 10
+              ? t('organizer.deletionRequest.moreCharacters', { count: 10 - reasonLen })
+              : ''}
           </span>
           <span className={`text-xs ${reasonLen > 500 ? 'text-danger' : 'text-muted'}`}>
             {reasonLen} / 500

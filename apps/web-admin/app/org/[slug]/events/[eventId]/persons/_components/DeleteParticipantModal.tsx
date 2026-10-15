@@ -240,17 +240,20 @@ export function DeleteParticipantModal({
       title={headerLabel}
       description={
         tournamentId
-          ? 'Reviewing pool / bracket / match assignments inside the selected tournament. Started or completed matches block removal — those participants stay.'
-          : 'Reviewing every place these participants are plumbed in across the event. Started or completed matches block removal — those participants stay.'
+          ? t('admin.orgPersons.deleteScopeTournament')
+          : t('admin.orgPersons.deleteScopeEvent')
       }
       footer={
         <div className="flex w-full items-center justify-between gap-3">
           <p className="text-xs text-muted">
             {counts.stillLoading > 0
-              ? `Loading ${counts.stillLoading}…`
+              ? t('admin.orgPersons.deleteLoading', { count: counts.stillLoading })
               : counts.blocked > 0
-                ? `${counts.blocked} blocked, ${counts.clean} will be removed.`
-                : `${counts.clean} will be removed.`}
+                ? t('admin.orgPersons.deleteBlocked', {
+                    blocked: counts.blocked,
+                    clean: counts.clean,
+                  })
+                : t('admin.orgPersons.deleteClean', { clean: counts.clean })}
           </p>
           <div className="flex gap-3">
             <button
@@ -267,7 +270,7 @@ export function DeleteParticipantModal({
               disabled={busy || counts.stillLoading > 0 || counts.clean === 0}
               className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
             >
-              {busy ? 'Working…' : buttonLabel}
+              {busy ? t('admin.common.working') : buttonLabel}
             </button>
           </div>
         </div>

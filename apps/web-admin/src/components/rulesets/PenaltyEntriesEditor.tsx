@@ -204,7 +204,7 @@ export function PenaltyEntriesEditor({ value, disabled, onChange }: Props) {
           disabled={disabled}
           className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
         >
-          + {t('admin.penaltyRulesets.addGroup') || 'Add group'}
+          + {t('admin.penaltyRulesets.addGroup')}
         </button>
       </div>
     </div>
@@ -259,19 +259,18 @@ function GroupSection(props: GroupSectionProps) {
     >
       <header className="flex items-center gap-3 border-b border-border bg-background px-3 py-2">
         <span className="rounded bg-border px-2 py-0.5 text-xs font-mono font-semibold text-foreground-secondary">
-          {t('admin.penaltyRulesets.groupHeader')?.replace('{n}', String(groupNumber)) ||
-            `Group ${groupNumber}`}
+          {t('admin.penaltyRulesets.groupHeader', { n: groupNumber })}
         </span>
         <input
           type="text"
           value={label}
           disabled={disabled}
           onChange={(e) => onLabelChange(e.target.value)}
-          placeholder={t('admin.penaltyRulesets.groupLabelPlaceholder') || 'Label (optional)'}
+          placeholder={t('admin.penaltyRulesets.groupLabelPlaceholder')}
           className="flex-1 rounded-md border border-border px-2 py-1 text-sm disabled:bg-background"
         />
         <span className="text-xs text-muted">
-          {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+          {t('admin.penaltyRulesets.entryCount', { count: rows.length })}
         </span>
       </header>
 

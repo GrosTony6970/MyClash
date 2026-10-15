@@ -46,13 +46,27 @@ function slot(over: Partial<BracketSlotData> = {}): BracketSlotData {
 function markup(over: Partial<BracketSlotData>, highlightLiceId: string | null) {
   return renderToStaticMarkup(
     <BracketHighlightContext.Provider value={{ highlightLiceId }}>
-      <MatchCard slot={slot(over)} redColor="red" blueColor="blue" onClick={() => {}} />
+      <MatchCard t={say} slot={slot(over)} redColor="red" blueColor="blue" onClick={() => {}} />
     </BracketHighlightContext.Provider>,
   );
 }
 
+/** A translator that shows the key it is asked for, so a test can read which word was used. */
+const say = (key: string) => `<${key}>`;
+
 const isClickable = (html: string) => html.includes('role="button"');
 const isDimmed = (html: string) => html.includes('opacity-60');
+
+describe('MatchCard words', () => {
+  it('says its state with the shared word, never an English one of its own (X4)', () => {
+    const html = markup({ status: 'completed' }, null);
+    expect(html).toContain('&lt;common.status.bracketSlot.completed&gt;');
+    expect(html).not.toContain('Completed');
+    expect(markup({ status: 'forfeit' }, null)).toContain(
+      '&lt;common.status.bracketSlot.forfeit&gt;',
+    );
+  });
+});
 
 describe('MatchCard on a Lice-scoped bracket', () => {
   it('opens a match on this Lice', () => {

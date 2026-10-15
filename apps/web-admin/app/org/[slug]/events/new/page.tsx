@@ -293,6 +293,8 @@ function Step1({
             {t('organizer.newEvent.country')}
           </label>
           <CountryCombobox
+            clearLabel={t('common.country.clear')}
+            noMatchLabel={t('common.country.noMatch')}
             id="wizard-country"
             value={state.country}
             onChange={(code) => dispatch({ type: 'SET_FIELD', field: 'country', value: code })}

@@ -1140,6 +1140,8 @@ export const organizer = {
       removed: 'Retiré de cette piste : {names}',
     },
     state: {
+      queuedRefused: '✖ {queued} en attente · {refused} refusées',
+      queued: '▲ {queued} en attente',
       attention: 'À traiter',
       no_scorer: 'Aucun marqueur',
       stuck: 'Sync bloquée',
@@ -2965,6 +2967,7 @@ export const organizer = {
     },
   },
   deletionRequest: {
+    moreCharacters: 'Encore {count} caractères requis',
     requestDeletion: 'Demander la suppression',
     requestDeletionModalTitleEvent: "Demander la suppression de l'événement",
     requestDeletionModalTitleTournament: 'Demander la suppression du tournoi',

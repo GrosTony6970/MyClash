@@ -124,6 +124,14 @@ export const admin = {
     rejectConfirm: 'Rejeter',
   },
   adminLeagues: {
+    eyebrow: 'Ligues',
+    pageSubtitle:
+      'Gérez la configuration des ligues, leur classement, leurs organisations membres et leurs tournois liés.',
+    unnamed: '(sans nom)',
+    added: 'Ajouté',
+    creating: 'Création…',
+    createLeague: 'Créer la ligue',
+    deleteConfirmBody: 'Supprimer la ligue « {name} » ? Cette action est irréversible.',
     ffamheTf2026Option: 'FFAMHE TF 2026',
     versionOption: 'v{version} · {date}',
     toastDeleted: '« {name} » supprimée',
@@ -264,6 +272,7 @@ export const admin = {
     cancelButton: 'Annuler',
   },
   adminMisc: {
+    superAdminNoOrg: 'Super-admin — ne peut pas appartenir à une organisation.',
     hemaHealthLine: '{status} · {latency} ms',
     close: 'Fermer',
     ownerBadge: 'propriétaire',
@@ -277,6 +286,13 @@ export const admin = {
     current: 'actuelle',
   },
   orgPersons: {
+    deleteScopeTournament:
+      'Vérification des poules, du tableau et des combats du tournoi choisi. Un combat commencé ou terminé bloque le retrait : ces participants restent.',
+    deleteScopeEvent:
+      "Vérification de chaque place de ces participants dans l'événement. Un combat commencé ou terminé bloque le retrait : ces participants restent.",
+    deleteLoading: 'Chargement de {count}…',
+    deleteBlocked: '{blocked} bloqués, {clean} seront retirés.',
+    deleteClean: '{clean} seront retirés.',
     close: 'Fermer',
     loadError: 'Impossible de charger la liste des participants.',
     loadingName: 'Chargement de {name}…',
@@ -389,6 +405,8 @@ export const admin = {
     availabilityAll: 'tout',
   },
   orgTournaments: {
+    defaultValue: 'Par défaut : {value}',
+    resetTo: 'Revenir à {value}',
     tfRulesetLegend: 'Jeu de règles (TF v1) — surcharges par tournoi',
     tfRulesetHint:
       'Les valeurs par défaut proviennent du jeu de règles. Toute valeur modifiée ici est enregistrée comme une surcharge propre au tournoi ; utilisez « Réinitialiser » pour rétablir la valeur par défaut du jeu de règles.',
@@ -463,6 +481,10 @@ export const admin = {
     rulesetPreviewRow: 'Combattant {n} · {wins}V {ties}N {losses}D',
   },
   common: {
+    color: 'Couleur',
+    yes: 'Oui',
+    no: 'Non',
+    working: 'En cours…',
     sortAscLabel: 'Tri croissant',
     sortDescLabel: 'Tri décroissant',
     searchPlaceholder: 'Rechercher...',
@@ -622,6 +644,10 @@ export const admin = {
     current: 'Actuel',
   },
   hemaRatings: {
+    healthOk: 'Fonctionne',
+    healthFailed: 'En échec',
+    collapse: 'Replier',
+    expand: 'Déplier',
     title: 'HEMA Ratings',
     subtitle: 'Dernière sync : {relative}',
     runSyncNow: 'Lancer une sync',
@@ -982,6 +1008,7 @@ export const admin = {
     },
   },
   featureFlags: {
+    eyebrow: 'Options',
     title: 'Indicateurs de fonctionnalité',
     description:
       "Interrupteurs plateforme pour les fonctionnalités optionnelles et la gestion d'incidents.",
@@ -1064,6 +1091,7 @@ export const admin = {
     },
   },
   rulesets: {
+    eyebrow: 'Règlements',
     shared: {
       columns: {
         name: 'Nom',
@@ -1413,6 +1441,7 @@ export const admin = {
     },
   },
   penaltyRulesets: {
+    entryCount: 'Entrées : {count}',
     title: 'Rulesets de pénalités',
     description:
       "Bibliotheques de cartons (jaune/rouge/noir) que les tournois referencent pour les decisions d'arbitrage.",
@@ -1728,6 +1757,9 @@ export const admin = {
     },
   },
   reviewQueue: {
+    approving: 'Approbation…',
+    rejecting: 'Refus…',
+    itemCount: 'Éléments : {count}',
     navTitle: 'File de revue',
     pageTitle: 'File de revue',
     pendingBadge: '{count} en attente',
@@ -1870,6 +1902,7 @@ export const admin = {
     },
   },
   clubs: {
+    eyebrow: 'Clubs',
     title: 'Clubs',
     description: 'Modifier les noms, abreviations et localisations des clubs.',
     loadError: 'Chargement des clubs impossible.',
@@ -1935,8 +1968,7 @@ export const admin = {
     unverifySuccess: '{club} marque comme non verifie.',
     selectAll: 'Sélectionner tous les clubs',
     selectRow: 'Sélectionner {club}',
-    bulkUnitSingular: 'club',
-    bulkUnitPlural: 'clubs',
+    bulkSelected: '{count} clubs sélectionnés',
     bulkVerifyAction: 'Tout vérifier',
     bulkUnverifyAction: 'Tout devalider',
     bulkArchiveAction: 'Tout archiver',

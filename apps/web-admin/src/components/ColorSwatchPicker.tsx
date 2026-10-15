@@ -118,10 +118,15 @@ export function ColorSwatchPicker({
    */
   defaultColor?: string;
 }) {
+  const { t } = useI18n();
   const effective = (value || defaultColor || '').toLowerCase();
   return (
     <div className="grid gap-2">
-      <div role="radiogroup" aria-label={ariaLabel ?? 'Color'} className="grid grid-cols-8 gap-1.5">
+      <div
+        role="radiogroup"
+        aria-label={ariaLabel ?? t('admin.common.color')}
+        className="grid grid-cols-8 gap-1.5"
+      >
         {SWATCH_PALETTE.map((hex) => {
           const selected = hex.toLowerCase() === effective;
           return (

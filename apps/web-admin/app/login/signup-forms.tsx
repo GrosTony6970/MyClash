@@ -7,6 +7,9 @@ import type { SignupIntent } from './auth-form-state';
 import { normalizeSlugInput, ORG_NAME_MAX_LENGTH, slugify } from './auth-form-state';
 import type { LoadingAction, Translate } from './signin-forms';
 
+/** The address an organisation's slug completes: an address, the same in every language. */
+const ORG_ADDRESS_PREFIX = 'admin.myclash.fr/org/';
+
 export interface SlugStatus {
   checking: boolean;
   available: boolean | null;
@@ -144,7 +147,7 @@ export function OrgStepForm({
         </label>
         <div className="mt-2 flex items-center overflow-hidden rounded-md border border-border bg-background focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
           <span className="select-none border-r border-border px-3 py-3 text-sm text-muted">
-            {'admin.myclash.fr/org/'}
+            {ORG_ADDRESS_PREFIX}
           </span>
           <input
             id="orgSlug"
