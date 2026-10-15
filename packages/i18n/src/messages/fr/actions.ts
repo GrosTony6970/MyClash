@@ -18,7 +18,7 @@ export const actions = {
   reject: 'Rejeter',
   remove: 'Retirer',
   retry: 'Réessayer',
-  refresh: 'Rafraichir',
+  refresh: 'Rafraîchir',
   save: 'Enregistrer',
   search: 'Rechercher',
   view: 'Voir',

@@ -17,7 +17,7 @@ export const scoring = {
   },
   login: {
     checkEmailTitle: 'Vérifiez votre email',
-    checkEmailPrefix: 'Nous avons envoyé un lien de connexion a',
+    checkEmailPrefix: 'Nous avons envoyé un lien de connexion à',
     checkEmailSuffix: 'Cliquez dessus pour accéder à vos affectations de lice.',
     linkExpires: 'Le lien expire dans 1 heure.',
     title: 'MyClash Staff',
@@ -76,8 +76,8 @@ export const scoring = {
   banner: {
     // Sorti de `lice` en même temps que le bouton : il appartient maintenant à
     // tous les écrans du staff, pas au seul choix de lice.
-    logout: 'Se deconnecter',
-    logoutConfirm: 'Se deconnecter ?',
+    logout: 'Se déconnecter',
+    logoutConfirm: 'Se déconnecter ?',
     logoutCancel: 'Rester',
   },
   access: {
@@ -113,7 +113,7 @@ export const scoring = {
     actionError: "L'enregistrement a échoué. Réessayez.",
   },
   drill: {
-    start: "S'entrainer hors ligne",
+    start: "S'entraîner hors ligne",
     explain:
       "Lance un exercice de deux minutes pendant lequel cette tablette n'envoie aucune saisie de match, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches, les cartons et les actions sur le chrono, les manches et la prolongation sont réellement mis en file et partent à la fin. Une correction qui a besoin du serveur reçoit « pas de connexion ».",
     blocked:
@@ -179,7 +179,7 @@ export const scoring = {
       "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie à la main, sinon elle n'atteindra jamais les résultats. Les saisies de son assaut qui attendent derrière sont alors envoyées sans elle.",
     discardConfirm: 'Supprimer définitivement',
     typeClean: 'Touche nette',
-    typeAfterblow: 'Coup double retarde',
+    typeAfterblow: 'Coup double retardé',
     typeDouble: 'Double',
     typeNoExchange: "Pas d'échange",
     typePenalty: 'Pénalité',
@@ -365,22 +365,22 @@ export const scoring = {
   match: {
     unavailableTitle: 'Assaut indisponible',
     unavailableBody:
-      "Cet assaut n'a pas pu être charge — il a peut-être été supprime ou reprogramme.",
+      "Cet assaut n'a pas pu être chargé — il a peut-être été supprimé ou reprogrammé.",
     notLoadedTitle: 'Pas de connexion',
     notLoadedBody: "Cet assaut n'est pas encore chargé. Il s'ouvrira au retour du réseau.",
     fromTablet:
       'Pas de connexion. Voici l’assaut tel que cette tablette l’a lu {when}. Le score, les touches et les cartons datent de cette lecture, et peuvent ne plus être à jour. Ce que vous saisissez maintenant, chrono compris, est gardé et envoyé plus tard.',
     scoreUnconfirmed: 'non confirmé',
     reopen: "Rouvrir l'assaut",
-    reopening: 'Reouverture...',
+    reopening: 'Réouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',
     configFromCache:
       '⚠ Règles de score chargées depuis cette tablette — non confirmées avec le serveur.',
   },
   corrections: {
     onlineOnly: 'Connexion requise',
-    locked: 'Verrouille',
-    matchLocked: 'Ce match est verrouillé. Le scoring staff et les corrections sont desactives.',
+    locked: 'Verrouillé',
+    matchLocked: 'Ce match est verrouillé. Le scoring staff et les corrections sont désactivés.',
     actionFailed: 'Correction impossible.',
     defaultReason: 'Correction arbitre de table',
     clearLastExchange: 'Annuler la dernière saisie',
@@ -403,7 +403,7 @@ export const scoring = {
     clearLastSentForReview:
       'L’événement est terminé : votre correction est envoyée pour validation. L’échange reste affiché tant qu’elle n’est pas approuvée.',
     swapColor: 'Inverser les couleurs',
-    swapSide: 'Inverser les cotes',
+    swapSide: 'Inverser les côtés',
     resetMatch: 'Réinitialiser le match',
     adjustSeconds: 'Secondes à ajuster',
     addTime: 'Ajouter du temps',
@@ -428,7 +428,7 @@ export const scoring = {
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     sessionEnded: 'Votre session a pris fin. Reconnectez-vous.',
     offlineRefusal:
-      'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
+      'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecté.',
     maintenanceRefusal:
       'MyClash est en maintenance. Cette action ne peut pas être enregistrée pour le moment — réessayez dans un instant.',
     laterBoutFought:
@@ -463,7 +463,7 @@ export const scoring = {
     pauseShort: 'Pause',
     totalTime: 'Temps total',
     resetConfirmTitle: 'Réinitialiser le chrono ?',
-    resetConfirmBody: 'Le chrono retombe à zéro. Les échanges ne sont pas modifies.',
+    resetConfirmBody: 'Le chrono retombe à zéro. Les échanges ne sont pas modifiés.',
     resetConfirmAction: 'Réinitialiser',
     resetConfirmCancel: 'Annuler',
     pressHeld:
@@ -480,9 +480,9 @@ export const scoring = {
     message: "Ni le plafond de points ni le temps n'est atteint.",
   },
   resumeGuard: {
-    title: 'Temps ecoule',
+    title: 'Temps écoulé',
     message:
-      'Selon le règlement le chrono ne devrait pas être relance (limite atteinte ou zone de soft clock). Continuer quand même, ou terminer le match ?',
+      'Selon le règlement le chrono ne devrait pas être relancé (limite atteinte ou zone de soft clock). Continuer quand même, ou terminer le match ?',
     messageRound:
       'Selon le règlement le chrono ne devrait pas être relancé (limite atteinte ou zone de soft clock). Continuer quand même, ou terminer la manche ?',
     continueAnyway: 'Continuer quand même',
@@ -490,7 +490,7 @@ export const scoring = {
   },
   result: {
     finalResult: 'Résultat final',
-    draw: 'Egalite',
+    draw: 'Égalité',
     close: 'Fermer',
     notConfirmed: 'Terminé sur cette tablette. Le serveur ne l’a pas encore confirmé.',
     roundPoints: 'Points par manche :',
@@ -535,14 +535,14 @@ export const scoring = {
     live: 'En direct',
     polling: 'Mises à jour ralenties',
     stale: 'Plus de mise à jour',
-    disabled: 'Direct desactive',
+    disabled: 'Direct désactivé',
   },
   liveMatch: {
     penaltyCards: 'Cartons',
     red: 'Combattant 1',
     blue: 'Combattant 2',
     noExchanges: 'Aucun échange pour le moment.',
-    voidedHidden: '{count} échange{plural} annule masque',
+    voidedHidden: '{count} échange{plural} annulé masqué',
     directCard: 'Carton direct',
     matchLost: 'Assaut perdu',
     started: 'Début',
@@ -555,7 +555,7 @@ export const scoring = {
     upNext: 'À suivre',
     versus: 'contre',
     waitingForMatch: 'En attente du prochain assaut...',
-    noQueue: "Plus aucun assaut programme sur cette lice aujourd'hui",
+    noQueue: "Plus aucun assaut programmé sur cette lice aujourd'hui",
   },
   pad: {
     noExchangeReason: "Motif de l'absence d'échange",
@@ -563,7 +563,7 @@ export const scoring = {
     afterblowTitleFull: '{attacker} +{attackerPts}, {defender} +{defenderPts}',
     noExchangeReasons: {
       outOfBounds: 'Sortie de lice',
-      simultaneousStop: 'Arrêt simultane',
+      simultaneousStop: 'Arrêt simultané',
       noValidHit: 'Pas de touche valide',
       other: 'Autre',
     },
@@ -597,7 +597,7 @@ export const scoring = {
       injury: 'Blessure',
       voluntary: 'Volontaire',
       black_card_1: 'Carton noir',
-      black_card_2: 'Deuxieme carton noir',
+      black_card_2: 'Deuxième carton noir',
       conduct_violation: 'Violence / comportement',
     },
   },
