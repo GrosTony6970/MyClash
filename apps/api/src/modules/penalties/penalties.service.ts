@@ -1034,18 +1034,11 @@ export class PenaltiesService {
     await this.scoring?.recomputeMatchScore(matchId, causedAt);
 
     if (sanction.causesMatchForfeit) {
-      // Determine the ordinal: count this registration's non-voided black
-      // cards in the tournament (including the row we just inserted).
-      const blackCount = await this.countBlackCardsForRegistration(
-        match.tournamentId,
+      const { blackCount, scope } = await this.blackCardScope(
+        match,
         dto.registrationId,
+        activePenaltyRuleset,
       );
-      const scoringConfig = await this.loadTournamentRulesetConfig(match.tournamentId);
-      const scope: BlackCardForfeitScope = activePenaltyRuleset
-        ? this.resolveBlackCardForfeitScope(activePenaltyRuleset, scoringConfig, blackCount)
-        : blackCount >= 2
-          ? 'tournament'
-          : 'match';
 
       if (scope !== 'none') {
         if (this.forfeits) {
@@ -1233,19 +1226,32 @@ export class PenaltiesService {
     // stands only with its disqualification: if that write fails, the review is put back as the
     // organiser saw it, so she is told and can answer again.
     if (dto.status === 'confirmed') {
-      try {
-        await this.disqualify(review['registration_id'] as string);
-      } catch (failure) {
-        await this.putReviewBack(review, (data as Row)['updated_at'] as string);
-        throw failure;
-      }
+      await this.disqualifyOrPutBack(review, (data as Row)['updated_at'] as string);
     }
     return data;
   }
 
-  /** A review as it was read, written back over the answer that was written at `answeredAt`. */
-  private async putReviewBack(review: Row, answeredAt: string): Promise<void> {
-    await this.supabase.service
+  /** The disqualification a confirmed review stands on; on a failure, the review goes back. */
+  private async disqualifyOrPutBack(review: Row, answeredAt: string): Promise<void> {
+    try {
+      await this.disqualify(review['registration_id'] as string);
+    } catch (failure) {
+      if (await this.putReviewBack(review, answeredAt)) throw failure;
+      // A black card landed between the answer and the put-back (it keeps a confirmed review
+      // confirmed), or the put-back failed: the review stays answered, with nobody out.
+      throw new Error(
+        `Review ${String(review['id'])} left confirmed, registration not disqualified: ${String(failure)}`,
+        { cause: failure },
+      );
+    }
+  }
+
+  /**
+   * A review as it was read, written back over the answer that was written at `answeredAt`.
+   * True when it was. The organiser's page then reads it again before she answers again.
+   */
+  private async putReviewBack(review: Row, answeredAt: string): Promise<boolean> {
+    const { data, error } = await this.supabase.service
       .from('tournament_penalty_reviews')
       .update({
         status: review['status'],
@@ -1255,7 +1261,32 @@ export class PenaltiesService {
         payload_json: review['payload_json'],
       })
       .eq('id', review['id'] as string)
-      .eq('updated_at', answeredAt);
+      .eq('updated_at', answeredAt)
+      .select('id')
+      .maybeSingle();
+    return !error && data !== null;
+  }
+
+  /**
+   * How far a black card reaches: the bout, the whole Tournament, or nothing. The ordinal counts
+   * this Registration's non-voided black cards in the Tournament, the card just written included.
+   */
+  private async blackCardScope(
+    match: MatchContext,
+    registrationId: string,
+    activePenaltyRuleset: Awaited<ReturnType<PenaltiesService['loadPenaltyRulesetRow']>> | null,
+  ): Promise<{ blackCount: number; scope: BlackCardForfeitScope }> {
+    const blackCount = await this.countBlackCardsForRegistration(
+      match.tournamentId,
+      registrationId,
+    );
+    const scoringConfig = await this.loadTournamentRulesetConfig(match.tournamentId);
+    const scope: BlackCardForfeitScope = activePenaltyRuleset
+      ? this.resolveBlackCardForfeitScope(activePenaltyRuleset, scoringConfig, blackCount)
+      : blackCount >= 2
+        ? 'tournament'
+        : 'match';
+    return { blackCount, scope };
   }
 
   /** Mark a Registration disqualified. A failed write is thrown, as a server error. */
@@ -1499,14 +1530,26 @@ export class PenaltiesService {
   /**
    * A card the server already holds is answered as it is. If it is a live black card, its
    * review is brought up to date first: the first send may have written the card and then
-   * failed on the review, and the tablet's retry is the only send left to repair it.
+   * failed on the review, and the tablet's retry is the only send left to repair it. So is the
+   * disqualification of a black card that reaches the whole Tournament: the first send wrote the
+   * card, then failed there with a 500, and the tablet sends it again by itself. The write is
+   * safe to repeat.
    */
   private async replayAnswer(stored: Row): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
+      const registrationId = String(stored['registration_id']);
+      if (stored['causes_match_forfeit'] === true) {
+        const match = await this.getMatchContext(String(stored['match_id']));
+        const ruleset = match.penaltyRulesetId
+          ? await this.loadPenaltyRulesetRow(match.penaltyRulesetId)
+          : null;
+        const { scope } = await this.blackCardScope(match, registrationId, ruleset);
+        if (scope === 'tournament') await this.disqualify(registrationId);
+      }
       await syncSecondBlackCardReview(
         this.supabase.service,
         String(stored['tournament_id']),
-        String(stored['registration_id']),
+        registrationId,
         String(stored['id']),
       );
     }

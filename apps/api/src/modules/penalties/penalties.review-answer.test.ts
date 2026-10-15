@@ -111,6 +111,35 @@ describe('answering a black card review', () => {
       tournament_penalty_reviews: [
         ok(REVIEW),
         ok({ id: 'rv-1', status: 'confirmed', updated_at: WRITTEN }),
+        ok({ id: 'rv-1' }),
+      ],
+    });
+    const service = new PenaltiesService(db as never, { recomputeMatchScore: vi.fn() } as never);
+
+    await expect(
+      service.reviewTournamentPenalty(
+        'rv-1',
+        { status: 'confirmed', seenUpdatedAt: SEEN },
+        'organiser-1',
+      ),
+    ).rejects.toThrow(/^Registration r-1 not disqualified: connection reset$/);
+
+    const [answer, putBack] = writesTo(db, 'tournament_penalty_reviews');
+    expect(answer?.row).toMatchObject({ status: 'confirmed' });
+    expect(putBack?.row).toMatchObject({ status: 'pending', payload_json: REVIEW.payload_json });
+    expect(scopedTo(putBack, 'updated_at')).toBe(WRITTEN);
+  });
+
+  it('names a review left confirmed when its put-back finds it changed again', async () => {
+    // A black card landed between the answer and the put-back: it keeps the review confirmed.
+    const db = mockSupabase({
+      platform_roles: ok(null),
+      tournaments: ok({ event_id: 'e-1' }),
+      events: ok({ organization_id: 'o-1' }),
+      registrations: { data: null, error: { message: 'connection reset' } },
+      tournament_penalty_reviews: [
+        ok(REVIEW),
+        ok({ id: 'rv-1', status: 'confirmed', updated_at: '2026-10-15T20:00:00Z' }),
         ok(null),
       ],
     });
@@ -122,11 +151,6 @@ describe('answering a black card review', () => {
         { status: 'confirmed', seenUpdatedAt: SEEN },
         'organiser-1',
       ),
-    ).rejects.toThrow(/not disqualified: connection reset/);
-
-    const [answer, putBack] = writesTo(db, 'tournament_penalty_reviews');
-    expect(answer?.row).toMatchObject({ status: 'confirmed' });
-    expect(putBack?.row).toMatchObject({ status: 'pending', payload_json: REVIEW.payload_json });
-    expect(scopedTo(putBack, 'updated_at')).toBe(WRITTEN);
+    ).rejects.toThrow(/^Review rv-1 left confirmed, registration not disqualified: /);
   });
 });

@@ -571,45 +571,58 @@ describe('PenaltiesService', () => {
     expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
   });
 
+  /** A bout whose Tournament makes a first black card disqualify (a scoring-config override). */
+  const DISQUALIFYING_TOURNAMENT: TableState = {
+    matches: {
+      maybeSingle: {
+        id: 'match-1',
+        red_registration_id: 'reg-red',
+        blue_registration_id: 'reg-blue',
+        phase_id: 'phase-1',
+      },
+    },
+    phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+    tournaments: {
+      maybeSingle: {
+        id: 'tournament-1',
+        event_id: 'event-1',
+        penalty_ruleset_id: 'pr-1',
+        ruleset_config: {
+          forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'disqualified' } } },
+        },
+      },
+    },
+    events: {
+      maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+    },
+    penalty_rulesets: {
+      maybeSingle: {
+        id: 'pr-1',
+        accumulation_scope: 'match',
+        yellow_card_points: 0,
+        red_card_points: -1,
+        black_card_points: 0,
+        first_black_card_forfeit: 'match',
+        second_black_card_forfeit: 'tournament',
+      },
+    },
+  };
+  const BLACK_CARD = {
+    clientUuid: 'client-black-dq-fails',
+    sequence: 1,
+    registrationId: 'reg-red',
+    directCard: 'black' as const,
+    reason: 'dangerous action',
+    occurredAt: '2026-05-05T10:00:00.000Z',
+  };
+
   it('says so when the disqualification of a tournament-scope black card is not written', async () => {
     const supabase = fakeSupabase({
+      ...DISQUALIFYING_TOURNAMENT,
       match_penalties: {
         maybeSingle: null,
         insert: { id: 'penalty-1', card: 'black' },
         select: [{ id: 'penalty-1' }],
-      },
-      matches: {
-        maybeSingle: {
-          id: 'match-1',
-          red_registration_id: 'reg-red',
-          blue_registration_id: 'reg-blue',
-          phase_id: 'phase-1',
-        },
-      },
-      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: {
-          id: 'tournament-1',
-          event_id: 'event-1',
-          penalty_ruleset_id: 'pr-1',
-          ruleset_config: {
-            forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'disqualified' } } },
-          },
-        },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
-      penalty_rulesets: {
-        maybeSingle: {
-          id: 'pr-1',
-          accumulation_scope: 'match',
-          yellow_card_points: 0,
-          red_card_points: -1,
-          black_card_points: 0,
-          first_black_card_forfeit: 'match',
-          second_black_card_forfeit: 'tournament',
-        },
       },
       registrations: { updateError: { message: 'connection reset' } },
     });
@@ -619,19 +632,37 @@ describe('PenaltiesService', () => {
     );
 
     await expect(
-      service.createPenalty(
-        'match-1',
-        {
-          clientUuid: 'client-black-dq-fails',
-          sequence: 1,
-          registrationId: 'reg-red',
-          directCard: 'black',
-          reason: 'dangerous action',
-          occurredAt: '2026-05-05T10:00:00.000Z',
-        },
-        { userId: 'scorekeeper-1' },
-      ),
+      service.createPenalty('match-1', BLACK_CARD, { userId: 'scorekeeper-1' }),
     ).rejects.toThrow(/reg-red not disqualified: connection reset/);
+  });
+
+  // That first send ended in a 500 after the card was written, and the tablet sends the card
+  // again by itself: the answer from the stored card is the only send left to disqualify.
+  it('disqualifies again when the tablet sends that black card again', async () => {
+    const supabase = fakeSupabase({
+      ...DISQUALIFYING_TOURNAMENT,
+      match_penalties: {
+        maybeSingle: {
+          id: 'penalty-1',
+          card: 'black',
+          voided: false,
+          causes_match_forfeit: true,
+          match_id: 'match-1',
+          tournament_id: 'tournament-1',
+          registration_id: 'reg-red',
+        },
+        select: [{ id: 'penalty-1' }],
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty('match-1', BLACK_CARD, { userId: 'scorekeeper-1' });
+
+    expect(supabase.inserted.match_penalties).toBeUndefined();
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
   });
 
   // A ruleset-entry penalty (no directCard) derives its card from the entry's
