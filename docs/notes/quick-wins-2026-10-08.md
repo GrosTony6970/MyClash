@@ -147,8 +147,8 @@ Size: **S** = under about one hour, **M** = about half a day.
 | ~~O14~~ | ~~The Tournament wizard says "created" straight after a failed publish.~~ Done `22b618c2`.                                                                                                           | Word it "saved as draft" when publish failed.                                        | Nobody believes a draft Tournament is live.                                     | `EV/tournaments/new/_wizard/WizardShell.tsx:54-60`                                                             | S     |
 | ~~O15~~ | ~~Tournament settings tabs drop unsaved edits on tab switch; the page never names the Tournament.~~ Done `63022b10`.                                                                                 | Keep tabs mounted; show the name.                                                    | Settings are not lost, nor applied to the wrong Tournament.                     | `EV/tournaments/[tournamentId]/settings/page.tsx:51-65, 96-104`                                                | M     |
 | ~~O16~~ | ~~Adding walk-ins closes the window after each person; Enter does not save.~~ Done `ae0e2bd8`.                                                                                                       | "Save and add another"; a real `<form>`.                                             | A queue at the desk moves at typing speed.                                      | `EV/persons/page.tsx:466-479, 624, 1559-1902`                                                                  | S–M   |
-| O17     | CSV import: the final screen counts skipped and invalid rows without listing them; reasons come in English from the server.                                                                          | List the rows (the data is already in the report); send a reason code and translate. | The organiser knows whom to add by hand, in their language.                     | `EV/persons/import/page.tsx:589, 606-611`; `apps/api/.../persons/csv-import.service.ts:131-178`                | S + M |
-| O18     | CSV import: the dashed box does not accept a dropped file, and there is no template.                                                                                                                 | Drop handlers; a "Download template" link.                                           | Fewer failed first imports from misspelt headers.                               | `EV/persons/import/page.tsx:337-357`                                                                           | S     |
+| ~~O17~~ | ~~CSV import: the final screen counts skipped and invalid rows without listing them; reasons come in English from the server.~~ Done `46dd0ca3`, `34a7a99d`.                                         | List the rows (the data is already in the report); send a reason code and translate. | The organiser knows whom to add by hand, in their language.                     | `EV/persons/import/page.tsx:589, 606-611`; `apps/api/.../persons/csv-import.service.ts:131-178`                | S + M |
+| ~~O18~~ | ~~CSV import: the dashed box does not accept a dropped file, and there is no template.~~ Done `86b530a7`, `34a7a99d`.                                                                                | Drop handlers; a "Download template" link.                                           | Fewer failed first imports from misspelt headers.                               | `EV/persons/import/page.tsx:337-357`                                                                           | S     |
 | ~~O19~~ | ~~The roster has no export, and its filters are lost on refresh.~~ Done `9e68f5ea`.                                                                                                                  | CSV of the filtered list via `escapeCsvCell`; filters in the address.                | A check-in list for the desk in one click.                                      | `EV/persons/page.tsx:152-157, 1004-1021`                                                                       | M     |
 | O20     | The Pool standings CSV garbles accents in Excel and has English headers.                                                                                                                             | Mirror `EV/finalranking/page.tsx:117-123`.                                           | "Géraldine" opens as "Géraldine".                                               | `EV/pools/_tabs/StandingsTab.tsx:163-170, 183`                                                                 | S     |
 | ~~O21~~ | ~~"Print / PDF" does nothing under a popup blocker, on final ranking and on referee pay.~~ Done `5bea1676`.                                                                                          | The message the print pack already shows.                                            | The organiser allows popups, instead of thinking print is broken at the awards. | `EV/finalranking/page.tsx:131`; `EV/compensation/page.tsx:231`                                                 | S     |
@@ -2194,6 +2194,69 @@ Named, not fixed (each read in code):
   from the other.
 - The fighter profile's Settings page crashed once on a cold dev compile (`AiKeysManager`: an
   answer that was not a list); 24 of 24 after.
+
+## Built on 2026-10-15: push 4 of the O and X rows
+
+Two rows (the CSV import) and the fixes of their review: three commits, `46dd0ca3`, `86b530a7`,
+`34a7a99d`. Push 5 of the plan (O20, X1 X2 X4 X5, and the removal of the dialogs' English
+"Confirm" / "Cancel" defaults) is NOT built. The build detail of this push:
+`C:\Users\Tony\.claude\plans\push4-o17-o18-csv-import.md`.
+
+Three rulings of the operator, 2026-10-15, asked with a story (do not ask them again):
+
+| Row           | Ruling                                                                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| O18, unread   | The preview names ANY column this import ignores (the roster import names `is_referee`, `display_name`), not only a name no import knows.     |
+| O18, template | One template per language: French headers with `;`, English headers with `,`, made-up people; the column hint lists the same headers.         |
+| O18, admin    | The super admin's Global Profiles import gets the same drop box, line numbers, worded reasons and columns not read. Its English sample stays. |
+
+What people get:
+
+- **O17** (`46dd0ca3`, `34a7a99d`). Every row the import will not take shows its line in the
+  organiser's file (the header is line 1; blank lines and a cell over two lines count; a quote left
+  open is placed where it opens) and why, in her language. The preview lists the rows skipped (on
+  the roster already, or earlier in the file) and the invalid ones; the last screen lists both.
+  The last screen no longer says "0 updated": the import never updates. The server sends a code,
+  never a sentence or a database message (it logs that and says "not saved"). The Global Profiles
+  import uses the same codes.
+- **O18** (`86b530a7`, `34a7a99d`). A `.csv` dropped on the box is taken; another file is refused
+  with its name, several at once too. "Download template" gives the page's language. French and
+  English header names are read, in any case, without accents (`prénom`, `nom`, `courriel`,
+  `date_de_naissance`, `genre`, `armes`, "Email Address", …). A column the import does not read is
+  named on the preview, and so is a second header for a column already read ("Adresse e-mail" then
+  "Email": the second used to overwrite the first in silence). `event_codes` and `roles` are gone:
+  no import ever read them, though ARCHITECTURE said they made registrations.
+
+The proof: one cold review (no blocker, two majors, four minors; all fixed but one minor, below),
+60 seeded breaks (54 red; six got a test, then red), the gate chain (36 of 36), API coverage
+(green), the browser suite (402 passed, 1 failed, 10.7 min: the fighter profile story below). No migration, no new route, no request body changed; two
+answers changed shape (the roster import's report and preview, the Global Profiles preview).
+
+What the build chose, not ruled. Say so if one is wrong:
+
+- **The ambiguous French "Catégorie" is not read**: in French HEMA it names a Tournament's
+  category. The gender column is "genre".
+- **"Nom" is the family name.** A form whose "Nom" holds the full name gives "Jean Jean Dupont" on
+  the preview, where it shows.
+- **The Global Profiles import takes "oui" and "vrai"** for its role columns.
+- **The first of two headers for one column is read**, the second named as not read.
+- **A refused file leaves the file picked before** in the box.
+
+Named, not fixed (each read in code):
+
+- A quoted cell that holds a Windows line break (CRLF) counts as two lines in csv-parse: that row
+  and every row after it read one line too high. Spreadsheets write an in-cell break as LF.
+- A repeat of a row the import could not save is created at commit, though the preview called it
+  "earlier in this file".
+- A file dropped just outside the box still opens in the browser in place of the page.
+- The super admin's sample file and its column hint stay English (the hint moves with X4).
+- The persons `ImportDecisionDto` (`persons/dto/persons.dto.ts`) is used by nobody.
+- The commit reads the file again: a file changed between preview and import is imported as it is
+  then.
+- **Not of this push, now measured:** `tests/a11y/profile-leave-guard.spec.ts:16` fails 2 in 10
+  (`--repeat-each=10`): the profile's AI keys panel (`packages/ui` `AiKeysManager.tsx:112, 129`)
+  takes whatever the keys read answers as a list, and the story never stubs that read. Push 3
+  saw it once and called it a cold compile. It is a race of the story and a trust of the panel.
 
 ## Still not checked
 
