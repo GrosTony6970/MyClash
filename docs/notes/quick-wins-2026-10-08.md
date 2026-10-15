@@ -2502,6 +2502,31 @@ Line numbers are today's. Where a bullet above named a defect twice, it appears 
 
 Ten that a person meets, or that lose data. Each would be its own slice; none is planned.
 
+**All ten built on 2026-10-15, evening** (operator: "the ten first"). Two read wrong in code:
+
+| #   | Built in               | What it turned out to be                                                                                                                                                                                                                                                |
+| --- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `30c90323`, `2697402b` | **Not as written.** The header always drew the hero image. The layout read the Event a second time to set a CSS variable and a data attribute nothing read; that read and `src/theme/` are gone.                                                                        |
+| 2   | `ed10baa4`, `fbcb380d` | The bouts and forfeits read by key; Fighters and clubs by 200 ids.                                                                                                                                                                                                      |
+| 3   | `4b139d18`             | Line breaks made one kind before the file is read. The repeat of an unsaved row (`:2245`) is left: creating it leaves one person, which may be right.                                                                                                                   |
+| 4   | `8c1e9866`             | Send waits while nobody is picked.                                                                                                                                                                                                                                      |
+| 5   | `b112131a`             | Four loading screens, not one; the lint rule is now `no-module-translator` and reads server files.                                                                                                                                                                      |
+| 6   | `7225ffc7`, `07c59fa8` | Running bouts only. A next bout keeps `?`: the server sends an empty bracket slot the same way as a blank name.                                                                                                                                                         |
+| 7   | `871106bb`             | About 715 strings in six files; verbs that take no accent left as they are.                                                                                                                                                                                             |
+| 8   | `a3d34d48`, `bb23b758` | Ruled: the dialog follows the tablet's scope (dark by default, also over light chrome), and the danger fill is the token red-600.                                                                                                                                       |
+| 9   | `0ed13389`, `31a3f3ad` | A failed disqualification is thrown; a resent card disqualifies again; a review put back is checked, and a miss is named.                                                                                                                                               |
+| 10  | `a2f1dac6`, `94cb8e94` | **Narrower than written.** A Start on a completed bout is ruling 331, on purpose. The defect was the race: a completion between the read and the write. The write now holds `.neq('status', 'completed')`, the row is taken back, and the press meets `bout_completed`. |
+
+Named while they were built, and not fixed:
+
+- The level step writes its bout with the same unguarded update (`matches/level-step.ts:202`).
+  Refusing there must also take back the halt row it wrote first.
+- A forfeit of a black card is not repeated when the tablet sends the card again; the
+  disqualification now is.
+- `dialog-classes.ts` and `Modal.tsx` each own a dialog shell (backdrop `/40` against `/50`).
+- `archive-read.ts` keeps its own by-key loop beside `fetchAllByKey`.
+- The tests of `7225ffc7` and `30c90323` read source text; `web-public`'s vitest compiles no TSX.
+
 1. **The public Event page never shows its hero image.** `fetchEventTheme` reads `event.theme`,
    but the API sends `themes` (`apps/web-public/src/theme/fetch-theme.ts:29`;
    `events.service.ts:572`). It also sends no login, so a draft's club could not see it either.
