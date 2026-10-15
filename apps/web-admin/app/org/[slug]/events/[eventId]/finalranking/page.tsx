@@ -23,12 +23,18 @@ import {
   rankingBracketShape,
   type FinalRankingEntry,
 } from '@myclash/ui';
-import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
+import {
+  rankingToCsv,
+  rankingToPrintHtml,
+  type ExportRow,
+  type RankingHeaders,
+} from './final-ranking-export';
 import { useFinalRankingData } from './useFinalRankingData';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
+import { downloadCsv } from '@/lib/csv-file';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -97,18 +103,18 @@ export default function FinalRankingPage() {
     [ranking, maxRound, t],
   );
 
-  function downloadCsv() {
+  // The columns of the file and the print, in the reader's language (O20).
+  const headers: RankingHeaders = [
+    t('organizer.csvColumns.rank'),
+    t('organizer.csvColumns.fighter'),
+    t('organizer.csvColumns.club'),
+    t('organizer.csvColumns.result'),
+    t('organizer.csvColumns.poolScore'),
+  ];
+
+  function exportCsv() {
     if (exportRows.length === 0) return;
-    // BOM so Excel reads accented names as UTF-8.
-    const blob = new Blob(['﻿', rankingToCsv(exportRows)], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `final-ranking-${slugify(tournamentName)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`final-ranking-${slugify(tournamentName)}.csv`, rankingToCsv(exportRows, headers));
   }
 
   function printRanking() {
@@ -117,6 +123,7 @@ export default function FinalRankingPage() {
       rankingToPrintHtml(
         t('organizer.finalRanking.printTitle', { name: tournamentName }),
         exportRows,
+        headers,
       ),
       () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
@@ -148,7 +155,7 @@ export default function FinalRankingPage() {
         <div className="flex flex-shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={downloadCsv}
+            onClick={exportCsv}
             disabled={!canExport}
             className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:border-border disabled:cursor-not-allowed disabled:opacity-40"
           >

@@ -7,7 +7,12 @@ import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 import { useI18n } from '@myclash/next-i18n/client';
-import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
+import {
+  compensationToCsv,
+  compensationToPrintHtml,
+  type CompensationWords,
+} from './compensation-export';
+import { downloadCsv } from '@/lib/csv-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
@@ -224,18 +229,29 @@ export default function CompensationPage() {
   const skillNameById: Record<string, string> = {};
   for (const s of skills) skillNameById[s.id] = s.name;
 
-  function downloadCsv() {
+  // The file's and the print's words, in the reader's language (O20).
+  const exportWords: CompensationWords = {
+    headers: [
+      t('organizer.csvColumns.referee'),
+      t('organizer.csvColumns.poolTokens'),
+      t('organizer.csvColumns.swissTokens'),
+      t('organizer.csvColumns.bracketTokens'),
+      t('organizer.csvColumns.finalsTokens'),
+      t('organizer.csvColumns.totalTokens'),
+      t('organizer.csvColumns.amountEur'),
+      t('organizer.csvColumns.paid'),
+    ],
+    yes: t('organizer.csvColumns.yes'),
+    no: t('organizer.csvColumns.no'),
+    total: t('organizer.csvColumns.total'),
+  };
+
+  function exportCsv() {
     if (!report || report.referees.length === 0) return;
-    // BOM so Excel reads accented names as UTF-8.
-    const blob = new Blob(['﻿', compensationToCsv(report)], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `compensation-${slugify(report.planName)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(
+      `compensation-${slugify(report.planName)}.csv`,
+      compensationToCsv(report, exportWords),
+    );
   }
 
   function printReport() {
@@ -244,6 +260,7 @@ export default function CompensationPage() {
       compensationToPrintHtml(
         t('organizer.eventCompensation.exportTitle', { plan: report.planName }),
         report,
+        exportWords,
       ),
       () => toast.error(t('organizer.printWindow.popupBlocked')),
     );
@@ -380,7 +397,7 @@ export default function CompensationPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={downloadCsv}
+              onClick={exportCsv}
               disabled={!canExport}
               className="text-sm text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >

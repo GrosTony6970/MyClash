@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { blowCount, blowValueColumns, type AfterblowRule } from '@myclash/ui';
+import { blowCount, blowValueColumns, standingsColumnLabel, type AfterblowRule } from '@myclash/ui';
 import type { FighterStats, TournamentDetail, TournamentSummary } from './types';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
@@ -231,7 +231,7 @@ function StandingsTable({ detail, t }: { detail: TournamentDetail; t: Translate 
               {columns.map((c, i) => (
                 <th key={c.key} className="px-3 py-2 text-center">
                   <StandingsHeaderCell
-                    label={c.label}
+                    label={standingsColumnLabel(c, (key) => t(key))}
                     columnKey={c.key}
                     sortDesc={c.sortDesc}
                     currentKey={sortKey}

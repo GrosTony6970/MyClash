@@ -23,6 +23,9 @@ const lices = new Map([
 
 const TZ = 'Europe/Paris';
 
+/** The file's lines, after the byte-order mark, without the last line end. */
+const linesOf = (csv: string) => csv.slice(1).replace(/\r\n$/, '').split('\r\n');
+
 /** Headers come from `t()` at the call site; English here mirrors the EN pack. */
 const LABELS = {
   day: 'Day',
@@ -37,9 +40,13 @@ const LABELS = {
 };
 
 describe('scheduleToCsv', () => {
+  it('starts with the byte-order mark, so a spreadsheet reads accents as written', () => {
+    expect(scheduleToCsv([m({})], lices, TZ, LABELS).charCodeAt(0)).toBe(0xfeff);
+  });
+
   it('emits a header row and one data row per scheduled match', () => {
     const csv = scheduleToCsv([m({})], lices, TZ, LABELS);
-    const lines = csv.trim().split('\n');
+    const lines = linesOf(csv);
     expect(lines[0]).toBe('Day,Lice,Start,Round,Tournament,Pool/Round,Red,Blue,Status');
     expect(lines).toHaveLength(2);
     expect(lines[1]).toContain('2027-06-21');
@@ -59,7 +66,7 @@ describe('scheduleToCsv', () => {
       TZ,
       LABELS,
     );
-    const rows = csv.trim().split('\n').slice(1);
+    const rows = linesOf(csv).slice(1);
     // L1 before L2; within L1, 09:00 before 10:00.
     expect(rows[0]).toContain('Lice 1');
     expect(rows[0]).toContain('LSW-P1-M1'); // both use default roundCode; check order via fighters/time
@@ -73,7 +80,7 @@ describe('scheduleToCsv', () => {
       TZ,
       LABELS,
     );
-    const row = csv.trim().split('\n')[1]!;
+    const row = linesOf(csv)[1]!;
     expect(row).toContain('"Doe, John"');
     expect(row).toContain('"Anne ""Ace"" Roy"');
   });
@@ -93,7 +100,7 @@ describe('scheduleToCsv', () => {
       LABELS,
     );
 
-    expect(csv.trim().split('\n')[1]).toContain('09:00');
+    expect(linesOf(csv)[1]).toContain('09:00');
   });
 
   it('files a bout after midnight under the event day, not the UTC day', () => {
@@ -104,7 +111,7 @@ describe('scheduleToCsv', () => {
       'Europe/Paris',
       LABELS,
     );
-    const row = csv.trim().split('\n')[1]!;
+    const row = linesOf(csv)[1]!;
 
     expect(row).toContain('2027-06-21');
     expect(row).not.toContain('2027-06-20');
@@ -114,9 +121,7 @@ describe('scheduleToCsv', () => {
   it('takes its headers from the caller rather than hardcoding English', () => {
     const csv = scheduleToCsv([m({})], lices, TZ, { ...LABELS, day: 'Jour', red: 'Rouge' });
 
-    expect(csv.trim().split('\n')[0]).toBe(
-      'Jour,Lice,Start,Round,Tournament,Pool/Round,Rouge,Blue,Status',
-    );
+    expect(linesOf(csv)[0]).toBe('Jour,Lice,Start,Round,Tournament,Pool/Round,Rouge,Blue,Status');
   });
 
   it('excludes unscheduled matches (no time or no lice)', () => {
@@ -126,6 +131,6 @@ describe('scheduleToCsv', () => {
       TZ,
       LABELS,
     );
-    expect(csv.trim().split('\n')).toHaveLength(2); // header + the one kept
+    expect(linesOf(csv)).toHaveLength(2); // header + the one kept
   });
 });

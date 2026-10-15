@@ -38,6 +38,7 @@ import { addToWaitingList, tryRegisterInTournament } from './_components/registr
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { downloadCsv } from '@/lib/csv-file';
 import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
@@ -506,13 +507,7 @@ export default function ParticipantsPage() {
       instructorPersonIds,
       formatRosterName,
     );
-    const csv = rosterCsv(rows, activeTab !== ALL_TOURNAMENTS, t);
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'roster.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv('roster.csv', rosterCsv(rows, activeTab !== ALL_TOURNAMENTS, t));
   }
 
   /** Empties the person and the club; the ticked Tournaments stay (O16, the next walk-in). */

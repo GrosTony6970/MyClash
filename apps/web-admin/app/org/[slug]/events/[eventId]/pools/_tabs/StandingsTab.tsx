@@ -1,15 +1,15 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { statusLabel } from '@myclash/ui';
+import { standingsColumnLabel, statusLabel } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
-import { escapeCsvCell } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { csvFile, downloadCsv } from '@/lib/csv-file';
 
 const apiUrl = getPublicApiUrl();
 
@@ -155,38 +155,29 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
     setMode(m);
   }
 
-  function downloadCsv(
+  function exportStandings(
     columns: StandingsColumn[],
     rows: Array<StandingsRow & { _poolName?: string }>,
     filename: string,
     includePool?: boolean,
   ) {
-    const headers = [
-      'Rank',
-      'Fighter',
-      'Club',
-      ...(includePool ? ['Pool'] : []),
-      ...columns.map((c) => c.label),
-      'Status',
+    const header = [
+      t('organizer.csvColumns.rank'),
+      t('organizer.csvColumns.fighter'),
+      t('organizer.csvColumns.club'),
+      ...(includePool ? [t('organizer.csvColumns.pool')] : []),
+      ...columns.map((c) => standingsColumnLabel(c, t)),
+      t('organizer.csvColumns.status'),
     ];
-    const lines = [headers.map(csvEscape).join(',')];
-    for (const row of rows) {
-      const r: string[] = [
-        String(row.rank),
-        row.displayName,
-        row.club?.name ?? '',
-        ...(includePool ? [row._poolName ?? ''] : []),
-        ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
-        row.status,
-      ];
-      lines.push(r.map(csvEscape).join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const lines = rows.map((row) => [
+      row.rank,
+      row.displayName,
+      row.club?.name ?? '',
+      ...(includePool ? [row._poolName ?? ''] : []),
+      ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
+      statusLabel('poolState', row.status, t),
+    ]);
+    downloadCsv(filename, csvFile([header, ...lines]));
   }
 
   return (
@@ -232,7 +223,9 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
           {mode === 'overall' && overall && overall.rows.length > 0 && (
             <button
               type="button"
-              onClick={() => downloadCsv(overall.columns, overall.rows, 'overall-standings.csv')}
+              onClick={() =>
+                exportStandings(overall.columns, overall.rows, 'overall-standings.csv')
+              }
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
             >
               {t('organizer.pools.standings.exportCsv')}
@@ -245,7 +238,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                 const allRows = byPool.pools.flatMap((p) =>
                   p.rows.map((r) => ({ ...r, _poolName: p.poolName })),
                 );
-                downloadCsv(byPool.columns, allRows, 'all-pools-standings.csv', true);
+                exportStandings(byPool.columns, allRows, 'all-pools-standings.csv', true);
               }}
               className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
             >
@@ -291,7 +284,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                     <button
                       type="button"
                       onClick={() =>
-                        downloadCsv(byPool.columns, pool.rows, `${pool.poolName}-standings.csv`)
+                        exportStandings(byPool.columns, pool.rows, `${pool.poolName}-standings.csv`)
                       }
                       className="text-xs text-foreground-secondary hover:underline"
                     >
@@ -405,7 +398,7 @@ function StandingsTable({
                 }
               >
                 <StandingsHeaderCell
-                  label={c.label}
+                  label={standingsColumnLabel(c, t)}
                   columnKey={c.key}
                   sortDesc={c.sortDesc}
                   currentKey={sortKey}
@@ -500,10 +493,3 @@ function EmptyState() {
     </div>
   );
 }
-
-/**
- * Formula-safe: standings are downloaded and opened in a spreadsheet, and
- * fighter and club names come from the roster, which organisers type. See
- * @myclash/types/csv — plain numbers stay numeric so the stat columns still sum.
- */
-const csvEscape = escapeCsvCell;

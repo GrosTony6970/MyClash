@@ -1,4 +1,4 @@
-import { csvRow } from '@myclash/types';
+import { csvFile } from '@/lib/csv-file';
 import { statusLabelKey, type RegistrationStatus } from '@myclash/ui';
 
 /**
@@ -111,11 +111,11 @@ export function rosterCsv(
   const lines = rows.map((row) => {
     const flags = [yesNo(row.referee), yesNo(row.instructor)];
     if (!oneTournament) {
-      return csvRow([row.name, row.club ?? '', tournamentsCell(row.registrations, t), ...flags]);
+      return [row.name, row.club ?? '', tournamentsCell(row.registrations, t), ...flags];
     }
     const entry = row.registrations[0];
     const status = entry ? t(statusLabelKey('registration', entry.status)) : '';
-    return csvRow([row.name, row.club ?? '', status, entry?.seed ?? '', ...flags]);
+    return [row.name, row.club ?? '', status, entry?.seed ?? '', ...flags];
   });
-  return `\uFEFF${[csvRow(header(oneTournament, t)), ...lines].join('\r\n')}\r\n`;
+  return csvFile([header(oneTournament, t), ...lines]);
 }

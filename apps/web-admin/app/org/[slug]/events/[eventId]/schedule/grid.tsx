@@ -10,7 +10,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { ConfirmDialog, accentClassFor, useToast } from '@myclash/ui';
+import { ConfirmDialog, accentClassFor, statusLabel, useToast } from '@myclash/ui';
 import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent } from '@myclash/types';
@@ -77,6 +77,7 @@ import {
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
+import { downloadCsv } from '@/lib/csv-file';
 import { LicePlacementEditor } from './LicePlacementEditor';
 import { mutateSchedule } from './schedule-mutations';
 
@@ -1378,7 +1379,12 @@ export function ScheduleGrid({
   }, [lices]);
 
   function exportCsv() {
-    const csv = scheduleToCsv(matches, liceNameById, eventTz, {
+    // The state cell in the reader's words (X1), as the board says it.
+    const worded = matches.map((match) => ({
+      ...match,
+      status: statusLabel('match', match.status, t),
+    }));
+    const csv = scheduleToCsv(worded, liceNameById, eventTz, {
       day: t('organizer.schedulePage.grid.printColDay'),
       lice: t('organizer.schedulePage.grid.printColLice'),
       start: t('organizer.schedulePage.grid.printColStart'),
@@ -1389,13 +1395,7 @@ export function ScheduleGrid({
       blue: t('organizer.schedulePage.grid.printColBlue'),
       status: t('organizer.schedulePage.grid.printColStatus'),
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `schedule-${eventId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`schedule-${eventId}.csv`, csv);
   }
 
   function printSchedule() {

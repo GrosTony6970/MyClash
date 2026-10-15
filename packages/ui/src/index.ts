@@ -171,6 +171,7 @@ export { leaveTarget } from './utils/leave-target';
 export type { LinkAttributes, LinkClick } from './utils/leave-target';
 export { nameOrUnknown } from './utils/name-or-unknown';
 export { isKnownStatus, statusLabel, statusLabelKey } from './utils/status-label';
+export { STANDINGS_COLUMN_KEYS, standingsColumnLabel } from './utils/standings-column-label';
 export type {
   EventStatus,
   OrgMemberRole,

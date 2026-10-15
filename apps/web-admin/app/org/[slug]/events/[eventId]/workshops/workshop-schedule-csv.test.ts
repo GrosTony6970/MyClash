@@ -51,10 +51,24 @@ const workshops: CsvWorkshop[] = [
 ];
 
 describe('workshopScheduleToCsv', () => {
-  const lines = workshopScheduleToCsv(workshops, venues, TZ).split('\n');
+  const HEADERS = [
+    'Jour',
+    'Lieu',
+    'Espace',
+    'Début',
+    'Fin',
+    'Atelier',
+    'Instructeur',
+    'Catégorie',
+    'Niveau',
+    'Places',
+  ] as const;
+  const csv = workshopScheduleToCsv(workshops, venues, TZ, HEADERS);
+  const lines = csv.slice(1).replace(/\r\n$/, '').split('\r\n');
 
-  it('starts with the header and excludes unscheduled workshops', () => {
-    expect(lines[0]).toBe('Day,Venue,Area,Start,End,Workshop,Instructor,Category,Level,Slots');
+  it('starts with the byte-order mark and the given header, and excludes unscheduled workshops', () => {
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(lines[0]).toBe('Jour,Lieu,Espace,Début,Fin,Atelier,Instructeur,Catégorie,Niveau,Places');
     expect(lines).toHaveLength(3); // header + 2 scheduled
   });
 

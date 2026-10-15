@@ -19,7 +19,7 @@
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
-import { accentClassFor } from '@myclash/ui';
+import { accentClassFor, standingsColumnLabel } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
@@ -246,7 +246,8 @@ function derivationSentence(
   const aboveName = data.rows[idx - 1]?.displayName ?? '';
   const dt = row.decidingTiebreak;
   if (!dt) return t('publicApp.tournament.standings.derivationTied', { name: aboveName });
-  const criterion = data.columns.find((c) => c.key === dt.key)?.label ?? dt.key;
+  const column = data.columns.find((c) => c.key === dt.key);
+  const criterion = standingsColumnLabel(column ?? { key: dt.key, label: dt.key }, t);
   return t('publicApp.tournament.standings.derivationBelow', {
     name: aboveName,
     criterion,
@@ -316,7 +317,7 @@ function OverallTable({
                     : 'px-2 py-2 text-right font-semibold'
                 }
               >
-                {c.label}
+                {standingsColumnLabel(c, t)}
               </th>
             ))}
           </tr>

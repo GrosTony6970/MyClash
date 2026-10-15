@@ -1,6 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import type { CompensationReport } from '@myclash/types';
-import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
+import {
+  compensationToCsv,
+  compensationToPrintHtml,
+  type CompensationWords,
+} from './compensation-export';
+
+const WORDS: CompensationWords = {
+  headers: [
+    'Arbitre',
+    'Poules',
+    'Rondes suisses',
+    'Tableau',
+    'Finales',
+    'Total des jetons',
+    'Montant (EUR)',
+    'Payé',
+  ],
+  yes: 'Oui',
+  no: 'Non',
+  total: 'Total',
+};
+/** The file's lines, after the byte-order mark, without the last line end. */
+const linesOf = (csv: string) => csv.slice(1).replace(/\r\n$/, '').split('\r\n');
 
 type Referee = CompensationReport['referees'][number];
 
@@ -43,24 +65,30 @@ function makeReport(): CompensationReport {
 }
 
 describe('compensationToCsv', () => {
+  it("starts with the byte-order mark, in the reader's words", () => {
+    expect(compensationToCsv(makeReport(), WORDS).charCodeAt(0)).toBe(0xfeff);
+  });
+
   it('emits a header, one row per referee, and a grand-total row', () => {
-    const lines = compensationToCsv(makeReport()).split('\r\n');
-    expect(lines[0]).toBe('Referee,Pool,Swiss,Bracket,Finals,Total tokens,Amount (EUR),Paid');
+    const lines = linesOf(compensationToCsv(makeReport(), WORDS));
+    expect(lines[0]).toBe(
+      'Arbitre,Poules,Rondes suisses,Tableau,Finales,Total des jetons,Montant (EUR),Payé',
+    );
     expect(lines).toHaveLength(4); // header + 2 referees + total
     expect(lines[3]).toBe('Total,,,,,,30.00,');
   });
 
   it('splits phase tokens into columns and escapes commas/quotes per RFC 4180', () => {
-    const alice = compensationToCsv(makeReport()).split('\r\n')[1];
+    const alice = linesOf(compensationToCsv(makeReport(), WORDS))[1];
     // name (comma+quotes → quoted/doubled), pool 6.0, swiss 4.0, bracket 6.0,
     // finals 0.0, total 12.0, amount 10.00, paid Yes
-    expect(alice).toBe('"Alice, ""Ace""",6.0,4.0,6.0,0.0,12.0,10.00,Yes');
+    expect(alice).toBe('"Alice, ""Ace""",6.0,4.0,6.0,0.0,12.0,10.00,Oui');
   });
 
   it('keeps the total row aligned with the header when a column is added', () => {
     // The total row used to hard-code its blank cells; adding Swiss silently
     // shifted the amount into the Finals column.
-    const lines = compensationToCsv(makeReport()).split('\r\n');
+    const lines = linesOf(compensationToCsv(makeReport(), WORDS));
     const headerCount = lines[0]!.split(',').length;
     expect(lines[3]!.split(',')).toHaveLength(headerCount);
     expect(lines[3]!.split(',')[headerCount - 2]).toBe('30.00');
@@ -70,17 +98,17 @@ describe('compensationToCsv', () => {
     // Referee names come from the roster, which organisers type and import.
     const report = makeReport();
     report.referees[0]!.displayName = '=cmd|calc';
-    expect(compensationToCsv(report)).toContain('"\'=cmd|calc"');
+    expect(compensationToCsv(report, WORDS)).toContain('"\'=cmd|calc"');
   });
 
   it('keeps amounts numeric so the EUR column still sums', () => {
     // The first thing anyone does with this file is total the amount column.
-    expect(compensationToCsv(makeReport())).toContain(',10.00,');
+    expect(compensationToCsv(makeReport(), WORDS)).toContain(',10.00,');
   });
 
   it('emits header + a zeroed total row for an empty report', () => {
     const empty = { ...makeReport(), referees: [], grandTotal: 0 };
-    const lines = compensationToCsv(empty).split('\r\n');
+    const lines = linesOf(compensationToCsv(empty, WORDS));
     expect(lines).toHaveLength(2);
     expect(lines[1]).toBe('Total,,,,,,0.00,');
   });
@@ -88,7 +116,7 @@ describe('compensationToCsv', () => {
 
 describe('compensationToPrintHtml', () => {
   it('produces a full HTML doc with the localized title and a total row', () => {
-    const html = compensationToPrintHtml('Compensation — Test', makeReport());
+    const html = compensationToPrintHtml('Compensation — Test', makeReport(), WORDS);
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('<title>Compensation — Test</title>');
     expect(html).toContain('<td class="r">20.00</td>');
@@ -98,7 +126,7 @@ describe('compensationToPrintHtml', () => {
   it('escapes HTML in referee names', () => {
     const report = makeReport();
     report.referees[0]!.displayName = '<b>x</b>';
-    const html = compensationToPrintHtml('t', report);
+    const html = compensationToPrintHtml('t', report, WORDS);
     expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
     expect(html).not.toContain('<b>x</b>');
   });

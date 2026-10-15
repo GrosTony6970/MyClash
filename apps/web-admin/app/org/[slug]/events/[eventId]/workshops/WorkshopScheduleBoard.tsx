@@ -41,6 +41,7 @@ import { tintBgClassFor, tintBorderClassFor, tintTextClassFor, useToast } from '
 import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
+import { downloadCsv } from '@/lib/csv-file';
 import {
   breakTimesFromSlots,
   findWorkshopOverlaps,
@@ -439,14 +440,20 @@ export function WorkshopScheduleBoard({
       })),
       venues,
       timezone,
+      [
+        t('organizer.csvColumns.day'),
+        t('organizer.csvColumns.venue'),
+        t('organizer.csvColumns.area'),
+        t('organizer.csvColumns.start'),
+        t('organizer.csvColumns.end'),
+        t('organizer.csvColumns.workshop'),
+        t('organizer.csvColumns.instructor'),
+        t('organizer.csvColumns.category'),
+        t('organizer.csvColumns.level'),
+        t('organizer.csvColumns.slots'),
+      ],
     );
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'workshops.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv('workshops.csv', csv);
   }
 
   function printDay() {

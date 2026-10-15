@@ -1,10 +1,12 @@
 /**
  * Pure CSV / print-HTML builders for the final ranking. Kept free of React + I/O
- * so the row→text mapping is unit-testable; the page does the Blob download and
- * the print-window open. Columns mirror the on-screen table.
+ * so the row→text mapping is unit-testable; the page does the download and the
+ * print-window open. Columns mirror the on-screen table; the page hands in their
+ * titles, in the reader's language (O20).
  */
 
-import { escapeCsvCell, escapeHtml } from '@myclash/types';
+import { escapeHtml } from '@myclash/types';
+import { csvFile } from '@/lib/csv-file';
 
 export interface ExportRow {
   rank: number;
@@ -17,26 +19,25 @@ export interface ExportRow {
   poolScore: string;
 }
 
-const HEADERS = ['Rank', 'Fighter', 'Club', 'Result', 'Pool score'] as const;
+/** The five column titles: rank, fighter, club, result, pool score. */
+export type RankingHeaders = readonly [string, string, string, string, string];
 
 /**
- * Formula-safe: this file is downloaded and opened in a spreadsheet, and fighter
- * and club names come from the roster, which organisers type. See
- * @myclash/types/csv — plain numbers stay numeric so pool score still sums.
+ * Formula-safe through `csvFile`: this file is opened in a spreadsheet, and fighter and club
+ * names come from the roster, which organisers type. Plain numbers stay numeric so pool
+ * score still sums.
  */
-const csvEscape = escapeCsvCell;
-
-export function rankingToCsv(rows: ExportRow[]): string {
-  const lines = [HEADERS.join(',')];
-  for (const r of rows) {
-    lines.push([String(r.rank), r.fighter, r.club, r.result, r.poolScore].map(csvEscape).join(','));
-  }
-  return lines.join('\r\n');
+export function rankingToCsv(rows: ExportRow[], headers: RankingHeaders): string {
+  return csvFile([headers, ...rows.map((r) => [r.rank, r.fighter, r.club, r.result, r.poolScore])]);
 }
 
 const htmlEscape = escapeHtml;
 
-export function rankingToPrintHtml(title: string, rows: ExportRow[]): string {
+export function rankingToPrintHtml(
+  title: string,
+  rows: ExportRow[],
+  headers: RankingHeaders,
+): string {
   const body = rows
     .map(
       (r) =>
@@ -53,7 +54,7 @@ export function rankingToPrintHtml(title: string, rows: ExportRow[]): string {
     `th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}` +
     `th{background:#f3f4f6}td.r{text-align:right}td.r:first-child{text-align:center;width:48px}</style>` +
     `</head><body><h1>${htmlEscape(title)}</h1><table><thead><tr>` +
-    HEADERS.map((h) => `<th>${h}</th>`).join('') +
+    headers.map((h) => `<th>${htmlEscape(h)}</th>`).join('') +
     `</tr></thead><tbody>${body}</tbody></table></body></html>`
   );
 }

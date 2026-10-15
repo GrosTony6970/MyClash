@@ -8,7 +8,7 @@
  * Pure: no React, no I/O.
  */
 import { parseBracketRound } from '@myclash/schedule-core';
-import { escapeCsvCell } from '@myclash/types';
+import { csvFile } from '@/lib/csv-file';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
 
 export interface CsvMatch {
@@ -36,14 +36,7 @@ export interface CsvLabels {
   status: string;
 }
 
-/**
- * Formula-safe: the schedule is downloaded and opened in a spreadsheet, and
- * fighter, tournament and lice names come from organiser input.
- * See @myclash/types/csv.
- */
-const esc = escapeCsvCell;
-
-function headerRow(labels: CsvLabels): string {
+function headerRow(labels: CsvLabels): string[] {
   return [
     labels.day,
     labels.lice,
@@ -54,9 +47,7 @@ function headerRow(labels: CsvLabels): string {
     labels.red,
     labels.blue,
     labels.status,
-  ]
-    .map(esc)
-    .join(',');
+  ];
 }
 
 /** `HH:MM` on the EVENT's wall clock — locale-free and zone-correct. */
@@ -105,5 +96,6 @@ export function scheduleToCsv(
         a.startIso.localeCompare(b.startIso),
     );
 
-  return [headerRow(labels), ...rows.map((r) => r.cells.map(esc).join(','))].join('\n');
+  // Formula-safe through `csvFile`: fighter, tournament and lice names are organiser input.
+  return csvFile([headerRow(labels), ...rows.map((r) => r.cells)]);
 }

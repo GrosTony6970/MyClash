@@ -10,14 +10,15 @@
  * should be placed on a number they cannot see.
  */
 
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
+import { standingsColumnLabel } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
-import { escapeCsvCell } from '@myclash/types';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { csvFile, downloadCsv } from '@/lib/csv-file';
 
 interface StandingsColumn {
   key: string;
@@ -107,7 +108,7 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => downloadCsv(data)}
+            onClick={() => downloadCsv('swiss-standings.csv', standingsCsv(data, t))}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"
           >
             {t('organizer.swiss.standings.exportCsv')}
@@ -176,7 +177,7 @@ function SwissTable({ columns, rows }: { columns: StandingsColumn[]; rows: Swiss
                   }
                 >
                   <StandingsHeaderCell
-                    label={column.label}
+                    label={standingsColumnLabel(column, t)}
                     columnKey={column.key}
                     sortDesc={column.sortDesc}
                     currentKey={sortKey}
@@ -228,8 +229,8 @@ function SwissTable({ columns, rows }: { columns: StandingsColumn[]; rows: Swiss
   );
 }
 
-function formatStat(column: StandingsColumn, value: unknown): string {
-  if (value == null || value === '') return '—';
+function formatStat(column: StandingsColumn, value: unknown, empty = '—'): string {
+  if (value == null || value === '') return empty;
   if (column.decimals != null) {
     const parsed = typeof value === 'number' ? value : Number(value);
     if (Number.isFinite(parsed)) return parsed.toFixed(column.decimals);
@@ -237,26 +238,21 @@ function formatStat(column: StandingsColumn, value: unknown): string {
   return String(value);
 }
 
-function downloadCsv(data: SwissStandings) {
-  const headers = ['Rank', 'Fighter', 'Club', ...data.columns.map((c) => c.label), 'Withdrawn'];
-  const lines = [headers.map(escapeCsvCell).join(',')];
-  for (const row of data.rows) {
-    lines.push(
-      [
-        String(row.rank),
-        row.displayName,
-        row.club?.name ?? '',
-        ...data.columns.map((c) => formatStat(c, row.stats[c.key])),
-        row.withdrawn ? String(row.withdrawnAtRound ?? '') : '',
-      ]
-        .map(escapeCsvCell)
-        .join(','),
-    );
-  }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const anchor = document.createElement('a');
-  anchor.href = URL.createObjectURL(blob);
-  anchor.download = 'swiss-standings.csv';
-  anchor.click();
-  URL.revokeObjectURL(anchor.href);
+/** The Swiss standings as a file: the reader's words, an empty cell where the screen says —. */
+function standingsCsv(data: SwissStandings, t: Translator): string {
+  const header = [
+    t('organizer.csvColumns.rank'),
+    t('organizer.csvColumns.fighter'),
+    t('organizer.csvColumns.club'),
+    ...data.columns.map((c) => standingsColumnLabel(c, t)),
+    t('organizer.csvColumns.withdrawnAtRound'),
+  ];
+  const rows = data.rows.map((row) => [
+    row.rank,
+    row.displayName,
+    row.club?.name ?? '',
+    ...data.columns.map((c) => formatStat(c, row.stats[c.key], '')),
+    row.withdrawn ? (row.withdrawnAtRound ?? '') : '',
+  ]);
+  return csvFile([header, ...rows]);
 }

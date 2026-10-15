@@ -1,9 +1,10 @@
 /**
  * RFC-4180 CSV of the scheduled workshops, mirroring the pool schedule's
- * Export CSV. Pure: times resolve to 24h `HH:MM` in the event timezone.
+ * Export CSV. Pure: times resolve to 24h `HH:MM` in the event timezone. The
+ * page hands in the column titles, in the reader's language (O20).
  */
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
-import { escapeCsvCell } from '@myclash/types';
+import { csvFile } from '@/lib/csv-file';
 
 export interface CsvVenue {
   id: string;
@@ -26,7 +27,19 @@ export interface CsvWorkshop {
   }>;
 }
 
-const HEADER = 'Day,Venue,Area,Start,End,Workshop,Instructor,Category,Level,Slots';
+/** Day, Venue, Area, Start, End, Workshop, Instructor, Category, Level, Places. */
+export type WorkshopCsvHeaders = readonly [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+];
 
 function hhmm(iso: string, tz: string): string {
   const min = minutesIntoDayInZone(iso, tz);
@@ -34,17 +47,11 @@ function hhmm(iso: string, tz: string): string {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
-/**
- * Formula-safe: the workshop schedule is downloaded and opened in a spreadsheet,
- * and workshop titles and instructor names come from organiser input.
- * See @myclash/types/csv.
- */
-const esc = escapeCsvCell;
-
 export function workshopScheduleToCsv(
   workshops: ReadonlyArray<CsvWorkshop>,
   venues: ReadonlyArray<CsvVenue>,
   tz: string,
+  headers: WorkshopCsvHeaders,
 ): string {
   const venueName = new Map(venues.map((v) => [v.id, v.name]));
   const areaName = new Map<string, string>();
@@ -86,5 +93,6 @@ export function workshopScheduleToCsv(
         a.start.localeCompare(b.start),
     );
 
-  return [HEADER, ...rows.map((r) => r.cells.map((c) => esc(String(c))).join(','))].join('\n');
+  // Formula-safe through `csvFile`: workshop titles and instructor names are organiser input.
+  return csvFile([headers, ...rows.map((r) => r.cells)]);
 }

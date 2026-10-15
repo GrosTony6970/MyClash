@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { standingsColumnLabel } from '@myclash/ui';
 import type {
   StandingsColumn,
   StandingsRow,
@@ -52,7 +53,7 @@ export function PoolStandingsTable({
             <th className="px-2 py-1.5 font-semibold">{t('scoring.lice.standingsFighter')}</th>
             {columns.map((column) => (
               <th key={column.key} className="px-2 py-1.5 text-right font-semibold">
-                {column.label}
+                {standingsColumnLabel(column, t)}
               </th>
             ))}
           </tr>

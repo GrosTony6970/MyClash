@@ -1,43 +1,35 @@
 /**
  * Pure CSV / print-HTML builders for the referee compensation report. Kept free
  * of React + I/O so the row→text mapping is unit-testable; the page does the
- * Blob download and the print-window open. Columns mirror the on-screen table.
- * Headers are English by convention (see final-ranking-export.ts); the print
- * title is passed in already localized.
+ * download and the print-window open. Columns mirror the on-screen table. The
+ * page hands in every word (the column titles, Yes / No, Total) in the reader's
+ * language (O20); the print title is passed in already localized.
  */
 
-import { escapeCsvCell, escapeHtml, type CompensationReport } from '@myclash/types';
+import { escapeHtml, type CompensationReport } from '@myclash/types';
+import { csvFile } from '@/lib/csv-file';
 
 type Referee = CompensationReport['referees'][number];
 
-const HEADERS = [
-  'Referee',
-  'Pool',
-  'Swiss',
-  'Bracket',
-  'Finals',
-  'Total tokens',
-  'Amount (EUR)',
-  'Paid',
-] as const;
+/** The words of the file and the print, in the reader's language. */
+export interface CompensationWords {
+  /** Referee, Pool, Swiss, Bracket, Finals, Total tokens, Amount (EUR), Paid. */
+  headers: readonly [string, string, string, string, string, string, string, string];
+  yes: string;
+  no: string;
+  total: string;
+}
 
-/** Index of the 'Amount (EUR)' column, so the total row's padding follows the
- *  header list instead of a hand-counted run of empty strings. */
-const AMOUNT_COLUMN = HEADERS.indexOf('Amount (EUR)');
-
-/**
- * Formula-safe: this file is downloaded and opened in a spreadsheet, and referee
- * names come from the roster, which organisers type. See @myclash/types/csv —
- * plain numbers stay numeric so the amount column still sums.
- */
-const csvEscape = escapeCsvCell;
+/** Index of the amount column, so the total row's padding follows the header
+ *  list instead of a hand-counted run of empty strings. */
+const AMOUNT_COLUMN = 6;
 
 /** Sum of a referee's breakdown subtotals for one phase (matches the UI cell). */
 function phaseTokens(referee: Referee, phase: string): number {
   return referee.breakdown.filter((b) => b.phase === phase).reduce((sum, b) => sum + b.subtotal, 0);
 }
 
-function refereeCells(r: Referee): string[] {
+function refereeCells(r: Referee, words: CompensationWords): string[] {
   return [
     r.displayName,
     phaseTokens(r, 'pool').toFixed(1),
@@ -46,38 +38,47 @@ function refereeCells(r: Referee): string[] {
     phaseTokens(r, 'finals').toFixed(1),
     r.totalTokens.toFixed(1),
     r.amountOwed.toFixed(2),
-    r.paid ? 'Yes' : 'No',
+    r.paid ? words.yes : words.no,
   ];
 }
 
-export function compensationToCsv(report: CompensationReport): string {
-  const lines = [HEADERS.join(',')];
-  for (const r of report.referees) {
-    lines.push(refereeCells(r).map(csvEscape).join(','));
-  }
-  const totalCells = HEADERS.map((_, i) =>
-    i === 0 ? 'Total' : i === AMOUNT_COLUMN ? report.grandTotal.toFixed(2) : '',
+/**
+ * Formula-safe through `csvFile`: this file is opened in a spreadsheet, and referee names come
+ * from the roster, which organisers type. Plain numbers stay numeric so the amount column
+ * still sums.
+ */
+export function compensationToCsv(report: CompensationReport, words: CompensationWords): string {
+  const totalCells = words.headers.map((_, i) =>
+    i === 0 ? words.total : i === AMOUNT_COLUMN ? report.grandTotal.toFixed(2) : '',
   );
-  lines.push(totalCells.map(csvEscape).join(','));
-  return lines.join('\r\n');
+  return csvFile([
+    words.headers,
+    ...report.referees.map((r) => refereeCells(r, words)),
+    totalCells,
+  ]);
 }
 
 const htmlEscape = escapeHtml;
 
-export function compensationToPrintHtml(title: string, report: CompensationReport): string {
+export function compensationToPrintHtml(
+  title: string,
+  report: CompensationReport,
+  words: CompensationWords,
+): string {
   const body = report.referees
     .map((r) => {
-      const [name, ...rest] = refereeCells(r);
+      const [name, ...rest] = refereeCells(r, words);
       return (
         `<tr><td>${htmlEscape(name ?? '')}</td>` +
-        rest.map((cell) => `<td class="r">${cell}</td>`).join('') +
+        rest.map((cell) => `<td class="r">${htmlEscape(cell)}</td>`).join('') +
         `</tr>`
       );
     })
     .join('');
   const totalRow =
-    `<tr class="total"><td>Total</td>` +
-    HEADERS.slice(1)
+    `<tr class="total"><td>${htmlEscape(words.total)}</td>` +
+    words.headers
+      .slice(1)
       .map((_, i) =>
         i + 1 === AMOUNT_COLUMN
           ? `<td class="r">${report.grandTotal.toFixed(2)}</td>`
@@ -93,7 +94,7 @@ export function compensationToPrintHtml(title: string, report: CompensationRepor
     `th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}` +
     `th{background:#f3f4f6}td.r{text-align:right}tr.total td{font-weight:bold}</style>` +
     `</head><body><h1>${htmlEscape(title)}</h1><table><thead><tr>` +
-    HEADERS.map((h) => `<th>${h}</th>`).join('') +
+    words.headers.map((h) => `<th>${htmlEscape(h)}</th>`).join('') +
     `</tr></thead><tbody>${body}${totalRow}</tbody></table></body></html>`
   );
 }
