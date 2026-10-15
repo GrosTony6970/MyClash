@@ -189,10 +189,12 @@ const TABLES = {
     key: 'eventHiddenSkills',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
     skillIdColumns: ['skill_id'],
+    readOrder: ['event_id', 'skill_id'],
   },
   event_instructors: {
     key: 'eventInstructors',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    readOrder: ['event_id', 'person_id'],
   },
   pool_assignment_settings: {
     key: 'poolAssignmentSettings',
@@ -213,10 +215,12 @@ const TABLES = {
     },
     fk: { slot_config_id: 'eventSlotConfig' },
     skillIdColumns: ['skill_id'],
+    readOrder: ['slot_config_id', 'skill_id'],
   },
   referee_compensation_event_settings: {
     key: 'refereeCompensationEventSettings',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    readOrder: ['event_id'],
     // plan_id (NOT NULL) is an org-level plan: `dropRestoredPins` keeps or
     // drops the row by the pin rule (ruling 69), whatever org the archive names.
   },
@@ -253,14 +257,17 @@ const TABLES = {
     // config, on event_slot_config_default_skills it is the event one.
     fk: { slot_config_id: 'tournamentSlotConfig' },
     skillIdColumns: ['skill_id'],
+    readOrder: ['slot_config_id', 'skill_id'],
   },
   event_referee_tournaments: {
     key: 'eventRefereeTournaments',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    readOrder: ['event_id', 'person_id', 'tournament_id'],
   },
   event_referee_days: {
     key: 'eventRefereeDays',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    readOrder: ['event_id', 'person_id', 'day'],
   },
   registrations: {
     key: 'registrations',
@@ -444,6 +451,7 @@ const TABLES = {
     key: 'eventProgrammeConfigs',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
     json: [{ path: 'config_json.tournaments[].tournamentId', map: 'tournaments' }],
+    readOrder: ['event_id'],
   },
 } as const satisfies Record<string, ArchiveTableSpec>;
 
@@ -485,6 +493,13 @@ export function collectRuleFor(
   scope: 'event' | 'tournament',
 ): CollectRule | 'omit' {
   return ARCHIVE_TABLES[table]!.collect[scope];
+}
+
+const BY_ID: readonly string[] = ['id'];
+
+/** The columns a read of this table is paged in: its primary key. See `readOrder`. */
+export function readOrderFor(table: ArchiveTableName): readonly string[] {
+  return (ARCHIVE_TABLES[table] as ArchiveTableSpec).readOrder ?? BY_ID;
 }
 
 const NO_PATHS: readonly JsonIdPath[] = [];

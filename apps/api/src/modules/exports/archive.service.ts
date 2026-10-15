@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
 import { archivedEventRefusal } from '../../common/event-readonly/event-readonly.guard';
 import { dropRestoredPins } from './archive-pins';
+import { readArchivedRows } from './archive-read';
 import { danglingReferences, describeDangling } from './archive-references';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
@@ -46,6 +47,7 @@ type QueryChain = PromiseLike<QueryListResult> & {
   eq: (column: string, value: unknown) => QueryChain;
   in: (column: string, values: unknown[]) => QueryChain;
   order: (column: string, options?: Record<string, unknown>) => QueryChain;
+  range: (from: number, to: number) => QueryChain;
   insert: (payload: ArchiveRow | ArchiveRow[]) => QueryChain;
   maybeSingle: () => Promise<QueryResult<ArchiveRow>>;
   single: () => Promise<QueryResult<ArchiveRow>>;
@@ -733,23 +735,20 @@ export class ArchiveService {
     return data;
   }
 
-  private async listRows(table: string, column: string, value: unknown): Promise<ArchiveRow[]> {
+  private async listRows(
+    table: ArchiveTableName,
+    column: string,
+    value: unknown,
+  ): Promise<ArchiveRow[]> {
     return this.listRowsByIds(table, column, [value]);
   }
 
   private async listRowsByIds(
-    table: string,
+    table: ArchiveTableName,
     column: string,
     values: unknown[],
   ): Promise<ArchiveRow[]> {
-    if (values.length === 0) return [];
-    const query =
-      values.length === 1
-        ? this.db().from(table).select('*').eq(column, values[0])
-        : this.db().from(table).select('*').in(column, values);
-    const { data, error } = await query;
-    if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    return readArchivedRows((name) => this.db().from(name), table, column, values);
   }
 
   private async insertRows(table: string, rows: ArchiveRow[]): Promise<void> {

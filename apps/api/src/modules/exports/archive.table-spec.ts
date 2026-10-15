@@ -181,6 +181,13 @@ export interface ArchiveTableSpec {
   readonly fk?: Readonly<Record<string, IdMapName>>;
 
   /**
+   * The columns that name one row, for a table with no `id`: its primary key. A read of the
+   * table is paged in this order (`archive-read.ts`), and a page order that does not name one
+   * row lets a row fall between two pages. Omitted, it is `id`.
+   */
+  readonly readOrder?: readonly string[];
+
+  /**
    * Columns holding a `referee_skills.id`. System skills are shared across every
    * event and pass through; a custom skill is event-scoped and is remapped.
    * `referee_assignments.role` is one of these — the column name says role, the

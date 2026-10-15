@@ -6,6 +6,16 @@ import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables
 
 type TableRows = Record<string, Record<string, unknown>[]>;
 
+/** The chain, awaited, answers as PostgREST does: one read stops at 1000 rows, with no word. */
+function answersAsPostgrest<T extends { current: unknown[] }>(chain: T): T {
+  Object.defineProperty(chain, 'then', {
+    value: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+      Promise.resolve(resolve({ data: chain.current.slice(0, 1000), error: null })),
+    enumerable: false,
+  });
+  return chain;
+}
+
 function makeSupabase(rows: TableRows) {
   const inserted: Record<string, Record<string, unknown>[]> = {};
   const from = vi.fn((table: string) => {
@@ -21,6 +31,10 @@ function makeSupabase(rows: TableRows) {
         return chain;
       }),
       order: vi.fn(() => chain),
+      range: vi.fn((start: number, end: number) => {
+        chain.current = chain.current.slice(start, end + 1);
+        return chain;
+      }),
       insert: vi.fn((payload: Record<string, unknown> | Record<string, unknown>[]) => {
         const items = Array.isArray(payload) ? payload : [payload];
         inserted[table] = [...(inserted[table] ?? []), ...items];
@@ -42,12 +56,7 @@ function makeSupabase(rows: TableRows) {
       current: [...tableRows],
       then: undefined as unknown,
     };
-    Object.defineProperty(chain, 'then', {
-      value: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
-        Promise.resolve(resolve({ data: chain.current, error: null })),
-      enumerable: false,
-    });
-    return chain;
+    return answersAsPostgrest(chain);
   });
 
   return {
@@ -126,6 +135,32 @@ describe('ArchiveService', () => {
     expect(archive.data.matches).toHaveLength(1);
     expect(archive.data.exchanges).toHaveLength(1);
     expect(archive.reports.tournaments[0]?.resultsCsv).toContain('match_label');
+  });
+
+  it('keeps every hit of a bout of more than 1000, which one read would cut', async () => {
+    const { service } = makeService({
+      events: [
+        { id: 'event-1', organization_id: 'org-1', slug: 'fal', name: 'FAL', status: 'draft' },
+      ],
+      tournaments: [
+        { id: 'tournament-1', event_id: 'event-1', slug: 'longsword', name: 'Longsword' },
+      ],
+      phases: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }],
+      matches: [
+        { id: 'match-1', tournament_id: 'tournament-1', phase_id: 'phase-1', status: 'completed' },
+      ],
+      exchanges: Array.from({ length: 1005 }, (_, n) => ({
+        id: `exchange-${n}`,
+        match_id: 'match-1',
+        sequence: n + 1,
+        type: 'clean',
+      })),
+    });
+
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    expect(archive.data.exchanges).toHaveLength(1005);
+    expect(archive.reports.tournaments[0]!.exchangesCsv.split('\n')).toHaveLength(1 + 1005);
   });
 
   it('excludes scoring rows from structure-only archives', async () => {

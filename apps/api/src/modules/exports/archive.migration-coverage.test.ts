@@ -8,6 +8,8 @@ import {
   ARCHIVE_TABLES,
   JSON_ID_PATHS,
   SHARED_FK_COLUMNS,
+  readOrderFor,
+  type ArchiveTableName,
 } from './archive.tables';
 
 /**
@@ -272,6 +274,19 @@ describe('archive column coverage', () => {
     // …and do NOT leak onto a table that never declared them. This is the
     // false pass the global source scan was giving.
     expect(remappedColumnsFor('matches').has('corrected_exchange_id')).toBe(false);
+  });
+
+  it('pages every archived table in columns it has', () => {
+    // A read is paged in `readOrderFor` (`id` unless declared). A table with no `id` that does not
+    // declare its key 400s on every archive, so it is caught here, not at an organiser's download.
+    const missing = [...ARCHIVE_COLLECTED_TABLES]
+      .flatMap((table) =>
+        readOrderFor(table as ArchiveTableName)
+          .filter((column) => !columns.get(table)?.has(column))
+          .map((column) => `${table}.${column}`),
+      )
+      .sort();
+    expect(missing, 'declare the primary key as `readOrder` in archive.tables.ts').toEqual([]);
   });
 
   it('sees the archived tables in the replayed schema (sanity check on the replay)', () => {
