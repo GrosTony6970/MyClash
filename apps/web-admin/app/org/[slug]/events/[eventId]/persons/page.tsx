@@ -23,6 +23,7 @@ import {
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 import { formatRosterName } from './roster-name';
+import { ticksAfterBulk } from './bulk-ticks';
 import { editPersonBody } from './edit-person-body';
 import { personMatchesFilter, type PersonFilterValue } from './filter-persons';
 import { useRosterFilters } from './useRosterFilters';
@@ -908,8 +909,9 @@ export default function ParticipantsPage() {
     )
       return;
     setBulkLoading(true);
-    let checkInFailures = 0;
-    for (const personId of selected) {
+    const batch = new Set(selected);
+    const refused = new Set<string>();
+    for (const personId of batch) {
       const reg = (registrationsByPersonId.get(personId) ?? []).find(
         (r) => r.tournamentId === activeTab,
       );
@@ -920,14 +922,12 @@ export default function ParticipantsPage() {
       });
       // The write had no success check at all, so a refused bulk check-in
       // reported nothing and the roster silently kept the old status.
-      if (!r.ok) checkInFailures += 1;
+      if (!r.ok) refused.add(personId);
     }
-    if (checkInFailures > 0) {
-      toast.warning(
-        t('organizer.persons.bulk.checkInPartial', { failed: String(checkInFailures) }),
-      );
+    if (refused.size > 0) {
+      toast.warning(t('organizer.persons.bulk.checkInPartial', { failed: String(refused.size) }));
     }
-    setSelected(new Set());
+    setSelected((now) => ticksAfterBulk(now, batch, refused));
     setBulkLoading(false);
     refresh();
   }
@@ -950,7 +950,10 @@ export default function ParticipantsPage() {
     const tournamentName = tour?.name ?? tournamentId;
     const fullPending: WaitlistRow[] = [];
     const erroredNames: string[] = [];
-    for (const personId of selected) {
+    const batch = new Set(selected);
+    // A full Tournament is not a refusal: the waiting-list question takes those.
+    const refused = new Set<string>();
+    for (const personId of batch) {
       const person = persons.find((p) => p.id === personId);
       const personName = nameOrUnknown(
         person ? `${person.givenName} ${person.familyName}` : null,
@@ -971,6 +974,7 @@ export default function ParticipantsPage() {
         });
       } else if (outcome.status === 'error') {
         erroredNames.push(personName);
+        refused.add(personId);
       }
     }
     if (erroredNames.length > 0) {
@@ -979,7 +983,7 @@ export default function ParticipantsPage() {
       );
     }
     if (fullPending.length > 0) setWaitlistPrompt(fullPending);
-    setSelected(new Set());
+    setSelected((now) => ticksAfterBulk(now, batch, refused));
     setBulkLoading(false);
     setBulkAssignTournamentId('');
     refresh();
@@ -1039,9 +1043,10 @@ export default function ParticipantsPage() {
    */
   async function bulkReferee(method: 'POST' | 'DELETE', doneKey: string) {
     setBulkLoading(true);
+    const batch = new Set(selected);
     const refused = new Set<string>();
     let reason: string | null = null;
-    for (const personId of selected) {
+    for (const personId of batch) {
       const person = persons.find((p) => p.id === personId);
       // Mirror the single-person path at the "Add referee" toggle:
       // fall back to event-scoped id when globalPersonId is absent
@@ -1056,8 +1061,8 @@ export default function ParticipantsPage() {
         reason ??= failureMessage(r, t, t('organizer.persons.bulk.refereeRefusedReason'));
       }
     }
-    const done = selected.size - refused.size;
-    setSelected(refused);
+    const done = batch.size - refused.size;
+    setSelected((now) => ticksAfterBulk(now, batch, refused));
     setBulkLoading(false);
     refresh();
     if (refused.size === 0) toast.success(t(doneKey, { count: done }));

@@ -1,5 +1,6 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { EVENT_ID, openEventPage, type OpenedPage } from '../archived-page.fixtures';
 import PersonsPage from './page';
@@ -38,9 +39,10 @@ const person = (id: string, givenName: string) => ({
   globalPersonId: `g${id}`,
   claimedByUserId: null,
 });
+const PEOPLE = [person('p-1', 'Ana'), person('p-2', 'Bo')];
 const READS = {
   [`/api/v1/events/${EVENT_ID}`]: { id: EVENT_ID, name: 'Open 2026', status: 'running' },
-  '/api/v1/events/ev1/persons': [person('p-1', 'Ana'), person('p-2', 'Bo')],
+  '/api/v1/events/ev1/persons': PEOPLE,
   '/api/v1/events/ev1/registrations': [],
   '/api/v1/events/ev1/tournaments': [{ id: 't-1', name: 'Longsword', color: null }],
   '/api/v1/events/ev1/referees': [],
@@ -91,6 +93,36 @@ describe('register a selection as referees', () => {
     expect(toasts()).not.toContain('now referee');
     expect(rowBox('Ana')?.checked).toBe(false);
     expect(rowBox('Bo')?.checked).toBe(true);
+  });
+
+  // Ruled 2026-10-15: the refused stay ticked, and so do the ones ticked while it ran.
+  it('keeps a person ticked while the writes are out, beside the refused one', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    page = await openEventPage(
+      <PersonsPage />,
+      { ...READS, '/api/v1/events/ev1/persons': [...PEOPLE, person('p-3', 'Cy')] },
+      { [ANA]: {} },
+    );
+    const server = vi.mocked(apiRequest).getMockImplementation()!;
+    vi.mocked(apiRequest).mockImplementation(async (base, path, init) => {
+      if (path.endsWith('/gp-1')) await held;
+      return server(base, path, init);
+    });
+    await tap(rowBox('Ana'));
+    await tap(rowBox('Bo'));
+    await tap(buttonNamed('Register as referee'));
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    await tap([...dialog.querySelectorAll('button')].pop());
+
+    await tap(rowBox('Cy'));
+    await act(async () => release());
+    await page.settle();
+
+    expect(page.writes()).toEqual([ANA, BO]);
+    expect(rowBox('Ana')?.checked).toBe(false);
+    expect(rowBox('Bo')?.checked).toBe(true);
+    expect(rowBox('Cy')?.checked).toBe(true);
   });
 
   it('says they are referees when every write lands, and clears the selection', async () => {
