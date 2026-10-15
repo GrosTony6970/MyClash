@@ -62,7 +62,8 @@ test('an English hall reads English', async ({ page }) => {
   await openPisteTv(page, { bout: BEST_OF });
   await expect(page.getByText('Ada Lovelace').first()).toBeVisible();
 
-  await expect(says(page, 'Halted')).toBeVisible();
+  // The clock's state in the one word every screen says (X1): "Paused", not "Halted".
+  await expect(says(page, 'Paused')).toBeVisible();
   await expect(page.getByText('Round 2/3')).toBeVisible();
   await expect(page.getByText('Total time')).toBeVisible();
   await expect(page.getByText('Up next')).toBeVisible();

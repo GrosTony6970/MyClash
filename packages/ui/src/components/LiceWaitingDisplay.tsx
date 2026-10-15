@@ -3,6 +3,7 @@
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { sideStyle } from '../utils/side-color';
+import { statusLabelKey } from '../utils/status-label';
 
 /**
  * Public TV-display "waiting" surface used by the per-lice route
@@ -71,7 +72,7 @@ export function LiceWaitingDisplay({
             <p className="text-xs uppercase tracking-widest text-slate-500">{liceName}</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-slate-500">
-            {t('scoring.liveMatch.status.scheduled')}
+            {t(statusLabelKey('match', 'scheduled'))}
           </span>
         </div>
       </header>

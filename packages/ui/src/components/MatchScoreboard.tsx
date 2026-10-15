@@ -12,6 +12,7 @@ import type { Translator } from '../types/translator';
 import { formatFightOfTotal } from './format-fight-of-total';
 import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
 import { sideColorsFor } from '../utils/side-color';
+import { statusLabel } from '../utils/status-label';
 
 export interface MatchScoreboardProps {
   /** The caller's translator. See src/types/translator.ts for why it is a prop. */
@@ -220,7 +221,7 @@ export function MatchScoreboard({
             )}
           </div>
           <div className="rounded-full border border-white/20 px-5 py-2 text-lg font-bold uppercase">
-            {t(`scoring.liveMatch.status.${match.status}`)}
+            {statusLabel('match', match.status, t)}
           </div>
         </header>
 

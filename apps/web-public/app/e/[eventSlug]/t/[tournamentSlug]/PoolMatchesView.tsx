@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { sideStyle, tintTextClassFor } from '@myclash/ui';
+import { sideStyle, statusLabel, tintTextClassFor } from '@myclash/ui';
 import {
   DEFAULT_SCORING_CONFIG,
   resolveMatchWinner,
@@ -465,6 +465,7 @@ export function PoolMatchesView({
 }
 
 function StatusPill({ status }: { status: string }) {
+  const { t } = useI18n();
   const classes =
     status === 'completed'
       ? 'bg-success/10 text-success'
@@ -473,7 +474,7 @@ function StatusPill({ status }: { status: string }) {
         : 'bg-border text-foreground-secondary';
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
-      {status}
+      {statusLabel('match', status, t)}
     </span>
   );
 }

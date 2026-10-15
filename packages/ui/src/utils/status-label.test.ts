@@ -1,0 +1,80 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { messages } from '@myclash/i18n';
+import type { TranslatorValues } from '../types/translator';
+import {
+  isKnownStatus,
+  statusLabel,
+  statusLabelKey,
+  type StatusLabelDomain,
+  type StatusOf,
+} from './status-label';
+
+const MIGRATIONS = resolve(__dirname, '../../../db/migrations');
+
+/** The value list of a CHECK constraint, as the newest migration that writes it says. */
+function checkList(constraint: string): string[] {
+  let found: string[] | null = null;
+  for (const file of readdirSync(MIGRATIONS).sort()) {
+    const sql = readFileSync(resolve(MIGRATIONS, file), 'utf8');
+    const at = sql.lastIndexOf(`${constraint} CHECK`);
+    if (at < 0) continue;
+    const list = /IN\s*\(([^)]*)\)/i.exec(sql.slice(at))?.[1] ?? '';
+    found = [...list.matchAll(/'([^']+)'/g)].map((match) => match[1]!);
+  }
+  if (!found) throw new Error(`no migration writes ${constraint}`);
+  return found.sort();
+}
+
+/** Every value of a domain, as the helper knows it. */
+const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> } = {
+  match: ['scheduled', 'running', 'paused', 'completed', 'voided'],
+  clock: ['idle', 'running', 'halted', 'ended'],
+};
+
+function wordIn(tree: unknown, key: string): unknown {
+  return key
+    .split('.')
+    .reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], tree);
+}
+
+describe('statusLabelKey', () => {
+  it('has a word in English and in French for every state of every domain', () => {
+    for (const domain of Object.keys(STATES) as StatusLabelDomain[]) {
+      for (const status of STATES[domain]) {
+        const key = statusLabelKey(domain, status as never);
+        expect(typeof wordIn(messages.en, key), `${key} en`).toBe('string');
+        expect(typeof wordIn(messages.fr, key), `${key} fr`).toBe('string');
+      }
+    }
+  });
+
+  it('knows exactly the states the database allows for a bout', () => {
+    expect([...STATES.match].sort()).toEqual(checkList('match_status_check'));
+    expect(checkList('match_status_check').every((status) => isKnownStatus('match', status))).toBe(
+      true,
+    );
+  });
+
+  it('says a paused bout and a halted clock with the same word, as ruled', () => {
+    const word = (key: string) => wordIn(messages.en, key);
+    expect(word(statusLabelKey('match', 'paused'))).toBe('Paused');
+    expect(word(statusLabelKey('clock', 'halted'))).toBe('Paused');
+    expect(wordIn(messages.fr, statusLabelKey('clock', 'halted'))).toBe('En pause');
+  });
+});
+
+describe('statusLabel', () => {
+  const t = (key: string, values?: TranslatorValues) => (values ? key : `<${key}>`);
+
+  it('words a state read as a plain string', () => {
+    expect(statusLabel('match', 'running', t)).toBe('<common.status.match.running>');
+    expect(statusLabel('clock', 'ended', t)).toBe('<common.status.clock.ended>');
+  });
+
+  it('shows a value the domain does not know as it is', () => {
+    expect(statusLabel('match', 'ready', t)).toBe('ready');
+    expect(isKnownStatus('match', 'toString')).toBe(false);
+  });
+});

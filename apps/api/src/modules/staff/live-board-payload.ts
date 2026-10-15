@@ -24,7 +24,7 @@ export interface BoardMatch {
   blueFighterName: string | null;
   redScore: number;
   blueScore: number;
-  /** Raw `matches.status`; the FE maps it through organizer.live.matchStatus.*. */
+  /** Raw `matches.status`; the FE words it with `statusLabel('match', …)` of @myclash/ui. */
   status: string;
   round: number | null;
   matchNumberLabel: string | null;

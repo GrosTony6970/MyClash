@@ -10,7 +10,7 @@
  */
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { StatusBadge, matchStatusSemantic } from '@myclash/ui';
+import { StatusBadge, matchStatusSemantic, statusLabel } from '@myclash/ui';
 import type { SwissAdminMatch, SwissAdminRound } from '../useSwissAdmin';
 
 export function RoundCard({
@@ -170,7 +170,9 @@ function MatchRow({
         onPick={onPick}
       />
       {match.liceName && <span className="text-xs text-muted">{match.liceName}</span>}
-      <StatusBadge semantic={matchStatusSemantic(match.status)}>{match.status}</StatusBadge>
+      <StatusBadge semantic={matchStatusSemantic(match.status)}>
+        {statusLabel('match', match.status, t)}
+      </StatusBadge>
       {advanced && editable && (
         <button
           type="button"

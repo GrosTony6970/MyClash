@@ -7,6 +7,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import {
   nameOrUnknown,
   sideStyle,
+  statusLabel,
   statusPillTone,
   matchStatusSemantic,
   StatusHelp,
@@ -801,7 +802,7 @@ function StatusPill({ status }: { status: string }) {
           tone.className
         }${tone.pulse ? ' animate-pulse' : ''}`}
       >
-        {status}
+        {statusLabel('match', status, translate)}
       </span>
       <StatusHelp domain="match" status={status} t={translate} />
     </span>

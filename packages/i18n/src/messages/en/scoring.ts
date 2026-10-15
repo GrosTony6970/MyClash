@@ -8,13 +8,6 @@ export const scoring = {
     swapSides: '⇄ Swap sides',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit fullscreen',
-    // The TV scoreboard, read across a hall: the clock's state, and a bout's end.
-    clockStatus: {
-      idle: 'Not started',
-      running: 'Running',
-      halted: 'Halted',
-      ended: 'Ended',
-    },
     matchEnded: 'Match ended',
     nextMatchIn: 'Next match in {seconds}…',
     lastMatchOnLice: 'Last match on this lice',
@@ -343,15 +336,6 @@ export const scoring = {
     standingsFighter: 'Fighter',
     contextLoading: 'Loading...',
     contextLoadError: 'Could not load. Tap to retry.',
-    // Keyed on the StatusSemantic from @myclash/ui rather than on the raw DB
-    // status, so the chip's text and its colour can never disagree. Only
-    // these four are reachable: the endpoint filters out voided.
-    statuses: {
-      pending: 'SCHEDULED',
-      live: 'LIVE',
-      paused: 'PAUSED',
-      done: 'DONE',
-    },
     eventsHeader: 'Exchange history',
     exchangesCount: 'Exchanges: {count}',
     // A row the referee scored that is still queued on the tablet. Kept short:
@@ -593,13 +577,6 @@ export const scoring = {
     disabled: 'Live updates off',
   },
   liveMatch: {
-    status: {
-      scheduled: 'Scheduled',
-      running: 'Live',
-      paused: 'Halted',
-      completed: 'Completed',
-      voided: 'Voided',
-    },
     red: 'Fighter 1',
     blue: 'Fighter 2',
     noExchanges: 'No exchanges yet.',

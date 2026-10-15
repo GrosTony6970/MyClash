@@ -21,7 +21,7 @@ export interface BoardMatch {
   blueFighterName: string | null;
   redScore: number;
   blueScore: number;
-  /** Raw `matches.status`; translate via `matchStatusLabel`. */
+  /** Raw `matches.status`; worded by `statusLabel('match', …)` of @myclash/ui. */
   status: string;
   round: number | null;
   matchNumberLabel: string | null;

@@ -1106,17 +1106,6 @@ export const organizer = {
     nextLabel: 'Next',
     ack: 'Ack',
     reason: { medic: 'Medic', head_ref: 'Head ref', dispute: 'Dispute' },
-    // The `matches.status` DB enum, rendered in the board's status cell.
-    // Covers every value the CHECK constraint allows, not only the three
-    // the board can currently show — `completed` arrives with the bout
-    // history, and `voided` can reach the cell through a realtime patch.
-    matchStatus: {
-      scheduled: 'Scheduled',
-      running: 'Running',
-      paused: 'Paused',
-      completed: 'Finished',
-      voided: 'Voided',
-    },
     counts: '{running} running · {idle} idle',
     behind: '{count} behind',
     progress: '{done}/{total} bouts',

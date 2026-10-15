@@ -1,6 +1,6 @@
 'use client';
 
-import { StatusBadge, matchStatusSemantic } from '@myclash/ui';
+import { StatusBadge, matchStatusSemantic, statusLabel } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 
@@ -12,6 +12,7 @@ import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
  * "LIVE", and `StatusBadge` rendered live as green. Routing all of them through
  * `matchStatusSemantic` means a live bout looks the same everywhere — and that
  * paused stops reading as live, since `statusPillClass` only pulses `live`.
+ * The WORD is the bout's own state, as every screen says it (`statusLabel`, X1).
  *
  * `surface` is the chrome scope, not the pad scope: these two screens ARE the
  * app's light chrome. The palette is chosen in JS, so it cannot follow the CSS
@@ -20,10 +21,9 @@ import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 export function MatchStatusPill({ status }: { status: string }) {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
-  const semantic = matchStatusSemantic(status);
   return (
-    <StatusBadge semantic={semantic} surface={chromeScope} size="sm">
-      {t(`scoring.lice.statuses.${semantic}`)}
+    <StatusBadge semantic={matchStatusSemantic(status)} surface={chromeScope} size="sm">
+      {statusLabel('match', status, t)}
     </StatusBadge>
   );
 }

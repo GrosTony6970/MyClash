@@ -1105,13 +1105,6 @@ export const organizer = {
       head_ref: 'Arbitre principal',
       dispute: 'Litige',
     },
-    matchStatus: {
-      scheduled: 'Prévu',
-      running: 'En cours',
-      paused: 'En pause',
-      completed: 'Terminé',
-      voided: 'Annulé',
-    },
     counts: '{running} en cours · {idle} inactives',
     behind: '{count} en retard',
     progress: '{done}/{total} assauts',

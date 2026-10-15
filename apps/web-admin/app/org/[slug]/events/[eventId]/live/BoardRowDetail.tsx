@@ -1,12 +1,11 @@
 'use client';
-import { asColorToken, tintBgClassFor, tintTextClassFor } from '@myclash/ui';
+import { asColorToken, statusLabel, tintBgClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { BoardRowActions } from './BoardRowActions';
 import { BoardRowScorer } from './BoardRowScorer';
 import { BoardRowTimeline } from './BoardRowTimeline';
 import { BoardScorerPicker } from './BoardScorerPicker';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
-import { matchStatusLabel } from '@/lib/live-board/match-status';
 import type { BoardReferee, BoardRow, LiveBoardAccount } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -97,7 +96,7 @@ function BoutSection({ row, nowMs, t }: { row: BoardRow; nowMs: number; t: T }) 
       {cm ? (
         <>
           {context && <p className="text-foreground">{context}</p>}
-          <p className="text-muted">{matchStatusLabel(cm.status, t)}</p>
+          <p className="text-muted">{statusLabel('match', cm.status, t)}</p>
           {(timing.clock || timing.behind) && (
             <p className={timing.warn ? 'text-warning' : 'text-muted'}>
               <span className="tabular-nums">{timing.clock}</span>

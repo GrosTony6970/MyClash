@@ -107,4 +107,21 @@ export const common = {
     columnSemiFinals: 'Semi Finals',
     columnQuarterFinals: 'Quarter Finals',
   },
+  // One word per state, per domain, on every screen (quick win X1): asked through
+  // `statusLabelKey` / `statusLabel` of packages/ui, never built from the raw value.
+  status: {
+    match: {
+      scheduled: 'Scheduled',
+      running: 'Running',
+      paused: 'Paused',
+      completed: 'Completed',
+      voided: 'Voided',
+    },
+    clock: {
+      idle: 'Not started',
+      running: 'Running',
+      halted: 'Paused',
+      ended: 'Ended',
+    },
+  },
 } as const satisfies MessageTree;

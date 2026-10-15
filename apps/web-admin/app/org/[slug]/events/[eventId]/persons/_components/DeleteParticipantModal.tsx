@@ -24,7 +24,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { Modal } from '@myclash/ui';
+import { Modal, statusLabel } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 
@@ -335,7 +335,8 @@ function PersonAssignmentCard({ row }: { row: Row }) {
               {m.reason === 'fighter'
                 ? t('admin.orgPersons.fightingMatch')
                 : t('admin.orgPersons.refereeingMatch')}{' '}
-              <span className="font-mono">{m.label || m.matchId}</span> ({m.status})
+              <span className="font-mono">{m.label || m.matchId}</span> (
+              {statusLabel('match', m.status, t)})
             </li>
           ))}
         </ul>
@@ -363,8 +364,9 @@ function PersonAssignmentCard({ row }: { row: Row }) {
             .map((m) => (
               <li key={`f-${m.matchId}`}>
                 {t('admin.orgPersons.fightingMatch')}{' '}
-                <span className="font-mono">{m.label || m.matchId}</span> ({m.status}){' '}
-                {t('admin.orgPersons.separator')} <span className="italic">{m.tournamentName}</span>
+                <span className="font-mono">{m.label || m.matchId}</span> (
+                {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
+                <span className="italic">{m.tournamentName}</span>
               </li>
             ))}
           {r.matchesAsReferee
@@ -372,8 +374,9 @@ function PersonAssignmentCard({ row }: { row: Row }) {
             .map((m) => (
               <li key={`r-${m.matchId}`}>
                 {t('admin.orgPersons.refereeingMatch')}{' '}
-                <span className="font-mono">{m.label || m.matchId}</span> ({m.status}){' '}
-                {t('admin.orgPersons.separator')} <span className="italic">{m.tournamentName}</span>
+                <span className="font-mono">{m.label || m.matchId}</span> (
+                {statusLabel('match', m.status ?? '', t)}) {t('admin.orgPersons.separator')}{' '}
+                <span className="italic">{m.tournamentName}</span>
               </li>
             ))}
         </ul>

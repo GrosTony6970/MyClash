@@ -4,7 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { DOT } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
-import { matchStatusLabel } from '@/lib/live-board/match-status';
+import { statusLabel } from '@myclash/ui';
 import type { BoardRow } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -76,7 +76,7 @@ export function BoardCard({
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         {cm && (
-          <span>{`${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}`}</span>
+          <span>{`${cm.round ? `R${cm.round} · ` : ''}${statusLabel('match', cm.status, t)}`}</span>
         )}
         {timing.clock && <span className="tabular-nums text-foreground">{timing.clock}</span>}
         {timing.behind && (

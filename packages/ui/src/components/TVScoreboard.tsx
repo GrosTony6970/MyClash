@@ -36,11 +36,12 @@ import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveM
 import { isFreshnessAlarming } from '../hooks/realtime-freshness';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { FreshnessChip } from './FreshnessChip';
-import type { ClockEvent, ClockSnapshot, ExchangeRow } from '../types/match-events';
+import type { ClockEvent, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
 import { roundLabel } from '../utils/round-label';
 import { boutIsOver } from '../utils/bout-is-over';
+import { statusLabelKey } from '../utils/status-label';
 import { buildBoutFlow } from '../utils/bout-flow';
 import { BoutFlowChart } from './BoutFlowChart';
 import { MatchTimeline } from './MatchTimeline';
@@ -94,15 +95,6 @@ const CARD_CHIP_BG: Record<(typeof CARD_COLORS)[number], string> = {
   yellow: 'bg-yellow-400 text-yellow-950',
   red: 'bg-red-600 text-white',
   black: 'bg-gray-900 text-white border border-gray-600',
-};
-
-// The clock pill's words. One key per state of the clock: a state with no key
-// does not compile.
-const CLOCK_STATUS_KEY: Record<ClockSnapshot['status'], string> = {
-  idle: 'scoring.scoreboard.clockStatus.idle',
-  running: 'scoring.scoreboard.clockStatus.running',
-  halted: 'scoring.scoreboard.clockStatus.halted',
-  ended: 'scoring.scoreboard.clockStatus.ended',
 };
 
 // Circular stage art (fighter photo, club logo). Tailwind v4 has no @theme
@@ -684,7 +676,7 @@ function CenterColumn({
                 : 'bg-gray-800 text-gray-500'
         }`}
       >
-        {t(CLOCK_STATUS_KEY[clockStatus])}
+        {t(statusLabelKey('clock', clockStatus))}
       </span>
 
       {isEnded ? (

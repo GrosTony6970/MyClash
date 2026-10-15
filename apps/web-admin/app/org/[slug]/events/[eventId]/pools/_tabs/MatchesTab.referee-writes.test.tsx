@@ -158,6 +158,16 @@ const writes = () =>
     .mock.calls.filter(([, , init]) => init?.method === 'PUT')
     .map(([, path, init]) => [path, init?.body]);
 
+describe('the Pools page bout list', () => {
+  it("names a bout's state in words, not as its raw value (X1)", () => {
+    const chip = [...container.querySelectorAll('span.rounded-full')].find(
+      (span) => span.textContent === 'Scheduled',
+    );
+    expect(chip).toBeDefined();
+    expect(container.textContent).not.toMatch(/\bscheduled\b/);
+  });
+});
+
 describe('the Pools page referee dropdowns', () => {
   it('offers a referee with no name as "Unknown referee", never a piece of their id (X2)', () => {
     const { pool, bout } = refereeSelects();

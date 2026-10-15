@@ -6,7 +6,7 @@ import { DOT, isHealthy } from '@/lib/live-board/live-board-state';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { BoardRowDetail } from './BoardRowDetail';
-import { matchStatusLabel } from '@/lib/live-board/match-status';
+import { statusLabel } from '@myclash/ui';
 import type { BoardRow, LiveBoardAccount } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -92,7 +92,7 @@ export function BoardRowView({
           </span>
         )}
         <span className="w-24 shrink-0 truncate text-muted">
-          {cm ? `${cm.round ? `R${cm.round} · ` : ''}${matchStatusLabel(cm.status, t)}` : ''}
+          {cm ? `${cm.round ? `R${cm.round} · ` : ''}${statusLabel('match', cm.status, t)}` : ''}
         </span>
         <span className="w-28 shrink-0 truncate tabular-nums">
           {timing.clock && <span className="text-foreground">{timing.clock}</span>}

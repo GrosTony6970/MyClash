@@ -8,6 +8,7 @@ import {
   buildBoutFlow,
   sideColorsFor,
   buildUnifiedTimeline,
+  statusLabelKey,
 } from '@myclash/ui';
 import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
@@ -23,7 +24,6 @@ import {
   type ExchangeRow,
   type MatchPenaltyRow,
   type MatchRow,
-  type MatchStatus,
   type MatchSummary,
 } from './match-row';
 
@@ -36,13 +36,6 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
   // it already does on the pad and the projector. `legibleOn` keeps the white
   // and black tokens from vanishing into this light page.
   const colors = sideColorsFor(summary.scoringConfig, 'light');
-  const statusLabel: Record<MatchStatus, string> = {
-    scheduled: t('scoring.liveMatch.status.scheduled'),
-    running: t('scoring.liveMatch.status.running'),
-    paused: t('scoring.liveMatch.status.paused'),
-    completed: t('scoring.liveMatch.status.completed'),
-    voided: t('scoring.liveMatch.status.voided'),
-  };
 
   const winner = resolveMatchWinner({
     status: match.status,
@@ -148,7 +141,7 @@ function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary
           </p>
         )}
         <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">
-          {statusLabel[match.status]}
+          {t(statusLabelKey('match', match.status))}
         </span>
       </div>
     </div>

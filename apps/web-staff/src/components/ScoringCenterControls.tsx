@@ -27,6 +27,7 @@ import {
   ConfirmDialog,
   MatchTimeline,
   sideStyle,
+  statusLabelKey,
   statusPillTone,
 } from '@myclash/ui';
 import {
@@ -316,7 +317,7 @@ export function ScoringCenterControls({
               tone.pulse ? 'animate-pulse' : ''
             }`}
           >
-            {status}
+            {t(statusLabelKey('clock', status))}
           </span>
         );
       })()}

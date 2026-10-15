@@ -68,4 +68,19 @@ export const common = {
     columnSemiFinals: 'Demi-finales',
     columnQuarterFinals: 'Quarts de finale',
   },
+  status: {
+    match: {
+      scheduled: 'Prévu',
+      running: 'En cours',
+      paused: 'En pause',
+      completed: 'Terminé',
+      voided: 'Annulé',
+    },
+    clock: {
+      idle: 'Pas commencé',
+      running: 'En cours',
+      halted: 'En pause',
+      ended: 'Terminé',
+    },
+  },
 } as const satisfies DeepString<typeof enCommon>;
