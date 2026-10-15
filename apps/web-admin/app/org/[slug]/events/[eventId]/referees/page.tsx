@@ -21,7 +21,7 @@ import {
   statusLabel,
 } from '@myclash/ui';
 
-import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, addDays } from '@myclash/time';
 import { eachDay, initialDay } from '@myclash/schedule-core';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
@@ -33,7 +33,7 @@ import {
 } from '@/lib/referee-reasons';
 import { BoardCandidatePicker } from './_components/BoardCandidatePicker';
 import { postAssignment, type AssignAnswer } from './_components/assign-referee';
-import { useI18n, type Translator } from '@myclash/next-i18n/client';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
@@ -49,7 +49,7 @@ import {
   filterBoardPools,
   tournamentsForDay,
 } from './_components/filter-board-pools';
-import { formatDayShort } from './_components/day-label';
+import { formatDayShort, slotHeading } from './_components/day-label';
 import { AssignmentFilters } from './_components/AssignmentFilters';
 import {
   PoolTimelineGrid,
@@ -478,14 +478,6 @@ function SkillModal({
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-
-function formatTime(t: Translator, value: string | null, locale: AppLocale) {
-  if (!value) return t('organizer.refereesPage.unscheduled');
-  return new Intl.DateTimeFormat(localeToBcp47(locale), {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
 
 function AssignmentsTab({
   eventId,
@@ -1147,8 +1139,7 @@ function AssignmentsTab({
             >
               <div className="flex items-baseline gap-3">
                 <span className="text-sm font-bold tabular-nums text-foreground">
-                  {formatDayShort(row.block.startTime, locale)} ·{' '}
-                  {formatTime(t, row.block.startTime, locale)}
+                  {slotHeading(row.block.startTime, locale, eventTz)}
                 </span>
                 <div className="h-px flex-1 bg-border" />
               </div>
