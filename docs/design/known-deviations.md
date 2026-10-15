@@ -255,8 +255,8 @@ Both readings of the paragraph were dangerous. Read as intent, it invited someon
 retired feature. Read as description, it invited exactly the two inlining bugs above.
 
 **Considered and rejected:** pointing the tint at `organizations.brand_color`, which is already on
-the wire — the event-by-slug query returns its row unprojected, and `fetchEventTheme` already calls
-that endpoint, so it would have cost about three edits. It is a free `TEXT` column with **no
+the wire — the event-by-slug query returns its row unprojected, and the public Event header already
+calls that endpoint, so it would have cost about three edits. It is a free `TEXT` column with **no
 contrast constraint**, rendered today only as a decorative stripe. Promoting it to `--color-accent`
 would put an arbitrary hex behind headings and buttons, which is the defect D11 and D12 both were.
 If it is ever promoted, it needs a contrast guard first.

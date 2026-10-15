@@ -38,6 +38,15 @@ describe('the read itself', () => {
     expect(source).not.toContain('return null;');
   });
 
+  /**
+   * The layout once read the Event a second time, through a helper this file's
+   * sweep could not see, to set a CSS variable and a data attribute that nothing
+   * read. The header draws the logo and the hero image; the layout reads nothing.
+   */
+  it('the Event layout makes no read of its own', () => {
+    expect(read('layout.tsx')).not.toMatch(/\bfetch|getServerApiUrl|Theme\(/);
+  });
+
   it('on the server it sends the login, once per request, and a missing Event is the not-found page', () => {
     const server = read('_lib', 'event-or-not-found.ts');
     expect(server).toMatch(/export const readEventOnce = cache\(/);

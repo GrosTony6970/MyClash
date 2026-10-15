@@ -1,19 +1,10 @@
 /**
- * Event layout — per-event identity (logo + hero) for /e/[eventSlug]/*
+ * Event layout for /e/[eventSlug]/*: it hands the Event's title rule to every page below it.
  *
- * Server component. Slice 4 of the public redesign retired per-event
- * color overrides + custom font + custom CSS — the unified MyClash
- * design (packages/ui/src/theme.css) governs both apps. The only
- * per-event flow that remains is:
- *   - the hero image (set from the admin's Branding page) exposed
- *     to children via the `--event-hero-image` CSS variable
- *   - the event logo URL exposed via a data attribute so per-page
- *     consumers can read it without re-fetching
+ * The Event's logo and hero image are read and drawn by `_components/EventHeader.tsx`.
  */
 
 import type { Metadata } from 'next';
-import { getServerApiUrl } from '@/lib/api-url';
-import { fetchEventTheme } from '../../../src/theme';
 import { eventTitleRule } from './_lib/event-or-not-found';
 
 interface Props {
@@ -25,25 +16,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: await eventTitleRule(await params) };
 }
 
-export default async function EventLayout({ children, params }: Props) {
-  const { eventSlug } = await params;
-
-  const apiUrl = getServerApiUrl();
-  const theme = await fetchEventTheme(eventSlug, apiUrl);
-
-  return (
-    <>
-      {theme.heroImageUrl && (
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `:root { --event-hero-image: url('${theme.heroImageUrl}'); }`,
-          }}
-        />
-      )}
-
-      <div data-event-slug={eventSlug} data-logo-url={theme.logoUrl ?? ''} className="min-h-screen">
-        {children}
-      </div>
-    </>
-  );
+export default function EventLayout({ children }: Props) {
+  return <div className="min-h-screen">{children}</div>;
 }
