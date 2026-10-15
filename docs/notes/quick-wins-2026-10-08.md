@@ -2794,6 +2794,19 @@ Each needs a run, a device or a ruling, not a read:
 
 **The email link wins** stays ruled and not built: it needs three more rulings first (`:1614`).
 
+### Rulings — operator, 2026-10-15 night: the organiser site goes first
+
+| Row          | Story                                                                                                                            | Ruling                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| App order    | About 15 organiser items, 20 public, 35 server, 90 on the tablet.                                                                | **The organiser site first**; the tablet last, when it can be tested on real devices.        |
+| Bout name    | A bout with no number shows its database code: "1a2b3c4d-…" in the remove-a-fighter window, "Match 1a2b3c" on the referee board. | **Tournament + round**: "Longsword Open · Quarter-final", "Longsword Open · Pool 2".         |
+| Places cell  | The workshop export writes places as "8/20"; French Excel can read "8/12" as a date.                                             | **Two columns**, "Booked" and "Capacity", as plain numbers.                                  |
+| Lost venue   | A workshop whose venue was deleted is exported with the venue's database code.                                                   | **"Venue removed"**, in the reader's language.                                               |
+| Leave wizard | Create made the Event, one Tournament failed; leaving asks "Your changes are not saved yet. They will be lost."                  | **Name what is kept**: the Event is saved as a draft; the Tournaments that failed are not.   |
+| Missed drop  | A CSV dropped just outside the box opens in the browser tab, and the page is lost.                                               | **Take it anyway**: a file dropped anywhere on the import page is imported.                  |
+| Request word | A league request is "Requested" on the club's page and "Pending" on the league admin's list.                                     | **"Pending" / "En attente"** everywhere.                                                     |
+| Bulk ticks   | Ten ticked, two more ticked while the bulk action runs, three refused: today the ticks become the three alone.                   | **Refused + new ones**: the three refused stay ticked, and so do the two added while it ran. |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
