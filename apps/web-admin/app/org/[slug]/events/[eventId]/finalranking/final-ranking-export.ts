@@ -5,8 +5,7 @@
  * titles, in the reader's language (O20).
  */
 
-import { escapeHtml, type CsvFormat } from '@myclash/types';
-import { csvFile } from '@/lib/csv-file';
+import { csvFile, escapeHtml, type CsvFormat } from '@myclash/types';
 
 export interface ExportRow {
   rank: number;

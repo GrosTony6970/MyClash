@@ -18,6 +18,7 @@ import {
   useConfirm,
   useToast,
   type RegistrationStatus,
+  CsvExportMenu,
 } from '@myclash/ui';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
@@ -39,7 +40,6 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
 import type { CsvFormat } from '@myclash/types';
 import { ALL_TOURNAMENTS } from '@/lib/tournament-choice';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
@@ -149,7 +149,7 @@ function RegistrationStatusChip({
 }
 
 export default function ParticipantsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -1139,6 +1139,8 @@ export default function ParticipantsPage() {
           {/* A read, not a save: open on an archived Event too. Closed over the waiting
               list, which is not the rows it would write. */}
           <CsvExportMenu
+            t={t}
+            locale={locale}
             label={t('organizer.persons.export.button')}
             onExport={exportRoster}
             disabled={mode === 'waiting-list' || filteredPersons.length === 0}

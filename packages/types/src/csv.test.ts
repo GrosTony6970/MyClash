@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   CSV_EXCEL_FR,
+  CSV_FORMAT_PARAMS,
   CSV_STANDARD,
+  csvFile,
+  csvFormatFromParam,
+  csvFormatParam,
   csvRow,
   escapeCsvCell,
   escapeCsvField,
@@ -135,5 +139,48 @@ describe('csvRow, French Excel', () => {
     expect(csvRow(['=SUM(A1)', '-1+1+cmd|calc'], CSV_EXCEL_FR)).toBe(
       '"\'=SUM(A1)";"\'-1+1+cmd|calc"',
     );
+  });
+});
+
+describe('csvFile', () => {
+  it('starts with the byte-order mark, so a spreadsheet reads accents as written', () => {
+    expect(csvFile([['Géraldine']], CSV_STANDARD).charCodeAt(0)).toBe(0xfeff);
+  });
+
+  it('writes one formula-safe row per line, CRLF, and a last line end', () => {
+    expect(
+      csvFile(
+        [
+          ['Name', 'Score'],
+          ['=SUM(A1)', 3],
+          ['Ana, Roux', null],
+        ],
+        CSV_STANDARD,
+      ),
+    ).toBe(`﻿Name,Score\r\n"'=SUM(A1)",3\r\n"Ana, Roux",\r\n`);
+  });
+
+  it('writes the French Excel file with ; and decimal commas', () => {
+    expect(
+      csvFile(
+        [
+          ['Nom', 'Montant'],
+          ['Ana, Roux', '12.50'],
+        ],
+        CSV_EXCEL_FR,
+      ),
+    ).toBe(`﻿Nom;Montant\r\nAna, Roux;12,50\r\n`);
+  });
+});
+
+describe('the name of a format in a download link', () => {
+  it('names each file, and reads each name back', () => {
+    expect(csvFormatParam(CSV_EXCEL_FR)).toBe('excel-fr');
+    expect(csvFormatParam(CSV_STANDARD)).toBe('standard');
+    for (const param of CSV_FORMAT_PARAMS) {
+      expect(csvFormatParam(csvFormatFromParam(param))).toBe(param);
+    }
+    expect(csvFormatFromParam('excel-fr')).toBe(CSV_EXCEL_FR);
+    expect(csvFormatFromParam('standard')).toBe(CSV_STANDARD);
   });
 });

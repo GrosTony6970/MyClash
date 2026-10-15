@@ -22,6 +22,7 @@ import {
   computeFinalRanking,
   rankingBracketShape,
   type FinalRankingEntry,
+  CsvExportMenu,
 } from '@myclash/ui';
 import {
   rankingToCsv,
@@ -35,7 +36,6 @@ import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
 import { downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
 import type { CsvFormat } from '@myclash/types';
 import { useTournamentChoice } from '@/hooks/useTournamentChoice';
 
@@ -52,7 +52,7 @@ const apiUrl = getPublicApiUrl();
 export default function FinalRankingPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -159,6 +159,8 @@ export default function FinalRankingPage() {
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           <CsvExportMenu
+            t={t}
+            locale={locale}
             label={t('organizer.schedulePage.grid.exportCsv')}
             onExport={exportCsv}
             disabled={!canExport}

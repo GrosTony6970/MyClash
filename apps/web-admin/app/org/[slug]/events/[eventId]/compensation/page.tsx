@@ -13,11 +13,10 @@ import {
   type CompensationWords,
 } from './compensation-export';
 import { downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
-import { nameOrUnknown, useToast } from '@myclash/ui';
+import { CsvExportMenu, nameOrUnknown, useToast } from '@myclash/ui';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
@@ -397,6 +396,8 @@ export default function CompensationPage() {
           </p>
           <div className="flex items-center gap-3">
             <CsvExportMenu
+              t={t}
+              locale={locale}
               label={t('organizer.eventCompensation.exportCsv')}
               onExport={exportCsv}
               disabled={!canExport}

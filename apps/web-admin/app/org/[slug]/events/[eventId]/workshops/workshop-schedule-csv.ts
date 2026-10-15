@@ -4,8 +4,7 @@
  * page hands in the column titles, in the reader's language (O20).
  */
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
-import type { CsvFormat } from '@myclash/types';
-import { csvFile } from '@/lib/csv-file';
+import { csvFile, type CsvFormat } from '@myclash/types';
 
 export interface CsvVenue {
   id: string;

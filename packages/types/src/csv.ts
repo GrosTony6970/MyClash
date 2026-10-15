@@ -41,7 +41,7 @@ export interface CsvFormat {
   decimal: '.' | ',';
 }
 
-/** RFC 4180, as English Excel, LibreOffice and Google Sheets read it. Frozen: every API CSV uses it. */
+/** RFC 4180, as English Excel, LibreOffice and Google Sheets read it. Frozen. */
 export const CSV_STANDARD: Readonly<CsvFormat> = Object.freeze({ separator: ',', decimal: '.' });
 
 /** As French Excel reads it. */
@@ -110,4 +110,26 @@ export function toCsvCell(value: unknown): string {
 /** Join values into one formula-safe CSV row of `format`. */
 export function csvRow(values: readonly unknown[], format: CsvFormat): string {
   return values.map((value) => cellOf(value, format)).join(format.separator);
+}
+
+/**
+ * The text of a CSV file a person downloads, built by a page or by the server: the byte-order
+ * mark first, so Excel reads "Géraldine" as written and not as "GÃ©raldine"; every cell
+ * formula-safe; CRLF line ends, as RFC 4180 writes them. The ONE owner of that file's shape.
+ */
+export function csvFile(rows: ReadonlyArray<readonly unknown[]>, format: CsvFormat): string {
+  return `﻿${rows.map((row) => csvRow(row, format)).join('\r\n')}\r\n`;
+}
+
+/** How a download link names the file it asks for (`?csv=`): a page and the server read one list. */
+export const CSV_FORMAT_PARAMS = ['excel-fr', 'standard'] as const;
+
+export type CsvFormatParam = (typeof CSV_FORMAT_PARAMS)[number];
+
+export function csvFormatParam(format: Readonly<CsvFormat>): CsvFormatParam {
+  return format.separator === ';' ? 'excel-fr' : 'standard';
+}
+
+export function csvFormatFromParam(param: CsvFormatParam): Readonly<CsvFormat> {
+  return param === 'excel-fr' ? CSV_EXCEL_FR : CSV_STANDARD;
 }

@@ -10,28 +10,32 @@ import {
   type RefObject,
 } from 'react';
 import { CSV_EXCEL_FR, CSV_STANDARD, type CsvFormat } from '@myclash/types';
-import { useI18n } from '@myclash/next-i18n/client';
+import type { Translator } from '../types/translator';
 
 const CHOICES = [
   {
     format: CSV_EXCEL_FR,
-    labelKey: 'organizer.csvExport.excelFrench',
-    hintKey: 'organizer.csvExport.excelFrenchHint',
+    labelKey: 'common.csvExport.excelFrench',
+    hintKey: 'common.csvExport.excelFrenchHint',
   },
   {
     format: CSV_STANDARD,
-    labelKey: 'organizer.csvExport.standard',
-    hintKey: 'organizer.csvExport.standardHint',
+    labelKey: 'common.csvExport.standard',
+    hintKey: 'common.csvExport.standardHint',
   },
 ] as const;
 
 type Choice = (typeof CHOICES)[number];
 
-interface MenuProps {
+export interface CsvExportMenuProps {
   label: string;
   className: string;
   disabled?: boolean;
   onExport: (format: CsvFormat) => void;
+  /** The caller's translator. See src/types/translator.ts for why it is a prop. */
+  t: Translator;
+  /** The page's language: its file comes first. */
+  locale: string;
 }
 
 /**
@@ -50,10 +54,17 @@ function focusLeftFor(event: FocusEvent<HTMLDivElement>): boolean {
  * of the two files. French Excel splits on ";" and reads "12,50" as a number; English Excel and
  * the other apps want "," and "12.50". The file of the page's language comes first. Nothing is
  * remembered: both are offered at every download. `label` and `className` are the page's, so
- * each toolbar keeps its look.
+ * each toolbar keeps its look. The download is the page's: a file it builds, or a link to the
+ * server's (`csvFormatParam` names the file in the link).
  */
-export function CsvExportMenu({ label, className, disabled = false, onExport }: MenuProps) {
-  const { locale } = useI18n();
+export function CsvExportMenu({
+  label,
+  className,
+  disabled = false,
+  onExport,
+  t,
+  locale,
+}: CsvExportMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -83,6 +94,7 @@ export function CsvExportMenu({ label, className, disabled = false, onExport }: 
       </button>
       {open && (
         <Choices
+          t={t}
           choices={locale === 'fr' ? CHOICES : [CHOICES[1], CHOICES[0]]}
           onPick={(format) => {
             shut();
@@ -127,15 +139,16 @@ function onMenuKey(
 
 /** The open menu: it takes the focus on its first choice. */
 function Choices({
+  t,
   choices,
   onPick,
   onEscape,
 }: {
+  t: Translator;
   choices: readonly Choice[];
   onPick: (format: CsvFormat) => void;
   onEscape: () => void;
 }) {
-  const { t } = useI18n();
   const hintId = useId();
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   useEffect(() => itemRefs.current[0]?.focus(), []);

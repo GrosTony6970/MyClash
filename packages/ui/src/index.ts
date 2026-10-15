@@ -341,6 +341,8 @@ export type {
 } from './hooks/realtime-freshness';
 export { FreshnessChip } from './components/FreshnessChip';
 export type { FreshnessChipProps } from './components/FreshnessChip';
+export { CsvExportMenu } from './components/CsvExportMenu';
+export type { CsvExportMenuProps } from './components/CsvExportMenu';
 export { useNow, useClock, useClientClock, useSecondsClock, useNowSeconds } from './hooks/useNow';
 export type { ClockState } from './hooks/useNow';
 export { timeSimulationOffsetMs, isTimeSimulationActive } from './hooks/time-simulation';

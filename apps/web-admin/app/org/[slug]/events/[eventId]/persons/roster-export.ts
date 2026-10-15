@@ -1,5 +1,4 @@
-import type { CsvFormat } from '@myclash/types';
-import { csvFile } from '@/lib/csv-file';
+import { csvFile, type CsvFormat } from '@myclash/types';
 import { statusLabelKey, type RegistrationStatus } from '@myclash/ui';
 
 /**

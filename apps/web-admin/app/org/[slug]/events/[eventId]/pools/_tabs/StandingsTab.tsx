@@ -1,7 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { standingsColumnLabel, statusLabel } from '@myclash/ui';
+import { CsvExportMenu, standingsColumnLabel, statusLabel } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
@@ -9,9 +9,8 @@ import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { csvFile, downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
-import type { CsvFormat } from '@myclash/types';
+import { downloadCsv } from '@/lib/csv-file';
+import { csvFile, type CsvFormat } from '@myclash/types';
 
 const apiUrl = getPublicApiUrl();
 
@@ -77,7 +76,7 @@ function readHashMode(): Mode {
 }
 
 export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [mode, setMode] = useState<Mode>('overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
@@ -225,6 +224,8 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
 
           {mode === 'overall' && overall && overall.rows.length > 0 && (
             <CsvExportMenu
+              t={t}
+              locale={locale}
               label={t('organizer.pools.standings.exportCsv')}
               onExport={(format) =>
                 exportStandings(overall.columns, overall.rows, 'overall-standings.csv', format)
@@ -234,6 +235,8 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
           )}
           {mode === 'by-pool' && byPool && byPool.pools.length > 0 && (
             <CsvExportMenu
+              t={t}
+              locale={locale}
               label={t('organizer.pools.standings.exportAllPools')}
               onExport={(format) => {
                 const allRows = byPool.pools.flatMap((p) =>
@@ -278,6 +281,8 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
                   </h3>
                   {pool.rows.length > 0 && (
                     <CsvExportMenu
+                      t={t}
+                      locale={locale}
                       label={t('organizer.pools.standings.exportPool')}
                       onExport={(format) =>
                         exportStandings(

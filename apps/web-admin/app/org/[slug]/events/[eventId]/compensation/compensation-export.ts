@@ -6,8 +6,7 @@
  * language (O20); the print title is passed in already localized.
  */
 
-import { escapeHtml, type CompensationReport, type CsvFormat } from '@myclash/types';
-import { csvFile } from '@/lib/csv-file';
+import { csvFile, escapeHtml, type CompensationReport, type CsvFormat } from '@myclash/types';
 
 type Referee = CompensationReport['referees'][number];
 

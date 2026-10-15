@@ -37,12 +37,17 @@ import {
   type BoardWorkshop,
 } from '@myclash/schedule-core';
 import { localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
-import { tintBgClassFor, tintBorderClassFor, tintTextClassFor, useToast } from '@myclash/ui';
+import {
+  CsvExportMenu,
+  tintBgClassFor,
+  tintBorderClassFor,
+  tintTextClassFor,
+  useToast,
+} from '@myclash/ui';
 import { openPrintWindow } from '@/lib/print-window';
 import { useI18n } from '@myclash/next-i18n/client';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import { downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
 import type { CsvFormat } from '@myclash/types';
 import {
   breakTimesFromSlots,
@@ -554,6 +559,8 @@ export function WorkshopScheduleBoard({
             +
           </button>
           <CsvExportMenu
+            t={t}
+            locale={locale}
             label={t('organizer.schedulePage.grid.exportCsv')}
             onExport={exportCsv}
             className="ml-2 rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"

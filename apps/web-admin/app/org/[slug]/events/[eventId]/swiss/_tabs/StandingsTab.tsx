@@ -11,16 +11,15 @@
  */
 
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
-import { standingsColumnLabel } from '@myclash/ui';
+import { CsvExportMenu, standingsColumnLabel } from '@myclash/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { csvFile, downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
-import type { CsvFormat } from '@myclash/types';
+import { downloadCsv } from '@/lib/csv-file';
+import { csvFile, type CsvFormat } from '@myclash/types';
 
 interface StandingsColumn {
   key: string;
@@ -52,7 +51,7 @@ interface SwissStandings {
 }
 
 export function StandingsTab({ tournamentId }: { tournamentId: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [data, setData] = useState<SwissStandings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +108,8 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
             {t('actions.refresh')}
           </button>
           <CsvExportMenu
+            t={t}
+            locale={locale}
             label={t('organizer.swiss.standings.exportCsv')}
             onExport={(format) => downloadCsv('swiss-standings.csv', standingsCsv(data, t, format))}
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background"

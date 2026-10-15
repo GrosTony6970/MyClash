@@ -3,29 +3,42 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CSV_EXCEL_FR, CSV_STANDARD, type CsvFormat } from '@myclash/types';
 import { en } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
+import { CsvExportMenu } from '@myclash/ui';
 import { I18nProvider } from '@/i18n/I18nProvider';
-import { CsvExportMenu } from './CsvExportMenu';
 
 /**
  * The CSV download asks which file (operator, 2026-10-15): French Excel splits on ";" and reads
  * "12,50"; English Excel and the other apps want "," and "12.50". One button opens a small menu;
  * the format of the page's language comes first; nothing is remembered.
+ *
+ * The menu lives in packages/ui, whose tests run with no DOM; it is driven here, as a page of
+ * this app mounts it, its words and language handed in from the page's provider.
  */
 let root: Root;
 let container: HTMLDivElement;
 let exported: CsvFormat[];
+
+function AsAPage({ disabled }: { disabled: boolean }) {
+  const { t, locale } = useI18n();
+  return (
+    <CsvExportMenu
+      label={en.organizer.persons.export.button}
+      className="trigger"
+      disabled={disabled}
+      onExport={(format) => exported.push(format)}
+      t={t}
+      locale={locale}
+    />
+  );
+}
 
 async function mount(locale: 'en' | 'fr', disabled = false) {
   await act(async () =>
     root.render(
       <I18nProvider locale={locale}>
         <p data-testid="outside" />
-        <CsvExportMenu
-          label={en.organizer.persons.export.button}
-          className="trigger"
-          disabled={disabled}
-          onExport={(format) => exported.push(format)}
-        />
+        <AsAPage disabled={disabled} />
       </I18nProvider>,
     ),
   );

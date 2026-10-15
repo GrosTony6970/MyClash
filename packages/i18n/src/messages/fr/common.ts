@@ -53,6 +53,12 @@ export const common = {
     leave: 'Quitter',
     stay: 'Rester',
   },
+  csvExport: {
+    excelFrench: 'Excel (français)',
+    excelFrenchHint: 'Colonnes séparées par ; · décimales en 12,50',
+    standard: 'Excel (anglais), autres logiciels',
+    standardHint: 'Colonnes séparées par , · décimales en 12.50',
+  },
   round: {
     final: 'Finale',
     semiFinal: 'Demi-finale',

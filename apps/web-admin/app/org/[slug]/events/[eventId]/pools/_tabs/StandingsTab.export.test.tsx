@@ -92,13 +92,13 @@ async function exportAs(choice: string): Promise<string[]> {
 
 describe('the Pool standings file', () => {
   it('is in the reader’s language, with the byte-order mark', async () => {
-    const lines = await exportAs(fr.organizer.csvExport.standard);
+    const lines = await exportAs(fr.common.csvExport.standard);
     expect(lines[0]).toBe('Rang,Combattant,Club,Victoires,Statut');
     expect(lines[1]).toBe('1,Géraldine Roux,Lyon Escrime,3,En cours');
   });
 
   it('is split by ; for French Excel, when that is picked', async () => {
-    const lines = await exportAs(fr.organizer.csvExport.excelFrench);
+    const lines = await exportAs(fr.common.csvExport.excelFrench);
     expect(lines[0]).toBe('Rang;Combattant;Club;Victoires;Statut');
     expect(lines[1]).toBe('1;Géraldine Roux;Lyon Escrime;3;En cours');
   });

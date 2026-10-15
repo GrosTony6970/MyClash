@@ -10,7 +10,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { ConfirmDialog, accentClassFor, statusLabel, useToast } from '@myclash/ui';
+import { ConfirmDialog, CsvExportMenu, accentClassFor, statusLabel, useToast } from '@myclash/ui';
 import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent, type CsvFormat } from '@myclash/types';
@@ -78,7 +78,6 @@ import {
 import { getPublicApiUrl } from '@/lib/api-url';
 import { openPrintWindow } from '@/lib/print-window';
 import { downloadCsv } from '@/lib/csv-file';
-import { CsvExportMenu } from '@/components/CsvExportMenu';
 import { LicePlacementEditor } from './LicePlacementEditor';
 import { mutateSchedule } from './schedule-mutations';
 
@@ -2031,6 +2030,8 @@ export function ScheduleGrid({
         ))}
         <div className="ml-auto flex items-center gap-1.5">
           <CsvExportMenu
+            t={t}
+            locale={locale}
             label={t('organizer.schedulePage.grid.exportCsv')}
             onExport={exportCsv}
             className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground-secondary hover:bg-background"

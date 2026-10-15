@@ -8,8 +8,7 @@
  * Pure: no React, no I/O.
  */
 import { parseBracketRound } from '@myclash/schedule-core';
-import type { CsvFormat } from '@myclash/types';
-import { csvFile } from '@/lib/csv-file';
+import { csvFile, type CsvFormat } from '@myclash/types';
 import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
 
 export interface CsvMatch {

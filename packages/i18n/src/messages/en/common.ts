@@ -84,6 +84,14 @@ export const common = {
     leave: 'Leave',
     stay: 'Stay',
   },
+  // The two files a CSV download offers (operator, 2026-10-15): French Excel splits on ";" and
+  // reads "12,50" as a number; English Excel and the other apps want "," and "12.50".
+  csvExport: {
+    excelFrench: 'Excel (French)',
+    excelFrenchHint: 'Columns split by ; · decimals as 12,50',
+    standard: 'Excel (English), other apps',
+    standardHint: 'Columns split by , · decimals as 12.50',
+  },
   // Human phase names, keyed by the round tokens formatRoundCode emits.
   // Resolved through roundTokenLabel() in @myclash/types so the TV display,
   // the scoring pad and the bracket headers all name a round the same way —
