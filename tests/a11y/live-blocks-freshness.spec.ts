@@ -71,3 +71,26 @@ for (const [where, path, heading] of [
     await expectNoCriticalAxeViolations(page);
   });
 }
+
+// The home draws the server's picture first. A phone that loses the network right after
+// never lands a read of its own: the picture it shows is as old as the page.
+test('the Event home: a picture the server drew, and no read after it, comes to say it is not updating', async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date('2027-06-12T08:00:00.000Z') });
+  await stubPublicApi(page);
+  let reads = 0;
+  await page.route('**/api/v1/events/test-event/live-state', (route) => {
+    reads += 1;
+    return route.fulfill({ status: 503, json: {} });
+  });
+  await page.goto(`${PUBLIC}/e/test-event/home`);
+  await waitForPageMain(page);
+  const chip = chipOf(page, 'Live now');
+  await expect(chip).toHaveText('Slower updates', { timeout: 20_000 });
+
+  await page.clock.fastForward(95_000);
+  await expect(chip).toHaveText('Not updating');
+  expect(reads).toBeGreaterThan(0);
+  await expect(page.getByText('Ada Lovelace').first()).toBeVisible();
+});

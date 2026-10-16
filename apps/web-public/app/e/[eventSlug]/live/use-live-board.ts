@@ -73,8 +73,10 @@ export function useLiveBoard(eventSlug: string, seed: LiveState | null = null): 
   const [state, setState] = useState<LiveState | null>(seed);
   const [loading, setLoading] = useState(seed === null);
   // Stamped only when a read LANDS: a poll that fires and fails must not look
-  // like one that works.
-  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  // like one that works. The server's picture landed when the page opened, on
+  // this phone's clock: unstamped, a phone that lost the network after the
+  // server drew the page showed that picture all day and never said "Not updating".
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(() => (seed ? Date.now() : null));
 
   const read = useCallback(async () => {
     const result = await apiRequest<LiveState>(apiUrl, `/api/v1/events/${eventSlug}/live-state`, {
