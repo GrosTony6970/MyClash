@@ -11,7 +11,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
-import { matchRulesetForPhase } from '../phases/match-ruleset';
+import { matchRulesetForPhase, type MatchRulesetStamp } from '../phases/match-ruleset';
 import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
 import { swissMatchRows } from './swiss-match-rows';
@@ -92,6 +92,10 @@ export class SwissPairingService {
     const planned = await this.planNextRound(phaseId);
     if (!planned) return null;
     const { roundNumber, plan } = planned;
+    // The Tournament's ruleset, stamped per bout. Read BEFORE the round row: a read that fails
+    // throws, and thrown after it the round stood with no bouts, and the next try met its row
+    // as "already committed".
+    const stamp = await matchRulesetForPhase(this.supabase.service, phaseId);
 
     const { data: inserted, error } = await this.supabase.service
       .from('swiss_rounds')
@@ -121,7 +125,7 @@ export class SwissPairingService {
     if (!inserted) throw new BadRequestException('Swiss round insert persisted nothing');
     const roundId = (inserted as { id: string }).id;
 
-    const matchIds = await this.insertRoundMatches(phaseId, roundId, roundNumber, plan);
+    const matchIds = await this.insertRoundMatches(phaseId, roundId, roundNumber, plan, stamp);
     await this.scheduleRound(phaseId, matchIds);
     // AFTER scheduling, so the message can name the piste. Swallowed on
     // failure for the same reason `scheduleRound` is: this runs inside
@@ -203,12 +207,11 @@ export class SwissPairingService {
     roundId: string,
     roundNumber: number,
     plan: SwissRoundPlan,
-  ): Promise<string[]> {
-    if (plan.pairings.length === 0) return [];
-
     // The tournament's ruleset, stamped per match: generation used to hardcode
     // TF_v1 and score non-TF tournaments with the wrong engine.
-    const stamp = await matchRulesetForPhase(this.supabase.service, phaseId);
+    stamp: MatchRulesetStamp,
+  ): Promise<string[]> {
+    if (plan.pairings.length === 0) return [];
 
     const rows = swissMatchRows(phaseId, roundId, roundNumber, plan, stamp);
 

@@ -74,6 +74,38 @@ describe('SwissPairingService — committing a round', () => {
     );
   });
 
+  // Read before the round row: thrown after it, the round stood with no bouts, and the next
+  // completion met its row as "already committed", for good.
+  it('writes no round when the ruleset of its bouts cannot be read', async () => {
+    const supabase = mockSupabase(commitState());
+    const real = supabase.service.from;
+    supabase.service.from = vi.fn((table: string) => {
+      const chain = real(table);
+      if (table !== 'phases') return chain;
+      const select = chain.select;
+      chain.select = vi.fn((columns: string) =>
+        columns.includes('ruleset_code')
+          ? ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: null, error: { message: 'connection reset' } }),
+              }),
+            } as never)
+          : select(columns),
+      ) as never;
+      return chain;
+    }) as never;
+    const { programme, notifications } = collaborators();
+    const service = new SwissPairingService(
+      as(supabase),
+      programme as never,
+      undefined as never,
+      notifications as never,
+    );
+
+    await expect(service.commitNextRound('p1')).rejects.toThrow(/was not read: connection reset/);
+    expect(writesTo(supabase, 'swiss_rounds')).toEqual([]);
+  });
+
   it('numbers the boards so a plain text sort is bout order', async () => {
     // Twenty fighters is ten boards, which is where the zero starts to matter.
     // `listByPhase` and the schedule grid both order by `match_number_label` in

@@ -39,7 +39,12 @@ const PHASES = {
 };
 
 function makeService(seed: Record<string, TableSeed>) {
-  const supabase = mockSupabase({ pools: { rows: [pool('pool-0'), pool('pool-1')] }, ...seed });
+  // The ruleset is read before any member write, so every story reads its phase.
+  const supabase = mockSupabase({
+    pools: { rows: [pool('pool-0'), pool('pool-1')] },
+    phases: PHASES,
+    ...seed,
+  });
   /** The writes of bouts that had landed each time the seam was asked. */
   const boutWritesWhenAsked: string[][] = [];
   const matchAlerts = {
@@ -61,10 +66,14 @@ function makeService(seed: Record<string, TableSeed>) {
   );
   // Who may edit a Pool, and until when, is `phases.service.test.ts`'s.
   const doors = service as unknown as {
-    assertPoolEditAuth: () => Promise<{ tournamentId: string }>;
+    assertPoolEditAuth: () => Promise<{ tournamentId: string; phaseId: string }>;
     assertPoolEditable: () => Promise<void>;
   };
-  vi.spyOn(doors, 'assertPoolEditAuth').mockResolvedValue({ tournamentId: 't-1' });
+  // The Pool's context, as `getPoolContext` gives it: its phase names the ruleset.
+  vi.spyOn(doors, 'assertPoolEditAuth').mockResolvedValue({
+    tournamentId: 't-1',
+    phaseId: 'phase-1',
+  });
   vi.spyOn(doors, 'assertPoolEditable').mockResolvedValue(undefined);
   return { service, supabase, matchAlerts, boutWritesWhenAsked };
 }
@@ -93,6 +102,21 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
 
     expect(matchAlerts.refreshPools.mock.calls).toEqual([[['pool-1']]]);
     expect(boutWritesWhenAsked).toEqual([['delete', 'insert']]);
+  });
+
+  // The ruleset is read before any write: a read that fails threw after the member and the
+  // Pool's bouts were gone, and the Pool stood with no bouts.
+  it('writes nothing when the ruleset of the Pool cannot be read', async () => {
+    const { service, supabase } = makeService({
+      pool_members: { rows: [member('reg-2', 1), member('reg-3', 2)] },
+      matches: { rows: [{ id: 'old-1', pool_id: 'pool-1' }] },
+      phases: { data: null, error: { message: 'connection reset' } },
+    });
+
+    await expect(service.removePoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
+      'The ruleset of phase phase-1 was not read: connection reset',
+    );
+    expect(supabase.writes).toEqual([]);
   });
 
   it('names both Pools when a Fighter moves from one to the other', async () => {

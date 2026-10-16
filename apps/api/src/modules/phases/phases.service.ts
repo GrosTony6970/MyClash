@@ -55,7 +55,11 @@ import {
   fetchRefereeSkillIndex,
 } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
-import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
+import {
+  matchRulesetForPhase,
+  matchRulesetForTournament,
+  type MatchRulesetStamp,
+} from './match-ruleset';
 import { computePoolReschedule } from './pool-reschedule';
 import { poolMatchSortKey } from './pool-match-sort';
 import {
@@ -349,6 +353,12 @@ export class PhasesService {
       }
     }
 
+    // Scoring resolves the engine from the MATCH row — stamp the tournament's
+    // ruleset (not a hardcoded TF_v1) or non-TF tournaments score wrong. Read
+    // before the phase is made: a read that fails throws, and thrown after it the
+    // phase stood with no Pools, and the next try was refused as a second one.
+    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
@@ -365,10 +375,6 @@ export class PhasesService {
     if (phaseError || !phase)
       throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
     const phaseId = (phase as { id: string }).id;
-
-    // Scoring resolves the engine from the MATCH row — stamp the tournament's
-    // ruleset (not a hardcoded TF_v1) or non-TF tournaments score wrong.
-    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
 
     const createdPools: Array<{ id: string; name: string; matchCount: number }> = [];
 
@@ -609,6 +615,10 @@ export class PhasesService {
       }));
     }
 
+    // The ruleset its bouts are stamped with, read BEFORE the phase and its slots are made: a
+    // read that fails throws, and thrown after them the bracket stood with no bouts.
+    const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
@@ -654,7 +664,7 @@ export class PhasesService {
       }
     }
 
-    await this.createInitialBracketMatches(insertedSlots ?? [], resetRound);
+    await this.createInitialBracketMatches(insertedSlots ?? [], rulesetStamp, resetRound);
 
     // Note: bye advancement moved to populateBracket — it only
     // makes sense once R1 has registrations.
@@ -672,6 +682,7 @@ export class PhasesService {
 
   private async createInitialBracketMatches(
     insertedSlots: unknown[],
+    rulesetStamp: MatchRulesetStamp,
     resetRound: number | null = null,
   ): Promise<void> {
     // Pre-create a placeholder matches row for EVERY non-bye bracket
@@ -697,12 +708,6 @@ export class PhasesService {
     );
 
     if (readySlots.length === 0) return;
-
-    // All slots belong to the same freshly-generated phase.
-    const rulesetStamp = await matchRulesetForPhase(
-      this.supabase.service,
-      readySlots[0]!['phase_id'] as string,
-    );
 
     const { error } = await this.supabase.service
       .from('matches')
@@ -2615,6 +2620,8 @@ export class PhasesService {
       await this.assertPoolEditable(fromPoolId);
     }
 
+    const rulesetStamp = await this.poolRulesetStamp(dst.phaseId);
+
     // Remove any stale membership rows for this registration
     if (stale.length > 0) {
       const { error: delErr } = await this.supabase.service
@@ -2646,16 +2653,17 @@ export class PhasesService {
     });
     if (insErr) throw new BadRequestException(insErr.message);
 
-    await this.regeneratePoolMatches(poolId);
+    await this.regeneratePoolMatches(poolId, rulesetStamp);
     for (const sourcePoolId of sourcePoolIds) {
-      await this.regeneratePoolMatches(sourcePoolId);
+      await this.regeneratePoolMatches(sourcePoolId, rulesetStamp);
     }
     return { poolId, registrationId, moved: true };
   }
 
   async removePoolMember(poolId: string, registrationId: string, userId: string) {
-    await this.assertPoolEditAuth(poolId, userId);
+    const pool = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
+    const rulesetStamp = await this.poolRulesetStamp(pool.phaseId);
 
     const { error } = await this.supabase.service
       .from('pool_members')
@@ -2664,8 +2672,18 @@ export class PhasesService {
       .eq('registration_id', registrationId);
     if (error) throw new BadRequestException(error.message);
 
-    await this.regeneratePoolMatches(poolId);
+    await this.regeneratePoolMatches(poolId, rulesetStamp);
     return { poolId, registrationId };
+  }
+
+  /**
+   * The ruleset a Pool's bouts made again are stamped with, read BEFORE a member is added or
+   * removed: a read that fails throws, and thrown after the member write and the wipe of the
+   * bouts it left the Pool with no bouts (and, for a move, its source Pools too, all of one
+   * Tournament).
+   */
+  private poolRulesetStamp(phaseId: string): Promise<MatchRulesetStamp> {
+    return matchRulesetForPhase(this.supabase.service, phaseId);
   }
 
   /**
@@ -2674,15 +2692,15 @@ export class PhasesService {
    * its "your duty starts soon" would still ring at the old minute (operator ruling 221).
    * `finally`: the old bouts can be gone when a later step is refused.
    */
-  private async regeneratePoolMatches(poolId: string) {
+  private async regeneratePoolMatches(poolId: string, rulesetStamp: MatchRulesetStamp) {
     try {
-      await this.remakePoolMatches(poolId);
+      await this.remakePoolMatches(poolId, rulesetStamp);
     } finally {
       await this.matchAlerts?.refreshPools([poolId]);
     }
   }
 
-  private async remakePoolMatches(poolId: string) {
+  private async remakePoolMatches(poolId: string, rulesetStamp: MatchRulesetStamp) {
     const ctx = await this.getPoolContext(poolId);
 
     // Wipe existing matches for the pool
@@ -2716,7 +2734,6 @@ export class PhasesService {
       liceLabel: '1',
       poolLabel: poolNumberLabel,
     });
-    const rulesetStamp = await matchRulesetForPhase(this.supabase.service, ctx.phaseId as string);
     const matchInserts = bergerMatches.map((bm) => ({
       phase_id: ctx.phaseId,
       pool_id: poolId,

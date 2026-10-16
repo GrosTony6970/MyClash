@@ -769,14 +769,12 @@ describe('PhasesService', () => {
      */
     const phasesQueue = (
       config: Record<string, unknown>,
-      opts: { type?: string; bronzeUpdate?: boolean; rulesetLookup?: boolean } = {},
+      opts: { type?: string; bronzeUpdate?: boolean } = {},
     ): ChainResult[] => [
       { data: null, error: null }, // 1. existence check — no elim phase yet
       { data: { id: 'phase-new' }, error: null }, // 2. insert … .select('id').single()
       // 3. the bronzeSlotId config update, whose result the service discards
       ...(opts.bronzeUpdate ? [{ data: null, error: null }] : []),
-      // 4. matchRulesetForPhase — null falls back to the TF_v1 stamp
-      ...(opts.rulesetLookup ? [{ data: null, error: null }] : []),
       {
         // 5. getTournamentBracket reads the phase back
         data: {
@@ -839,18 +837,15 @@ describe('PhasesService', () => {
         // Trailing reads come from the post-write getTournamentBracket()
         // delegation: generateBracket reads the canonical shape back so the
         // response matches what GET /tournaments/:id/bracket returns.
-        phases: phasesQueue(
-          {
-            bracketSize: 8,
-            fighterCount: 8,
-            byeCount: 0,
-            byeSeedCount: 0,
-            playInMatchCount: 0,
-            hasPlayInRound: false,
-            rounds: 3,
-          },
-          { rulesetLookup: true },
-        ),
+        phases: phasesQueue({
+          bracketSize: 8,
+          fighterCount: 8,
+          byeCount: 0,
+          byeSeedCount: 0,
+          playInMatchCount: 0,
+          hasPlayInRound: false,
+          rounds: 3,
+        }),
         registrations: { rows: qualifiers(8) },
         // Eight slots for this phase, and one for another — the read-back is
         // scoped by phase_id, and a ninth slot in the response would be
@@ -882,18 +877,15 @@ describe('PhasesService', () => {
 
     it('respects explicit bracketSize option', async () => {
       const { service } = makeService({
-        phases: phasesQueue(
-          {
-            bracketSize: 8,
-            fighterCount: 6,
-            byeCount: 2,
-            byeSeedCount: 2,
-            playInMatchCount: 0,
-            hasPlayInRound: false,
-            rounds: 3,
-          },
-          { rulesetLookup: true },
-        ),
+        phases: phasesQueue({
+          bracketSize: 8,
+          fighterCount: 6,
+          byeCount: 2,
+          byeSeedCount: 2,
+          playInMatchCount: 0,
+          hasPlayInRound: false,
+          rounds: 3,
+        }),
         registrations: { rows: qualifiers(6) },
         bracket_slots: {
           rows: Array.from({ length: 8 }, (_, i) => ({
@@ -922,19 +914,16 @@ describe('PhasesService', () => {
       void regs; // explicit qualifyCount in DTO; registrations fetch no longer happens
 
       const { service, supabase } = makeService({
-        phases: phasesQueue(
-          {
-            bracketSize: 16,
-            mainBracketSize: 16,
-            fighterCount: 18,
-            byeCount: 14,
-            byeSeedCount: 14,
-            playInMatchCount: 2,
-            hasPlayInRound: true,
-            rounds: 4,
-          },
-          { rulesetLookup: true },
-        ),
+        phases: phasesQueue({
+          bracketSize: 16,
+          mainBracketSize: 16,
+          fighterCount: 18,
+          byeCount: 14,
+          byeSeedCount: 14,
+          playInMatchCount: 2,
+          hasPlayInRound: true,
+          rounds: 4,
+        }),
         // createInitialBracketMatches pre-creates a matches row for every
         // non-bye slot, play-in slots with null registrations included, so
         // these two are what come back from `insert(...).select(...)`.
@@ -1015,8 +1004,7 @@ describe('PhasesService', () => {
         const { service, supabase } = makeService({
           phases: phasesQueue({ bracketSize: 8, seedingStrategy: strategy }),
           registrations: { rows: qualifiers(8) },
-          // No slots come back, so no placeholder matches and no ruleset
-          // lookup — hence no `rulesetLookup` entry in the queue above.
+          // No slots come back, so no placeholder matches.
           bracket_slots: { rows: [] },
           tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
         });
@@ -1103,7 +1091,7 @@ describe('PhasesService', () => {
       const slotRows: SupabaseRow[] = emitted.map((row, i) => ({ ...row, id: `slot-${i}` }));
 
       const { service, supabase } = makeService({
-        phases: phasesQueue({ bracketSize: 8 }, { type: 'double_elim', rulesetLookup: true }),
+        phases: phasesQueue({ bracketSize: 8 }, { type: 'double_elim' }),
         registrations,
         bracket_slots: { rows: slotRows },
         matches: { rows: [] },
@@ -1144,7 +1132,7 @@ describe('PhasesService', () => {
             seedingStrategy: 'snake',
             bronzeSlotId: 'slot-bronze',
           },
-          { bronzeUpdate: true, rulesetLookup: true },
+          { bronzeUpdate: true },
         ),
         registrations: { rows: qualifiers(8) },
         // The insert reads these back, and the bronze slot is the one carrying
@@ -1944,22 +1932,15 @@ describe('PhasesService', () => {
     // canonical round code the bracket view shows. Without this stamp,
     // the scoreboard fell through to "B{round}" — divergent from the
     // bracket card label.
-    /**
-     * The phase the slots hang off, and one that is not it. matchRulesetForPhase
-     * reads `phases` with `.eq('id', phaseId)`, so the decoy's ruleset is what
-     * a slipped filter would stamp onto every generated bout.
-     */
-    const RULESET_PHASES: SupabaseRow[] = [
-      {
-        id: 'phase-elsewhere',
-        tournaments: { ruleset_code: 'Generic_PointsCap', ruleset_version: '2.0.0' },
-      },
-      { id: 'phase-1', tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-    ];
+    /** The stamp `generateBracket` read before it wrote anything, handed in. */
+    const STAMP = {
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_content_hash: null,
+    };
 
     it('stamps match_number_label = String(slot.position) on every inserted row', async () => {
       const { service, supabase } = makeService({
-        phases: { rows: RULESET_PHASES },
         matches: { rows: [] },
       });
 
@@ -1987,9 +1968,9 @@ describe('PhasesService', () => {
       // createInitialBracketMatches is private; reach in via the index
       // type to test it in isolation without orchestrating a full
       // generateBracket fixture.
-      await (service as unknown as Record<string, (s: unknown) => Promise<void>>)[
+      await (service as unknown as Record<string, (s: unknown, t: unknown) => Promise<void>>)[
         'createInitialBracketMatches'
-      ]!(slots);
+      ]!(slots, STAMP);
 
       expect(writesTo(supabase, 'matches')[0]?.row).toEqual([
         expect.objectContaining({
@@ -2015,7 +1996,6 @@ describe('PhasesService', () => {
     // registrations that get UPDATEd in by bracket-advance.
     it('inserts a row for every non-bye slot, including R2+ rows with null registrations', async () => {
       const { service, supabase } = makeService({
-        phases: { rows: RULESET_PHASES },
         matches: { rows: [] },
       });
 
@@ -2064,9 +2044,9 @@ describe('PhasesService', () => {
         },
       ];
 
-      await (service as unknown as Record<string, (s: unknown) => Promise<void>>)[
+      await (service as unknown as Record<string, (s: unknown, t: unknown) => Promise<void>>)[
         'createInitialBracketMatches'
-      ]!(slots);
+      ]!(slots, STAMP);
 
       const inserted = writesTo(supabase, 'matches')[0]?.row as Array<Record<string, unknown>>;
       expect(inserted).toEqual([
@@ -3065,9 +3045,11 @@ describe('PhasesService', () => {
   describe('addPoolMember — waiting list guard', () => {
     function stubPoolAuth(svc: PhasesService) {
       vi.spyOn(
-        svc as unknown as { assertPoolEditAuth: () => Promise<{ tournamentId: string }> },
+        svc as unknown as {
+          assertPoolEditAuth: () => Promise<{ tournamentId: string; phaseId: string }>;
+        },
         'assertPoolEditAuth',
-      ).mockResolvedValue({ tournamentId: 'tournament-1' });
+      ).mockResolvedValue({ tournamentId: 'tournament-1', phaseId: 'phase-1' });
       vi.spyOn(
         svc as unknown as { assertPoolEditable: () => Promise<void> },
         'assertPoolEditable',
@@ -3100,6 +3082,8 @@ describe('PhasesService', () => {
       const { service: svc, supabase } = makeService({
         registrations: { rows: registrations('registered') },
         pool_members: { rows: [] },
+        // The ruleset of the bouts made again, read before the member write.
+        phases: { rows: [] },
       });
       stubPoolAuth(svc);
 
