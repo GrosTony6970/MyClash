@@ -102,7 +102,9 @@ export default async function StatsPage({ params }: Props) {
     );
   }
 
-  const { overview, fighters, afterblow, targets } = await fetchTournamentStats(header.id, apiUrl);
+  const { overview, fighters, afterblow, targets } = await fetchTournamentStats(header.id, apiUrl, {
+    headers: await requestLoginHeader(),
+  });
 
   return (
     <main className="px-4 py-6 max-w-6xl mx-auto">

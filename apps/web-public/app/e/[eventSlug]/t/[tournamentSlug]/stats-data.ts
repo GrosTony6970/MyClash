@@ -91,22 +91,26 @@ export interface TournamentStats {
  * (`/stats` route) or `getPublicApiUrl()` in the browser (`StatsTab`). Failures
  * degrade gracefully — a missing overview is `null`, missing lists are empty —
  * so the presentational layer can render its own empty state.
+ *
+ * `login` is how the caller sends the visitor's login (the server: its cookie
+ * header; the browser: `credentials`): a draft Tournament's stats answer as
+ * empty to anyone outside its club, so its members saw none (ruling 127a).
  */
 export async function fetchTournamentStats(
   tournamentId: string,
   apiBase: string,
+  login: Pick<RequestInit, 'headers' | 'credentials'>,
 ): Promise<TournamentStats> {
+  const read = (what: string) =>
+    fetch(`${apiBase}/api/v1/tournaments/${tournamentId}/stats/${what}`, {
+      cache: 'no-store',
+      ...login,
+    });
   try {
     const [overviewRes, fightersRes, targetsRes] = await Promise.all([
-      fetch(`${apiBase}/api/v1/tournaments/${tournamentId}/stats/overview`, {
-        cache: 'no-store',
-      }),
-      fetch(`${apiBase}/api/v1/tournaments/${tournamentId}/stats/fighters`, {
-        cache: 'no-store',
-      }),
-      fetch(`${apiBase}/api/v1/tournaments/${tournamentId}/stats/target-values`, {
-        cache: 'no-store',
-      }),
+      read('overview'),
+      read('fighters'),
+      read('target-values'),
     ]);
 
     const overview = overviewRes.ok ? ((await overviewRes.json()) as Overview) : null;

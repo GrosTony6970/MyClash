@@ -53,7 +53,7 @@ export function StatsTab({ tournamentId, colorToken }: Props) {
         setStatus('loading');
         // getPublicApiUrl(): browser-reachable base — getServerApiUrl is
         // lint-blocked in 'use client' files (no-server-api-url-leak).
-        fetchTournamentStats(tournamentId, getPublicApiUrl())
+        fetchTournamentStats(tournamentId, getPublicApiUrl(), { credentials: 'include' })
           .then((d) => {
             setData(d);
             setStatus('idle');
