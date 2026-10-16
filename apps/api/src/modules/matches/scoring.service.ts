@@ -971,8 +971,10 @@ export class ScoringService {
    * advance or a dependent bout already fought, so it runs FIRST and a refusal
    * leaves the round closed and the series standing rather than half of each.
    *
-   * The clock stays where the closure left it — halted. Restarting it for the
-   * reopened round is the operator's action, as it is after any round close.
+   * The clock stays where the closure left it: halted between two rounds, ended
+   * when the closure won the series (a Reopen, then a Resume, restarts it).
+   * Restarting it for the reopened round is the operator's action, as it is
+   * after any round close.
    */
   private async reopenClosedRound(args: {
     matchId: string;

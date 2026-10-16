@@ -494,7 +494,11 @@ export class ClockService {
 
     // Ruling 331: out of `completed`, no result. An End read the old winner first.
     // And the mark of a bout put back in play, in the same write.
-    const noResult = uncompletes ? { ...noResultColumns(), ...backInPlayColumns(now) } : {};
+    // A series also gets back the round whose close ended it, as a Reopen does: kept closed, no
+    // hit could close it again, and a later End completed the bout with no winner.
+    const noResult = uncompletes
+      ? { ...noResultColumns(), ...popClinchingRoundColumns(match), ...backInPlayColumns(now) }
+      : {};
     if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
       await inPlay({ status: 'running', ...started, ...noResult });
