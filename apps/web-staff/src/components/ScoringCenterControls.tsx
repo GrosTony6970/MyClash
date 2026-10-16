@@ -451,9 +451,13 @@ export function ScoringCenterControls({
                   : t('scoring.level.playSuddenDeath')}
               </button>
             )}
-            {status === 'halted' && (
+            {/* Not once a level step is taken ("Reset + chain", 2026-10-16): the
+                server refuses it, as a Reset would put regulation time back
+                under a chain already at its next step. A Reopen keeps the chain. */}
+            {status === 'halted' && (clockState?.levelResolutionSteps ?? 0) === 0 && (
               <button
                 type="button"
+                data-testid="clock-reset-button"
                 disabled={clockLoading || pressesWaiting}
                 onClick={() => setResetConfirmOpen(true)}
                 className="min-h-[44px] rounded-lg border-2 border-border bg-surface px-4 py-1.5 text-sm font-bold text-foreground-secondary hover:bg-border active:bg-muted/40 disabled:opacity-40"
