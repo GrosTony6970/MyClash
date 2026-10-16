@@ -154,7 +154,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   // ── Open the pad ────────────────────────────────────────────────────────────
   await page.goto(`${staffBase}/matches/${match.id}`);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
-  // Scoring is enabled (match running, clock stopped) → the clean-hit button is tappable.
+  // Scoring is enabled (match paused, clock halted) → the clean-hit button is tappable.
   await expect(cleanHit).toBeEnabled({ timeout: 30_000 });
 
   // ── 1) ONLINE: record one hit, it reaches the server ────────────────────────

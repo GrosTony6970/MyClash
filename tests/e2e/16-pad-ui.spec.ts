@@ -172,9 +172,10 @@ test.describe('scoring pad UI', () => {
     await expect(page.getByTestId('network-bar')).toHaveAttribute('data-network', 'online', {
       timeout: 30_000,
     });
-    // Match running + clock idle → `canScore`. Everything up to step 6 needs it.
+    // Match paused + clock halted (`openForScoring`: Start, then Halt) → `canScore`.
+    // Everything up to step 6 needs it.
     await expect(cleanHit('red', '+2')).toBeEnabled({ timeout: 30_000 });
-    await expect(clockStatus).toHaveAttribute('data-status', 'idle');
+    await expect(clockStatus).toHaveAttribute('data-status', 'halted');
     expect(await exchangeCount(), 'the match must start with no exchanges').toBe(0);
 
     // ── 1) A clean hit — the one type that was already covered ────────────────
@@ -312,9 +313,10 @@ test.describe('scoring pad UI', () => {
     // Red is untouched at 3; blue carries whatever delta the ruleset assigned.
     await expectScore('penalty', 3, penalty.score_delta ?? 0);
 
-    // ── 6) Clock: start — and scoring locks ───────────────────────────────────
+    // ── 6) Clock: run — and scoring locks ─────────────────────────────────────
     // `canScore = scoringEnabled && !clockRunning`: a running clock means the
     // referee is watching the bout, not the tablet. Nothing covered this rule.
+    // The clock was halted by `openForScoring`, so the primary button is Resume.
     await primaryClock.click();
     await expect(clockStatus).toHaveAttribute('data-status', 'running', { timeout: 20_000 });
     // The clock on screen is the TABLET's: it moves on the tap, before any
