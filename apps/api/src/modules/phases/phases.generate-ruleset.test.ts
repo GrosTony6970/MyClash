@@ -127,6 +127,26 @@ describe('generateBracket — the ruleset of its bouts', () => {
     expect(supabase.writes).toEqual([]);
   });
 
+  // The count of fought bouts is asked last, just before the delete (ruling 288): asked first,
+  // a bout fought during the reads in between went with the bracket beyond the count the yes
+  // named. Here the ruleset read, which comes before it, fails first.
+  it('asks the count of fought bouts after its reads, just before the delete', async () => {
+    const { service, supabase } = makeService(
+      {
+        phases: {
+          rows: [{ id: 'old-bracket', tournament_id: 'tournament-1', type: 'single_elim' }],
+        },
+        matches: { rows: [{ id: 'm-1', phase_id: 'old-bracket', status: 'completed' }] },
+        registrations: { rows: registrations(8) },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+      },
+      'fails',
+    );
+
+    await expect(service.generateBracket('tournament-1', {}, true)).rejects.toThrow(RULESET_DOWN);
+    expect(supabase.writes).toEqual([]);
+  });
+
   it('keeps the old bracket when a forced regeneration has too few fighters', async () => {
     const { service, supabase } = makeService(
       {

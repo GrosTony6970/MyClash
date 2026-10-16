@@ -241,13 +241,9 @@ export class PhasesService {
       await assertLicesBelongToEvent(this.supabase.service, eventId, [dto.liceId]);
     }
 
-    // A force over scored bouts is refused here; the delete itself waits until
-    // every other refusal and read below has passed.
+    // The phase a force replaces. Its delete waits until every refusal and read
+    // below has passed.
     const replaced = existing && force ? (existing as { id: string }).id : null;
-    if (replaced) {
-      const confirmed = dto.discardScoredResults ?? 0;
-      await this.assertForceRegenerationAllowed(replaced, organizationId, userId, confirmed);
-    }
 
     // Fetch registrations
     const { data: regs, error: regsError } = await this.supabase.service
@@ -361,7 +357,14 @@ export class PhasesService {
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
 
     // The first write. Every refusal above landed while the old phase stood.
-    if (replaced) await this.deletePhaseAndBouts(replaced, userId);
+    // The count of fought bouts is asked just before it (ruling 288). The race
+    // left: a bout fought between that count and the delete, a few reads apart,
+    // goes with the phase beyond the count the yes named.
+    if (replaced) {
+      const confirmed = dto.discardScoredResults ?? 0;
+      await this.assertForceRegenerationAllowed(replaced, organizationId, userId, confirmed);
+      await this.deletePhaseAndBouts(replaced, userId);
+    }
 
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
@@ -517,14 +520,9 @@ export class PhasesService {
       );
     }
 
-    // A force over fought bouts is refused here; the delete itself waits until
-    // every other refusal and read below has passed.
+    // The bracket a force replaces. Its delete waits until every refusal and
+    // read below has passed.
     const replaced = existing && force ? (existing as { id: string }).id : null;
-    const actor = actorUserId === 'system' ? undefined : actorUserId;
-    if (replaced) {
-      const confirmed = dto.discardScoredResults ?? 0;
-      await this.assertForceRegenerationAllowed(replaced, organizationId, actor, confirmed);
-    }
 
     // Determine qualify count
     let qualifyCount = dto.qualifyCount;
@@ -626,7 +624,13 @@ export class PhasesService {
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
 
     // The first write. Every refusal above landed while the old bracket stood.
-    if (replaced) await this.replaceBracket(replaced, tournamentId, actor);
+    if (replaced) {
+      await this.replaceBracket(replaced, tournamentId, {
+        organizationId,
+        actorUserId: actorUserId === 'system' ? undefined : actorUserId,
+        confirmed: dto.discardScoredResults ?? 0,
+      });
+    }
 
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
@@ -1754,19 +1758,21 @@ export class PhasesService {
   }
 
   /**
-   * "Regenerate bracket": the old bracket goes, with its bouts. Its caller asked
-   * `assertForceRegenerationAllowed` first, before its other refusals.
+   * "Regenerate bracket": the old bracket goes, with its bouts.
    *
    * Counted before the delete, because afterwards there is nothing to count. A
    * regenerate cascades through matches to their exchanges, cards, forfeits and
    * referee assignments, and drops every lice_id + scheduled_at with them, so
-   * it is written in the audit trail.
+   * it is written in the audit trail. The count of fought bouts is asked just
+   * before (ruling 288); the race left is the one `generatePools` names.
    */
   private async replaceBracket(
     phaseId: string,
     tournamentId: string,
-    actorUserId: string | undefined,
+    by: { organizationId: string | null; actorUserId: string | undefined; confirmed: number },
   ): Promise<void> {
+    const { organizationId, actorUserId, confirmed } = by;
+    await this.assertForceRegenerationAllowed(phaseId, organizationId, actorUserId, confirmed);
     const { data: doomed } = await this.supabase.service
       .from('matches')
       .select('id, status')
