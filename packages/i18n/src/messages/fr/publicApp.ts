@@ -502,6 +502,9 @@ export const publicApp = {
       instructorOwn: 'Vous animez cet atelier',
       conflictsWith: 'En conflit avec {item} ({time})',
       empty: 'Aucun atelier pour cet événement.',
+      loadFailed: 'Impossible de charger les ateliers',
+      bookingsFailed:
+        'Impossible de lire vos inscriptions : un atelier où vous êtes inscrit peut paraître libre.',
       rateTitle: 'Évaluer cet atelier',
       rateStarLabel: '{n} sur 5',
       rateCommentPlaceholder: 'Commentaire (optionnel)',

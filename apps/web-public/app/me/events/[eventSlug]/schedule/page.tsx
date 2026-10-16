@@ -6,6 +6,7 @@ import { addDays, zonedToUtcIso } from '@myclash/time';
 import type { ProgrammeBlock } from '@myclash/types';
 import { Skeleton } from '@myclash/ui';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
+import { ReadFailed } from '@/components/me/ReadFailed';
 import { ScheduleView } from '@/components/me/ScheduleView';
 import { useMyEvents, useProgramme } from '@/components/me/hooks';
 import { useMySchedule } from '@/components/me/use-my-schedule';
@@ -113,18 +114,7 @@ function ScheduleTab({
   if (state === 'notFound') return <HubNotFound />;
   // No schedule and no copy on the phone: say so and offer the retry. It was a skeleton for ever.
   if (!schedule) {
-    return (
-      <div role="alert" className="rounded-xl border border-border bg-surface p-4 text-sm">
-        <p className="font-semibold text-foreground">{t('publicApp.mySchedule.loadFailedTitle')}</p>
-        <button
-          type="button"
-          onClick={retry}
-          className="mt-3 min-h-11 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:border-muted"
-        >
-          {t('common.identityRetry')}
-        </button>
-      </div>
-    );
+    return <ReadFailed title={t('publicApp.mySchedule.loadFailedTitle')} onRetry={retry} />;
   }
   const tz = timezone ?? DEFAULT_TZ;
   const programme = toContextRows(blocks, startDate, tz);

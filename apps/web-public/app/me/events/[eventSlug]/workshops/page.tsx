@@ -26,6 +26,7 @@ import { clashOf, clashWords, commitmentsOf } from '@/components/me/workshop-cla
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from '@/components/me/hooks';
 import { useMySchedule } from '@/components/me/use-my-schedule';
+import { ReadFailed } from '@/components/me/ReadFailed';
 import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
 
 type WorkshopSession = WorkshopListItem['sessions'][number];
@@ -58,10 +59,17 @@ function WorkshopsContent({
   const api = getPublicApiUrl();
 
   const [workshops, setWorkshops] = useState<WorkshopListItem[] | null>(null);
+  // The list's read failed: it read as "No workshops for this event".
+  const [listFailed, setListFailed] = useState(false);
   const [wsKey, setWsKey] = useState(0);
   const [busy, setBusy] = useState<TapsInFlight>(new Set());
   const [refused, setRefused] = useState<{ sessionId: string; words: string } | null>(null);
-  const { schedule, refresh: refreshSchedule } = useMySchedule(event.id);
+  const {
+    schedule,
+    state: scheduleState,
+    refresh: refreshSchedule,
+    retry: retrySchedule,
+  } = useMySchedule(event.id);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,11 +78,15 @@ function WorkshopsContent({
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (res.ok) setWorkshops((await res.json()) as WorkshopListItem[]);
-        else setWorkshops([]);
+        if (!res.ok) throw new Error(`public-workshops ${res.status}`);
+        setWorkshops((await res.json()) as WorkshopListItem[]);
+        setListFailed(false);
       })
       .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) setWorkshops([]);
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        // Keep a list already on screen; with none, the page says the read failed.
+        setWorkshops((before) => before ?? []);
+        setListFailed(true);
       });
     return () => controller.abort();
   }, [api, event.slug, wsKey]);
@@ -135,6 +147,18 @@ function WorkshopsContent({
   );
 
   if (workshops === null) return <Skeleton className="h-40 w-full rounded-xl" />;
+  if (listFailed && workshops.length === 0) {
+    return (
+      <ReadFailed
+        title={t('publicApp.me.workshops.loadFailed')}
+        onRetry={() => setWsKey((k) => k + 1)}
+      />
+    );
+  }
+  // Her bookings could not be read: a session she holds would show as free.
+  const bookingsUnread = scheduleState === 'failed' && (
+    <ReadFailed title={t('publicApp.me.workshops.bookingsFailed')} onRetry={retrySchedule} />
+  );
 
   // One card per workshop that still has a live (non-cancelled) session.
   const visible = workshops.filter((w) => w.sessions.some((s) => s.status !== 'cancelled'));
@@ -164,6 +188,7 @@ function WorkshopsContent({
     <div className="flex flex-col gap-6">
       {cardGone && refusedLine}
       <ClashCheckNotice count={unchecked} />
+      {bookingsUnread}
       {groups.map((group) => (
         <section key={group.key}>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">

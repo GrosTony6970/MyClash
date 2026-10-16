@@ -213,6 +213,56 @@ test('/me schedule - a read that fails with no copy on the phone says so, and Re
   await expect(failed).toHaveCount(0);
 });
 
+// The Event's overview and its Workshops page read the schedule too, and said nothing when that
+// read failed: a day with no bout times, a booked seat shown free.
+test('/me overview - a schedule read that fails says so, and Try again reads again', async ({
+  page,
+}) => {
+  await signIn(page);
+  let well = false;
+  await page.route('**/api/v1/events/event-1/my-schedule', (route) =>
+    well ? route.fallback() : route.fulfill({ status: 503, json: { detail: 'unavailable' } }),
+  );
+  await page.goto('http://localhost:3001/me/events/test-event');
+
+  const failed = page.getByRole('alert').filter({ hasText: 'We could not load your schedule' });
+  await expect(failed).toBeVisible();
+  well = true;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+  await expect(failed).toHaveCount(0);
+});
+
+test('/me workshops - a list read that fails says so, not "No workshops"', async ({ page }) => {
+  await signIn(page);
+  let well = false;
+  await page.route('**/api/v1/events/test-event/public-workshops', (route) =>
+    well ? route.fallback() : route.fulfill({ status: 500, json: { detail: 'down' } }),
+  );
+  await page.goto('http://localhost:3001/me/events/test-event/workshops');
+
+  const failed = page.getByRole('alert').filter({ hasText: 'We could not load the workshops' });
+  await expect(failed).toBeVisible();
+  await expect(page.getByText('No workshops for this event.')).toHaveCount(0);
+  well = true;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByText('Messer basics')).toBeVisible();
+});
+
+test('/me workshops - bookings that could not be read are said, above the list', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.route('**/api/v1/events/event-1/my-schedule', (route) =>
+    route.fulfill({ status: 503, json: { detail: 'unavailable' } }),
+  );
+  await page.goto('http://localhost:3001/me/events/test-event/workshops');
+
+  await expect(page.getByText('Messer basics')).toBeVisible();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'We could not read your bookings' }),
+  ).toBeVisible();
+});
+
 test('/me workshops - an open session inside a bout that ends at its next bout conflicts with it', async ({
   page,
 }) => {

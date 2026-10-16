@@ -502,6 +502,8 @@ export const publicApp = {
       instructorOwn: 'You teach this workshop',
       conflictsWith: 'Conflicts with {item} ({time})',
       empty: 'No workshops for this event.',
+      loadFailed: 'We could not load the workshops',
+      bookingsFailed: 'We could not read your bookings: a workshop you booked may show as free.',
       rateTitle: 'Rate this workshop',
       rateStarLabel: '{n} of 5',
       rateCommentPlaceholder: 'Optional comment',

@@ -9,6 +9,7 @@ import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHu
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from '@/components/me/hooks';
 import { useMySchedule } from '@/components/me/use-my-schedule';
+import { ReadFailed } from '@/components/me/ReadFailed';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';
 import {
@@ -109,7 +110,7 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
   const tag = locale === 'fr' ? 'fr-FR' : 'en-GB';
   const tz = myEvent.event.timezone ?? 'Europe/Paris';
   const slug = myEvent.event.slug;
-  const { schedule } = useMySchedule(myEvent.event.id);
+  const { schedule, state, retry } = useMySchedule(myEvent.event.id);
 
   // Every section is ordered by time, unscheduled last — see overview-rows.ts.
   // Competing settles into order once the (separate) schedule fetch resolves.
@@ -140,6 +141,12 @@ function OverviewContent({ myEvent }: { myEvent: MyEvent }) {
 
   return (
     <div>
+      {/* With no schedule, the bouts' times and the booked Workshops below are missing: say so. */}
+      {state === 'failed' && (
+        <div className="mb-4">
+          <ReadFailed title={t('publicApp.mySchedule.loadFailedTitle')} onRetry={retry} />
+        </div>
+      )}
       {competing.length > 0 && (
         <>
           <SectionTitle>{t('publicApp.me.hub.competing')}</SectionTitle>
