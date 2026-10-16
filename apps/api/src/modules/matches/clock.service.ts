@@ -42,6 +42,7 @@ import {
   eventStatusOf,
   lastTimelineRow,
   placeLatePress,
+  savedPressSpeaksForBout,
   placedInTimeline,
   pressIsSaved,
   type LatePress,
@@ -391,9 +392,13 @@ export class ClockService {
    * The row is written first and the bout after it. When the second write failed, the tablet got
    * an error and sent the press again, and the server answered it from the clock alone: an End
    * left the bout "running" under an ended clock, with no winner and no bracket move, for good; a
-   * Start left it "scheduled", and every hit was held as a hit of a bout not started. Only while
-   * the press is the row the timeline ends with: behind a later row (a forfeit's own End, a
-   * Reopen) it is history, and what the bout reads now is that later row's.
+   * Start left it "scheduled", and every hit was held as a hit of a bout not started.
+   *
+   * Only while nothing since speaks for the bout: the press is the row the timeline ends with (a
+   * forfeit's own End or a Reopen after it makes it history), no door put the bout back in play
+   * after it (a correction, which writes no clock row, sets `back_in_play_at`), the bout is not
+   * voided and its Event is not over. Any of those, and the bout is left as it reads. Never a row
+   * taken back here: the saved row may be an old one, and the clock would lose it.
    */
   private async finishSavedPress(
     matchId: string,
@@ -406,7 +411,7 @@ export class ClockService {
     if (!last || last.client_uuid !== press.clientUuid) return current;
     const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
     const match = data as unknown as Record<string, unknown> | null;
-    if (!match) return current;
+    if (!match || !savedPressSpeaksForBout(match, last.occurred_at)) return current;
     const at = last.occurred_at;
     if (action === 'end') {
       if (match['status'] === 'completed') return current;
@@ -417,7 +422,7 @@ export class ClockService {
       const status = action === 'halt' ? 'paused' : 'running';
       if (match['status'] === status) return current;
       const started = action === 'start' ? { started_at: at } : {};
-      await this.writeBoutInPlay(matchId, last.sequence, { status, ...started });
+      await this.writeIfNotCompleted(matchId, { status, ...started });
     }
     return this.getClockState(matchId);
   }
@@ -457,9 +462,25 @@ export class ClockService {
     if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
   }
 
+  /** Write the bout only while it is not completed; false when the completion won. */
+  private async writeIfNotCompleted(
+    matchId: string,
+    columns: Record<string, unknown>,
+  ): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(columns)
+      .eq('id', matchId)
+      .neq('status', 'completed')
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
+    return data !== null;
+  }
+
   /**
    * Put a bout in play (Start, Halt, Resume, or a Reopen that un-completes nothing) only while it
-   * is not completed. The race, named: the bout's status was read before the clock row, and a
+   * is not completed (`writeIfNotCompleted`). The race, named: the bout's status was read before the clock row, and a
    * closing hit, a forfeit, an End from another tablet or a PATCH can complete it in between.
    * Unguarded, the write left it running with its winner kept and its bracket already moved on.
    * The refusal is in the write itself, as `MatchesService.updateStatus` does (ruling 338). When
@@ -474,15 +495,7 @@ export class ClockService {
     sequence: number,
     columns: Record<string, unknown>,
   ): Promise<void> {
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .update(columns)
-      .eq('id', matchId)
-      .neq('status', 'completed')
-      .select('id')
-      .maybeSingle();
-    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
-    if (data) return;
+    if (await this.writeIfNotCompleted(matchId, columns)) return;
     const { error: takeBack } = await this.supabase.service
       .from('match_events')
       .delete()

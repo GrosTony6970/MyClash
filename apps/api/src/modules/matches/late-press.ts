@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { pressAlreadyTrue } from '@myclash/rules';
+import { isOver } from '../../common/live-status';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { ClockAction, ClockState } from './clock.service';
 import { assertScoredAfterLastReset } from './hit-before-reset';
@@ -232,6 +233,17 @@ export async function lastTimelineRow(
     .maybeSingle();
   if (error) throw new Error(`Could not read the timeline of bout ${matchId}: ${error.message}`);
   return (data as TimelineEnd | null) ?? null;
+}
+
+/**
+ * Does a saved press, the row its bout's timeline ends with, still speak for the bout? Not when
+ * the bout is voided, its Event is over, or a door put it back in play after the press (a
+ * correction writes no clock row, only `back_in_play_at`). `ClockService.finishSavedPress`.
+ */
+export function savedPressSpeaksForBout(match: Record<string, unknown>, pressAt: string): boolean {
+  if (match['status'] === 'voided' || isOver(eventStatusOf(match))) return false;
+  const mark = match['back_in_play_at'];
+  return typeof mark !== 'string' || Date.parse(mark) < Date.parse(pressAt);
 }
 
 async function lastRowAt(supabase: Database, matchId: string): Promise<string | null> {

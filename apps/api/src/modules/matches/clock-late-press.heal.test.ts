@@ -67,6 +67,49 @@ describe('a press sent again whose bout write was lost', () => {
     wroteNothing(db);
   });
 
+  it('writes nothing when a correction put the bout back in play after the press', async () => {
+    // The End landed, its answer was lost; the desk voided the last hit before the resend.
+    const { db, clock } = setup([row(1, 'start', '10:00:00'), row(2, 'end', '10:00:40', saved)], {
+      status: 'paused',
+      back_in_play_at: at('10:01:00'),
+    });
+
+    await clock.latePress(BOUT, 'end', press('10:00:40'));
+
+    wroteNothing(db);
+  });
+
+  it('writes nothing on a voided bout', async () => {
+    const { db, clock } = setup([row(1, 'start', '10:00:00', saved)], {
+      status: 'voided',
+      started_at: null,
+    });
+
+    await clock.latePress(BOUT, 'start', press('10:00:00'));
+
+    wroteNothing(db);
+  });
+
+  it('writes nothing on an Event that is over', async () => {
+    const { db, clock } = setup(
+      [row(1, 'start', '10:00:00'), row(2, 'end', '10:00:40', saved)],
+      {},
+      'completed',
+    );
+
+    await clock.latePress(BOUT, 'end', press('10:00:40'));
+
+    wroteNothing(db);
+  });
+
+  it('keeps an old Start row when the bout was completed since', async () => {
+    const { db, clock } = setup([row(1, 'start', '10:00:00', saved)], { status: 'completed' });
+
+    await clock.latePress(BOUT, 'start', press('10:00:00'));
+
+    expect(writesTo(db, 'match_events')).toEqual([]);
+  });
+
   it('writes nothing for a press a later row stands behind', async () => {
     // The End was saved and its bout write lost; then a forfeit ended the bout and its clock,
     // and the forfeit was taken back: the bout runs, under the forfeit's End.
