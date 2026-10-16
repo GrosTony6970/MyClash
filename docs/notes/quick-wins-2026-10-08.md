@@ -2953,6 +2953,56 @@ reads the tablet's time). About twenty-three are plain bugs. Seven needed a ruli
 | TF_v1 version  | TF_v1's end decision changed on 2026-10-11 and its version stayed 1.0.0: a bout corrected after the deploy is decided again by the new rule, silently. | **Real versions, both kept**: bump the version when an engine's decision changes, and keep the old engine registered. Own plan first.         |
 | No-PIN piste   | An organiser scores a bout from the organiser site with no PIN; the wifi drops; nothing of the piste is kept.                                          | **Same "leave it"** as the piste picker (10-11): a piste's queue stays for PIN sessions. The scoring screen's offline worker is fixed.        |
 
+### Built on 2026-10-16: the server pass, first batch
+
+The plain bugs of "The server" that the ruling round named first, and the rulings "Late End round"
+and "Forfeit back", are built (sessions a0831946 and 3c4e6506). Pushed once, `7cd10ca8` …
+`bf68fc53`. Three cold reviews ran: the batch (one blocker, three majors), its fixes (one major),
+and those fixes again (no blocker, no major). An automated security review found one more fault,
+fixed before the push:
+
+| Item               | Built in                                       | What it turned out to be                                                                                                                                                                 |
+| ------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Best-of bracket    | `7cd10ca8`                                     | A series won on a hit moves its winner on (`afterBoutEnded`, one owner of "a bout just ended").                                                                                          |
+| Failed ruleset     | `62ad709c`, `6b889dcf`, `d1cb234a`, `8aaafe56` | A failed read throws (`RulesetReadFailed`), never TF_v1. **The review found four generators half made by the throw**: each reads first, and a forced regeneration deletes last.          |
+| Level End          | `20c1dfb9`, `d090b1ea`, `9c5bae48`             | An End on a level board asks the sheet (`SheetEnds`). **The review found it placed before the clock's refusals** (blocker): it is asked inside the door now.                             |
+| Resent press / hit | `93744609`, `369cffc3`, `91e970cb`, `468cee31` | A press or hit sent again finishes the write it missed, only while it still speaks for its bout (`savedPressSpeaksForBout`, `writeIfNotCompleted`).                                      |
+| Another bout's id  | `e622160f`, `b74b6292`, `f993686c`             | **Security review**: a hit or card id saved for another bout was answered with that bout's row and replayed there. Refused now (`savedHitOf`, `savedCardOf`); a failed read is an error. |
+| Forfeit back       | `07937fc1`, `254ff1d3`                         | Ruled above: the take-back reopens the clock the forfeit ended, and the bout is paused.                                                                                                  |
+| Series un-complete | `d6869b9a`                                     | Start, Halt or Resume on a completed series puts back its clinching round.                                                                                                               |
+| Plain bugs         | `642aa259`, `8785b690`, `16a3e00b`             | Referee stats fold the clock rows with `foldClock`; a name of spaces is refused; one unreadable match format no longer fails every bout list.                                            |
+
+What ran: three cold reviews and the security review, the gate chain (31 of 31, twice), API coverage
+(654 files / 8523 tests), the browser suite (428 of 428), CI run 38914905274, every job green on its first attempt. **No falsifier ran** over this
+pass; every new test was run red on the old code, or against a seeded break.
+
+### What the server build chose, not ruled
+
+- A forced "generate Pools again" or "Regenerate bracket" that the field refuses (too few fighters,
+  too many Pools) now answers that first, and keeps the old phase; the count of fought bouts is asked
+  last, just before the delete.
+- A hit or card id saved for another bout is refused with a plain 400 ("This id is the id of another
+  hit"), as a round press is. No pad mints one.
+- A failed club-ruleset read on a Tournament's statistics page is now a server error, not a page
+  with no afterblow label (`stats.service.ts`, `afterblowLabelRule`).
+- A bracket bout level and over the doubles limit after a Reopen is completed by the sheet on End
+  (the sudden-death refusal before): "the sheet decides".
+
+### Named by the server pass, not fixed
+
+- The count of fought bouts and the force delete are a few reads apart: a bout fought between them
+  goes beyond the count the yes named (ruling 288). Closed for good only by a delete that counts in
+  the same statement.
+- `scoredMatchesIn` answers a failed read with a 400: a forced regeneration can read as refused.
+- No unique index on `phases (tournament_id, type)`, and the generators' "phase already there" reads
+  ignore `error`: two generations at once can make two phases.
+- A replayed hit racing its first send can recompute beside it: two End rows (same class as two hits
+  at once).
+- `savedPressSpeaksForBout` compares the mark with the row's placed time, not the press's server
+  time: only a mark set back in time is wrong (`press-before-reopen.ts`).
+- The rest of "The server" above (S2, S4, S9, S11, S13a, S14, R3, R4, R6, R7, O2a to O7, "Reset +
+  chain"): the next batch.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
