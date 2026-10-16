@@ -11,7 +11,7 @@ import { Button } from './Button';
  */
 describe('Button variant="outline"', () => {
   const html = renderToStaticMarkup(<Button variant="outline">Share</Button>);
-  const classes = /class="([^"]*)"/.exec(html)?.[1].split(' ') ?? [];
+  const classes = (/class="([^"]*)"/.exec(html)?.[1] ?? '').split(' ');
 
   it('draws its border, text and hover on tokens', () => {
     for (const token of [
