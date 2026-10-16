@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { selectsFor } from '../../common/testing/supabase-chain';
 import {
   BOUT,
   hit,
@@ -50,7 +51,7 @@ describe('a finished bout of one round that a correction hands back to the refer
   // Reopen, and must stay refused.
   it('keeps a later mark the bout holds: a late card cannot move it back', async () => {
     const later = '2026-01-01T10:30:00.000Z';
-    const { service, written } = setup(
+    const { db, service, written } = setup(
       storedBout({ back_in_play_at: later }),
       SHEET_3_4,
       RUNNING_EVENT,
@@ -59,6 +60,9 @@ describe('a finished bout of one round that a correction hands back to the refer
     await service.recomputeMatchScore(BOUT, CAUSED_AT);
 
     expect(written()?.row).toMatchObject({ status: 'paused', back_in_play_at: later });
+    // The double hands back every column it holds, whatever is asked: the read must ASK for
+    // the mark, or the real bout row carries none and the mark moves back all the same.
+    expect(selectsFor(db.from, 'matches')[0]).toContain('back_in_play_at');
   });
 
   it('is not marked when it stays finished: an over Event', async () => {

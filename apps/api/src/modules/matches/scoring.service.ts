@@ -432,7 +432,9 @@ export class ScoringService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, phases(type, tournaments(ruleset_config, scoring_config_json))',
+        // `back_in_play_at`: a recompute that puts the bout back in play keeps a later mark
+        // (`backInPlayColumns`); not asked for, the mark moved back all the same.
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
       )
       .eq('id', matchId)
       .maybeSingle();
