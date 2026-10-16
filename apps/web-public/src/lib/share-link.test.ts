@@ -135,3 +135,14 @@ describe('shareMessageKey', () => {
     expect(shareMessageKey(null)).toBeNull();
   });
 });
+
+// Ruling 2026-10-16: the button is the shared Button's neutral outline, not one drawn by hand.
+describe('the Share button', () => {
+  it("is the shared Button's outline, kept 44px tall", () => {
+    const source = readFileSync(join(__dirname, '../components/ShareButton.tsx'), 'utf8');
+    expect(source).toContain("import { Button } from '@myclash/ui';");
+    expect(source).toMatch(/<Button\s+type="button"\s+variant="outline"/);
+    expect(source).toContain('className="min-h-11 shrink-0"');
+    expect(source).not.toContain('<button');
+  });
+});

@@ -449,7 +449,7 @@ The FoilMark is the only ornament. That is the budget.
 
 Build from `@myclash/ui`. What each component is _for_ — the class lists live in the code, and the rendered truth lives at `/admin/design-system`:
 
-- **`Button`** — `primary` is the accent-filled one live action. `strong` is the dark-neutral alternative when a page's accent is already spent. `danger` is destructive. `gold` is a flourish, not a CTA.
+- **`Button`** — `primary` is the accent-filled one live action. `strong` is the dark-neutral alternative when a page's accent is already spent. `danger` is destructive. `gold` is a flourish, not a CTA. `outline` is the quiet neutral action beside the content (Share), on tokens in both scopes.
 - **`Card`** — `surface` on `background`, hairline border, `rounded-xl`. The panel of the booklet.
 - **`FormField`** — the light admin field: quiet 11px eyebrow label, loud value. The tournament-programme entry.
 - **`StatusBadge` / `Badge`** — the same chip; `StatusBadge` defaults to the light surface, `Badge` to dark. Status inks only.

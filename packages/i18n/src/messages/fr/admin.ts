@@ -2360,6 +2360,7 @@ export const admin = {
       delete: 'Supprimer',
       magicLink: 'Lien magique',
       dismiss: 'Fermer',
+      share: 'Partager',
       disabled: 'Désactivé',
       loading: 'Chargement',
     },

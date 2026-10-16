@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 export type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'back' | 'cancel';
+  'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'back' | 'cancel' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'xl';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -33,6 +33,10 @@ const variantClasses: Record<ButtonVariant, string> = {
   gold: 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-gray-900 border-transparent font-bold shadow-[0_0_12px_rgb(245_158_11_/_0.4)]',
   back: 'bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border-slate-300 shadow-sm',
   cancel: 'bg-transparent hover:bg-slate-100 active:bg-slate-200 text-slate-600 border-transparent',
+  // The neutral outline, on tokens only: it follows the light and the dark scope (`back` does
+  // not). First drawn for the public site's Share button (ruling 2026-10-16).
+  outline:
+    'bg-transparent hover:bg-background active:bg-background text-foreground-secondary border-border hover:border-muted',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

@@ -282,6 +282,7 @@ export default function DesignSystemPage() {
           <Button variant="danger">{t('admin.designSystem.buttonsDemo.delete')}</Button>
           <Button variant="secondary">{t('admin.designSystem.buttonsDemo.magicLink')}</Button>
           <Button variant="cancel">{t('admin.designSystem.buttonsDemo.dismiss')}</Button>
+          <Button variant="outline">{t('admin.designSystem.buttonsDemo.share')}</Button>
           <Button variant="primary" disabled>
             {t('admin.designSystem.buttonsDemo.disabled')}
           </Button>

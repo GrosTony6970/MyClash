@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { Button } from '@myclash/ui';
 import { shareLink, shareMessageKey, type ShareOutcome } from '@/lib/share-link';
 
 /** How long the button shows what happened. A failed copy stays longer: it must be read. */
@@ -44,14 +45,15 @@ export function ShareButton({ path }: { path: string }) {
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
         data-testid="share-button"
         onClick={() => void share()}
-        className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-border px-3 text-sm font-semibold text-foreground-secondary transition-colors hover:border-muted hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        className="min-h-11 shrink-0"
       >
         {t(messageKey ?? 'publicApp.share.share')}
-      </button>
+      </Button>
       <span role="status" data-testid="share-status" className="sr-only">
         {messageKey ? t(messageKey) : ''}
       </span>

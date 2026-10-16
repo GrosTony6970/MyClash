@@ -2352,6 +2352,7 @@ export const admin = {
       delete: 'Delete',
       magicLink: 'Magic link',
       dismiss: 'Dismiss',
+      share: 'Share',
       disabled: 'Disabled',
       loading: 'Loading',
     },
