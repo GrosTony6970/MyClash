@@ -1440,13 +1440,13 @@ export class ScoringService {
    * board with a leader is the End's to decide, as before, and so is a sheet still level. A
    * series ends its rounds by its own door (`endRoundOnTime`).
    *
-   * Asked by the clock's two doors (`SheetEnds`), once their refusals have passed. A bout a
-   * forfeit record holds is not the sheet's to decide (ruling 322).
+   * Asked by the clock's two doors (`SheetEnds`), once their refusals have passed. A completed
+   * bout is never asked, so neither is one a forfeit record holds (ruling 322): a record holds
+   * only a completed bout (`endedByForfeitRecord`).
    */
   private readonly sheetEnds: SheetEnds = async (matchId, causedAt) => {
     const m = await this.loadMatchRow(matchId);
     if (!m || m['status'] === 'completed' || !isLevelBout(m)) return false;
-    if (await this.heldByLiveRecord(m)) return false;
     const bout = await this.loadBout(m);
     if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) return false;
     if (!this.scoreSingleFight(bout, bout).decision.isOver) return false;
