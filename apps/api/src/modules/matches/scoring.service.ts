@@ -203,7 +203,9 @@ export class ScoringService {
     };
     if (justCompleted) {
       matchUpdates['status'] = 'completed';
-      matchUpdates['ended_at'] = new Date().toISOString();
+      // At the time of the hit that decided it, when a tablet sent it late: a clock that never
+      // ran has no End to stop at that time, and the row kept the queue's arrival.
+      matchUpdates['ended_at'] = causedAt ?? new Date().toISOString();
       matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
@@ -940,6 +942,8 @@ export class ScoringService {
       );
       Object.assign(updates, closure.updates);
       justCompleted = closure.justCompleted;
+      // At the time of the hit that won it, as a single fight (`recomputeFromSheet`).
+      if (justCompleted && args.causedAt) updates['ended_at'] = args.causedAt;
     } else {
       // Round in progress, or already closed (awaiting advance / completed).
       // The same `seriesResult` the closure used, so a repeated recompute of a
