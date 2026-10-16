@@ -220,7 +220,7 @@ export class ClockService {
       canDiscardDependentResults?: boolean;
       /**
        * A step of another door that must never touch a completed bout (the round advance, the
-       * series Halt after a round closes): any action but End on a bout completed when this
+       * series Halt after a round closes). Every action but End on a bout completed when this
        * reads it is refused with `bout_completed`, its result and its round kept.
        */
       keepsCompleted?: boolean;
