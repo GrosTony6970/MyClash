@@ -293,6 +293,7 @@ describe('MatchesService', () => {
       const existingExchange = { id: 'ex-1', client_uuid: 'uuid-abc', match_id: 'm1', sequence: 1 };
       const { service: exchangeService, supabase } = makeService({
         exchanges: { rows: [existingExchange] },
+        matches: { rows: [{ id: 'm1', status: 'running', back_in_play_at: null }] },
       });
 
       const result = await exchangeService.createExchange('m1', {
@@ -307,10 +308,10 @@ describe('MatchesService', () => {
       // Returns existing without calling insert
       expect((result as { id: string }).id).toBe('ex-1');
       expect(supabase.writes).toEqual([]);
-      // Short-circuits before the round-state read, so `matches` is never asked
-      // for — which is why it is not seeded, and why this would throw if the
-      // idempotent return ever stopped returning early.
-      expect(queriedTables(supabase.from)).toEqual(['exchanges']);
+      // Short-circuits before the round-state read: the only read of `matches` is
+      // the replay's own (`scoreReplayedHit`), and this would name a second one if
+      // the idempotent return ever stopped returning early.
+      expect(selectsFor(supabase.from, 'matches')).toEqual(['status, back_in_play_at']);
       // The bout is scored again: a first recompute that threw left its score stale.
       // (`scoreReplayedHit`; an over Event's replay is `matches.replay-over-event.test.ts`.)
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);

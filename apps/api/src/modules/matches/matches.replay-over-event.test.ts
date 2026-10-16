@@ -14,13 +14,30 @@ import { MatchesService } from './matches.service';
  * took. The REAL guard is under test, over the same seeded database.
  */
 const ORGANISER = 'a0000000-0000-4000-8000-000000000001';
-const SAVED = { id: 'ex-1', client_uuid: 'uuid-saved', match_id: 'm1', sequence: 3 };
+const SAVED = {
+  id: 'ex-1',
+  client_uuid: 'uuid-saved',
+  match_id: 'm1',
+  sequence: 3,
+  recorded_at: '2026-10-03T10:00:05.000Z',
+};
 const HIT = { sequence: 3, type: 'no_exchange', occurredAt: '2026-10-03T10:00:00.000Z' };
 
-function setup(eventStatus: string, lockedAt: string | null = null) {
+function setup(eventStatus: string, lockedAt: string | null = null, bout: object = {}) {
   const db = mockSupabase({
     exchanges: { rows: [SAVED] },
-    matches: { rows: [{ id: 'm1', phase_id: 'phase-1', locked_at: lockedAt }] },
+    matches: {
+      rows: [
+        {
+          id: 'm1',
+          phase_id: 'phase-1',
+          locked_at: lockedAt,
+          status: 'running',
+          back_in_play_at: null,
+          ...bout,
+        },
+      ],
+    },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
     tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
     events: { rows: [{ id: 'event-1', status: eventStatus }] },
@@ -76,6 +93,42 @@ describe('MatchesService.createExchange — a repeated hit on an over Event', ()
       }),
     ).resolves.toEqual(SAVED);
     expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
+  });
+
+  // The bout ended on this hit, its answer was lost; the desk pressed Reopen to correct it
+  // (ruling 331: its sheet is not read again). The resend must not complete it again.
+  it('does not score a bout put back in play after the hit was saved', async () => {
+    const { scoring, service } = setup('running', null, {
+      status: 'paused',
+      back_in_play_at: '2026-10-03T10:01:00.000Z',
+    });
+
+    await expect(
+      service.createExchange('m1', { ...HIT, clientUuid: 'uuid-saved' } as never, {
+        userId: ORGANISER,
+      }),
+    ).resolves.toEqual(SAVED);
+    expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
+  });
+
+  it('scores a bout put back in play before the hit was saved', async () => {
+    const { scoring, service } = setup('running', null, {
+      back_in_play_at: '2026-10-03T09:59:00.000Z',
+    });
+
+    await service.createExchange('m1', { ...HIT, clientUuid: 'uuid-saved' } as never, {
+      userId: ORGANISER,
+    });
+    expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
+  });
+
+  it('does not score a voided bout: its sheet stays', async () => {
+    const { scoring, service } = setup('running', null, { status: 'voided' });
+
+    await service.createExchange('m1', { ...HIT, clientUuid: 'uuid-saved' } as never, {
+      userId: ORGANISER,
+    });
+    expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
   });
 
   // Archived too: the route passes the archived lock (ruling 240), so this

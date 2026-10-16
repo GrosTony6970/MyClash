@@ -552,7 +552,7 @@ export class MatchesService {
 
     if (existing) {
       // Idempotent — return the existing exchange without error
-      await this.scoreReplayedHit(matchId, dto);
+      await this.scoreReplayedHit(matchId, dto, existing as Record<string, unknown>);
       return existing;
     }
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
@@ -602,7 +602,7 @@ export class MatchesService {
         .eq('client_uuid', dto.clientUuid)
         .maybeSingle();
       if (raceExisting) {
-        await this.scoreReplayedHit(matchId, dto);
+        await this.scoreReplayedHit(matchId, dto, raceExisting as Record<string, unknown>);
         return raceExisting;
       }
 
@@ -631,10 +631,34 @@ export class MatchesService {
    * of the bout are two steps, and a recompute that threw (a ruleset read that failed is a 5xx
    * since 62ad709c) left the bout's score stale, a cap reached and never completed. The resend
    * was answered "saved" with no recompute. A recompute reads the whole sheet, so a sheet that
-   * is unchanged changes nothing. Not on an Event that is over: its results are frozen, and a
-   * replay there writes nothing (`matches.replay-over-event.test.ts`).
+   * is unchanged changes nothing.
+   *
+   * Only while the saved hit still speaks for its bout, as a press sent again
+   * (`savedPressSpeaksForBout`). Not when a door put the bout back in play after the hit was
+   * saved: the desk's Reopen of a bout fought to its cap is not read again (ruling 331), and the
+   * resend completed it before the referee could correct it. Not on a voided bout, whose sheet
+   * stays. Not on an Event that is over: its results are frozen, and a replay there writes
+   * nothing (`matches.replay-over-event.test.ts`). A recompute that threw wrote no mark, so the
+   * case this heals passes.
    */
-  private async scoreReplayedHit(matchId: string, dto: CreateExchangeDto): Promise<void> {
+  private async scoreReplayedHit(
+    matchId: string,
+    dto: CreateExchangeDto,
+    saved: Record<string, unknown>,
+  ): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('status, back_in_play_at')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new Error(`Could not read a match's status: ${error.message}`);
+    const bout = data as { status?: string; back_in_play_at?: string | null } | null;
+    if (!bout || bout.status === 'voided') return;
+    const mark = bout.back_in_play_at;
+    const savedAt = saved['recorded_at'];
+    if (typeof mark === 'string') {
+      if (typeof savedAt !== 'string' || Date.parse(mark) >= Date.parse(savedAt)) return;
+    }
     if (await this.frozenResults?.isEventOver(matchId)) return;
     await this.scoring.recomputeMatchScore(matchId, scoredAtServer(dto));
   }
