@@ -40,6 +40,7 @@ import {
   ClockRowCollided,
   elapsedAt,
   eventStatusOf,
+  lastTimelineRow,
   placeLatePress,
   placedInTimeline,
   pressIsSaved,
@@ -330,7 +331,8 @@ export class ClockService {
     actor?: ClockActor,
   ): Promise<ClockState> {
     const db = this.supabase.service;
-    if (await pressIsSaved(db, press.clientUuid)) return this.getClockState(matchId);
+    if (await pressIsSaved(db, press.clientUuid))
+      return this.finishSavedPress(matchId, action, press);
     const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     const match = data as unknown as Record<string, unknown>;
@@ -361,6 +363,43 @@ export class ClockService {
       press: { clientUuid: press.clientUuid },
       at,
     });
+  }
+
+  /**
+   * A press sent again whose clock row is saved: the server finishes the bout write it missed.
+   *
+   * The row is written first and the bout after it. When the second write failed, the tablet got
+   * an error and sent the press again, and the server answered it from the clock alone: an End
+   * left the bout "running" under an ended clock, with no winner and no bracket move, for good; a
+   * Start left it "scheduled", and every hit was held as a hit of a bout not started. Only while
+   * the press is the row the timeline ends with: behind a later row (a forfeit's own End, a
+   * Reopen) it is history, and what the bout reads now is that later row's.
+   */
+  private async finishSavedPress(
+    matchId: string,
+    action: PressAction,
+    press: LatePress,
+  ): Promise<ClockState> {
+    const db = this.supabase.service;
+    const current = await this.getClockState(matchId);
+    const last = await lastTimelineRow(db, matchId);
+    if (!last || last.client_uuid !== press.clientUuid) return current;
+    const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
+    const match = data as unknown as Record<string, unknown> | null;
+    if (!match) return current;
+    const at = last.occurred_at;
+    if (action === 'end') {
+      if (match['status'] === 'completed') return current;
+      const ending = timeLimitResult(match, current.levelResolutionSteps, elapsedAt(current, at));
+      if ('refuse' in ending) return current;
+      await this.completeOnEnd(matchId, match, current, ending, at);
+    } else {
+      const status = action === 'halt' ? 'paused' : 'running';
+      if (match['status'] === status) return current;
+      const started = action === 'start' ? { started_at: at } : {};
+      await this.writeBoutInPlay(matchId, last.sequence, { status, ...started });
+    }
+    return this.getClockState(matchId);
   }
 
   /**

@@ -210,17 +210,32 @@ export async function pressIsSaved(supabase: Database, clientUuid: string): Prom
   return data !== null;
 }
 
-/** The time of the row the bout's timeline ends with, or null for an empty one. */
-async function lastRowAt(supabase: Database, matchId: string): Promise<string | null> {
+/** The row a bout's timeline ends with: its time, its sequence and the id of the press, if any. */
+export interface TimelineEnd {
+  occurred_at: string;
+  sequence: number;
+  client_uuid: string | null;
+}
+
+/** The row the bout's timeline ends with, by time then sequence; null for an empty one. */
+export async function lastTimelineRow(
+  supabase: Database,
+  matchId: string,
+): Promise<TimelineEnd | null> {
   const { data, error } = await supabase
     .from('match_events')
-    .select('occurred_at')
+    .select('occurred_at, sequence, client_uuid')
     .eq('match_id', matchId)
     .order('occurred_at', { ascending: false })
+    .order('sequence', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`Could not read the timeline of bout ${matchId}: ${error.message}`);
-  return (data as { occurred_at: string } | null)?.occurred_at ?? null;
+  return (data as TimelineEnd | null) ?? null;
+}
+
+async function lastRowAt(supabase: Database, matchId: string): Promise<string | null> {
+  return (await lastTimelineRow(supabase, matchId))?.occurred_at ?? null;
 }
 
 /** `placedAt` for a row of this bout: `atMs`, or the time of the bout's last row when that is later. */
