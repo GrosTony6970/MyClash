@@ -86,6 +86,45 @@ describe('ScoringService.recomputeMatchScore — the end time of a bout decided 
     expect(select).toContain('started_at');
   });
 
+  // The clock started at 10:20 on a tablet with a network; a hit made at 10:06 on the clock of
+  // another tablet arrives and decides it.
+  it('a single fight never ends before it started', async () => {
+    const started = '2026-01-01T10:20:00.000Z';
+    const { service, clock, written } = setup(
+      storedBout({ ...running, phases: capOf7(1), started_at: started }),
+      TO_THE_CAP,
+    );
+    clock.getClockState.mockResolvedValue({ levelResolutionSteps: 0, status: 'idle' });
+
+    await service.recomputeMatchScore(BOUT, CAUSED_AT);
+
+    expect(written()?.row).toMatchObject({ status: 'completed', ended_at: started });
+  });
+
+  it('a series never ends before it was put back in play', async () => {
+    const reopened = '2026-01-01T10:30:00.000Z';
+    const { service, clock, written } = setup(
+      storedBout({
+        ...running,
+        phases: capOf7(3),
+        match_number_label: 'QF1',
+        current_round: 2,
+        rounds_json: [
+          { round: 1, redScore: 7, blueScore: 0, winnerColor: 'red', endReason: 'first_to_points' },
+        ],
+        red_round_wins: 1,
+        blue_round_wins: 0,
+        back_in_play_at: reopened,
+      }),
+      TO_THE_CAP.map((row) => ({ ...row, round_number: 2 })),
+    );
+    clock.getClockState.mockResolvedValue({ levelResolutionSteps: 0, status: 'idle' });
+
+    await service.recomputeMatchScore(BOUT, CAUSED_AT);
+
+    expect(written()?.row).toMatchObject({ status: 'completed', ended_at: reopened });
+  });
+
   it('a bout decided by a person with a network ends now', async () => {
     const { service, written } = setup(storedBout({ ...running, phases: capOf7(1) }), TO_THE_CAP);
 
