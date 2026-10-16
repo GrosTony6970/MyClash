@@ -55,8 +55,6 @@ export interface BracketViewProps {
   showReferees?: boolean;
   /** `${slotId}::${role ?? ''}` keys flagging the viewer's own referee rows. */
   refereeSelfKeys?: ReadonlySet<string>;
-  /** Humanises a referee_skills.id role into a label (app-provided). */
-  refereeRoleLabel?: (role: string | null) => string;
   /** Ring the matches running on this lice. Undefined → no lice highlight. */
   highlightLiceId?: string | null;
   /** Tailwind horizontal-gap class between round columns. Defaults to the
@@ -100,7 +98,6 @@ export function BracketView({
   youLabel,
   showReferees = false,
   refereeSelfKeys,
-  refereeRoleLabel,
   highlightLiceId,
   roundGapClass = ROUND_GAP_CLASS,
   t,
@@ -183,7 +180,6 @@ export function BracketView({
         youLabel,
         showReferees,
         refereeSelfKeys,
-        refereeRoleLabel,
         highlightLiceId,
       }}
     >

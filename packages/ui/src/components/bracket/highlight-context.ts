@@ -13,9 +13,6 @@ export interface BracketHighlight {
   /** `${slotId}::${role ?? ''}` keys flagging the viewer's own referee rows
    *  (accent name + "YOU" chip). Undefined → no referee self-highlight. */
   refereeSelfKeys?: ReadonlySet<string>;
-  /** Humanises a referee_skills.id role into a label. App-provided (the lib is
-   *  i18n-free); falls back to the raw role when omitted. */
-  refereeRoleLabel?: (role: string | null) => string;
   /**
    * Lice whose matches this bracket should call out. Undefined → no lice
    * highlight, so the admin and public brackets render unchanged.

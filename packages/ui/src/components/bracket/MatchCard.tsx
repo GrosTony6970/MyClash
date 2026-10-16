@@ -91,14 +91,8 @@ export function MatchCard({
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
 
-  const {
-    highlightRegistrationId,
-    youLabel,
-    showReferees,
-    refereeSelfKeys,
-    refereeRoleLabel,
-    highlightLiceId,
-  } = React.useContext(BracketHighlightContext);
+  const { highlightRegistrationId, youLabel, showReferees, refereeSelfKeys, highlightLiceId } =
+    React.useContext(BracketHighlightContext);
   const isOnHighlightedLice = !!highlightLiceId && slot.liceId === highlightLiceId;
   const referees = slot.referees ?? [];
   const redIsYou = !!highlightRegistrationId && slot.redRegistrationId === highlightRegistrationId;
@@ -291,14 +285,9 @@ export function MatchCard({
                 </span>
                 <SkillBadge
                   color={r.skillColor}
-                  // An app-provided mapper wins; otherwise the payload's own
-                  // resolved label; the raw role id is the last resort, since
-                  // `role` is a referee_skills.id and reads as gibberish.
-                  label={
-                    refereeRoleLabel
-                      ? refereeRoleLabel(r.role)
-                      : (r.roleLabel ?? r.role ?? t('common.bracket.referee'))
-                  }
+                  // The payload's own resolved label; the raw role id is the last
+                  // resort, since `role` is a referee_skills.id and reads as gibberish.
+                  label={r.roleLabel ?? r.role ?? t('common.bracket.referee')}
                 />
               </li>
             );

@@ -202,13 +202,9 @@ export default function WorkshopDetailPage() {
             )}
           </h1>
           {workshopFailed && (
-            <button
-              type="button"
-              onClick={load}
-              className="mb-4 min-h-11 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:border-muted"
-            >
+            <Button type="button" variant="outline" onClick={load} className="mb-4 min-h-11">
               {t('actions.retry')}
-            </button>
+            </Button>
           )}
           <BackLink
             href={`/e/${eventSlug}/workshops`}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { Button } from '@myclash/ui';
 
 /**
  * A read of the personal space that failed, said, with the way to read again. ONE notice for
@@ -12,13 +13,9 @@ export function ReadFailed({ title, onRetry }: { title: string; onRetry: () => v
   return (
     <div role="alert" className="rounded-xl border border-border bg-surface p-4 text-sm">
       <p className="font-semibold text-foreground">{title}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 min-h-11 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:border-muted"
-      >
+      <Button type="button" variant="outline" onClick={onRetry} className="mt-3 min-h-11">
         {t('common.identityRetry')}
-      </button>
+      </Button>
     </div>
   );
 }
