@@ -623,13 +623,17 @@ export class MatchesService {
    * row may be another bout's: that is no replay of this bout's hit, and it is refused, as a
    * round press is (`savedRoundPress`). Answered "saved", it handed back the other bout's row,
    * and the replay scored this bout against the time of the other bout's hit.
+   *
+   * A failed read is an error, never "not saved": read as "not saved", a hit the server holds
+   * met the refusals below (an Event over), and the pad filed a saved hit as refused.
    */
   private async savedHitOf(matchId: string, clientUuid: string) {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('exchanges')
       .select('*')
       .eq('client_uuid', clientUuid)
       .maybeSingle();
+    if (error) throw new Error(`Could not read a saved hit: ${error.message}`);
     if (data && (data as { match_id?: string }).match_id !== matchId) {
       throw new BadRequestException('This id is the id of another hit');
     }

@@ -1520,25 +1520,21 @@ export class PenaltiesService {
   }
 
   /**
-   * A card the server already holds is answered as it is. If it is a live black card, its
-   * review is brought up to date first: the first send may have written the card and then
-   * failed on the review, and the tablet's retry is the only send left to repair it. So is the
-   * disqualification of a black card that reaches the whole Tournament: the first send wrote the
-   * card, then failed there with a 500, and the tablet sends it again by itself. The write is
-   * safe to repeat.
-   */
-  /**
    * The saved card this id names, or null. A `client_uuid` is unique across every bout, so the
    * row may be another bout's: that is no replay of this bout's card, and it is refused, as a
    * hit is (`MatchesService.savedHitOf`). Answered "saved", it handed back the other bout's card
    * and repeated its disqualification.
+   *
+   * A failed read is an error, never "not saved": read as "not saved", a card the server holds
+   * met the refusals after it (an Event over), and the pad filed a saved card as refused.
    */
   private async savedCardOf(matchId: string, clientUuid: string): Promise<Row | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('match_penalties')
       .select('*')
       .eq('client_uuid', clientUuid)
       .maybeSingle();
+    if (error) throw new Error(`Could not read a saved card: ${error.message}`);
     const stored = data as Row | null;
     if (stored && stored['match_id'] !== matchId) {
       throw new BadRequestException('This id is the id of another card');
@@ -1546,6 +1542,14 @@ export class PenaltiesService {
     return stored;
   }
 
+  /**
+   * A card the server already holds is answered as it is. If it is a live black card, its
+   * review is brought up to date first: the first send may have written the card and then
+   * failed on the review, and the tablet's retry is the only send left to repair it. So is the
+   * disqualification of a black card that reaches the whole Tournament: the first send wrote the
+   * card, then failed there with a 500, and the tablet sends it again by itself. The write is
+   * safe to repeat.
+   */
   private async replayAnswer(stored: Row): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
       const registrationId = String(stored['registration_id']);

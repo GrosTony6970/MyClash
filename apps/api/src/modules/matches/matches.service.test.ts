@@ -343,6 +343,20 @@ describe('MatchesService', () => {
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
 
+    // "Could not read the saved hit" is not "not saved": the refusals after the read would
+    // answer a hit the server holds, and the pad would file it as refused.
+    it('a failed read of the saved hit is an error, and nothing is written', async () => {
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: { data: null, error: { message: 'connection reset' } },
+        ...scorableMatch({ status: 'running', back_in_play_at: null }),
+      });
+
+      await expect(exchangeService.createExchange('m1', HIT_AGAIN)).rejects.toThrow(
+        'Could not read a saved hit: connection reset',
+      );
+      expect(supabase.writes).toEqual([]);
+    });
+
     it("refuses it on the race path too, when another bout's hit took the id first", async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [

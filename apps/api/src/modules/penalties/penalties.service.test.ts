@@ -47,15 +47,74 @@ describe('PenaltiesService', () => {
   // A `client_uuid` is unique across every bout. A card saved for match-2, sent again to
   // match-1, is not match-1's: answering it "saved" handed back match-2's card and repeated its
   // disqualification for a caller of match-1.
+  const OTHER_BOUTS_CARD = {
+    id: 'penalty-9',
+    client_uuid: 'client-1',
+    match_id: 'match-2',
+    card: 'black',
+    causes_match_forfeit: true,
+    voided: false,
+  };
+  const BLACK_AGAIN = {
+    clientUuid: 'client-1',
+    sequence: 1,
+    registrationId: 'reg-red',
+    directCard: 'black' as const,
+    reason: 'direct referee decision',
+    occurredAt: '2026-05-05T10:00:00.000Z',
+  };
+  /** A bout of match-1 ready for a card; `cards` is what the card table answers. */
+  const cardDoor = (cards: TableState[string]) => {
+    const supabase = fakeSupabase({
+      match_penalties: cards,
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          status: 'running',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+      match_events: { maybeSingle: null },
+    });
+    const recomputeMatchScore = vi.fn();
+    const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
+    return { service, supabase, recomputeMatchScore };
+  };
+
+  it("refuses it on the race path too, when another bout's card took the id first", async () => {
+    const { service, recomputeMatchScore } = cardDoor({
+      maybeSingles: [null, OTHER_BOUTS_CARD],
+      insertError: { message: 'duplicate key value violates unique constraint' },
+    });
+
+    await expect(
+      service.createPenalty('match-1', BLACK_AGAIN, { userId: 'scorekeeper-1' }),
+    ).rejects.toEqual(new BadRequestException('This id is the id of another card'));
+    expect(recomputeMatchScore).not.toHaveBeenCalled();
+  });
+
+  // "Could not read the saved card" is not "not saved": the refusals after the read would
+  // answer a card the server holds, and the pad would file it as refused.
+  it('a failed read of the saved card is an error, and nothing is written', async () => {
+    const { service, supabase } = cardDoor({ readError: { message: 'connection reset' } });
+
+    await expect(
+      service.createPenalty('match-1', BLACK_AGAIN, { userId: 'scorekeeper-1' }),
+    ).rejects.toThrow('Could not read a saved card: connection reset');
+    expect(supabase.inserted).toEqual({});
+  });
+
   it("refuses a card id another bout's card holds, and repeats nothing", async () => {
-    const otherBoutsCard = {
-      id: 'penalty-9',
-      client_uuid: 'client-1',
-      match_id: 'match-2',
-      card: 'black',
-      causes_match_forfeit: true,
-      voided: false,
-    };
+    const otherBoutsCard = OTHER_BOUTS_CARD;
     const supabase = fakeSupabase({
       match_penalties: { maybeSingle: otherBoutsCard },
       matches: {
@@ -801,7 +860,13 @@ type TableState = Record<
   string,
   {
     maybeSingle?: unknown;
+    /** Answers of the table's first reads, one each, before `maybeSingle` answers the rest. */
+    maybeSingles?: unknown[];
+    /** A read of this table answers this error. */
+    readError?: { message: string };
     single?: unknown;
+    /** An insert of this table answers this error. */
+    insertError?: { message: string };
     select?: unknown[];
     insert?: unknown;
     update?: unknown;
@@ -901,6 +966,18 @@ function failingWrite<T extends object>(api: T, error: { message: string }) {
   return awaited;
 }
 
+/** What a `maybeSingle()` of the table answers: its error, its next queued row, else its row. */
+function oneRowOf(tableState: TableState[string]) {
+  if (tableState.readError) return { data: null, error: tableState.readError };
+  const queued = tableState.maybeSingles;
+  return { data: queued?.length ? queued.shift() : (tableState.maybeSingle ?? null), error: null };
+}
+
+/** An `insert(…).select().single()` that answers this error. */
+function failingInsert(error: { message: string }) {
+  return { select: () => ({ single: () => Promise.resolve({ data: null, error }) }) };
+}
+
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
   const updated: Record<string, unknown[]> = {};
@@ -923,9 +1000,7 @@ function fakeSupabase(state: TableState) {
           limit: () => api,
         }),
       ),
-      maybeSingle: vi.fn(() =>
-        Promise.resolve({ data: tableState.maybeSingle ?? null, error: null }),
-      ),
+      maybeSingle: vi.fn(() => Promise.resolve(oneRowOf(tableState))),
       single: vi.fn(() =>
         Promise.resolve({
           data:
@@ -939,7 +1014,7 @@ function fakeSupabase(state: TableState) {
       ),
       insert: vi.fn((row: unknown) => {
         inserted[table] = [...(inserted[table] ?? []), row];
-        return api;
+        return tableState.insertError ? failingInsert(tableState.insertError) : api;
       }),
       update: vi.fn((row: unknown) => {
         updated[table] = [...(updated[table] ?? []), row];
