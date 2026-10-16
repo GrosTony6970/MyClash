@@ -47,7 +47,8 @@ import { endedAtOf } from './ended-at';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
 import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
-import { advanceRound, writeRoundRow, type LateRoundPress } from './round-advance';
+import { advanceRound, type LateRoundPress } from './round-advance';
+import { writeRoundRow } from './round-rows';
 import { placeLateRoundEnd, type RoundEndBout } from './round-end';
 import { countAtStart, type StartCountDeps } from './start-count';
 import { isLevelBout } from './time-limit-result';
@@ -1126,7 +1127,7 @@ export class ScoringService {
       closure: { updates: Record<string, unknown>; justCompleted: boolean };
     },
     actor: { userId?: string; staffAccountId?: string } | undefined,
-    press: { clientUuid: string; at: string; saved: boolean } | null,
+    press: { clientUuid: string; at: string; sequence: number; saved: boolean } | null,
   ): Promise<void> {
     const db = this.supabase.service;
     const { currentRound, closure } = round;

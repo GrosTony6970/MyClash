@@ -8,8 +8,8 @@ import {
   againOnCollision,
   BOUT_COMPLETED,
   boutCompleted,
-  ClockRowCollided,
   eventStatusOf,
+  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
@@ -17,6 +17,7 @@ import {
   type LatePress,
 } from './late-press';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
+import { savedRoundPress, writeRoundRow } from './round-rows';
 import { nothingOnTheSheet } from './start-count';
 
 type Database = SupabaseService['service'];
@@ -58,9 +59,6 @@ const BOUT_COLUMNS =
   'id, status, awaiting_round_advance, current_round, back_in_play_at, ' +
   'phases(tournaments(events(status)))';
 
-/** Postgres: a unique key refused the row. */
-const UNIQUE_VIOLATION = '23505';
-
 export const ROUND_NOT_WAITING = 'round_not_waiting';
 
 /**
@@ -96,34 +94,6 @@ export function lateRoundPressOf(body: {
   return { clientUuid, round, pressedAt, sentAt };
 }
 
-/**
- * The row the server holds for this round press, or null for a press that is
- * new to it. An id it holds for another bout, or for another kind of press, is
- * a bad request: read as "saved", it opened or closed a round with no row. A
- * failed read is an error, never "not saved".
- */
-export async function savedRoundPress(
-  db: Database,
-  press: {
-    clientUuid: string;
-    matchId: string;
-    type: 'round_advance' | 'round_end' | 'level_resolution';
-  },
-): Promise<{ sequence: number } | null> {
-  const { data, error } = await db
-    .from('match_events')
-    .select('match_id, type, sequence')
-    .eq('client_uuid', press.clientUuid)
-    .maybeSingle();
-  if (error) throw new Error(`Could not read a round press: ${error.message}`);
-  const row = data as { match_id: string; type: string; sequence: number } | null;
-  if (!row) return null;
-  if (row.match_id !== press.matchId || row.type !== press.type) {
-    throw new BadRequestException('This id is the id of another press');
-  }
-  return { sequence: row.sequence };
-}
-
 async function readBout(db: Database, matchId: string): Promise<Record<string, unknown>> {
   const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
   if (!data) throw new NotFoundException(`Match ${matchId} not found`);
@@ -135,53 +105,6 @@ const roundOf = (bout: Record<string, unknown>): number =>
 
 const advanceTo = (round: number) =>
   ({ type: 'round_advance', reason: `advance to round ${round}` }) as const;
-
-/**
- * Write a round's row in the bout's timeline, and say when it is not written.
- *
- * `round_advance` is state, not an audit line: `computeClockState` reads it as
- * the marker that puts the level-at-time chain back to the top. A late row
- * carries the id of its press, which is what answers the second send. A late
- * one that loses its sequence, or its own id, to another writer says so with
- * `ClockRowCollided`.
- *
- * A step of a level bout writes its rows here too (`level-step.ts`): the Halt
- * of a clock that runs, which has a time and no id, and the step itself, with
- * the correction of the clock its extra time gives.
- */
-export async function writeRoundRow(
-  db: Database,
-  matchId: string,
-  written: {
-    type: 'round_advance' | 'round_end' | 'halt' | 'level_resolution';
-    reason: string;
-    adjustmentMs?: number;
-  },
-  actor: Actor | undefined,
-  late?: { clientUuid?: string; at: string },
-): Promise<void> {
-  const { data: last } = await db
-    .from('match_events')
-    .select('sequence')
-    .eq('match_id', matchId)
-    .order('sequence', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const { error } = await db.from('match_events').insert({
-    match_id: matchId,
-    sequence: ((last as { sequence: number } | null)?.sequence ?? 0) + 1,
-    type: written.type,
-    reason: written.reason,
-    by_user_id: actor?.userId ?? null,
-    staff_account_id: actor?.staffAccountId ?? null,
-    occurred_at: late?.at ?? new Date().toISOString(),
-    ...(written.adjustmentMs !== undefined ? { adjustment_ms: written.adjustmentMs } : {}),
-    ...(late?.clientUuid ? { client_uuid: late.clientUuid } : {}),
-  });
-  if (!error) return;
-  if (late && error.code === UNIQUE_VIOLATION) throw new ClockRowCollided();
-  throw new BadRequestException(error.message);
-}
 
 /**
  * Whether the bout still waits for `round` to open. False once another send of the advance has
@@ -335,6 +258,7 @@ async function advanceLate(
   if (late.round < 2) throw new BadRequestException('No press opens round 1');
   const asked = { clientUuid: late.clientUuid, matchId, type: 'round_advance' } as const;
   const saved = (await savedRoundPress(db, asked)) !== null;
+  const sequence = await judgedSequence(db, matchId); // Before the reads that judge it (S11).
   const bout = await readBout(db, matchId);
   const current = roundOf(bout);
   const completed = bout['status'] === 'completed';
@@ -369,7 +293,8 @@ async function advanceLate(
   if (!saved && !waits) throw roundNotWaiting(late.round);
 
   const at = await placedInTimeline(db, matchId, pressedMs);
-  if (!saved) await writeRoundRow(db, matchId, advanceTo(late.round), actor, { ...late, at });
+  const row = { ...late, at, sequence };
+  if (!saved) await writeRoundRow(db, matchId, advanceTo(late.round), actor, row);
   return openRound(deps, matchId, late.round, actor, at);
 }
 

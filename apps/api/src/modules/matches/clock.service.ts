@@ -40,6 +40,7 @@ import {
   ClockRowCollided,
   elapsedAt,
   eventStatusOf,
+  judgedSequence,
   lastTimelineRow,
   placeLatePress,
   savedPressSpeaksForBout,
@@ -136,6 +137,8 @@ interface ClockStep {
    * server's own press after a queued hit or card. None: now.
    */
   at?: string;
+  /** The sequence a press sent late took with its placement (`placedInTimeline`). None: next. */
+  sequence?: number;
 }
 
 // The scores and the phase's match format are here so `end` can NAME
@@ -358,6 +361,8 @@ export class ClockService {
     const db = this.supabase.service;
     if (await pressIsSaved(db, press.clientUuid))
       return this.finishSavedPress(matchId, action, press);
+    // Before the reads that judge the press (S11): a row written meanwhile collides with it.
+    const sequence = await judgedSequence(db, matchId);
     const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     const match = data as unknown as Record<string, unknown>;
@@ -391,6 +396,7 @@ export class ClockService {
       uncompletes: false,
       press: { clientUuid: press.clientUuid },
       at,
+      sequence,
     });
   }
 
@@ -444,7 +450,7 @@ export class ClockService {
    * to another writer says so with `ClockRowCollided`: `latePress` asks again.
    */
   private async insertRow(matchId: string, step: ClockStep, at: string): Promise<number> {
-    const sequence = await this.nextSequence(matchId);
+    const sequence = step.sequence ?? (await this.nextSequence(matchId));
     const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence,

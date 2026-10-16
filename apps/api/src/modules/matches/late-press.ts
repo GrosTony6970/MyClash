@@ -259,6 +259,27 @@ export async function placedInTimeline(
   return placedAt(atMs, await lastRowAt(supabase, matchId));
 }
 
+/**
+ * The sequence a late row's insert takes, read BEFORE every read that judges the row.
+ *
+ * The race (S11): a row another device writes while a late press is judged (a Halt of the desk
+ * between the read of the clock and the insert) was not seen by the rules, and the late row took
+ * the next sequence and was written past them. Read first, the sequence is one that a row written
+ * after it takes before this insert does: the insert collides on the unique key
+ * (`ClockRowCollided`), and every rule is asked again, with that row in sight.
+ */
+export async function judgedSequence(supabase: Database, matchId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('match_events')
+    .select('sequence')
+    .eq('match_id', matchId)
+    .order('sequence', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read the timeline of bout ${matchId}: ${error.message}`);
+  return ((data as { sequence: number } | null)?.sequence ?? 0) + 1;
+}
+
 /** A press that is new to the server and not already true, as the clock's door read it. */
 export interface AskedPress {
   matchId: string;

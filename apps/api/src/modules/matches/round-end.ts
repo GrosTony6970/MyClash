@@ -6,13 +6,15 @@ import { eventResultsFrozen } from './event-results-frozen';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 import {
   boutCompleted,
+  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
   pressTooOld,
 } from './late-press';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
-import { savedRoundPress, type LateRoundPress } from './round-advance';
+import type { LateRoundPress } from './round-advance';
+import { savedRoundPress } from './round-rows';
 
 type Database = SupabaseService['service'];
 
@@ -49,7 +51,8 @@ export interface RoundEndBout {
 
 /** Nothing is left to do, or the round is to be closed at `at`. */
 export type LateRoundEnd =
-  { done: { redScore: number; blueScore: number } } | { at: string; saved: boolean };
+  | { done: { redScore: number; blueScore: number } }
+  | { at: string; sequence: number; saved: boolean };
 
 /**
  * Is this the row the bout's timeline ends with? A late "End round" that was
@@ -97,6 +100,8 @@ export async function placeLateRoundEnd(
   late: LateRoundPress,
 ): Promise<LateRoundEnd> {
   const asked = { clientUuid: late.clientUuid, matchId, type: 'round_end' } as const;
+  // Before the reads that judge the press (S11): a row written meanwhile collides with it.
+  const sequence = await judgedSequence(db, matchId);
   const row = await savedRoundPress(db, asked);
   const saved = row !== null;
   const snapshot = bout.closed.find((round) => round.round === late.round);
@@ -117,5 +122,5 @@ export async function placeLateRoundEnd(
     assertPressedAfterBackInPlay(matchId, bout.backInPlayAt, pressedMs);
     if (!open) throw roundNotOpen(late.round);
   }
-  return { at: await placedInTimeline(db, matchId, pressedMs), saved };
+  return { at: await placedInTimeline(db, matchId, pressedMs), sequence, saved };
 }

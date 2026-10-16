@@ -16,6 +16,7 @@ import {
   boutCompleted,
   elapsedAt,
   eventStatusOf,
+  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
@@ -24,7 +25,8 @@ import {
 import { endRefusal } from './level-at-time-refusal';
 import { matchLocked } from './match-locked';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
-import { savedRoundPress, writeRoundRow, type LateRoundPress } from './round-advance';
+import type { LateRoundPress } from './round-advance';
+import { savedRoundPress, writeRoundRow } from './round-rows';
 import { ROUND_AWAITS_ADVANCE } from './round-awaits-advance';
 import { roundNotOpen } from './round-end';
 import { isLevelBout, matchFormatContext } from './time-limit-result';
@@ -177,6 +179,8 @@ interface Placed {
   at: string;
   /** Of a step sent late: its id. */
   clientUuid?: string;
+  /** Of a step sent late: the sequence of its first row (`judgedSequence`). */
+  sequence?: number;
 }
 
 /**
@@ -195,8 +199,12 @@ async function writeStep(
   const elapsedMs = elapsedAt(clock, at);
   const step = pendingStep(bout, clock.levelResolutionSteps, elapsedMs);
 
+  // A late step's rows take the sequences that follow its placement; a step of now, the next.
+  let sequence = placed.sequence;
   if (clock.status === 'running') {
-    await writeRoundRow(db, matchId, { type: 'halt', reason: 'level step' }, actor, { at });
+    const halt = { type: 'halt', reason: 'level step' } as const;
+    await writeRoundRow(db, matchId, halt, actor, { at, sequence });
+    if (sequence !== undefined) sequence += 1;
   }
   if (bout['status'] === 'running') {
     const { error } = await db.from('matches').update({ status: 'paused' }).eq('id', matchId);
@@ -208,7 +216,7 @@ async function writeStep(
     reason,
     ...timeGiven(bout, step, elapsedMs),
   } as const;
-  await writeRoundRow(db, matchId, written, actor, { at, clientUuid });
+  await writeRoundRow(db, matchId, written, actor, { at, clientUuid, sequence });
   return step;
 }
 
@@ -252,6 +260,8 @@ async function stepLate(
   const { db } = deps;
   const asked = { clientUuid: late.clientUuid, matchId, type: 'level_resolution' } as const;
   if (await savedRoundPress(db, asked)) return deps.clock.getClockState(matchId);
+  // Before the reads that judge the step (S11): a row written meanwhile collides with it.
+  const sequence = await judgedSequence(db, matchId);
   const bout = await readBout(db, matchId);
   if (isOver(eventStatusOf(bout))) throw eventResultsFrozen();
   if (bout['status'] === 'completed') throw boutCompleted();
@@ -272,7 +282,7 @@ async function stepLate(
     throw levelStepNotPending(`The round has not taken ${late.step} steps of its level chain`);
   }
   const at = await placedInTimeline(db, matchId, pressedMs);
-  await writeStep(db, matchId, actor, { bout, clock, at, clientUuid: late.clientUuid });
+  await writeStep(db, matchId, actor, { bout, clock, at, clientUuid: late.clientUuid, sequence });
   return deps.clock.getClockState(matchId);
 }
 
