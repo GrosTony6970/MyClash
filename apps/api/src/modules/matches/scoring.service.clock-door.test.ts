@@ -61,7 +61,10 @@ describe('ScoringService.clockAction — the sheet after the clock (ruling 331)'
 
       const state = await scoring.clockAction(BOUT, 'reopen', 'why', ACTOR, true);
 
-      expect(clock.clockAction.mock.calls).toEqual([[BOUT, 'reopen', 'why', ACTOR, true]]);
+      // The door hands the clock what an End asks the sheet (`SheetEnds`).
+      expect(clock.clockAction.mock.calls).toEqual([
+        [BOUT, 'reopen', 'why', ACTOR, true, undefined, expect.any(Function)],
+      ]);
       expect(steps).toEqual(['clock', 'sheet']);
       // The sheet can end the bout and its clock: the state is read after it.
       expect(state).toBe(AFTER_THE_SHEET);
@@ -113,26 +116,17 @@ describe('ScoringService.clockAction — the sheet after the clock (ruling 331)'
     expect(selectsFor(db.from, 'match_forfeits')).toEqual([]);
   });
 
-  it('reset_clock reads nothing: it takes no bout out of completed', async () => {
-    const { db, scoring, recompute } = setup('completed', FORFEITED);
+  it.each<'end' | 'reset_clock'>(['end', 'reset_clock'])(
+    '%s reads nothing: it takes no bout out of completed',
+    async (action) => {
+      const { db, scoring, recompute } = setup('completed', FORFEITED);
 
-    await scoring.clockAction(BOUT, 'reset_clock');
+      await scoring.clockAction(BOUT, action);
 
-    expect(recompute).not.toHaveBeenCalled();
-    expect(selectsFor(db.from, 'matches')).toEqual([]);
-  });
-
-  // An End reads the bout once, for a board that reads level (`sheetEndedLevelBout`); a
-  // completed bout stops there, and no record is asked.
-  it('end reads the bout once and takes no bout out of completed', async () => {
-    const { db, scoring, recompute } = setup('completed', FORFEITED);
-
-    await scoring.clockAction(BOUT, 'end');
-
-    expect(recompute).not.toHaveBeenCalled();
-    expect(selectsFor(db.from, 'matches')).toHaveLength(1);
-    expect(selectsFor(db.from, 'match_forfeits')).toEqual([]);
-  });
+      expect(recompute).not.toHaveBeenCalled();
+      expect(selectsFor(db.from, 'matches')).toEqual([]);
+    },
+  );
 
   it('asks for the status of this bout and for its live records', async () => {
     const { db, scoring } = setup('completed', FORFEITED);

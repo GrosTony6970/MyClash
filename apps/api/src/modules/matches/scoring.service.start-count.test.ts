@@ -71,17 +71,20 @@ describe('ScoringService.latePress — a Start from a tablet’s queue', () => {
 
     await expect(scoring.latePress(BOUT, 'start', PRESS, ACTOR)).resolves.toBe(RUNNING);
 
-    expect(clock.latePress.mock.calls).toEqual([[BOUT, 'start', PRESS, ACTOR]]);
+    expect(clock.latePress.mock.calls).toEqual([
+      [BOUT, 'start', PRESS, ACTOR, expect.any(Function)],
+    ]);
     expect(steps).toEqual(['clock', 'count']);
   });
 
-  // An End is `scoring.service.end-reads-sheet.test.ts`: on a level board it asks the sheet.
-  it.each(['halt', 'resume'] as const)('counts nothing at a %s', async (action) => {
+  it.each(['halt', 'resume', 'end'] as const)('counts nothing at a %s', async (action) => {
     const { db, clock, scoring, recompute } = setup(STARTED);
 
     await expect(scoring.latePress(BOUT, action, PRESS, ACTOR)).resolves.toBe(RUNNING);
 
-    expect(clock.latePress.mock.calls).toEqual([[BOUT, action, PRESS, ACTOR]]);
+    expect(clock.latePress.mock.calls).toEqual([
+      [BOUT, action, PRESS, ACTOR, expect.any(Function)],
+    ]);
     expect(recompute).not.toHaveBeenCalled();
     expect(db.from).not.toHaveBeenCalled();
   });

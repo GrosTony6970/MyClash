@@ -52,6 +52,15 @@ import { roundAwaitsAdvance } from './round-awaits-advance';
 import type { LevelStep } from '@myclash/rulesets';
 import { CLOCK_ACTIONS_FROM, foldClock } from '@myclash/rules';
 
+/**
+ * Asked by an End once every refusal of its door has passed: did the sheet end the bout? True
+ * when it did, and the End then writes nothing (`ScoringService.sheetEndedLevelBout`). Given by
+ * the clock's HTTP doors only; the server's own Ends (a cap, a forfeit) decide on their own.
+ * Asked HERE and not before the door: a queued End made before a Reopen, on an Event that is
+ * over, or on a locked bout must meet its refusal first.
+ */
+export type SheetEnds = (matchId: string, at?: string) => Promise<boolean>;
+
 export type ClockAction =
   | 'start'
   | 'halt'
@@ -206,6 +215,7 @@ export class ClockService {
      * The row is written there, not at the time the queue arrives.
      */
     causedAt?: string,
+    sheetEnds?: SheetEnds,
   ): Promise<ClockState> {
     // Verify match exists
     const { data: match } = await this.supabase.service
@@ -239,6 +249,10 @@ export class ClockService {
       (match as { awaiting_round_advance?: boolean | null }).awaiting_round_advance
     ) {
       throw roundAwaitsAdvance();
+    }
+    // Every refusal of this door has passed: an End may ask the sheet first (`SheetEnds`).
+    if (action === 'end' && sheetEnds && (await sheetEnds(matchId))) {
+      return this.getClockState(matchId);
     }
 
     // What ending the clock would do — resolved BEFORE the event row is
@@ -320,8 +334,9 @@ export class ClockService {
     action: PressAction,
     press: LatePress,
     actor?: ClockActor,
+    sheetEnds?: SheetEnds,
   ): Promise<ClockState> {
-    return againOnCollision(() => this.takePress(matchId, action, press, actor));
+    return againOnCollision(() => this.takePress(matchId, action, press, actor, sheetEnds));
   }
 
   private async takePress(
@@ -329,6 +344,7 @@ export class ClockService {
     action: PressAction,
     press: LatePress,
     actor?: ClockActor,
+    sheetEnds?: SheetEnds,
   ): Promise<ClockState> {
     const db = this.supabase.service;
     if (await pressIsSaved(db, press.clientUuid))
@@ -349,6 +365,10 @@ export class ClockService {
       fits: (VALID_TRANSITIONS[current.status] ?? []).includes(action),
       clockStatus: current.status,
     });
+    // Every refusal of a late press has passed (`placeLatePress`): an End may ask the sheet first.
+    if (action === 'end' && sheetEnds && (await sheetEnds(matchId, at))) {
+      return this.getClockState(matchId);
+    }
     const ending =
       action === 'end'
         ? timeLimitResult(match, current.levelResolutionSteps, elapsedAt(current, at))

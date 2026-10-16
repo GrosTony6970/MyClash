@@ -37,7 +37,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
-import { ClockService, type ClockState } from './clock.service';
+import { ClockService, type ClockState, type SheetEnds } from './clock.service';
 import {
   backInPlayColumns,
   popLastClosedRoundColumns,
@@ -45,7 +45,7 @@ import {
 } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
-import { againOnCollision, elapsedAt, eventStatusOf, pressedAtServer } from './late-press';
+import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
 import { advanceRound, writeRoundRow, type LateRoundPress } from './round-advance';
 import { placeLateRoundEnd, type RoundEndBout } from './round-end';
 import { countAtStart, type StartCountDeps } from './start-count';
@@ -64,6 +64,24 @@ import {
 } from './correction-preflight';
 
 export type { ClosedRound };
+
+type ClockDoor = Parameters<ClockService['clockAction']>;
+/** A clock action over HTTP, as the clock takes it less what this door adds (`SheetEnds`). */
+type ClockDoorArgs = [
+  matchId: ClockDoor[0],
+  action: ClockDoor[1],
+  reason?: ClockDoor[2],
+  actor?: ClockDoor[3],
+  discardDependents?: ClockDoor[4],
+  causedAt?: ClockDoor[5],
+];
+type LatePressDoor = Parameters<ClockService['latePress']>;
+type LatePressArgs = [
+  matchId: LatePressDoor[0],
+  action: LatePressDoor[1],
+  press: LatePressDoor[2],
+  actor?: LatePressDoor[3],
+];
 
 /** One bout, read once: what it is fought under and what is on its sheet. */
 interface LoadedBout extends ScoreRows {
@@ -1366,14 +1384,19 @@ export class ScoringService {
    * override found is put back (ruling 332). Best effort: the clock action is
    * saved by then.
    */
-  async clockAction(...asked: Parameters<ClockService['clockAction']>): Promise<ClockState> {
-    const [matchId, action] = asked;
-    if (action === 'end' && (await this.sheetEndedLevelBout(matchId))) {
-      return this.clock.getClockState(matchId);
-    }
+  async clockAction(...asked: ClockDoorArgs): Promise<ClockState> {
+    const [matchId, action, reason, actor, discardDependents, causedAt] = asked;
     const held =
       action !== 'end' && action !== 'reset_clock' ? await this.heldResult(matchId) : null;
-    const state = await this.clock.clockAction(...asked);
+    const state = await this.clock.clockAction(
+      matchId,
+      action,
+      reason,
+      actor,
+      discardDependents,
+      causedAt,
+      this.sheetEnds,
+    );
     if (!held) {
       if (action === 'start') await this.countAtStartBestEffort(matchId);
       return state;
@@ -1399,13 +1422,9 @@ export class ScoringService {
    * silence, the row would read as "both out of points" once the first hit is
    * on the sheet, and a tablet would close that round as drawn.
    */
-  async latePress(...asked: Parameters<ClockService['latePress']>): Promise<ClockState> {
-    const [matchId, action, press] = asked;
-    const pressedAt = new Date(pressedAtServer(press, Date.now())).toISOString();
-    if (action === 'end' && (await this.sheetEndedLevelBout(matchId, pressedAt))) {
-      return this.clock.getClockState(matchId);
-    }
-    const state = await this.clock.latePress(...asked);
+  async latePress(...asked: LatePressArgs): Promise<ClockState> {
+    const [matchId, action, press, actor] = asked;
+    const state = await this.clock.latePress(matchId, action, press, actor, this.sheetEnds);
     if (action === 'start') await countAtStart(this.startCount(), matchId);
     return state;
   }
@@ -1420,16 +1439,20 @@ export class ScoringService {
    * fighter less far below zero had won. The sheet's own end decides it, with its winner. A
    * board with a leader is the End's to decide, as before, and so is a sheet still level. A
    * series ends its rounds by its own door (`endRoundOnTime`).
+   *
+   * Asked by the clock's two doors (`SheetEnds`), once their refusals have passed. A bout a
+   * forfeit record holds is not the sheet's to decide (ruling 322).
    */
-  private async sheetEndedLevelBout(matchId: string, causedAt?: string): Promise<boolean> {
+  private readonly sheetEnds: SheetEnds = async (matchId, causedAt) => {
     const m = await this.loadMatchRow(matchId);
     if (!m || m['status'] === 'completed' || !isLevelBout(m)) return false;
+    if (await this.heldByLiveRecord(m)) return false;
     const bout = await this.loadBout(m);
     if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) return false;
     if (!this.scoreSingleFight(bout, bout).decision.isOver) return false;
     await this.recomputeMatchScore(matchId, causedAt);
     return true;
-  }
+  };
 
   private startCount(): StartCountDeps {
     return { db: this.supabase.service, recompute: (id) => this.recomputeMatchScore(id) };
