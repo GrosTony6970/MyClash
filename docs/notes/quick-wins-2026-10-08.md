@@ -2873,6 +2873,66 @@ mails, and production does not confirm by itself), so there is no link to lose t
 | Sign-up again | Léa's confirm mail went to spam; she signs up again with another password. The auth server keeps her first password.                                        | **Send the link again, keep the first password**: no second acceptance; the mail says the first password stays and points to "Forgot password?".                                                                                            |
 | Pre-takeover  | A stranger signs up with Léa's address and his password. Weeks later Léa signs up, or uses "email me a link", and confirms: his password opens her account. | **Password only after proof**, its own slice, planned and asked before building: sign-up stores no usable password; the confirmation link opens "choose your password". Until then, the mail says only that a password chosen before stays. |
 
+### Built on 2026-10-16: the public pass
+
+Every item of "The public site" above is built (sessions 0fe859f2 and a0831946), with the public
+`referee-display.ts` the organiser pass named. Pushed once, `204143b6` … `a37d0488`. One item read
+differently in code than the sweep wrote it, and the cold review found three faults in the build,
+fixed before the push:
+
+| Item         | Built in                                       | What it turned out to be                                                                                                                                                                    |
+| ------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden bout  | `204143b6`, `8c3f50eb`, `0227a964`             | Ruled above. **The review found a lapsed login read as a stranger** (the login check runs in shadow mode): "not found", never renewed. A login that did not verify now answers 401 first.   |
+| Sign-up mail | `158fe2b2`, `426eac73`, `900109b2`             | **No mail at all**, not a lost page: the admin create never mails. Own confirm mail. **A sign-up again** on an unconfirmed address resends; any password chosen before stays (ruled above). |
+| Live blocks  | `49c2a1ed`, `a86a7ca4`, `2d8f67ad`, `a37d0488` | `useLiveBoard` for both blocks. **The review found the server's picture never turned "Not updating"**: the seed is now stamped on the phone's clock. A paused bout says "Paused".           |
+| Roster title | none                                           | **No fault**: its body throws the same way, so the reader sees one error page.                                                                                                              |
+| Role words   | `ae4517bb`, `ec0cd30f`, `d0cae0d2`             | `refereeRoleLabel` and `publicRolesOf`, one owner each; the bracket's unused role prop removed.                                                                                             |
+| Mailed link  | `1d6ad7f0`                                     | `/auth/signed-in` forgets the phone's schedules, then opens `next`.                                                                                                                         |
+| Plain bugs   | `f0a98d29` … `67a662d0`                        | The delete dialog's words; Share on a phone and the bout links; the ranked name; the stats and the profile with the login; the tab names; Button `outline`; "could not load" + Retry.       |
+
+What ran: two cold reviews (the pass; then its fixes: no blocker, two majors, one a ruling), the gate
+chain (31 of 31), API coverage (646 files / 8460 tests), the browser suite (427 of 428; the red was
+`event.spec.ts`, fixed in `a37d0488` and run three times green, the whole suite was not run again),
+CI run 38881553176, every job green on its first attempt. **No falsifier ran** over this pass.
+
+### What the public build chose, not ruled
+
+- The two live blocks show their chip only when NOT live (`quietWhenLive`); the live board keeps its
+  permanent chip.
+- A failed People search, and a failed Event read on that page, share one sentence ("We could not
+  search the participants…").
+- The People lookup now goes out with the login (a club member searches her own draft Event); not
+  named by the sweep, same class as the stats.
+- `fetchRenewingLogin` wraps the profile's WRITES too, not only the reads the sweep named.
+- `/auth/signed-in` also lands a claim link and a claim refusal. A claim link with no page to return
+  to now opens the personal space, not the home.
+- The People search's role words are the person page's ("Competitor", not "Fighter").
+- A sign-up mail that fails is logged, and the answer stays the same: a server error for a new
+  address only would tell that it is new.
+- The seeded live block is stamped on the phone's clock, not the server's render time: a phone clock
+  that disagrees cannot make it say "Not updating" at once.
+
+### Named by the public pass, not fixed
+
+- **A password stored before the address is proven** lets a stranger keep an account he pre-made
+  (ruled above: its own slice, "password only after proof").
+- The fighter profile's result chips are hardcoded English "W" / "D" / "L"
+  (`app/fighters/[slug]/page.tsx`, the history list): hard rule 6.
+- The home's "Schedule highlights" next bout still prints `?` for an empty side
+  (`LiveNowSection.tsx`, `matchVersus`).
+- `PoolMatchesView` crashes (`setPools(res.pools)` with `undefined`) on an answer with no `pools`.
+- The People search: an aborted read's `finally` sets `loading` false while the newer read runs.
+- `PersonRole` is declared by hand on the client: the lookup's `roles` is not in the generated client.
+- The overview and Workshops pages of the personal space say nothing on `notFound` (ruling 164 hides
+  them first).
+- Two more routes may answer a lapsed login on a hidden Event 404 with nothing to renew it (review,
+  not proven): `GET /events/:eventSlug/live-state` and `POST` / `DELETE /events/:eventId/follows`.
+- A guest of one Event, or a PIN session of another, with a lapsed login still gets "not found" on a
+  draft Event of her club: the guest identity wins, so the 401 does not fire.
+- Two sign-ups of one address at the same moment (two tabs) send two mails, and the first link is
+  dead. One tab cannot: the button waits.
+- A confirmation link that fails after the account was made logs only "no confirmation code".
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
