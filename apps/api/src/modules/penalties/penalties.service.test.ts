@@ -1,9 +1,10 @@
+import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PenaltiesService } from './penalties.service';
 
 describe('PenaltiesService', () => {
   it('returns an existing penalty when clientUuid was already recorded', async () => {
-    const existing = { id: 'penalty-1', client_uuid: 'client-1' };
+    const existing = { id: 'penalty-1', client_uuid: 'client-1', match_id: 'match-1' };
     const supabase = fakeSupabase({
       match_penalties: { maybeSingle: existing },
       matches: {
@@ -41,6 +42,61 @@ describe('PenaltiesService', () => {
         { userId: 'scorekeeper-1' },
       ),
     ).resolves.toBe(existing);
+  });
+
+  // A `client_uuid` is unique across every bout. A card saved for match-2, sent again to
+  // match-1, is not match-1's: answering it "saved" handed back match-2's card and repeated its
+  // disqualification for a caller of match-1.
+  it("refuses a card id another bout's card holds, and repeats nothing", async () => {
+    const otherBoutsCard = {
+      id: 'penalty-9',
+      client_uuid: 'client-1',
+      match_id: 'match-2',
+      card: 'black',
+      causes_match_forfeit: true,
+      voided: false,
+    };
+    const supabase = fakeSupabase({
+      match_penalties: { maybeSingle: otherBoutsCard },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+    });
+    const recomputeMatchScore = vi.fn();
+    const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
+    const replayAnswer = vi.spyOn(
+      service as unknown as { replayAnswer: (row: unknown) => Promise<unknown> },
+      'replayAnswer',
+    );
+
+    await expect(
+      service.createPenalty(
+        'match-1',
+        {
+          clientUuid: 'client-1',
+          sequence: 1,
+          registrationId: 'reg-red',
+          directCard: 'black',
+          reason: 'direct referee decision',
+          occurredAt: '2026-05-05T10:00:00.000Z',
+        },
+        { userId: 'scorekeeper-1' },
+      ),
+    ).rejects.toEqual(new BadRequestException('This id is the id of another card'));
+    expect(replayAnswer).not.toHaveBeenCalled();
+    expect(recomputeMatchScore).not.toHaveBeenCalled();
   });
 
   it('records a direct red card with a -1 score delta and recomputes the match', async () => {
@@ -343,6 +399,7 @@ describe('PenaltiesService', () => {
       match_penalties: {
         maybeSingle: {
           id: 'penalty-2',
+          match_id: 'match-2',
           tournament_id: 'tournament-1',
           registration_id: 'reg-red',
           ...stored,

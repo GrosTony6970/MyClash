@@ -917,12 +917,8 @@ export class PenaltiesService {
       throw new BadRequestException('A reason is required for direct card penalties');
     }
 
-    const { data: existing } = await this.supabase.service
-      .from('match_penalties')
-      .select('*')
-      .eq('client_uuid', dto.clientUuid)
-      .maybeSingle();
-    if (existing) return this.replayAnswer(existing as Row);
+    const existing = await this.savedCardOf(matchId, dto.clientUuid);
+    if (existing) return this.replayAnswer(existing);
     // Every refusal AFTER the replay answer, in a hit's order: a card the server holds is not
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
@@ -1018,12 +1014,8 @@ export class PenaltiesService {
       .single();
     if (error) {
       if (error.message.includes('unique') || error.message.includes('duplicate')) {
-        const { data: raceExisting } = await this.supabase.service
-          .from('match_penalties')
-          .select('*')
-          .eq('client_uuid', dto.clientUuid)
-          .maybeSingle();
-        if (raceExisting) return this.replayAnswer(raceExisting as Row);
+        const raceExisting = await this.savedCardOf(matchId, dto.clientUuid);
+        if (raceExisting) return this.replayAnswer(raceExisting);
       }
       throw new BadRequestException(error.message);
     }
@@ -1535,6 +1527,25 @@ export class PenaltiesService {
    * card, then failed there with a 500, and the tablet sends it again by itself. The write is
    * safe to repeat.
    */
+  /**
+   * The saved card this id names, or null. A `client_uuid` is unique across every bout, so the
+   * row may be another bout's: that is no replay of this bout's card, and it is refused, as a
+   * hit is (`MatchesService.savedHitOf`). Answered "saved", it handed back the other bout's card
+   * and repeated its disqualification.
+   */
+  private async savedCardOf(matchId: string, clientUuid: string): Promise<Row | null> {
+    const { data } = await this.supabase.service
+      .from('match_penalties')
+      .select('*')
+      .eq('client_uuid', clientUuid)
+      .maybeSingle();
+    const stored = data as Row | null;
+    if (stored && stored['match_id'] !== matchId) {
+      throw new BadRequestException('This id is the id of another card');
+    }
+    return stored;
+  }
+
   private async replayAnswer(stored: Row): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
       const registrationId = String(stored['registration_id']);
