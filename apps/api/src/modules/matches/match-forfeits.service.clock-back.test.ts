@@ -92,7 +92,7 @@ describe('MatchForfeitsService.voidForfeit — the clock the forfeit ended', () 
     },
   );
 
-  it('leaves a clock alone that the forfeit did not end', async () => {
+  it('leaves a clock alone that is not ended', async () => {
     const { clock, forfeits } = service({ status: 'running' }, 'running');
 
     await forfeits.voidForfeit('forfeit-1');

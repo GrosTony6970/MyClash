@@ -483,8 +483,10 @@ export class MatchForfeitsService {
   }
 
   /**
-   * A bout the take-back puts back in play gets the clock its forfeit ended reopened (operator
-   * ruling 2026-10-16, "Forfeit back"): the Reopen halts it, and the bout waits "paused" for the
+   * A bout the take-back puts back in play gets its ended clock reopened (operator ruling
+   * 2026-10-16, "Forfeit back"). The forfeit's own End is the usual one; a clock ended before
+   * the forfeit, on a bout then still in play, is reopened too, since a bout in play needs a
+   * clock that can run. The Reopen halts it, and the bout waits "paused" for the
    * referee's Resume. Left ended, the tablet showed a running bout with a frozen clock and only a
    * Reopen button. No mark of a bout back in play: it is as it was before the forfeit, so a press
    * made before the take-back is not stale (`reopenColumns` writes none for a bout not completed).
