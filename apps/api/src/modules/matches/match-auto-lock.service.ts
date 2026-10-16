@@ -42,7 +42,7 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
 
     const matchesResult = await this.supabase.service
       .from('matches')
-      .select('id, phase_id, status, ended_at, locked_at, pool_id');
+      .select('id, phase_id, status, ended_at, updated_at, locked_at, pool_id');
     if (matchesResult.error) {
       this.logger.warn(`Auto-lock scan failed: ${matchesResult.error.message}`);
       return 0;
@@ -103,12 +103,22 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
     return locked;
   }
 
+  /**
+   * The wait counts from the later of each bout's end and its last write (operator,
+   * 2026-10-16): a result a tablet sent an hour late ended at the time of its hit, and the desk
+   * still gets the whole wait from its arrival. A correction made later starts the wait again.
+   */
   private delayElapsed(matches: Row[], delayMinutes: number, now: Date): boolean {
-    const latestEndedAt = Math.max(
-      ...matches.map((match) => new Date(String(match['ended_at'] ?? 0)).getTime()),
+    const latest = Math.max(
+      ...matches.map((match) =>
+        Math.max(
+          new Date(String(match['ended_at'] ?? 0)).getTime(),
+          new Date(String(match['updated_at'] ?? 0)).getTime(),
+        ),
+      ),
     );
-    if (!Number.isFinite(latestEndedAt) || latestEndedAt <= 0) return false;
-    return now.getTime() - latestEndedAt >= delayMinutes * 60_000;
+    if (!Number.isFinite(latest) || latest <= 0) return false;
+    return now.getTime() - latest >= delayMinutes * 60_000;
   }
 
   private config(input: unknown): TournamentLockConfig {

@@ -140,6 +140,56 @@ describe('MatchAutoLockService', () => {
     expect(lockMatchMock).not.toHaveBeenCalled();
   });
 
+  // A hit made at 10:06 on a tablet with no wifi decides the Pool's last bout; its queue reaches
+  // the server at 11:00. The bout ended at 10:06, but the desk gets its 30 minutes from 11:00.
+  it('waits from the later of the end and the last write of a bout', async () => {
+    const lateResult = (now: string) => {
+      fromMock
+        .mockReturnValueOnce(
+          makeSelectResult({
+            data: [
+              {
+                id: 'tournament-1',
+                lock_config_json: { autoLockEnabled: true, autoLockDelayMinutes: 30 },
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeSelectResult({
+            data: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeSelectResult({
+            data: [
+              {
+                id: 'match-1',
+                phase_id: 'phase-1',
+                status: 'completed',
+                ended_at: '2026-05-16T10:06:00.000Z',
+                updated_at: '2026-05-16T11:00:00.000Z',
+                locked_at: null,
+                pool_id: 'pool-1',
+              },
+            ],
+            error: null,
+          }),
+        );
+      return service.runOnce(new Date(now));
+    };
+
+    expect(await lateResult('2026-05-16T11:05:00.000Z')).toBe(0);
+    expect(lockMatchMock).not.toHaveBeenCalled();
+    const select = (fromMock.mock.results[2]?.value as { select: ReturnType<typeof vi.fn> }).select
+      .mock.calls[0]?.[0];
+    expect(select).toContain('updated_at');
+
+    expect(await lateResult('2026-05-16T11:30:00.000Z')).toBe(1);
+  });
+
   it('returns zero and logs a warning when a query fails', async () => {
     const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     fromMock
