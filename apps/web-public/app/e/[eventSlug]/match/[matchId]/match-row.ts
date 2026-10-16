@@ -7,7 +7,7 @@
  * Pure: no React, no I/O.
  */
 
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 import type { ExchangeRow, ExchangeType, Penalty } from '@myclash/ui';
 
 // The exchange + penalty wire shapes are declared once in @myclash/ui
@@ -64,6 +64,8 @@ export interface MatchSummary {
   referees: string[];
   /** Effective best-of for this match's phase (1 = single round). */
   bestOf: number;
+  /** The bout's phase: the chart's double cap holds in Pools and Swiss only. */
+  phaseType: PhaseType | null;
   /**
    * The tournament's scoring rules. `matchFormat` carries the point cap, the
    * scoring direction and the double cap, so a score can be read correctly

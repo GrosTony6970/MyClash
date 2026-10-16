@@ -956,6 +956,7 @@ export function MatchView({
           currentRound={series.round}
           scoringConfig={scoringConfig}
           matchFormat={matchFormat}
+          phaseType={match.phaseType}
           clockState={boutClock}
           scoring={scoring}
           nextMatchHref={

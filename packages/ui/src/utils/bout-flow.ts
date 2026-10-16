@@ -26,7 +26,12 @@
  * construction.
  */
 
-import { applyScoringDirection, type MatchFormatConfig } from '@myclash/types';
+import {
+  applyScoringDirection,
+  getEffectiveMaxDoubles,
+  type MatchFormatConfig,
+  type PhaseType,
+} from '@myclash/types';
 import { ascendingWithNumbers } from './exchange-timeline';
 import { foldPauses, type BoutFlowPause } from './bout-flow-clock';
 import type { ClockEvent, ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
@@ -82,6 +87,8 @@ export interface BuildBoutFlowArgs {
   redRegId: string;
   blueRegId: string;
   matchFormat: MatchFormatConfig;
+  /** The bout's phase: the double cap holds in Pools and Swiss only. Unknown reads as none. */
+  phaseType: PhaseType | null | undefined;
   /** `matches.end_reason` — 'max_doubles' is the double loss. */
   endReason?: string | null;
   /** Best-of state. Filtering only kicks in when `bestOf > 1`. */
@@ -293,6 +300,7 @@ export function buildBoutFlow({
   redRegId,
   blueRegId,
   matchFormat,
+  phaseType,
   endReason,
   bestOf = 1,
   currentRound = 1,
@@ -323,7 +331,7 @@ export function buildBoutFlow({
     last.blue = 0;
   }
 
-  const maxDoubles = matchFormat.maxDoubleHits;
+  const maxDoubles = getEffectiveMaxDoubles({ phaseType: phaseType ?? undefined }, matchFormat);
   return {
     points,
     xAxis: resolveAxis(points),

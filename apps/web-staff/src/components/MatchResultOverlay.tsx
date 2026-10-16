@@ -22,7 +22,7 @@
 
 import { useState } from 'react';
 import { BoutFlowChart, MatchTimeline, buildBoutFlow, buildUnifiedTimeline } from '@myclash/ui';
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 import { sideStyle } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
@@ -64,6 +64,8 @@ export interface MatchResultOverlayProps {
   currentRound?: number;
   scoringConfig: TournamentScoringConfig;
   matchFormat: MatchFormatConfig;
+  /** The bout's phase: the chart says "doubles n/max" only where the cap holds. */
+  phaseType: PhaseType | null | undefined;
   clockState: ClockState | null;
   /** The match's events, read once by `MatchView`. */
   scoring: MatchScoringData;
@@ -191,6 +193,7 @@ function BoutReview({
   currentRound,
   scoringConfig,
   matchFormat,
+  phaseType,
   clockState,
   scoring,
 }: Omit<
@@ -224,6 +227,7 @@ function BoutReview({
     redRegId: redRegistrationId,
     blueRegId: blueRegistrationId,
     matchFormat,
+    phaseType,
     endReason,
     bestOf,
     currentRound,

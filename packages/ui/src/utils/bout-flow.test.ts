@@ -65,6 +65,7 @@ function build(
     redRegId: RED_REG,
     blueRegId: BLUE_REG,
     matchFormat,
+    phaseType: 'pool',
     ...extra,
   });
 }
@@ -210,6 +211,15 @@ describe('buildBoutFlow — match format transforms', () => {
     expect(build([], [], { ...DEFAULT_MATCH_FORMAT_CONFIG, maxDoubleHits: null }).maxDoubles).toBe(
       null,
     );
+  });
+
+  // A bracket bout never ends on doubles: it read "doubles 1/4" all the same.
+  it('reports the double cap of the bout phase, none outside Pools and Swiss', () => {
+    const format = DEFAULT_MATCH_FORMAT_CONFIG;
+    expect(build([], [], format, { phaseType: 'single_elim' }).maxDoubles).toBe(null);
+    expect(build([], [], format, { phaseType: 'double_elim' }).maxDoubles).toBe(null);
+    expect(build([], [], format, { phaseType: null }).maxDoubles).toBe(null);
+    expect(build([], [], format, { phaseType: 'swiss' }).maxDoubles).toBe(4);
   });
 });
 

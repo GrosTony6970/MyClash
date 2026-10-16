@@ -20,6 +20,7 @@ function pauses(clockEvents?: BoutFlowClockEvent[]) {
     redRegId: 'reg-red',
     blueRegId: 'reg-blue',
     matchFormat: DEFAULT_MATCH_FORMAT_CONFIG,
+    phaseType: 'pool',
     clockEvents,
   }).pauses;
 }

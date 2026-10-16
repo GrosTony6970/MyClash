@@ -207,6 +207,7 @@ function MatchEventFeed({
         redRegId: match.redRegistrationId,
         blueRegId: match.blueRegistrationId,
         matchFormat: summary.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG,
+        phaseType: summary.phaseType,
         endReason: match.endReason,
         bestOf: summary.bestOf,
         currentRound: match.currentRound,
