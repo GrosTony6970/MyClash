@@ -123,8 +123,8 @@ the live edge, which is the same reason the plugin versions are pinned identical
 `pnpm infra:plugins -- --mode=dev` reads them out of the Traefik API by name.
 
 The primary control on staff login is `@ThrottleByStaffAccount` in the API
-(10/h per event + username, never keyed on `req.ip`); the jail is the backstop
-behind it.
+(10 wrong PINs/h per event + username, never keyed on `req.ip`; a good PIN does
+not count); the jail is the backstop behind it.
 
 Thresholds are set by **how many humans sit behind one public IP**, not by how
 strict they could be — this is a backstop, not the primary auth control.

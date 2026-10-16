@@ -1,21 +1,29 @@
-import { SetMetadata, type CustomDecorator, type ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  UseInterceptors,
+  type CallHandler,
+  type ExecutionContext,
+  type NestInterceptor,
+} from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
 import { createHash } from 'node:crypto';
+import { catchError, tap, throwError, type Observable } from 'rxjs';
+import { STAFF_PIN_THROTTLE } from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 import { normalizeStaffUsername } from '../../modules/staff/normalize-username';
 
-/** Name of the staff-account-keyed throttler registered in AppModule. */
-export const STAFF_PIN_THROTTLER = 'staff-pin';
-
-const THROTTLE_BY_STAFF_ACCOUNT = 'throttle:by-staff-account';
-
 /**
- * Opts a route into the staff-account-keyed throttler. Every configured
- * throttler runs on every route, so the throttler skips anything without this
- * marker — otherwise routes carrying no staff account would all share one
- * bucket and 429 each other.
+ * Bounds the PIN sign-in of one staff account: ten wrong PINs an hour, then 429 until the
+ * oldest is an hour old (operator, 2026-10-16, O3). A good PIN never counts.
+ *
+ * It did when this was a throttler guard. A guard runs before the PIN check and cannot see its
+ * answer, so a referee who signed in again after each tablet reboot was refused at the eleventh
+ * good PIN of the hour. An interceptor sees the answer: a 401 (a wrong PIN, or no such account)
+ * keeps its place in the count, anything else gives it back.
  */
-export const ThrottleByStaffAccount = (): CustomDecorator =>
-  SetMetadata(THROTTLE_BY_STAFF_ACCOUNT, true);
+export const ThrottleByStaffAccount = (): MethodDecorator & ClassDecorator =>
+  UseInterceptors(WrongPinCount);
 
 /** Case-folding for the event half, which is an id or a slug, not a username. */
 const lowerTrimmed = (value: unknown): string =>
@@ -42,7 +50,7 @@ const lowerTrimmed = (value: unknown): string =>
  * thing credential stuffing has to respect.
  */
 function staffAccountKey(req: { body?: unknown }): string {
-  // Guards run before the validation pipe, so this is raw input: it may be
+  // Interceptors run before the validation pipe, so this is raw input: it may be
   // absent or any type. The username goes through the SAME normalizer the
   // account lookup uses, so no spelling the lookup accepts can be a bucket of
   // its own; the event half is case-folded because Postgres reads a uuid in
@@ -56,18 +64,57 @@ function staffAccountKey(req: { body?: unknown }): string {
   return `${event}|${username}`;
 }
 
-/** Hashed so the in-memory throttler store never holds a raw username. */
-export function staffAccountTracker(req: Record<string, unknown>): string {
-  return createHash('sha256').update(staffAccountKey(req)).digest('hex');
+/**
+ * The tries of the hour of each account, by the hash of its key, oldest first. Hashed so memory
+ * never holds a raw username. Module state, not the interceptor's: every route that carries the
+ * decorator shares one count per account, whichever module instantiates it.
+ */
+const tries = new Map<string, number[]>();
+
+/** Above this many accounts, a try sweeps the ones whose hour is over. */
+const SWEEP_ABOVE = 10_000;
+
+/** The account's tries still inside the hour, the same array each time: it is changed in place. */
+function triesOf(bucket: string, now: number): number[] {
+  if (tries.size > SWEEP_ABOVE) {
+    for (const [key, times] of tries) {
+      if ((times.at(-1) ?? 0) <= now - STAFF_PIN_THROTTLE.ttl) tries.delete(key);
+    }
+  }
+  const times = tries.get(bucket) ?? [];
+  while (times.length > 0 && times[0]! <= now - STAFF_PIN_THROTTLE.ttl) times.shift();
+  tries.set(bucket, times);
+  return times;
 }
 
-export function skipStaffAccountThrottle(context: ExecutionContext): boolean {
-  // A per-throttler skipIf REPLACES the module-level one rather than composing
-  // with it (throttler.guard: `namedThrottler.skipIf || commonOptions.skipIf`),
-  // so the whitelist check has to be repeated here.
-  if (isThrottleWhitelisted(context)) return true;
-  if (Reflect.getMetadata(THROTTLE_BY_STAFF_ACCOUNT, context.getHandler()) !== true) return true;
-  // No account to key on — let the validation pipe reject it as a 400 rather
-  // than bucketing every malformed request together.
-  return staffAccountKey(context.switchToHttp().getRequest<{ body?: unknown }>()) === '';
+/**
+ * The race is ten wrong PINs sent at once. Counted on their answer, all ten would pass the check
+ * before the first was refused. So a try takes its place when it starts, and gives it back when
+ * its sign-in is answered with anything but a 401.
+ */
+@Injectable()
+export class WrongPinCount implements NestInterceptor {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (isThrottleWhitelisted(context)) return next.handle();
+    const key = staffAccountKey(context.switchToHttp().getRequest<{ body?: unknown }>());
+    // No account to key on: the validation pipe refuses it as a 400. Counted, every malformed
+    // request would share one bucket.
+    if (key === '') return next.handle();
+
+    const now = Date.now();
+    const times = triesOf(createHash('sha256').update(key).digest('hex'), now);
+    if (times.length >= STAFF_PIN_THROTTLE.limit) return throwError(() => new ThrottlerException());
+    times.push(now);
+    const giveBack = () => {
+      const at = times.indexOf(now);
+      if (at >= 0) times.splice(at, 1);
+    };
+    return next.handle().pipe(
+      tap({ next: giveBack }),
+      catchError((err: unknown) => {
+        if (!(err instanceof UnauthorizedException)) giveBack();
+        return throwError(() => err);
+      }),
+    );
+  }
 }

@@ -56,8 +56,8 @@ export const AUTH_ACCOUNT_THROTTLE = {
 } as const;
 
 /**
- * Staff PIN login attempts per hour per (event, username), across every staff
- * login surface (see ThrottleByStaffAccount).
+ * Wrong staff PINs per hour per (event, username), across every staff login
+ * surface (see ThrottleByStaffAccount). A good PIN does not count (operator, O3).
  *
  * The staff pad's login carries no @Throttle override, so before this its only
  * ceiling was the global 120/min ≈ 7,200 guesses an hour — enough to walk a

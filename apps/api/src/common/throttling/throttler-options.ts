@@ -5,16 +5,7 @@ import {
   skipAuthAccountThrottle,
 } from './throttle-by-account';
 import { AUTH_EMAIL_THROTTLER, authEmailTracker, skipAuthEmailThrottle } from './throttle-by-email';
-import {
-  STAFF_PIN_THROTTLER,
-  skipStaffAccountThrottle,
-  staffAccountTracker,
-} from './throttle-by-staff-account';
-import {
-  AUTH_ACCOUNT_THROTTLE,
-  AUTH_EMAIL_THROTTLE,
-  STAFF_PIN_THROTTLE,
-} from './throttle-profiles';
+import { AUTH_ACCOUNT_THROTTLE, AUTH_EMAIL_THROTTLE } from './throttle-profiles';
 import { isThrottleWhitelisted } from './throttle-whitelist';
 
 /**
@@ -28,16 +19,15 @@ import { isThrottleWhitelisted } from './throttle-whitelist';
  *                @ThrottleByEmail. The per-IP limit bounds one IP across all
  *                accounts; this bounds one account across all IPs, which is the
  *                only thing that constrains distributed credential stuffing.
- * `staff-pin`  — the same idea for the staff pad, keyed on (event, username)
- *                instead of an address, on routes marked @ThrottleByStaffAccount.
- *                A venue shares one NAT'd IP, so `req.ip` is the one thing this
- *                surface must NOT be keyed on.
- *
  * `auth-account` — checks of a current password per hour per signed-in account,
  *                on routes marked @ThrottleByAccount (ruling 359). Keyed on the
  *                account of the request's login, never on `req.ip`.
  *
- * IPs in THROTTLE_IP_WHITELIST skip all four. The `global` limit keys off
+ * The staff pad's PIN sign-in is not a throttler: a throttler counts a request
+ * before its handler, and only a WRONG PIN may count there (operator, O3).
+ * `@ThrottleByStaffAccount` is an interceptor (throttle-by-staff-account.ts).
+ *
+ * IPs in THROTTLE_IP_WHITELIST skip all three. The `global` limit keys off
  * `req.ip`, which is only meaningful because the Fastify adapter trusts the
  * one local proxy (trust-proxy.ts); without it every client behind Traefik
  * shares one bucket.
@@ -64,22 +54,11 @@ export const throttlerOptions: ThrottlerModuleOptions = {
       skipIf: skipAuthEmailThrottle,
     },
     {
-      name: STAFF_PIN_THROTTLER,
-      ttl: STAFF_PIN_THROTTLE.ttl,
-      limit: STAFF_PIN_THROTTLE.limit,
-      getTracker: staffAccountTracker,
-      // One bucket per account across every staff login route, for the same
-      // reason as auth-email: the default key generator mixes in the handler
-      // name, which would hand the same account a fresh allowance on each surface.
-      generateKey: (_context, tracker) => `${STAFF_PIN_THROTTLER}:${tracker}`,
-      skipIf: skipStaffAccountThrottle,
-    },
-    {
       name: AUTH_ACCOUNT_THROTTLER,
       ttl: AUTH_ACCOUNT_THROTTLE.ttl,
       limit: AUTH_ACCOUNT_THROTTLE.limit,
       getTracker: authAccountTracker,
-      // One bucket per account across both doors, as for the two above.
+      // One bucket per account across both doors, as for auth-email above.
       generateKey: (_context, tracker) => `${AUTH_ACCOUNT_THROTTLER}:${tracker}`,
       skipIf: skipAuthAccountThrottle,
     },

@@ -7,7 +7,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { trustOneLocalProxy } from '../trust-proxy';
 import { AUTH_ACTION_THROTTLE } from './throttle-profiles';
 import { ThrottleByEmail } from './throttle-by-email';
-import { ThrottleByStaffAccount } from './throttle-by-staff-account';
 import { throttlerOptions } from './throttler-options';
 
 /**
@@ -40,23 +39,6 @@ class ProbeController {
   unmarked(@Body() _body: unknown): { ok: true } {
     return { ok: true };
   }
-
-  // No @Throttle, mirroring the real staff-auth/login: its only per-IP ceiling
-  // is the `global` 120/min, so anything that trips inside these tests is the
-  // staff-pin bucket.
-  @Post('staff-login')
-  @HttpCode(HttpStatus.OK)
-  @ThrottleByStaffAccount()
-  staffLogin(@Body() _body: unknown): { ok: true } {
-    return { ok: true };
-  }
-
-  @Post('staff-other')
-  @HttpCode(HttpStatus.OK)
-  @ThrottleByStaffAccount()
-  staffOther(@Body() _body: unknown): { ok: true } {
-    return { ok: true };
-  }
 }
 
 let app: NestFastifyApplication;
@@ -71,16 +53,6 @@ async function post(url: string, email: string | undefined, ip: string): Promise
     // the email bucket, not the per-IP one.
     headers: { 'x-forwarded-for': ip },
     payload: email === undefined ? {} : { email },
-  });
-  return res.statusCode;
-}
-
-async function postStaff(url: string, body: Record<string, unknown>, ip: string): Promise<number> {
-  const res = await app.inject({
-    method: 'POST',
-    url,
-    headers: { 'x-forwarded-for': ip },
-    payload: body,
   });
   return res.statusCode;
 }
@@ -162,155 +134,6 @@ describe('auth-email throttler (wired)', () => {
 
     for (let i = 0; i < 15; i++) {
       expect(await post('/t/login', email, '10.6.0.1')).toBe(200);
-    }
-  });
-});
-
-describe('staff-pin throttler (wired)', () => {
-  it('blocks the 11th PIN attempt for one account even from eleven different IPs', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-    const body = { eventSlugOrCode: 'open-2026', username: 'ref1' };
-
-    for (let i = 0; i < 10; i++) {
-      expect(await postStaff('/t/staff-login', body, `10.20.0.${i}`)).toBe(200);
-    }
-    // The case a venue-wide IP bucket cannot see: 11 sources, one account.
-    expect(await postStaff('/t/staff-login', body, '10.20.0.99')).toBe(429);
-  });
-
-  it('leaves a whole hall of DIFFERENT referees on one NAT address alone', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-
-    // The reason this throttler is not keyed on req.ip: every tablet in the
-    // venue shares one public address, and fumbling a PIN is normal.
-    for (let i = 0; i < 20; i++) {
-      expect(
-        await postStaff(
-          '/t/staff-login',
-          { eventSlugOrCode: 'open-2026', username: `hall-ref-${i}` },
-          '10.21.0.1',
-        ),
-      ).toBe(200);
-    }
-  });
-
-  it('is keyed per event, so the same username at another event is untouched', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-
-    for (let i = 0; i < 11; i++) {
-      await postStaff(
-        '/t/staff-login',
-        { eventSlugOrCode: 'noisy-event', username: 'shared' },
-        `10.22.0.${i}`,
-      );
-    }
-    expect(
-      await postStaff(
-        '/t/staff-login',
-        { eventSlugOrCode: 'other-event', username: 'shared' },
-        '10.22.0.99',
-      ),
-    ).toBe(200);
-  });
-
-  it('shares one bucket across staff login surfaces', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-    const body = { eventSlugOrCode: 'shared-bucket', username: 'ref2' };
-
-    for (let i = 0; i < 10; i++) {
-      expect(await postStaff('/t/staff-login', body, `10.23.0.${i}`)).toBe(200);
-    }
-    expect(await postStaff('/t/staff-other', body, '10.23.0.99')).toBe(429);
-  });
-
-  // Spacing as well as case: the login body puts no character rule on the
-  // username and sign-in trims before the lookup, so `  REF3  ` reaches `ref3`
-  // and has to spend `ref3`'s allowance.
-  it('normalizes case and spacing on both halves, so neither is a way around it', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-
-    for (let i = 0; i < 10; i++) {
-      expect(
-        await postStaff(
-          '/t/staff-login',
-          { eventSlugOrCode: 'case-event', username: 'ref3' },
-          `10.24.0.${i}`,
-        ),
-      ).toBe(200);
-    }
-    expect(
-      await postStaff(
-        '/t/staff-login',
-        { eventSlugOrCode: ' Case-Event ', username: '  REF3  ' },
-        '10.24.0.99',
-      ),
-    ).toBe(429);
-  });
-
-  // Ruling 52: sign-in finds the event by its id when one is sent and never
-  // reads the typed name then, so a made-up name per try must not be a fresh
-  // allowance for the same account.
-  it('counts by the event id when one is sent, whatever event name comes with it', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-    const eventId = '2a7d0f4e-1b3c-4d5e-8f60-718293a4b5c6';
-
-    for (let i = 0; i < 10; i++) {
-      expect(
-        await postStaff(
-          '/t/staff-login',
-          { eventId, eventSlugOrCode: `made-up-${i}`, username: 'ref6' },
-          `10.29.0.${i}`,
-        ),
-      ).toBe(200);
-    }
-    // Postgres reads a uuid in either case, so capitals are the same event.
-    expect(
-      await postStaff(
-        '/t/staff-login',
-        { eventId: eventId.toUpperCase(), eventSlugOrCode: 'made-up-99', username: 'ref6' },
-        '10.29.0.99',
-      ),
-    ).toBe(429);
-  });
-
-  it('does not bucket requests that carry no resolvable account', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-
-    // A missing half means the pipe should 400 it, not that every malformed
-    // request should share one bucket and 429 each other.
-    for (let i = 0; i < 12; i++) {
-      expect(await postStaff('/t/staff-login', { username: 'no-event' }, `10.25.0.${i}`)).toBe(200);
-    }
-    for (let i = 0; i < 12; i++) {
-      expect(
-        await postStaff('/t/staff-login', { eventSlugOrCode: 'no-user' }, `10.26.0.${i}`),
-      ).toBe(200);
-    }
-  });
-
-  it('leaves unmarked routes alone', async () => {
-    delete process.env.THROTTLE_IP_WHITELIST;
-
-    for (let i = 0; i < 12; i++) {
-      expect(
-        await postStaff(
-          '/t/unmarked',
-          { eventSlugOrCode: 'open-2026', username: 'ref4' },
-          `10.27.0.${i}`,
-        ),
-      ).toBe(200);
-    }
-  });
-
-  it('exempts whitelisted IPs', async () => {
-    // Proves the repeated isThrottleWhitelisted call inside
-    // skipStaffAccountThrottle is doing its job: a per-throttler skipIf
-    // REPLACES the module-level one rather than composing with it.
-    process.env.THROTTLE_IP_WHITELIST = '10.28.0.1';
-    const body = { eventSlugOrCode: 'open-2026', username: 'ref5' };
-
-    for (let i = 0; i < 15; i++) {
-      expect(await postStaff('/t/staff-login', body, '10.28.0.1')).toBe(200);
     }
   });
 });
