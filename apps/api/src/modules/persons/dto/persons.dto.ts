@@ -11,8 +11,8 @@ import { z } from 'zod';
 // already coalesces null → DB NULL.
 export const createPersonSchema = z
   .object({
-    givenName: z.string().min(1).max(100),
-    familyName: z.string().min(1).max(100),
+    givenName: z.string().trim().min(1).max(100),
+    familyName: z.string().trim().min(1).max(100),
     email: z.email().nullable().optional(),
     clubId: z.uuid().nullable().optional(),
     // Auto-create a new club with this name (unverified) and attach the
@@ -46,8 +46,8 @@ export class CreatePersonDto extends createZodDto(createPersonSchema) {}
 // blank a field by sending null (see createPersonSchema note above).
 export const updatePersonSchema = z
   .object({
-    givenName: z.string().min(1).max(100).optional(),
-    familyName: z.string().min(1).max(100).optional(),
+    givenName: z.string().trim().min(1).max(100).optional(),
+    familyName: z.string().trim().min(1).max(100).optional(),
     email: z.email().nullable().optional(),
     clubId: z.uuid().nullable().optional(),
     hemaRatingsId: z.string().nullable().optional(),

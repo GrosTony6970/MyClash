@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 const createFighterSchema = z
   .object({
-    givenName: z.string().min(1).max(100),
-    familyName: z.string().min(1).max(100),
-    displayName: z.string().min(1).max(200),
+    givenName: z.string().trim().min(1).max(100),
+    familyName: z.string().trim().min(1).max(100),
+    displayName: z.string().trim().min(1).max(200),
     clubId: z.uuid().optional(),
     countryCode: z.string().max(2).optional(),
     hemaRatingsId: z.string().optional(),
@@ -34,9 +34,9 @@ const profileYear = z
 
 const updateFighterSchema = z
   .object({
-    givenName: z.string().min(1).max(100).optional(),
-    familyName: z.string().min(1).max(100).optional(),
-    displayName: z.string().min(1).max(200).optional(),
+    givenName: z.string().trim().min(1).max(100).optional(),
+    familyName: z.string().trim().min(1).max(100).optional(),
+    displayName: z.string().trim().min(1).max(200).optional(),
     clubId: z.uuid().optional(),
     countryCode: z.string().max(2).optional(),
     hemaRatingsId: z.string().optional(),
@@ -196,8 +196,8 @@ export class MergeFightersDto extends createZodDto(mergeFightersSchema) {}
 
 const createGlobalPersonSchema = z
   .object({
-    givenName: z.string().min(1).max(100),
-    familyName: z.string().min(1).max(100),
+    givenName: z.string().trim().min(1).max(100),
+    familyName: z.string().trim().min(1).max(100),
     displayName: z.string().max(200).optional(),
     clubId: z.uuid().nullish(),
     clubName: z.string().max(200).optional(),
@@ -220,8 +220,8 @@ export class CreateGlobalPersonDto extends createZodDto(createGlobalPersonSchema
 
 const updateGlobalPersonSchema = z
   .object({
-    givenName: z.string().min(1).max(100).optional(),
-    familyName: z.string().min(1).max(100).optional(),
+    givenName: z.string().trim().min(1).max(100).optional(),
+    familyName: z.string().trim().min(1).max(100).optional(),
     displayName: z.string().max(200).optional(),
     clubId: z.uuid().nullish(),
     clubName: z.string().max(200).optional(),
