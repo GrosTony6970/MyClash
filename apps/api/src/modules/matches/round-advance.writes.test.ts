@@ -70,6 +70,21 @@ describe('a round advance that fails half way', () => {
     expect(writesTo(db, 'matches')).toEqual([]);
   });
 
+  it('refuses, never resets or moves to round 2, a bout completed just before its clock Reset', async () => {
+    // The clock was halted already: the Reset is the only step. Passed, it put the completed
+    // bout's clock back to zero, and the bout was written into round 2.
+    const { db, scoring } = series(HALTED);
+    let matchReads = 0;
+    boutMeanwhile(db, FORFEITED, () => ++matchReads >= 4);
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+      status: 409,
+      code: 'bout_completed',
+    });
+    expect(writesTo(db, 'match_events').map((write) => write.op)).toEqual(['insert', 'delete']);
+    expect(writesTo(db, 'matches')).toEqual([]);
+  });
+
   it('is a fault a pad sends again, also when the clock itself refuses with a 400', async () => {
     const { clock, scoring } = series();
     vi.spyOn(clock, 'clockAction').mockRejectedValue(new BadRequestException('duplicate key'));

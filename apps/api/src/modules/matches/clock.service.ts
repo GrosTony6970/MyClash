@@ -219,8 +219,9 @@ export class ClockService {
       canOverrideLocked?: boolean;
       canDiscardDependentResults?: boolean;
       /**
-       * A step of another door that must never un-complete a bout (the round advance): a bout
-       * completed when this reads it is refused with `bout_completed`, its result kept.
+       * A step of another door that must never touch a completed bout (the round advance, the
+       * series Halt after a round closes): any action but End on a bout completed when this
+       * reads it is refused with `bout_completed`, its result and its round kept.
        */
       keepsCompleted?: boolean;
     },
@@ -241,6 +242,9 @@ export class ClockService {
       .maybeSingle();
 
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
+    // Before every other rule: the caller learns the bout was won, never a transition error.
+    const completed = (match as { status?: string }).status === 'completed';
+    if (completed && action !== 'end' && actor?.keepsCompleted) throw boutCompleted();
     if ((match as { locked_at?: string | null }).locked_at && !actor?.canOverrideLocked) {
       throw matchLocked();
     }
@@ -302,11 +306,7 @@ export class ClockService {
     //
     // Owned once, here, before the event row is written, so a refusal leaves the
     // timeline as well as the row untouched.
-    const uncompletes =
-      (match as { status?: string }).status === 'completed' &&
-      action !== 'end' &&
-      action !== 'reset_clock';
-    if (uncompletes && actor?.keepsCompleted) throw boutCompleted();
+    const uncompletes = completed && action !== 'end' && action !== 'reset_clock';
     if (uncompletes) {
       await this.matchCompletion?.onMatchUncompleted(matchId, {
         actor,

@@ -202,7 +202,14 @@ describe('ScoringService — best-of rounds', () => {
     await service.recomputeMatchScore('m1', QUEUED_HIT_AT);
 
     expect(clock.clockAction.mock.calls).toEqual([
-      ['m1', 'halt', 'auto: round over', { canOverrideLocked: true }, false, QUEUED_HIT_AT],
+      [
+        'm1',
+        'halt',
+        'auto: round over',
+        { canOverrideLocked: true, keepsCompleted: true },
+        false,
+        QUEUED_HIT_AT,
+      ],
     ]);
   });
 
@@ -213,7 +220,14 @@ describe('ScoringService — best-of rounds', () => {
     await service.recomputeMatchScore('m1');
 
     expect(clock.clockAction.mock.calls).toEqual([
-      ['m1', 'halt', 'auto: round over', { canOverrideLocked: true }, false, undefined],
+      [
+        'm1',
+        'halt',
+        'auto: round over',
+        { canOverrideLocked: true, keepsCompleted: true },
+        false,
+        undefined,
+      ],
     ]);
   });
 

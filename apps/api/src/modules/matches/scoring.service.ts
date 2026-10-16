@@ -1328,12 +1328,16 @@ export class ScoringService {
     }
   }
 
-  /** Halt a running clock when a round closes but the series isn't decided. */
+  /**
+   * Halt a running clock when a round closes but the series isn't decided. Never on a bout a
+   * forfeit completed meanwhile (`keepsCompleted`): the Halt un-completed it and voided the
+   * forfeit, in silence. Refused, it is logged below.
+   */
   private async haltClockBestEffort(matchId: string, causedAt?: string): Promise<void> {
     try {
       const clock = await this.clock.getClockState(matchId);
       if (clock.status === 'running') {
-        const opensLock = { canOverrideLocked: true };
+        const opensLock = { canOverrideLocked: true, keepsCompleted: true };
         await this.clock.clockAction(
           matchId,
           'halt',
