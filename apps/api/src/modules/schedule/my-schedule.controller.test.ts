@@ -92,6 +92,36 @@ describe('GET /events/:eventId/my-schedule', () => {
     }
   });
 
+  it('answers an ended login sent as a Bearer header 401 too', async () => {
+    const t = door({ member: true });
+    const ended = { headers: { authorization: 'Bearer ended' }, cookies: {} } as never;
+    await expect(t.controller.getMySchedule(DRAFT, ended)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('answers a stranger with no login, or an empty one, as an unknown Event on a hidden Event', async () => {
+    for (const cookies of [{}, { 'sb-access-token': '' }]) {
+      const t = door();
+      const stranger = { headers: {}, cookies } as never;
+      await expect(t.controller.getMySchedule(DRAFT, stranger)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    }
+  });
+
+  it('reads a hidden Event for its staff session whose device also holds an ended login', async () => {
+    const t = door();
+    const staff = {
+      headers: {},
+      cookies: { 'sb-access-token': 'ended', mc_staff: 'pin' },
+      identity: { kind: 'staff', staffId: 'staff-1', eventId: DRAFT },
+      staffSession: { staffId: 'staff-1', eventId: DRAFT },
+    };
+    await t.controller.getMySchedule(DRAFT, staff as never);
+    expect(t.schedule.getSchedule).toHaveBeenCalledWith(DRAFT, LEA, LEA);
+  });
+
   it('reads a guest whose old login cookie is still there by her guest session', async () => {
     const t = door();
     const both = {

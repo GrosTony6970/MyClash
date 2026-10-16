@@ -61,10 +61,10 @@ export function presentedLogin(req: FastifyRequest): string | null {
  * The request carries a login that did not verify, and no other identity: in the
  * browser that is a login whose hour is up. Only a 401 makes the browser renew it
  * (`fetchRenewingLogin`); a route that reads it as a stranger answers what a stranger
- * gets, and nothing renews it.
+ * gets, and nothing renews it. An empty token is no login, as the guard reads it.
  */
 export function carriesEndedLogin(req: FastifyRequest): boolean {
-  return getIdentity(req).kind === 'anonymous' && presentedLogin(req) !== null;
+  return getIdentity(req).kind === 'anonymous' && Boolean(presentedLogin(req));
 }
 
 /** Signature and expiry only: whether the account is still active is the caller's check. */
