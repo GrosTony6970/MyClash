@@ -40,15 +40,34 @@ describe('a round advance that fails half way', () => {
     expect(recompute).not.toHaveBeenCalled();
   });
 
-  it('stays "completed" when the bout was completed while the round opened', async () => {
-    // A resend would be answered "saved": this refusal is the one a pad must hold.
-    const { clock, scoring } = series();
+  it('stays "completed", and takes its row back, when the bout was completed as the round opened', async () => {
+    // Its row taken back, a resend is judged afresh, and meets the same refusal; kept, the
+    // resend was answered "taken", and the row put round 1's level chain back to its top.
+    const { db, clock, scoring } = series();
     vi.spyOn(clock, 'clockAction').mockRejectedValue(boutCompleted());
 
     expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
       status: 409,
       code: 'bout_completed',
     });
+    const rows = writesTo(db, 'match_events');
+    expect(rows.map((write) => write.op)).toEqual(['insert', 'delete']);
+    expect(rows[1]?.filters).toContainEqual({ method: 'eq', args: ['sequence', 3] });
+  });
+
+  it('refuses, never un-completes, a bout a forfeit completed just before its clock step', async () => {
+    // The forfeit lands after the last check of the bout, before the Reopen of its ended clock
+    // reads it: the Reopen un-completed the bout and voided the forfeit.
+    const { db, scoring } = series(ENDED);
+    let matchReads = 0;
+    boutMeanwhile(db, FORFEITED, () => ++matchReads >= 4);
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+      status: 409,
+      code: 'bout_completed',
+    });
+    expect(writesTo(db, 'match_events').map((write) => write.op)).toEqual(['insert', 'delete']);
+    expect(writesTo(db, 'matches')).toEqual([]);
   });
 
   it('is a fault a pad sends again, also when the clock itself refuses with a 400', async () => {
@@ -164,6 +183,18 @@ describe('"Start round N+1" of the pad of before, with no id', () => {
  * the bout still waited; by the time it reaches the clock, the first has opened round 2 and the
  * referee has pressed Start. Reset then, round 2's clock went back to 0:00 under the fight.
  */
+/** The bout as a forfeit between rounds leaves it: completed, still "awaiting" round 2. */
+const FORFEITED = {
+  status: 'completed',
+  current_round: 1,
+  awaiting_round_advance: true,
+  locked_at: null,
+  back_in_play_at: null,
+  winner_registration_id: 'red',
+  end_reason: 'forfeit',
+  phases: { type: 'pool', tournaments: { ruleset_config: {}, events: { status: 'running' } } },
+};
+
 /** From `when` on (by default the write of this send's round row), the bout reads as `bout`. */
 function boutMeanwhile(
   db: ReturnType<typeof series>['db'],
@@ -264,4 +295,20 @@ describe('a round advance whose bout was put back or completed meanwhile', () =>
       expect(recompute).not.toHaveBeenCalled();
     },
   );
+
+  it('a resend of an advance cut short takes back the row it saved, not the next one', async () => {
+    // Its row is at 3; the sequence read before its rules is 4, which nothing holds.
+    const { db, scoring } = series([...HALTED, SAVED]);
+    let matchReads = 0;
+    const reset = { status: 'scheduled', current_round: 1, awaiting_round_advance: false };
+    boutMeanwhile(db, reset, () => ++matchReads >= 2);
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+      status: 409,
+      code: 'round_not_waiting',
+    });
+    const rows = writesTo(db, 'match_events');
+    expect(rows.map((write) => write.op)).toEqual(['delete']);
+    expect(rows[0]?.filters).toContainEqual({ method: 'eq', args: ['sequence', 3] });
+  });
 });

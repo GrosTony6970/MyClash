@@ -1,7 +1,9 @@
+import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
   mockSupabase,
   selectsFor,
+  supabaseChain,
   writesTo,
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
@@ -112,6 +114,32 @@ describe('ClockService.clockAction end — another write won the bout meanwhile'
     const [write] = writesTo(after, 'matches');
     expect(write?.filters).toContainEqual({ method: 'in', args: ['status', asked] });
     expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert', 'delete']);
+  });
+
+  it('read completed, then put back in play and completed again: its row still stops the clock', async () => {
+    // The second completion saw this End's row, read the clock ended, and wrote no End of its own.
+    const again = { status: 'completed', back_in_play_at: REOPENED };
+    const { db, clock } = endMeeting(again, { status: 'completed' });
+
+    expect(await refusalOf(clock)).toBeNull();
+    expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert']);
+  });
+
+  it('keeps its row, as a fault the pad sends again, when the bout cannot be read after it lost', async () => {
+    const { db, after, clock } = endMeeting({ back_in_play_at: REOPENED });
+    const real = after.from;
+    let matchCalls = 0;
+    after.from = vi.fn((table: string) =>
+      table === 'matches' && ++matchCalls === 2
+        ? supabaseChain({ data: null, error: { message: 'timeout' } })
+        : real(table),
+    ) as never;
+
+    const sent = clock.clockAction(BOUT, 'end', 'auto');
+
+    await expect(sent).rejects.toThrow('Bout m1 changed under its End, not read: timeout');
+    await expect(sent).rejects.not.toBeInstanceOf(HttpException);
+    expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert']);
   });
 
   it('judges the bout on the status and the mark it read', async () => {

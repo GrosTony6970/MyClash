@@ -157,7 +157,8 @@ async function resetClock(
   at?: string,
 ): Promise<'reset' | Exclude<Waiting, 'waits'>> {
   const { clock } = deps;
-  const opensLock = { ...actor, canOverrideLocked: true };
+  // A forfeit landing between `waitingFor` and a step: refused, never un-completed.
+  const opensLock = { ...actor, canOverrideLocked: true, keepsCompleted: true };
   const step = async (action: 'halt' | 'reopen' | 'reset_clock', reason: string) => {
     const now = await waitingFor(deps.db, matchId, round);
     if (now === 'waits') await clock.clockAction(matchId, action, reason, opensLock, false, at);
@@ -176,12 +177,7 @@ async function resetClock(
   } catch (err) {
     // Any other failure is a fault the pad sends again. A bout completed while this round opened
     // is not: a resend would be answered "saved". It stays `bout_completed`, which the pad holds.
-    if (
-      err instanceof ConflictException &&
-      (err.getResponse() as { code?: unknown }).code === BOUT_COMPLETED
-    ) {
-      throw err;
-    }
+    if (isBoutCompleted(err)) throw err;
     const why = err instanceof Error ? err.message : String(err);
     throw new Error(`Clock of bout ${matchId} not put to zero for round ${round}: ${why}`, {
       cause: err,
@@ -189,11 +185,16 @@ async function resetClock(
   }
 }
 
+const isBoutCompleted = (err: unknown): err is ConflictException =>
+  err instanceof ConflictException &&
+  (err.getResponse() as { code?: unknown }).code === BOUT_COMPLETED;
+
 /**
  * The clock at zero, then the bout in its new round, then its sheet read again. `sequence`: this
- * advance's row. A bout that moved back or was completed meanwhile takes it back and refuses:
- * left in the timeline, a `round_advance` row puts the level chain of the round before back to
- * its top, and a resend was answered "taken".
+ * advance's row. A bout that moved back or was completed meanwhile (found by `waitingFor`, or by
+ * a clock step's own refusal) takes it back and refuses: left in the timeline, a `round_advance`
+ * row puts the level chain of the round before back to its top, and a resend was answered
+ * "taken". A clock step already taken before that stays (named, not fixed).
  */
 async function openRound(
   deps: AdvanceDeps,
@@ -202,7 +203,9 @@ async function openRound(
   actor: Actor | undefined,
   { sequence, at }: { sequence: number; at?: string },
 ): Promise<{ currentRound: number }> {
-  const clockAt = await resetClock(deps, matchId, round, actor, at);
+  const clockAt = await resetClock(deps, matchId, round, actor, at).catch((err: unknown) =>
+    isBoutCompleted(err) ? takeBackRow(deps.db, matchId, sequence, err) : Promise.reject(err),
+  );
   if (clockAt === 'opened') return { currentRound: round };
   if (clockAt === 'moved') await takeBackRow(deps.db, matchId, sequence, roundNotWaiting(round));
   if (clockAt === 'completed') await takeBackRow(deps.db, matchId, sequence, boutCompleted());

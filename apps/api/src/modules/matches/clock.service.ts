@@ -218,6 +218,11 @@ export class ClockService {
       staffAccountId?: string;
       canOverrideLocked?: boolean;
       canDiscardDependentResults?: boolean;
+      /**
+       * A step of another door that must never un-complete a bout (the round advance): a bout
+       * completed when this reads it is refused with `bout_completed`, its result kept.
+       */
+      keepsCompleted?: boolean;
     },
     discardDependents = false,
     /**
@@ -301,6 +306,7 @@ export class ClockService {
       (match as { status?: string }).status === 'completed' &&
       action !== 'end' &&
       action !== 'reset_clock';
+    if (uncompletes && actor?.keepsCompleted) throw boutCompleted();
     if (uncompletes) {
       await this.matchCompletion?.onMatchUncompleted(matchId, {
         actor,
@@ -630,7 +636,7 @@ export class ClockService {
   /**
    * What won the bout over an End (`completeOnEnd`): a completion (null: the End's row stays and
    * stops the clock), a reset (`scored_before_reset`), or a put-back in play
-   * (`pressed_before_reopen`, also when the bout cannot be read: a resend is judged afresh).
+   * (`pressed_before_reopen`).
    */
   private async endLostTo(matchId: string, readStatus: unknown): Promise<Error | null> {
     const { data, error } = await this.supabase.service
@@ -638,13 +644,16 @@ export class ClockService {
       .select('status')
       .eq('id', matchId)
       .maybeSingle();
-    if (error) this.logger.warn(`Match ${matchId}: End lost, bout not read: ${error.message}`);
+    // Not knowing what won, the row stays and the press is a fault: its resend finishes it
+    // (`finishSavedPress`). Taken back, a completion that won would leave the clock running.
+    if (error) throw new Error(`Bout ${matchId} changed under its End, not read: ${error.message}`);
     const status = (data as { status?: unknown } | null)?.status;
-    if (status === readStatus) return pressedBeforeReopen();
+    // First: a row that stays on a completed bout does no harm, and stops its clock.
     if (status === 'completed') {
       this.logger.log(`Match ${matchId}: completed meanwhile, the End only stops the clock`);
       return null;
     }
+    if (status === readStatus) return pressedBeforeReopen();
     return status === 'scheduled' ? scoredBeforeReset() : pressedBeforeReopen();
   }
 
