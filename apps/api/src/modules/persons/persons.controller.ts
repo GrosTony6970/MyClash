@@ -23,7 +23,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import type { ImportDecision } from '@myclash/types';
 import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
 import { assertCanManagePerson } from '../../common/auth/person-authz';
 import { requireRequestUserId } from '../../common/auth/request-user';
@@ -33,7 +32,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
 import { noFilePreview, noFileReport } from './import-no-file';
 import { AssignmentsService } from '../registrations/assignments.service';
-import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
+import { CreatePersonDto, parseImportDecisions, UpdatePersonDto } from './dto/persons.dto';
 
 /** Read all multipart parts, returning file buffer + any JSON fields. */
 async function readMultipart(
@@ -187,15 +186,7 @@ export class PersonsController {
 
     if (!buffer) return noFileReport();
 
-    let decisions: ImportDecision[] = [];
-    if (fields['decisions']) {
-      try {
-        decisions = JSON.parse(fields['decisions']) as ImportDecision[];
-      } catch {
-        // invalid JSON — proceed with no decisions (all defaults)
-      }
-    }
-
+    const decisions = fields['decisions'] ? parseImportDecisions(fields['decisions']) : [];
     return this.persons.importCsv(eventId, buffer, userId, decisions);
   }
 

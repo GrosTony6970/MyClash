@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -58,11 +59,29 @@ export const updatePersonSchema = z
   .strict();
 export class UpdatePersonDto extends createZodDto(updatePersonSchema) {}
 
-const importDecisionSchema = z
-  .object({
-    rowIndex: z.number(),
-    action: z.enum(['link', 'create_new']),
-    globalPersonId: z.uuid().optional(),
-  })
-  .strict();
-export class ImportDecisionDto extends createZodDto(importDecisionSchema) {}
+const importDecisionsSchema = z.array(
+  z
+    .object({
+      rowIndex: z.number(),
+      action: z.enum(['link', 'create_new']),
+      globalPersonId: z.uuid().optional(),
+    })
+    .strict(),
+);
+
+/**
+ * The `decisions` field of an import (multipart, so read by hand): a JSON list of decisions, or a
+ * 400 (O7). Read as "none" when it was bad, the import silently ignored every link the organiser
+ * chose.
+ */
+export function parseImportDecisions(raw: string): z.infer<typeof importDecisionsSchema> {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    throw new BadRequestException('decisions is not JSON');
+  }
+  const parsed = importDecisionsSchema.safeParse(json);
+  if (!parsed.success) throw new BadRequestException('decisions is not a list of import decisions');
+  return parsed.data;
+}

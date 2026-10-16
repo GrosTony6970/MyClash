@@ -28,6 +28,15 @@ import type { CsvRow } from './csv-import.service';
 import { detectDuplicate, importDuplicateReason, personNameKey } from './duplicate-guard';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
+/** A profile as the import's matcher reads it. */
+type GlobalPersonRow = {
+  id: string;
+  given_name: string;
+  family_name: string;
+  display_name: string;
+  clubs: { name: string; abbreviation: string | null } | null;
+};
+
 @Injectable()
 export class PersonsService {
   private readonly logger = new Logger(PersonsService.name);
@@ -773,19 +782,27 @@ export class PersonsService {
     return (newClub as { id: string }).id;
   }
 
-  /** Query global_persons for a name match (threshold 0.85). */
+  /** The profile the preview offers a row: the first candidate (`globalPersonCandidates`). */
   private async findGlobalPersonMatch(
     givenName: string,
     familyName: string,
     hemaRatingsId?: string | null,
   ): Promise<GlobalPersonCandidate | null> {
-    type GpRow = {
-      id: string;
-      given_name: string;
-      family_name: string;
-      display_name: string;
-      clubs: { name: string; abbreviation: string | null } | null;
-    };
+    const [best] = await this.globalPersonCandidates(givenName, familyName, hemaRatingsId);
+    return best ? this.hydrateGlobalPersonMatch(best) : null;
+  }
+
+  /**
+   * The profiles the matcher offers a row: its HEMA Ratings ID's profile when there is one, else
+   * every name match at 0.85. The preview offers the first; the commit links a row only to one of
+   * these (O7).
+   */
+  private async globalPersonCandidates(
+    givenName: string,
+    familyName: string,
+    hemaRatingsId?: string | null,
+  ): Promise<GlobalPersonRow[]> {
+    type GpRow = GlobalPersonRow;
     const SELECT = `
       id,
       given_name,
@@ -803,7 +820,7 @@ export class PersonsService {
         .eq('hema_ratings_id', hemaRatingsId)
         .limit(1);
       const hit = (data as unknown as GpRow[] | null)?.[0];
-      if (hit) return this.hydrateGlobalPersonMatch(hit);
+      if (hit) return [hit];
     }
 
     // Tier 2: name search. The previous implementation issued a bare
@@ -833,20 +850,16 @@ export class PersonsService {
         .limit(20);
       data = fallback.data ?? null;
     }
-    if (!data) return null;
+    if (!data) return [];
 
     const threshold = 0.85;
 
     const fullName = `${givenName} ${familyName}`;
     const normalizedQuery = fullName.toLowerCase().trim();
-    const candidates = (data as unknown as GpRow[]).filter((gp) => {
+    return (data as unknown as GpRow[]).filter((gp) => {
       const gpName = `${gp.given_name} ${gp.family_name}`.toLowerCase();
       return this.jaccardSimilarity(normalizedQuery, gpName) >= threshold;
     });
-
-    if (candidates.length === 0) return null;
-
-    return this.hydrateGlobalPersonMatch(candidates[0]!);
   }
 
   /**
@@ -906,6 +919,20 @@ export class PersonsService {
     const action = decision?.action ?? 'create_new';
 
     if (action === 'link' && decision?.globalPersonId) {
+      // Only to a profile the matcher offers this row now (O7). The id comes from the request:
+      // taken as sent, a row was attached to any profile it named, and that profile's holder
+      // took the row and its address (`claimForProfileHolder`).
+      const offered = await this.globalPersonCandidates(
+        row.given_name,
+        row.family_name,
+        row.hema_ratings_id ?? null,
+      );
+      if (!offered.some((candidate) => candidate.id === decision.globalPersonId)) {
+        this.logger.warn(
+          `import: person ${personId} asked for a profile its row is not matched to; resolved instead`,
+        );
+        return this.resolveProfile(personId, row, clubId);
+      }
       // Inherit the global profile's club when the CSV row didn't
       // supply one. Keeps persons.club_id consistent with
       // global_persons.club_id at link time so views can drop the
@@ -925,11 +952,19 @@ export class PersonsService {
       await this.linkProfile(personId, updates);
       return null;
     }
+    return this.resolveProfile(personId, row, clubId);
+  }
 
-    // create_new: resolve to an existing global identity or mint a fresh one,
-    // via the shared resolver (Tier hema/name+club+DOB/name+club/email). This
-    // is what stops a roster imported per-event without email/DOB from minting
-    // a duplicate global_persons row per event.
+  /**
+   * create_new: resolve to an existing global identity or mint a fresh one, via the shared
+   * resolver (Tier hema/name+club+DOB/name+club/email). This is what stops a roster imported
+   * per-event without email/DOB from minting a duplicate global_persons row per event.
+   */
+  private async resolveProfile(
+    personId: string,
+    row: CsvRow,
+    clubId: string | null,
+  ): Promise<IdentityMintReason | null> {
     let resolved: ResolveGlobalPersonResult;
     try {
       resolved = await this.globalPersonResolver.resolveOrCreateGlobalPerson({

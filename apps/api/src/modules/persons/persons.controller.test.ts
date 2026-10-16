@@ -275,6 +275,44 @@ describe('PersonsController authorization', () => {
   });
 });
 
+describe("an import's decisions (O7)", () => {
+  const withDecisions = (decisions: string) => ({
+    ...req('u-editor-a'),
+    parts: vi.fn(() =>
+      (async function* () {
+        yield { type: 'file', fieldname: 'file', toBuffer: async () => Buffer.from('a,b\n') };
+        yield { type: 'field', fieldname: 'decisions', value: decisions };
+      })(),
+    ),
+  });
+  const LINK = {
+    rowIndex: 0,
+    action: 'link',
+    globalPersonId: '6f1c0b4e-8d2a-4c3b-9e7f-1a2b3c4d5e6f',
+  };
+
+  it('hands the import the decisions it parsed', async () => {
+    await controller.importCsv(EVENT_A, withDecisions(JSON.stringify([LINK])) as never);
+
+    expect(persons.importCsv).toHaveBeenCalledWith(EVENT_A, expect.any(Buffer), 'u-editor-a', [
+      LINK,
+    ]);
+  });
+
+  // Read as "no decisions", a bad field ignored every link the organiser chose, in silence.
+  it.each([
+    ['not JSON', '[{'],
+    ['not a list', JSON.stringify(LINK)],
+    ['an unknown action', JSON.stringify([{ ...LINK, action: 'merge' }])],
+    ['a profile id that is no id', JSON.stringify([{ ...LINK, globalPersonId: 'gp-1' }])],
+  ])('refuses %s with a 400, and imports nothing', async (_, decisions) => {
+    await expect(controller.importCsv(EVENT_A, withDecisions(decisions) as never)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(persons.importCsv).not.toHaveBeenCalled();
+  });
+});
+
 describe('an import with no file', () => {
   const noFile = () => ({ ...req('u-editor-a'), parts: vi.fn(() => (async function* () {})()) });
 

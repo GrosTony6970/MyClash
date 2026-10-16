@@ -159,7 +159,19 @@ describe('the organiser imports a roster file', () => {
       rows: [],
       returning: (row) => ({ id: `p-${String(row['given_name']).toLowerCase()}` }),
     },
-    global_persons: { rows: [{ id: 'gp-picked', club_id: null }] },
+    // The profile the preview offered Léa's row: the matcher offers it again at the commit.
+    global_persons: {
+      rows: [
+        {
+          id: 'gp-picked',
+          club_id: null,
+          given_name: 'Léa',
+          family_name: 'Martin',
+          display_name: 'Léa Martin',
+          clubs: null,
+        },
+      ],
+    },
   };
   const imported = (decisions: ImportDecision[] = []) =>
     service(emptyRoster).importCsv(OPEN, FILE, 'u-claire', decisions);
