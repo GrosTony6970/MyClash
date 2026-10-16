@@ -552,6 +552,7 @@ export class MatchesService {
 
     if (existing) {
       // Idempotent — return the existing exchange without error
+      await this.scoreReplayedHit(matchId, dto);
       return existing;
     }
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
@@ -600,7 +601,10 @@ export class MatchesService {
         .select('*')
         .eq('client_uuid', dto.clientUuid)
         .maybeSingle();
-      if (raceExisting) return raceExisting;
+      if (raceExisting) {
+        await this.scoreReplayedHit(matchId, dto);
+        return raceExisting;
+      }
 
       // Fresh client_uuid → the collision is on UNIQUE(match_id, sequence): the
       // pad's local counter restarted below the server max (mid-match reload,
@@ -620,6 +624,19 @@ export class MatchesService {
     await this.scoring.recomputeMatchScore(matchId, scoredAtServer(dto));
 
     return data;
+  }
+
+  /**
+   * A hit sent again, already saved, scores its bout again: the write of the hit and the score
+   * of the bout are two steps, and a recompute that threw (a ruleset read that failed is a 5xx
+   * since 62ad709c) left the bout's score stale, a cap reached and never completed. The resend
+   * was answered "saved" with no recompute. A recompute reads the whole sheet, so a sheet that
+   * is unchanged changes nothing. Not on an Event that is over: its results are frozen, and a
+   * replay there writes nothing (`matches.replay-over-event.test.ts`).
+   */
+  private async scoreReplayedHit(matchId: string, dto: CreateExchangeDto): Promise<void> {
+    if (await this.frozenResults?.isEventOver(matchId)) return;
+    await this.scoring.recomputeMatchScore(matchId, scoredAtServer(dto));
   }
 
   /**

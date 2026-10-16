@@ -311,8 +311,9 @@ describe('MatchesService', () => {
       // for — which is why it is not seeded, and why this would throw if the
       // idempotent return ever stopped returning early.
       expect(queriedTables(supabase.from)).toEqual(['exchanges']);
-      // Score should NOT be recomputed for duplicate
-      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+      // The bout is scored again: a first recompute that threw left its score stale.
+      // (`scoreReplayedHit`; an over Event's replay is `matches.replay-over-event.test.ts`.)
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
     });
 
     it('inserts new exchange when client_uuid is fresh', async () => {

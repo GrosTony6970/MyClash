@@ -65,6 +65,19 @@ describe('MatchesService.createExchange — a repeated hit on an over Event', ()
     expect(db.writes).toEqual([]);
   });
 
+  // The hit was saved and its recompute threw (a ruleset read that failed): the resend scores
+  // the bout, on an Event still running (`scoreReplayedHit`).
+  it('scores the bout again on a running Event, and answers the saved row', async () => {
+    const { scoring, service } = setup('running');
+
+    await expect(
+      service.createExchange('m1', { ...HIT, clientUuid: 'uuid-saved' } as never, {
+        userId: ORGANISER,
+      }),
+    ).resolves.toEqual(SAVED);
+    expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
+  });
+
   // Archived too: the route passes the archived lock (ruling 240), so this
   // refusal is the one a new hit meets there.
   it.each<'completed' | 'archived'>(['completed', 'archived'])(
