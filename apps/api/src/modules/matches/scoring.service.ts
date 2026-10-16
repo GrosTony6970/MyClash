@@ -219,7 +219,11 @@ export class ScoringService {
     // `onMatchUncompleted` can REFUSE and there is no transaction to undo a
     // half-applied reopen. Only once it has agreed do the result columns move.
     if (outcome.kind === 'reopen' && (await this.uncompleteBestEffort(matchId))) {
-      Object.assign(matchUpdates, reopenedResultColumns(), backInPlayColumns(causedAt));
+      Object.assign(
+        matchUpdates,
+        reopenedResultColumns(),
+        backInPlayColumns(causedAt, m['back_in_play_at']),
+      );
     }
     if (outcome.kind === 'redecide') {
       matchUpdates['winner_registration_id'] = outcome.winnerRegistrationId;
@@ -1011,7 +1015,7 @@ export class ScoringService {
     );
     const seriesWasClinched = match.status === 'completed';
     if (popped && (!seriesWasClinched || (await this.uncompleteBestEffort(matchId)))) {
-      Object.assign(updates, popped, backInPlayColumns(args.at));
+      Object.assign(updates, popped, backInPlayColumns(args.at, matchRow['back_in_play_at']));
       if (seriesWasClinched) Object.assign(updates, reopenedResultColumns());
     }
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);

@@ -56,7 +56,7 @@ describe('popLastClosedRoundColumns', () => {
 
 describe('backInPlayColumns', () => {
   it('is the mark alone, at the time it is given', () => {
-    expect(backInPlayColumns('2026-04-25T10:10:00.000Z')).toEqual({
+    expect(backInPlayColumns('2026-04-25T10:10:00.000Z', null)).toEqual({
       back_in_play_at: '2026-04-25T10:10:00.000Z',
     });
   });
@@ -64,10 +64,27 @@ describe('backInPlayColumns', () => {
   it('is now when no row sent late caused it', () => {
     vi.useFakeTimers({ now: new Date('2026-04-25T11:00:00.000Z') });
     try {
-      expect(backInPlayColumns()).toEqual({ back_in_play_at: '2026-04-25T11:00:00.000Z' });
+      expect(backInPlayColumns(undefined, null)).toEqual({
+        back_in_play_at: '2026-04-25T11:00:00.000Z',
+      });
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // A card a tablet sent late puts the bout back in play at the card's time, 10:06. The desk's
+  // Reopen at 10:30 already marked it: the mark stays 10:30, or a press made at 10:20, before
+  // that Reopen, would pass as made after it.
+  it('never moves back: a later mark the bout holds stays', () => {
+    expect(backInPlayColumns('2026-04-25T10:06:00.000Z', '2026-04-25T10:30:00.000Z')).toEqual({
+      back_in_play_at: '2026-04-25T10:30:00.000Z',
+    });
+  });
+
+  it('moves forward past an earlier mark', () => {
+    expect(backInPlayColumns('2026-04-25T10:40:00.000Z', '2026-04-25T10:30:00.000Z')).toEqual({
+      back_in_play_at: '2026-04-25T10:40:00.000Z',
+    });
   });
 });
 

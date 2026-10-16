@@ -54,9 +54,17 @@ export function reopenedResultColumns(): Record<string, unknown> {
  *
  * `at`: the time of the row that caused it, when a tablet sent that row late
  * (the clock's own row, or `causedAt` of a recompute). None is now.
+ *
+ * `held`: the mark the bout's row holds, as its writer read it. The mark never
+ * moves back: a card sent late puts the bout back in play at the card's time,
+ * and written over a later Reopen's mark, it let a press made before that
+ * Reopen pass as made after it. The race left: a Reopen written between the
+ * writer's read and its write is overwritten by the earlier time.
  */
-export function backInPlayColumns(at = new Date().toISOString()): Record<string, unknown> {
-  return { back_in_play_at: at };
+export function backInPlayColumns(at: string | undefined, held: unknown): Record<string, unknown> {
+  const mark = at ?? new Date().toISOString();
+  const later = typeof held === 'string' && Date.parse(held) > Date.parse(mark) ? held : mark;
+  return { back_in_play_at: later };
 }
 
 /**

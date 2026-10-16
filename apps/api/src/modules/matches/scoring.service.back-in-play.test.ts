@@ -45,6 +45,22 @@ describe('a finished bout of one round that a correction hands back to the refer
     expect(written()?.row).toMatchObject({ status: 'paused', back_in_play_at: CAUSED_AT });
   });
 
+  // The desk put the bout back in play at 10:30 and it was completed again; the late card of
+  // 10:06 hands it back once more. Its mark stays 10:30: a press of 10:20 was made before the
+  // Reopen, and must stay refused.
+  it('keeps a later mark the bout holds: a late card cannot move it back', async () => {
+    const later = '2026-01-01T10:30:00.000Z';
+    const { service, written } = setup(
+      storedBout({ back_in_play_at: later }),
+      SHEET_3_4,
+      RUNNING_EVENT,
+    );
+
+    await service.recomputeMatchScore(BOUT, CAUSED_AT);
+
+    expect(written()?.row).toMatchObject({ status: 'paused', back_in_play_at: later });
+  });
+
   it('is not marked when it stays finished: an over Event', async () => {
     const { service, written } = setup(storedBout(), SHEET_3_4, OVER_EVENT);
 
@@ -144,6 +160,16 @@ describe('a closed round of a best-of series that a correction puts back in play
     await service.recomputeMatchScore(BOUT, CAUSED_AT);
 
     expect(written()?.row).toMatchObject({ rounds_json: null, back_in_play_at: CAUSED_AT });
+  });
+
+  it('keeps a later mark the bout holds: a late card cannot move it back', async () => {
+    const later = '2026-01-01T10:30:00.000Z';
+    const bout = series({ back_in_play_at: later });
+    const { service, written } = setup(bout, without(ROUND_1, 'e1'), RUNNING_EVENT);
+
+    await service.recomputeMatchScore(BOUT, CAUSED_AT);
+
+    expect(written()?.row).toMatchObject({ rounds_json: null, back_in_play_at: later });
   });
 
   it('the round that won the series: the bout is marked, and is paused', async () => {

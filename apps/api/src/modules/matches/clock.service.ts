@@ -530,7 +530,11 @@ export class ClockService {
     // A series also gets back the round whose close ended it, as a Reopen does: kept closed, no
     // hit could close it again, and a later End completed the bout with no winner.
     const noResult = uncompletes
-      ? { ...noResultColumns(), ...popClinchingRoundColumns(match), ...backInPlayColumns(now) }
+      ? {
+          ...noResultColumns(),
+          ...popClinchingRoundColumns(match),
+          ...backInPlayColumns(now, match['back_in_play_at']),
+        }
       : {};
     if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
@@ -738,6 +742,6 @@ function reopenColumns(
   // leaves no mark: the Reopen "Start round N+1" makes itself
   // (`round-advance.ts`), and the one a forfeit taken back makes on the clock
   // the forfeit ended (`MatchForfeitsService.reopenClockTakenBack`).
-  if (uncompletes) Object.assign(columns, backInPlayColumns(now));
+  if (uncompletes) Object.assign(columns, backInPlayColumns(now, match['back_in_play_at']));
   return columns;
 }
