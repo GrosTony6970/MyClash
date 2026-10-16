@@ -1051,23 +1051,23 @@ export class WorkshopsService {
     };
   }
 
-  /** One batched count query for all sessions across the given workshops. */
+  /**
+   * One batched count query for all sessions across the given workshops. A read that failed is
+   * an error: read as 0, every session showed all its seats free.
+   */
   private async confirmedCountsForWorkshops(rows: RawWorkshop[]): Promise<Map<string, number>> {
     const sessionIds = rows.flatMap((r) => toArray(r.workshop_sessions).map((s) => s.id));
     const counts = new Map<string, number>();
     if (sessionIds.length === 0) return counts;
-    try {
-      const { data } = await this.supabase.service
-        .from('workshop_enrollments')
-        .select('workshop_session_id')
-        .in('workshop_session_id', sessionIds)
-        .eq('status', 'confirmed');
-      for (const raw of data ?? []) {
-        const sid = (raw as { workshop_session_id: string }).workshop_session_id;
-        counts.set(sid, (counts.get(sid) ?? 0) + 1);
-      }
-    } catch {
-      /* counts best-effort; default 0 */
+    const { data, error } = await this.supabase.service
+      .from('workshop_enrollments')
+      .select('workshop_session_id')
+      .in('workshop_session_id', sessionIds)
+      .eq('status', 'confirmed');
+    if (error) throw new Error(`The bookings of the sessions were not counted: ${error.message}`);
+    for (const raw of data ?? []) {
+      const sid = (raw as { workshop_session_id: string }).workshop_session_id;
+      counts.set(sid, (counts.get(sid) ?? 0) + 1);
     }
     return counts;
   }

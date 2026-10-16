@@ -140,20 +140,29 @@ export class EnrollmentService {
     // capacity null ⇒ unlimited ⇒ always confirmed.
     let isFull = false;
     if (capacity !== null) {
-      const { count: confirmedCount } = await this.supabase.service
+      // A count that failed is an error: read as 0 booked, a full Workshop took one more.
+      const { count: confirmedCount, error } = await this.supabase.service
         .from('workshop_enrollments')
         .select('id', { count: 'exact', head: true })
         .eq('workshop_session_id', sessionId)
         .eq('status', 'confirmed');
+      if (error)
+        throw new Error(`The seats of session ${sessionId} were not counted: ${error.message}`);
       isFull = (confirmedCount ?? 0) >= capacity;
     }
 
     if (isFull) {
-      const { count: waitlistCount } = await this.supabase.service
+      const waitlist = await this.supabase.service
         .from('workshop_enrollments')
         .select('id', { count: 'exact', head: true })
         .eq('workshop_session_id', sessionId)
         .eq('status', 'waitlisted');
+      if (waitlist.error) {
+        throw new Error(
+          `The waitlist of session ${sessionId} was not counted: ${waitlist.error.message}`,
+        );
+      }
+      const waitlistCount = waitlist.count;
 
       const position = (waitlistCount ?? 0) + 1;
 
