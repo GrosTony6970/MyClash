@@ -16,7 +16,6 @@ import {
   boutCompleted,
   elapsedAt,
   eventStatusOf,
-  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
@@ -27,6 +26,7 @@ import { matchLocked } from './match-locked';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import type { LateRoundPress } from './round-advance';
 import { savedRoundPress, writeRoundRow } from './round-rows';
+import { nextSequence } from './timeline-sequence';
 import { ROUND_AWAITS_ADVANCE } from './round-awaits-advance';
 import { roundNotOpen } from './round-end';
 import { isLevelBout, matchFormatContext } from './time-limit-result';
@@ -179,7 +179,7 @@ interface Placed {
   at: string;
   /** Of a step sent late: its id. */
   clientUuid?: string;
-  /** Of a step sent late: the sequence of its first row (`judgedSequence`). */
+  /** Of a step sent late: the sequence of its first row (`nextSequence`, read before its rules). */
   sequence?: number;
 }
 
@@ -261,7 +261,7 @@ async function stepLate(
   const asked = { clientUuid: late.clientUuid, matchId, type: 'level_resolution' } as const;
   if (await savedRoundPress(db, asked)) return deps.clock.getClockState(matchId);
   // Before the reads that judge the step (S11): a row written meanwhile collides with it.
-  const sequence = await judgedSequence(db, matchId);
+  const sequence = await nextSequence(db, matchId);
   const bout = await readBout(db, matchId);
   if (isOver(eventStatusOf(bout))) throw eventResultsFrozen();
   if (bout['status'] === 'completed') throw boutCompleted();

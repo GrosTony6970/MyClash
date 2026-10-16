@@ -7,7 +7,7 @@ import { ROUND_1_CLOSED, endRound, series as roundSeries } from './round-end.fix
 
 /**
  * A row another device writes while a late round press is judged (S11), on the three paths that
- * share the clock's `judgedSequence`: a level step, "Start round" and "End round".
+ * read the clock's sequence first (`nextSequence`): a level step, "Start round" and "End round".
  *
  * Each late press takes its sequence BEFORE the reads that judge it. The other device's row then
  * takes that sequence first, the late insert collides, and every rule is asked again with that

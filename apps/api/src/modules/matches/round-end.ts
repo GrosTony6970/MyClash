@@ -92,7 +92,7 @@ async function endsTimeline(db: Database, matchId: string, sequence: number): Pr
  * last of the bout, was cut short after its row: the caller closes the round
  * and writes no second row (`saved`).
  *
- * `sequence`: the one the caller read BEFORE it read `bout` (`judgedSequence`,
+ * `sequence`: the one the caller read BEFORE it read `bout` (`nextSequence`,
  * S11). A row written after the bout was read then takes it first, and the
  * insert collides.
  */

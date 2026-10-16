@@ -23,6 +23,7 @@ import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
 import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
+import { nextSequence } from './timeline-sequence';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
 // @Optional() param silently resolves to `undefined`, and every completion side
@@ -1285,20 +1286,14 @@ export class MatchesService {
     reason: string,
     context?: MatchActor,
   ): Promise<void> {
-    const { data: lastEvent } = await this.supabase.service
-      .from('match_events')
-      .select('sequence')
-      .eq('match_id', matchId)
-      .order('sequence', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const sequence = await nextSequence(this.supabase.service, matchId);
     // Checked, for the reason ClockService already gives at its identical
     // insert: clock state is replayed from these rows and never stored, so an
     // unchecked failure here returns HTTP 200 over a clock that did not change.
     // `reset_match` is the only event that returns the replay to `idle`.
     const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
-      sequence: ((lastEvent as { sequence?: number } | null)?.sequence ?? 0) + 1,
+      sequence,
       type,
       reason,
       by_user_id: context?.userId ?? null,

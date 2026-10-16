@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { nextSequence } from '../matches/timeline-sequence';
 import { unplayedMatchColumns } from '../matches/unplayed-match-columns';
 import { matchRulesetForBout } from './match-ruleset';
 
@@ -70,32 +71,17 @@ export async function revertMatchToUnplayed(
   if (error) throw new BadRequestException(error.message);
 }
 
-/**
- * A `reset_match` row at the next sequence for the bout.
- *
- * Duplicated shape rather than a shared writer on purpose, for now: sequence
- * allocation against `UNIQUE(match_id, sequence)` already has two owners
- * (`MatchesService.insertMatchEvent` and `ClockService.nextSequence`) and a
- * third that only appends is cheaper than reshaping both. If a fourth appears,
- * that is the moment to extract one.
- */
+/** A `reset_match` row at the next sequence for the bout (`nextSequence`). */
 async function insertResetEvent(
   supabase: Client,
   matchId: string,
   reason: string,
   actor: RevertActor,
 ): Promise<void> {
-  const { data: last } = await supabase
-    .from('match_events')
-    .select('sequence')
-    .eq('match_id', matchId)
-    .order('sequence', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+  const sequence = await nextSequence(supabase, matchId);
   const { error } = await supabase.from('match_events').insert({
     match_id: matchId,
-    sequence: ((last as { sequence?: number } | null)?.sequence ?? 0) + 1,
+    sequence,
     type: 'reset_match',
     reason,
     by_user_id: actor.userId ?? null,

@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { ClockRowCollided } from './late-press';
+import { nextSequence } from './timeline-sequence';
 
 type Database = SupabaseService['service'];
 
@@ -45,17 +46,6 @@ export async function savedRoundPress(
   return { sequence: row.sequence };
 }
 
-async function nextSequence(db: Database, matchId: string): Promise<number> {
-  const { data: last } = await db
-    .from('match_events')
-    .select('sequence')
-    .eq('match_id', matchId)
-    .order('sequence', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return ((last as { sequence: number } | null)?.sequence ?? 0) + 1;
-}
-
 /**
  * Write a round's row in the bout's timeline, and say when it is not written.
  *
@@ -80,7 +70,7 @@ export async function writeRoundRow(
   actor: Actor | undefined,
   late?: { clientUuid?: string; at: string; sequence?: number },
 ): Promise<void> {
-  // A late row's sequence is the one read before its rules (`judgedSequence`).
+  // A late row's sequence is the one read before its rules (`nextSequence`).
   const sequence = late?.sequence ?? (await nextSequence(db, matchId));
   const { error } = await db.from('match_events').insert({
     match_id: matchId,

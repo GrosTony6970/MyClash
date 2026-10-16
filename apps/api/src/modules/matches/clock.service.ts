@@ -40,7 +40,6 @@ import {
   ClockRowCollided,
   elapsedAt,
   eventStatusOf,
-  judgedSequence,
   lastTimelineRow,
   placeLatePress,
   savedPressSpeaksForBout,
@@ -51,6 +50,7 @@ import {
 } from './late-press';
 import { matchLocked } from './match-locked';
 import { pressedBeforeReopen } from './press-before-reopen';
+import { nextSequence } from './timeline-sequence';
 import { resetAfterLevelStep } from './reset-after-level-step';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import type { LevelStep } from '@myclash/rulesets';
@@ -362,7 +362,7 @@ export class ClockService {
     if (await pressIsSaved(db, press.clientUuid))
       return this.finishSavedPress(matchId, action, press);
     // Before the reads that judge the press (S11): a row written meanwhile collides with it.
-    const sequence = await judgedSequence(db, matchId);
+    const sequence = await nextSequence(db, matchId);
     const { data } = await db.from('matches').select(BOUT_COLUMNS).eq('id', matchId).maybeSingle();
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     const match = data as unknown as Record<string, unknown>;
@@ -452,7 +452,7 @@ export class ClockService {
    * to another writer says so with `ClockRowCollided`: `latePress` asks again.
    */
   private async insertRow(matchId: string, step: ClockStep, at: string): Promise<number> {
-    const sequence = step.sequence ?? (await this.nextSequence(matchId));
+    const sequence = step.sequence ?? (await nextSequence(this.supabase.service, matchId));
     const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence,
@@ -687,7 +687,7 @@ export class ClockService {
     if ((match as { locked_at?: string | null }).locked_at && !actor?.canOverrideLocked) {
       throw matchLocked();
     }
-    const sequence = await this.nextSequence(matchId);
+    const sequence = await nextSequence(this.supabase.service, matchId);
     // Same silent-no-op guard as clockAction: a failed insert must surface
     // as an error, not as an unchanged clock with HTTP 200.
     const { error: insertErr } = await this.supabase.service.from('match_events').insert({
@@ -768,18 +768,6 @@ export class ClockService {
       levelResolutionSteps,
       events,
     };
-  }
-
-  private async nextSequence(matchId: string): Promise<number> {
-    const { data: lastEvent } = await this.supabase.service
-      .from('match_events')
-      .select('sequence')
-      .eq('match_id', matchId)
-      .order('sequence', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    return ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
   }
 }
 

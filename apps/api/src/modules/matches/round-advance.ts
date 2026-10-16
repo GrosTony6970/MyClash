@@ -9,7 +9,6 @@ import {
   BOUT_COMPLETED,
   boutCompleted,
   eventStatusOf,
-  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
@@ -18,6 +17,7 @@ import {
 } from './late-press';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { savedRoundPress, writeRoundRow } from './round-rows';
+import { nextSequence } from './timeline-sequence';
 import { nothingOnTheSheet } from './start-count';
 
 type Database = SupabaseService['service'];
@@ -264,7 +264,7 @@ async function advanceLate(
   if (late.round < 2) throw new BadRequestException('No press opens round 1');
   const asked = { clientUuid: late.clientUuid, matchId, type: 'round_advance' } as const;
   const saved = (await savedRoundPress(db, asked)) !== null;
-  const sequence = await judgedSequence(db, matchId); // Before the reads that judge it (S11).
+  const sequence = await nextSequence(db, matchId); // Before the reads that judge it (S11).
   const bout = await readBout(db, matchId);
   const current = roundOf(bout);
   const completed = bout['status'] === 'completed';
