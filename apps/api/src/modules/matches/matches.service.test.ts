@@ -1268,6 +1268,8 @@ describe('MatchesService', () => {
       expect(selectsFor(supabase.from, 'phases')).toEqual([
         'id, tournaments!inner(event_id)',
         'tournaments(ruleset_code, ruleset_version, ruleset_content_hash)',
+        // After the insert: the Tournament whose ruleset in force the bout takes (R3).
+        'tournament_id',
       ]);
     });
 

@@ -150,6 +150,27 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
     expect(matchAlerts.refreshPools.mock.calls).toEqual([[['pool-1']]]);
   });
 
+  // The Pool's door read TF_v1; the Tournament moved to points-cap before its bouts were in (R3).
+  it('re-stamps its new bouts with the ruleset in force once they are in', async () => {
+    const { service, supabase } = makeService({
+      pool_members: { rows: [member('reg-2', 1), member('reg-3', 2)] },
+      matches: { rows: [{ id: 'old-1', pool_id: 'pool-1' }] },
+      phases: { rows: [{ ...PHASES.rows[0], tournament_id: 't-1' }] },
+      tournaments: {
+        rows: [{ id: 't-1', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' }],
+      },
+    });
+
+    await service.removePoolMember('pool-1', 'reg-1', 'user-1');
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['delete', 'insert', 'update']);
+    expect(writes[2]?.row).toMatchObject({
+      ruleset_code: 'Generic_PointsCap',
+      ruleset_version: '1.0.0',
+    });
+  });
+
   it('never names the bouts to the bout door: the old ones are gone, the new ones have no time', async () => {
     const { service, matchAlerts } = makeService({
       pool_members: { rows: [member('reg-2', 1), member('reg-3', 2)] },

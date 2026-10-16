@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ConflictException } from '@nestjs/common';
-import { mockSupabase, type SupabaseRow } from '../../common/testing/supabase-chain';
-import { assertSlotMatchRewritable, loadSlotMatch } from './bracket-match-sync';
+import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
+import { assertSlotMatchRewritable, loadSlotMatch, syncMatchToSlot } from './bracket-match-sync';
 
 /**
  * The voided-row precondition `hasBeenFought` is written against.
@@ -77,5 +77,38 @@ describe('assertSlotMatchRewritable', () => {
 
   it('allows the edit when the slot has no bout at all', async () => {
     await expect(assertSlotMatchRewritable(client([]), 'slot-1')).resolves.toBeUndefined();
+  });
+});
+
+describe('syncMatchToSlot — a new bout of the slot', () => {
+  // The slot's bout read TF_v1; the Tournament moved to points-cap before it was in (R3).
+  it('re-stamps it with the ruleset in force once it is in', async () => {
+    const supabase = mockSupabase({
+      matches: { rows: [] },
+      phases: {
+        rows: [{ id: 'ph-1', tournament_id: 't-1', tournaments: { ruleset_code: 'TF_v1' } }],
+      },
+      tournaments: {
+        rows: [{ id: 't-1', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' }],
+      },
+    });
+    const slot = {
+      id: 'slot-1',
+      phase_id: 'ph-1',
+      position: 1,
+      source_b_type: 'seed',
+      registration_a_id: 'r-a',
+      registration_b_id: 'r-b',
+    };
+
+    await syncMatchToSlot(supabase.service as never, slot, { onStarted: 'skip' });
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
+    expect(writes[0]?.row).toMatchObject({ ruleset_code: 'TF_v1' });
+    expect(writes[1]?.row).toMatchObject({
+      ruleset_code: 'Generic_PointsCap',
+      ruleset_version: '1.0.0',
+    });
   });
 });

@@ -74,6 +74,34 @@ describe('SwissPairingService — committing a round', () => {
     );
   });
 
+  // The round read the points-cap ruleset; the Tournament moved to TF_v1 before its bouts were
+  // in (R3). They take the one in force once they are written.
+  it('re-stamps its bouts with the ruleset in force once they are in', async () => {
+    const supabase = mockSupabase(
+      commitState({
+        tournaments: {
+          rows: [
+            { id: 't2', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' },
+            { id: 't1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+          ],
+        },
+      }),
+    );
+    const { programme, notifications } = collaborators();
+    const service = new SwissPairingService(
+      as(supabase),
+      programme as never,
+      undefined as never,
+      notifications as never,
+    );
+
+    await service.commitNextRound('p1');
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
+    expect(writes[1]?.row).toMatchObject({ ruleset_code: 'TF_v1', ruleset_version: '1.0.0' });
+  });
+
   // Read before the round row: thrown after it, the round stood with no bouts, and the next
   // completion met its row as "already committed", for good.
   it('writes no round when the ruleset of its bouts cannot be read', async () => {

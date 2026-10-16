@@ -11,9 +11,32 @@ import {
   type SupabaseRow,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
+import { restampAfterInsert } from './match-ruleset';
+import type * as MatchRuleset from './match-ruleset';
 import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
+
+// Owned by `match-ruleset.after-insert.test.ts`. Here: that each door asks for it after its write.
+vi.mock('./match-ruleset', async (importOriginal) => ({
+  ...(await importOriginal<typeof MatchRuleset>()),
+  restampAfterInsert: vi.fn(),
+}));
+
+/** How many bouts the door has inserted so far. */
+const boutsInserted = (supabase: ReturnType<typeof mockSupabase>): number =>
+  writesTo(supabase, 'matches')
+    .filter((write) => write.op === 'insert')
+    .flatMap((write) => [write.row].flat()).length;
+
+/** The bouts each re-stamp after an insert (R3) found already inserted, in call order. */
+function insertsWhenRestamped(supabase: ReturnType<typeof mockSupabase>): number[] {
+  const seen: number[] = [];
+  vi.mocked(restampAfterInsert).mockImplementation(async () => {
+    seen.push(boutsInserted(supabase));
+  });
+  return seen;
+}
 
 const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
 
@@ -247,10 +270,20 @@ describe('PhasesService', () => {
         pool_members: { rows: [] },
       });
 
+      const restamped = insertsWhenRestamped(supabase);
+
       // Should not throw
       await expect(
         service.generatePools('tournament-1', { poolCount: 2 }, true),
       ).resolves.toBeDefined();
+
+      // After both Pools' bouts are written, never between: a ruleset changed while it ran (R3).
+      expect(restamped).toEqual([2]);
+      expect(restampAfterInsert).toHaveBeenCalledWith(
+        supabase.service,
+        { tournamentId: 'tournament-1' },
+        expect.anything(),
+      );
 
       // The delete names the row it took, which is the whole of what stands
       // between a regeneration and another tournament's pools.
@@ -865,7 +898,16 @@ describe('PhasesService', () => {
         tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
 
+      const restamped = insertsWhenRestamped(supabase);
+
       const result = await service.generateBracket('tournament-1', {}, false);
+      // Once, after the last bout is written (R3).
+      expect(restamped).toEqual([boutsInserted(supabase)]);
+      expect(restampAfterInsert).toHaveBeenCalledWith(
+        supabase.service,
+        { tournamentId: 'tournament-1' },
+        expect.anything(),
+      );
       expect(writesTo(supabase, 'phases')[0]?.row).not.toHaveProperty('visibility_status');
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { rounds: number }).rounds).toBe(3);
@@ -1409,9 +1451,17 @@ describe('PhasesService', () => {
 
     it('persists a reproducible PRNG seed for a random reseed', async () => {
       const { service, supabase } = reseedService(SEEDED_REGS);
+      const restamped = insertsWhenRestamped(supabase);
 
       await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'random' });
 
+      // Once, after the last bout is written (R3).
+      expect(restamped).toEqual([boutsInserted(supabase)]);
+      expect(restampAfterInsert).toHaveBeenCalledWith(
+        supabase.service,
+        { tournamentId: 'tournament-1' },
+        expect.anything(),
+      );
       const stamped = writesTo(supabase, 'phases').at(-1);
       const updateArg = stamped?.row as { config_json: Record<string, unknown> };
       expect(updateArg.config_json['seedingStrategy']).toBe('random');
@@ -2865,8 +2915,17 @@ describe('PhasesService', () => {
         audit_log: { rows: [] },
       });
 
+      const restamped = insertsWhenRestamped(supabase);
+
       await svc.populateBracket('tournament-1', {}, 'system');
 
+      // Once, after the last bout is written (R3).
+      expect(restamped).toEqual([boutsInserted(supabase)]);
+      expect(restampAfterInsert).toHaveBeenCalledWith(
+        supabase.service,
+        { tournamentId: 'tournament-1' },
+        expect.anything(),
+      );
       const writes = writesTo(supabase, 'matches');
       // The whole point: the known side reaches the matches row even though the
       // other side is still null. Previously this list was empty.
@@ -3089,6 +3148,17 @@ describe('PhasesService', () => {
 
       const result = await svc.addPoolMember('pool-1', 'reg-1', 'user-1');
       expect(result).toMatchObject({ poolId: 'pool-1', registrationId: 'reg-1', moved: true });
+      // After the Pool's bouts are made again (R3).
+      const regenerate = (svc as unknown as { regeneratePoolMatches: ReturnType<typeof vi.fn> })
+        .regeneratePoolMatches;
+      expect(restampAfterInsert).toHaveBeenCalledWith(
+        supabase.service,
+        { tournamentId: 'tournament-1' },
+        expect.anything(),
+      );
+      expect(vi.mocked(restampAfterInsert).mock.invocationCallOrder[0]).toBeGreaterThan(
+        Math.max(...regenerate.mock.invocationCallOrder),
+      );
       expect(writesTo(supabase, 'pool_members')[0]?.row).toMatchObject({
         pool_id: 'pool-1',
         registration_id: 'reg-1',

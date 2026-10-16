@@ -17,11 +17,15 @@ const DTO = {
   scheduledAt: '2026-06-06T08:00:00.000Z',
 };
 
-function makeService(matches: TableSeed) {
-  // The new bout takes the ruleset of its phase's Tournament: the phase is read.
+function makeService(matches: TableSeed, rulesetNow = 'TF_v1') {
+  // The new bout takes the ruleset of its phase's Tournament: the phase is read, and after the
+  // write the Tournament again, for the ruleset in force then (R3).
   const supabase = mockSupabase({
     matches,
-    phases: { rows: [{ id: 'phase-1', tournaments: { ruleset_code: 'TF_v1' } }] },
+    phases: {
+      rows: [{ id: 'phase-1', tournament_id: 't-1', tournaments: { ruleset_code: 'TF_v1' } }],
+    },
+    tournaments: { rows: [{ id: 't-1', ruleset_code: rulesetNow, ruleset_version: '1.0.0' }] },
   });
   /** The writes of bouts that had landed when the seam was asked. */
   const boutWritesWhenAsked: string[][] = [];
@@ -38,7 +42,7 @@ function makeService(matches: TableSeed) {
     { placeMatches: vi.fn(() => Promise.resolve()) } as never,
     {} as never,
   );
-  return { service, matchAlerts, boutWritesWhenAsked };
+  return { service, supabase, matchAlerts, boutWritesWhenAsked };
 }
 
 describe('createMatch: the alerts of the new bout (ruling 221)', () => {
@@ -52,7 +56,22 @@ describe('createMatch: the alerts of the new bout (ruling 221)', () => {
     await service.createMatch(DTO as never);
 
     expect(matchAlerts.refresh.mock.calls).toEqual([[['new-match']]]);
-    expect(boutWritesWhenAsked).toEqual([['insert']]);
+    // Saved, and re-stamped with the ruleset in force (R3).
+    expect(boutWritesWhenAsked).toEqual([['insert', 'update']]);
+  });
+
+  // The door read TF_v1; the Tournament moved to points-cap before the bout was in (R3).
+  it('re-stamps the new bout with the ruleset in force once it is in', async () => {
+    const { service, supabase } = makeService(
+      { returning: { id: 'new-match' }, rows: [] },
+      'Generic_PointsCap',
+    );
+
+    await service.createMatch(DTO as never);
+
+    const writes = writesTo(supabase, 'matches');
+    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
+    expect(writes[1]?.row).toMatchObject({ ruleset_code: 'Generic_PointsCap' });
   });
 
   it('still answers the saved bout when the queue is down: a retry would make a second one', async () => {

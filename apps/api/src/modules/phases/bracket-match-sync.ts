@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { hasBeenFought } from '../matches/fought-match';
-import { matchRulesetForPhase } from './match-ruleset';
+import { matchRulesetForPhase, restampAfterInsert } from './match-ruleset';
 
 /**
  * "What should this slot's `matches` row say?", answered in one place.
@@ -161,6 +161,7 @@ async function insertMatchForSlot(
   });
   if (!error) {
     logger.log(`Created match for bracket slot ${slot.id}`);
+    await restampAfterInsert(supabase, { phaseId: slot.phase_id }, logger);
     return;
   }
   // Somebody else inserted first. Sync to their row — the recursion terminates

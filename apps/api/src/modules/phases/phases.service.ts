@@ -58,6 +58,7 @@ import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import {
   matchRulesetForPhase,
   matchRulesetForTournament,
+  restampAfterInsert,
   type MatchRulesetStamp,
 } from './match-ruleset';
 import { computePoolReschedule } from './pool-reschedule';
@@ -448,6 +449,7 @@ export class PhasesService {
       createdPools.push({ id: poolId, name: poolName, matchCount: bergerMatches.length });
     }
 
+    await restampAfterInsert(this.supabase.service, { tournamentId }, this.logger);
     this.logger.log(`Generated ${poolCount} pools for tournament ${tournamentId}`);
 
     return {
@@ -678,6 +680,7 @@ export class PhasesService {
     }
 
     await this.createInitialBracketMatches(insertedSlots ?? [], rulesetStamp, resetRound);
+    await restampAfterInsert(this.supabase.service, { tournamentId }, this.logger);
 
     // Note: bye advancement moved to populateBracket — it only
     // makes sense once R1 has registrations.
@@ -1046,6 +1049,7 @@ export class PhasesService {
       },
     });
 
+    await restampAfterInsert(this.supabase.service, { tournamentId }, this.logger);
     return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length, warnings };
   }
 
@@ -1314,6 +1318,7 @@ export class PhasesService {
     this.logger.log(
       `Populated bracket (phase=${phaseId}, mode=${seedingMode}, strategy=${strategy}, slotsSeeded=${slotsSeeded}, source=${source})`,
     );
+    await restampAfterInsert(this.supabase.service, { tournamentId }, this.logger);
     return { phaseId, seedingMode, slotsSeeded, source, warnings };
   }
 
@@ -2671,6 +2676,11 @@ export class PhasesService {
     for (const sourcePoolId of sourcePoolIds) {
       await this.regeneratePoolMatches(sourcePoolId, rulesetStamp);
     }
+    await restampAfterInsert(
+      this.supabase.service,
+      { tournamentId: dst.tournamentId },
+      this.logger,
+    );
     return { poolId, registrationId, moved: true };
   }
 
@@ -2687,6 +2697,7 @@ export class PhasesService {
     if (error) throw new BadRequestException(error.message);
 
     await this.regeneratePoolMatches(poolId, rulesetStamp);
+    await restampAfterInsert(this.supabase.service, { phaseId: pool.phaseId }, this.logger);
     return { poolId, registrationId };
   }
 

@@ -11,7 +11,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
-import { matchRulesetForPhase, type MatchRulesetStamp } from '../phases/match-ruleset';
+import {
+  matchRulesetForPhase,
+  restampAfterInsert,
+  type MatchRulesetStamp,
+} from '../phases/match-ruleset';
 import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
 import { swissMatchRows } from './swiss-match-rows';
@@ -217,6 +221,7 @@ export class SwissPairingService {
 
     const { data, error } = await this.supabase.service.from('matches').insert(rows).select('id');
     if (error) throw new BadRequestException(error.message);
+    await restampAfterInsert(this.supabase.service, { phaseId }, this.logger);
     return ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
   }
 

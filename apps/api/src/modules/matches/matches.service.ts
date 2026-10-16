@@ -28,7 +28,11 @@ import { unplayedMatchColumns } from './unplayed-match-columns';
 // @Optional() param silently resolves to `undefined`, and every completion side
 // effect stops firing without a word. Keep it a value import.
 import { MatchCompletionService } from '../phases/match-completion.service';
-import { matchRulesetForBout, matchRulesetForPhase } from '../phases/match-ruleset';
+import {
+  matchRulesetForBout,
+  matchRulesetForPhase,
+  restampAfterInsert,
+} from '../phases/match-ruleset';
 // Value import too: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService } from '../referees/assignment-board.service';
 import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
@@ -154,6 +158,21 @@ export class MatchesService {
         { checkOnly: true },
       );
     }
+    const data = await this.insertBout(dto);
+    // A new bout goes to the alert seam like a moved one: with a time, its Fighters and their
+    // followers get their alert, and in a Pool it can be the earliest, which moves the Pool's
+    // locked duties. The bout is saved by now: a queue that is down must not answer 500, or the
+    // retry makes a second bout.
+    const id = (data as { id: string }).id;
+    await this.matchAlerts.refresh([id]).catch((err: unknown) => {
+      const why = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`The alerts of the new bout ${id} were not set: ${why}`);
+    });
+    return data;
+  }
+
+  /** The bout `createMatch` makes, then stamped again with the ruleset in force (R3). */
+  private async insertBout(dto: CreateMatchDto) {
     const { data, error } = await this.supabase.service
       .from('matches')
       .insert({
@@ -172,17 +191,8 @@ export class MatchesService {
       })
       .select('*')
       .single();
-
     if (error) throw new BadRequestException(error.message);
-    // A new bout goes to the alert seam like a moved one: with a time, its Fighters and their
-    // followers get their alert, and in a Pool it can be the earliest, which moves the Pool's
-    // locked duties. The bout is saved by now: a queue that is down must not answer 500, or the
-    // retry makes a second bout.
-    const id = (data as { id: string }).id;
-    await this.matchAlerts.refresh([id]).catch((err: unknown) => {
-      const why = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`The alerts of the new bout ${id} were not set: ${why}`);
-    });
+    await restampAfterInsert(this.supabase.service, { phaseId: dto.phaseId }, this.logger);
     return data;
   }
 

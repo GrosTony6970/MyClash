@@ -122,6 +122,43 @@ export async function restampUnstartedMatches(
   }
 }
 
+/**
+ * After a door wrote new bouts: they take the ruleset in force now (operator, 2026-10-16, R3).
+ *
+ * A door reads its stamp, then writes its bouts. A change of the Tournament's rules between the
+ * two re-stamps the bouts not started, and the new ones are not there yet: they kept the old
+ * ruleset. Asked again after the write, either this re-stamp or the change's own runs after both
+ * writes, so no new bout keeps the old one. Best effort: the bouts are written, and a re-stamp
+ * that fails is logged, never thrown.
+ */
+export async function restampAfterInsert(
+  supabase: SupabaseClient,
+  where: { tournamentId: string } | { phaseId: string },
+  logger: { warn: (message: string) => void },
+): Promise<void> {
+  try {
+    await restampUnstartedMatches(supabase, await tournamentIdOf(supabase, where));
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.warn(`New bouts were not re-stamped with the ruleset in force: ${reason}`);
+  }
+}
+
+async function tournamentIdOf(
+  supabase: SupabaseClient,
+  where: { tournamentId: string } | { phaseId: string },
+): Promise<string> {
+  if ('tournamentId' in where) return where.tournamentId;
+  const { data, error } = await supabase
+    .from('phases')
+    .select('tournament_id')
+    .eq('id', where.phaseId)
+    .maybeSingle();
+  if (error) throw new Error(`Phase ${where.phaseId} was not read: ${error.message}`);
+  if (!data) throw new Error(`Phase ${where.phaseId} was not found`);
+  return (data as { tournament_id: string }).tournament_id;
+}
+
 /** A value of a PostgREST filter string: quoted, so `,` `.` `(` `)` in it are text. */
 const quoted = (value: string): string => `"${value.replace(/[\\"]/g, '\\$&')}"`;
 
