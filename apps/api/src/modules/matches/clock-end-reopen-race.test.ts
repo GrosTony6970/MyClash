@@ -11,10 +11,11 @@ import { ClockService } from './clock.service';
  * An End that meets another write on its bout (S4b).
  *
  * The End read the bout running, never put back in play. Before its write, the desk put the bout
- * back in play to correct it (a Reopen, or the undo of the hit that ended it), or a closing hit
- * completed it. The End's write then completed the bout the desk had just opened, or wrote its own
- * winner over the one that won. It completes only a bout that is not completed and that nothing
- * has put back in play since its read; else its clock row is taken back, and the pad is told why.
+ * back in play to correct it (a Reopen, or the undo of the hit that ended it), or reset it, or a
+ * closing hit completed it. The End's write then completed the bout the desk had just opened or
+ * reset, or wrote its own winner over the one that won. It completes only a bout in the status it
+ * read, with the mark it read. Lost to a reset or a put-back, its clock row is taken back and the
+ * pad is told why; lost to a completion, the row stays: it is what stops the clock.
  */
 const BOUT = 'm1';
 const AT = (second: number) => `2026-04-25T09:00:${String(second).padStart(2, '0')}.000Z`;
@@ -35,10 +36,10 @@ const bout = (over: SupabaseRow = {}): SupabaseRow => ({
   ...over,
 });
 
-/** From the End's own clock row on, the bout reads as `since` left it. */
-function endMeeting(since: SupabaseRow) {
+/** The End reads the bout as `read`; from its own clock row on, the bout reads as `since` left it. */
+function endMeeting(since: SupabaseRow, read: SupabaseRow = {}) {
   const db = mockSupabase({
-    matches: { rows: [bout()] },
+    matches: { rows: [bout(read)] },
     match_events: {
       rows: [
         { id: 'e1', match_id: BOUT, sequence: 1, type: 'start', occurred_at: AT(0), reason: null },
@@ -76,14 +77,40 @@ describe('ClockService.clockAction end — another write won the bout meanwhile'
     expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert', 'delete']);
   });
 
-  it('a closing hit completed it for blue: the End writes no winner over it', async () => {
+  it('a closing hit completed it for blue: no winner over it, and its row stops the clock', async () => {
+    // The hit skipped its own End: the clock read ended, with this End's row. Taken back, the
+    // clock ran on the completed bout for good.
     const won = { status: 'completed', winner_registration_id: 'blue', end_reason: 'point_cap' };
     const { db, after, completion, clock } = endMeeting(won);
 
-    expect(await refusalOf(clock)).toMatchObject({ code: 'bout_completed' });
+    expect(await refusalOf(clock)).toBeNull();
     expect(completion.onMatchCompleted).not.toHaveBeenCalled();
     const [write] = writesTo(after, 'matches');
-    expect(write?.filters).toContainEqual({ method: 'neq', args: ['status', 'completed'] });
+    expect(write?.filters).toContainEqual({
+      method: 'in',
+      args: ['status', ['running', 'paused']],
+    });
+    expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert']);
+  });
+
+  it('another tablet halted it: the End still completes it', async () => {
+    const { completion, clock } = endMeeting({ status: 'paused' });
+
+    expect(await refusalOf(clock)).toBeNull();
+    expect(completion.onMatchCompleted).toHaveBeenCalledWith(BOUT);
+  });
+
+  it.each<[string, SupabaseRow, string[]]>([
+    ['running', {}, ['running', 'paused']],
+    ['completed', { status: 'completed', winner_registration_id: 'red' }, ['completed']],
+  ])('the desk reset it (read %s): never written back completed', async (_, read, asked) => {
+    const reset = { status: 'scheduled', winner_registration_id: null, back_in_play_at: null };
+    const { db, after, completion, clock } = endMeeting(reset, read);
+
+    expect(await refusalOf(clock)).toMatchObject({ code: 'scored_before_reset' });
+    expect(completion.onMatchCompleted).not.toHaveBeenCalled();
+    const [write] = writesTo(after, 'matches');
+    expect(write?.filters).toContainEqual({ method: 'in', args: ['status', asked] });
     expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert', 'delete']);
   });
 

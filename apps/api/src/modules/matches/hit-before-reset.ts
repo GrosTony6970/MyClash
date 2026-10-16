@@ -67,12 +67,16 @@ export async function assertScoredAfterLastReset(
 ): Promise<void> {
   const resetAt = await lastResetAt(supabase, matchId);
   if (!resetAt || Date.parse(occurredAt) > Date.parse(resetAt)) return;
-  throw new ConflictException({
+  throw scoredBeforeReset();
+}
+
+/** The refusal of a press or hit made for the fight a reset cancelled. */
+export const scoredBeforeReset = () =>
+  new ConflictException({
     message:
       'This was scored before the bout was reset. It belongs to the fight that was cancelled.',
     code: SCORED_BEFORE_RESET,
   });
-}
 
 export async function assertSavedAfterLastReset(
   supabase: SupabaseService['service'],
