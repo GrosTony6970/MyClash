@@ -87,6 +87,25 @@ describe('generatePools — the ruleset is read before the force delete', () => 
     expect(supabase.writes).toEqual([]);
   });
 
+  // The count of fought bouts is asked last, just before the delete (ruling 288), as the
+  // bracket's is below. Here the ruleset read, which comes before it, fails first.
+  it('asks the count of fought bouts after its reads, just before the delete', async () => {
+    const { service, supabase } = makeService(
+      {
+        phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
+        tournaments: { rows: [{ id: 'tournament-1', weapon: null, event_id: 'event-1' }] },
+        matches: { rows: [{ id: 'm-1', phase_id: 'old-phase', status: 'completed' }] },
+        registrations: { rows: registrations(4) },
+      },
+      'fails',
+    );
+
+    await expect(service.generatePools('tournament-1', { poolCount: 2 }, true)).rejects.toThrow(
+      RULESET_DOWN,
+    );
+    expect(supabase.writes).toEqual([]);
+  });
+
   // The force delete is the first write, after every refusal: a forced regeneration the
   // field refuses used to take the old phase and make none.
   it('keeps the old phase when a forced regeneration is refused for its Pool count', async () => {

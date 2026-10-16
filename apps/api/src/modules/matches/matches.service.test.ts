@@ -357,6 +357,24 @@ describe('MatchesService', () => {
       expect(supabase.writes).toEqual([]);
     });
 
+    // On the race path too: a failed read there fell into the sequence retries, which met the
+    // same id three times and answered a 400, terminal in the pad's queue, for a saved hit.
+    it('a failed read on the race path is an error too, and nothing more is written', async () => {
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [
+          NEW_EXCHANGE,
+          { data: null, error: { message: 'duplicate key value violates unique constraint' } },
+          { data: null, error: { message: 'connection reset' } },
+        ],
+        ...scorableMatch({ status: 'running', back_in_play_at: null }),
+      });
+
+      await expect(exchangeService.createExchange('m1', HIT_AGAIN)).rejects.toThrow(
+        'Could not read a saved hit: connection reset',
+      );
+      expect(writesTo(supabase, 'exchanges')).toHaveLength(1);
+    });
+
     it("refuses it on the race path too, when another bout's hit took the id first", async () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [

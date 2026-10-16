@@ -91,7 +91,7 @@ describe('PenaltiesService', () => {
   };
 
   it("refuses it on the race path too, when another bout's card took the id first", async () => {
-    const { service, recomputeMatchScore } = cardDoor({
+    const { service, supabase, recomputeMatchScore } = cardDoor({
       maybeSingles: [null, OTHER_BOUTS_CARD],
       insertError: { message: 'duplicate key value violates unique constraint' },
     });
@@ -99,7 +99,23 @@ describe('PenaltiesService', () => {
     await expect(
       service.createPenalty('match-1', BLACK_AGAIN, { userId: 'scorekeeper-1' }),
     ).rejects.toEqual(new BadRequestException('This id is the id of another card'));
+    // Refused by the race read, after the insert: not by the first read.
+    expect(supabase.inserted['match_penalties']).toHaveLength(1);
     expect(recomputeMatchScore).not.toHaveBeenCalled();
+  });
+
+  // A failed race read answered the insert's error as a 400, terminal in the pad's queue, for a
+  // card the server may hold.
+  it('a failed read on the race path is an error too', async () => {
+    const { service, supabase } = cardDoor({
+      maybeSingles: [null, FAILED_READ],
+      insertError: { message: 'duplicate key value violates unique constraint' },
+    });
+
+    await expect(
+      service.createPenalty('match-1', BLACK_AGAIN, { userId: 'scorekeeper-1' }),
+    ).rejects.toThrow('Could not read a saved card: connection reset');
+    expect(supabase.inserted['match_penalties']).toHaveLength(1);
   });
 
   // "Could not read the saved card" is not "not saved": the refusals after the read would
@@ -966,11 +982,16 @@ function failingWrite<T extends object>(api: T, error: { message: string }) {
   return awaited;
 }
 
+/** A queued answer of `maybeSingles` that fails that one read. */
+const FAILED_READ = Symbol('failed read');
+
 /** What a `maybeSingle()` of the table answers: its error, its next queued row, else its row. */
 function oneRowOf(tableState: TableState[string]) {
   if (tableState.readError) return { data: null, error: tableState.readError };
   const queued = tableState.maybeSingles;
-  return { data: queued?.length ? queued.shift() : (tableState.maybeSingle ?? null), error: null };
+  const data = queued?.length ? queued.shift() : (tableState.maybeSingle ?? null);
+  if (data === FAILED_READ) return { data: null, error: { message: 'connection reset' } };
+  return { data, error: null };
 }
 
 /** An `insert(…).select().single()` that answers this error. */
