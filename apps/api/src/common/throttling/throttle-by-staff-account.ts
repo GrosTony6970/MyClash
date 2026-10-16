@@ -37,8 +37,8 @@ const lowerTrimmed = (value: unknown): string =>
  * 52). Keying on the slug alone let a caller send the real id with a made-up
  * slug on every attempt: sign-in ignored that slug, so each spelling of it was
  * a fresh allowance against the same account. Resolving slug → id here instead
- * would mean a database round-trip inside a guard, before the caller has
- * authenticated.
+ * would mean a database round-trip in front of the sign-in, before the caller
+ * has authenticated.
  *
  * Residual: the id path and the `?event=<slug>` QR path are two buckets, so a
  * caller who knows both gets 20 attempts an hour instead of 10. That is still
@@ -69,21 +69,34 @@ function staffAccountKey(req: { body?: unknown }): string {
  * never holds a raw username. Module state, not the interceptor's: every route that carries the
  * decorator shares one count per account, whichever module instantiates it.
  */
-const tries = new Map<string, number[]>();
+export interface TryStore {
+  byBucket: Map<string, number[]>;
+  /** When the store was last swept of the accounts whose hour is over. */
+  sweptAt: number;
+}
+const tries: TryStore = { byBucket: new Map(), sweptAt: 0 };
 
 /** Above this many accounts, a try sweeps the ones whose hour is over. */
-const SWEEP_ABOVE = 10_000;
+export const SWEEP_ABOVE = 10_000;
+/**
+ * At most once a minute. A store of accounts still inside their hour stays above the bound after
+ * a sweep: swept on every try, each sign-in scanned all of them, and a caller who sends wrong
+ * PINs for made-up usernames (event ids are public) grew that cost at will.
+ */
+export const SWEEP_EVERY_MS = 60_000;
 
 /** The account's tries still inside the hour, the same array each time: it is changed in place. */
-function triesOf(bucket: string, now: number): number[] {
-  if (tries.size > SWEEP_ABOVE) {
-    for (const [key, times] of tries) {
-      if ((times.at(-1) ?? 0) <= now - STAFF_PIN_THROTTLE.ttl) tries.delete(key);
+export function triesOf(store: TryStore, bucket: string, now: number): number[] {
+  const expired = now - STAFF_PIN_THROTTLE.ttl;
+  if (store.byBucket.size > SWEEP_ABOVE && now - store.sweptAt >= SWEEP_EVERY_MS) {
+    store.sweptAt = now;
+    for (const [key, times] of store.byBucket) {
+      if ((times.at(-1) ?? 0) <= expired) store.byBucket.delete(key);
     }
   }
-  const times = tries.get(bucket) ?? [];
-  while (times.length > 0 && times[0]! <= now - STAFF_PIN_THROTTLE.ttl) times.shift();
-  tries.set(bucket, times);
+  const times = store.byBucket.get(bucket) ?? [];
+  while (times.length > 0 && times[0]! <= expired) times.shift();
+  store.byBucket.set(bucket, times);
   return times;
 }
 
@@ -102,7 +115,7 @@ export class WrongPinCount implements NestInterceptor {
     if (key === '') return next.handle();
 
     const now = Date.now();
-    const times = triesOf(createHash('sha256').update(key).digest('hex'), now);
+    const times = triesOf(tries, createHash('sha256').update(key).digest('hex'), now);
     if (times.length >= STAFF_PIN_THROTTLE.limit) return throwError(() => new ThrottlerException());
     times.push(now);
     const giveBack = () => {
