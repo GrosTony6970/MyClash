@@ -2,7 +2,6 @@ import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   mockSupabase,
-  queriedTables,
   scopedTo,
   writesTo,
   type SupabaseRow,
@@ -44,6 +43,13 @@ function letIn(userId: string) {
 }
 
 const PHASE_ORG = { event_id: 'event-1', events: { organization_id: 'org-1' } };
+
+/** Two fighters of the Tournament, enough for a bracket. */
+const FIGHTERS: SupabaseRow[] = ['reg-1', 'reg-2'].map((id) => ({
+  id,
+  tournament_id: 'tournament-1',
+  status: 'registered',
+}));
 
 /**
  * The phase under threat holds one fought bout and one unplayed bout. A fought
@@ -213,7 +219,7 @@ describe('a forced "generate Pools again" over fought bouts', () => {
 
     expect((thrown as Error).message).toBe('the phase stayed');
     // Stopped AT the delete: unchecked, the generation went on over the old bouts.
-    expect(queriedTables(s.supabase.from)).not.toContain('registrations');
+    expect(writesTo(s.supabase, 'phases').map((write) => write.op)).toEqual(['delete']);
     expect(s.frozen.tellClosedByReset.mock.calls).toEqual([[CLOSED]]);
   });
 });
@@ -233,7 +239,8 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
       tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
       matches: { rows: bouts('bracket-phase', fought) },
       audit_log: { rows: [] },
-      registrations: { rows: [] },
+      // Two fighters: the delete comes after the bracket's own refusals, "at least 2" among them.
+      registrations: { rows: FIGHTERS },
     });
   const regenerate = (s: ReturnType<typeof setup>, userId?: string, discard?: number) =>
     s.service.generateBracket(

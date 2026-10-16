@@ -241,12 +241,12 @@ export class PhasesService {
       await assertLicesBelongToEvent(this.supabase.service, eventId, [dto.liceId]);
     }
 
-    // Delete existing pool phase if force=true
-    if (existing && force) {
-      const phaseId = (existing as { id: string }).id;
+    // A force over scored bouts is refused here; the delete itself waits until
+    // every other refusal and read below has passed.
+    const replaced = existing && force ? (existing as { id: string }).id : null;
+    if (replaced) {
       const confirmed = dto.discardScoredResults ?? 0;
-      await this.assertForceRegenerationAllowed(phaseId, organizationId, userId, confirmed);
-      await this.deletePhaseAndBouts(phaseId, userId);
+      await this.assertForceRegenerationAllowed(replaced, organizationId, userId, confirmed);
     }
 
     // Fetch registrations
@@ -355,9 +355,13 @@ export class PhasesService {
 
     // Scoring resolves the engine from the MATCH row — stamp the tournament's
     // ruleset (not a hardcoded TF_v1) or non-TF tournaments score wrong. Read
-    // before the phase is made: a read that fails throws, and thrown after it the
-    // phase stood with no Pools, and the next try was refused as a second one.
+    // before the force delete and the phase: a read that fails throws, and
+    // thrown after them the old phase was gone, or the new one stood with no
+    // Pools and the next try was refused as a second one.
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
+    // The first write. Every refusal above landed while the old phase stood.
+    if (replaced) await this.deletePhaseAndBouts(replaced, userId);
 
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
@@ -513,12 +517,13 @@ export class PhasesService {
       );
     }
 
-    if (existing && force) {
-      await this.replaceBracket((existing as { id: string }).id, tournamentId, {
-        organizationId,
-        actorUserId: actorUserId === 'system' ? undefined : actorUserId,
-        confirmed: dto.discardScoredResults ?? 0,
-      });
+    // A force over fought bouts is refused here; the delete itself waits until
+    // every other refusal and read below has passed.
+    const replaced = existing && force ? (existing as { id: string }).id : null;
+    const actor = actorUserId === 'system' ? undefined : actorUserId;
+    if (replaced) {
+      const confirmed = dto.discardScoredResults ?? 0;
+      await this.assertForceRegenerationAllowed(replaced, organizationId, actor, confirmed);
     }
 
     // Determine qualify count
@@ -615,9 +620,13 @@ export class PhasesService {
       }));
     }
 
-    // The ruleset its bouts are stamped with, read BEFORE the phase and its slots are made: a
-    // read that fails throws, and thrown after them the bracket stood with no bouts.
+    // The ruleset its bouts are stamped with, read BEFORE the force delete and the phase and
+    // its slots: a read that fails throws, and thrown after them the old bracket was gone, or
+    // the new one stood with no bouts. A refused bracket, above, reads nothing.
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
+
+    // The first write. Every refusal above landed while the old bracket stood.
+    if (replaced) await this.replaceBracket(replaced, tournamentId, actor);
 
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
@@ -1745,7 +1754,8 @@ export class PhasesService {
   }
 
   /**
-   * "Regenerate bracket": the old bracket goes, with its bouts.
+   * "Regenerate bracket": the old bracket goes, with its bouts. Its caller asked
+   * `assertForceRegenerationAllowed` first, before its other refusals.
    *
    * Counted before the delete, because afterwards there is nothing to count. A
    * regenerate cascades through matches to their exchanges, cards, forfeits and
@@ -1755,10 +1765,8 @@ export class PhasesService {
   private async replaceBracket(
     phaseId: string,
     tournamentId: string,
-    by: { organizationId: string | null; actorUserId: string | undefined; confirmed: number },
+    actorUserId: string | undefined,
   ): Promise<void> {
-    const { organizationId, actorUserId, confirmed } = by;
-    await this.assertForceRegenerationAllowed(phaseId, organizationId, actorUserId, confirmed);
     const { data: doomed } = await this.supabase.service
       .from('matches')
       .select('id, status')

@@ -43,7 +43,14 @@ function setup(type: 'pool' | 'single_elim', fought: number) {
     },
     matches: { rows: bouts },
     audit_log: { rows: [] },
-    registrations: { rows: [] },
+    // Two fighters: a bracket's delete comes after its own refusals, "at least 2" among them.
+    registrations: {
+      rows: ['reg-1', 'reg-2'].map((id) => ({
+        id,
+        tournament_id: 'tournament-1',
+        status: 'registered',
+      })),
+    },
   });
   const service = new PhasesService(
     supabase as never,
