@@ -129,6 +129,23 @@ test.describe('a club member whose login ended an hour ago', () => {
     await expect(notFound(page)).toHaveCount(0);
   });
 
+  // The Tournament page drew its own "Tournament not found", which renewed nothing: her club's
+  // draft Tournament stayed "not found" until she signed in again.
+  test("sees her club's draft Tournament: the login is renewed, and the page is read again", async ({
+    page,
+    context,
+  }) => {
+    await stubPublicApi(page);
+    await page.route('**/api/v1/me', async (route) => {
+      await context.addCookies([{ name: 'sb-access-token', value: 'a-login', url: PUBLIC }]);
+      return route.fulfill({ json: { type: 'claimed' } });
+    });
+    await page.goto(`${PUBLIC}/e/test-event/t/sabre-draft`);
+
+    await expect(page.getByRole('heading', { name: 'Sabre', level: 1 })).toBeVisible();
+    await expect(notFound(page)).toHaveCount(0);
+  });
+
   test('reads "Page not found" with no more load when the login could not be renewed', async ({
     page,
   }) => {

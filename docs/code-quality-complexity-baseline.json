@@ -737,7 +737,7 @@
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/StatsView.tsx:60",
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/SwissRoundsView.tsx:68",
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/TournamentTabs.tsx:69",
-    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/page.tsx:110",
+    "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/page.tsx:111",
     "apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/stats/page.tsx:80",
     "apps/web-public/app/e/[eventSlug]/w/[workshopSlug]/page.tsx:73",
     "apps/web-public/app/e/[eventSlug]/workshops/WorkshopsBrowser.tsx:29",

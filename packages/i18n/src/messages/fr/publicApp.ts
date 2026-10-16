@@ -1153,8 +1153,6 @@ export const publicApp = {
     fighterCount: '{count} combattants',
     loading: 'Chargement…',
     errors: {
-      notFoundTitle: 'Tournoi introuvable',
-      notFoundBody: "Vérifiez l'URL ou revenez une fois le programme publié.",
       loadFailedTitle: "Ce tournoi n'a pas pu être chargé",
       loadFailedBody: "Veuillez réessayer — si le problème persiste, prévenez l'organisateur.",
       technicalDetails: 'Détails techniques',

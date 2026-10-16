@@ -1149,8 +1149,6 @@ export const publicApp = {
     fighterCount: '{count} fighters',
     loading: 'Loading…',
     errors: {
-      notFoundTitle: 'Tournament not found',
-      notFoundBody: 'Check the URL or come back when the schedule is published.',
       loadFailedTitle: "This tournament couldn't be loaded",
       loadFailedBody: 'Please retry — if it keeps happening, let the organizer know.',
       technicalDetails: 'Technical details',

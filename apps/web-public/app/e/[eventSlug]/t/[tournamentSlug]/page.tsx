@@ -12,6 +12,7 @@
  */
 
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
@@ -115,19 +116,9 @@ export default async function TournamentPage({ params }: Props) {
 
   const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
 
-  if (outcome.kind === 'not-found') {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="font-display text-2xl font-bold text-foreground sm:text-3xl mb-2">
-            {t('publicApp.tournament.errors.notFoundTitle')}
-          </h1>
-          <p className="text-muted text-sm">{t('publicApp.tournament.errors.notFoundBody')}</p>
-        </div>
-      </main>
-    );
-  }
+  // The site's one "not found" (quick win F13): it renews a login that ended an hour ago, so a
+  // club member's draft Tournament is not "not found" for her. The page's own card renewed none.
+  if (outcome.kind === 'not-found') notFound();
 
   if (outcome.kind === 'server-error') {
     return (
