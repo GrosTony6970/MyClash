@@ -4258,7 +4258,8 @@ export class EventsService {
     userId: string,
   ): Promise<{ drifted: boolean }> {
     await this.assertTournamentAdmin(tournamentId, userId);
-    await this.stampTournamentContentHash(tournamentId);
+    // The write that throws: this door's answer is the hash, so a write that failed is an error.
+    await this.rulesetHash?.writeTournamentContentHash(tournamentId);
     // The bouts not yet started take the new hash too, as at every other door
     // that changes it: a bout left behind recorded rules it will not be fought under.
     await restampUnstartedMatches(this.supabase.service, tournamentId);

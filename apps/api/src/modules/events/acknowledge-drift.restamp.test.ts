@@ -22,7 +22,8 @@ vi.mock('../phases/match-ruleset', async (original) => ({
 
 const order: string[] = [];
 const assertOrgRole = vi.fn();
-const stampTournamentContentHash = vi.fn(() => {
+// The write that throws, not the best-effort stamp of a save: the whole job of this door.
+const writeTournamentContentHash = vi.fn(() => {
   order.push('hash');
   return Promise.resolve();
 });
@@ -43,7 +44,7 @@ function service() {
     optional,
     optional,
     optional,
-    { stampTournamentContentHash } as never,
+    { writeTournamentContentHash } as never,
   );
 }
 
@@ -63,10 +64,22 @@ describe('acknowledgeTournamentRulesetDrift', () => {
       drifted: false,
     });
 
-    expect(stampTournamentContentHash).toHaveBeenCalledWith('t1');
+    expect(writeTournamentContentHash).toHaveBeenCalledWith('t1');
     expect(vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1])).toEqual(['t1']);
     // The bouts copy the Tournament's hash: the Tournament's comes first.
     expect(order).toEqual(['hash', 'bouts']);
+  });
+
+  // "Acknowledge" answered done when the hash write failed: the banner went away, and came
+  // back at the next read of the page, with nothing said.
+  it('fails, and moves no bout, when the hash write fails', async () => {
+    writeTournamentContentHash.mockRejectedValueOnce(new Error('the database is away'));
+
+    await expect(service().acknowledgeTournamentRulesetDrift('t1', 'u1')).rejects.toThrow(
+      'the database is away',
+    );
+
+    expect(restampUnstartedMatches).not.toHaveBeenCalled();
   });
 
   it('moves no bout for a caller who may not manage the Tournament', async () => {

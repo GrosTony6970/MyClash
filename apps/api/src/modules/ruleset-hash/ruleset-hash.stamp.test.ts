@@ -87,12 +87,50 @@ describe('RulesetHashService.stampTournamentContentHash', () => {
     expect(warn.mock.calls[0]?.[0]).toContain('the database is away');
   });
 
+  // The stored hash read, then the Tournament's row unreadable: read as "no Tournament", it
+  // hashed as nothing and wrote an empty hash over the real one.
+  it('writes no empty hash when the Tournament row cannot be read', async () => {
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const supabase = seeded([
+      { data: TOURNAMENT, error: null },
+      { data: null, error: { message: 'connection reset' } },
+    ]);
+
+    await serviceOver(supabase).stampTournamentContentHash('t1');
+
+    expect(supabase.writes).toEqual([]);
+  });
+
   it('says nothing in the log when the write lands', async () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     await serviceOver(seeded({ rows: [TOURNAMENT] })).stampTournamentContentHash('t1');
 
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/** The write itself, for a door whose whole job is the hash: "Acknowledge". */
+describe('RulesetHashService.writeTournamentContentHash', () => {
+  it('throws when the database refuses the write', async () => {
+    const supabase = seeded([
+      { data: TOURNAMENT, error: null },
+      { data: TOURNAMENT, error: null },
+      { data: null, error: { message: 'the database is away' } },
+    ]);
+
+    await expect(serviceOver(supabase).writeTournamentContentHash('t1')).rejects.toThrow(
+      'the database is away',
+    );
+  });
+
+  it('throws when the stored hash cannot be read', async () => {
+    const supabase = seeded([{ data: null, error: { message: 'connection reset' } }]);
+
+    await expect(serviceOver(supabase).writeTournamentContentHash('t1')).rejects.toThrow(
+      'connection reset',
+    );
+    expect(supabase.writes).toEqual([]);
   });
 });
 

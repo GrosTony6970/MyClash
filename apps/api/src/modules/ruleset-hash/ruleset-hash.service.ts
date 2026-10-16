@@ -65,6 +65,22 @@ export class RulesetHashService {
     return createHash('sha256').update(stableStringify({ scoring, penalty })).digest('hex');
   }
 
+  /**
+   * Recompute + persist a tournament's effective content hash, or throw. Only a
+   * hash that changed is written: most saves change nothing here. For the door
+   * whose whole job is the hash ("Acknowledge"): answered done after a write that
+   * failed, its banner went away and came back at the next read, with nothing said.
+   */
+  async writeTournamentContentHash(tournamentId: string): Promise<void> {
+    const { current, drifted } = await this.describeTournamentDrift(tournamentId);
+    if (!drifted) return;
+    const { error } = await this.supabase.service
+      .from('tournaments')
+      .update({ ruleset_content_hash: current })
+      .eq('id', tournamentId);
+    if (error) throw new Error(error.message);
+  }
+
   /** Recompute + persist a tournament's effective content hash. Callers invoke
    *  this after any change to its ruleset/config/penalty pin. */
   async stampTournamentContentHash(tournamentId: string): Promise<void> {
@@ -75,14 +91,7 @@ export class RulesetHashService {
     // read, so the old hash stayed in place and nothing said so. The settings
     // page then shows its drift banner, and "acknowledge" writes the hash again.
     try {
-      const { current, drifted } = await this.describeTournamentDrift(tournamentId);
-      // Only a hash that changed is written: most saves change nothing here.
-      if (!drifted) return;
-      const { error } = await this.supabase.service
-        .from('tournaments')
-        .update({ ruleset_content_hash: current })
-        .eq('id', tournamentId);
-      if (error) throw new Error(error.message);
+      await this.writeTournamentContentHash(tournamentId);
     } catch (err) {
       this.logger.warn(
         `Failed to stamp content hash for tournament ${tournamentId}: ${String(err)}`,
@@ -118,11 +127,14 @@ export class RulesetHashService {
   async describeTournamentDrift(
     tournamentId: string,
   ): Promise<{ stored: string | null; current: string | null; drifted: boolean }> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('ruleset_content_hash')
       .eq('id', tournamentId)
       .maybeSingle();
+    // A failed read is not "no hash stored": read as one, any hash looked like a change.
+    if (error)
+      throw new Error(`The hash of Tournament ${tournamentId} was not read: ${error.message}`);
     const stored =
       (data as { ruleset_content_hash?: string | null } | null)?.ruleset_content_hash ?? null;
     const current = await this.computeTournamentContentHash(tournamentId);
@@ -130,13 +142,16 @@ export class RulesetHashService {
   }
 
   private async loadTournament(id: string): Promise<TournamentHashRow | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select(
         'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id, penalty_ruleset_version',
       )
       .eq('id', id)
       .maybeSingle();
+    // A failed read is not "no Tournament": read as one, it hashed as nothing, and the stamp
+    // wrote an empty hash over the real one.
+    if (error) throw new Error(`Tournament ${id} was not read for its hash: ${error.message}`);
     return (data as TournamentHashRow | null) ?? null;
   }
 
