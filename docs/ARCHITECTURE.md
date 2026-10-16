@@ -2483,8 +2483,8 @@ only the organisation's owner passes (279); an admin is refused with the code
 `discard_requires_owner`. The bar reads the bout's status. The status route
 (`PATCH /matches/:id/status`) refuses `scheduled` (281): it writes the status alone, so the bout
 would keep its hits and read unplayed. A bout goes back to unplayed by a reset only. It refuses
-`running` and `paused` for a completed bout too (338), in the write itself: the clock's reopen
-is the one way back in play. A new hit or
+`running` and `paused` for every bout (S9, in its DTO; 338 refused them for a completed bout):
+it wrote no clock row and no count, and the clock's Start and Reopen are the ways in play. A new hit or
 card for a `scheduled` bout is refused with the code `bout_not_started`, after the replay probe
 (286, `matches/bout-not-started.ts`): a pad starts a bout online, so such a hit was scored before
 the bout was put back; the pad holds it, and the scorer sends it again or discards it. A DIRECT
