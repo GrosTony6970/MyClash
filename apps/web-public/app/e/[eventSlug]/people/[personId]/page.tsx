@@ -24,6 +24,7 @@ import { fetchEventInfo } from '../../_components/EventHeader';
 import { forgetSchedules } from '@/components/me/schedule-copy';
 import { BackLink } from '@/components/BackLink';
 import { boutPageHref } from '@/lib/bout-page';
+import { personRoleWord, type PersonRole } from '@/lib/person-roles';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 import { followRefusal } from './follow-answer';
 import { ThisIsMeCard } from './ThisIsMeCard';
@@ -33,18 +34,12 @@ interface PersonProfile {
   givenName: string;
   familyName: string;
   clubLabel: string | null;
-  roles: Array<'competitor' | 'referee' | 'instructor'>;
+  roles: PersonRole[];
   allowBeingFollowed: boolean;
   followState: 'following' | 'not_following';
   /** An account holds this roster name (ruling 269). */
   hasAccount: boolean;
 }
-
-const ROLE_LABEL_KEYS = {
-  competitor: 'publicApp.following.roleCompetitor',
-  referee: 'publicApp.following.roleReferee',
-  instructor: 'publicApp.following.roleInstructor',
-} as const;
 
 interface ScheduleMatch {
   id: string;
@@ -263,7 +258,7 @@ export default function PersonProfilePage() {
                   key={r}
                   className="text-xs px-2 py-0.5 rounded-full border bg-border text-foreground-secondary border-border"
                 >
-                  {t(ROLE_LABEL_KEYS[r])}
+                  {personRoleWord(r, t)}
                 </span>
               ))}
             </div>

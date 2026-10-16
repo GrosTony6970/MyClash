@@ -182,10 +182,11 @@ describe('the public person header (ruling 121a)', () => {
       'id, global_person_id',
     ]);
     expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id, status', 'id, status']);
+    // The role's read names WHOSE entry it found: one read serves a whole People search.
     expect(selectsFor(supabase.from, 'registrations')).toEqual([
       'person_id',
       'person_id, tournament_id',
-      'id',
+      'person_id',
     ]);
     expect(selectsFor(supabase.from, 'event_referees')).toEqual(['person_id', 'person_id']);
     expect(selectsFor(supabase.from, 'event_instructors')).toEqual(['person_id', 'person_id']);

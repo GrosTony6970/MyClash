@@ -216,11 +216,6 @@ export const common = {
       rejected: 'Rejected',
       removed: 'Removed',
     },
-    personRole: {
-      competitor: 'Fighter',
-      referee: 'Referee',
-      workshop_lead: 'Instructor',
-    },
     refereeAssignment: {
       assigned: 'Assigned',
       pending: 'Pending',

@@ -13,6 +13,7 @@ import { publicReader, readableEvent } from '../../common/auth/competition-visib
 import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
 import { Public } from '../../common/auth/public.decorator';
 import { CsvImportService } from './csv-import.service';
+import { publicRolesOf, type PublicPersonRole } from './public-person-roles';
 
 // Query DTO: values arrive as strings. `limit` is kept as a string because the
 // handler parses it via parseInt(query.limit, 10); coercing to a number here
@@ -40,7 +41,15 @@ export interface LookupResult {
    * not on `claimed_by_user_id` (an auth user link, not a global id).
    */
   global_person_id: string | null;
+  /**
+   * What the person is at this Event, as the public sees it (`publicRolesOf`, the person page's
+   * owner too): the People search shows them as badges (operator ruling 2026-10-16).
+   */
+  roles: PublicPersonRole[];
 }
+
+/** A row as the three readers find it, before its roles are read for the whole page at once. */
+type LookupRow = Omit<LookupResult, 'roles'>;
 
 // Public person/club lookup used by the public site's search.
 @Public()
@@ -103,11 +112,13 @@ export class LookupController {
     const rows = q
       ? await this.searchByName(eventId, q, limit + hidden.size)
       : await this.listAllParticipants(eventId, limit + hidden.size);
-    return rows.filter((row) => !hidden.has(row.id)).slice(0, limit);
+    const shown = rows.filter((row) => !hidden.has(row.id)).slice(0, limit);
+    const roles = await publicRolesOf(deps, event, shown, reader);
+    return shown.map((row) => ({ ...row, roles: roles.get(row.id) ?? [] }));
   }
 
   /** The Event's people whose name is closest to `q`, best first. */
-  private async searchByName(eventId: string, q: string, limit: number): Promise<LookupResult[]> {
+  private async searchByName(eventId: string, q: string, limit: number): Promise<LookupRow[]> {
     // Call the lookup_persons Postgres function (defined in 0003_lookup_functions.sql)
     const { data, error } = await this.supabase.service.rpc('lookup_persons', {
       p_event_id: eventId,
@@ -150,7 +161,7 @@ export class LookupController {
   }
 
   /** Fallback when pg_trgm function not yet available (pre-migration). */
-  private async fallbackSearch(eventId: string, q: string, limit: number): Promise<LookupResult[]> {
+  private async fallbackSearch(eventId: string, q: string, limit: number): Promise<LookupRow[]> {
     // Strip PostgREST `.or()` meta-characters before interpolation — same
     // injection risk as the global fighter search.
     const safe = sanitizePostgrestFilterValue(q);
@@ -226,7 +237,7 @@ export class LookupController {
    * given name. Used by typeahead inputs that want to show options on focus
    * before the user has typed anything.
    */
-  private async listAllParticipants(eventId: string, limit: number): Promise<LookupResult[]> {
+  private async listAllParticipants(eventId: string, limit: number): Promise<LookupRow[]> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select(

@@ -172,11 +172,6 @@ export const common = {
       rejected: 'Refusé',
       removed: 'Retiré',
     },
-    personRole: {
-      competitor: 'Combattant',
-      referee: 'Arbitre',
-      workshop_lead: 'Instructeur',
-    },
     refereeAssignment: {
       assigned: 'Désigné',
       pending: 'En attente',

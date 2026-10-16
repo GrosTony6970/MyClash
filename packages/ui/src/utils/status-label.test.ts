@@ -55,7 +55,6 @@ const STATES: { [Domain in StatusLabelDomain]: ReadonlyArray<StatusOf<Domain>> }
   leagueUserRole: ['owner', 'admin'],
   leagueOrgRole: ['owner', 'admin', 'member'],
   leagueAttachment: ['requested', 'approved', 'rejected', 'removed'],
-  personRole: ['competitor', 'referee', 'workshop_lead'],
   refereeAssignment: ['assigned', 'pending', 'confirmed'],
   color: [
     'red',

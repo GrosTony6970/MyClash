@@ -132,10 +132,15 @@ beforeEach(() => seed());
 describe('GET /persons/lookup leaves out who is entered only in a draft (rulings 129, 167, 168)', () => {
   it('lists a signed-out visitor everyone but the draft-only entrants, reading what it needs', async () => {
     expect(await families({})).toEqual(PUBLIC);
+    // The draft check reads first; the roles of the people shown read after it (`publicRolesOf`).
+    const check = <T>(reads: T[], n: number) => reads.slice(0, n);
     expect(selectsFor(db.from, 'events')).toEqual(['status, organization_id, event_kind']);
-    expect(selectsFor(db.from, 'tournaments')).toEqual(['id, status']);
-    expect(selectsFor(db.from, 'registrations')).toEqual(['person_id', 'person_id, tournament_id']);
-    expect(filtersFor(db.from, 'registrations', 'in')).toEqual([
+    expect(check(selectsFor(db.from, 'tournaments'), 1)).toEqual(['id, status']);
+    expect(check(selectsFor(db.from, 'registrations'), 2)).toEqual([
+      'person_id',
+      'person_id, tournament_id',
+    ]);
+    expect(check(filtersFor(db.from, 'registrations', 'in'), 3)).toEqual([
       ['tournament_id', ['t-secret']],
       ['person_id', ['p-bea', 'p-cal', 'p-dan', 'p-eve', 'p-gus', 'p-hal']],
       // Only a live entry in a public Tournament keeps someone findable (ruling 168).
@@ -149,10 +154,31 @@ describe('GET /persons/lookup leaves out who is entered only in a draft (rulings
     expect(filtersFor(db.from, 'persons', 'in')).toEqual([
       ['id', ['p-bea', 'p-dan', 'p-eve', 'p-gus', 'p-hal']],
     ]);
-    expect(selectsFor(db.from, 'event_referees')).toEqual(['person_id']);
-    expect(selectsFor(db.from, 'event_instructors')).toEqual(['person_id']);
-    expect(filtersFor(db.from, 'event_referees', 'eq')).toEqual([['event_id', 'e1']]);
-    expect(filtersFor(db.from, 'event_instructors', 'eq')).toEqual([['event_id', 'e1']]);
+    expect(check(selectsFor(db.from, 'event_referees'), 1)).toEqual(['person_id']);
+    expect(check(selectsFor(db.from, 'event_instructors'), 1)).toEqual(['person_id']);
+    expect(check(filtersFor(db.from, 'event_referees', 'eq'), 1)).toEqual([['event_id', 'e1']]);
+    expect(check(filtersFor(db.from, 'event_instructors', 'eq'), 1)).toEqual([['event_id', 'e1']]);
+  });
+
+  // Ruling 2026-10-16: the People search shows each person's roles, as the person page does.
+  it('names the roles of the people it shows: an entry the caller may see, a referee, an instructor', async () => {
+    const shown = await lookup({});
+    const roles = Object.fromEntries(shown.map((row) => [row.family_name, row.roles]));
+    expect(roles).toEqual({
+      Archer: ['competitor'],
+      // Cole is entered in the draft too: what a stranger sees of him is his public entry.
+      Cole: ['competitor'],
+      // Drew and Evans are entered in the draft alone: no entry the stranger may see.
+      Drew: ['referee'],
+      Evans: ['instructor'],
+      Ford: [],
+    });
+  });
+
+  it("names a draft entry as a role for the Event's club", async () => {
+    const shown = await lookup({}, claimed('u-member'));
+    const bea = shown.find((row) => row.family_name === 'Blake');
+    expect(bea?.roles).toEqual(['competitor']);
   });
 
   it.each([
@@ -166,9 +192,10 @@ describe('GET /persons/lookup leaves out who is entered only in a draft (rulings
   it.each([
     ["a member of the Event's club", claimed('u-member')],
     ["the Event's active staff session", staffOf('staff-e1', 'e1')],
-  ])('lists %s everyone, and costs no entry read', async (_who, req) => {
+  ])('lists %s everyone, and the draft check costs no entry read', async (_who, req) => {
     expect(await families({}, req)).toEqual(EVERYONE);
-    expect(queriedTables(db.from)).not.toContain('registrations');
+    // The one entry read is the roles' (`publicRolesOf`); the check's own pair is not made.
+    expect(selectsFor(db.from, 'registrations')).toEqual(['person_id']);
   });
 
   it('never lets a hidden entrant crowd out a visible one under the limit', async () => {

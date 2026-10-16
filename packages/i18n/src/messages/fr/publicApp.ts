@@ -903,6 +903,7 @@ export const publicApp = {
     title: 'Participants',
     searchPlaceholder: 'Chercher par nom...',
     noParticipantsFound: 'Aucun participant trouvé pour "{query}"',
+    searchFailed: 'Impossible de chercher les participants. Vérifiez votre connexion et réessayez.',
     minSearchChars: 'Saisissez au moins 2 caractères pour chercher',
     thisIsMeTitle: "C'est moi !",
     thisIsMeHint:

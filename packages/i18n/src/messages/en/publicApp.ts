@@ -900,6 +900,7 @@ export const publicApp = {
     title: 'Participants',
     searchPlaceholder: 'Search by name...',
     noParticipantsFound: 'No participants found for "{query}"',
+    searchFailed: 'We could not search the participants. Check your connection and try again.',
     minSearchChars: 'Type at least 2 characters to search',
     thisIsMeTitle: 'This is me!',
     thisIsMeHint: 'Claim this profile to follow your schedule, results and notifications.',

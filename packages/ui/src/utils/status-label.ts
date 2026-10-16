@@ -103,7 +103,6 @@ type ScanStatus = 'running' | 'completed' | 'failed';
 type LeagueUserRole = 'owner' | 'admin';
 type LeagueOrgRole = 'owner' | 'admin' | 'member';
 type LeagueAttachmentStatus = 'requested' | 'approved' | 'rejected' | 'removed';
-type PersonRole = 'competitor' | 'referee' | 'workshop_lead';
 type RefereeAssignmentStatus = 'assigned' | 'pending' | 'confirmed';
 
 const SWISS_ROUND: Record<SwissRoundStatus, string> = {
@@ -147,12 +146,6 @@ const LEAGUE_ATTACHMENT: Record<LeagueAttachmentStatus, string> = {
   approved: 'common.status.leagueAttachment.approved',
   rejected: 'common.status.leagueAttachment.rejected',
   removed: 'common.status.leagueAttachment.removed',
-};
-
-const PERSON_ROLE: Record<PersonRole, string> = {
-  competitor: 'common.status.personRole.competitor',
-  referee: 'common.status.personRole.referee',
-  workshop_lead: 'common.status.personRole.workshop_lead',
 };
 
 const REFEREE_ASSIGNMENT: Record<RefereeAssignmentStatus, string> = {
@@ -199,7 +192,6 @@ const STATUS_LABEL_KEYS = {
   leagueUserRole: LEAGUE_USER_ROLE,
   leagueOrgRole: LEAGUE_ORG_ROLE,
   leagueAttachment: LEAGUE_ATTACHMENT,
-  personRole: PERSON_ROLE,
   refereeAssignment: REFEREE_ASSIGNMENT,
   color: COLOR,
 } as const;

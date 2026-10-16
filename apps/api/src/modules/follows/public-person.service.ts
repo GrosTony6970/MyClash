@@ -10,20 +10,15 @@
  * cycle, since follows already imports persons.
  */
 import { Injectable } from '@nestjs/common';
-import {
-  type CompetitionEvent,
-  type PublicReader,
-  visibleTournaments,
-} from '../../common/auth/competition-visibility';
-// The entries the public roster lists (`listPublicParticipants`): withdrawn ones are not.
-import { ENTERED_STATUSES } from '../../common/auth/hidden-entrants';
+import { type CompetitionEvent, type PublicReader } from '../../common/auth/competition-visibility';
+import { publicRolesOf, type PublicPersonRole } from '../persons/public-person-roles';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { readEventPerson } from '../../common/auth/event-person-gate';
 import { type FollowIdentity, FollowsService } from './follows.service';
 
-export type PublicPersonRole = 'competitor' | 'referee' | 'instructor';
+export type { PublicPersonRole };
 
 export interface PublicPersonProfile {
   id: string;
@@ -98,79 +93,13 @@ export class PublicPersonService {
     return { supabase: this.supabase, orgs: this.orgs };
   }
 
-  /** The roles the public roster shows: an entry in a Tournament the caller may see, a referee, an instructor. */
+  /** The roles the public roster shows (`publicRolesOf`, the one owner the People search asks too). */
   private async rolesOf(
     event: CompetitionEvent,
     person: PersonRow,
     reader: PublicReader,
   ): Promise<PublicPersonRole[]> {
-    const [competes, referees, teaches] = await Promise.all([
-      this.competes(event, person.id, reader),
-      this.refereesAt(event.id, person.global_person_id),
-      this.teachesAt(event.id, person.global_person_id),
-    ]);
-    const roles: PublicPersonRole[] = [];
-    if (competes) roles.push('competitor');
-    if (referees) roles.push('referee');
-    if (teaches) roles.push('instructor');
-    return roles;
-  }
-
-  /** An entry in a draft Tournament is no role for an outsider (ruling 127a). */
-  private async competes(
-    event: CompetitionEvent,
-    personId: string,
-    reader: PublicReader,
-  ): Promise<boolean> {
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .select('id, status')
-      .eq('event_id', event.id);
-    if (error) throw new Error(`tournaments read failed: ${error.message}`);
-    const visible = await visibleTournaments(
-      this.deps(),
-      event,
-      (data ?? []) as Array<{ id: string; status: string }>,
-      reader,
-    );
-    if (visible.length === 0) return false;
-    const { data: entries, error: entryError } = await this.supabase.service
-      .from('registrations')
-      .select('id')
-      .eq('person_id', personId)
-      .in(
-        'tournament_id',
-        visible.map((tournament) => tournament.id),
-      )
-      .in('status', ENTERED_STATUSES)
-      .limit(1);
-    if (entryError) throw new Error(`registrations read failed: ${entryError.message}`);
-    return (entries ?? []).length > 0;
-  }
-
-  /** `event_referees.person_id` is the GLOBAL person, as the roster reads it. */
-  private async refereesAt(eventId: string, globalPersonId: string | null): Promise<boolean> {
-    if (!globalPersonId) return false;
-    const { data, error } = await this.supabase.service
-      .from('event_referees')
-      .select('person_id')
-      .eq('event_id', eventId)
-      .eq('person_id', globalPersonId)
-      .maybeSingle();
-    if (error) throw new Error(`event referees read failed: ${error.message}`);
-    return data !== null;
-  }
-
-  /** `event_instructors.person_id` is the GLOBAL person, as the roster reads it. */
-  private async teachesAt(eventId: string, globalPersonId: string | null): Promise<boolean> {
-    if (!globalPersonId) return false;
-    const { data, error } = await this.supabase.service
-      .from('event_instructors')
-      .select('person_id')
-      .eq('event_id', eventId)
-      .eq('person_id', globalPersonId)
-      .maybeSingle();
-    if (error) throw new Error(`event instructors read failed: ${error.message}`);
-    return data !== null;
+    const roles = await publicRolesOf(this.deps(), event, [person], reader);
+    return roles.get(person.id) ?? [];
   }
 }
