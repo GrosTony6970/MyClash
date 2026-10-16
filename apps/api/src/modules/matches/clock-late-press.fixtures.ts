@@ -47,39 +47,41 @@ export function setup(
   sheet: SupabaseRow[] = [],
 ) {
   const rows = [...events];
-  const db = mockSupabase({
-    matches: {
-      rows: [
-        {
-          id: BOUT,
-          status: 'running',
-          locked_at: null,
-          started_at: at('10:00:00'),
-          rounds_json: null,
-          current_round: 1,
-          red_registration_id: 'red',
-          blue_registration_id: 'blue',
-          winner_registration_id: null,
-          red_score: 3,
-          blue_score: 1,
-          match_number_label: 'P1M1',
-          awaiting_round_advance: false,
-          back_in_play_at: null,
-          phases: {
-            type: 'pool',
-            tournaments: { ruleset_config: {}, events: { status: eventStatus } },
-          },
-          ...bout,
-        },
-      ],
+  // The bout's row. A writer that lands between two reads replaces it here: a read made
+  // before keeps the row it was given.
+  const bouts: SupabaseRow[] = [
+    {
+      id: BOUT,
+      status: 'running',
+      locked_at: null,
+      started_at: at('10:00:00'),
+      rounds_json: null,
+      current_round: 1,
+      red_registration_id: 'red',
+      blue_registration_id: 'blue',
+      winner_registration_id: null,
+      red_score: 3,
+      blue_score: 1,
+      match_number_label: 'P1M1',
+      awaiting_round_advance: false,
+      back_in_play_at: null,
+      phases: {
+        type: 'pool',
+        tournaments: { ruleset_config: {}, events: { status: eventStatus } },
+      },
+      ...bout,
     },
+  ];
+  const db = mockSupabase({
+    matches: { rows: bouts },
     match_events: { rows },
     // The bout's sheet: its hits. No card.
     exchanges: { rows: sheet },
     match_penalties: { rows: [] },
   });
   const completion = { onMatchCompleted: vi.fn(), onMatchUncompleted: vi.fn() };
-  return { db, rows, completion, clock: new ClockService(db as never, completion as never) };
+  const clock = new ClockService(db as never, completion as never);
+  return { db, rows, bouts, completion, clock };
 }
 
 /** The code and the status of a refusal. */

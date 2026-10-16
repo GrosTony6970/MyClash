@@ -46,7 +46,7 @@ import {
 import { endedAtOf } from './ended-at';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
-import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
+import { againOnCollision, elapsedAt, eventStatusOf, judgedSequence } from './late-press';
 import { advanceRound, type LateRoundPress } from './round-advance';
 import { writeRoundRow } from './round-rows';
 import { placeLateRoundEnd, type RoundEndBout } from './round-end';
@@ -1070,18 +1070,22 @@ export class ScoringService {
     late: LateRoundPress | null,
   ): Promise<{ redScore: number; blueScore: number }> {
     const db = this.supabase.service;
+    // Before the bout is read (S11): a row written meanwhile collides with the late one.
+    const sequence = late ? await judgedSequence(db, matchId) : null;
     const ctx = await this.loadRoundContext(matchId);
     if (!ctx) throw new NotFoundException(`Match ${matchId} not found`);
     const currentRound = (ctx.matchRow['current_round'] as number) ?? 1;
     const closedRounds = this.parseRoundsJson(ctx.matchRow['rounds_json']);
-    const placed = late
-      ? await placeLateRoundEnd(
-          db,
-          matchId,
-          this.roundEndBout(ctx, currentRound, closedRounds),
-          late,
-        )
-      : null;
+    const placed =
+      late && sequence !== null
+        ? await placeLateRoundEnd(
+            db,
+            matchId,
+            this.roundEndBout(ctx, currentRound, closedRounds),
+            late,
+            sequence,
+          )
+        : null;
     if (placed && 'done' in placed) return placed.done;
     const bestOf = getEffectiveBestOf(ctx.match, ctx.matchFormat);
     if (bestOf <= 1) {

@@ -6,7 +6,6 @@ import { eventResultsFrozen } from './event-results-frozen';
 import { assertScoredAfterLastReset } from './hit-before-reset';
 import {
   boutCompleted,
-  judgedSequence,
   OLDEST_PRESS_MS,
   placedInTimeline,
   pressedAtServer,
@@ -92,16 +91,19 @@ async function endsTimeline(db: Database, matchId: string, sequence: number): Pr
  * A press the server holds, whose round is still open and whose row is the
  * last of the bout, was cut short after its row: the caller closes the round
  * and writes no second row (`saved`).
+ *
+ * `sequence`: the one the caller read BEFORE it read `bout` (`judgedSequence`,
+ * S11). A row written after the bout was read then takes it first, and the
+ * insert collides.
  */
 export async function placeLateRoundEnd(
   db: Database,
   matchId: string,
   bout: RoundEndBout,
   late: LateRoundPress,
+  sequence: number,
 ): Promise<LateRoundEnd> {
   const asked = { clientUuid: late.clientUuid, matchId, type: 'round_end' } as const;
-  // Before the reads that judge the press (S11): a row written meanwhile collides with it.
-  const sequence = await judgedSequence(db, matchId);
   const row = await savedRoundPress(db, asked);
   const saved = row !== null;
   const snapshot = bout.closed.find((round) => round.round === late.round);

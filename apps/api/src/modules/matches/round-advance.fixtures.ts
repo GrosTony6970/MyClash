@@ -29,12 +29,12 @@ export function series(
   eventStatus = 'running',
   sheet: Array<Record<string, unknown>> = [],
 ) {
-  const { db, rows, clock } = setup(events, bout, eventStatus, sheet);
+  const { db, rows, bouts, clock } = setup(events, bout, eventStatus, sheet);
   const scoring = new ScoringService(db as never, undefined as never, clock as never);
   const recompute = vi
     .spyOn(scoring, 'recomputeMatchScore')
     .mockResolvedValue({ redScore: 0, blueScore: 0 });
-  return { db, rows, clock, scoring, recompute };
+  return { db, rows, bouts, clock, scoring, recompute };
 }
 
 export const written = (db: ReturnType<typeof series>['db']) =>

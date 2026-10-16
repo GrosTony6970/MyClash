@@ -92,8 +92,10 @@ export function series(
   eventStatus = 'running',
 ) {
   const rows = [...events];
+  // A writer that lands between two reads replaces the row here (`setup` says why).
+  const bouts: SupabaseRow[] = [boutRow(bout, eventStatus)];
   const db = mockSupabase({
-    matches: { rows: [boutRow(bout, eventStatus)] },
+    matches: { rows: bouts },
     exchanges: { rows: hits },
     match_penalties: { rows: [] },
     match_events: { rows },
@@ -103,7 +105,7 @@ export function series(
     { resolve: vi.fn().mockResolvedValue(null) } as never,
     new ClockService(db as never),
   );
-  return { db, rows, scoring };
+  return { db, rows, bouts, scoring };
 }
 
 export const written = (db: ReturnType<typeof series>['db']) =>
