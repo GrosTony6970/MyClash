@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  selectsFor,
+  writesTo,
+  type SupabaseRow,
+} from '../../common/testing/supabase-chain';
 import { ClockService } from './clock.service';
 
 /**
- * An End that meets the desk's Reopen (S4b).
+ * An End that meets another write on its bout (S4b).
  *
  * The End read the bout running, never put back in play. Before its write, the desk put the bout
- * back in play to correct it (a Reopen, or the undo of the hit that ended it). The End's write
- * then completed the bout the desk had just opened, with nobody looking. It completes it only
- * while nothing has put it back in play since its read; else its clock row is taken back, and
- * the pad holds it as a press made before the bout was put back in play.
+ * back in play to correct it (a Reopen, or the undo of the hit that ended it), or a closing hit
+ * completed it. The End's write then completed the bout the desk had just opened, or wrote its own
+ * winner over the one that won. It completes only a bout that is not completed and that nothing
+ * has put back in play since its read; else its clock row is taken back, and the pad is told why.
  */
 const BOUT = 'm1';
 const AT = (second: number) => `2026-04-25T09:00:${String(second).padStart(2, '0')}.000Z`;
@@ -30,7 +35,8 @@ const bout = (over: SupabaseRow = {}): SupabaseRow => ({
   ...over,
 });
 
-function endMeetingReopen() {
+/** From the End's own clock row on, the bout reads as `since` left it. */
+function endMeeting(since: SupabaseRow) {
   const db = mockSupabase({
     matches: { rows: [bout()] },
     match_events: {
@@ -39,34 +45,55 @@ function endMeetingReopen() {
       ],
     },
   });
-  // From the End's own clock row on, the bout reads as the desk left it: back in play at 09:00:40.
-  const reopened = mockSupabase({ matches: { rows: [bout({ back_in_play_at: REOPENED })] } });
+  const after = mockSupabase({ matches: { rows: [bout(since)] } });
   const real = db.service.from;
   db.service.from = vi.fn((table: string) =>
     table === 'matches' && writesTo(db, 'match_events').length > 0
-      ? reopened.from(table)
+      ? after.from(table)
       : real(table),
   ) as never;
   const completion = { onMatchCompleted: vi.fn(), onMatchUncompleted: vi.fn() };
-  return { db, reopened, completion, clock: new ClockService(db as never, completion as never) };
+  return { db, after, completion, clock: new ClockService(db as never, completion as never) };
 }
 
-describe('ClockService.clockAction end — the desk put the bout back in play meanwhile', () => {
-  it('does not complete it, takes its clock row back, and says why', async () => {
-    const { db, reopened, completion, clock } = endMeetingReopen();
+const refusalOf = (clock: ClockService) =>
+  clock.clockAction(BOUT, 'end', 'auto').then(
+    () => null,
+    (err: { getResponse?: () => unknown }) => err.getResponse?.(),
+  );
 
-    const refusal = await clock.clockAction(BOUT, 'end', 'auto').then(
-      () => null,
-      (err: { getResponse?: () => unknown }) => err.getResponse?.(),
-    );
+describe('ClockService.clockAction end — another write won the bout meanwhile', () => {
+  it('the desk put it back in play: no completion, its clock row taken back, and why', async () => {
+    const { db, after, completion, clock } = endMeeting({ back_in_play_at: REOPENED });
 
-    expect(refusal).toMatchObject({ code: 'pressed_before_reopen' });
+    expect(await refusalOf(clock)).toMatchObject({ code: 'pressed_before_reopen' });
     expect(completion.onMatchCompleted).not.toHaveBeenCalled();
     // The completion was asked only of a bout whose mark is the one the End read.
-    const [write] = writesTo(reopened, 'matches');
+    const [write] = writesTo(after, 'matches');
     expect(write?.row).toMatchObject({ status: 'completed' });
     expect(write?.filters).toContainEqual({ method: 'is', args: ['back_in_play_at', null] });
     // Its row is taken back, so a resend is judged afresh.
     expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert', 'delete']);
+  });
+
+  it('a closing hit completed it for blue: the End writes no winner over it', async () => {
+    const won = { status: 'completed', winner_registration_id: 'blue', end_reason: 'point_cap' };
+    const { db, after, completion, clock } = endMeeting(won);
+
+    expect(await refusalOf(clock)).toMatchObject({ code: 'bout_completed' });
+    expect(completion.onMatchCompleted).not.toHaveBeenCalled();
+    const [write] = writesTo(after, 'matches');
+    expect(write?.filters).toContainEqual({ method: 'neq', args: ['status', 'completed'] });
+    expect(writesTo(db, 'match_events').map((w) => w.op)).toEqual(['insert', 'delete']);
+  });
+
+  it('judges the bout on the status and the mark it read', async () => {
+    const { db, clock } = endMeeting({ back_in_play_at: REOPENED });
+
+    await refusalOf(clock);
+
+    const [read] = selectsFor(db.from, 'matches');
+    expect(read).toMatch(/\bstatus\b/);
+    expect(read).toMatch(/\bback_in_play_at\b/);
   });
 });
