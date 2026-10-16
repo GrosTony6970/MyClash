@@ -4,6 +4,7 @@ import { supabaseChain, writesTo } from '../../common/testing/supabase-chain';
 import {
   BOUT,
   HALTED,
+  RUNNING,
   NOW,
   PRESS,
   collide,
@@ -154,5 +155,55 @@ describe('"Start round N+1" of the pad of before, with no id', () => {
     const { scoring } = series(HALTED, WAITS, 'completed');
 
     await expect(scoring.advanceRound(BOUT, STAFF)).resolves.toEqual({ currentRound: 2 });
+  });
+});
+
+/**
+ * Two sends of one "Start round 2" (S2, operator 2026-10-16). The second passed its rules while
+ * the bout still waited; by the time it reaches the clock, the first has opened round 2 and the
+ * referee has pressed Start. Reset then, round 2's clock went back to 0:00 under the fight.
+ */
+describe('a round advance that another send has opened meanwhile', () => {
+  /** From `when` on (by default the write of this send's round row), round 2 reads as open. */
+  function openedByTheOther(
+    db: ReturnType<typeof series>['db'],
+    when = () => writesTo(db, 'match_events').length > 0,
+  ) {
+    const real = db.service.from;
+    db.service.from = vi.fn((table: string) =>
+      table === 'matches' && when()
+        ? supabaseChain({
+            data: { id: BOUT, current_round: 2, awaiting_round_advance: false },
+            error: null,
+          })
+        : real(table),
+    ) as never;
+  }
+
+  it.each([
+    ['sent late, with its id', advance('10:05:00')],
+    ['of the pad of before', undefined],
+  ])('touches neither the clock nor the bout: %s', async (_, late) => {
+    const { db, clock, scoring, recompute } = series();
+    openedByTheOther(db);
+    const action = vi.spyOn(clock, 'clockAction');
+
+    await expect(scoring.advanceRound(BOUT, STAFF, late)).resolves.toEqual({ currentRound: 2 });
+
+    expect(written(db)).toEqual(['match_events round_advance']);
+    expect(action).not.toHaveBeenCalled();
+    expect(recompute).not.toHaveBeenCalled();
+  });
+
+  // Opened between this send's read of the clock and its Halt: the step asks again.
+  it('does not halt a clock the other send set running after it read it', async () => {
+    const { db, clock, scoring } = series(RUNNING);
+    const read = vi.spyOn(clock, 'getClockState');
+    openedByTheOther(db, () => read.mock.calls.length > 0);
+    const action = vi.spyOn(clock, 'clockAction');
+
+    await expect(scoring.advanceRound(BOUT, STAFF)).resolves.toEqual({ currentRound: 2 });
+
+    expect(action).not.toHaveBeenCalled();
   });
 });

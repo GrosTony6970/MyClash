@@ -184,32 +184,59 @@ export async function writeRoundRow(
 }
 
 /**
+ * Whether the bout still waits for `round` to open. False once another send of the advance has
+ * opened it: the bout row is the last write of an advance, so it says "done" (S2).
+ */
+async function stillWaits(db: Database, matchId: string, round: number): Promise<boolean> {
+  const { data, error } = await db
+    .from('matches')
+    .select('current_round, awaiting_round_advance')
+    .eq('id', matchId)
+    .maybeSingle();
+  if (error) throw new Error(`Bout ${matchId} not read before its clock: ${error.message}`);
+  const bout = data as { current_round: number | null; awaiting_round_advance: boolean } | null;
+  return bout?.awaiting_round_advance === true && (bout.current_round ?? 1) === round - 1;
+}
+
+/**
  * Put the clock to zero for the new round: halt or reopen as needed, then
- * reset. `at`: the time of a late advance; none is now.
+ * reset. `at`: the time of a late advance; none is now. `opened` when another
+ * send of the advance opened the round meanwhile: nothing is touched.
+ *
+ * The race (S2, operator 2026-10-16): two sends of one "Start round 2" pass
+ * their rules while the bout waits. The first opens the round and the referee
+ * presses Start; the second, reset then, put round 2's clock back to 0:00 under
+ * the fight. So each step asks the bout again just before it. What is left is
+ * the few milliseconds between that read and the step, before the first send's
+ * answer has even reached the pad: no Start can land in it.
  *
  * A failure is an error, and a plain one (operator, 2026-10-10): the bout row
  * has not moved, and a pad sends a 5xx again by itself. Swallowed, the round
  * opened with the time of the round before on its clock, and nobody was told.
  */
 async function resetClock(
-  clock: AdvanceDeps['clock'],
+  deps: AdvanceDeps,
   matchId: string,
   round: number,
   actor: Actor | undefined,
   at?: string,
-): Promise<void> {
+): Promise<'reset' | 'opened'> {
+  const { clock } = deps;
   const opensLock = { ...actor, canOverrideLocked: true };
+  const step = async (action: 'halt' | 'reopen' | 'reset_clock', reason: string) => {
+    if (!(await stillWaits(deps.db, matchId, round))) return false;
+    await clock.clockAction(matchId, action, reason, opensLock, false, at);
+    return true;
+  };
   try {
+    if (!(await stillWaits(deps.db, matchId, round))) return 'opened';
     const before = await clock.getClockState(matchId);
-    if (before.status === 'running') {
-      await clock.clockAction(matchId, 'halt', 'round advance', opensLock, false, at);
-    } else if (before.status === 'ended') {
-      await clock.clockAction(matchId, 'reopen', 'round advance', opensLock, false, at);
-    }
+    const first =
+      before.status === 'running' ? 'halt' : before.status === 'ended' ? 'reopen' : null;
+    if (first && !(await step(first, 'round advance'))) return 'opened';
     const after = await clock.getClockState(matchId);
-    if (after.status === 'halted') {
-      await clock.clockAction(matchId, 'reset_clock', 'next round', opensLock, false, at);
-    }
+    if (after.status === 'halted' && !(await step('reset_clock', 'next round'))) return 'opened';
+    return 'reset';
   } catch (err) {
     // Any other failure is a fault the pad sends again. A bout completed while this round opened
     // is not: a resend would be answered "saved". It stays `bout_completed`, which the pad holds.
@@ -234,7 +261,9 @@ async function openRound(
   actor: Actor | undefined,
   at?: string,
 ): Promise<{ currentRound: number }> {
-  await resetClock(deps.clock, matchId, round, actor, at);
+  if ((await resetClock(deps, matchId, round, actor, at)) === 'opened') {
+    return { currentRound: round };
+  }
   const { error } = await deps.db
     .from('matches')
     .update({
