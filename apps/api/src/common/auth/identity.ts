@@ -45,6 +45,28 @@ export function getIdentity(req: FastifyRequest): Identity {
   return (req as RequestWithIdentity).identity ?? ANONYMOUS;
 }
 
+/** The login the request carries: a `Bearer` header, else the login cookie. Not verified here. */
+export function presentedLogin(req: FastifyRequest): string | null {
+  const authHeader = req.headers['authorization'];
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  return (
+    (req as FastifyRequest & { cookies?: Record<string, string> }).cookies?.['sb-access-token'] ??
+    null
+  );
+}
+
+/**
+ * The request carries a login that did not verify, and no other identity: in the
+ * browser that is a login whose hour is up. Only a 401 makes the browser renew it
+ * (`fetchRenewingLogin`); a route that reads it as a stranger answers what a stranger
+ * gets, and nothing renews it.
+ */
+export function carriesEndedLogin(req: FastifyRequest): boolean {
+  return getIdentity(req).kind === 'anonymous' && presentedLogin(req) !== null;
+}
+
 /** Signature and expiry only: whether the account is still active is the caller's check. */
 export function getStaffSession(req: FastifyRequest): StaffSession | null {
   return (req as RequestWithIdentity).staffSession ?? null;

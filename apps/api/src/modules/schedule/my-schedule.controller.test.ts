@@ -5,7 +5,7 @@
  * The ruling: the schedule is hidden too, as every other page of that Event is. Its club and
  * its active staff still read it.
  */
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
 import { MyScheduleController } from './my-schedule.controller';
@@ -78,6 +78,29 @@ describe('GET /events/:eventId/my-schedule', () => {
     const staff = { headers: {}, staffSession: { staffId: 'staff-1', eventId: DRAFT } };
     await t.controller.getMySchedule(DRAFT, staff as never);
     expect(t.schedule.getSchedule).toHaveBeenCalledWith(DRAFT, LEA, LEA);
+  });
+
+  it('answers a login whose hour is up 401 before it reads any Event, so the browser renews it', async () => {
+    // The guard verified nothing: in shadow mode the request goes on as a stranger's.
+    const ended = { headers: {}, cookies: { 'sb-access-token': 'ended' } } as never;
+    for (const event of [DRAFT, OPEN, 'no-such-event']) {
+      const t = door({ member: true });
+      await expect(t.controller.getMySchedule(event, ended)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(queriedTables(t.db.from)).toEqual([]);
+    }
+  });
+
+  it('reads a guest whose old login cookie is still there by her guest session', async () => {
+    const t = door();
+    const both = {
+      headers: {},
+      cookies: { 'sb-access-token': 'ended', mc_guest: 'cookie' },
+      identity: { kind: 'guest', guestSessionId: 'g-1', personId: LEA, eventId: OPEN },
+    } as never;
+    await t.controller.getMySchedule(OPEN, both);
+    expect(t.schedule.getSchedule).toHaveBeenCalledWith(OPEN, LEA, LEA);
   });
 
   it('reads an open Event for its guest, as before', async () => {

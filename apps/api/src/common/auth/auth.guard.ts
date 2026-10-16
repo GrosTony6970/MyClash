@@ -11,7 +11,13 @@ import type { FastifyRequest } from 'fastify';
 import { GuestJwtService } from '../../modules/auth/guest-jwt.service';
 import { StaffJwtService } from '../../modules/staff/staff-jwt.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
-import { ANONYMOUS, type Identity, type RequestWithIdentity, type StaffSession } from './identity';
+import {
+  ANONYMOUS,
+  presentedLogin,
+  type Identity,
+  type RequestWithIdentity,
+  type StaffSession,
+} from './identity';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 export type AuthGuardMode = 'shadow' | 'enforce';
@@ -142,19 +148,11 @@ export class AuthGuard implements CanActivate {
   }
 
   private resolveClaimed(request: FastifyRequest): Identity | null {
-    const token = this.extractBearer(request);
+    const token = presentedLogin(request);
     if (!token) return null;
     const user = this.supabase.verifyAccessTokenLocal(token);
     if (!user) return null;
     return { kind: 'claimed', userId: user.id, email: user.email ?? null };
-  }
-
-  private extractBearer(request: FastifyRequest): string | null {
-    const authHeader = request.headers['authorization'];
-    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      return authHeader.slice(7);
-    }
-    return (request as FastifyRequest & CookieBag).cookies?.['sb-access-token'] ?? null;
   }
 
   /**
@@ -170,7 +168,7 @@ export class AuthGuard implements CanActivate {
 
   /** Distinguishes "never presented a token" from "presented a dead one". */
   private reasonOf(request: FastifyRequest): string {
-    return this.extractBearer(request) ? 'invalid_or_expired_token' : 'no_token';
+    return presentedLogin(request) ? 'invalid_or_expired_token' : 'no_token';
   }
 
   private routeOf(context: ExecutionContext): string {

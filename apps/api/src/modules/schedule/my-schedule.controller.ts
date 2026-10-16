@@ -11,11 +11,12 @@
  * until referee_assignments table is populated.
  */
 
-import { Controller, Get, Param, Req } from '@nestjs/common';
+import { Controller, Get, Param, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { publicReader, readableEvent } from '../../common/auth/competition-visibility';
 import { eventNotFound } from '../../common/auth/event-read-gate';
+import { carriesEndedLogin } from '../../common/auth/identity';
 import { resolveEventId } from '../../common/event-ref';
 import { ParticipantIdentityService } from '../auth/participant-identity.service';
 // Value import, not `import type`: a type import erases the DI metadata.
@@ -52,11 +53,17 @@ export class MyScheduleController {
    * (operator ruling 2026-10-16): its bouts' own pages say "not found" to its guests.
    * Its club and its active staff still read it. Before the person: a hidden Event
    * says nothing about who is in it.
+   *
+   * A login whose hour is up answers 401 first, whatever the Event: read as a stranger,
+   * the club member of a draft Event got "not found", which nothing renews, and her phone
+   * dropped its copy of her schedule. The answer turns on the login alone, so it says
+   * nothing about the Event.
    */
   @Get('events/:eventId/my-schedule')
   @ApiOperation({ summary: "Get authenticated person's unified schedule" })
   @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
   async getMySchedule(@Param('eventId') eventRef: string, @Req() req: FastifyRequest) {
+    if (carriesEndedLogin(req)) throw new UnauthorizedException('Authentication required');
     const eventId = await resolveEventId(this.supabase, eventRef);
     const deps = { supabase: this.supabase, orgs: this.orgs };
     if (!(await readableEvent(deps, eventId, publicReader(req)))) throw eventNotFound(eventId);
