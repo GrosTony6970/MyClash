@@ -1,3 +1,4 @@
+import { foldClock, type ClockMove, type ClockMoveType } from '@myclash/rules';
 import { DEFAULT_SIDE_COLORS, type SideColors } from '../events/side-colors';
 
 export type RefereeRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
@@ -35,6 +36,8 @@ export interface RefereeMatchEventInput {
   type: string;
   occurredAt: string;
   adjustmentMs?: number | null;
+  /** Breaks a tie of two rows of one moment, as the clock does. */
+  sequence?: number;
 }
 
 export interface RefereePenaltyInput {
@@ -297,30 +300,30 @@ function resolveDurationMs(input: RefereeMatchDurationInput): number {
   return replayDuration(input.events ?? []);
 }
 
+/** The rows `foldClock` folds; a bout's other rows (`round_advance`, …) move no clock. */
+const CLOCK_MOVES: ReadonlySet<string> = new Set<ClockMoveType>([
+  'start',
+  'halt',
+  'resume',
+  'end',
+  'reopen',
+  'reset_clock',
+  'adjust_time',
+  'reset_match',
+  'level_resolution',
+]);
+
+/**
+ * The clock's time from its rows, by the clock's own fold and in the clock's own order: by time,
+ * then by sequence (`ClockService.getClockState`). A second fold here sorted by time alone, and a
+ * press placed at the time of the row before it (a press sent late) could sort a Resume before
+ * its Halt: the time that ran after it was lost.
+ */
 function replayDuration(events: RefereeMatchEventInput[]): number {
-  const sorted = [...events].sort(
-    (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+  const ordered = [...events].sort(
+    (a, b) =>
+      Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || (a.sequence ?? 0) - (b.sequence ?? 0),
   );
-  let runningFrom: number | null = null;
-  let activeMs = 0;
-
-  for (const event of sorted) {
-    const occurredAt = new Date(event.occurredAt).getTime();
-    if (event.type === 'start' || event.type === 'resume') {
-      if (runningFrom === null) runningFrom = occurredAt;
-    } else if (event.type === 'halt' || event.type === 'end') {
-      if (runningFrom !== null) {
-        activeMs += Math.max(0, occurredAt - runningFrom);
-        runningFrom = null;
-      }
-    } else if (event.type === 'adjust_time' || event.type === 'level_resolution') {
-      // A step of extra time carries the correction that gives the time.
-      activeMs = Math.max(0, activeMs + (event.adjustmentMs ?? 0));
-    } else if (event.type === 'reset_clock' || event.type === 'reset_match') {
-      activeMs = 0;
-      runningFrom = null;
-    }
-  }
-
-  return activeMs;
+  const moves = ordered.filter((event) => CLOCK_MOVES.has(event.type)) as ClockMove[];
+  return foldClock(moves).activeMs;
 }

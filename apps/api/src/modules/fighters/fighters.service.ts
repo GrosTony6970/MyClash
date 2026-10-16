@@ -2003,7 +2003,7 @@ export class FightersService {
   ): Promise<RefereeMatchDurationInput[]> {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('id, duration_active_ms, match_events(type, occurred_at, adjustment_ms)')
+      .select('id, duration_active_ms, match_events(type, occurred_at, adjustment_ms, sequence)')
       .in('id', matchIds);
     if (error) throw new BadRequestException(error.message);
     return ((data ?? []) as Row[]).map((row) => ({
@@ -2019,6 +2019,7 @@ export class FightersService {
           event['adjustment_ms'] === null || event['adjustment_ms'] === undefined
             ? null
             : Number(event['adjustment_ms']),
+        sequence: Number(event['sequence'] ?? 0),
       })),
     }));
   }

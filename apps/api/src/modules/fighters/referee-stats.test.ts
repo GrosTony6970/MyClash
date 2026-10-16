@@ -238,4 +238,29 @@ describe('buildRefereeStats', () => {
 
     expect(stats.averageRefereeTimeMs).toBe(90_000);
   });
+
+  // A press sent late is often placed at the very time of the row before it, and the bout's rows
+  // come in no order. Sorted by time alone, a Resume could land before its Halt, and the minute
+  // that ran after it was lost. The server's clock breaks a tie by sequence.
+  it('replays two rows of one moment in the order of their sequence', () => {
+    const stats = buildRefereeStats({
+      userId: 'user-ref',
+      assignments: [{ matchId: 'match-1', userId: 'user-ref', role: 'arbitre_assesseur' }],
+      durations: [
+        {
+          matchId: 'match-1',
+          durationActiveMs: null,
+          events: [
+            { type: 'resume', occurredAt: '2026-03-01T10:01:00.000Z', sequence: 3 },
+            { type: 'end', occurredAt: '2026-03-01T10:02:00.000Z', sequence: 4 },
+            { type: 'halt', occurredAt: '2026-03-01T10:01:00.000Z', sequence: 2 },
+            { type: 'start', occurredAt: '2026-03-01T10:00:00.000Z', sequence: 1 },
+          ],
+        },
+      ],
+      penalties: [],
+    });
+
+    expect(stats.averageRefereeTimeMs).toBe(120_000);
+  });
 });

@@ -89,6 +89,15 @@ describe("a referee's stats count only public bouts (ruling 163)", () => {
     expect(filtersFor(db.from, 'matches', 'in')).toEqual([['id', ['m-open']]]);
   });
 
+  // The double ignores the projection: without `sequence`, two clock rows of one moment fold
+  // in no order (`referee-stats.ts`, `replayDuration`).
+  it("reads each bout's clock rows with their sequence", async () => {
+    await stats();
+    expect(selectsFor(db.from, 'matches')).toEqual([
+      'id, duration_active_ms, match_events(type, occurred_at, adjustment_ms, sequence)',
+    ]);
+  });
+
   it('counts a bout read without its statuses as hidden: it fails closed', async () => {
     const tournament = OPEN.matches.phases.tournaments;
     const unread = {
