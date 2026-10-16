@@ -120,8 +120,9 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
 }
 
 /**
- * `hidden` of each Event among these the reader may see, by Event id. The Events are read six
- * at a time, not one after another: a league page asks this for every unclaimed fighter's Events.
+ * `hidden` of each Event among these the reader may see, by Event id. The Events come in one
+ * read, and their `hidden` sets `EVENTS_AT_ONCE` at a time, not one Event after another: a league
+ * page asks this for every unclaimed fighter's Events.
  */
 async function perEvent(
   deps: EventAuthzDeps,
