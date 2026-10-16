@@ -75,7 +75,8 @@ describe('ScoringService.latePress — a Start from a tablet’s queue', () => {
     expect(steps).toEqual(['clock', 'count']);
   });
 
-  it.each(['halt', 'resume', 'end'] as const)('counts nothing at a %s', async (action) => {
+  // An End is `scoring.service.end-reads-sheet.test.ts`: on a level board it asks the sheet.
+  it.each(['halt', 'resume'] as const)('counts nothing at a %s', async (action) => {
     const { db, clock, scoring, recompute } = setup(STARTED);
 
     await expect(scoring.latePress(BOUT, action, PRESS, ACTOR)).resolves.toBe(RUNNING);

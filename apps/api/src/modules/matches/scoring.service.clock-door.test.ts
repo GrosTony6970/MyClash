@@ -113,17 +113,26 @@ describe('ScoringService.clockAction — the sheet after the clock (ruling 331)'
     expect(selectsFor(db.from, 'match_forfeits')).toEqual([]);
   });
 
-  it.each<'end' | 'reset_clock'>(['end', 'reset_clock'])(
-    '%s reads nothing: it takes no bout out of completed',
-    async (action) => {
-      const { db, scoring, recompute } = setup('completed', FORFEITED);
+  it('reset_clock reads nothing: it takes no bout out of completed', async () => {
+    const { db, scoring, recompute } = setup('completed', FORFEITED);
 
-      await scoring.clockAction(BOUT, action);
+    await scoring.clockAction(BOUT, 'reset_clock');
 
-      expect(recompute).not.toHaveBeenCalled();
-      expect(selectsFor(db.from, 'matches')).toEqual([]);
-    },
-  );
+    expect(recompute).not.toHaveBeenCalled();
+    expect(selectsFor(db.from, 'matches')).toEqual([]);
+  });
+
+  // An End reads the bout once, for a board that reads level (`sheetEndedLevelBout`); a
+  // completed bout stops there, and no record is asked.
+  it('end reads the bout once and takes no bout out of completed', async () => {
+    const { db, scoring, recompute } = setup('completed', FORFEITED);
+
+    await scoring.clockAction(BOUT, 'end');
+
+    expect(recompute).not.toHaveBeenCalled();
+    expect(selectsFor(db.from, 'matches')).toHaveLength(1);
+    expect(selectsFor(db.from, 'match_forfeits')).toEqual([]);
+  });
 
   it('asks for the status of this bout and for its live records', async () => {
     const { db, scoring } = setup('completed', FORFEITED);

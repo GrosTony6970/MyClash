@@ -45,10 +45,11 @@ import {
 } from './reopen-match-columns';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
-import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
+import { againOnCollision, elapsedAt, eventStatusOf, pressedAtServer } from './late-press';
 import { advanceRound, writeRoundRow, type LateRoundPress } from './round-advance';
 import { placeLateRoundEnd, type RoundEndBout } from './round-end';
 import { countAtStart, type StartCountDeps } from './start-count';
+import { isLevelBout } from './time-limit-result';
 import { correctedClosedRound, type ClosedRound } from './closed-round-correction';
 import {
   correctionOutcome,
@@ -1365,6 +1366,9 @@ export class ScoringService {
    */
   async clockAction(...asked: Parameters<ClockService['clockAction']>): Promise<ClockState> {
     const [matchId, action] = asked;
+    if (action === 'end' && (await this.sheetEndedLevelBout(matchId))) {
+      return this.clock.getClockState(matchId);
+    }
     const held =
       action !== 'end' && action !== 'reset_clock' ? await this.heldResult(matchId) : null;
     const state = await this.clock.clockAction(...asked);
@@ -1394,10 +1398,35 @@ export class ScoringService {
    * on the sheet, and a tablet would close that round as drawn.
    */
   async latePress(...asked: Parameters<ClockService['latePress']>): Promise<ClockState> {
-    const [matchId, action] = asked;
+    const [matchId, action, press] = asked;
+    const pressedAt = new Date(pressedAtServer(press, Date.now())).toISOString();
+    if (action === 'end' && (await this.sheetEndedLevelBout(matchId, pressedAt))) {
+      return this.clock.getClockState(matchId);
+    }
     const state = await this.clock.latePress(...asked);
     if (action === 'start') await countAtStart(this.startCount(), matchId);
     return state;
+  }
+
+  /**
+   * An End on a bout in play whose board reads level asks the sheet first; true when the sheet
+   * ended the bout, so the End adds nothing.
+   *
+   * A Reopen does not read the sheet again (ruling 331: the referee may correct it first). A
+   * bout that counts down and ended with both out of points keeps a board of 0 - 0, which names
+   * no leader: the End read it as level and gave a draw, or "play sudden death", to a bout the
+   * fighter less far below zero had won. The sheet's own end decides it, with its winner. A
+   * board with a leader is the End's to decide, as before, and so is a sheet still level. A
+   * series ends its rounds by its own door (`endRoundOnTime`).
+   */
+  private async sheetEndedLevelBout(matchId: string, causedAt?: string): Promise<boolean> {
+    const m = await this.loadMatchRow(matchId);
+    if (!m || m['status'] === 'completed' || !isLevelBout(m)) return false;
+    const bout = await this.loadBout(m);
+    if (getEffectiveBestOf(bout.match, bout.matchFormat) > 1) return false;
+    if (!this.scoreSingleFight(bout, bout).decision.isOver) return false;
+    await this.recomputeMatchScore(matchId, causedAt);
+    return true;
   }
 
   private startCount(): StartCountDeps {
