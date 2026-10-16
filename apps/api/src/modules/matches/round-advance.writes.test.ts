@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { selectsFor, supabaseChain, writesTo } from '../../common/testing/supabase-chain';
 import {
   BOUT,
+  ENDED,
   HALTED,
   RUNNING,
   NOW,
@@ -208,35 +209,59 @@ describe('a round advance that another send has opened meanwhile', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
-  it('reads the round and the wait of the bout before each clock step', async () => {
+  it('reads the status, the round and the wait of the bout before each clock step', async () => {
     const { db, scoring } = series();
 
     await scoring.advanceRound(BOUT, STAFF, advance('10:05:00'));
 
-    expect(selectsFor(db.from, 'matches')).toContain('current_round, awaiting_round_advance');
+    expect(selectsFor(db.from, 'matches')).toContain(
+      'status, current_round, awaiting_round_advance',
+    );
   });
 });
 
 /**
- * The bout no longer waits for the round, and nobody opened it: the desk reset the bout, or a
- * Reopen put round 1 back in play, after this send passed its rules. The advance is refused,
- * never answered as an open round 2 (the pad would drop its press as taken).
+ * The bout no longer waits for the round, and nobody opened it, after this send passed its
+ * rules: the desk reset the bout, a Reopen put round 1 back in play, or a forfeit completed it
+ * (which leaves the bout "awaiting" round 2). The advance is refused, never answered as an open
+ * round 2 (the pad would drop its press as taken), and its row is taken back: a `round_advance`
+ * row puts round 1's level chain back to its top. Before, the forfeit was undone too: the
+ * advance's Reopen of the ended clock un-completed the bout and voided the forfeit.
  */
-describe('a round advance whose bout was put back meanwhile', () => {
+describe('a round advance whose bout was put back or completed meanwhile', () => {
   it.each([
-    ['reset', { status: 'scheduled', current_round: 1, awaiting_round_advance: false }],
-    ['reopened in round 1', { status: 'paused', current_round: 1, awaiting_round_advance: false }],
-  ])('is refused, and touches neither the clock nor the bout: %s', async (_, bout) => {
-    const { db, clock, scoring, recompute } = series();
-    boutMeanwhile(db, bout);
-    const action = vi.spyOn(clock, 'clockAction');
+    [
+      'reset',
+      { status: 'scheduled', current_round: 1, awaiting_round_advance: false },
+      'round_not_waiting',
+    ],
+    [
+      'reopened in round 1',
+      { status: 'paused', current_round: 1, awaiting_round_advance: false },
+      'round_not_waiting',
+    ],
+    [
+      'completed by a forfeit',
+      { status: 'completed', current_round: 1, awaiting_round_advance: true },
+      'bout_completed',
+    ],
+  ])(
+    'is refused, takes its row back, touches neither clock nor bout: %s',
+    async (_, bout, code) => {
+      const { db, clock, scoring, recompute } = series(ENDED);
+      boutMeanwhile(db, bout);
+      const action = vi.spyOn(clock, 'clockAction');
 
-    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
-      status: 409,
-      code: 'round_not_waiting',
-    });
-    expect(written(db)).toEqual(['match_events round_advance']);
-    expect(action).not.toHaveBeenCalled();
-    expect(recompute).not.toHaveBeenCalled();
-  });
+      expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+        status: 409,
+        code,
+      });
+      const rows = writesTo(db, 'match_events');
+      expect(rows.map((write) => write.op)).toEqual(['insert', 'delete']);
+      expect(rows[1]?.filters).toContainEqual({ method: 'eq', args: ['sequence', 4] });
+      expect(writesTo(db, 'matches')).toEqual([]);
+      expect(action).not.toHaveBeenCalled();
+      expect(recompute).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -17,7 +17,7 @@ import {
 } from './late-press';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { savedRoundPress, writeRoundRow } from './round-rows';
-import { nextSequence } from './timeline-sequence';
+import { nextSequence, takeBackRow } from './timeline-sequence';
 import { nothingOnTheSheet } from './start-count';
 
 type Database = SupabaseService['service'];
@@ -109,18 +109,25 @@ const advanceTo = (round: number) =>
 /**
  * Where the bout stands for `round`, read again before each clock step (S2): it still `waits`
  * for it; another send of the advance `opened` it (the bout row is the last write of an advance,
- * so it says "done"); or it `moved` back, by a reset or a Reopen of the round before.
+ * so it says "done"); it `moved` back, by a reset or a Reopen of the round before; or it was
+ * `completed`, by a forfeit, which leaves `awaiting_round_advance` as it was. Read as waiting,
+ * the advance's Reopen of the ended clock un-completed the bout and voided the forfeit.
  */
-type Waiting = 'waits' | 'opened' | 'moved';
+type Waiting = 'waits' | 'opened' | 'moved' | 'completed';
 
 async function waitingFor(db: Database, matchId: string, round: number): Promise<Waiting> {
   const { data, error } = await db
     .from('matches')
-    .select('current_round, awaiting_round_advance')
+    .select('status, current_round, awaiting_round_advance')
     .eq('id', matchId)
     .maybeSingle();
   if (error) throw new Error(`Bout ${matchId} not read before its clock: ${error.message}`);
-  const bout = data as { current_round: number | null; awaiting_round_advance: boolean } | null;
+  const bout = data as {
+    status: string;
+    current_round: number | null;
+    awaiting_round_advance: boolean;
+  } | null;
+  if (bout?.status === 'completed') return 'completed';
   const current = bout?.current_round ?? 1;
   if (bout?.awaiting_round_advance === true && current === round - 1) return 'waits';
   return current >= round ? 'opened' : 'moved';
@@ -182,17 +189,23 @@ async function resetClock(
   }
 }
 
-/** The clock at zero, then the bout in its new round, then its sheet read again. */
+/**
+ * The clock at zero, then the bout in its new round, then its sheet read again. `sequence`: this
+ * advance's row. A bout that moved back or was completed meanwhile takes it back and refuses:
+ * left in the timeline, a `round_advance` row puts the level chain of the round before back to
+ * its top, and a resend was answered "taken".
+ */
 async function openRound(
   deps: AdvanceDeps,
   matchId: string,
   round: number,
   actor: Actor | undefined,
-  at?: string,
+  { sequence, at }: { sequence: number; at?: string },
 ): Promise<{ currentRound: number }> {
   const clockAt = await resetClock(deps, matchId, round, actor, at);
   if (clockAt === 'opened') return { currentRound: round };
-  if (clockAt === 'moved') throw roundNotWaiting(round);
+  if (clockAt === 'moved') await takeBackRow(deps.db, matchId, sequence, roundNotWaiting(round));
+  if (clockAt === 'completed') await takeBackRow(deps.db, matchId, sequence, boutCompleted());
   const { error } = await deps.db
     .from('matches')
     .update({
@@ -224,8 +237,29 @@ async function advanceNow(
     throw new BadRequestException('Match is already completed');
   }
   const round = roundOf(bout) + 1;
-  await writeRoundRow(deps.db, matchId, advanceTo(round), actor);
-  return openRound(deps, matchId, round, actor);
+  const sequence = await writeRoundRow(deps.db, matchId, advanceTo(round), actor);
+  return openRound(deps, matchId, round, actor, { sequence });
+}
+
+/**
+ * An advance the server holds, on a bout that no longer waits for it: answered with the bout's
+ * round. The count is the last step of `openRound`. When it failed, the round is open with the
+ * score of the round before on the bout's row, and this press came back as an error: its next
+ * send finishes the count here. Only while that round holds nothing (`unfinished`, and an empty
+ * sheet): the tablet's own hits of it wait behind this press. A round that was fought is left
+ * alone. Its sheet may be at the cap, and a count would close it again under a referee who has
+ * just put it back in play (as `ScoringService.clockAction` says).
+ */
+async function answerSavedAdvance(
+  deps: AdvanceDeps,
+  matchId: string,
+  round: number,
+  bout: { current: number; unfinished: boolean },
+): Promise<{ currentRound: number }> {
+  if (bout.unfinished && (await nothingOnTheSheet(deps.db, matchId, round))) {
+    await deps.recompute(matchId);
+  }
+  return { currentRound: bout.current };
 }
 
 /**
@@ -263,7 +297,8 @@ async function advanceLate(
   // The body is also the one of "End round", which round 1 has. No press opens it.
   if (late.round < 2) throw new BadRequestException('No press opens round 1');
   const asked = { clientUuid: late.clientUuid, matchId, type: 'round_advance' } as const;
-  const saved = (await savedRoundPress(db, asked)) !== null;
+  const savedRow = await savedRoundPress(db, asked);
+  const saved = savedRow !== null;
   const sequence = await nextSequence(db, matchId); // Before the reads that judge it (S11).
   const bout = await readBout(db, matchId);
   const current = roundOf(bout);
@@ -272,18 +307,8 @@ async function advanceLate(
   // A forfeit completes a bout and leaves `awaiting_round_advance` as it was.
   const waits = bout['awaiting_round_advance'] === true && current === late.round - 1 && !completed;
   if (saved && (!waits || over)) {
-    // The count is the last step of `openRound`. When it failed, the round is
-    // open with the score of the round before on the bout's row, and this
-    // press came back as an error: its next send finishes the count here.
-    // Only while that round holds nothing: the tablet's own hits of it wait
-    // behind this press. A round that was fought is left alone. Its sheet may
-    // be at the cap, and a count would close it again under a referee who has
-    // just put it back in play (as `ScoringService.clockAction` says).
     const unfinished = !over && !completed && current === late.round;
-    if (unfinished && (await nothingOnTheSheet(db, matchId, late.round))) {
-      await deps.recompute(matchId);
-    }
-    return { currentRound: current };
+    return answerSavedAdvance(deps, matchId, late.round, { current, unfinished });
   }
 
   const nowMs = Date.now();
@@ -300,8 +325,10 @@ async function advanceLate(
 
   const at = await placedInTimeline(db, matchId, pressedMs);
   const row = { ...late, at, sequence };
-  if (!saved) await writeRoundRow(db, matchId, advanceTo(late.round), actor, row);
-  return openRound(deps, matchId, late.round, actor, at);
+  const written = savedRow
+    ? savedRow.sequence
+    : await writeRoundRow(db, matchId, advanceTo(late.round), actor, row);
+  return openRound(deps, matchId, late.round, actor, { sequence: written, at });
 }
 
 /**

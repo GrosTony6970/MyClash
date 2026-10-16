@@ -47,7 +47,7 @@ export async function savedRoundPress(
 }
 
 /**
- * Write a round's row in the bout's timeline, and say when it is not written.
+ * Write a round's row in the bout's timeline, and say when it is not written. Answers its sequence.
  *
  * `round_advance` is state, not an audit line: `computeClockState` reads it as
  * the marker that puts the level-at-time chain back to the top. A late row
@@ -69,7 +69,7 @@ export async function writeRoundRow(
   },
   actor: Actor | undefined,
   late?: { clientUuid?: string; at: string; sequence?: number },
-): Promise<void> {
+): Promise<number> {
   // A late row's sequence is the one read before its rules (`nextSequence`).
   const sequence = late?.sequence ?? (await nextSequence(db, matchId));
   const { error } = await db.from('match_events').insert({
@@ -83,7 +83,7 @@ export async function writeRoundRow(
     ...(written.adjustmentMs !== undefined ? { adjustment_ms: written.adjustmentMs } : {}),
     ...(late?.clientUuid ? { client_uuid: late.clientUuid } : {}),
   });
-  if (!error) return;
+  if (!error) return sequence;
   if (late && error.code === UNIQUE_VIOLATION) throw new ClockRowCollided();
   throw new BadRequestException(error.message);
 }

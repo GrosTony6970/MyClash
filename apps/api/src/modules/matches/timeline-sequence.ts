@@ -24,3 +24,22 @@ export async function nextSequence(db: Database, matchId: string): Promise<numbe
   if (error) throw new Error(`Could not read the timeline of bout ${matchId}: ${error.message}`);
   return ((data as { sequence: number } | null)?.sequence ?? 0) + 1;
 }
+
+/**
+ * Take back the row a press wrote at `sequence` when the bout write that follows it lost, so a
+ * resend is judged afresh; then refuse. A take-back that fails says the row is kept.
+ */
+export async function takeBackRow(
+  db: Database,
+  matchId: string,
+  sequence: number,
+  refusal: Error,
+): Promise<never> {
+  const { error } = await db
+    .from('match_events')
+    .delete()
+    .eq('match_id', matchId)
+    .eq('sequence', sequence);
+  if (error) throw new Error(`Bout ${matchId} changed meanwhile, row kept: ${error.message}`);
+  throw refusal;
+}

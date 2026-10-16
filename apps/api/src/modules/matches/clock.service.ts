@@ -51,7 +51,7 @@ import {
 import { matchLocked } from './match-locked';
 import { scoredBeforeReset } from './hit-before-reset';
 import { pressedBeforeReopen } from './press-before-reopen';
-import { nextSequence } from './timeline-sequence';
+import { nextSequence, takeBackRow } from './timeline-sequence';
 import { resetAfterLevelStep } from './reset-after-level-step';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import type { LevelStep } from '@myclash/rulesets';
@@ -517,20 +517,7 @@ export class ClockService {
     columns: Record<string, unknown>,
   ): Promise<void> {
     if (await this.writeIfNotCompleted(matchId, columns)) return;
-    await this.takeBackRow(matchId, sequence, boutCompleted());
-  }
-
-  /** Take back the clock row a bout write lost, so a resend is judged afresh, then refuse. */
-  private async takeBackRow(matchId: string, sequence: number, refusal: Error): Promise<never> {
-    const { error: takeBack } = await this.supabase.service
-      .from('match_events')
-      .delete()
-      .eq('match_id', matchId)
-      .eq('sequence', sequence);
-    if (takeBack) {
-      throw new Error(`Bout ${matchId} changed meanwhile, clock row kept: ${takeBack.message}`);
-    }
-    throw refusal;
+    await takeBackRow(this.supabase.service, matchId, sequence, boutCompleted());
   }
 
   /** Write one clock row, and what it does to the bout. */
@@ -570,7 +557,7 @@ export class ClockService {
     } else if (action === 'end') {
       // Reset or put back in play since its read: not this End's bout any more.
       const refusal = await this.completeOnEnd(matchId, match, current, ending, now);
-      if (refusal) await this.takeBackRow(matchId, sequence, refusal);
+      if (refusal) await takeBackRow(this.supabase.service, matchId, sequence, refusal);
     } else if (action === 'reopen') {
       await inPlay(reopenColumns(match, uncompletes, now));
     }
