@@ -3014,6 +3014,55 @@ pass; every new test was run red on the old code, or against a seeded break.
 - The rest of "The server" above (S2, S4, S9, S11, S13a, S14, R3, R4, R6, R7, O2a to O7, "Reset +
   chain"): the next batch.
 
+### Built on 2026-10-16: the server pass, second batch
+
+Seven more plain bugs of "The server" and the ruling "Reset + chain" are built (sessions 3c4e6506
+and 6f5085da). Pushed once, `664b2360` … `d46caf3d`. Three cold reviews ran: the batch (one
+blocker), its three fixes (no blocker, no major; two small items, built before the push), and those
+two again (no blocker, no major).
+
+| Item          | Built in                           | What it turned out to be                                                                                                                                                                                                                                                                       |
+| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Back-in-play  | `664b2360`, `81531fcb`             | The mark never moves back (`backInPlayColumns(at, held)`). **The review found the recompute's read did not select the mark** (blocker): the fix was a no-op there, every test green, since the test double answers every column it holds. The read selects it now, and a test pins the select. |
+| Late end time | `a77a618c`, `6ea8e4b8`, `bd66cdd4` | A bout a hit sent late decides ends at the time of that hit, never before it started or was last put back in play (`endedAtOf`, single fight and series).                                                                                                                                      |
+| Archived pad  | `965d9fd0`                         | A clock press with no id on an Event that is over is refused with the code the pad words (`eventNotOpenForStaff`, `event_results_frozen`).                                                                                                                                                     |
+| Hash write    | `9a6ee9cd`                         | "Acknowledge" fails when the hash write fails (`writeTournamentContentHash`); an unreadable Tournament row writes no empty hash.                                                                                                                                                               |
+| Club ruleset  | `4435ac34`                         | A club ruleset a bout still carries is archived, never deleted; a count that fails is an error, never a delete.                                                                                                                                                                                |
+| League page   | `448f48d5`, `b2a1fc9e`             | The Events of a list that spans many are read six at a time (`perEvent`), not one after another.                                                                                                                                                                                               |
+| Workshop seat | `1dc8c01f`                         | A seat or booking count that cannot be read is an error: it books nobody, and the Workshop list never shows 0.                                                                                                                                                                                 |
+| Reset + chain | `e4b2e1a6`                         | Ruled above: "Reset clock" is refused once a level step is taken (`resetAfterLevelStep`, en + fr).                                                                                                                                                                                             |
+
+What ran: three cold reviews, the gate chain (31 of 31, three times), API coverage (658 files / 8549
+tests), the browser suite (428 of 428), CI run 38936022033, every job green on its second attempt (the first lost two share-button tests, the known flake; nothing of this batch is near them). **No falsifier ran** over this
+batch; every new test was run red on the old code, or against a seeded break.
+
+### What the server's second batch chose, not ruled
+
+- A clock press on an Event that is over keeps its 403 and its English message; only the code is
+  new, so a pad of today and an older one both read it.
+- A Workshop list whose booking counts cannot be read is a server error, not a list of empty
+  Workshops.
+- The pad still shows "Reset clock" after a level step, and the server refuses it with words. Hiding
+  it is the next batch.
+
+### Named by the second batch, not fixed
+
+- A Reopen written between a writer's read of the back-in-play mark and its write is overwritten by
+  the earlier time.
+- The round-end button writes the end time of the press (`scoring.service.ts:1139`): it is placed
+  after the last row, but not checked against `started_at`.
+- `PATCH /matches/:id/status running` moves `started_at` forward on every call (no front end calls
+  it; S9 removes running and paused).
+- `fought-match.ts` says "exactly two writers" of `started_at`: `setStatus` is a third.
+- The Workshop list's counts read bookings as rows, cut at 1000 with no word; a venue area's list is
+  unpaged. Both wait for one shared paged-read owner.
+- Two saves at once, the later hash wins; `stampEventInheritingTournaments` drops its read error;
+  the drift read answers "not drifted" on any failure; no organiser page calls the drift or
+  Acknowledge routes.
+- An edit of a club ruleset while finished bouts carry it is still allowed.
+- The series tests of the late end time leave round 1's sheet empty, so they also run the "kept the
+  result of round 1" path.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
