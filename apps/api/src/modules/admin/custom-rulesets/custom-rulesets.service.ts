@@ -658,11 +658,12 @@ export class CustomRulesetsService {
         'Cannot delete the default ruleset. Set another ruleset as default first.',
       );
 
-    // Delist ≠ delete: a ruleset any tournament pins must resolve forever, so a
-    // hard delete would 400 that tournament's standings. Soft-archive instead —
+    // Delist ≠ delete: a ruleset any tournament pins, or any bout carries, must
+    // resolve forever, so a hard delete would 400 that tournament's standings, or
+    // score a correction with TF_v1. Soft-archive instead —
     // the row leaves every picker/list but stays resolvable. Only an
     // unreferenced ruleset is truly deleted.
-    if (await this.isReferencedByAnyTournament(existing.code)) {
+    if (await this.isReferencedByAnyTournamentOrBout(existing.code)) {
       await this.updateStatus(id, 'archived', actorUserId);
       return { archived: true };
     }
@@ -755,12 +756,22 @@ export class CustomRulesetsService {
    * parent id; so deleting orphans every pinned version, not just the current
    * one. Delete callers use this to soft-archive instead.
    */
-  private async isReferencedByAnyTournament(code: string): Promise<boolean> {
-    const { count } = await this.supabase.service
-      .from('tournaments')
-      .select('id', { count: 'exact', head: true })
-      .eq('ruleset_code', code);
-    return (count ?? 0) > 0;
+  /**
+   * Does a Tournament pin this code, or a bout carry it? A bout keeps the ruleset it was stamped
+   * with when its Tournament moves to another one: deleted, a correction of a finished bout was
+   * scored with TF_v1. A count that fails is an error: read as 0, the ruleset was deleted.
+   */
+  private async isReferencedByAnyTournamentOrBout(code: string): Promise<boolean> {
+    for (const table of ['tournaments', 'matches'] as const) {
+      const { count, error } = await this.supabase.service
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('ruleset_code', code);
+      if (error)
+        throw new Error(`The ${table} of ruleset ${code} were not counted: ${error.message}`);
+      if ((count ?? 0) > 0) return true;
+    }
+    return false;
   }
 
   /**
@@ -1335,8 +1346,8 @@ export class CustomRulesetsService {
   async deleteForOrg(id: string, actorUserId: string): Promise<{ archived: boolean }> {
     const existing = await this.getById(id);
     // Delist ≠ delete: preserve resolution for any tournament pinning this
-    // ruleset by soft-archiving instead of deleting (see remove()).
-    if (await this.isReferencedByAnyTournament(existing.code)) {
+    // ruleset, or bout carrying it, by soft-archiving instead (see remove()).
+    if (await this.isReferencedByAnyTournamentOrBout(existing.code)) {
       await this.updateStatus(id, 'archived', actorUserId);
       return { archived: true };
     }
