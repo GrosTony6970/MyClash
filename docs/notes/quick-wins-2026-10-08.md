@@ -2965,6 +2965,15 @@ Four rows the server batches left, and S2, each asked with a story (do not ask t
 | Auto-lock | A Pool's last bout is decided by a hit made at 10:06 that reaches the server at 11:00. Counted from the true end, a 30-minute auto-lock fires on arrival.                                                                                                                                | **The later of the end and the last write**: the wait counts from the later of the bout's end time and its last change on the server.                                         |
 | S2        | A pad sends "Start round 2" again before the first answer. The first send opens the round and the referee presses Start; the second, which passed its rules while the bout waited, puts round 2's clock back to 0:00 under the fight.                                                    | **Check again just before**: each clock step of the advance reads the bout again and stops when the round is open. No claim column.                                           |
 
+### Rulings — operator, 2026-10-17: after the server's fourth batch
+
+Asked with a story at the start of session 580b293a (do not ask them again):
+
+| Row             | Story                                                                                                                                                                                  | Ruling                                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Single-add link | Claire wants Tom's row on Léa's account. Since O7 the import refuses that link; "Add participant" lets her search for Léa, pick her profile and save, and Léa's account takes the row. | **Trust the pick**: a profile picked by hand in "Add participant" is a deliberate choice. O7 stays a consistency fix of the import. Nothing to build. |
+| Medal year (O6) | A medal's year holds at the server only (2000 to this year); the table checks nothing, and a table rule cannot safely read "this year".                                                | **Floor only**: the table refuses a year before 2000. "Not after this year" stays at the server.                                                      |
+
 ### Built on 2026-10-16: the server pass, first batch
 
 The plain bugs of "The server" that the ruling round named first, and the rulings "Late End round"
