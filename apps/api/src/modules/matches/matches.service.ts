@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -21,7 +20,6 @@ import { scoredAtServer } from './late-press';
 import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
-import { noResultColumns } from './reopen-match-columns';
 import { unplayedMatchColumns } from './unplayed-match-columns';
 import { nextSequence } from './timeline-sequence';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
@@ -245,15 +243,12 @@ export class MatchesService {
   }
 
   /**
-   * The one write that moves a match between statuses, and the side effect
-   * that hangs off its completed end.
+   * The write that completes or voids a match, and the side effect that hangs
+   * off its completed end.
    *
-   * A COMPLETED BOUT IS NOT SET RUNNING OR PAUSED HERE (ruling 338). The
-   * clock's Reopen is the one way back in play: it reads the sheet again, or
-   * puts the earlier score back (rulings 331, 332). This door did neither, and
-   * left a forfeit's or an override's score on a running bout. The refusal is
-   * in the write itself, not in a read before it: the pad's closing hit can
-   * complete the bout between the two.
+   * NO BOUT IS PUT IN PLAY HERE (S9, and ruling 338 before it). The clock's
+   * Start and Reopen are the ways in: they write the clock row, and the Reopen
+   * reads the sheet again or puts the earlier score back (rulings 331, 332).
    *
    * COMPLETION AWAITED. The comment this replaces justified a fire-and-forget by
    * claiming the endpoint was only reachable from the e2e specs — which
@@ -270,29 +265,20 @@ export class MatchesService {
       status,
       updated_at: new Date().toISOString(),
     };
-    const inPlay = status === 'running' || status === 'paused';
-
-    if (status === 'running') updates['started_at'] = new Date().toISOString();
-    // Ruling 331: in play, a bout carries no result (as after the clock's reopen).
-    if (inPlay) Object.assign(updates, noResultColumns());
     if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
       if (winnerRegistrationId) updates['winner_registration_id'] = winnerRegistrationId;
     }
 
-    let write = this.supabase.service.from('matches').update(updates).eq('id', matchId);
-    if (inPlay) write = write.neq('status', 'completed');
-    const { data, error } = await write.select('*').maybeSingle();
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(updates)
+      .eq('id', matchId)
+      .select('*')
+      .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
-    if (!data) {
-      // The door found the bout a moment ago, so an in-play write that reached
-      // no row met the filter above. A bout deleted since the door reads the
-      // same, in either arm: the write cannot tell the two apart.
-      throw inPlay
-        ? new ConflictException('Match is completed: reopen it from the clock')
-        : new NotFoundException(`Match ${matchId} not found`);
-    }
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
 
     if (status === 'completed') {
       await this.matchCompletion?.onMatchCompleted(matchId);

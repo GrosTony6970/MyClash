@@ -29,8 +29,12 @@ const updateMatchStatusSchema = z
      * hits, the score and `started_at` stay, so the bout read unplayed with all
      * it was fought for, and the doors that delete a phase took it without
      * asking the owner. A bout goes back to unplayed by a reset only.
+     *
+     * No 'running' or 'paused' (S9). This route set them with no clock row and
+     * no count: the TV read 0 – 0 on a bout in play, and `started_at` moved on
+     * at every call. A bout is put in play by the clock (Start, Reopen).
      */
-    status: z.enum(['running', 'paused', 'completed']),
+    status: z.enum(['completed']),
     winnerRegistrationId: z.uuid().optional(),
   })
   .strict();

@@ -146,10 +146,14 @@ test('offline scoring works on a custom-ruleset bout and auto-syncs', async ({
     .find((m) => m.red_registration_id && m.blue_registration_id && m.status !== 'completed');
   if (!match) throw new Error('no playable pool match was generated');
 
-  await ok(
-    await request.patch(api(`matches/${match.id}/status`), { data: { status: 'running' } }),
-    'start match',
-  );
+  // Opened as a referee does: the clock's Start, then its Halt (S9: `PATCH /status` no
+  // longer sets a bout running). Paused with a halted clock, the pad scores it.
+  for (const action of ['start', 'halt']) {
+    await ok(
+      await request.post(api(`matches/${match.id}/clock`), { data: { action } }),
+      `clock ${action}`,
+    );
+  }
 
   // ── Helpers bound to this match ─────────────────────────────────────────────
   const serverExchangeCount = async (): Promise<number> => {

@@ -1,7 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
-import { createBracketTournament, ensureRoster, personName } from './_bracket';
+import { createBracketTournament, ensureRoster, openForScoring, personName } from './_bracket';
 
 /**
  * The scoring pad's OTHER buttons, clicked in a real browser
@@ -421,9 +421,8 @@ interface PoolMatchRow {
  * scores, so `first_to_points` never fires and locks scoring out from under the
  * remaining steps.
  *
- * `PATCH /matches/:id/status` is used only to OPEN the match for scoring — a
- * test-only door (nothing in the product calls it), which is why the pad's own
- * completion path is what step 9 exercises.
+ * `openForScoring` OPENS the match for scoring through the clock (Start, Halt),
+ * as a referee does; the pad's own completion path is what step 9 exercises.
  */
 async function aPoolMatch(api: Api, eventId: string, token: string): Promise<PadMatch> {
   await api.ok(await api.post(`events/${eventId}/lices`, { data: { name: `Pad UI ${token}` } }));
@@ -448,7 +447,7 @@ async function aPoolMatch(api: Api, eventId: string, token: string): Promise<Pad
     .flatMap((p) => p.matches ?? [])
     .find((m) => m.red_registration_id && m.blue_registration_id && m.status !== 'completed');
   expect(generated, 'no playable pool match was generated').toBeDefined();
-  await api.ok(await api.patch(`matches/${generated!.id}/status`, { data: { status: 'running' } }));
+  await openForScoring(api, generated!.id);
 
   // The pool generator decides which registration is red, so resolve the names
   // through the registration map rather than assuming the registration order.

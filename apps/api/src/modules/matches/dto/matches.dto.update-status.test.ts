@@ -11,12 +11,14 @@ import { UpdateMatchStatusDto } from './matches.dto';
 const schema = UpdateMatchStatusDto.schema;
 
 describe('UpdateMatchStatusDto', () => {
-  it.each<'running' | 'paused' | 'completed'>(['running', 'paused', 'completed'])(
-    'accepts %s',
-    (status) => {
-      expect(schema.safeParse({ status }).success).toBe(true);
-    },
-  );
+  it('accepts completed', () => {
+    expect(schema.safeParse({ status: 'completed' }).success).toBe(true);
+  });
+
+  // S9: set here, a bout ran with no clock row and no count; the clock puts a bout in play.
+  it.each(['running', 'paused'])('refuses %s', (status) => {
+    expect(schema.safeParse({ status }).success).toBe(false);
+  });
 
   it('refuses scheduled', () => {
     const result = schema.safeParse({ status: 'scheduled' });
@@ -31,7 +33,7 @@ describe('UpdateMatchStatusDto', () => {
 
   // Ruling 338: the route takes no bout out of completed, so it has nothing to discard.
   it('takes no discard acknowledgement', () => {
-    const result = schema.safeParse({ status: 'running', discardDependentResults: true });
+    const result = schema.safeParse({ status: 'completed', discardDependentResults: true });
 
     expect(result.success).toBe(false);
   });

@@ -103,11 +103,14 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     .find((m) => m.red_registration_id && m.blue_registration_id && m.status !== 'completed');
   if (!match) throw new Error('no playable pool match was generated');
 
-  // Start the match so the pad enables scoring (running + clock stopped → canScore).
-  await ok(
-    await request.patch(api(`matches/${match.id}/status`), { data: { status: 'running' } }),
-    'start match',
-  );
+  // Open the match as a referee does, so the pad enables scoring (paused + clock halted →
+  // canScore). `PATCH /status` no longer sets a bout running (S9): it wrote no clock row.
+  for (const action of ['start', 'halt']) {
+    await ok(
+      await request.post(api(`matches/${match.id}/clock`), { data: { action } }),
+      `clock ${action}`,
+    );
+  }
 
   // ── Helpers bound to this match ─────────────────────────────────────────────
   const serverExchangeCount = async (): Promise<number> => {

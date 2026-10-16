@@ -10211,7 +10211,7 @@ export interface components {
     };
     UpdateMatchStatusDto: {
       /** @enum {string} */
-      status: 'running' | 'paused' | 'completed';
+      status: 'completed';
       /** Format: uuid */
       winnerRegistrationId?: string;
     };

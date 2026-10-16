@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { test, expect, type APIResponse, type Page } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor, type Api } from './_api';
-import { createBracketTournament, ensureRoster, scoreMatch } from './_bracket';
+import { createBracketTournament, ensureRoster, openForScoring, scoreMatch } from './_bracket';
 
 /**
  * The referee's REAL login — a PIN on a shared tablet (run with `E2E_STAFF=1`).
@@ -237,7 +237,7 @@ test.describe('staff pad', () => {
     await api.ok(
       await api.patch(`matches/${onAnotherLice.id}/schedule`, { data: { liceId: theirsLice.id } }),
     );
-    await api.ok(await api.patch(`matches/${onMyLice.id}/status`, { data: { status: 'running' } }));
+    await openForScoring(api, onMyLice.id);
 
     // `withNoLice` is deliberately left alone — generate-pools assigns no lice,
     // which is precisely the state a real event reaches when the organizer has
@@ -359,7 +359,7 @@ test.describe('staff pad', () => {
 
       await expect
         .poll(async () => (await readMatch(api, onMyLice.id)).status, { timeout: 20_000 })
-        .toBe('running');
+        .toBe('paused');
       await expect
         .poll(async () => await exchangeCount(api, onMyLice.id), {
           timeout: 20_000,
@@ -637,7 +637,7 @@ async function aLockingTournament(
   const [match] = await poolMatches(api, tournament.id);
   expect(match, 'the lock tournament produced no playable match').toBeDefined();
   await api.ok(await api.patch(`matches/${match!.id}/schedule`, { data: { liceId } }));
-  await api.ok(await api.patch(`matches/${match!.id}/status`, { data: { status: 'running' } }));
+  await openForScoring(api, match!.id);
   return { tournamentId: tournament.id, matchId: match!.id };
 }
 

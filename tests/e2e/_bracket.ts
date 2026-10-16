@@ -380,18 +380,22 @@ function hitValues(total: number): number[] {
  * history. Use `nextExchangeSequence` to find the safe starting point.
  */
 /**
- * Set a bout nobody has started to `running`, so that it takes a hit.
+ * Open a bout nobody has started, so that it takes a hit, as a referee does: the
+ * clock's Start, then its Halt. The bout is then `paused` with a halted clock,
+ * the state the pad scores in (`canScore` is false while the clock runs).
  *
  * The API refuses a hit or a card for a `scheduled` bout (ruling 286): the pad
- * cannot score one either. The pad starts the CLOCK; this writes the status
- * alone, so the clock stays idle. A bout that runs, or that is over, is left alone, so
+ * cannot score one either. `PATCH /status` no longer sets a bout running (S9):
+ * it wrote no clock row. A bout that runs, or that is over, is left alone, so
  * this is safe before a replay after `POST /matches/:id/reset` and on a bout a
- * spec opened itself.
+ * spec opened itself. A pad spec that presses the clock after this finds it
+ * halted: its primary button is Resume.
  */
 export async function openForScoring(api: Api, matchId: string): Promise<void> {
   const match = await api.json<{ status: string }>(await api.get(`matches/${matchId}`));
   if (match.status !== 'scheduled') return;
-  await api.ok(await api.patch(`matches/${matchId}/status`, { data: { status: 'running' } }));
+  await api.ok(await api.post(`matches/${matchId}/clock`, { data: { action: 'start' } }));
+  await api.ok(await api.post(`matches/${matchId}/clock`, { data: { action: 'halt' } }));
 }
 
 export async function scoreMatch(
