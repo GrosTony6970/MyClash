@@ -107,10 +107,13 @@ const advanceTo = (round: number) =>
   ({ type: 'round_advance', reason: `advance to round ${round}` }) as const;
 
 /**
- * Whether the bout still waits for `round` to open. False once another send of the advance has
- * opened it: the bout row is the last write of an advance, so it says "done" (S2).
+ * Where the bout stands for `round`, read again before each clock step (S2): it still `waits`
+ * for it; another send of the advance `opened` it (the bout row is the last write of an advance,
+ * so it says "done"); or it `moved` back, by a reset or a Reopen of the round before.
  */
-async function stillWaits(db: Database, matchId: string, round: number): Promise<boolean> {
+type Waiting = 'waits' | 'opened' | 'moved';
+
+async function waitingFor(db: Database, matchId: string, round: number): Promise<Waiting> {
   const { data, error } = await db
     .from('matches')
     .select('current_round, awaiting_round_advance')
@@ -118,13 +121,15 @@ async function stillWaits(db: Database, matchId: string, round: number): Promise
     .maybeSingle();
   if (error) throw new Error(`Bout ${matchId} not read before its clock: ${error.message}`);
   const bout = data as { current_round: number | null; awaiting_round_advance: boolean } | null;
-  return bout?.awaiting_round_advance === true && (bout.current_round ?? 1) === round - 1;
+  const current = bout?.current_round ?? 1;
+  if (bout?.awaiting_round_advance === true && current === round - 1) return 'waits';
+  return current >= round ? 'opened' : 'moved';
 }
 
 /**
  * Put the clock to zero for the new round: halt or reopen as needed, then
- * reset. `at`: the time of a late advance; none is now. `opened` when another
- * send of the advance opened the round meanwhile: nothing is touched.
+ * reset. `at`: the time of a late advance; none is now. Not `reset` when the
+ * bout stopped waiting meanwhile (`waitingFor`): nothing more is touched.
  *
  * The race (S2, operator 2026-10-16): two sends of one "Start round 2" pass
  * their rules while the bout waits. The first opens the round and the referee
@@ -143,23 +148,24 @@ async function resetClock(
   round: number,
   actor: Actor | undefined,
   at?: string,
-): Promise<'reset' | 'opened'> {
+): Promise<'reset' | Exclude<Waiting, 'waits'>> {
   const { clock } = deps;
   const opensLock = { ...actor, canOverrideLocked: true };
   const step = async (action: 'halt' | 'reopen' | 'reset_clock', reason: string) => {
-    if (!(await stillWaits(deps.db, matchId, round))) return false;
-    await clock.clockAction(matchId, action, reason, opensLock, false, at);
-    return true;
+    const now = await waitingFor(deps.db, matchId, round);
+    if (now === 'waits') await clock.clockAction(matchId, action, reason, opensLock, false, at);
+    return now;
   };
   try {
-    if (!(await stillWaits(deps.db, matchId, round))) return 'opened';
+    const first = await waitingFor(deps.db, matchId, round);
+    if (first !== 'waits') return first;
     const before = await clock.getClockState(matchId);
-    const first =
-      before.status === 'running' ? 'halt' : before.status === 'ended' ? 'reopen' : null;
-    if (first && !(await step(first, 'round advance'))) return 'opened';
+    const halt = before.status === 'running' ? 'halt' : before.status === 'ended' ? 'reopen' : null;
+    const halted = halt ? await step(halt, 'round advance') : 'waits';
+    if (halted !== 'waits') return halted;
     const after = await clock.getClockState(matchId);
-    if (after.status === 'halted' && !(await step('reset_clock', 'next round'))) return 'opened';
-    return 'reset';
+    const zero = after.status === 'halted' ? await step('reset_clock', 'next round') : 'waits';
+    return zero === 'waits' ? 'reset' : zero;
   } catch (err) {
     // Any other failure is a fault the pad sends again. A bout completed while this round opened
     // is not: a resend would be answered "saved". It stays `bout_completed`, which the pad holds.
@@ -184,9 +190,9 @@ async function openRound(
   actor: Actor | undefined,
   at?: string,
 ): Promise<{ currentRound: number }> {
-  if ((await resetClock(deps, matchId, round, actor, at)) === 'opened') {
-    return { currentRound: round };
-  }
+  const clockAt = await resetClock(deps, matchId, round, actor, at);
+  if (clockAt === 'opened') return { currentRound: round };
+  if (clockAt === 'moved') throw roundNotWaiting(round);
   const { error } = await deps.db
     .from('matches')
     .update({

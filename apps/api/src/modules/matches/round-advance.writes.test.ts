@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { supabaseChain, writesTo } from '../../common/testing/supabase-chain';
+import { selectsFor, supabaseChain, writesTo } from '../../common/testing/supabase-chain';
 import {
   BOUT,
   HALTED,
@@ -163,22 +163,23 @@ describe('"Start round N+1" of the pad of before, with no id', () => {
  * the bout still waited; by the time it reaches the clock, the first has opened round 2 and the
  * referee has pressed Start. Reset then, round 2's clock went back to 0:00 under the fight.
  */
+/** From `when` on (by default the write of this send's round row), the bout reads as `bout`. */
+function boutMeanwhile(
+  db: ReturnType<typeof series>['db'],
+  bout: Record<string, unknown>,
+  when = () => writesTo(db, 'match_events').length > 0,
+) {
+  const real = db.service.from;
+  db.service.from = vi.fn((table: string) =>
+    table === 'matches' && when()
+      ? supabaseChain({ data: { id: BOUT, ...bout }, error: null })
+      : real(table),
+  ) as never;
+}
+
 describe('a round advance that another send has opened meanwhile', () => {
-  /** From `when` on (by default the write of this send's round row), round 2 reads as open. */
-  function openedByTheOther(
-    db: ReturnType<typeof series>['db'],
-    when = () => writesTo(db, 'match_events').length > 0,
-  ) {
-    const real = db.service.from;
-    db.service.from = vi.fn((table: string) =>
-      table === 'matches' && when()
-        ? supabaseChain({
-            data: { id: BOUT, current_round: 2, awaiting_round_advance: false },
-            error: null,
-          })
-        : real(table),
-    ) as never;
-  }
+  const openedByTheOther = (db: ReturnType<typeof series>['db'], when?: () => boolean) =>
+    boutMeanwhile(db, { current_round: 2, awaiting_round_advance: false }, when);
 
   it.each([
     ['sent late, with its id', advance('10:05:00')],
@@ -205,5 +206,37 @@ describe('a round advance that another send has opened meanwhile', () => {
     await expect(scoring.advanceRound(BOUT, STAFF)).resolves.toEqual({ currentRound: 2 });
 
     expect(action).not.toHaveBeenCalled();
+  });
+
+  it('reads the round and the wait of the bout before each clock step', async () => {
+    const { db, scoring } = series();
+
+    await scoring.advanceRound(BOUT, STAFF, advance('10:05:00'));
+
+    expect(selectsFor(db.from, 'matches')).toContain('current_round, awaiting_round_advance');
+  });
+});
+
+/**
+ * The bout no longer waits for the round, and nobody opened it: the desk reset the bout, or a
+ * Reopen put round 1 back in play, after this send passed its rules. The advance is refused,
+ * never answered as an open round 2 (the pad would drop its press as taken).
+ */
+describe('a round advance whose bout was put back meanwhile', () => {
+  it.each([
+    ['reset', { status: 'scheduled', current_round: 1, awaiting_round_advance: false }],
+    ['reopened in round 1', { status: 'paused', current_round: 1, awaiting_round_advance: false }],
+  ])('is refused, and touches neither the clock nor the bout: %s', async (_, bout) => {
+    const { db, clock, scoring, recompute } = series();
+    boutMeanwhile(db, bout);
+    const action = vi.spyOn(clock, 'clockAction');
+
+    expect(await refusalOf(scoring.advanceRound(BOUT, STAFF, advance('10:05:00')))).toEqual({
+      status: 409,
+      code: 'round_not_waiting',
+    });
+    expect(written(db)).toEqual(['match_events round_advance']);
+    expect(action).not.toHaveBeenCalled();
+    expect(recompute).not.toHaveBeenCalled();
   });
 });
