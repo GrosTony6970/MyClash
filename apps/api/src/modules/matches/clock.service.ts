@@ -49,6 +49,7 @@ import {
   type PressAction,
 } from './late-press';
 import { matchLocked } from './match-locked';
+import { resetAfterLevelStep } from './reset-after-level-step';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import type { LevelStep } from '@myclash/rulesets';
 import { CLOCK_ACTIONS_FROM, foldClock } from '@myclash/rules';
@@ -250,6 +251,12 @@ export class ClockService {
       (match as { awaiting_round_advance?: boolean | null }).awaiting_round_advance
     ) {
       throw roundAwaitsAdvance();
+    }
+    // Once a level step is taken, a Reset would put regulation time back under a chain already
+    // at its next step ("Reset + chain", 2026-10-16). "Start round N+1" resets after its own row,
+    // which puts the chain back to the top first.
+    if (action === 'reset_clock' && current.levelResolutionSteps > 0) {
+      throw resetAfterLevelStep();
     }
     // Every refusal of this door has passed: an End may ask the sheet first (`SheetEnds`).
     if (action === 'end' && sheetEnds && (await sheetEnds(matchId))) {

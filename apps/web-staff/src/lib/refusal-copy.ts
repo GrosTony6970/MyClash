@@ -69,6 +69,7 @@ const COMPLETED_MEANWHILE = 'scoring.corrections.boutCompletedMeanwhile';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
+const RESET_AFTER_LEVEL_STEP = 'scoring.level.resetRefused';
 const SESSION_ENDED = 'scoring.corrections.sessionEnded';
 const START_NEXT_ROUND_FIRST = 'scoring.rounds.startNextRoundFirst';
 const HELD_PRESS_BOUT_COMPLETED = 'scoring.quarantine.pressBoutCompleted';
@@ -130,6 +131,8 @@ const REFUSED_WHOLE = new Map([
   // the bout completed on its way. Start, Halt and Resume go through the queue,
   // so their refusal reads HELD_PRESS's words instead.
   ['bout_completed', COMPLETED_MEANWHILE],
+  // "Reset clock" once extra time or sudden death is under way (operator, 2026-10-16).
+  ['reset_after_level_step', RESET_AFTER_LEVEL_STEP],
 ]);
 
 /**

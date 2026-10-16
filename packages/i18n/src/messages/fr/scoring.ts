@@ -528,6 +528,7 @@ export const scoring = {
     playSuddenDeath: 'Mort subite',
     undoStopsAtStep:
       'Les saisies d’avant cette prolongation ou cette mort subite sont closes sur cette tablette. Il ne reste rien à annuler après elle.',
+    resetRefused: 'Prolongation ou mort subite en cours : le chrono ne peut pas être remis à zéro.',
     suddenDeathBanner: 'MORT SUBITE',
     suddenDeathHint: 'Se termine quand un tireur mène',
   },

@@ -567,6 +567,8 @@ export const scoring = {
     // "Undo last entry" when the newest entry is from before a step this tablet still holds.
     undoStopsAtStep:
       'The entries before this extra time or sudden death are closed on this tablet. Nothing after it is left to undo.',
+    // "Reset clock" refused: a level step is taken (operator, 2026-10-16). A Reopen keeps the chain.
+    resetRefused: 'Extra time or sudden death is under way: the clock cannot be reset.',
     suddenDeathBanner: 'SUDDEN DEATH',
     // Never "the next point decides": one exchange can score both fighters.
     suddenDeathHint: 'Ends when one fighter leads',
