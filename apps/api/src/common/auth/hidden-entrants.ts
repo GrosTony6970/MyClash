@@ -94,10 +94,7 @@ export async function visibleEventRows<
   Row extends { eventId: string; tournamentId: string | null },
 >(deps: EventAuthzDeps, rows: Row[], reader: PublicReader): Promise<Row[]> {
   const eventIds = rows.map((row) => row.eventId);
-  const hiddenByEvent = new Map<string, Set<string>>();
-  for (const event of await readableEvents(deps, eventIds, reader)) {
-    hiddenByEvent.set(event.id, await hiddenTournamentIds(deps, event, reader));
-  }
+  const hiddenByEvent = await perEvent(deps, eventIds, reader, hiddenTournamentIds);
   return rows.filter((row) => {
     const hidden = hiddenByEvent.get(row.eventId);
     return hidden !== undefined && !(row.tournamentId && hidden.has(row.tournamentId));
@@ -118,11 +115,27 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
 ): Promise<RosterRow[]> {
   const eventIds = roster.map((row) => row.eventId);
   // Absent: an Event she may not see (or an unknown one), so none of its rows is known.
-  const hiddenByEvent = new Map<string, Set<string>>();
-  for (const event of await readableEvents(deps, eventIds, reader)) {
-    hiddenByEvent.set(event.id, await hiddenEntrantIds(deps, event, reader));
-  }
+  const hiddenByEvent = await perEvent(deps, eventIds, reader, hiddenEntrantIds);
   return roster.filter((row) => hiddenByEvent.get(row.eventId)?.has(row.id) === false);
+}
+
+/**
+ * `hidden` of each Event among these the reader may see, by Event id. The Events are read at
+ * once, not one after another: a league page asks this for every unclaimed fighter's Events.
+ */
+async function perEvent(
+  deps: EventAuthzDeps,
+  eventIds: string[],
+  reader: PublicReader,
+  hidden: (
+    deps: EventAuthzDeps,
+    event: CompetitionEvent,
+    reader: PublicReader,
+  ) => Promise<Set<string>>,
+): Promise<Map<string, Set<string>>> {
+  const events = await readableEvents(deps, eventIds, reader);
+  const sets = await Promise.all(events.map((event) => hidden(deps, event, reader)));
+  return new Map(events.map((event, index) => [event.id, sets[index]!]));
 }
 
 /**
