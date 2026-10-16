@@ -3064,6 +3064,71 @@ batch; every new test was run red on the old code, or against a seeded break.
 - The series tests of the late end time leave round 1's sheet empty, so they also run the "kept the
   result of round 1" path.
 
+### Built on 2026-10-16: the server pass, third batch
+
+The rulings "the server's last four" (O3, R3, R7, auto-lock), S2, and two more races of "The
+server" (S4b, S11) are built (sessions 6f5085da and b4570a9a). Pushed once, `afe8d80a` …
+`7eee8f15`. Five cold reviews ran: the batch (two majors: a late "End round" still raced, and an
+End wrote its winner over a bout completed meanwhile), its five fixes (one major: the second fix
+let the clock run on for good, and two older holes beside it), those fixes (no blocker, no major;
+two small items, built), that fix (two majors: the guard left out the Reset and the series Halt),
+and its fix (no blocker, no major).
+
+| Item      | Built in                                                   | What it turned out to be                                                                                                                                                                                                                                                                                 |
+| --------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auto-lock | `afe8d80a`                                                 | Ruled: the wait counts from the later of the bout's end and its last change on the server.                                                                                                                                                                                                               |
+| R7        | `7fac4c8c`, `07c73569`                                     | Ruled: the current bout carries no match format; the bout chart counts doubles against its phase's cap.                                                                                                                                                                                                  |
+| R3        | `e80114ee`                                                 | Ruled: each door that makes bouts (nine, not the eight the ruling counted) re-stamps the bouts not started after its write (`restampAfterInsert`).                                                                                                                                                       |
+| O3        | `32f37892`, `42b6ca2c`                                     | Ruled: only a wrong PIN counts (`WrongPinCount`, an interceptor). **The review found its memory sweep ran on every try** past 10,000 accounts: at most once a minute now.                                                                                                                                |
+| S2        | `1b013a5e`, `ccdec3b1`, `3134aabb`, `3fb7c298`, `42e66804` | Ruled: "Start round" checks the bout again before each clock step. **The reviews found** a bout reset meanwhile answered as opened, and a forfeit between rounds undone by the advance's own Reopen or Reset, or by the series Halt: refused now (`keepsCompleted`), and the advance takes its row back. |
+| S4b       | `2c483f58`, `4c23e15f`, `6370bfbe`, `3fb7c298`             | An End never completes a bout someone changed since its read. **The reviews found** it wrote its winner over a completion, then (in the first fix) left the clock running on it, and passed a desk Reset: it asks for the status and the mark it read; lost to a completion, its row stays.              |
+| S11       | `109f0da1`, `f953f75e`                                     | A late press takes its sequence before the reads that judge it. **The review found the late "End round" read the bout first**; each of the four late paths has its own race test now.                                                                                                                    |
+| One owner | `f84043c4`                                                 | "The next sequence of a bout's timeline" had five copies, drifted: `nextSequence` (timeline-sequence.ts), a failed read an error everywhere. `takeBackRow` lives beside it.                                                                                                                              |
+
+What ran: five cold reviews, the gate chain (31 of 31, five times; one run lost `shared-types` to
+the word "any" opening a comment line, `7eee8f15`), API coverage (666 files / 8596 tests), the
+browser suite (428 of 428, on the batch; the fixes after it are server-only), CI run 38977413571, every job green on its first attempt.
+**No falsifier ran** over this batch; every new test was run red on the old code, or against a
+seeded break.
+
+### What the third batch chose, not ruled
+
+- An End that loses its bout write to a completion keeps its clock row and writes no result: the
+  completion skipped its own End (the clock already read ended), so that row is what stops the
+  clock. Lost to a reset it is refused `scored_before_reset`; lost to a put-back in play,
+  `pressed_before_reopen`. A failed read there is a plain error, the row kept.
+- "Start round" refused by a bout reset, put back or completed meanwhile takes its own row back:
+  `round_not_waiting` or `bout_completed`. The pad of before (no id) gets the same 409.
+- A late timeline read that fails is an error on every door now (a 5xx a pad sends again), where
+  three doors read it as "no row yet".
+
+### Named by the third batch, not fixed
+
+- R3 covers doors that make bouts. A bout put back to "not started" (reset, revert to unplayed,
+  forfeit take-back) keeps the ruleset it was stamped with if a ruleset change lands in the same
+  moment.
+- Auto-lock: the lock's own writes move `updated_at`, so a lock pass that fails half way, or a
+  bout locked, unlocked or dragged by hand, makes the rest of its Pool wait one more delay.
+- S11 is closed for rows of the timeline only. A hit (an `exchanges` row) that closes a round
+  writes the bout before its Halt row, and a desk "End round" of now writes its row last: a late
+  "End round" landing between does not collide.
+- S4b: an End that read the bout "scheduled" (a Start whose bout write failed) is not refused by a
+  reset, which leaves the bout "scheduled" too. A Halt from another tablet inserted after the End's
+  row but written to the bout before it leaves the clock halted on a completed bout. A bout won by
+  a completion gets no `duration_active_ms`.
+- S2: a clock step the advance took before it found the bout changed (its Halt or Reopen) stays;
+  only its `round_advance` row is taken back. The second send of one advance still writes a
+  duplicate `round_advance` row when the first opened the round.
+- `takeBackRow` deletes by sequence alone: a row written at a sequence a take-back freed could be
+  deleted by a second take-back of the same press.
+- Same class as `keepsCompleted`, not built: the Reopen after a forfeit is taken back
+  (`reopenClockTakenBack`) can un-complete a bout a hit completed just before it; the level step's
+  own "paused" write is unguarded against a forfeit landing after its read.
+- An End whose bout cannot be read after it lost keeps its row (a 5xx): when a correction won, its
+  resend changes nothing and the clock reads ended on a bout in play until a Reopen.
+- O3's count is in memory per API container, reset on deploy (as the throttler was). R3's
+  `createMatch` answers the bout as inserted, before its re-stamp.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
