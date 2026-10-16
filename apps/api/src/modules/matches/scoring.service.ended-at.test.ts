@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { selectsFor } from '../../common/testing/supabase-chain';
 import { BOUT, hit, phase, setup, storedBout } from './scoring.service.corrections.fixtures';
 
 /**
@@ -64,6 +65,25 @@ describe('ScoringService.recomputeMatchScore — the end time of a bout decided 
     await service.recomputeMatchScore(BOUT, CAUSED_AT);
 
     expect(written()?.row).toMatchObject({ status: 'completed', ended_at: CAUSED_AT });
+  });
+
+  // The desk put the bout back in play at 10:30; a hit made at 10:06 arrives after and decides
+  // it. The bout cannot end before it was last put back in play, or before it started.
+  it('never ends before the bout was put back in play, or started', async () => {
+    const reopened = '2026-01-01T10:30:00.000Z';
+    const { db, service, clock, written } = setup(
+      storedBout({ ...running, phases: capOf7(1), back_in_play_at: reopened }),
+      TO_THE_CAP,
+    );
+    clock.getClockState.mockResolvedValue({ levelResolutionSteps: 0, status: 'idle' });
+
+    await service.recomputeMatchScore(BOUT, CAUSED_AT);
+
+    expect(written()?.row).toMatchObject({ status: 'completed', ended_at: reopened });
+    // The double answers every column it holds: the read must ask for both marks.
+    const select = selectsFor(db.from, 'matches')[0];
+    expect(select).toContain('back_in_play_at');
+    expect(select).toContain('started_at');
   });
 
   it('a bout decided by a person with a network ends now', async () => {

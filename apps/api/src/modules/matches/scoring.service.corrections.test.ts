@@ -278,7 +278,7 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
     await service.recomputeMatchScore(BOUT);
 
     expect(selectsFor(db.from, 'matches')).toEqual([
-      'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
+      'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
     ]);
     expect(selectsFor(db.from, 'match_penalties')).toEqual([
       'id, score_delta, registration_id, round_number',

@@ -43,6 +43,7 @@ import {
   popLastClosedRoundColumns,
   reopenedResultColumns,
 } from './reopen-match-columns';
+import { endedAtOf } from './ended-at';
 import { endRefusal } from './level-at-time-refusal';
 import { endedByForfeitRecord } from './forfeit-end-reason';
 import { againOnCollision, elapsedAt, eventStatusOf } from './late-press';
@@ -205,7 +206,7 @@ export class ScoringService {
       matchUpdates['status'] = 'completed';
       // At the time of the hit that decided it, when a tablet sent it late: a clock that never
       // ran has no End to stop at that time, and the row kept the queue's arrival.
-      matchUpdates['ended_at'] = causedAt ?? new Date().toISOString();
+      matchUpdates['ended_at'] = endedAtOf(causedAt, m);
       matchUpdates['winner_registration_id'] = scored.winnerRegistrationId;
       // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
       // TV distinguish a 0-0 double loss from a genuine tie.
@@ -433,8 +434,9 @@ export class ScoringService {
       .from('matches')
       .select(
         // `back_in_play_at`: a recompute that puts the bout back in play keeps a later mark
-        // (`backInPlayColumns`); not asked for, the mark moved back all the same.
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
+        // (`backInPlayColumns`); not asked for, the mark moved back all the same. With
+        // `started_at`, the end of a bout decided late is never before either (`endedAtOf`).
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -945,7 +947,7 @@ export class ScoringService {
       Object.assign(updates, closure.updates);
       justCompleted = closure.justCompleted;
       // At the time of the hit that won it, as a single fight (`recomputeFromSheet`).
-      if (justCompleted && args.causedAt) updates['ended_at'] = args.causedAt;
+      if (justCompleted) updates['ended_at'] = endedAtOf(args.causedAt, matchRow);
     } else {
       // Round in progress, or already closed (awaiting advance / completed).
       // The same `seriesResult` the closure used, so a repeated recompute of a
