@@ -134,9 +134,19 @@ async function perEvent(
   ) => Promise<Set<string>>,
 ): Promise<Map<string, Set<string>>> {
   const events = await readableEvents(deps, eventIds, reader);
-  const sets = await Promise.all(events.map((event) => hidden(deps, event, reader)));
-  return new Map(events.map((event, index) => [event.id, sets[index]!]));
+  const byEvent = new Map<string, Set<string>>();
+  // At most `EVENTS_AT_ONCE` at a time: a public page may name hundreds of Events, and the
+  // database pool is small and shared with live scoring.
+  for (let start = 0; start < events.length; start += EVENTS_AT_ONCE) {
+    const part = events.slice(start, start + EVENTS_AT_ONCE);
+    const sets = await Promise.all(part.map((event) => hidden(deps, event, reader)));
+    part.forEach((event, index) => byEvent.set(event.id, sets[index]!));
+  }
+  return byEvent;
 }
+
+/** How many Events `perEvent` reads at once. */
+const EVENTS_AT_ONCE = 6;
 
 /**
  * The profiles among these the public may know of (rulings 171b, 173-177): one that stands on its

@@ -17,15 +17,13 @@ const event = (id: string) => ({
   event_kind: 'standard',
 });
 
-function build() {
+function build(count = 2) {
+  const ids = Array.from({ length: count }, (_, index) => `e-${index + 1}`);
   const db = mockSupabase({
-    events: { rows: [event('e-1'), event('e-2')] },
+    events: { rows: ids.map(event) },
     // A draft Tournament in each: its entrants are hidden from the public, so each Event reads on.
     tournaments: {
-      rows: [
-        { id: 't-1', event_id: 'e-1', status: 'draft' },
-        { id: 't-2', event_id: 'e-2', status: 'draft' },
-      ],
+      rows: ids.map((id, index) => ({ id: `t-${index + 1}`, event_id: id, status: 'draft' })),
     },
     registrations: { rows: [] },
     persons: { rows: [] },
@@ -50,6 +48,23 @@ describe('the lists that span many Events', () => {
     await knownRosterRows(deps, roster, THE_PUBLIC);
 
     expect(afterEvents(db).slice(0, 2)).toEqual(['tournaments', 'tournaments']);
+  });
+
+  // A public league page may name hundreds of Events, and the database pool is small and shared
+  // with live scoring: at most six Events are read at once.
+  it('reads at most six Events at once', async () => {
+    const { db, deps } = build(7);
+    const roster = Array.from({ length: 7 }, (_, index) => ({
+      id: `p-${index + 1}`,
+      eventId: `e-${index + 1}`,
+    }));
+
+    await knownRosterRows(deps, roster, THE_PUBLIC);
+
+    const reads = afterEvents(db);
+    expect(reads.slice(0, 6)).toEqual(Array(6).fill('tournaments'));
+    expect(reads[6]).not.toBe('tournaments');
+    expect(reads.filter((table) => table === 'tournaments')).toHaveLength(7);
   });
 
   it('visibleEventRows keeps the rows of each Event it may see, as before', async () => {
