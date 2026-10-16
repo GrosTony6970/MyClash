@@ -1,4 +1,17 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { EVENT_RESULTS_FROZEN } from '../matches/event-results-frozen';
+
+/**
+ * A staff session, or a bout, of an Event that is completed or archived, on a door no ruling
+ * keeps open (a clock press with no id, a sign-in, a desk's heartbeat). Still a 403: the
+ * sign-in screen words it by its status. With the code a pad says for an Event that is over:
+ * with none, a referee read the server's English sentence.
+ */
+export const eventNotOpenForStaff = () =>
+  new ForbiddenException({
+    message: 'Event is not open for staff scoring',
+    code: EVENT_RESULTS_FROZEN,
+  });
 
 /**
  * The refusals of "who may score" that are about the PERSON, not about one

@@ -28,18 +28,29 @@ function service(status: string) {
 
 describe('StaffService: a staff session of an Event that is over', () => {
   it.each<string>(['completed', 'archived'])('is refused when the Event is %s', async (status) => {
-    await expect(service(status).requireStaffWithRole(req, ['checkin'])).rejects.toEqual(
-      new ForbiddenException('Event is not open for staff scoring'),
-    );
+    const refused = await service(status)
+      .requireStaffWithRole(req, ['checkin'])
+      .catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ForbiddenException);
+    // A 403 still (the sign-in screen words it by its status), with the code a pad says.
+    expect((refused as ForbiddenException).getResponse()).toEqual({
+      message: 'Event is not open for staff scoring',
+      code: 'event_results_frozen',
+    });
   });
 
   it.each<string>(['completed', 'archived'])(
     'cannot sign in when the Event is %s',
     async (status) => {
       const login = { eventId: EVENT, eventSlugOrCode: 'open', username: 'desk1', pin: '123456' };
-      await expect(service(status).login(login)).rejects.toEqual(
-        new ForbiddenException('Event is not open for staff scoring'),
-      );
+      const refused = await service(status)
+        .login(login)
+        .catch((e: unknown) => e);
+      expect(refused).toBeInstanceOf(ForbiddenException);
+      expect((refused as ForbiddenException).getResponse()).toEqual({
+        message: 'Event is not open for staff scoring',
+        code: 'event_results_frozen',
+      });
     },
   );
 

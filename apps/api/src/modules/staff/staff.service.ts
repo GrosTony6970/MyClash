@@ -67,6 +67,7 @@ import type {
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 import { normalizeStaffUsername } from './normalize-username';
 import {
+  eventNotOpenForStaff,
   mayScore,
   organizerSessionRequired,
   staffAccountDisabled,
@@ -1502,7 +1503,7 @@ export class StaffService {
       : phase?.tournaments;
     if (!tournament) throw new NotFoundException('Match tournament not found');
     if (whenOver === 'refuse' && ['completed', 'archived'].includes(tournament.events.status)) {
-      throw new ForbiddenException('Event is not open for staff scoring');
+      throw eventNotOpenForStaff();
     }
     return {
       liceId: row.lice_id,
@@ -1605,7 +1606,7 @@ export class StaffService {
 
   private assertEventScorable(event: EventRow) {
     if (event.status === 'completed' || event.status === 'archived') {
-      throw new ForbiddenException('Event is not open for staff scoring');
+      throw eventNotOpenForStaff();
     }
   }
 

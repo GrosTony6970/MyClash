@@ -319,6 +319,20 @@ describe('authorizeMatchScoring', () => {
     );
   });
 
+  // A clock press with no id, on an archived Event: the pad says the code in the reader's
+  // language. With no code, the referee read the server's English sentence.
+  it.each<string>(['completed', 'archived'])(
+    'refuses with the code the pad says, for a bout of a %s Event',
+    async (status) => {
+      const { svc } = build({ userId: 'user-1', match: matchRow({ eventStatus: status }) });
+      const refused = await svc.authorizeMatchScoring(bareRequest(), MATCH).catch((e) => e);
+      expect(refused).toBeInstanceOf(ForbiddenException);
+      expect((refused as ForbiddenException).getResponse()).toMatchObject({
+        code: 'event_results_frozen',
+      });
+    },
+  );
+
   it('answers 401, not 403, when there is no identity at all', async () => {
     const { svc } = build();
     await expect(svc.authorizeMatchScoring(bareRequest(), MATCH)).rejects.toBeInstanceOf(
