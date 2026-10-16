@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
   mockSupabase,
@@ -48,7 +49,7 @@ describe('matchSummaries', () => {
       roundsJson: [{ round: 1 }],
       awaitingRoundAdvance: true,
     });
-    expect(matchFormat.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
+    expect(matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
   });
 
   it('names a double-elimination bout of another Tournament, with no piste', async () => {
@@ -183,6 +184,39 @@ describe('matchSummaries', () => {
       ([, list]) => (list as string[]).length,
     );
     expect(lists).toEqual([100, 1]);
+  });
+
+  // Every write checks a format, so only a hand edit gets here: one such Tournament threw out of
+  // the whole list (a piste's bouts, the referee assignments, the match lists).
+  it("lists every bout when one Tournament's stored format does not read", async () => {
+    const seed = summarySeed();
+    const supabase = mockSupabase({
+      ...seed,
+      tournaments: {
+        rows: [
+          ...(seed.tournaments as { rows: Record<string, unknown>[] }).rows.filter(
+            (t) => t['id'] !== 't2',
+          ),
+          {
+            id: 't2',
+            weapon: 'sabre',
+            name: 'Sabre',
+            ruleset_config: { matchFormat: { pointCap: 0 } },
+          },
+        ],
+      },
+    });
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+
+    expect(summaries.get('bracket')).toMatchObject({ matchFormat: null, bestOf: 1 });
+    expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
+    expect(logged).toHaveBeenCalledWith(
+      'Tournament t2 has a match format that does not read',
+      expect.anything(),
+    );
+    logged.mockRestore();
   });
 
   // A summary built without its Tournament would name no weapon and no rounds,

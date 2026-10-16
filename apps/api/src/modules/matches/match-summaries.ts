@@ -12,6 +12,7 @@
  * module calls this too and does not import the matches module.
  */
 
+import { Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bracketToken } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
@@ -35,6 +36,7 @@ const ROUND_SELECT =
 
 /** Ids per read: a longer `in.(…)` list makes an address some proxies refuse. */
 const IDS_PER_READ = 100;
+const logger = new Logger('MatchSummaries');
 
 interface ViewRow {
   match_id: string;
@@ -185,7 +187,7 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
   const tournament = context.tournaments.get(row.tournament_id);
   const weapon = (tournament?.['weapon'] as string | null | undefined) ?? null;
   const rulesetConfig = (tournament?.['ruleset_config'] ?? {}) as { matchFormat?: unknown };
-  const matchFormat = normalizeMatchFormatConfig(rulesetConfig.matchFormat ?? {});
+  const matchFormat = storedMatchFormat(rulesetConfig.matchFormat, row.tournament_id);
   const bout = context.bouts.get(row.match_id);
   const liceId = (bout?.['lice_id'] as string | null | undefined) ?? null;
   // A public field, joined into a sentence by the public match page: names
@@ -224,9 +226,27 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
     scoringConfig: tournament?.['scoring_config_json'] ?? null,
     // The rounds. bestOf is 1 for a Tournament with no format, so the
     // scoreboard hides the round counter by default.
-    bestOf: bestOfFor(row, matchFormat),
+    bestOf: matchFormat ? bestOfFor(row, matchFormat) : 1,
     ...roundStateOf(bout),
   };
+}
+
+/**
+ * A Tournament's stored match format, or null when it does not read. Every write checks it, so
+ * only a hand edit or a schema change gets here; one such Tournament threw out of the whole list
+ * (a piste's bouts, the referee assignments, the match lists). Its bouts now say "no format", and
+ * the log names the Tournament. The public bout page draws the default for none.
+ */
+function storedMatchFormat(
+  stored: unknown,
+  tournamentId: string,
+): ReturnType<typeof normalizeMatchFormatConfig> | null {
+  try {
+    return normalizeMatchFormatConfig(stored ?? {});
+  } catch (err) {
+    logger.error(`Tournament ${tournamentId} has a match format that does not read`, err);
+    return null;
+  }
 }
 
 /** Where the bout stands in its rounds, from its own row. */
