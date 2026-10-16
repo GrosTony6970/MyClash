@@ -49,6 +49,7 @@ import {
   type PressAction,
 } from './late-press';
 import { matchLocked } from './match-locked';
+import { pressedBeforeReopen } from './press-before-reopen';
 import { resetAfterLevelStep } from './reset-after-level-step';
 import { roundAwaitsAdvance } from './round-awaits-advance';
 import type { LevelStep } from '@myclash/rulesets';
@@ -503,15 +504,20 @@ export class ClockService {
     columns: Record<string, unknown>,
   ): Promise<void> {
     if (await this.writeIfNotCompleted(matchId, columns)) return;
+    await this.takeBackRow(matchId, sequence, boutCompleted());
+  }
+
+  /** Take back the clock row a bout write lost, so a resend is judged afresh, then refuse. */
+  private async takeBackRow(matchId: string, sequence: number, refusal: Error): Promise<never> {
     const { error: takeBack } = await this.supabase.service
       .from('match_events')
       .delete()
       .eq('match_id', matchId)
       .eq('sequence', sequence);
     if (takeBack) {
-      throw new Error(`Bout ${matchId} completed meanwhile, clock row kept: ${takeBack.message}`);
+      throw new Error(`Bout ${matchId} changed meanwhile, clock row kept: ${takeBack.message}`);
     }
-    throw boutCompleted();
+    throw refusal;
   }
 
   /** Write one clock row, and what it does to the bout. */
@@ -549,7 +555,9 @@ export class ClockService {
     } else if (action === 'halt') {
       await inPlay({ status: 'paused', ...noResult });
     } else if (action === 'end') {
-      await this.completeOnEnd(matchId, match, current, ending, now);
+      // Put back in play since its read: not this End's bout any more.
+      const completed = await this.completeOnEnd(matchId, match, current, ending, now);
+      if (!completed) await this.takeBackRow(matchId, sequence, pressedBeforeReopen());
     } else if (action === 'reopen') {
       await inPlay(reopenColumns(match, uncompletes, now));
     }
@@ -559,13 +567,21 @@ export class ClockService {
   }
 
   /** What an End writes on the bout: completed at `now`, with its two durations and its result. */
+  /**
+   * Complete the bout an End ended; false when it was put back in play since `match` was read.
+   *
+   * The race (S4b), named: a desk's Reopen, or the undo of the hit that ended the bout, lands
+   * between the End's read and this write. Unguarded, the End completed the bout the desk had
+   * just opened. The write asks for the mark the door read (`back_in_play_at`, which never moves
+   * back), so any newer one refuses it.
+   */
   private async completeOnEnd(
     matchId: string,
     match: Record<string, unknown>,
     current: ClockState,
     ending: ClockStep['ending'],
     now: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     let finalActiveMs = current.activeMs;
     if (current.status === 'running' && current.runningFrom) {
       finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
@@ -574,19 +590,33 @@ export class ClockService {
     const durationTotalMs = matchStartedAt
       ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
       : null;
-    await this.writeBout(matchId, {
-      status: 'completed',
-      ended_at: now,
-      duration_active_ms: finalActiveMs,
-      ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
-      ...(ending && 'complete' in ending ? ending.complete : {}),
-    });
+    const write = this.supabase.service
+      .from('matches')
+      .update({
+        status: 'completed',
+        ended_at: now,
+        duration_active_ms: finalActiveMs,
+        ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
+        ...(ending && 'complete' in ending ? ending.complete : {}),
+      })
+      .eq('id', matchId);
+    const mark = match['back_in_play_at'];
+    const { data, error } = await (
+      typeof mark === 'string'
+        ? write.eq('back_in_play_at', mark)
+        : write.is('back_in_play_at', null)
+    )
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
+    if (!data) return false;
     // Ending the clock completes the match, so the bracket must advance here
     // too — this and the point-cap path in ScoringService are the only ways a
     // pad-scored match ever finishes. It can advance now: the update above
     // NAMES the leader, where it used to leave the winner null and strand
     // every time-limit bout in the bracket.
     await this.matchCompletion?.onMatchCompleted(matchId);
+    return true;
   }
 
   // ── Level at time ─────────────────────────────────────────────────────────

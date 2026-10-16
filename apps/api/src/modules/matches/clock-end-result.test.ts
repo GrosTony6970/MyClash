@@ -19,7 +19,7 @@ import { timeLimitResult } from './time-limit-result';
 function thenable(data: unknown) {
   const result = { data, error: null };
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'in', 'order', 'limit', 'insert', 'update']) {
+  for (const m of ['select', 'eq', 'is', 'in', 'order', 'limit', 'insert', 'update']) {
     chain[m] = vi.fn(() => chain);
   }
   chain['maybeSingle'] = vi.fn().mockResolvedValue(result);
