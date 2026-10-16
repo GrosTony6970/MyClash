@@ -50,11 +50,16 @@ export async function matchRulesetForTournament(
   supabase: SupabaseClient,
   tournamentId: string,
 ): Promise<MatchRulesetStamp> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('tournaments')
     .select('ruleset_code, ruleset_version, ruleset_content_hash')
     .eq('id', tournamentId)
     .maybeSingle();
+  // A failed read is not a Tournament with no ruleset: read as one, every bout generated
+  // was stamped TF_v1, and a club formula Tournament was scored with it.
+  if (error) {
+    throw new Error(`The ruleset of Tournament ${tournamentId} was not read: ${error.message}`);
+  }
   return toStamp(data);
 }
 
@@ -169,11 +174,12 @@ export async function matchRulesetForPhase(
   supabase: SupabaseClient,
   phaseId: string,
 ): Promise<MatchRulesetStamp> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('phases')
     .select('tournaments(ruleset_code, ruleset_version, ruleset_content_hash)')
     .eq('id', phaseId)
     .maybeSingle();
+  if (error) throw new Error(`The ruleset of phase ${phaseId} was not read: ${error.message}`);
   const embed = (data as { tournaments?: unknown } | null)?.tournaments;
   // Many-to-one embeds are objects; normalize defensively (embed-flip gotcha).
   return toStamp(Array.isArray(embed) ? embed[0] : embed);

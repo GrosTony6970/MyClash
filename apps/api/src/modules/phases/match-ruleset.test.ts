@@ -5,11 +5,11 @@ import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset
 // the MATCH row, so non-TF tournaments were scored with the wrong engine.
 // These helpers stamp the tournament's real ruleset (version normalized).
 
-function supabaseReturning(row: unknown) {
+function supabaseReturning(row: unknown, error: { message: string } | null = null) {
   const chain = {
     select: vi.fn(),
     eq: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: error ? null : row, error }),
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
@@ -33,6 +33,15 @@ describe('matchRulesetForTournament', () => {
       ruleset_version: '1.0.0',
       ruleset_content_hash: null,
     });
+  });
+
+  // A read that failed is not a Tournament with no ruleset: generated bouts were stamped
+  // TF_v1 with no hash, and a club formula Tournament was then scored with TF_v1.
+  it('throws when the read failed, rather than stamping TF_v1', async () => {
+    const supabase = supabaseReturning(null, { message: 'connection reset' });
+    await expect(matchRulesetForTournament(supabase, 't1')).rejects.toThrow(
+      /^The ruleset of Tournament t1 was not read: connection reset$/,
+    );
   });
 
   it("carries the tournament's content hash when stamped", async () => {
@@ -59,6 +68,13 @@ describe('matchRulesetForPhase', () => {
       ruleset_version: '2.0.0',
       ruleset_content_hash: null,
     });
+  });
+
+  it('throws when the read failed, rather than stamping TF_v1', async () => {
+    const supabase = supabaseReturning(null, { message: 'connection reset' });
+    await expect(matchRulesetForPhase(supabase, 'phase-1')).rejects.toThrow(
+      /^The ruleset of phase phase-1 was not read: connection reset$/,
+    );
   });
 
   it('normalizes an array-shaped embed defensively', async () => {

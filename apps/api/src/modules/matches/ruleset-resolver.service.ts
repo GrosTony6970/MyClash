@@ -22,6 +22,14 @@ import { SupabaseService } from '../supabase/supabase.service';
 
 const CACHE_TTL_MS = 5_000;
 
+/** A read of a stored ruleset that failed: not "no such ruleset", and never cached. */
+export class RulesetReadFailed extends Error {
+  constructor(code: string, version: string, reason: string) {
+    super(`The ruleset ${code}@${version} was not read: ${reason}`);
+    this.name = 'RulesetReadFailed';
+  }
+}
+
 interface CachedEntry {
   ruleset: Ruleset | null;
   expiresAt: number;
@@ -115,6 +123,10 @@ export class RulesetResolver {
     //    ever been published. Tournaments pin a (code, version) at creation
     //    time, so we must read from the snapshot here instead of the parent
     //    row (which only reflects the latest version).
+    //    A read that FAILED throws `RulesetReadFailed` through all of this, and nothing is
+    //    cached: read as "none", a club formula bout was scored with TF_v1 for the five
+    //    seconds the answer stayed cached, and a snapshot read that failed fell through to the
+    //    parent row, which holds the LATEST version. The caller answers a 5xx; the pad resends.
     try {
       const snapshot = await this.resolveFromVersionSnapshot(code, version);
       if (snapshot) {
@@ -122,6 +134,7 @@ export class RulesetResolver {
         return snapshot;
       }
     } catch (err) {
+      if (err instanceof RulesetReadFailed) throw err;
       this.logger.warn(`Failed to resolve version snapshot ${code}@${version}: ${String(err)}`);
     }
 
@@ -132,6 +145,7 @@ export class RulesetResolver {
     try {
       ruleset = await this.resolveFromParentRow(code, version);
     } catch (err) {
+      if (err instanceof RulesetReadFailed) throw err;
       this.logger.warn(`Failed to resolve custom ruleset ${code}@${version}: ${String(err)}`);
       return null;
     }
@@ -146,7 +160,7 @@ export class RulesetResolver {
    * whether the snapshot path already short-circuited.
    */
   private async resolveFromParentRow(code: string, version: string): Promise<Ruleset | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select(
         `code, version, name, status, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
@@ -154,6 +168,7 @@ export class RulesetResolver {
       .eq('code', code)
       .eq('version', version)
       .maybeSingle();
+    if (error) throw new RulesetReadFailed(code, version, error.message);
     if (!data) return null;
     const row = data as {
       code: string;
@@ -193,11 +208,12 @@ export class RulesetResolver {
    * stack uses. Returns null when no snapshot exists for that version.
    */
   private async resolveFromVersionSnapshot(code: string, version: string): Promise<Ruleset | null> {
-    const { data: parent } = await this.supabase.service
+    const { data: parent, error: parentError } = await this.supabase.service
       .from('custom_rulesets')
       .select('id, name, is_system, base_code, base_version')
       .eq('code', code)
       .maybeSingle();
+    if (parentError) throw new RulesetReadFailed(code, version, parentError.message);
     if (!parent) return null;
     const parentRow = parent as {
       id: string;
@@ -212,7 +228,7 @@ export class RulesetResolver {
     if (parentRow.base_code)
       return this.resolveCodedBase(parentRow.base_code, parentRow.base_version);
 
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('custom_ruleset_versions')
       .select(
         `version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
@@ -220,6 +236,7 @@ export class RulesetResolver {
       .eq('custom_ruleset_id', parentRow.id)
       .eq('version', version)
       .maybeSingle();
+    if (error) throw new RulesetReadFailed(code, version, error.message);
     if (!data) return null;
     const snap = data as {
       version: string;
