@@ -1703,7 +1703,6 @@ export class StaffService {
         name?: string;
         weapon?: string;
         scoring_config_json?: unknown;
-        ruleset_config?: { matchFormat?: unknown };
       };
     } | null;
     const tournament = phase?.tournaments ?? null;
@@ -1730,7 +1729,6 @@ export class StaffService {
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
       scoringConfig: tournament?.scoring_config_json ?? null,
-      matchFormat: tournament?.ruleset_config?.matchFormat ?? null,
     };
   }
 

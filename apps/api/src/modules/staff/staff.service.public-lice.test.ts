@@ -62,6 +62,21 @@ describe('StaffService.getPublicLiceCurrent', () => {
     expect(selectsFor(supabase.from, 'lices')).toContain('id,name');
   });
 
+  // The stored match format is not the one that applies to a bout's phase, and no screen read
+  // it here: the pad reads `/match-config`, the TV its bout's `/display` (operator, 2026-10-16).
+  it('carries no match format on the current bout, and does not read one', async () => {
+    const { service, supabase } = build(RUNNING_ON_LICE);
+
+    const result = (await service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON,
+    )) as LiceCurrent;
+
+    expect(result.current).not.toHaveProperty('matchFormat');
+    expect(selectsFor(supabase.from, 'matches').join(' ')).not.toContain('ruleset_config');
+  });
+
   it('does not hand a `Piste_1` URL the board of `Piste 1`', async () => {
     const { service } = build(RUNNING_ON_LICE);
 
