@@ -427,6 +427,7 @@ export class MatchForfeitsService {
     // would no longer block a fresh record on the parent match.
     const cascaded = await this.cascadeVoidChildren(children, actor, rulesets);
     const updated = await this.stampVoided(forfeitId, actor);
+    await this.reopenClockTakenBack(matchId, previousMatch);
     await this.readSheetAgain(matchId, previousMatch);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
   }
@@ -478,6 +479,29 @@ export class MatchForfeitsService {
       await this.scoring?.recomputeMatchScore(matchId);
     } catch (err) {
       this.logger.warn(`Match ${matchId} did not read its sheet again after a forfeit's void`, err);
+    }
+  }
+
+  /**
+   * A bout the take-back puts back in play gets the clock its forfeit ended reopened (operator
+   * ruling 2026-10-16, "Forfeit back"): the Reopen halts it, and the bout waits "paused" for the
+   * referee's Resume. Left ended, the tablet showed a running bout with a frozen clock and only a
+   * Reopen button. No mark of a bout back in play: it is as it was before the forfeit, so a press
+   * made before the take-back is not stale (`reopenColumns` writes none for a bout not completed).
+   * Before the sheet is read again, which may end the bout and its clock at once.
+   *
+   * Never throws: the void is saved by now, and the referee's own Reopen still works.
+   */
+  private async reopenClockTakenBack(matchId: string, previous: Row): Promise<void> {
+    if (!this.clock || (previous['status'] !== 'running' && previous['status'] !== 'paused')) {
+      return;
+    }
+    try {
+      if ((await this.clock.getClockState(matchId)).status !== 'ended') return;
+      const opensLock = { canOverrideLocked: true };
+      await this.clock.clockAction(matchId, 'reopen', 'auto: forfeit taken back', opensLock);
+    } catch (err) {
+      this.logger.warn(`Match ${matchId} kept the clock its forfeit ended`, err);
     }
   }
 
@@ -537,6 +561,7 @@ export class MatchForfeitsService {
       const restored = !live.has(matchId) && diverged !== true;
       if (restored) await this.restoreMatchState(matchId, previous, rulesets);
       await this.stampVoided(child['id'] as string, actor);
+      if (restored) await this.reopenClockTakenBack(matchId, previous);
       // Ruling 330: what was saved on its sheet while it was forfeited counts now.
       if (restored) await this.readSheetAgain(matchId, previous);
     }
