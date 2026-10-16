@@ -2953,6 +2953,17 @@ reads the tablet's time). About twenty-three are plain bugs. Seven needed a ruli
 | TF_v1 version  | TF_v1's end decision changed on 2026-10-11 and its version stayed 1.0.0: a bout corrected after the deploy is decided again by the new rule, silently. | **Real versions, both kept**: bump the version when an engine's decision changes, and keep the old engine registered. Own plan first.         |
 | No-PIN piste   | An organiser scores a bout from the organiser site with no PIN; the wifi drops; nothing of the piste is kept.                                          | **Same "leave it"** as the piste picker (10-11): a piste's queue stays for PIN sessions. The scoring screen's offline worker is fixed.        |
 
+### Rulings — operator, 2026-10-16 evening: the server's last four
+
+Four rows the server batches left, each asked with a story (do not ask them again):
+
+| Row       | Story                                                                                                                                                                               | Ruling                                                                                                                                                             |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| O3        | A referee signs in again after each tablet reboot, with the right PIN. The eleventh sign-in of the hour is refused: the counter runs before the PIN check and counts good PINs too. | **Only wrong PINs count**: the sign-in keeps its own counter of wrong PINs (10 per account per hour) and the route's counter goes.                                 |
+| R3        | One organiser changes the ruleset while another presses "Generate Pools" in the same second: the 40 new bouts carry the old ruleset, made after the change's re-stamp.              | **Re-stamp after the insert**: each of the eight doors that make bouts runs the re-stamp of the bouts not started after its write (logged on failure). No trigger. |
+| R7        | The referee's current bout and the TV's bout carry the doubles limit as stored, not as it applies to that bout. No screen reads it.                                                 | **Remove the field** from both answers.                                                                                                                            |
+| Auto-lock | A Pool's last bout is decided by a hit made at 10:06 that reaches the server at 11:00. Counted from the true end, a 30-minute auto-lock fires on arrival.                           | **The later of the end and the last write**: the wait counts from the later of the bout's end time and its last change on the server.                              |
+
 ### Built on 2026-10-16: the server pass, first batch
 
 The plain bugs of "The server" that the ruling round named first, and the rulings "Late End round"
