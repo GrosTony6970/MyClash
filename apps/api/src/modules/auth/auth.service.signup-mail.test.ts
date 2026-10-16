@@ -7,8 +7,8 @@
  *
  * Her first mail went to spam, and she signed up again the next day. GoTrue's signup link
  * answers that like a new account: it hands back hers with a fresh code and keeps her first
- * password. A second ruling of 2026-10-16: send the link again, say the first password stays,
- * and write no second legal acceptance on her account.
+ * password. A second ruling of 2026-10-16: send the link again, say that a password chosen
+ * before stays, and write no second legal acceptance on her account.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
@@ -98,7 +98,7 @@ describe('the participant sign-up mails its confirmation link', () => {
     expect(recordForUser).not.toHaveBeenCalled();
     expect(sendMagicLink).toHaveBeenCalledWith({
       to: EMAIL,
-      // The words that say her first password stays.
+      // The words that say a password chosen before stays.
       type: 'confirmAgain',
       magicLink:
         'https://api.myclash.fr/api/v1/auth/callback?type=public_login&next=%2Fme&token_hash=c0de',

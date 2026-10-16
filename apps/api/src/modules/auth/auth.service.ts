@@ -1583,8 +1583,8 @@ export class AuthService {
 
   /**
    * Mail the account its confirmation link: the public site's sign-in door, which spends the
-   * code, signs its reader in and opens `next`. A second sign-up on an address that waits for
-   * its confirmation gets the words that say its first password stays (ruling 2026-10-16).
+   * code, signs its reader in and opens `next`. A sign-up on an address whose account waits for
+   * its confirmation gets the words that say any password it had stays (ruling 2026-10-16).
    * No code, no mail: a link that cannot work is worse than none, and the log says so. A mail
    * that fails is logged: a 500 for a new address only would tell that it is new.
    */

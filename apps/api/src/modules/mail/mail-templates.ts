@@ -107,12 +107,13 @@ export const MAGIC_LINK_WORDS: Record<
       '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Click the link below to confirm your address and log in to MyClash.</p>',
     label: 'Confirmer mon adresse / Confirm my address',
   },
-  // A second sign-up on an address that waits for its confirmation (ruling 2026-10-16): the
-  // account keeps the password chosen first, and the reader is told so.
+  // A sign-up on an address whose account waits for its confirmation (ruling 2026-10-16): the
+  // account keeps any password it had, and the reader is told so. It may have none: an
+  // "email me a link" makes an account too, with no password chosen.
   confirmAgain: {
     subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
     intro:
-      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Ce compte existait deja : son mot de passe reste celui choisi la premiere fois. Vous l\'avez oublie ? Touchez "Mot de passe oublie ?" sur la page de connexion.</p><p>Click the link below to confirm your address and log in to MyClash.</p><p>This account already existed: its password is still the one chosen the first time. Forgot it? Tap "Forgot password?" on the sign-in page.</p>',
+      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Cette adresse avait deja un compte en attente de confirmation. Si un mot de passe a deja ete choisi pour ce compte, c\'est toujours celui-la. Pour en choisir un autre, touchez "Mot de passe oublie ?" sur la page de connexion.</p><p>Click the link below to confirm your address and log in to MyClash.</p><p>This address already had an account waiting for confirmation. If a password was already chosen for it, that password still applies. To choose another, tap "Forgot password?" on the sign-in page.</p>',
     label: 'Confirmer mon adresse / Confirm my address',
   },
 };

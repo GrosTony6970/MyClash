@@ -230,7 +230,7 @@ describe('MailService magic link', () => {
     expect(html).not.toContain('already existed');
   });
 
-  it('says the first password stays on a second sign-up at an unconfirmed address (ruling 2026-10-16)', async () => {
+  it('says any password chosen before stays, on a sign-up at an unconfirmed address (ruling 2026-10-16)', async () => {
     const service = new MailService(config as never, supabase as never);
 
     await service.sendMagicLink({
@@ -246,8 +246,10 @@ describe('MailService magic link', () => {
     );
     const html = sendMock.mock.calls[0]![0].html as string;
     expect(html).toContain('Confirmer mon adresse / Confirm my address');
-    expect(html).toContain('son mot de passe reste celui choisi la premiere fois');
-    expect(html).toContain('its password is still the one chosen the first time');
+    // True also for an account an "email me a link" made, which has no password chosen.
+    expect(html).toContain('Si un mot de passe a deja ete choisi pour ce compte');
+    expect(html).toContain('If a password was already chosen for it, that password still applies');
     expect(html).toContain('Forgot password?');
+    expect(html).not.toContain('the first time');
   });
 });

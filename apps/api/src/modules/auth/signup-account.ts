@@ -13,8 +13,10 @@ type LinkCode = { hashed_token?: string } | null | undefined;
  *
  * - `created`: this call made the account. `code` is its confirmation code, or none when the
  *   auth server gave none: the account stands and its acceptance is recorded all the same.
- * - `unconfirmed`: an account made earlier waits for its confirmation. `code` is a fresh one
- *   (the old link stops working). Its password stays the one chosen first.
+ * - `unconfirmed`: an account made earlier waits for its confirmation: by a sign-up, or by an
+ *   "email me a link" (which makes one with no password chosen). `code` is a fresh one (the old
+ *   link stops working). It keeps any password it had. A password stored before the address
+ *   is proven is a known hole: the "password only after proof" slice (ruling 2026-10-16).
  * - `none`: a confirmed account holds the address, or the auth server refused. `why` is for
  *   the log only: the caller answers the same words in every case.
  */
@@ -28,7 +30,7 @@ export type SignupAccount =
  *
  * Two calls, because GoTrue's `generateLink('signup')` answers the same for a new address and
  * for one that waits for its confirmation: it hands back that account with a fresh code and
- * keeps its first password (`adminGenerateLink`, GoTrue v2.195.0). Read as "made", a stranger
+ * keeps its password (`adminGenerateLink`, GoTrue v2.195.0). Read as "made", a stranger
  * who typed Léa's address wrote a legal acceptance on her account. `createUser` alone tells
  * the two apart: it refuses any address that has an account, with `email_exists`.
  */
