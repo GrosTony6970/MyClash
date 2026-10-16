@@ -78,6 +78,8 @@ export default function WorkshopDetailPage() {
   const apiUrl = getPublicApiUrl();
 
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
+  // The Workshop's read failed (not a 404): "could not load", never "not found".
+  const [workshopFailed, setWorkshopFailed] = useState(false);
   const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
   const [loading, setLoading] = useState(true);
   // What the caller has at this Event: her bookings by session id, and her schedule
@@ -128,6 +130,8 @@ export default function WorkshopDetailPage() {
         // belongs to a screen that is gone.
         if (result.ok) setWorkshop(result.data);
         else if (result.kind === 'aborted') return;
+        // A 404 is "not found"; any other failure is a read that may work again.
+        setWorkshopFailed(!result.ok && !(result.kind === 'http' && result.status === 404));
         setLoading(false);
       },
     );
@@ -191,8 +195,21 @@ export default function WorkshopDetailPage() {
         <div>
           <p className="text-4xl mb-3">📚</p>
           <h1 className="mb-3 font-display text-2xl font-bold text-foreground sm:text-3xl">
-            {t('publicApp.workshopDetail.notFound')}
+            {t(
+              workshopFailed
+                ? 'publicApp.workshopDetail.loadFailed'
+                : 'publicApp.workshopDetail.notFound',
+            )}
           </h1>
+          {workshopFailed && (
+            <button
+              type="button"
+              onClick={load}
+              className="mb-4 min-h-11 rounded-lg border border-border px-3 text-sm font-semibold text-foreground transition-colors hover:border-muted"
+            >
+              {t('actions.retry')}
+            </button>
+          )}
           <BackLink
             href={`/e/${eventSlug}/workshops`}
             label={t('publicApp.eventHome.section.workshops')}

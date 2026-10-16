@@ -1347,6 +1347,7 @@ export const publicApp = {
     addedToWaitlist: 'Added to waitlist',
     enrolledSuccess: 'Enrolled successfully',
     notFound: 'Workshop not found',
+    loadFailed: 'We could not load this workshop',
     eventHome: 'Event home',
     sessions: 'Sessions',
     enrolledCount: '{confirmed}/{capacity} enrolled',

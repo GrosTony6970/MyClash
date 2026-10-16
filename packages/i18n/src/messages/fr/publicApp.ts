@@ -1353,6 +1353,7 @@ export const publicApp = {
     addedToWaitlist: "Ajouté à la liste d'attente",
     enrolledSuccess: 'Inscription réussie',
     notFound: 'Atelier introuvable',
+    loadFailed: "Impossible de charger l'atelier",
     eventHome: "Accueil de l'événement",
     sessions: 'Séances',
     enrolledCount: '{confirmed}/{capacity} inscrits',
