@@ -10,6 +10,10 @@ import {
 test('event page - axe clean and skip link keyboard operable', async ({ page }) => {
   const issues = collectPageIssues(page);
   await stubPublicApi(page);
+  // The server's picture of the live block has pistes (`scripts/e2e-server-api-stub.mjs`), so
+  // the home opens its live channel at once. Nothing answers the harness's placeholder host,
+  // and a socket that cannot connect is a console error: shut it as a server would.
+  await page.routeWebSocket(/\/realtime\/v1\/websocket/, (socket) => socket.close());
 
   // `/e/test-event` is a redirect to this page (page.tsx). Landing on the
   // redirect navigated the tab out from under Axe mid-scan, which arrives as

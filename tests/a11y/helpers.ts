@@ -44,10 +44,11 @@ export async function expectNoPageIssues(issues: PageIssue[]) {
  * Register a spec's own routes AFTER this call: Playwright tries the last
  * registered route first.
  *
- * The `{}` live-state answer also keeps the event home's realtime channel shut:
- * `LiveNowSection` opens one only for Lices. A spec that answers live-state with
- * Lices makes the page open a socket to the placeholder Supabase host in
- * `scripts/run-e2e.mjs`, which nothing answers.
+ * A live block opens its realtime channel only for Lices. The `{}` live-state
+ * answer gives the browser none, but the event home starts from the SERVER's
+ * picture, which has Lices: it opens a socket to the placeholder Supabase host in
+ * `scripts/run-e2e.mjs` at once, which nothing answers. A spec of that page that
+ * counts console errors shuts the socket itself (`event.spec.ts`).
  */
 export async function stubPublicApi(page: Page) {
   await page.route('**/api/**', (route) => route.fulfill({ json: {} }));
