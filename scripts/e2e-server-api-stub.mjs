@@ -251,7 +251,10 @@ function leagueAnswer(rest) {
   });
 }
 
-/** A fighter's profile, with one bout that is over: `bout-1` of `test-event`. */
+/**
+ * A fighter's profile, with two bouts that are over: `bout-1` of `test-event`, and `bout-2` of an
+ * Event with no address, which has no page to open.
+ */
 function fighterAnswer(rest) {
   if (rest.length !== 1 || rest[0] !== 'lea-martin') return null;
   return ok({
@@ -274,6 +277,19 @@ function fighterAnswer(rest) {
         eventName: 'Open de Lyon',
         eventSlug: 'test-event',
         scheduledAt: '2026-03-14T09:00:00.000Z',
+      },
+      {
+        id: 'bout-2',
+        matchNumberLabel: 'L1-P2-M01',
+        status: 'completed',
+        opponentName: 'Hugo Blanc',
+        redScore: 2,
+        blueScore: 5,
+        isRed: true,
+        outcome: 'loss',
+        eventName: 'Tournoi sans adresse',
+        eventSlug: null,
+        scheduledAt: '2026-02-01T09:00:00.000Z',
       },
     ],
   });

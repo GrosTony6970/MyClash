@@ -68,8 +68,9 @@ async function browserWith(page: Page, sheet: Sheet, clipboard: Clipboard = 'tak
 const doorsOf = (page: Page) =>
   page.evaluate(() => (window as unknown as { doors: Doors }).doors) as Promise<Doors>;
 
-const shareButton = (page: Page) => page.getByTestId('share-button');
-const said = (page: Page) => page.getByTestId('share-status');
+// The visible one: a fighter's profile draws one for a phone and one in its card for a computer.
+const shareButton = (page: Page) => page.getByTestId('share-button').filter({ visible: true });
+const said = (page: Page) => page.getByTestId('share-status').filter({ visible: true });
 
 async function open(page: Page, address: string) {
   await stubPublicApi(page);
@@ -199,6 +200,24 @@ test("a fighter's profile shares its own address with the same button", async ({
 
   expect((await doorsOf(page)).copied).toEqual([`${PUBLIC}/fighters/lea-martin`]);
   await expect(shareButton(page)).toHaveText('Copied!');
+});
+
+// Ruling 2026-10-16: the share card was hidden on a phone, so a phone had no Share button at all.
+// A phone shows the button alone: nobody scans the QR code of their own screen.
+test("on a phone, a fighter's profile shows its Share button and no QR code", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await browserWith(page, 'opens');
+  await open(page, `${PUBLIC}/fighters/lea-martin`);
+  await expect(page.getByRole('heading', { name: 'Léa Martin', level: 1 })).toBeVisible();
+
+  await expect(shareButton(page)).toHaveCount(1);
+  // The card is in the page, hidden at this width.
+  await expect(page.getByText('Share profile', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('Share profile', { exact: true })).toBeHidden();
+  await tapShare(page);
+  expect((await doorsOf(page)).shared).toEqual([
+    { title: expect.any(String), url: `${PUBLIC}/fighters/lea-martin` },
+  ]);
 });
 
 for (const [what, path, heading] of [

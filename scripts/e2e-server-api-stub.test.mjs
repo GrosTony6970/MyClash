@@ -93,12 +93,15 @@ test('a league answers its row by its slug, and its standings by its id', () => 
   assert.equal(answerFor('GET', '/api/v1/leagues/lg-1/club-standings', undefined), null);
 });
 
-test('a fighter answers a profile with one recent bout, and nothing else', () => {
+test('a fighter answers a profile with two recent bouts, one with no Event address', () => {
   const fighter = answerFor('GET', '/api/v1/fighters/lea-martin', undefined).json;
   assert.equal(fighter.displayName, 'Léa Martin');
   assert.deepEqual(
     fighter.recentMatches.map((bout) => [bout.id, bout.eventSlug, bout.status]),
-    [['bout-1', 'test-event', 'completed']],
+    [
+      ['bout-1', 'test-event', 'completed'],
+      ['bout-2', null, 'completed'],
+    ],
   );
   assert.equal(answerFor('GET', '/api/v1/fighters/lea-martin/career', undefined), null);
   assert.equal(answerFor('GET', '/api/v1/fighters/nobody', undefined), null);

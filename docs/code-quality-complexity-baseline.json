@@ -745,7 +745,7 @@
     "apps/web-public/app/fighters/FighterDirectoryFilters.tsx:66",
     "apps/web-public/app/fighters/[slug]/_components/MatchHistoryModal.tsx:37",
     "apps/web-public/app/fighters/[slug]/_components/RatingHistorySection.tsx:23",
-    "apps/web-public/app/fighters/[slug]/page.tsx:382",
+    "apps/web-public/app/fighters/[slug]/page.tsx:383",
     "apps/web-public/app/fighters/page.tsx:84",
     "apps/web-public/app/leagues/[slug]/ClubStandingsSection.tsx:31",
     "apps/web-public/app/leagues/[slug]/StandingsGroups.tsx:95",

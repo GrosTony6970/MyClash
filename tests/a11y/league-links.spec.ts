@@ -124,3 +124,14 @@ test('a recent result opens its bout, and Back returns to the fighter', async ({
   await expect(recent).toHaveCount(1);
   await expect(recent).toContainText('Paul Martin');
 });
+
+// A result of an Event with no address has no page: it was a link to "#", which led nowhere.
+test('a recent result with no page to open is shown, and is no link', async ({ page }) => {
+  await stubPublicApi(page);
+  await page.goto(FIGHTER);
+  await waitForPageMain(page);
+
+  await expect(page.getByText('Hugo Blanc')).toBeVisible();
+  await expect(page.getByRole('link').filter({ hasText: 'Hugo Blanc' })).toHaveCount(0);
+  await expect(page.locator('a[href="#"]')).toHaveCount(0);
+});

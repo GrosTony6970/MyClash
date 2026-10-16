@@ -15,6 +15,7 @@ import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';
 import { ShareProfile } from '@/components/fighter/ShareProfile';
+import { ShareButton } from '@/components/ShareButton';
 import { historyBoutHref } from '@/lib/fighter-history';
 import type { FighterMedal, FighterPlacement } from '@/lib/weapon-stats';
 
@@ -512,6 +513,12 @@ export default async function FighterPage({ params }: Props) {
               )}
             </div>
           )}
+          {/* On a phone, the Share button alone: nobody scans their own screen (ruling 2026-10-16). */}
+          {fighter.slug && (
+            <div className="mt-3 sm:hidden">
+              <ShareButton path={`/fighters/${fighter.slug}`} />
+            </div>
+          )}
         </div>
         {fighter.slug && (
           <div className="hidden shrink-0 sm:block">
@@ -655,7 +662,7 @@ export default async function FighterPage({ params }: Props) {
             {t('publicApp.fighterProfile.liveNow')}
           </h2>
           {live.map((match) => (
-            <Link key={match.id} href={historyBoutHref(match, fighter.slug) ?? '#'}>
+            <BoutLink key={match.id} href={historyBoutHref(match, fighter.slug)}>
               <div className="rounded-xl border-2 border-danger bg-danger/10 p-4">
                 <p className="mb-1 text-xs text-foreground-secondary">{match.matchNumberLabel}</p>
                 <p className="font-bold text-foreground">
@@ -671,7 +678,7 @@ export default async function FighterPage({ params }: Props) {
                   </span>
                 </p>
               </div>
-            </Link>
+            </BoutLink>
           ))}
         </section>
       )}
@@ -692,7 +699,7 @@ export default async function FighterPage({ params }: Props) {
                     ? 'bg-warning/15 text-warning'
                     : 'bg-danger/15 text-danger';
               return (
-                <Link key={match.id} href={historyBoutHref(match, fighter.slug) ?? '#'}>
+                <BoutLink key={match.id} href={historyBoutHref(match, fighter.slug)}>
                   <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 transition-colors hover:border-muted">
                     <div>
                       <p className="text-sm font-medium text-foreground">
@@ -715,7 +722,7 @@ export default async function FighterPage({ params }: Props) {
                       </p>
                     </div>
                   </div>
-                </Link>
+                </BoutLink>
               );
             })}
           </div>
@@ -757,6 +764,14 @@ function ClubLine({
       {clubs.map((club) => club.clubs?.name ?? t('common.unknown')).join(', ')}
     </p>
   );
+}
+
+/**
+ * A bout of the fighter's: a link to its page, or plain when it has none (an Event with no
+ * address). It was a link to `#`, which led nowhere and moved the page to its top.
+ */
+function BoutLink({ href, children }: { href: string | null; children: React.ReactNode }) {
+  return href ? <Link href={href}>{children}</Link> : <div>{children}</div>;
 }
 
 function CareerList({ title, children }: { title: string; children: React.ReactNode }) {
