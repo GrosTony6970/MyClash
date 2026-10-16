@@ -748,7 +748,7 @@
     "apps/web-public/app/fighters/[slug]/page.tsx:383",
     "apps/web-public/app/fighters/page.tsx:84",
     "apps/web-public/app/leagues/[slug]/ClubStandingsSection.tsx:31",
-    "apps/web-public/app/leagues/[slug]/StandingsGroups.tsx:95",
+    "apps/web-public/app/leagues/[slug]/StandingsGroups.tsx:98",
     "apps/web-public/app/leagues/[slug]/page.tsx:118",
     "apps/web-public/app/login/page.tsx:37",
     "apps/web-public/app/me/PersonalSpaceDashboard.tsx:283",

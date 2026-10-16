@@ -115,6 +115,36 @@ test('a line with no Event address is shown, and is no link', async ({ page }) =
   await expect(lines.nth(1)).not.toContainText('longsword ·');
 });
 
+// Ruling 2026-10-16: a ranked name read as plain text until hovered, and was one line of text
+// high on a phone. It is underlined at all times, and a tap anywhere in 44px of height lands on it.
+test('a ranked name looks like a link and is a 44px target, in the card and in the table', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubPublicApi(page);
+  await page.goto(LEAGUE);
+  await waitForPageMain(page);
+
+  const links = await page.getByRole('link', { name: 'Léa Martin' }).all();
+  expect(links).toHaveLength(2);
+  for (const link of links) {
+    await link.scrollIntoViewIfNeeded();
+    expect(await link.evaluate((a) => getComputedStyle(a).textDecorationLine)).toContain(
+      'underline',
+    );
+    const box = (await link.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    // The top and the bottom of the target take the tap: nothing clips or covers them.
+    for (const y of [box.y + 2, box.y + box.height - 2]) {
+      const hit = await page.evaluate(
+        ([x, at]) => document.elementFromPoint(x, at)?.closest('a')?.getAttribute('href') ?? null,
+        [box.x + Math.min(box.width / 2, 20), y],
+      );
+      expect(hit).toBe('/fighters/lea-martin');
+    }
+  }
+});
+
 test('a recent result opens its bout, and Back returns to the fighter', async ({ page }) => {
   await stubPublicApi(page);
   await page.goto(FIGHTER);

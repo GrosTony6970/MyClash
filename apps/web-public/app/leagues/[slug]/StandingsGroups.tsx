@@ -70,16 +70,19 @@ export function rankBadge(rank: number): React.ReactNode {
 
 /**
  * A ranked fighter's name: a link to their public page when the API gives its
- * address, plain text when it gives none (quick win F21).
+ * address, plain text when it gives none (quick win F21). It looks like a link
+ * at all times, and is a 44px tap target (operator ruling 2026-10-16): it read
+ * as plain text until hovered, one line of text high on a phone.
  */
-function FighterName({ row }: { row: LeagueStandingRow }) {
+function FighterName({ row, layout }: { row: LeagueStandingRow; layout: string }) {
   const name = row.global_persons?.display_name ?? '—';
   if (!row.fighterSlug) return name;
   return (
     <Link
       href={`/fighters/${row.fighterSlug}`}
-      // No focus ring: the champion's card cuts what leaves the name's box.
-      className="underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none"
+      // No focus ring: the champion's card cuts what leaves the name's box. Focus thickens the line.
+      // `layout` is the caller's: the card truncates a long name, the table wraps it.
+      className={`${layout} min-h-11 py-3 underline decoration-1 underline-offset-4 focus-visible:decoration-2 focus-visible:outline-none`}
     >
       {name}
     </Link>
@@ -148,7 +151,7 @@ export async function StandingsGroups({
                           {t('publicApp.leagues.championLabel')}
                         </p>
                         <p className="truncate font-semibold text-foreground">
-                          <FighterName row={row} />
+                          <FighterName row={row} layout="block truncate" />
                         </p>
                         {club && <p className="truncate text-xs text-muted">{club}</p>}
                       </div>
@@ -196,7 +199,7 @@ export async function StandingsGroups({
                         <td className="px-3 py-2 align-top">{rankBadge(row.rank)}</td>
                         <td className="px-3 py-2 align-top">
                           <p className="font-medium text-foreground">
-                            <FighterName row={row} />
+                            <FighterName row={row} layout="inline-block" />
                           </p>
                           {showTiebreak && (
                             <p className="mt-0.5 text-xs text-muted">
