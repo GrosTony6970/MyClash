@@ -2955,7 +2955,7 @@ reads the tablet's time). About twenty-three are plain bugs. Seven needed a ruli
 
 ### Rulings — operator, 2026-10-16 evening: the server's last four
 
-Four rows the server batches left, each asked with a story (do not ask them again):
+Four rows the server batches left, and S2, each asked with a story (do not ask them again):
 
 | Row       | Story                                                                                                                                                                                                                                                                                    | Ruling                                                                                                                                                                        |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2963,6 +2963,7 @@ Four rows the server batches left, each asked with a story (do not ask them agai
 | R3        | One organiser changes the ruleset while another presses "Generate Pools" in the same second: the 40 new bouts carry the old ruleset, made after the change's re-stamp.                                                                                                                   | **Re-stamp after the insert**: each of the eight doors that make bouts runs the re-stamp of the bouts not started after its write (logged on failure). No trigger.            |
 | R7        | The referee's current bout and the TV's bout carry the match format as stored. Asked first as "no screen reads it": wrong, the TV reads it for its clock and its bout chart (it works the phase out itself), and the chart shows "doubles 1/4" on a bracket bout. Asked again with that. | **Remove it from the current-bout answer only** (unread there); the TV keeps it; **fix the chart** to use the doubles limit of the bout's phase (`bout-flow.ts`), same batch. |
 | Auto-lock | A Pool's last bout is decided by a hit made at 10:06 that reaches the server at 11:00. Counted from the true end, a 30-minute auto-lock fires on arrival.                                                                                                                                | **The later of the end and the last write**: the wait counts from the later of the bout's end time and its last change on the server.                                         |
+| S2        | A pad sends "Start round 2" again before the first answer. The first send opens the round and the referee presses Start; the second, which passed its rules while the bout waited, puts round 2's clock back to 0:00 under the fight.                                                    | **Check again just before**: each clock step of the advance reads the bout again and stops when the round is open. No claim column.                                           |
 
 ### Built on 2026-10-16: the server pass, first batch
 
