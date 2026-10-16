@@ -11,6 +11,7 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from 'react';
+import { fetchRenewingLogin } from '@myclash/api-client';
 import { getDateFormat } from '@myclash/types';
 import { Avatar, Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -416,8 +417,8 @@ export function FighterProfileClient({
   // previous). The combobox stays API-agnostic; the URL lives here.
   const searchClubs = useCallback(
     async (query: string): Promise<ClubOption[]> => {
-      const url = `${apiUrl}/api/v1/clubs?q=${encodeURIComponent(query)}&searchAbv=true`;
-      const res = await fetch(url, { credentials: 'include' });
+      const path = `/api/v1/clubs?q=${encodeURIComponent(query)}&searchAbv=true`;
+      const res = await fetchRenewingLogin(apiUrl, path, { credentials: 'include' });
       if (!res.ok) return [];
       const data = (await res.json()) as
         | Array<{ id: string; name: string; city?: string | null; abbreviation?: string | null }>
@@ -444,7 +445,9 @@ export function FighterProfileClient({
 
   const loadClaimable = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/me/personal-space`, { credentials: 'include' });
+      const res = await fetchRenewingLogin(apiUrl, '/api/v1/me/personal-space', {
+        credentials: 'include',
+      });
       if (!res.ok) return;
       const data = (await res.json()) as {
         claimable?: Array<{ id: string; name: string; eventName: string }>;
@@ -461,8 +464,8 @@ export function FighterProfileClient({
   // load() without tripping set-state-in-effect.
   const load = useCallback(() => {
     Promise.all([
-      fetch(`${apiUrl}/api/v1/fighters/me/dashboard`, { credentials: 'include' }),
-      fetch(`${apiUrl}/api/v1/weapons`, { credentials: 'include' }),
+      fetchRenewingLogin(apiUrl, '/api/v1/fighters/me/dashboard', { credentials: 'include' }),
+      fetchRenewingLogin(apiUrl, '/api/v1/weapons', { credentials: 'include' }),
     ])
       .then(async ([dashboardResponse, weaponsResponse]) => {
         if (!dashboardResponse.ok) {
@@ -626,7 +629,7 @@ export function FighterProfileClient({
     setPhotoError(null);
     const body = new FormData();
     body.append('file', blob, 'avatar.jpg');
-    fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
+    fetchRenewingLogin(apiUrl, '/api/v1/fighters/me/photo', {
       method: 'POST',
       credentials: 'include',
       body,
@@ -656,7 +659,7 @@ export function FighterProfileClient({
     setPhotoBusy(true);
     setMessage(null);
     setPhotoError(null);
-    fetch(`${apiUrl}/api/v1/fighters/me/photo`, {
+    fetchRenewingLogin(apiUrl, '/api/v1/fighters/me/photo', {
       method: 'DELETE',
       credentials: 'include',
     })
@@ -702,7 +705,7 @@ export function FighterProfileClient({
     setSaving(true);
     setMessage(null);
     setError(null);
-    fetch(`${apiUrl}/api/v1/fighters/me/profile`, {
+    fetchRenewingLogin(apiUrl, '/api/v1/fighters/me/profile', {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { fetchRenewingLogin } from '@myclash/api-client';
 import { Card, SkillBadge, sideColorsForTokens } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
@@ -86,7 +87,7 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
   const [scope, setScope] = useState<string>('global');
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/v1/fighters/me/referee-stats`, { credentials: 'include' })
+    fetchRenewingLogin(apiUrl, '/api/v1/fighters/me/referee-stats', { credentials: 'include' })
       .then(async (response) => {
         if (!response.ok) throw new Error('referee-stats');
         setStats((await response.json()) as RefereeStats);

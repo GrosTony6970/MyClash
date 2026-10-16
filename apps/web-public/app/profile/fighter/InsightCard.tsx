@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { fetchRenewingLogin } from '@myclash/api-client';
 import { Button, Card } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 
@@ -26,7 +27,7 @@ export function InsightCard({ apiUrl }: { apiUrl: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me/insight?locale=${locale}`, {
+    fetchRenewingLogin(apiUrl, `/api/v1/me/insight?locale=${locale}`, {
       credentials: 'include',
       signal: controller.signal,
     })
@@ -42,7 +43,7 @@ export function InsightCard({ apiUrl }: { apiUrl: string }) {
     setError(null);
     setNeedsKey(false);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/me/insight/generate?locale=${locale}`, {
+      const res = await fetchRenewingLogin(apiUrl, `/api/v1/me/insight/generate?locale=${locale}`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -63,8 +64,9 @@ export function InsightCard({ apiUrl }: { apiUrl: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/me/insight/${publish ? 'publish' : 'unpublish'}?locale=${locale}`,
+      const res = await fetchRenewingLogin(
+        apiUrl,
+        `/api/v1/me/insight/${publish ? 'publish' : 'unpublish'}?locale=${locale}`,
         { method: 'POST', credentials: 'include' },
       );
       if (!res.ok) throw new Error(t('publicApp.meInsight.error'));
