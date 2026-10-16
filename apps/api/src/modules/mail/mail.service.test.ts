@@ -227,5 +227,27 @@ describe('MailService magic link', () => {
     expect(html).toContain('Confirmer mon adresse / Confirm my address');
     expect(html).toContain('confirm your address and log in');
     expect(html).not.toContain('Se connecter / Log in');
+    expect(html).not.toContain('already existed');
+  });
+
+  it('says the first password stays on a second sign-up at an unconfirmed address (ruling 2026-10-16)', async () => {
+    const service = new MailService(config as never, supabase as never);
+
+    await service.sendMagicLink({
+      to: 'lea@example.com',
+      magicLink: 'https://api.myclash.fr/api/v1/auth/callback?type=public_login&token_hash=c',
+      type: 'confirmAgain',
+    });
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
+      }),
+    );
+    const html = sendMock.mock.calls[0]![0].html as string;
+    expect(html).toContain('Confirmer mon adresse / Confirm my address');
+    expect(html).toContain('son mot de passe reste celui choisi la premiere fois');
+    expect(html).toContain('its password is still the one chosen the first time');
+    expect(html).toContain('Forgot password?');
   });
 });

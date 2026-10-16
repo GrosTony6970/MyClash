@@ -70,7 +70,7 @@ function button(url: string, label: string): string {
 }
 
 /** What a mailed link is for. `confirm`: the address of a new account (sign-up). */
-export type MagicLinkType = 'claim' | 'login' | 'recovery' | 'confirm';
+export type MagicLinkType = 'claim' | 'login' | 'recovery' | 'confirm' | 'confirmAgain';
 
 /**
  * The words of each kind of mailed link: the subject, the line above the button, the button.
@@ -105,6 +105,14 @@ export const MAGIC_LINK_WORDS: Record<
     subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
     intro:
       '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Click the link below to confirm your address and log in to MyClash.</p>',
+    label: 'Confirmer mon adresse / Confirm my address',
+  },
+  // A second sign-up on an address that waits for its confirmation (ruling 2026-10-16): the
+  // account keeps the password chosen first, and the reader is told so.
+  confirmAgain: {
+    subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
+    intro:
+      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Ce compte existait deja : son mot de passe reste celui choisi la premiere fois. Vous l\'avez oublie ? Touchez "Mot de passe oublie ?" sur la page de connexion.</p><p>Click the link below to confirm your address and log in to MyClash.</p><p>This account already existed: its password is still the one chosen the first time. Forgot it? Tap "Forgot password?" on the sign-in page.</p>',
     label: 'Confirmer mon adresse / Confirm my address',
   },
 };

@@ -34,12 +34,13 @@ function build(tables: Record<string, TableSeed> = {}) {
   const updateUserById = vi.fn().mockResolvedValue({ error: null });
   const deleteUser = vi.fn().mockResolvedValue({ error: null });
   const redactSubject = vi.fn();
+  const createUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-new' } }, error: null });
   const generateLink = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
   const supabase = {
     getAuthUser: vi.fn().mockResolvedValue(LEA),
     service: {
       from: db.service.from,
-      auth: { admin: { updateUserById, deleteUser, generateLink } },
+      auth: { admin: { updateUserById, deleteUser, createUser, generateLink } },
     },
   };
   const service = new AuthService(
@@ -47,7 +48,10 @@ function build(tables: Record<string, TableSeed> = {}) {
     { sendMagicLink: vi.fn() } as never,
     config as never,
     { redactSubject } as never,
-    { assertCurrent: vi.fn(() => ({})) } as unknown as LegalAcceptanceService,
+    {
+      assertCurrent: vi.fn(() => ({})),
+      recordForUser: vi.fn(),
+    } as unknown as LegalAcceptanceService,
     {} as never,
   );
   const reply = { setCookie: vi.fn(), clearCookie: vi.fn(), send: vi.fn() };
@@ -67,6 +71,7 @@ function build(tables: Record<string, TableSeed> = {}) {
     updateUserById,
     deleteUser,
     redactSubject,
+    createUser,
     generateLink,
   };
 }
@@ -256,6 +261,7 @@ describe('the participant sign-up during read-only mode (ruling 341)', () => {
 
     expect(refusal).toBeInstanceOf(OperationalUnavailableException);
     expect((refusal as HttpException).getResponse()).toMatchObject({ code: READ_ONLY_MODE_CODE });
+    expect(built.createUser).not.toHaveBeenCalled();
     expect(built.generateLink).not.toHaveBeenCalled();
   });
 
@@ -265,6 +271,7 @@ describe('the participant sign-up during read-only mode (ruling 341)', () => {
     expect(await answer).toEqual({
       message: 'If this email is new, a confirmation link has been sent.',
     });
+    expect(built.createUser).toHaveBeenCalledOnce();
     expect(built.generateLink).toHaveBeenCalledOnce();
   });
 });

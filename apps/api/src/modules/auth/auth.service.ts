@@ -84,6 +84,7 @@ import { guestPersonOf } from './guest-person';
 import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 import { safeRedirectPath } from './safe-redirect';
 import { passwordIfKnown, signsInWithPassword } from './sign-in-methods';
+import { SIGNUP_ANSWER, signupAccount, type SignupAccount } from './signup-account';
 
 /** What the CHECK of a claim can answer. The write has one more: `already_at_event`. */
 type ClaimCheckRefusal = Exclude<ClaimLinkRefusal, 'already_at_event'>;
@@ -1563,52 +1564,52 @@ export class AuthService {
     }
     const normalized = email.trim().toLowerCase();
 
-    // One call makes the unconfirmed account AND the code of its confirmation link.
-    const { data, error } = await this.supabase.service.auth.admin.generateLink({
-      type: 'signup',
-      email: normalized,
-      password,
-    });
-    if (error) {
-      // Already exists, weak password caught server-side, etc.
-      // Stay vague to avoid email enumeration ("if the email is new
-      // we'll send a confirmation link"); the UI shows the success
-      // banner regardless of the underlying state.
-      this.logger.warn(`public-signup failed for ${normalized}: ${error.message}`);
+    const account = await signupAccount(this.supabase.service.auth.admin, normalized, password);
+    if (account.kind === 'none') {
+      // A confirmed account, a password the auth server refused, etc. Every case answers the
+      // same words (`SIGNUP_ANSWER`), so the answer never says that an address has an account.
+      this.logger.warn(`public-signup made nothing for ${normalized}: ${account.why}`);
+      return SIGNUP_ANSWER;
     }
-
-    // Only when an account was actually created. An existing email takes the
-    // error branch above and creates nothing, so there is no subject to record
-    // an acceptance for — and writing one would leak that the email is taken.
-    const createdUserId = data?.user?.id;
-    if (createdUserId) {
-      await this.legal.recordForUser(createdUserId, versions, context);
-      await this.mailSignupConfirmation(normalized, data.properties, next);
+    // An acceptance only for the account this call made: an address that waits for its
+    // confirmation keeps the one given with its first sign-up, and a stranger who types it
+    // writes nothing on it.
+    if (account.kind === 'created') {
+      await this.legal.recordForUser(account.userId, versions, context);
     }
-
-    return {
-      message: 'If this email is new, a confirmation link has been sent.',
-    };
+    await this.mailSignupConfirmation(normalized, account, next);
+    return SIGNUP_ANSWER;
   }
 
   /**
-   * Mail a new account its confirmation link: the public site's sign-in door, which spends
-   * the code, signs its reader in and opens `next`. No code, no mail: a link that cannot work
-   * is worse than none, and the log says so.
+   * Mail the account its confirmation link: the public site's sign-in door, which spends the
+   * code, signs its reader in and opens `next`. A second sign-up on an address that waits for
+   * its confirmation gets the words that say its first password stays (ruling 2026-10-16).
+   * No code, no mail: a link that cannot work is worse than none, and the log says so. A mail
+   * that fails is logged: a 500 for a new address only would tell that it is new.
    */
   private async mailSignupConfirmation(
     email: string,
-    properties: { hashed_token?: string } | null | undefined,
+    account: Exclude<SignupAccount, { kind: 'none' }>,
     next: string | undefined,
   ): Promise<void> {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const door = signInDoor(domain, 'public_login', safeRedirectPath(next));
-    const magicLink = mailedLink(door, properties);
+    const magicLink = mailedLink(door, account.code);
     if (!magicLink) {
       this.logger.error(`public-signup: no confirmation code for ${email}`);
       return;
     }
-    await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm' });
+    const type = account.kind === 'created' ? 'confirm' : 'confirmAgain';
+    try {
+      await this.mail.sendMagicLink({ to: email, magicLink, type });
+    } catch (err) {
+      this.logger.error(
+        `public-signup: confirmation mail failed for ${email}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**
