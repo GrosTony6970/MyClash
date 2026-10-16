@@ -229,21 +229,26 @@ export class ScoringService {
     redecided: { eventOver: boolean } | null,
     causedAt?: string,
   ): Promise<void> {
-    // The ruleset closed the match (point cap or double cap). Stop the
-    // clock so it freezes and the scoreboard's clock-driven endcard fires.
-    if (justCompleted) {
-      await this.endClockBestEffort(matchId, causedAt);
-      // THIS is how a real bracket match ends — the pad never calls
-      // PATCH /matches/:id/status, so before this call the only completion paths
-      // that ran the side effects were that endpoint (used solely by the e2e
-      // specs) and forfeits. A bracket scored on the pad simply never
-      // progressed. Awaited rather than fire-and-forget: it runs once per match,
-      // on the closing exchange only, and the pad's next read should already see
-      // the next slot filled. MatchCompletionService swallows and logs its own
-      // errors, so this cannot fail the exchange that triggered it.
-      await this.matchCompletion?.onMatchCompleted(matchId);
-    }
+    if (justCompleted) await this.afterBoutEnded(matchId, causedAt);
     if (redecided) await this.matchCompletion?.onResultChanged(matchId, redecided.eventOver);
+  }
+
+  /**
+   * A hit or a card just ended the bout, a single fight or a series: the one owner of what follows.
+   *
+   * Stop the clock, so it freezes and the scoreboard's clock-driven endcard fires. Then tell the
+   * bracket: THIS is how a real bracket match ends — the pad never calls
+   * PATCH /matches/:id/status. Told here and not only through the clock's End, which skips a clock
+   * that is idle or already ended and swallows its own failure: a series told the bracket only
+   * that way, and a won series whose clock had nothing to end left the next round empty. The
+   * End, when it runs, tells it too; advancing writes a side only while it is empty, so twice is
+   * once. Awaited rather than fire-and-forget: the pad's next read should already see the next
+   * slot filled. MatchCompletionService swallows and logs its own errors, so this cannot fail the
+   * exchange that triggered it.
+   */
+  private async afterBoutEnded(matchId: string, causedAt?: string): Promise<void> {
+    await this.endClockBestEffort(matchId, causedAt);
+    await this.matchCompletion?.onMatchCompleted(matchId);
   }
 
   /**
@@ -264,7 +269,7 @@ export class ScoringService {
     awaiting: boolean,
     causedAt?: string,
   ): Promise<void> {
-    if (ended) await this.endClockBestEffort(matchId, causedAt);
+    if (ended) await this.afterBoutEnded(matchId, causedAt);
     else if (awaiting) await this.haltClockBestEffort(matchId, causedAt);
   }
 

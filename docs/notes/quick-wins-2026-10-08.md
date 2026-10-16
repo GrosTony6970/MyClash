@@ -2933,6 +2933,25 @@ CI run 38881553176, every job green on its first attempt. **No falsifier ran** o
   dead. One tab cannot: the button waits.
 - A confirmation link that fails after the account was made logs only "no confirmation code".
 
+### Rulings — operator, 2026-10-16: the server
+
+The server round. Each bullet of "The server" above was read again in code at `ec105352` (three
+read-only agents, the product choices read again by me). One reads differently: a list route's
+`[]` for a hidden bout is rulings 81-83 and 89 on purpose (an unknown bout answers the same), and a
+test pins it. Two are fixed already (the guest schedule, `204143b6`; a card before a Start is
+counted by its own recompute). One is ruled already (ruling 290: "scored before the last reset"
+reads the tablet's time). About twenty-three are plain bugs. Seven needed a ruling:
+
+| Row            | Story                                                                                                                                                  | Ruling                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Late End round | An offline tablet ends round 2 with red ahead 4-3; meanwhile the desk voids a red hit. On arrival the server reads 3-3.                                | **Keep: the sheet decides.** The server's sheet on arrival scores the round; the desk's correction counts.                             |
+| Forfeit back   | A forfeit given by mistake is taken back. The bout returns to "running" with the clock the forfeit ended, and only a Reopen button.                    | **Reopen + paused**: the take-back writes a Reopen of the clock and puts the bout back to "paused". The referee presses Resume.        |
+| Offline rules  | A tablet with no wifi starts a bout under TF_v1; the organiser switches the ruleset; the server, which saw no start, moves the bout to the new one.    | **The pad's ruleset**: the pad sends the ruleset it started under with its first write, and the server keeps it. Own plan first.       |
+| Live settings  | Half a Pool is fought with a cap of 5; the organiser raises it to 7. Only a change of ruleset is locked once bouts are scored, not its settings.       | **The same lock as a ruleset change**: once a bout is scored, a settings change that alters scoring goes through the audited re-pin.   |
+| Reset + chain  | Extra time is granted to a level bout, then "Reset clock" is pressed by mistake: regulation time again, and the chain's next step is sudden death.     | **Refuse after a step**: once a level step is taken, "Reset clock" is refused (en + fr). A Reopen keeps the chain.                     |
+| TF_v1 version  | TF_v1's end decision changed on 2026-10-11 and its version stayed 1.0.0: a bout corrected after the deploy is decided again by the new rule, silently. | **Real versions, both kept**: bump the version when an engine's decision changes, and keep the old engine registered. Own plan first.  |
+| No-PIN piste   | An organiser scores a bout from the organiser site with no PIN; the wifi drops; nothing of the piste is kept.                                          | **Same "leave it"** as the piste picker (10-11): a piste's queue stays for PIN sessions. The scoring screen's offline worker is fixed. |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
