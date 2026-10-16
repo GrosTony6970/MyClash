@@ -544,11 +544,7 @@ export class MatchesService {
     // Idempotency check FIRST: if client_uuid already exists, return existing
     // row. A replay of a saved hit is not a result change, so no refusal below
     // may answer it: the pad reads a refusal as "never taken" and holds the hit.
-    const { data: existing } = await this.supabase.service
-      .from('exchanges')
-      .select('*')
-      .eq('client_uuid', dto.clientUuid)
-      .maybeSingle();
+    const existing = await this.savedHitOf(matchId, dto.clientUuid);
 
     if (existing) {
       // Idempotent — return the existing exchange without error
@@ -596,11 +592,7 @@ export class MatchesService {
 
     if (error && isUniqueViolation(error.message)) {
       // Handle race condition: another request inserted the same client_uuid
-      const { data: raceExisting } = await this.supabase.service
-        .from('exchanges')
-        .select('*')
-        .eq('client_uuid', dto.clientUuid)
-        .maybeSingle();
+      const raceExisting = await this.savedHitOf(matchId, dto.clientUuid);
       if (raceExisting) {
         await this.scoreReplayedHit(matchId, dto, raceExisting as Record<string, unknown>);
         return raceExisting;
@@ -623,6 +615,24 @@ export class MatchesService {
     // stopped at the time of the hit, not at the time the queue arrives.
     await this.scoring.recomputeMatchScore(matchId, scoredAtServer(dto));
 
+    return data;
+  }
+
+  /**
+   * The saved hit this id names, or null. A `client_uuid` is unique across every bout, so the
+   * row may be another bout's: that is no replay of this bout's hit, and it is refused, as a
+   * round press is (`savedRoundPress`). Answered "saved", it handed back the other bout's row,
+   * and the replay scored this bout against the time of the other bout's hit.
+   */
+  private async savedHitOf(matchId: string, clientUuid: string) {
+    const { data } = await this.supabase.service
+      .from('exchanges')
+      .select('*')
+      .eq('client_uuid', clientUuid)
+      .maybeSingle();
+    if (data && (data as { match_id?: string }).match_id !== matchId) {
+      throw new BadRequestException('This id is the id of another hit');
+    }
     return data;
   }
 

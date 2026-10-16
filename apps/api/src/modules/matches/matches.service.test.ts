@@ -317,6 +317,49 @@ describe('MatchesService', () => {
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1', undefined);
     });
 
+    // A `client_uuid` is unique across every bout. A hit saved for bout m2, sent again to m1, is
+    // not m1's: answering it "saved" handed back m2's row, and the replay scored m1 against
+    // the time of m2's hit (past m1's back-in-play mark).
+    const OTHER_BOUTS_HIT = { id: 'ex-9', client_uuid: 'uuid-abc', match_id: 'm2', sequence: 4 };
+    const HIT_AGAIN = {
+      clientUuid: 'uuid-abc',
+      sequence: 1,
+      type: 'clean' as const,
+      occurredAt: '2026-10-03T10:00:00.000Z',
+      firstStrikerColor: 'red' as const,
+      firstStrikeValue: 1,
+    };
+
+    it("refuses a hit id another bout's hit holds, and scores nothing", async () => {
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: { rows: [OTHER_BOUTS_HIT] },
+        matches: { rows: [{ id: 'm1', status: 'running', back_in_play_at: null }] },
+      });
+
+      await expect(exchangeService.createExchange('m1', HIT_AGAIN)).rejects.toEqual(
+        new BadRequestException('This id is the id of another hit'),
+      );
+      expect(supabase.writes).toEqual([]);
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
+
+    it("refuses it on the race path too, when another bout's hit took the id first", async () => {
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [
+          NEW_EXCHANGE,
+          { data: null, error: { message: 'duplicate key value violates unique constraint' } },
+          { data: OTHER_BOUTS_HIT, error: null },
+        ],
+        ...scorableMatch({ status: 'running', back_in_play_at: null }),
+      });
+
+      await expect(exchangeService.createExchange('m1', HIT_AGAIN)).rejects.toEqual(
+        new BadRequestException('This id is the id of another hit'),
+      );
+      expect(writesTo(supabase, 'exchanges')).toHaveLength(1);
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
+
     it('inserts new exchange when client_uuid is fresh', async () => {
       const newExchange = { id: 'ex-new', client_uuid: 'uuid-new', match_id: 'm1', sequence: 2 };
       const { service: exchangeService, supabase } = makeService({
