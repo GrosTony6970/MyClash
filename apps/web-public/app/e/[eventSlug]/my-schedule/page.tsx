@@ -27,7 +27,13 @@ import {
   uncheckedCount,
   type TimedItem,
 } from '@/components/me/conflicts';
-import type { PoolSpan } from '@/components/me/types';
+import type {
+  PersonSchedule,
+  PoolSpan,
+  RefereeSlot,
+  ScheduleMatch,
+  WorkshopEnrollment,
+} from '@/components/me/types';
 import { DEFAULT_EVENT_TIMEZONE, formatInZone, localeToBcp47, type AppLocale } from '@myclash/time';
 import { isLiveStatus } from '@myclash/types';
 import { sideColorsForTokens } from '@myclash/ui';
@@ -53,64 +59,6 @@ function scoreColors(match: ScheduleMatch): { red: string; blue: string } {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ScheduleMatch {
-  id: string;
-  matchNumberLabel: string;
-  status: string;
-  scheduledAt: string | null;
-  /** Planned length in minutes (ADR-018); null when the API could not read the sheet. */
-  durationMinutes: number | null;
-  /** With no length, where the API says the bout ends instead: its next bout. */
-  fallbackEndsAt?: string | null;
-  opponentName: string | null;
-  redScore: number;
-  blueScore: number;
-  isRed: boolean;
-  /** The tournament's configured side colours — per match, since a schedule
-   *  can span tournaments with different palettes. */
-  sideColors?: { red: string; blue: string } | null;
-  /** The bout's Pool — the key into `PersonSchedule.poolSpans`. */
-  poolId: string | null;
-  poolName: string | null;
-  tournamentName: string | null;
-  liceName: string | null;
-}
-
-interface RefereeSlot {
-  id: string;
-  matchId: string;
-  matchNumberLabel: string;
-  scheduledAt: string | null;
-  /** The duty's planned window, worked out by the API from the Matches it covers. */
-  startsAt: string | null;
-  endsAt: string | null;
-  /** The organiser's own name for the duty's role; the role's id is not shown. */
-  skillName?: string | null;
-  poolName: string | null;
-  tournamentName: string | null;
-}
-
-interface WorkshopEnrollment {
-  workshopId: string;
-  workshopName: string;
-  sessionStart: string | null;
-  sessionEnd: string | null;
-  location: string | null;
-  /** A seat, or a place on the waitlist. */
-  status: 'confirmed' | 'waitlisted';
-}
-
-interface PersonSchedule {
-  personId: string;
-  /** The event's IANA zone — the clock the day headings below are measured on. */
-  timezone?: string | null;
-  matches: ScheduleMatch[];
-  /** The fighter's Pools, each spanning all of its bouts: busy for the whole of it. */
-  poolSpans: PoolSpan[];
-  refereeSlots: RefereeSlot[];
-  workshops: WorkshopEnrollment[] | null;
-}
 
 type ScheduleItem =
   | { kind: 'match'; data: ScheduleMatch; time: string | null }
@@ -274,7 +222,8 @@ export default function MySchedulePage() {
   // A Pool's clashes show on every bout of that Pool.
   const shownMatches = sorted.flatMap((item) => (item.kind === 'match' ? [item.data] : []));
   const others = sorted.filter((item): item is OtherItem => item.kind !== 'match');
-  const timed = timedItems(shownMatches, others, schedule.poolSpans, t);
+  // A copy the phone kept before the API sent Pools has none: no Pool clash to show.
+  const timed = timedItems(shownMatches, others, schedule.poolSpans ?? [], t);
   const conflicts = spreadPoolConflicts(
     detectConflicts(timed),
     { matches: shownMatches },

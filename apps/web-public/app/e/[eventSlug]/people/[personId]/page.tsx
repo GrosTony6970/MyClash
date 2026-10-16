@@ -25,6 +25,7 @@ import { forgetSchedules } from '@/components/me/schedule-copy';
 import { BackLink } from '@/components/BackLink';
 import { boutPageHref } from '@/lib/bout-page';
 import { personRoleWord, type PersonRole } from '@/lib/person-roles';
+import type { PersonSchedule, ScheduleMatch } from '@/components/me/types';
 import { refereeRoleLabel } from '@/components/me/referee-role';
 import { followRefusal } from './follow-answer';
 import { ThisIsMeCard } from './ThisIsMeCard';
@@ -41,47 +42,9 @@ interface PersonProfile {
   hasAccount: boolean;
 }
 
-interface ScheduleMatch {
-  id: string;
-  matchNumberLabel: string;
-  status: string;
-  scheduledAt: string | null;
-  opponentName: string | null;
-  redScore: number;
-  blueScore: number;
-  /** Result from this person's perspective, decided server-side from the
-   *  recorded winner. Null while the bout is unfinished. */
-  outcome: 'win' | 'loss' | 'draw' | null;
-  isRed: boolean;
-  tournamentName: string | null;
-  /** The piste the bout is planned on, when it has one. */
-  liceName?: string | null;
-}
-
 /** A bout that is live or to come: its label, and where to go to watch it. */
 const boutAndPiste = (m: ScheduleMatch): string =>
   m.liceName ? `${m.matchNumberLabel} · ${m.liceName}` : m.matchNumberLabel;
-
-interface PersonSchedule {
-  /** The Event's IANA zone: the clock the times below are told on. */
-  timezone?: string | null;
-  matches: ScheduleMatch[];
-  refereeSlots: Array<{
-    /** referee_assignments.id — `matchId` is '' for every pool-scoped duty, so
-     *  it cannot key the list. */
-    id: string;
-    matchId: string;
-    matchNumberLabel: string;
-    scheduledAt: string | null;
-    /** The organiser's own name for the duty's role; the role's id is not shown. */
-    skillName?: string | null;
-  }>;
-  workshops: Array<{
-    workshopName: string;
-    sessionStart: string | null;
-    location: string | null;
-  }> | null;
-}
 
 export default function PersonProfilePage() {
   const { t, locale } = useI18n();

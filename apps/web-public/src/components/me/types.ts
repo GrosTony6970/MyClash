@@ -20,6 +20,9 @@ export interface ScheduleMatch {
   opponentName: string | null;
   redScore: number;
   blueScore: number;
+  /** Result from this person's side, decided server-side from the recorded winner. Null
+   *  while the bout is unfinished; absent in a copy cached before the API sent it. */
+  outcome?: 'win' | 'loss' | 'draw' | null;
   isRed: boolean;
   /** The tournament's configured fighter-side colour tokens. Per match, since a
    *  personal schedule spans tournaments with different palettes. */
@@ -95,8 +98,15 @@ export interface PoolSpan {
   endsAt: string | null;
 }
 
+/**
+ * A person's schedule at one Event (`GET …/my-schedule`, and a person's page): the ONE client
+ * copy of the API's shape. The guest page, the person page and the personal space all read it.
+ */
 export interface PersonSchedule {
   personId: string;
+  /** The Event's IANA zone: the clock the day headings are measured on. Absent in a copy cached
+   *  before the API sent it. */
+  timezone?: string | null;
   matches: ScheduleMatch[];
   /** The Pools of `matches`. Absent in a copy cached before the API sent it. */
   poolSpans?: PoolSpan[];
