@@ -110,12 +110,15 @@ describe('the rule has one owner', () => {
   /** Under an Event the rule handed on is the Event's; anywhere else, the site's. */
   it('a layout that hands a rule on hands the rule of where it stands', () => {
     const handing = filesNamed(APP, /^layout\.tsx?$/).filter((file) =>
-      /titledAbove\(/.test(source(file)),
+      /titled(Above|InEvent)\(/.test(source(file)),
     );
     expect(handing.length).toBeGreaterThanOrEqual(3);
     for (const layout of handing) {
-      const rule = layout.startsWith('e/[eventSlug]/') ? 'eventTitleRule' : 'siteTitleRule';
-      const handed = [...source(layout).matchAll(/titledAbove\(\s*'[^']+',\s*(\w+)/g)];
+      // One Event of the personal space names that Event (ruling 2026-10-16): the Event's rule.
+      const ofOneEvent =
+        layout.startsWith('e/[eventSlug]/') || /titledInEvent\(/.test(source(layout));
+      const rule = ofOneEvent ? 'eventTitleRule' : 'siteTitleRule';
+      const handed = [...source(layout).matchAll(/titled(?:Above|InEvent)\(\s*'[^']+',\s*(\w+)/g)];
       expect(handed.length, layout).toBeGreaterThan(0);
       for (const [, name] of handed) expect(name, layout).toBe(rule);
     }

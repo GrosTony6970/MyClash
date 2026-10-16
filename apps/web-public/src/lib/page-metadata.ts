@@ -30,6 +30,22 @@ export function titledAbove<P>(
   });
 }
 
+/**
+ * `titledAbove`, for a layout of ONE Event outside the Event's own pages (the personal space,
+ * operator ruling 2026-10-16): its page reads "My event · Open de Lyon", not "My event ·
+ * MyClash", and the pages below hand the Event on ("My schedule · Open de Lyon"). Two Events in
+ * two tabs read apart. `rule` names the Event (`eventTitleRule`: its name, else its address).
+ */
+export function titledInEvent<P>(
+  key: string,
+  rule: (params: P) => Promise<{ template: string }>,
+): (props: { params: Promise<P> }) => Promise<Metadata> {
+  return async ({ params }) => {
+    const { template } = await rule(await params);
+    return { title: { absolute: template.replace('%s', (await getServerT())(key)), template } };
+  };
+}
+
 /** The site's rule, for `titledAbove` under a page outside an Event. */
 export async function siteTitleRule(): Promise<{ template: string; default: string }> {
   return siteTitles((await getServerT())('metadata.publicTitle'));

@@ -58,8 +58,9 @@ const OUTSIDE_AN_EVENT: Array<[path: string, title: string]> = [
   ['/me', 'My space · MyClash'],
   // Pages below a page that names its own tab: the site's name is still there.
   ['/me/events', 'My events · MyClash'],
-  ['/me/events/test-event', 'My event · MyClash'],
-  ['/me/events/test-event/schedule', 'My schedule · MyClash'],
+  // One Event of the personal space names the Event (ruling 2026-10-16): two Events, two tabs.
+  ['/me/events/test-event', 'My event · Open de Lyon'],
+  ['/me/events/test-event/schedule', 'My schedule · Open de Lyon'],
   ['/me/settings', 'Settings · MyClash'],
   ['/me/security', 'Security · MyClash'],
   ['/reset-password', 'New password · MyClash'],
