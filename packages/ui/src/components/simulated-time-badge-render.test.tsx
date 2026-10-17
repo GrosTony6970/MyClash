@@ -26,13 +26,22 @@ describe('SimulatedTimeBadge', () => {
     expect(render()).toBe('');
   });
 
-  it('shows the running simulated time', () => {
+  it('shows the running simulated time, to the minute', () => {
     Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: false });
     const html = render();
-    expect(html).toContain(
-      `common.simulatedTime.running|${new Date(NOW_MS).toLocaleString('en-GB')}`,
-    );
+    const time = new Date(NOW_MS).toLocaleString('en-GB', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    expect(html).toContain(`common.simulatedTime.running|${time}`);
+    // The clock ticks every 30 s; seconds standing still would look paused.
+    expect(time).not.toContain(':30');
     expect(html).toContain('animate-pulse');
+  });
+
+  it('is no live region, so a screen reader does not read each move out', () => {
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: false });
+    expect(render()).not.toMatch(/role="status"|aria-live/);
   });
 
   it('says the clock is paused, and stops its pulse', () => {
