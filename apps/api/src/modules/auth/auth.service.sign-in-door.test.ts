@@ -137,7 +137,8 @@ describe('the admin sign-in door during the maintenance lockdown (ruling 308)', 
     },
   );
 
-  it('refuses the mailed sign-up link with the same coded 503', async () => {
+  // A lockdown switched on between the organiser door's check and the spend: no password.
+  it('refuses the code of an organiser sign-up with the same coded 503, before any write', async () => {
     const verifyOtp = vi.fn().mockResolvedValue({
       data: { session: { access_token: 'access', refresh_token: 'refresh', user: MARC } },
       error: null,
@@ -145,9 +146,12 @@ describe('the admin sign-in door during the maintenance lockdown (ruling 308)', 
     const { service, reply } = build(LOCKED, { anon: { auth: { verifyOtp } } });
 
     const refusal = await service
-      .signInFromSignupLink('token-hash', reply as never)
+      .choosePasswordFromCode('token-hash', 'A-much-Longer-passw0rd!', reply as never, {
+        lockdown: true,
+      })
       .catch((err: unknown) => err);
 
+    // `build` gives the auth server no password write: one asked would throw a TypeError.
     expect(refusal).toBeInstanceOf(OperationalUnavailableException);
     expect(reply.setCookie).not.toHaveBeenCalled();
   });

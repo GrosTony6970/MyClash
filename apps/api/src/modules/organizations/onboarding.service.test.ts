@@ -2,9 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { LEGAL_POLICIES } from '@myclash/types';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
-import { OnboardingService, type SignupResult } from './onboarding.service';
+import { OnboardingService } from './onboarding.service';
 import { RESERVED_SLUGS } from './dto/signup.dto';
-import { mockSupabase as seededSupabase, writesTo } from '../../common/testing/supabase-chain';
 
 /**
  * Every signup carries the published versions — the DTO requires them and the
@@ -108,15 +107,33 @@ describe('OnboardingService', () => {
       const result = await service.signup({
         email: 'jean@example.com',
         displayName: 'Jean Dupont',
-        method: 'magic_link',
         orgName: 'Lyon AMHE',
         orgSlug: 'lyon-amhe',
         ...ACCEPTED,
       });
 
-      expect((result as Extract<SignupResult, { type: 'magic_link' }>).type).toBe('magic_link');
-      expect((result as Extract<SignupResult, { type: 'magic_link' }>).orgSlug).toBe('lyon-amhe');
-      expect(mockMail.sendMagicLink).toHaveBeenCalledOnce();
+      expect(result).toEqual({
+        message: 'Check your email for a signup link.',
+        orgSlug: 'lyon-amhe',
+      });
+      // No password anywhere: the link opens the organiser's "choose your password" page.
+      expect(generateLinkMock).toHaveBeenCalledWith({
+        type: 'magiclink',
+        email: 'jean@example.com',
+        options: { data: { display_name: 'Jean Dupont' } },
+      });
+      expect(createUserMock).not.toHaveBeenCalled();
+      const club = new URLSearchParams({ orgName: 'Lyon AMHE', orgSlug: 'lyon-amhe', ...ACCEPTED });
+      expect(mockMail.sendMagicLink.mock.calls).toEqual([
+        [
+          {
+            to: 'jean@example.com',
+            type: 'confirm',
+            displayName: 'Jean Dupont',
+            magicLink: `https://admin.myclash.localhost/auth/choose-password?${club.toString()}&token_hash=code-1`,
+          },
+        ],
+      ]);
     });
 
     it('throws ConflictException for reserved slug', async () => {
@@ -124,7 +141,6 @@ describe('OnboardingService', () => {
         service.signup({
           email: 'jean@example.com',
           displayName: 'Jean',
-          method: 'magic_link',
           orgName: 'Admin Org',
           orgSlug: 'admin',
           ...ACCEPTED,
@@ -138,130 +154,8 @@ describe('OnboardingService', () => {
         service.signup({
           email: 'jean@example.com',
           displayName: 'Jean',
-          method: 'magic_link',
           orgName: 'Lyon AMHE',
           orgSlug: 'taken-slug',
-          ...ACCEPTED,
-        }),
-      ).rejects.toThrow(ConflictException);
-    });
-  });
-
-  describe('signup — password path', () => {
-    it('creates user and returns emailVerificationRequired', async () => {
-      /**
-       * organizations is read then written wanting two different answers — the
-       * slug check must find nothing, the insert must hand its row back — so it
-       * carries a QUEUE scoped to that one table. A single canned chain gave the
-       * insert a null row, and `org.id` on null threw into createOrgAndMembership's
-       * "tables may not exist yet" catch: the org and the owner membership were
-       * never created, in a test that passed.
-       */
-      const seeded = seededSupabase({
-        organizations: [
-          { data: null, error: null },
-          { data: { id: 'org-1' }, error: null },
-        ],
-        organization_members: { data: null, error: null },
-        legal_acceptances: { data: null, error: null },
-      });
-      fromMock.mockImplementation(seeded.from as never);
-      createUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123' } },
-        error: null,
-      });
-      generateLinkMock.mockResolvedValue({
-        data: { properties: { hashed_token: 'code-1' } },
-        error: null,
-      });
-
-      const result = await service.signup({
-        email: 'jean@example.com',
-        displayName: 'Jean Dupont',
-        method: 'password',
-        password: 'Securepassword123!',
-        orgName: 'Lyon AMHE',
-        orgSlug: 'lyon-amhe',
-        ...ACCEPTED,
-      });
-
-      const typed = result as Extract<SignupResult, { type: 'password' }>;
-      expect(typed.type).toBe('password');
-      expect(typed.emailVerificationRequired).toBe(true);
-
-      // The point of organizer signup: an organization, owned by the account
-      // that just signed up.
-      const [org] = writesTo(seeded, 'organizations');
-      expect(org?.row).toEqual({
-        name: 'Lyon AMHE',
-        slug: 'lyon-amhe',
-        status: 'active',
-        created_by_user_id: 'user-123',
-      });
-      const [membership] = writesTo(seeded, 'organization_members');
-      expect(membership?.row).toEqual({
-        organization_id: 'org-1',
-        user_id: 'user-123',
-        role: 'owner',
-      });
-
-      // Sat in the same blind spot: what the owner agreed to is recorded
-      // against the account that agreed, not left to the signup form.
-      const [accepted] = writesTo(seeded, 'legal_acceptances');
-      expect(accepted?.row).toEqual(
-        expect.arrayContaining([expect.objectContaining({ user_id: 'user-123' })]),
-      );
-    });
-
-    it.each([
-      ['too short', 'Short1!', ['length']],
-      ['no uppercase and no special', 'securepassword123', ['uppercase', 'special']],
-      ['no digit and no special', 'Securepassword', ['digit', 'special']],
-      // Not "special" under the narrowed rule — GoTrue's required-characters
-      // list is finite and a space is not in it.
-      ['whitespace as its only symbol', 'Secure password123', ['special']],
-    ])('refuses an org-owner password with %s', async (_label, password, failing) => {
-      fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
-
-      // The org owner is the highest-privilege account there is. This path used
-      // to accept 8 characters with no class rules while a spectator signing up
-      // on the public app had to clear the full policy.
-      const error = await service
-        .signup({
-          email: 'jean@example.com',
-          displayName: 'Jean',
-          method: 'password',
-          password,
-          orgName: 'Lyon AMHE',
-          orgSlug: 'lyon-amhe',
-          ...ACCEPTED,
-        })
-        .catch((thrown: unknown) => thrown);
-
-      expect(error).toBeInstanceOf(BadRequestException);
-      expect((error as BadRequestException).getResponse()).toEqual({
-        code: 'weak_password',
-        failing: expect.arrayContaining(failing),
-      });
-      // Refused before anything exists — no account, no verification email.
-      expect(createUserMock).not.toHaveBeenCalled();
-    });
-
-    it('throws ConflictException when email already registered', async () => {
-      fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
-      createUserMock.mockResolvedValue({
-        data: { user: null },
-        error: { message: 'User already registered' },
-      });
-
-      await expect(
-        service.signup({
-          email: 'existing@example.com',
-          displayName: 'Jean',
-          method: 'password',
-          password: 'Securepassword123!',
-          orgName: 'Lyon AMHE',
-          orgSlug: 'lyon-amhe',
           ...ACCEPTED,
         }),
       ).rejects.toThrow(ConflictException);
@@ -276,8 +170,6 @@ describe('OnboardingService', () => {
         service.signup({
           email: 'jean@example.com',
           displayName: 'Jean',
-          method: 'password',
-          password: 'Securepassword123!',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
           acceptedTerms: '1999-01-01',
@@ -286,11 +178,11 @@ describe('OnboardingService', () => {
       ).rejects.toThrow(BadRequestException);
 
       // The point of checking first: no account, and no email on its way to one.
-      expect(createUserMock).not.toHaveBeenCalled();
+      expect(generateLinkMock).not.toHaveBeenCalled();
       expect(mockMail.sendMagicLink).not.toHaveBeenCalled();
     });
 
-    it('carries the accepted versions into the magic-link callback URL', async () => {
+    it('carries the accepted versions into the choose-password link', async () => {
       // On this path no auth.users row exists yet, so the versions ride the
       // redirect rather than being stored — if they stop doing that, the
       // acceptance is silently never recorded for every magic-link organiser.
@@ -303,7 +195,6 @@ describe('OnboardingService', () => {
       await service.signup({
         email: 'jean@example.com',
         displayName: 'Jean Dupont',
-        method: 'magic_link',
         orgName: 'Lyon AMHE',
         orgSlug: 'lyon-amhe',
         ...ACCEPTED,

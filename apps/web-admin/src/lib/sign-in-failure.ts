@@ -74,13 +74,11 @@ export function signupFailureMessage(
 }
 
 /**
- * The sentence key for the reason a mailed link's door wrote in the page's address
- * (`SIGNUP_REFUSED_PARAM`), or `null`. A browser that follows a link cannot read a 503.
- *
- * The sign-up link's door writes "sign-ups off", read-only mode (operator ruling 341) or the
- * lockdown to the sign-up page, and the sign-in link's door writes the lockdown to the sign-in
- * page (operator ruling 324). Both doors write a link that signed nobody in (rulings 360,
- * 362), and the sign-up link's door an organization that was not written (ruling 363).
+ * The sentence key for a refusal of a mailed link's door, or `null`: the reason the sign-in
+ * link's door wrote in the sign-in page's address (`SIGNUP_REFUSED_PARAM`: the lockdown, ruling
+ * 324, or a link that signed nobody in, rulings 360, 362), or the code the organiser's
+ * choose-password door answered its page: "sign-ups off", read-only mode (ruling 341), the
+ * lockdown, a link refused or not judged, an organization that was not written (ruling 363).
  */
 export function signupRefusedKey(value: string | string[] | undefined): string | null {
   if (value === ADMIN_LOCKDOWN_CODE) return LOCKDOWN_KEY;

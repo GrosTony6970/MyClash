@@ -518,17 +518,17 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/auth/signup-callback': {
+  '/api/v1/auth/signup-choose-password': {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Magic-link signup callback — creates org and redirects */
-    get: operations['SignupController_signupCallback'];
+    get?: never;
     put?: never;
-    post?: never;
+    /** Confirm an organizer address, choose its password, make the club */
+    post: operations['SignupController_signupChoosePassword'];
     delete?: never;
     options?: never;
     head?: never;
@@ -9816,9 +9816,14 @@ export interface components {
       /** Format: email */
       email: string;
       displayName: string;
-      /** @enum {string} */
-      method: 'magic_link' | 'password';
-      password?: string;
+      orgName: string;
+      orgSlug: string;
+      acceptedTerms: string;
+      acceptedPrivacy: string;
+    };
+    SignupChoosePasswordDto: {
+      token_hash: string;
+      password: string;
       orgName: string;
       orgSlug: string;
       acceptedTerms: string;
@@ -12558,7 +12563,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Signup initiated */
+      /** @description Signup link mailed */
       201: {
         headers: {
           [name: string]: unknown;
@@ -12608,23 +12613,42 @@ export interface operations {
       };
     };
   };
-  SignupController_signupCallback: {
+  SignupController_signupChoosePassword: {
     parameters: {
-      query: {
-        token_hash: string;
-        orgName: string;
-        orgSlug: string;
-        acceptedPrivacy?: unknown;
-        acceptedTerms?: unknown;
-        displayName?: unknown;
-      };
+      query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SignupChoosePasswordDto'];
+      };
+    };
     responses: {
+      /** @description `saved`, `signedIn` and `next` (the club made), or `code`: `link_unchecked`, or `club_not_made` with `saved` and `signedIn` */
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Weak password, or no valid club in the link */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `code: link_expired`: the link was used or is too old */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `code`: `signups_disabled`, `read_only_mode` or `admin_lockdown` */
+      503: {
         headers: {
           [name: string]: unknown;
         };

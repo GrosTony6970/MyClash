@@ -1,51 +1,24 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SIGNUPS_DISABLED_CODE, validatePassword } from '@myclash/types';
+import { SIGNUPS_DISABLED_CODE } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { assertNotReadOnly } from '../../common/read-only-mode';
 import { MailService } from '../mail/mail.service';
-import { mailedLink, signInDoor } from '../mail/mailed-link';
+import { mailedLink } from '../mail/mailed-link';
 // Value import, not `import type`: Nest reads design:paramtypes to inject it.
 import {
   LegalAcceptanceService,
-  type AcceptanceContext,
   type AcceptedLegalVersions,
 } from '../privacy/legal-acceptance.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RESERVED_SLUGS, type SignupDto } from './dto/signup.dto';
 import { ownedClubSlug, type SignupClub } from './signup-club';
 
-export type SignupResult =
-  | {
-      /** 'magic_link' — email sent, user must click to complete signup */
-      type: 'magic_link';
-      message: string;
-      orgSlug: string;
-    }
-  | {
-      /** 'password' — account created, email verification required */
-      type: 'password';
-      message: string;
-      orgSlug: string;
-      emailVerificationRequired: true;
-    };
-
-/**
- * The shared rule from @myclash/types, not a local length check.
- *
- * This path creates the ORG OWNER — the highest-privilege account on the
- * platform — and it used to accept 8 characters with no class rules, while a
- * spectator signing up on the public app had to clear 12 plus four classes.
- *
- * Throws the structured `failing` list rather than a sentence, so the signup
- * form can tick its checklist instead of showing one opaque message.
- */
-function assertPasswordMeetsPolicy(password: string | undefined): void {
-  const validation = validatePassword(password ?? '');
-  if (!validation.ok) {
-    throw new BadRequestException({ code: 'weak_password', failing: validation.failing });
-  }
+/** The sign-up form's answer: the mail is sent; the club is made once the link is used. */
+export interface SignupResult {
+  message: string;
+  orgSlug: string;
 }
 
 @Injectable()
@@ -114,8 +87,8 @@ export class OnboardingService {
 
   // ── Signup ───────────────────────────────────────────────────────────────
 
-  async signup(dto: SignupDto, context: AcceptanceContext = {}): Promise<SignupResult> {
-    const { email, displayName, method, password, orgName, orgSlug } = dto;
+  async signup(dto: SignupDto): Promise<SignupResult> {
+    const { email, displayName, orgName, orgSlug } = dto;
     const normalizedSlug = orgSlug.toLowerCase().trim();
 
     // 0. Agreement, before anything is created or any email leaves the box. A
@@ -136,27 +109,24 @@ export class OnboardingService {
       );
     }
 
-    // 2. Validate password if method='password'
-    if (method === 'password') assertPasswordMeetsPolicy(password);
-
-    if (method === 'magic_link') {
-      return this.signupWithMagicLink(email, displayName, orgName, normalizedSlug, versions);
-    } else {
-      return this.signupWithPassword(
-        email,
-        displayName,
-        password!,
-        orgName,
-        normalizedSlug,
-        versions,
-        context,
-      );
-    }
+    return this.mailChoosePasswordLink(email, displayName, orgName, normalizedSlug, versions);
   }
 
-  // ── Magic link path ──────────────────────────────────────────────────────
+  // ── The mailed link ──────────────────────────────────────────────────────
 
-  private async signupWithMagicLink(
+  /**
+   * Mail the link that opens the organiser's "choose your password" page (ruling
+   * "Pre-takeover"): no password is stored before the address is proven. The page
+   * sends the code, the password and the club the link carries to
+   * `POST /auth/signup-choose-password`, which makes the club for the account the
+   * code names. Until then nothing exists but an account with no password.
+   *
+   * The accepted versions ride along: no club exists to attach them to until the
+   * link is used. They were checked against the registry above, and the record
+   * stays faithful to what she ticked even if the policy is revised meanwhile.
+   * Her name rides on the account (`options.data`).
+   */
+  private async mailChoosePasswordLink(
     email: string,
     displayName: string,
     orgName: string,
@@ -164,111 +134,39 @@ export class OnboardingService {
     versions: AcceptedLegalVersions,
   ): Promise<SignupResult> {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-    const protocol = 'https';
-
-    // The mailed link lands on the sign-up door and carries the org creation
-    // payload, so the door makes the org right after it signs her in.
-    //
-    // The accepted versions ride along for the same reason the org payload
-    // does: on this path no auth.users row exists yet, so there is nothing to
-    // attach an acceptance to until the link is clicked. They were already
-    // checked against the registry above — carrying them keeps the record
-    // faithful to what the user actually ticked, even if the policy is revised
-    // between sending the mail and clicking the link.
-    const door = `${protocol}://admin.${domain}/api/v1/auth/signup-callback?orgName=${encodeURIComponent(orgName)}&orgSlug=${encodeURIComponent(orgSlug)}&displayName=${encodeURIComponent(displayName)}&acceptedTerms=${encodeURIComponent(versions.terms)}&acceptedPrivacy=${encodeURIComponent(versions.privacy)}`;
+    const club = new URLSearchParams({
+      orgName,
+      orgSlug,
+      acceptedTerms: versions.terms,
+      acceptedPrivacy: versions.privacy,
+    });
+    const page = `https://admin.${domain}/auth/choose-password?${club.toString()}`;
 
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'magiclink',
       email,
       options: { data: { display_name: displayName } },
     });
-    // Our door with GoTrue's code, never GoTrue's own link (ruling 303).
-    const magicLink = mailedLink(door, data.properties);
+    // Our page with GoTrue's code, never GoTrue's own link (ruling 303).
+    const magicLink = mailedLink(page, data.properties);
 
     if (error || !magicLink) {
       this.logger.error(`Failed to generate signup magic link for ${email}: ${error?.message}`);
       throw new BadRequestException('Failed to send signup link. Please try again.');
     }
 
-    await this.mail.sendMagicLink({ to: email, magicLink, type: 'login', displayName });
+    await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm', displayName });
 
-    this.logger.log(`Signup magic link sent to ${email} for org ${orgSlug}`);
+    this.logger.log(`Signup link sent to ${email} for org ${orgSlug}`);
 
-    return {
-      type: 'magic_link',
-      message: 'Check your email for a signup link.',
-      orgSlug,
-    };
+    return { message: 'Check your email for a signup link.', orgSlug };
   }
 
-  // ── Password path ────────────────────────────────────────────────────────
-
-  private async signupWithPassword(
-    email: string,
-    displayName: string,
-    password: string,
-    orgName: string,
-    orgSlug: string,
-    versions: AcceptedLegalVersions,
-    context: AcceptanceContext,
-  ): Promise<SignupResult> {
-    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-
-    // Create the Supabase auth user (email_confirmed_at = NULL until verified)
-    const { data: authData, error: authError } = await this.supabase.service.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: false, // requires email verification
-      user_metadata: { display_name: displayName },
-    });
-
-    if (authError || !authData.user) {
-      if (authError?.message?.toLowerCase().includes('already registered')) {
-        throw new ConflictException('An account with this email already exists');
-      }
-      this.logger.error(`Failed to create user for ${email}: ${authError?.message}`);
-      throw new BadRequestException('Failed to create account. Please try again.');
-    }
-
-    const userId = authData.user.id;
-    await this.finishOrUndoAccount(userId, versions, context, { orgName, orgSlug });
-
-    // Send email verification link via magic link (verifies email on click):
-    // the sign-in door, then her club's page (ruling 303).
-    try {
-      const { data: linkData } = await this.supabase.service.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-      });
-      const magicLink = mailedLink(
-        signInDoor(domain, 'login', `/org/${orgSlug}`),
-        linkData.properties,
-      );
-
-      if (magicLink) {
-        await this.mail.sendMagicLink({ to: email, magicLink, type: 'login', displayName });
-      }
-    } catch (err) {
-      // Non-fatal — user can request a new verification email
-      this.logger.warn(`Could not send verification email to ${email}: ${String(err)}`);
-    }
-
-    this.logger.log(`Password signup complete for ${email}, org ${orgSlug}`);
-
-    return {
-      type: 'password',
-      message:
-        'Account created. Please check your email to verify your address before creating events.',
-      orgSlug,
-      emailVerificationRequired: true,
-    };
-  }
-
-  // ── Signup callback (magic link path) ───────────────────────────────────
+  // ── The club, once the account is proven ────────────────────────────────
 
   /**
-   * Called after the magic link is clicked, and by the Google sign-up. At this
-   * point the user is authenticated. A club or an owner row that cannot be
+   * Called by the choose-password door once the mailed code is spent, and by the
+   * Google sign-up. At this point the user is authenticated. A club or an owner row that cannot be
    * written throws (operator ruling 299): both doors redirect to the club next.
    *
    * Hands back the address of the club it made (operator ruling 304): another
@@ -303,33 +201,6 @@ export class OnboardingService {
   }
 
   // ── Shared org creation ──────────────────────────────────────────────────
-
-  /**
-   * What a password sign-up owes the account it made a moment ago: the record
-   * of what she accepted, then her club. When either cannot be written the
-   * account is removed and the sign-up fails (operator ruling 306). No screen
-   * lets an account with no club make one, and a second sign-up with her
-   * address would be refused as "already registered".
-   */
-  private async finishOrUndoAccount(
-    userId: string,
-    versions: AcceptedLegalVersions,
-    context: AcceptanceContext,
-    club: { orgName: string; orgSlug: string },
-  ): Promise<void> {
-    try {
-      await this.legal.recordForUser(userId, versions, context);
-      await this.createOrgAndMembership(userId, club.orgName, club.orgSlug);
-    } catch (err) {
-      const undone = await this.supabase.deleteAuthAdminUser(userId);
-      if (!undone.ok) {
-        this.logger.error(
-          `Account ${userId} stays with no club: removal answered ${undone.status}`,
-        );
-      }
-      throw err;
-    }
-  }
 
   private async createOrgAndMembership(
     userId: string,

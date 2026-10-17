@@ -128,26 +128,23 @@ export function AlternativeMethods({
   onGoogle: () => void;
 }) {
   const busy = loadingAction !== null;
-  const linkLabel =
-    mode === 'signin'
-      ? loadingAction === 'magic_link'
-        ? t('auth.login.sending')
-        : t('auth.login.sendLoginLink')
-      : t('auth.signup.continueWithLink');
 
   return (
     <>
       <AuthDivider label={t('auth.login.or')} />
-      <Button
-        type="button"
-        variant="ghost"
-        className="w-full py-3"
-        disabled={busy || (mode === 'signin' && !email)}
-        loading={loadingAction === 'magic_link'}
-        onClick={onMagicLink}
-      >
-        {linkLabel}
-      </Button>
+      {/* The sign-up's own button is the email link: its "Continue" mails it. */}
+      {mode === 'signin' && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full py-3"
+          disabled={busy || !email}
+          loading={loadingAction === 'magic_link'}
+          onClick={onMagicLink}
+        >
+          {loadingAction === 'magic_link' ? t('auth.login.sending') : t('auth.login.sendLoginLink')}
+        </Button>
+      )}
       <Button
         type="button"
         variant="ghost"

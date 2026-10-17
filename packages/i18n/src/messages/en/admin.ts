@@ -566,7 +566,6 @@ export const admin = {
     noData: 'No data.',
     orgNameRequired: 'Organization name required',
     passwordMinLength: 'Password does not meet the requirements',
-    passwordsDoNotMatch: 'Passwords do not match',
     poolGenerationFailed: 'Pool generation failed.',
     poolLockedScoringStarted: 'Pool is locked because scoring has started in at least one match.',
     probeFailed: 'Probe failed',

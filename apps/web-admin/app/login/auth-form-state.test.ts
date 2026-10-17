@@ -11,65 +11,32 @@ import {
   type AccountStepInput,
 } from './auth-form-state';
 
-const VALID_PASSWORD = 'Correct-Horse-9';
-
 function account(overrides: Partial<AccountStepInput> = {}): AccountStepInput {
   return {
-    intent: 'password',
+    intent: 'magic_link',
     acceptedLegal: true,
     email: 'organizer@example.com',
     displayName: 'Jean Dupont',
-    password: VALID_PASSWORD,
-    passwordConfirm: VALID_PASSWORD,
     ...overrides,
   };
 }
 
+// No password on this form (ruling "Pre-takeover"): the mailed link's page asks for it.
 describe('account step', () => {
-  it('accepts a complete password signup', () => {
+  it('accepts a complete sign-up by email link', () => {
     expect(validateAccountStep(account())).toBeNull();
   });
 
   it('refuses every intent without the agreement, google included', () => {
-    for (const intent of ['password', 'magic_link', 'google'] as const) {
+    for (const intent of ['magic_link', 'google'] as const) {
       expect(validateAccountStep(account({ intent, acceptedLegal: false }))).toBe('legal_required');
     }
   });
 
   it('asks google for nothing else — the provider carries the identity', () => {
     expect(
-      validateAccountStep(
-        account({
-          intent: 'google',
-          email: '',
-          displayName: '',
-          password: '',
-          passwordConfirm: '',
-        }),
-      ),
+      validateAccountStep(account({ intent: 'google', email: '', displayName: '' })),
     ).toBeNull();
-  });
-
-  it('skips the password rules on the magic-link intent', () => {
-    // The account is created without a password at all, so demanding one here
-    // would block a path the server accepts.
-    expect(
-      validateAccountStep(account({ intent: 'magic_link', password: '', passwordConfirm: '' })),
-    ).toBeNull();
-  });
-
-  it('holds the org owner to the shared password rule', () => {
-    // 'Short-1a' passes an eight-character check, which is what this form used
-    // to apply while the fighter signup demanded twelve plus four classes.
-    expect(
-      validateAccountStep(account({ password: 'Short-1a', passwordConfirm: 'Short-1a' })),
-    ).toBe('password_weak');
-  });
-
-  it('catches a mistyped confirmation', () => {
-    expect(validateAccountStep(account({ passwordConfirm: `${VALID_PASSWORD}x` }))).toBe(
-      'password_mismatch',
-    );
   });
 
   it('rejects an address with no domain and a one-letter name', () => {

@@ -17,7 +17,7 @@ describe('mailedLink', () => {
   });
 
   it('adds the code after the query a door already carries, and leaves that query as it is', () => {
-    const door = 'https://admin.myclash.fr/api/v1/auth/signup-callback?orgName=Lyon%20AMHE';
+    const door = 'https://admin.myclash.fr/auth/choose-password?orgName=Lyon+AMHE';
 
     expect(mailedLink(door, { hashed_token: 'c0de' })).toBe(`${door}&token_hash=c0de`);
   });

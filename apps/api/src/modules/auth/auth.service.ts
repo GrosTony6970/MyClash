@@ -497,20 +497,6 @@ export class AuthService {
     void reply.redirect(destination);
   }
 
-  /**
-   * The emailed sign-up link's landing: signs its reader in and hands back the
-   * account the link proved (operator ruling 299). It sends no answer: the
-   * sign-up door makes the club for that account, then redirects.
-   */
-  async signInFromSignupLink(
-    token: string,
-    reply: FastifyReply,
-  ): Promise<{ id: string; email?: string }> {
-    const user = await this.exchangeLink(token, 'login', reply);
-    await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
-    return user;
-  }
-
   /** Exchange an emailed link's code for a session and set its cookies. */
   private async exchangeLink(
     token: string,
@@ -1737,14 +1723,15 @@ export class AuthService {
     next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
-    const chosen = await this.choosePasswordFromCode(token, password, reply).catch(
-      uncheckedLinkOrThrow,
-    );
+    const chosen = await this.choosePasswordFromCode(token, password, reply, {
+      lockdown: false,
+    }).catch(uncheckedLinkOrThrow);
     if (typeof chosen === 'string') {
       void reply.send({ code: chosen });
       return;
     }
-    void reply.send({ ...chosen, next: safeRedirectPath(next) });
+    const { saved, signedIn } = chosen;
+    void reply.send({ saved, signedIn, next: safeRedirectPath(next) });
   }
 
   /**
@@ -1759,12 +1746,21 @@ export class AuthService {
    * "Set a password", which needs one. A late write may still end it (the race
    * named: the unjudged write against the spend's session). On success only the
    * new password's login is handed: one set of auth cookies per answer.
+   *
+   * `lockdown`: the organiser door asks the maintenance lockdown right after the
+   * spend, as the sign-in link does (`exchangeLink`): a lockdown switched on
+   * between its check before the spend and the spend writes no password.
    */
   async choosePasswordFromCode(
     token: string,
     password: string,
     reply: FastifyReply,
-  ): Promise<{ saved: boolean | 'unknown'; signedIn: boolean }> {
+    { lockdown }: { lockdown: boolean },
+  ): Promise<{
+    user: { id: string; email?: string };
+    saved: boolean | 'unknown';
+    signedIn: boolean;
+  }> {
     const validation = validatePassword(password);
     if (!validation.ok) {
       throw new BadRequestException({ code: 'weak_password', failing: validation.failing });
@@ -1773,6 +1769,7 @@ export class AuthService {
     if (!spent?.session) throw new MailedCodeRefused();
     const { session } = spent;
     const { user } = session;
+    if (lockdown) await this.assertNotLockedOut(user.id);
     await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
 
     const saved = await writeChosenPassword(this.supabase.service, user.id, password);
@@ -1786,10 +1783,10 @@ export class AuthService {
         session.refresh_token ?? '',
         session.expires_in,
       );
-      return { saved, signedIn: true };
+      return { user, saved, signedIn: true };
     }
     const signedIn = await this.signInWithNewPassword(reply, user.id, user.email, password);
-    return { saved, signedIn };
+    return { user, saved, signedIn };
   }
 
   /**

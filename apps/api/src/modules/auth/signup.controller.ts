@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,26 +13,23 @@ import {
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
 import {
-  ADMIN_LOCKDOWN_CODE,
-  CLUB_NOT_MADE_CODE,
-  READ_ONLY_MODE_CODE,
-  SIGNUP_REFUSED_PARAM,
-  SIGNUPS_DISABLED_CODE,
-} from '@myclash/types';
+  AUTH_ACTION_THROTTLE,
+  SIGNUP_ACTION_THROTTLE,
+} from '../../common/throttling/throttle-profiles';
+import { CLUB_NOT_MADE_CODE } from '@myclash/types';
+import { adminLockdownRefusal } from '../../common/admin-lockdown';
 import { captureApiException } from '../../common/observability/sentry';
-import { OperationalUnavailableException } from '../../common/operational-exception';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { clubPage, type SignupClub } from '../organizations/signup-club';
-import { CheckSlugDto, SignupDto, signupClubSchema } from '../organizations/dto/signup.dto';
+import { CheckSlugDto, SignupChoosePasswordDto, SignupDto } from '../organizations/dto/signup.dto';
 import { Public } from '../../common/auth/public.decorator';
 import { requestAcceptanceContext } from '../../common/legal/acceptance-context';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
-import { refusedLinkOrThrow } from './refused-link';
+import { uncheckedLinkOrThrow } from './refused-link';
 
-// Pre-session bootstrap: org signup, slug availability, signup callback.
+// Pre-session bootstrap: org signup, slug availability, the sign-up's choose-password door.
 // The caller has no identity yet by definition.
 @Public()
 @ApiTags('auth')
@@ -51,7 +47,8 @@ export class SignupController {
    * POST /api/v1/auth/signup
    *
    * Two-step organizer signup. Step 1 (account) is client-side only.
-   * This endpoint is called on step 2 submission (org name + slug).
+   * This endpoint is called on step 2 submission (org name + slug). It mails
+   * the link that opens "choose your password"; no password is taken here.
    *
    * Rate limited: 5 per hour per IP.
    */
@@ -59,13 +56,13 @@ export class SignupController {
   @HttpCode(HttpStatus.CREATED)
   @Throttle(SIGNUP_ACTION_THROTTLE)
   @ApiOperation({ summary: 'Organizer self-service signup' })
-  @ApiResponse({ status: 201, description: 'Signup initiated' })
+  @ApiResponse({ status: 201, description: 'Signup link mailed' })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 409, description: 'Slug already taken or reserved' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
-  async signup(@Body() dto: SignupDto, @Req() request: FastifyRequest) {
+  async signup(@Body() dto: SignupDto) {
     await this.onboarding.assertSignupsOpen();
-    return this.onboarding.signup(dto, requestAcceptanceContext(request));
+    return this.onboarding.signup(dto);
   }
 
   /**
@@ -83,76 +80,69 @@ export class SignupController {
   }
 
   /**
-   * GET /api/v1/auth/signup-callback
+   * POST /api/v1/auth/signup-choose-password
    *
-   * Called after the magic-link signup flow. The mailed link lands here with
-   * its code and the org creation payload in query params. We exchange the code,
-   * create the org, and redirect to the org dashboard. A link that signs nobody
-   * in, and a club that cannot be made, send her to the sign-up page with the
-   * reason (operator rulings 362, 363): a browser reads no error body.
+   * The organiser's "choose your password" page (ruling "Pre-takeover"): the
+   * sign-up mail's code, the password, and the club the link carries. The club
+   * is checked by the DTO, and the switches are read, BEFORE the code is spent
+   * (ruling 305): the same mail works again once they are back on. Then the
+   * one owner spends the code, checks the lockdown again, writes the password
+   * and signs her in (`choosePasswordFromCode`), and the club is made for the
+   * account the CODE names (ruling 299), never the one the browser sent.
    */
-  @Get('signup-callback')
-  @ApiOperation({ summary: 'Magic-link signup callback — creates org and redirects' })
-  @ApiQuery({ name: 'token_hash', required: true })
-  @ApiQuery({ name: 'orgName', required: true })
-  @ApiQuery({ name: 'orgSlug', required: true })
-  @ApiQuery({ name: 'displayName', required: false })
-  @ApiQuery({ name: 'acceptedTerms', required: false })
-  @ApiQuery({ name: 'acceptedPrivacy', required: false })
-  async signupCallback(
-    @Query('token_hash') tokenHash: string,
-    @Query('orgName') orgName: string,
-    @Query('orgSlug') orgSlug: string,
-    @Query('displayName') _displayName: string | undefined,
-    @Query('acceptedTerms') acceptedTerms: string | undefined,
-    @Query('acceptedPrivacy') acceptedPrivacy: string | undefined,
-    @Req() _req: FastifyRequest,
+  @Post('signup-choose-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Confirm an organizer address, choose its password, make the club' })
+  @ApiResponse({
+    status: 200,
+    description:
+      '`saved`, `signedIn` and `next` (the club made), or `code`: `link_unchecked`, or `club_not_made` with `saved` and `signedIn`',
+  })
+  @ApiResponse({ status: 400, description: 'Weak password, or no valid club in the link' })
+  @ApiResponse({
+    status: 401,
+    description: '`code: link_expired`: the link was used or is too old',
+  })
+  @ApiResponse({
+    status: 503,
+    description: '`code`: `signups_disabled`, `read_only_mode` or `admin_lockdown`',
+  })
+  async signupChoosePassword(
+    @Body() dto: SignupChoosePasswordDto,
+    @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    // Both checks run BEFORE the link is spent (operator ruling 305). A link
-    // edited by hand made a club under any name. And while sign-ups are off,
-    // or read-only mode is on (ruling 341), she goes to the sign-up page, which
-    // says so: the same mail works again once they are back on.
-    if (!signupClubSchema.safeParse({ orgName, orgSlug }).success) {
-      throw new BadRequestException('This sign-up link names no valid organization');
+    await this.assertOpenBeforeTheSpend();
+    const chosen = await this.auth
+      .choosePasswordFromCode(dto.token_hash, dto.password, reply, { lockdown: true })
+      .catch(uncheckedLinkOrThrow);
+    if (typeof chosen === 'string') {
+      void reply.send({ code: chosen });
+      return;
     }
-    const refused = await this.refusedBeforeTheSpend();
-    if (refused) return this.backToSignup(reply, refused);
-
-    // The club is made for the account the LINK proved (operator ruling 299). The
-    // old door asked `/me` about the cookies the browser SENT: a new person sent
-    // none and got no club, and a browser signed in as somebody else got the club
-    // made for that account. A link that signs nobody in sends her to the sign-up
-    // page with the reason (rulings 360, 362): her browser cannot read a 401.
-    const user = await this.auth.signInFromSignupLink(tokenHash, reply).catch(refusedLinkOrThrow);
-    if (typeof user === 'string') return this.backToSignup(reply, user);
-    const made = await this.clubOf(user.id, orgName, orgSlug);
-    if (!made) return this.backToSignup(reply, CLUB_NOT_MADE_CODE);
-    // The account exists only now, which is why the acceptance is recorded
-    // here rather than when the link was requested. Not asserted: the
-    // versions were already checked at /auth/signup, and a policy revised
-    // between sending the mail and clicking it must not strand a user
-    // mid-signup on a redirect they cannot answer. A version that no longer
-    // matches simply shows up in `pendingLegal` and the banner asks again.
-    await this.recordCallbackAcceptance(user.id, acceptedTerms, acceptedPrivacy, _req);
-
-    // The club that was MADE (operator ruling 304): its address is another one
-    // than `orgSlug` when somebody took hers between her request and her click.
-    // Or the club her account owned already (ruling 369): its page says so.
-    void reply.redirect(clubPage(made));
-  }
-
-  /** The sign-up page, which says the reason in her language. */
-  private backToSignup(reply: FastifyReply, reason: string): void {
-    void reply.redirect(`/signup?${SIGNUP_REFUSED_PARAM}=${reason}`);
+    const { user, saved, signedIn } = chosen;
+    const made = await this.clubOf(user.id, dto.orgName, dto.orgSlug);
+    if (!made) {
+      void reply.send({ code: CLUB_NOT_MADE_CODE, saved, signedIn });
+      return;
+    }
+    // The account exists only now. Not asserted: the versions were checked at
+    // /auth/signup, and a policy revised between the mail and the click must not
+    // strand her; a version that no longer matches shows up in `pendingLegal`.
+    await this.legal.recordForUser(
+      user.id,
+      { terms: dto.acceptedTerms, privacy: dto.acceptedPrivacy },
+      requestAcceptanceContext(request),
+    );
+    // The club that was MADE (ruling 304), or the one her account owned (ruling 369).
+    void reply.send({ saved, signedIn, next: clubPage(made) });
   }
 
   /**
    * The club of the account, made here or owned before, or null when it cannot
-   * be written (operator ruling 363). The link is spent and she is signed in: the
-   * door has no 5xx to report, so the fault is logged and reported here. The
-   * account stands, and a second sign-up by email link mails a link that makes
-   * the club. The password choice refuses her address: it holds an account now.
+   * be written (operator ruling 363). The code is spent and she is signed in: the
+   * fault is logged and reported here, and the page says the club was not made.
    */
   private async clubOf(
     userId: string,
@@ -163,51 +153,18 @@ export class SignupController {
       return await this.onboarding.completeSignupAfterMagicLink(userId, orgName, orgSlug);
     } catch (fault) {
       this.logger.error(`No club was made for account ${userId} at the sign-up link`, fault);
-      captureApiException(fault, { door: 'auth/signup-callback' });
+      captureApiException(fault, { door: 'auth/signup-choose-password' });
       return null;
     }
   }
 
   /**
-   * Why the mailed link is not spent now, as the sign-up page reads it, or null.
-   *
-   * The maintenance lockdown too (operator ruling 324): the sign-in would refuse
-   * her AFTER the link is spent, with a 503 her browser cannot read, and leave
-   * an account with no club. Nobody who signs up is platform staff.
+   * The switches that keep the sign-up's code unspent, each refused with its own
+   * coded 503: "sign-ups off" and read-only mode (rulings 305, 341), then the
+   * maintenance lockdown (ruling 324): nobody who signs up is platform staff.
    */
-  private async refusedBeforeTheSpend(): Promise<string | null> {
-    const closedBy = await this.signupsClosedBy();
-    if (closedBy) return closedBy;
-    return (await this.auth.isAdminLockdownEnabled()) ? ADMIN_LOCKDOWN_CODE : null;
-  }
-
-  /**
-   * The code of the switch that closes sign-ups, or null: "sign-ups off", or read-only
-   * mode (operator ruling 341). A switch's own refusal is an answer here; any other
-   * fault still throws.
-   */
-  private async signupsClosedBy(): Promise<string | null> {
-    try {
-      await this.onboarding.assertSignupsOpen();
-      return null;
-    } catch (refusal) {
-      if (!(refusal instanceof OperationalUnavailableException)) throw refusal;
-      const { code } = refusal.getResponse() as { code?: unknown };
-      return code === READ_ONLY_MODE_CODE ? READ_ONLY_MODE_CODE : SIGNUPS_DISABLED_CODE;
-    }
-  }
-
-  private async recordCallbackAcceptance(
-    userId: string,
-    acceptedTerms: string | undefined,
-    acceptedPrivacy: string | undefined,
-    request: FastifyRequest,
-  ): Promise<void> {
-    if (!acceptedTerms || !acceptedPrivacy) return;
-    await this.legal.recordForUser(
-      userId,
-      { terms: acceptedTerms, privacy: acceptedPrivacy },
-      requestAcceptanceContext(request),
-    );
+  private async assertOpenBeforeTheSpend(): Promise<void> {
+    await this.onboarding.assertSignupsOpen();
+    if (await this.auth.isAdminLockdownEnabled()) throw adminLockdownRefusal();
   }
 }

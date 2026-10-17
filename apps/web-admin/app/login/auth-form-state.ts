@@ -1,5 +1,3 @@
-import { validatePassword } from '@myclash/types';
-
 /**
  * The organizer auth form's decisions, with no React and no i18n in them.
  *
@@ -16,14 +14,15 @@ export type AuthFormCode =
   | 'legal_required'
   | 'email_invalid'
   | 'display_name_required'
-  | 'password_weak'
-  | 'password_mismatch'
   | 'org_name_required'
   | 'slug_too_short'
   | 'slug_unavailable';
 
-/** Which credential the account being created will carry. */
-export type SignupIntent = 'password' | 'magic_link' | 'google';
+/**
+ * How the account being created proves its address: the mailed link (whose page then asks
+ * for the password, ruling "Pre-takeover"), or Google.
+ */
+export type SignupIntent = 'magic_link' | 'google';
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,8 +56,6 @@ export interface AccountStepInput {
   acceptedLegal: boolean;
   email: string;
   displayName: string;
-  password: string;
-  passwordConfirm: string;
 }
 
 export function validateAccountStep(input: AccountStepInput): AuthFormCode | null {
@@ -70,13 +67,6 @@ export function validateAccountStep(input: AccountStepInput): AuthFormCode | nul
   if (input.intent === 'google') return null;
   if (!EMAIL_PATTERN.test(input.email)) return 'email_invalid';
   if (input.displayName.trim().length < 2) return 'display_name_required';
-  if (input.intent === 'password') {
-    // The shared rule, not a local length check. This form creates the ORG
-    // OWNER, and it used to admit 8 characters while the public app demanded 12
-    // plus four classes.
-    if (!validatePassword(input.password).ok) return 'password_weak';
-    if (input.password !== input.passwordConfirm) return 'password_mismatch';
-  }
   return null;
 }
 

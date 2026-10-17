@@ -573,7 +573,6 @@ export const admin = {
     noData: 'Aucune donnée.',
     orgNameRequired: "Nom de l'organisation requis",
     passwordMinLength: 'Le mot de passe ne respecte pas les exigences',
-    passwordsDoNotMatch: 'Les mots de passe ne correspondent pas',
     poolGenerationFailed: 'Échec de la génération des poules.',
     poolLockedScoringStarted:
       'La poule est verrouillée car le score a commencé dans au moins un assaut.',

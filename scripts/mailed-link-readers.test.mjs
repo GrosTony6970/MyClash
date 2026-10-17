@@ -26,16 +26,21 @@ test('the mail carries the code as ?token_hash=', () => {
   assert.ok(owner.includes(`}${NAME}=\${encodeURIComponent(code)}`));
 });
 
-for (const door of ['auth.controller.ts', 'signup.controller.ts']) {
-  test(`${door}: the door reads the code from that query name`, () => {
-    const source = read('apps', 'api', 'src', 'modules', 'auth', door);
-    assert.ok(source.includes(`@Query('${NAME}') tokenHash: string`));
-  });
-}
+test('auth.controller.ts: the sign-in door reads the code from that query name', () => {
+  const source = read('apps', 'api', 'src', 'modules', 'auth', 'auth.controller.ts');
+  assert.ok(source.includes(`@Query('${NAME}') tokenHash: string`));
+});
 
-for (const app of ['web-admin', 'web-public']) {
-  test(`${app}: the reset page reads the code from that query name`, () => {
-    const source = read('apps', app, 'app', 'reset-password', 'page.tsx');
-    assert.ok(/(query|searchParams)\.get\('token_hash'\)/.test(source));
+// The sign-up mails open a page that keeps the code and sends it to its door
+// (ruling "Pre-takeover"): the page reads it from the address.
+for (const [app, page] of [
+  ['web-admin', 'reset-password'],
+  ['web-public', 'reset-password'],
+  ['web-admin', 'auth/choose-password'],
+  ['web-public', 'auth/choose-password'],
+]) {
+  test(`${app}: the ${page} page reads the code from that query name`, () => {
+    const source = read('apps', app, 'app', ...page.split('/'), 'page.tsx');
+    assert.ok(/(query|searchParams|link\??)\.get\('token_hash'\)/.test(source));
   });
 }

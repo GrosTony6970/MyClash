@@ -1,7 +1,6 @@
 'use client';
 
-import { AuthField, Button, GoogleIcon, PasswordChecklist } from '@myclash/ui';
-import { validatePassword } from '@myclash/types';
+import { AuthField, Button, GoogleIcon } from '@myclash/ui';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import type { SignupIntent } from './auth-form-state';
 import { normalizeSlugInput, ORG_NAME_MAX_LENGTH, slugify } from './auth-form-state';
@@ -18,11 +17,11 @@ export interface SlugStatus {
 
 // ── Signup step 1: the account ─────────────────────────────────────────────
 
+/** `password` is the sign-in tab's: the sign-up asks none (ruling "Pre-takeover"). */
 export interface AccountDraft {
   email: string;
   displayName: string;
   password: string;
-  passwordConfirm: string;
   acceptedLegal: boolean;
 }
 
@@ -59,28 +58,6 @@ export function AccountStepForm({
         value={draft.displayName}
         onChange={(event) => onChange({ displayName: event.target.value })}
       />
-      {/* No minLength on the input: the rule is five conditions, not a length,
-          and the browser's own bubble would say the wrong thing. The checklist
-          below is the affordance. */}
-      <AuthField
-        id="signup-password"
-        type="password"
-        autoComplete="new-password"
-        label={t('auth.signup.passwordLabel')}
-        placeholder={t('auth.signup.passwordPlaceholder')}
-        value={draft.password}
-        onChange={(event) => onChange({ password: event.target.value })}
-      />
-      <AuthField
-        id="passwordConfirm"
-        type="password"
-        autoComplete="new-password"
-        label={t('auth.signup.passwordConfirmLabel')}
-        placeholder={t('auth.signup.passwordConfirmPlaceholder')}
-        value={draft.passwordConfirm}
-        onChange={(event) => onChange({ passwordConfirm: event.target.value })}
-      />
-      <PasswordChecklist failing={validatePassword(draft.password).failing} t={t} />
       <LegalConsent
         checked={draft.acceptedLegal}
         onChange={(acceptedLegal) => onChange({ acceptedLegal })}
@@ -122,9 +99,7 @@ export function OrgStepForm({
       ? t('auth.oauth.continueWithGoogle')
       : loadingAction === 'signup'
         ? t('auth.signup.creating')
-        : intent === 'magic_link'
-          ? t('auth.signup.sendSignupLink')
-          : t('auth.signup.createAccount');
+        : t('auth.signup.sendSignupLink');
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -207,43 +182,15 @@ function SlugStatusNote({ t, status }: { t: Translate; status: SlugStatus }) {
 
 // ── What a finished signup leaves on screen ────────────────────────────────
 
-export function SignupDone({
-  t,
-  intent,
-  email,
-  orgSlug,
-}: {
-  t: Translate;
-  intent: SignupIntent;
-  email: string;
-  orgSlug: string;
-}) {
-  if (intent === 'magic_link') {
-    return (
-      <>
-        <h2 className="text-2xl font-black">{t('auth.signup.doneMagicTitle')}</h2>
-        <p className="text-sm leading-6 text-foreground-secondary">
-          {t('auth.signup.doneMagicPrefix')} <strong>{email}</strong>.{' '}
-          {t('auth.signup.doneMagicSuffix')}
-        </p>
-      </>
-    );
-  }
+/** The mail is sent: its link opens "choose your password", then her club. */
+export function SignupDone({ t, email }: { t: Translate; email: string }) {
   return (
     <>
-      <h2 className="text-2xl font-black">{t('auth.signup.doneVerifyTitle')}</h2>
+      <h2 className="text-2xl font-black">{t('auth.signup.doneMagicTitle')}</h2>
       <p className="text-sm leading-6 text-foreground-secondary">
-        {t('auth.signup.doneVerifyCreated')}
+        {t('auth.signup.doneMagicPrefix')} <strong>{email}</strong>.{' '}
+        {t('auth.signup.doneMagicSuffix')}
       </p>
-      <p className="text-sm leading-6 text-foreground-secondary">
-        {t('auth.signup.doneVerifyPrefix')} <strong>{email}</strong>.
-      </p>
-      <a
-        href={`/org/${orgSlug}`}
-        className="inline-block text-sm font-semibold text-accent hover:underline"
-      >
-        {t('auth.signup.goToDashboard')}
-      </a>
     </>
   );
 }

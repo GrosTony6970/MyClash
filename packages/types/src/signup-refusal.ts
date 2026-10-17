@@ -7,14 +7,15 @@
  */
 
 /**
- * The `code` of the 503 a sign-up door answers while the switch is on. Also the
- * value of `SIGNUP_REFUSED_PARAM` when the mailed link's door refuses.
+ * The `code` of the 503 a sign-up door answers while the switch is on: the form, the
+ * choose-password door of the sign-up mail, the Google sign-up.
  */
 export const SIGNUPS_DISABLED_CODE = 'signups_disabled';
 
 /**
- * The query parameter by which the mailed link's door tells the sign-up page why
- * it made no account. A browser that follows a link cannot read a 503's body.
+ * The query parameter by which a door tells the page it redirects to why: the sign-in link's
+ * door (a link that signed nobody in), the address-change confirmation, the club page of a
+ * sign-up that made no second club. A browser that follows a link cannot read a 503's body.
  */
 export const SIGNUP_REFUSED_PARAM = 'refused';
 
@@ -36,8 +37,7 @@ export const LINK_UNCHECKED_CODE = 'link_unchecked';
 
 /**
  * The sign-up link was spent and its organization could not be written (operator
- * ruling 363). The account stands: a second sign-up BY EMAIL LINK mails a link
- * that makes it. The password choice refuses an address that holds an account.
+ * ruling 363). The account stands: a second sign-up mails a link that makes it.
  */
 export const CLUB_NOT_MADE_CODE = 'club_not_made';
 

@@ -250,6 +250,7 @@ export const OPEN_ON_PURPOSE: Readonly<Record<string, readonly string[]>> = {
       'POST auth/public-choose-password',
       'POST auth/public-login',
       'POST auth/public-password-reset-confirm',
+      'POST auth/signup-choose-password',
       'POST fighters/:id/promote',
       'POST fighters/merge',
       'POST fighters/merge/:auditLogId/revert',

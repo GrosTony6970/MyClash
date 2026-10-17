@@ -153,27 +153,32 @@ describe('a mailed link reaches its door with its code (ruling 303)', () => {
     expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ saved: true, next: '/me' }));
   });
 
-  it('the sign-up mail signs her in and makes her club', async () => {
+  it('the organiser sign-up mail opens "choose your password", whose door makes her club', async () => {
     const { onboarding, signUp, reply, db } = build([FREE_SLUG, FREE_SLUG, CLUB_MADE]);
-    await onboarding.signup({ ...SIGN_UP, method: 'magic_link' });
+    updateUserById.mockResolvedValue({ error: null });
+    await onboarding.signup(SIGN_UP);
 
     const link = clicked();
     expect(link.origin + link.pathname).toBe(
-      'https://admin.myclash.localhost/api/v1/auth/signup-callback',
+      'https://admin.myclash.localhost/auth/choose-password',
     );
     const q = link.searchParams;
-    await signUp.signupCallback(
-      q.get('token_hash')!,
-      q.get('orgName')!,
-      q.get('orgSlug')!,
-      q.get('displayName') ?? undefined,
-      q.get('acceptedTerms') ?? undefined,
-      q.get('acceptedPrivacy') ?? undefined,
-      { cookies: {}, headers: {} } as never,
+    expect(q.get('displayName')).toBeNull();
+    await signUp.signupChoosePassword(
+      {
+        token_hash: q.get('token_hash')!,
+        password: 'A-much-Longer-passw0rd!',
+        orgName: q.get('orgName')!,
+        orgSlug: q.get('orgSlug')!,
+        acceptedTerms: q.get('acceptedTerms')!,
+        acceptedPrivacy: q.get('acceptedPrivacy')!,
+      },
+      { headers: {} } as never,
       reply as never,
     );
 
     expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'c0de', type: 'email' });
+    expect(updateUserById).toHaveBeenCalledWith(ANN.id, { password: 'A-much-Longer-passw0rd!' });
     expect(writesTo(db, 'organizations').map((write) => write.row)).toEqual([
       { name: 'Lyon AMHE', slug: 'lyon-amhe', status: 'active', created_by_user_id: ANN.id },
     ]);
@@ -182,23 +187,8 @@ describe('a mailed link reaches its door with its code (ruling 303)', () => {
       { terms: 'terms-1', privacy: 'privacy-1' },
       expect.anything(),
     );
-    expect(reply.redirect).toHaveBeenCalledWith('/org/lyon-amhe');
-  });
-
-  it('the mail of a password sign-up signs her in and sends her to her club', async () => {
-    const { onboarding, signIn, reply } = build([FREE_SLUG, CLUB_MADE]);
-    await onboarding.signup({ ...SIGN_UP, method: 'password', password: 'Securepassword123!' });
-
-    const q = clicked().searchParams;
-    await signIn.callback(
-      q.get('token_hash')!,
-      q.get('type')!,
-      q.get('personId') ?? undefined,
-      q.get('next') ?? undefined,
-      reply as never,
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({ saved: true, next: '/org/lyon-amhe' }),
     );
-
-    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'c0de', type: 'email' });
-    expect(reply.redirect).toHaveBeenCalledWith('https://admin.myclash.localhost/org/lyon-amhe');
   });
 });

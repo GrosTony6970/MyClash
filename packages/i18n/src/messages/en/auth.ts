@@ -59,6 +59,25 @@ export const auth = {
       network: 'Could not reach the MyClash server. Check your connection and try again.',
     },
   },
+  // The page an organiser's sign-up mail opens (ruling "Pre-takeover").
+  choosePassword: {
+    title: 'Choose your password',
+    description:
+      'Choose the password of your organizer account. This confirms your address and creates your organization.',
+    submit: 'Save my password',
+    doneSignIn: 'Password saved and organization created. Sign in with your new password.',
+    // The code was spent and the club made, but the password was refused or not judged.
+    notSaved:
+      'Your organization is created and you are signed in, but your password was not saved. Set one later with "Forgot password?" on the sign-in page.',
+    unknown:
+      'Your organization is created and you are signed in, but we could not tell if your password was saved. If it was not, use "Forgot password?" on the sign-in page.',
+    openClub: 'Open my organization',
+    signUpAgain: 'Sign up again',
+    errors: {
+      missingToken: 'This link is incomplete. Open the link in the mail again.',
+      generic: 'Could not save the password. Try again in a moment.',
+    },
+  },
   oauth: {
     continueWithGoogle: 'Continue with Google',
     completing: 'Completing sign-in',
@@ -83,10 +102,9 @@ export const auth = {
   signup: {
     signupsOff: 'Sign-ups are switched off for now. Try again later.',
     // The sign-up link was spent and the organization was not written (ruling 363).
-    // Her account stands, so only the email link works a second time: the
-    // password choice refuses an address that holds an account.
+    // Her account stands: a second sign-up mails a new link, which makes it.
     orgNotMade:
-      'We could not create your organization. Fill in the form again and choose "Continue with a magic link": we will mail you a new link.',
+      'We could not create your organization. Fill in the form again: we will mail you a new link.',
     // A sign-up by an account that owns an organization makes no second one (ruling 369).
     alreadyOwnsOrg: 'You already have an organization. We opened it.',
     title: 'Create your organizer account',
@@ -95,12 +113,10 @@ export const auth = {
     emailLabel: 'Email',
     displayNameLabel: 'Display name',
     displayNamePlaceholder: 'Jean Dupont',
-    passwordLabel: 'Password',
     passwordPlaceholder: 'At least 12 characters',
     passwordConfirmLabel: 'Confirm password',
     passwordConfirmPlaceholder: 'Repeat password',
     continue: 'Continue →',
-    continueWithLink: 'Continue with a magic link',
     sendSignupLink: 'Send signup link',
     orgNameLabel: 'Organization name',
     orgNamePlaceholder: 'Lyon AMHE',
@@ -115,14 +131,8 @@ export const auth = {
     slugHint: 'Lowercase letters, digits, and hyphens only.',
     back: '← Back',
     creating: 'Creating…',
-    createAccount: 'Create account',
     doneMagicTitle: 'Check your email',
-    doneVerifyTitle: 'Verify your email',
     doneMagicPrefix: 'We sent a signup link to',
-    doneMagicSuffix: 'Click it to activate your account and access your organization dashboard.',
-    doneVerifyCreated:
-      'Your account has been created. Please verify your email address before creating events.',
-    doneVerifyPrefix: 'We sent a verification link to',
-    goToDashboard: 'Go to your dashboard →',
+    doneMagicSuffix: 'Click it to choose your password and open your organization.',
   },
 } as const satisfies MessageTree;

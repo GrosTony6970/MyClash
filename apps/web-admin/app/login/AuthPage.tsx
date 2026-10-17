@@ -38,8 +38,6 @@ const CODE_KEYS: Record<AuthFormCode, string> = {
   legal_required: 'legal.accept.required',
   email_invalid: 'admin.common.validEmailRequired',
   display_name_required: 'admin.common.displayNameRequired',
-  password_weak: 'admin.common.passwordMinLength',
-  password_mismatch: 'admin.common.passwordsDoNotMatch',
   org_name_required: 'admin.common.orgNameRequired',
   slug_too_short: 'admin.common.slugMinLength',
   slug_unavailable: 'admin.common.chooseDifferentSlug',
@@ -49,7 +47,6 @@ const EMPTY_DRAFT: AccountDraft = {
   email: '',
   displayName: '',
   password: '',
-  passwordConfirm: '',
   acceptedLegal: false,
 };
 
@@ -78,11 +75,11 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
   const [draft, setDraft] = useState<AccountDraft>(EMPTY_DRAFT);
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [intent, setIntent] = useState<SignupIntent>('password');
+  const [intent, setIntent] = useState<SignupIntent>('magic_link');
   const [orgName, setOrgName] = useState('');
   const [orgSlug, setOrgSlug] = useState('');
   const [slugStatus, setSlugStatus] = useState<SlugStatus>({ checking: false, available: null });
-  const [done, setDone] = useState<{ intent: SignupIntent; orgSlug: string } | null>(null);
+  const [done, setDone] = useState(false);
 
   const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(refused ? t(refused) : null);
@@ -99,7 +96,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
   function switchTab(next: AuthTab) {
     setTab(next);
     setStep(1);
-    setDone(null);
+    setDone(false);
     clearBanners();
   }
 
@@ -278,7 +275,6 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
       const body: Record<string, string> = {
         email,
         displayName: draft.displayName.trim(),
-        method: intent,
         orgName: orgName.trim(),
         orgSlug,
         // The versions this bundle displayed. The server compares them to what
@@ -286,7 +282,6 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
         // policy revision cannot record consent to the old text.
         ...currentLegalVersionFields(),
       };
-      if (intent === 'password') body['password'] = draft.password;
 
       const r = await apiRequest(apiUrl, '/api/v1/auth/signup', { method: 'POST', body });
       if (!r.ok) {
@@ -294,7 +289,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
         if (message) setError(message);
         return;
       }
-      setDone({ intent, orgSlug });
+      setDone(true);
     } finally {
       setLoadingAction(null);
     }
@@ -362,7 +357,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
       }
     >
       {done ? (
-        <SignupDone t={t} intent={done.intent} email={email} orgSlug={done.orgSlug} />
+        <SignupDone t={t} email={email} />
       ) : (
         <>
           <h2 className="text-2xl font-black">{heading.title}</h2>
@@ -411,7 +406,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
               disabled={loading}
               onSubmit={(event) => {
                 event.preventDefault();
-                goToOrgStep('password');
+                goToOrgStep('magic_link');
               }}
             />
           )}
@@ -443,10 +438,7 @@ export function AuthPage(props: { initialTab: AuthTab; refused?: string | null }
               mode={tab}
               email={email}
               loadingAction={loadingAction}
-              onMagicLink={() => {
-                if (tab === 'signin') void handleMagicLink();
-                else goToOrgStep('magic_link');
-              }}
+              onMagicLink={() => void handleMagicLink()}
               onGoogle={() => {
                 if (tab === 'signin') void handleGoogleLogin();
                 else goToOrgStep('google');

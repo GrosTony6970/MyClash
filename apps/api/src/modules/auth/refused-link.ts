@@ -7,8 +7,8 @@ type RefusedLink =
   typeof ADMIN_LOCKDOWN_CODE | typeof LINK_EXPIRED_CODE | typeof LINK_UNCHECKED_CODE;
 
 /**
- * Why a mailed link's door signs nobody in, as the page it sends its reader to
- * reads it (`SIGNUP_REFUSED_PARAM`). A browser that followed a link cannot read
+ * Why the sign-in link's door signs nobody in, as the sign-in page it sends its
+ * reader to reads it (`SIGNUP_REFUSED_PARAM`). A browser that followed a link cannot read
  * a 401 or a 503: it showed the refusal as raw text on the API's address
  * (operator rulings 324, 362).
  *

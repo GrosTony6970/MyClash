@@ -249,11 +249,7 @@ describe('the sign-up page after a refused mail link', () => {
     );
   });
 
-  it('is read by the page from its address and said by the form when it opens', () => {
-    const page = readFileSync(join(__dirname, '../../app/signup/page.tsx'), 'utf8');
-    expect(page).toContain(
-      'refused={signupRefusedKey((await searchParams)[SIGNUP_REFUSED_PARAM])}',
-    );
+  it('is said by the form when it opens', () => {
     const form = readFileSync(join(__dirname, '../../app/login/AuthPage.tsx'), 'utf8');
     expect(form).toContain('useState<string | null>(refused ? t(refused) : null)');
   });

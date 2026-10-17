@@ -79,8 +79,11 @@ type Built = ReturnType<typeof build>;
 const signedIn = { headers: { authorization: 'Bearer access' } } as never;
 const reset = (built: Built) =>
   built.service.publicPasswordResetConfirm('token-hash-0001', NEW_PASSWORD, built.reply as never);
+// The code of a sign-up mail, spent by the choose-password door (the sign-in link's spend is private).
 const followLink = (built: Built) =>
-  built.service.signInFromSignupLink('token-hash-0001', built.reply as never);
+  built.service.choosePasswordFromCode('token-hash-0001', NEW_PASSWORD, built.reply as never, {
+    lockdown: false,
+  });
 const change = (built: Built) =>
   built.service.changePassword(signedIn, 'old-password', NEW_PASSWORD, built.reply as never);
 const remove = (built: Built) =>

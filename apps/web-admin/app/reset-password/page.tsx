@@ -1,11 +1,10 @@
 'use client';
 
-import Image from 'next/image';
-import { useMemo, useState } from 'react';
-import { validatePassword } from '@myclash/types';
-import { AuthField, AuthNotice, AuthPanel, Button, PasswordChecklist } from '@myclash/ui';
+import { useState } from 'react';
+import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { NewPasswordFields, NewPasswordPanel } from '@/components/NewPasswordPanel';
 
 type Phase = 'idle' | 'submitting' | 'done' | 'sign-in';
 
@@ -25,8 +24,6 @@ type Phase = 'idle' | 'submitting' | 'done' | 'sign-in';
  */
 export default function AdminResetPasswordPage() {
   const { t } = useI18n();
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -46,19 +43,9 @@ export default function AdminResetPasswordPage() {
     );
   });
 
-  const validation = useMemo(() => validatePassword(password), [password]);
-
-  async function submit(): Promise<void> {
+  async function submit(password: string): Promise<void> {
     if (!token) {
       setError(t('auth.resetPassword.errors.missingToken'));
-      return;
-    }
-    if (!validation.ok) {
-      setError(t('admin.common.passwordMinLength'));
-      return;
-    }
-    if (password !== confirm) {
-      setError(t('admin.common.passwordsDoNotMatch'));
       return;
     }
     setPhase('submitting');
@@ -96,33 +83,8 @@ export default function AdminResetPasswordPage() {
   }
 
   return (
-    <AuthPanel
-      mainId="main-content"
-      brandHref="/"
-      brandName={t('app.name')}
-      eyebrow={t('auth.login.eyebrow')}
-      title={t('auth.login.title')}
-      subtitle={t('auth.login.subtitle')}
-      brandMark={
-        <Image
-          src="/brand/Logomini_nobackground.png"
-          alt=""
-          width={48}
-          height={48}
-          priority
-          className="h-11 w-11 lg:h-12 lg:w-12"
-        />
-      }
-      heroArt={
-        <Image
-          src="/brand/Login_logo.png"
-          alt=""
-          width={1423}
-          height={1007}
-          className="mx-auto mb-8 h-auto w-full max-w-md"
-          priority
-        />
-      }
+    <NewPasswordPanel
+      t={t}
       footer={
         phase === 'done' || phase === 'sign-in' ? undefined : (
           <a href="/login" className="text-sm font-semibold text-muted hover:text-foreground">
@@ -152,41 +114,15 @@ export default function AdminResetPasswordPage() {
           <h2 className="text-2xl font-black">{t('auth.resetPassword.title')}</h2>
           <p className="text-sm leading-6 text-muted">{t('auth.resetPassword.description')}</p>
 
-          <AuthField
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            label={t('auth.resetPassword.newPassword')}
-            placeholder={t('auth.signup.passwordPlaceholder')}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+          <NewPasswordFields
+            t={t}
+            submitLabel={t('auth.resetPassword.submit')}
+            busy={phase === 'submitting'}
+            error={error}
+            onSubmit={(password) => void submit(password)}
           />
-          <AuthField
-            id="new-password-confirm"
-            type="password"
-            autoComplete="new-password"
-            label={t('auth.signup.passwordConfirmLabel')}
-            placeholder={t('auth.signup.passwordConfirmPlaceholder')}
-            value={confirm}
-            onChange={(event) => setConfirm(event.target.value)}
-          />
-
-          <PasswordChecklist failing={validation.failing} t={t} />
-
-          <Button
-            type="button"
-            variant="primary"
-            className="w-full py-3"
-            disabled={phase === 'submitting' || !validation.ok || password !== confirm}
-            loading={phase === 'submitting'}
-            onClick={() => void submit()}
-          >
-            {phase === 'submitting' ? t('common.loading') : t('auth.resetPassword.submit')}
-          </Button>
-
-          {error && <AuthNotice tone="error">{error}</AuthNotice>}
         </>
       )}
-    </AuthPanel>
+    </NewPasswordPanel>
   );
 }

@@ -44,24 +44,10 @@ export const signupClubSchema = z.object(signupClubShape);
 const signupSchema = z
   .object({
     // ── Step 1: Account ──────────────────────────────────────────────────────
+    // No password, no method: the mailed link opens "choose your password", and the
+    // password is chosen once the address is proven (ruling "Pre-takeover").
     email: z.email(),
     displayName: z.string().min(2).max(100),
-    /**
-     * 'magic_link' — send a magic link; account is implicitly verified on click.
-     * 'password'   — create with password; email verification required before
-     *                creating events.
-     */
-    method: z.enum(['magic_link', 'password']),
-    /**
-     * Required when method='password'.
-     *
-     * No lower bound here on purpose: the strength rule is `validatePassword`
-     * in the onboarding service, which answers with WHICH rules failed so the
-     * form's checklist can tick them off. A `min()` would turn that into a
-     * generic Zod message and give the caller nothing to act on. Same split as
-     * the public signup / reset-confirm DTOs.
-     */
-    password: z.string().max(128).optional(),
 
     // ── Step 2: Organization ─────────────────────────────────────────────────
     ...signupClubShape,
@@ -74,6 +60,23 @@ const signupSchema = z
   })
   .strict();
 export class SignupDto extends createZodDto(signupSchema) {}
+
+/**
+ * The organiser's "choose your password" page sends the code of the sign-up mail, the password,
+ * and what the mailed link carries: the club, checked as the form checks it BEFORE the code is
+ * spent (ruling 305: a link edited by hand made a club under any name), and the versions she
+ * accepted (checked at the form; recorded once the account is proven).
+ */
+const signupChoosePasswordSchema = z
+  .object({
+    token_hash: z.string().min(10).max(2048),
+    // No lower bound: `validatePassword` says which rules failed.
+    password: z.string().max(256),
+    ...signupClubShape,
+    ...acceptedLegalShape,
+  })
+  .strict();
+export class SignupChoosePasswordDto extends createZodDto(signupChoosePasswordSchema) {}
 
 const checkSlugSchema = z
   .object({

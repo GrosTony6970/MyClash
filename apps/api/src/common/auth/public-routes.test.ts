@@ -54,7 +54,6 @@ const EXPECTED_PUBLIC = [
   // ── pre-session bootstrap: the caller has no identity yet, by definition ──
   'GET /auth/callback',
   'GET /auth/check-slug',
-  'GET /auth/signup-callback',
   'POST /auth/logout',
   'POST /auth/magic-link',
   'POST /auth/oauth/session',
@@ -65,6 +64,7 @@ const EXPECTED_PUBLIC = [
   'POST /auth/public-password-reset-confirm',
   'POST /auth/public-signup',
   'POST /auth/signup',
+  'POST /auth/signup-choose-password',
   'POST /events/:eventId/guest-sessions', // mints the guest cookie
   'POST /staff-auth/login', // mints the staff cookie — web-staff dies without it
   'POST /staff-auth/logout', // idempotent; reads no identity
@@ -229,6 +229,7 @@ const PUBLIC_POST_ALLOWLIST = new Set([
   'POST /auth/public-password-reset-confirm',
   'POST /auth/public-signup',
   'POST /auth/signup',
+  'POST /auth/signup-choose-password',
   'POST /events/:eventId/guest-sessions',
   'POST /staff-auth/login',
   'POST /staff-auth/logout',

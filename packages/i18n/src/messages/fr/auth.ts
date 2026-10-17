@@ -58,6 +58,24 @@ export const auth = {
       network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',
     },
   },
+  choosePassword: {
+    title: 'Choisissez votre mot de passe',
+    description:
+      'Choisissez le mot de passe de votre compte organisateur. Cela confirme votre adresse et crée votre organisation.',
+    submit: 'Enregistrer mon mot de passe',
+    doneSignIn:
+      'Mot de passe enregistré et organisation créée. Connectez-vous avec votre nouveau mot de passe.',
+    notSaved:
+      "Votre organisation est créée et vous êtes connecté, mais votre mot de passe n'a pas été enregistré. Définissez-en un plus tard avec « Mot de passe oublié ? » sur la page de connexion.",
+    unknown:
+      'Votre organisation est créée et vous êtes connecté, mais nous ne savons pas si votre mot de passe a été enregistré. Sinon, utilisez « Mot de passe oublié ? » sur la page de connexion.',
+    openClub: 'Ouvrir mon organisation',
+    signUpAgain: "Recommencer l'inscription",
+    errors: {
+      missingToken: 'Ce lien est incomplet. Rouvrez le lien du mail.',
+      generic: "Impossible d'enregistrer le mot de passe. Réessayez dans un instant.",
+    },
+  },
   oauth: {
     continueWithGoogle: 'Continuer avec Google',
     completing: 'Connexion en cours',
@@ -82,7 +100,7 @@ export const auth = {
   signup: {
     signupsOff: 'Les inscriptions sont fermées pour le moment. Réessayez plus tard.',
     orgNotMade:
-      "Nous n'avons pas pu créer votre organisation. Remplissez à nouveau le formulaire et choisissez « Continuer avec un lien magique » : nous vous enverrons un nouveau lien.",
+      "Nous n'avons pas pu créer votre organisation. Remplissez à nouveau le formulaire : nous vous enverrons un nouveau lien.",
     alreadyOwnsOrg: "Vous avez déjà une organisation. Nous l'avons ouverte.",
     title: 'Créez votre compte organisateur',
     step1Label: 'Étape 1 sur 2 — Votre compte',
@@ -90,12 +108,10 @@ export const auth = {
     emailLabel: 'E-mail',
     displayNameLabel: 'Nom affiché',
     displayNamePlaceholder: 'Jean Dupont',
-    passwordLabel: 'Mot de passe',
     passwordPlaceholder: 'Au moins 12 caractères',
     passwordConfirmLabel: 'Confirmez le mot de passe',
     passwordConfirmPlaceholder: 'Répétez le mot de passe',
     continue: 'Continuer →',
-    continueWithLink: 'Continuer avec un lien magique',
     sendSignupLink: "Envoyer le lien d'inscription",
     orgNameLabel: "Nom de l'organisation",
     orgNamePlaceholder: 'Lyon AMHE',
@@ -110,15 +126,8 @@ export const auth = {
     slugHint: 'Lettres minuscules, chiffres et tirets uniquement.',
     back: '← Retour',
     creating: 'Création…',
-    createAccount: 'Créer le compte',
     doneMagicTitle: 'Vérifiez votre boîte mail',
-    doneVerifyTitle: 'Vérifiez votre adresse e-mail',
     doneMagicPrefix: "Nous avons envoyé un lien d'inscription à",
-    doneMagicSuffix:
-      'Cliquez dessus pour activer votre compte et accéder au tableau de bord de votre organisation.',
-    doneVerifyCreated:
-      'Votre compte a été créé. Veuillez vérifier votre adresse e-mail avant de créer des événements.',
-    doneVerifyPrefix: 'Nous avons envoyé un lien de vérification à',
-    goToDashboard: 'Accéder à votre tableau de bord →',
+    doneMagicSuffix: 'Cliquez dessus pour choisir votre mot de passe et ouvrir votre organisation.',
   },
 } as const satisfies DeepString<typeof enAuth>;
