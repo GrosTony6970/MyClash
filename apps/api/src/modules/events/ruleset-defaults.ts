@@ -146,18 +146,12 @@ export async function freezeRulesetVersion(
  * Resolve a ruleset's grammar for SEEDING purposes.
  *
  * Deliberately NOT `RulesetResolver.resolve()`, which is the scoring-time
- * resolver and returns null for `is_system` rows and for anything whose status
- * is not 'published'. Both are exactly the cases seeding must handle:
- *
- *   - every built-in is `is_system`, so the common case would resolve to null;
- *   - a tournament can legitimately be created against a DRAFT custom ruleset
- *     (see freezeRulesetVersion's docblock — drafts pinned before publish are a
- *     supported flow), and a null there would silently seed FFAMHE's pad onto a
- *     federation that declared something else. Unlike today's NULL config, a
- *     seeded wrong value is materialised, sticky, and never re-derived.
- *
- * Refusing to SCORE with an unpublished ruleset and refusing to READ ITS
- * GRAMMAR are different concerns; this function only does the latter.
+ * resolver and returns null for `is_system` rows: every built-in is
+ * `is_system`, so the common case would resolve to null, and a null here would
+ * silently seed FFAMHE's pad onto a federation that declared something else.
+ * Unlike today's NULL config, a seeded wrong value is materialised, sticky, and
+ * never re-derived. (A DRAFT custom ruleset is read here as it is scored: a
+ * Tournament pinned to one is scored as its draft, ruling 6.)
  */
 export async function resolveRulesetGrammar(
   supabase: SupabaseService,

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScoringService } from './scoring.service';
 import { Generic_PointsCap } from '@myclash/rulesets';
+import { builtInResolver } from './built-in-resolver.fixtures';
+import type { RulesetResolver } from './ruleset-resolver.service';
 
 // A Supabase query chain that is BOTH thenable (so a terminal `.order()` / `.eq()`
 // awaits to {data,error}) and resolves `.maybeSingle()` / `.single()`.
@@ -82,10 +84,13 @@ function ex(seq: number, color: 'red' | 'blue', value: number, round = 1) {
   };
 }
 
+/** The real resolver of the built-ins, which a case may answer for another ruleset. */
+const builtIns = builtInResolver();
+
 describe('ScoringService — best-of rounds', () => {
   const fromMock = vi.fn();
   const supabase = { service: { from: fromMock } };
-  const rulesets = { resolve: vi.fn().mockResolvedValue(null) };
+  const rulesets = { resolve: vi.fn<RulesetResolver['resolve']>() };
   const clock = {
     getClockState: vi.fn().mockResolvedValue({ status: 'halted' }),
     clockAction: vi.fn().mockResolvedValue(undefined),
@@ -117,7 +122,7 @@ describe('ScoringService — best-of rounds', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clock.getClockState.mockResolvedValue({ status: 'halted' });
-    rulesets.resolve.mockResolvedValue(null);
+    rulesets.resolve.mockImplementation((code, version) => builtIns.resolve(code, version));
     matchCompletion.onMatchUncompleted.mockResolvedValue(undefined);
     service = new ScoringService(
       supabase as never,
@@ -716,7 +721,7 @@ describe('ScoringService — best-of rounds', () => {
 describe('ScoringService — a single fight, penalties included', () => {
   const fromMock = vi.fn();
   const supabase = { service: { from: fromMock } };
-  const rulesets = { resolve: vi.fn().mockResolvedValue(null) };
+  const rulesets = { resolve: vi.fn<RulesetResolver['resolve']>() };
   const clock = {
     getClockState: vi.fn().mockResolvedValue({ status: 'halted' }),
     clockAction: vi.fn().mockResolvedValue(undefined),
@@ -770,7 +775,7 @@ describe('ScoringService — a single fight, penalties included', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clock.getClockState.mockResolvedValue({ status: 'halted' });
-    rulesets.resolve.mockResolvedValue(null);
+    rulesets.resolve.mockImplementation((code, version) => builtIns.resolve(code, version));
     service = new ScoringService(
       supabase as never,
       rulesets as never,

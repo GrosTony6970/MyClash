@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TF_v1_1_0_0 as OLD } from '@myclash/rulesets';
 import {
   BOUT,
   hit,
@@ -280,7 +279,8 @@ describe('ScoringService.recomputeMatchScore — a round of a best-of bout that 
   });
 
   it('keeps a bracket round of TF_v1 1.0.0 open: its edition reads the board', async () => {
-    const { service, written } = setup(series('single_elim'), STORY, RUNNING_EVENT, [], [], OLD);
+    const bout = { ...series('single_elim'), ruleset_version: '1.0.0' };
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
 
@@ -296,7 +296,8 @@ describe('ScoringService.recomputeMatchScore — a round of a best-of bout that 
  */
 describe('ScoringService.recomputeMatchScore — both at zero in a bout of TF_v1 1.0.0', () => {
   it('ends a Pool bout as a draw, as before 2026-10-11', async () => {
-    const { service, written } = setup(inPlay('pool'), STORY, RUNNING_EVENT, [], [], OLD);
+    const bout = inPlay('pool', { ruleset_version: '1.0.0' });
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
 
@@ -308,17 +309,22 @@ describe('ScoringService.recomputeMatchScore — both at zero in a bout of TF_v1
   });
 
   it('reads a bout stored as "1" as 1.0.0 (ruling 3)', async () => {
+    // Unread as 1.0.0, "1" names no registered version, and the scorer refuses it.
     const bout = inPlay('pool', { ruleset_version: '1' });
-    const { service, rulesets } = setup(bout, STORY, RUNNING_EVENT, [], [], OLD);
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
 
-    expect(rulesets.resolve).toHaveBeenCalledWith('TF_v1', '1.0.0');
-    expect(rulesets.resolve).not.toHaveBeenCalledWith('TF_v1', '1');
+    expect(written()?.row).toMatchObject({
+      status: 'completed',
+      winner_registration_id: null,
+      end_reason: 'first_to_points',
+    });
   });
 
   it('keeps a bracket bout open, as before 2026-10-11', async () => {
-    const { service, written } = setup(inPlay('single_elim'), STORY, RUNNING_EVENT, [], [], OLD);
+    const bout = inPlay('single_elim', { ruleset_version: '1.0.0' });
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
 

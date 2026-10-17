@@ -135,6 +135,12 @@ describe('CustomRulesetsService.forkForOrg', () => {
     expect(insertedRow()['base_version']).toBe('1.1.0');
   });
 
+  it('stores a version typed as "1" as 1.0.0, the version every reader resolves', async () => {
+    fromMock.mockReturnValue(makeChain({ data: { id: 'new-1' }, error: null }));
+    await service.forkForOrg('org-1', dto({ version: '1' } as never), 'actor');
+    expect(insertedRow()['version']).toBe('1.0.0');
+  });
+
   it('an "Adopt" of a 1.0.0 fork keeps 1.0.0', async () => {
     fromMock.mockReturnValue(makeChain({ data: { id: 'new-1' }, error: null }));
     await service.forkForOrg('org-1', dto({ baseVersion: '1.0.0' }), 'actor');

@@ -219,7 +219,7 @@ describe('restampUnstartedMatches', () => {
   });
 
   it('writes nothing for a Tournament that is gone, even with a phase left behind', async () => {
-    // With no row, the stamp would fall back to TF_v1 and be written.
+    // With no row there is no pair to stamp, and nothing may be written.
     const supabase = mockSupabase(
       seed({ phases: { rows: [{ id: 'left-behind', tournament_id: 't-gone' }] } }),
     );

@@ -23,6 +23,9 @@ vi.mock('./match-ruleset', async (importOriginal) => ({
   restampAfterInsert: vi.fn(),
 }));
 
+/** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+
 /** How many bouts the door has inserted so far. */
 const boutsInserted = (supabase: ReturnType<typeof mockSupabase>): number =>
   writesTo(supabase, 'matches')
@@ -97,8 +100,8 @@ describe('PhasesService.generateBracket — authorization', () => {
    * canned double this fixture replaced, the same deletion changed nothing.
    */
   const TOURNAMENTS: SupabaseRow[] = [
-    { id: 't-elsewhere', events: { organization_id: 'org-elsewhere' } },
-    { id: 't-1', events: { organization_id: 'org-1' } },
+    { id: 't-elsewhere', events: { organization_id: 'org-elsewhere' }, ...TF },
+    { id: 't-1', events: { organization_id: 'org-1' }, ...TF },
   ];
 
   beforeEach(() => {
@@ -196,12 +199,14 @@ describe('PhasesService', () => {
         weapon: null,
         event_id: 'event-9',
         events: { organization_id: 'org-elsewhere' },
+        ...TF,
       },
       {
         id: 'tournament-1',
         weapon: null,
         event_id: 'event-1',
         events: { organization_id: 'org-1' },
+        ...TF,
       },
     ];
 
@@ -728,7 +733,9 @@ describe('PhasesService', () => {
     it('deleteAllPools refuses once any bout in the phase has been scored', async () => {
       const { service, supabase } = makeService({
         phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }] },
-        tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        tournaments: {
+          rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' }, ...TF }],
+        },
         matches: { rows: [{ id: 'match-9', phase_id: 'phase-1', status: 'completed' }] },
       });
 
@@ -744,7 +751,9 @@ describe('PhasesService', () => {
     it('deleteAllPools proceeds when nothing in the phase has been scored', async () => {
       const { service, supabase } = makeService({
         phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }] },
-        tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        tournaments: {
+          rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' }, ...TF }],
+        },
         matches: {
           rows: [
             { id: 'm-1', phase_id: 'phase-1', status: 'scheduled' },
@@ -895,7 +904,7 @@ describe('PhasesService', () => {
           ],
         },
         matches: { rows: [] },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
       });
 
       const restamped = insertsWhenRestamped(supabase);
@@ -938,7 +947,7 @@ describe('PhasesService', () => {
           })),
         },
         matches: { rows: [] },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
       });
 
       const result = await service.generateBracket('tournament-1', { bracketSize: 8 }, false);
@@ -992,7 +1001,7 @@ describe('PhasesService', () => {
           ],
         },
         matches: { rows: [] },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
       });
 
       const result = await service.generateBracket('tournament-1', { qualifyCount: 18 }, false);
@@ -1048,7 +1057,7 @@ describe('PhasesService', () => {
           registrations: { rows: qualifiers(8) },
           // No slots come back, so no placeholder matches.
           bracket_slots: { rows: [] },
-          tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+          tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
         });
 
         const result = await service.generateBracket(
@@ -1078,7 +1087,7 @@ describe('PhasesService', () => {
         ),
         registrations: { rows: qualifiers(8) },
         bracket_slots: { rows: [] },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
       });
 
       const result = await service.generateBracket(
@@ -1105,7 +1114,7 @@ describe('PhasesService', () => {
     it('generates a play-in round and leaves the conditional reset match uncreated', async () => {
       const dto = { phaseType: 'double_elim', grandFinalReset: true } as const;
       const registrations = { rows: qualifiers(12) };
-      const tournaments = { rows: [{ id: 'tournament-1', event_id: null }] };
+      const tournaments = { rows: [{ id: 'tournament-1', event_id: null, ...TF }] };
 
       /**
        * Run it once with no slots seeded, purely to record what the generator
@@ -1204,7 +1213,7 @@ describe('PhasesService', () => {
           ],
         },
         matches: { rows: [] },
-        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
       });
 
       const result = await service.generateBracket('tournament-1', {}, false);
@@ -1237,14 +1246,14 @@ describe('PhasesService', () => {
           id: 'phase-elsewhere',
           type: 'double_elim',
           tournament_id: 'tournament-9',
-          tournaments: { event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
+          tournaments: { ...TF, event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
           config_json: {},
         },
         {
           id: 'phase-1',
           type,
           tournament_id: 'tournament-1',
-          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+          tournaments: { ...TF, event_id: 'event-1', events: { organization_id: 'org-1' } },
           config_json: config,
         },
       ];
@@ -1408,7 +1417,7 @@ describe('PhasesService', () => {
       id: 'phase-1',
       type: 'single_elim',
       tournament_id: 'tournament-1',
-      tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+      tournaments: { ...TF, event_id: 'event-1', events: { organization_id: 'org-1' } },
       config_json: {},
     };
 
@@ -1440,7 +1449,7 @@ describe('PhasesService', () => {
         // are. (The double models `nullsFirst` since the staff slice, so seeding
         // this read is now possible if a test ever needs its filters.)
         registrations: { data: registrations, error: null },
-        tournaments: { rows: [{ id: 'tournament-1' }] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
         audit_log: { rows: [] },
       });
 
@@ -1542,7 +1551,7 @@ describe('PhasesService', () => {
       id: 'phase-1',
       tournament_id: 't1',
       type: 'single_elim',
-      tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+      tournaments: { ...TF, event_id: 'evt-1', events: { organization_id: 'org-1' } },
     };
 
     /** Another organisation's bracket, in front of it in the same table. */
@@ -1550,7 +1559,7 @@ describe('PhasesService', () => {
       id: 'phase-elsewhere',
       tournament_id: 't9',
       type: 'single_elim',
-      tournaments: { event_id: 'evt-9', events: { organization_id: 'org-elsewhere' } },
+      tournaments: { ...TF, event_id: 'evt-9', events: { organization_id: 'org-elsewhere' } },
     };
 
     it('deletes the phase row and leaves the assignment cleanup to the FK', async () => {
@@ -1609,7 +1618,7 @@ describe('PhasesService', () => {
               id: 'phase-pool',
               tournament_id: 't1',
               type: 'pool',
-              tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+              tournaments: { ...TF, event_id: 'evt-1', events: { organization_id: 'org-1' } },
             },
           ],
         },
@@ -2134,8 +2143,8 @@ describe('PhasesService', () => {
     ];
 
     const TOURNAMENTS: SupabaseRow[] = [
-      { id: 'tournament-9', event_id: 'event-9', weapon: 'rapier' },
-      { id: 'tournament-1', event_id: 'event-1', weapon: 'longsword' },
+      { id: 'tournament-9', event_id: 'event-9', weapon: 'rapier', ...TF },
+      { id: 'tournament-1', event_id: 'event-1', weapon: 'longsword', ...TF },
     ];
 
     /** Pool A, and one hanging off another tournament's phase. */
@@ -2869,7 +2878,7 @@ describe('PhasesService', () => {
               type: 'double_elim',
               config_json: { wbRounds: 3, lbRounds: 4 },
               tournament_id: 'tournament-1',
-              tournaments: { events: { organization_id: 'org-1' } },
+              tournaments: { ...TF, events: { organization_id: 'org-1' } },
             },
           ],
         },
@@ -2945,7 +2954,7 @@ describe('PhasesService', () => {
       type: 'single_elim',
       config_json: {},
       tournament_id: 'tournament-1',
-      tournaments: { events: { organization_id: 'org-1' } },
+      tournaments: { ...TF, events: { organization_id: 'org-1' } },
     };
     /**
      * Its presence is the whole gate: with it, populate must have standings.
@@ -2967,7 +2976,7 @@ describe('PhasesService', () => {
       type: 'single_elim',
       config_json: {},
       tournament_id: 'tournament-9',
-      tournaments: { events: { organization_id: 'org-elsewhere' } },
+      tournaments: { ...TF, events: { organization_id: 'org-elsewhere' } },
     };
 
     function makePoolStandingsMock(byPool: unknown, overall?: unknown) {
@@ -2994,7 +3003,7 @@ describe('PhasesService', () => {
         phases: { rows: [BRACKET_ELSEWHERE, ...phases] },
         bracket_slots: { rows: [] },
         registrations: { data: registrations, error: null },
-        tournaments: { rows: [{ id: 'tournament-1' }] },
+        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
         audit_log: { rows: [] },
       });
       const svc = new PhasesService(
@@ -3142,7 +3151,7 @@ describe('PhasesService', () => {
         registrations: { rows: registrations('registered') },
         pool_members: { rows: [] },
         // The ruleset of the bouts made again, read before the member write.
-        phases: { rows: [] },
+        phases: { rows: [{ id: 'phase-1', tournaments: TF }] },
       });
       stubPoolAuth(svc);
 
@@ -3269,7 +3278,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       // swallows a throw from here as `not-applicable`, so a seeded read that
       // hit an unmodelled call would go quiet rather than red.
       registrations: { data: [], error: null },
-      tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
+      tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
     });
 
     const poolStandings = {

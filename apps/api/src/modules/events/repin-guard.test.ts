@@ -123,11 +123,18 @@ function harness(opts: HarnessOpts) {
     if (table === 'matches') return matchesChain(scored);
     return nullRowChain();
   });
+  // A club ruleset this file names resolves to nothing; a built-in needs no read.
+  const rulesetResolver = { resolve: vi.fn().mockResolvedValue(null) };
   const svc = new EventsService(
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
     createRulesetRegistry(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    rulesetResolver as never,
   );
   return { svc, cap };
 }
@@ -194,6 +201,15 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     // Swap reseeds the config from the new ruleset's defaults.
     expect(cap.update?.['ruleset_config']).toBeDefined();
     expect((result as Record<string, unknown>)['ruleset_code']).toBe('Generic_PointsCap');
+  });
+
+  it('refuses a swap to a ruleset pair that does not resolve, before any write', async () => {
+    const { svc, cap } = harness({ current: { ...RUNNING_TF, status: 'draft' } });
+
+    await expect(
+      svc.updateTournament('t1', { rulesetCode: 'custom_gone' } as never, 'u1'),
+    ).rejects.toThrow('The selected ruleset (custom_gone 1.0.0) does not exist.');
+    expect(cap.update).toBeNull();
   });
 
   it('stores a version named in shorthand as the registry names it', async () => {

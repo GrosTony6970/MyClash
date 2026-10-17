@@ -3,9 +3,28 @@
  * rule loses the limit. One that says nothing keeps it, as every ruleset did
  * before a ruleset could say.
  */
-import { describe, expect, it } from 'vitest';
-import { TF_v1, type Ruleset } from '@myclash/rulesets';
-import { scoredMatchFormat } from './scored-match-format';
+import { Logger } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { TF_v1, TF_v1_1_0_0, type Ruleset } from '@myclash/rulesets';
+import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
+
+describe('scoredRuleset', () => {
+  it("is the ruleset the bout's pair names", async () => {
+    const rulesets = { resolve: vi.fn().mockResolvedValue(TF_v1_1_0_0) };
+    expect(await scoredRuleset(rulesets as never, 'TF_v1', '1.0.0')).toBe(TF_v1_1_0_0);
+    expect(rulesets.resolve).toHaveBeenCalledWith('TF_v1', '1.0.0');
+  });
+
+  it('refuses, and says so, a pair that does not resolve: never TF_v1 in its place', async () => {
+    const error = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const rulesets = { resolve: vi.fn().mockResolvedValue(null) };
+    await expect(scoredRuleset(rulesets as never, 'custom_gone', '1.0.0')).rejects.toThrow(
+      'custom_gone@1.0.0 does not resolve',
+    );
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('custom_gone@1.0.0'));
+    error.mockRestore();
+  });
+});
 
 const CONFIG = { matchFormat: { maxDoubleHits: 3 } };
 const saying = (hasMaxDoubles?: boolean): Ruleset => ({

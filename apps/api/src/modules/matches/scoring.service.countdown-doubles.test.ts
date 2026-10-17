@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TF_v1_1_0_0 as OLD } from '@myclash/rulesets';
 import {
   BOUT,
   hit,
@@ -134,8 +133,8 @@ describe('ScoringService.recomputeMatchScore — a countdown bout at the doubles
  */
 describe('ScoringService.recomputeMatchScore — a countdown bout of TF_v1 1.0.0 at the doubles limit', () => {
   it('ends it "first to points" with nobody ahead, as before', async () => {
-    const bout = inPlay(pool('reverse_zero_loses'));
-    const { service, written } = setup(bout, STORY, RUNNING_EVENT, [], [], OLD);
+    const bout = inPlay(pool('reverse_zero_loses'), { ruleset_version: '1.0.0' });
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
 
@@ -149,8 +148,8 @@ describe('ScoringService.recomputeMatchScore — a countdown bout of TF_v1 1.0.0
   it('names the fighter a card left ahead on the wiped board, as before', async () => {
     const card = { id: 'card-1', match_id: BOUT, score_delta: -1, registration_id: 'red' };
     const cards = [{ ...card, voided: false, round_number: 1 }];
-    const bout = inPlay(pool('reverse_zero_loses'));
-    const { service, written } = setup(bout, STORY, RUNNING_EVENT, cards, [], OLD);
+    const bout = inPlay(pool('reverse_zero_loses'), { ruleset_version: '1.0.0' });
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT, cards);
 
     await service.recomputeMatchScore(BOUT);
 

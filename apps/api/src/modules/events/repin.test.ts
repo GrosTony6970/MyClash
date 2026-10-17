@@ -108,18 +108,19 @@ function harness(opts: HarnessOpts) {
   const rulesetResolver = {
     resolve: vi.fn().mockResolvedValue(opts.resolverResolves === false ? null : {}),
   };
+  const registry = createRulesetRegistry();
   const svc = new EventsService(
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    createRulesetRegistry(),
+    registry,
     undefined,
     undefined,
     undefined,
     poolStandings as never,
     rulesetResolver as never,
   );
-  return { svc, cap, poolStandings, rulesetResolver };
+  return { svc, cap, poolStandings, rulesetResolver, registry };
 }
 
 const RUNNING_TF = {
@@ -202,21 +203,21 @@ describe('repinTournamentRuleset', () => {
   });
 
   it('re-pins to the latest version of a built-in when none is named', async () => {
-    const { svc, cap, rulesetResolver } = harness({ current: RUNNING_TF });
+    const { svc, cap } = harness({ current: RUNNING_TF });
     const dto = { rulesetCode: 'TF_v1', justification: REPIN_JUSTIFICATION } as never;
 
     await svc.repinTournamentRuleset('t1', dto, 'u1');
 
-    expect(rulesetResolver.resolve).toHaveBeenCalledWith('TF_v1', '1.1.0');
     expect(cap.tournamentUpdate?.['ruleset_version']).toBe('1.1.0');
     expect(cap.repinInsert?.['to_version']).toBe('1.1.0');
   });
 
   it('rejects a re-pin to a target ruleset that does not resolve, before any mutation', async () => {
-    // e.g. a typo code, a still-draft custom ruleset, or a wrong version — the
-    // resolver returns null, so the live tournament must not be bricked.
+    // e.g. a typo code or a wrong version — the resolver returns null, so the
+    // live tournament must not be bricked.
     const { svc, cap } = harness({ current: RUNNING_TF, resolverResolves: false });
-    await expect(svc.repinTournamentRuleset('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+    const unknown = { rulesetCode: 'custom_gone', justification: REPIN_JUSTIFICATION } as never;
+    await expect(svc.repinTournamentRuleset('t1', unknown, 'u1')).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(cap.tournamentUpdate).toBeNull();
@@ -299,11 +300,13 @@ describe('previewRepinBucketDiff', () => {
   });
 
   it('previews the latest version of a built-in when none is named, as the re-pin does', async () => {
-    const { svc, rulesetResolver } = harness({ current: RUNNING_TF });
+    const { svc, registry } = harness({ current: RUNNING_TF });
+    const asked = vi.spyOn(registry, 'has');
 
     await svc.previewRepinBucketDiff('t1', { rulesetCode: 'TF_v1' }, 'u1');
 
-    expect(rulesetResolver.resolve).toHaveBeenCalledWith('TF_v1', '1.1.0');
+    // The from-side (1.0.0) is read too; the target is the latest.
+    expect(asked).toHaveBeenCalledWith('TF_v1', '1.1.0');
   });
 
   it('enforces the same owner/super-admin gate as the re-pin', async () => {
@@ -316,7 +319,8 @@ describe('previewRepinBucketDiff', () => {
 
   it('rejects a target that does not resolve, so no bogus preview is shown', async () => {
     const { svc } = harness({ current: RUNNING_TF, resolverResolves: false });
-    await expect(svc.previewRepinBucketDiff('t1', DTO, 'u1')).rejects.toBeInstanceOf(
+    const unknown = { rulesetCode: 'custom_gone' };
+    await expect(svc.previewRepinBucketDiff('t1', unknown, 'u1')).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });

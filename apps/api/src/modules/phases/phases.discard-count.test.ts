@@ -13,6 +13,8 @@ import { PhasesService } from './phases.service';
  * doors that delete a phase ask the same gate.
  */
 const OWNER = 'a0000000-0000-4000-8000-000000000001';
+/** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
 const orgs = { assertOrgRole: vi.fn(() => Promise.resolve()) };
 const frozen = {
   rejectPendingEditsForMatch: vi.fn(() => Promise.resolve([])),
@@ -34,12 +36,12 @@ function setup(type: 'pool' | 'single_elim', fought: number) {
           id: 'phase-1',
           tournament_id: 'tournament-1',
           type,
-          tournaments: { event_id: 'event-1', events: org },
+          tournaments: { event_id: 'event-1', events: org, ...TF },
         },
       ],
     },
     tournaments: {
-      rows: [{ id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: org }],
+      rows: [{ id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: org, ...TF }],
     },
     matches: { rows: bouts },
     audit_log: { rows: [] },

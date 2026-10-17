@@ -714,7 +714,9 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
                 ? input.existingMatch
                 : table === 'phases'
                   ? { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } }
-                  : { id: 'ds-1' },
+                  : table === 'tournaments'
+                    ? { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' }
+                    : { id: 'ds-1' },
             error: null,
           }),
         ),
@@ -843,7 +845,15 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
         order: vi.fn(() => api),
         or: vi.fn(() => Promise.resolve({ data: [], error: null })),
         maybeSingle: vi.fn(() =>
-          Promise.resolve({ data: table === 'matches' ? existing : slot, error: null }),
+          Promise.resolve({
+            data:
+              table === 'matches'
+                ? existing
+                : table === 'phases'
+                  ? { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' } }
+                  : slot,
+            error: null,
+          }),
         ),
         update: vi.fn((patch: Record<string, unknown>) => {
           updates.push({ table, patch });

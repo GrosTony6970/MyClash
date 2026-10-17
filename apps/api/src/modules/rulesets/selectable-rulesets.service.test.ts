@@ -128,6 +128,31 @@ describe('SelectableRulesetsService', () => {
     // Archived rulesets still resolve (for tournaments pinned to them) but must
     // never be offered for a NEW tournament — delist ≠ delete.
     expect(chain.neq).toHaveBeenCalledWith('status', 'archived');
+    // A draft resolves too (ruling 6): offered to the super-admin only (ruling 9).
+    expect(chain.neq).toHaveBeenCalledWith('status', 'draft');
+  });
+
+  it("offers the super-admin the drafts, which no organization's filter lists", async () => {
+    const { supabase, chain } = makeSupabase({
+      data: [{ code: 'custom_draft', version: '1.0.0' }],
+      error: null,
+    });
+    const resolve = vi.fn().mockResolvedValue(fakeRuleset('custom_draft'));
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      createRulesetRegistry(),
+    );
+
+    const result = await service.listForOrganization('org-1', { withDrafts: true });
+    // The platform's own drafts: never an organization's row put back to draft,
+    // this organization's or a shared one.
+    expect(chain.or).toHaveBeenCalledWith(
+      'and(status.neq.draft,or(is_system.eq.true,public_visibility.eq.true,owner_organization_id.eq.org-1)),' +
+        'and(status.eq.draft,owner_organization_id.is.null)',
+    );
+    expect(chain.neq).not.toHaveBeenCalledWith('status', 'draft');
+    expect(result.find((r) => r.code === 'custom_draft')?.custom).toBe(true);
   });
 
   it('offers the latest version of a built-in only', async () => {

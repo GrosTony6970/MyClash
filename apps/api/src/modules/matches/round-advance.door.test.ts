@@ -9,6 +9,7 @@ import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
 import { lateRoundPressOf } from './round-advance';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 
 /**
  * The door of "Start round N+1" sent late: `POST /matches/:id/rounds/advance`
@@ -146,11 +147,7 @@ function setup(status: string, caller: Caller, { piste = LICE, round = 1 } = {})
   vi.spyOn(inner, 'getSupabaseUserId').mockResolvedValue(caller === 'pin' ? null : USER);
   vi.spyOn(inner, 'isSuperAdmin').mockResolvedValue(caller === 'super admin');
 
-  const scoring = new ScoringService(
-    db as never,
-    { resolve: vi.fn().mockResolvedValue(null) } as never,
-    new ClockService(db as never),
-  );
+  const scoring = new ScoringService(db as never, builtInResolver(), new ClockService(db as never));
   vi.spyOn(scoring, 'recomputeMatchScore').mockResolvedValue({ redScore: 0, blueScore: 0 });
   const controller = new MatchesController(
     new MatchesService(db as never, scoring, {} as never, {} as never, {} as never),

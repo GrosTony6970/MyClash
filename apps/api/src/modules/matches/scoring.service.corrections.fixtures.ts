@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
-import type { Ruleset } from '@myclash/rulesets';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 
 /**
  * One finished bout and the services around it, for the two files that test
@@ -32,6 +32,8 @@ export function hit(seq: number, color: 'red' | 'blue', value: number) {
 export const phase = (type: 'pool' | 'single_elim') => ({
   type,
   tournaments: {
+    ruleset_code: 'TF_v1',
+    ruleset_version: '1.1.0',
     ruleset_config: {
       matchFormat: {
         pointCap: 7,
@@ -54,7 +56,9 @@ export function storedBout(over: Record<string, unknown> = {}) {
     red_registration_id: 'red',
     blue_registration_id: 'blue',
     ruleset_code: 'TF_v1',
-    ruleset_version: '1.0.0',
+    // The version a bout made today carries; a test of the earlier end decision
+    // stores 1.0.0 on its bout.
+    ruleset_version: '1.1.0',
     status: 'completed',
     winner_registration_id: 'red',
     end_reason: 'time_limit',
@@ -111,8 +115,6 @@ export function setup(
   context: Record<string, boolean> = OVER_EVENT,
   cards: Array<Record<string, unknown>> = [],
   records: Array<Record<string, unknown>> = [],
-  /** What the resolver answers for the bout's pair; none = the scorer's TF_v1. */
-  ruleset: Ruleset | null = null,
 ) {
   const db = boutDb(bout, sheet, cards, records);
   const writesWhenToldTheBracket: number[] = [];
@@ -128,10 +130,9 @@ export function setup(
     getClockState: vi.fn().mockResolvedValue({ levelResolutionSteps: 0, status: 'ended' }),
   };
   const { leagueRescore, bracketToldBeforeLeagues } = leagueDouble(matchCompletion);
-  const rulesets = { resolve: vi.fn().mockResolvedValue(ruleset) };
   const service = new ScoringService(
     db as never,
-    rulesets as never,
+    builtInResolver(),
     clock as never,
     matchCompletion as never,
     leagueRescore as never,
@@ -139,7 +140,6 @@ export function setup(
   const written = () => writesTo(db, 'matches')[0];
   return {
     db,
-    rulesets,
     clock,
     matchCompletion,
     leagueRescore,

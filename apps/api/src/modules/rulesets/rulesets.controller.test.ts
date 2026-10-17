@@ -8,15 +8,19 @@ function makeController(overrides?: {
   selectable?: Partial<SelectableRulesetsService>;
   eventRow?: unknown;
   assertOrgRole?: ReturnType<typeof vi.fn>;
+  platformRole?: string;
 }) {
-  const maybeSingle = vi.fn().mockResolvedValue({ data: overrides?.eventRow ?? null });
+  const reading = (data: unknown) => ({
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+  });
+  const platformRole = overrides?.platformRole ? { role: overrides.platformRole } : null;
   const supabase = {
     service: {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle,
-      }),
+      from: vi.fn((table: string) =>
+        reading(table === 'platform_roles' ? platformRole : (overrides?.eventRow ?? null)),
+      ),
     },
     getAuthUser: vi.fn().mockResolvedValue({ id: 'u1' }),
   };
@@ -101,9 +105,18 @@ describe('RulesetsController.listForEvent', () => {
     expect(selectable.listForOrganization).not.toHaveBeenCalled();
   });
 
-  it("scopes the catalog to the event's organization", async () => {
+  it("scopes the catalog to the event's organization, with no drafts", async () => {
     const { controller, selectable } = makeController({ eventRow: { organization_id: 'org-1' } });
     await controller.listForEvent(EVENT_ID, req);
-    expect(selectable.listForOrganization).toHaveBeenCalledWith('org-1');
+    expect(selectable.listForOrganization).toHaveBeenCalledWith('org-1', { withDrafts: false });
+  });
+
+  it('offers the drafts to the super-admin only (ruling 9)', async () => {
+    const { controller, selectable } = makeController({
+      eventRow: { organization_id: 'org-1' },
+      platformRole: 'super_admin',
+    });
+    await controller.listForEvent(EVENT_ID, req);
+    expect(selectable.listForOrganization).toHaveBeenCalledWith('org-1', { withDrafts: true });
   });
 });

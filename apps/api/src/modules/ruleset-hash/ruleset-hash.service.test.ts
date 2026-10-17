@@ -64,6 +64,34 @@ const hashOf = (state: TableState) =>
   ).computeTournamentContentHash('t-1');
 
 describe('RulesetHashService.computeTournamentContentHash', () => {
+  it('describes a Tournament on a draft club ruleset by its own formula (ruling 6)', async () => {
+    const onDraft = (scoreFormula: unknown) => ({
+      ...stateFor(),
+      tournaments: {
+        maybeSingle: {
+          ...(stateFor().tournaments!.maybeSingle as Record<string, unknown>),
+          ruleset_code: 'custom_draft',
+        },
+      },
+      custom_rulesets: {
+        maybeSingle: {
+          id: 'cr-1',
+          is_system: false,
+          status: 'draft',
+          base_code: null,
+          base_version: null,
+          score_formula: scoreFormula,
+          constants: {},
+          tiebreakers: [],
+          double_penalty_formula: null,
+        },
+      },
+    });
+    const wins = { type: 'var', name: 'victories' };
+    const points = { type: 'var', name: 'targetPoints' };
+    expect(await hashOf(onDraft(wins))).not.toBe(await hashOf(onDraft(points)));
+  });
+
   it('produces a deterministic 64-char sha256 hex', async () => {
     const a = await hashOf(stateFor());
     const b = await hashOf(stateFor());

@@ -26,13 +26,14 @@ describe('matchRulesetForTournament', () => {
     });
   });
 
-  it('falls back to TF_v1/1.0.0 when the tournament row is missing', async () => {
+  // A bout is stamped with its Tournament's pair, which was checked when it was
+  // set: no Tournament is no pair, and a bout stamped TF_v1 anyway would be
+  // scored by an engine nobody chose.
+  it('throws when the tournament row is missing, rather than stamping TF_v1', async () => {
     const supabase = supabaseReturning(null);
-    await expect(matchRulesetForTournament(supabase, 't1')).resolves.toEqual({
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: null,
-    });
+    await expect(matchRulesetForTournament(supabase, 't1')).rejects.toThrow(
+      'has no ruleset pair to stamp',
+    );
   });
 
   // A read that failed is not a Tournament with no ruleset: generated bouts were stamped

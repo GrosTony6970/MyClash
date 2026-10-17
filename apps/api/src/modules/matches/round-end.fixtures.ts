@@ -1,8 +1,8 @@
-import { vi } from 'vitest';
 import { mockSupabase, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { ClockService } from './clock.service';
 import { BOUT, PRESS, RUNNING, at, press, row } from './clock-late-press.fixtures';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 
 /**
  * "End round" on time, sent late by a tablet (operator, 2026-10-10).
@@ -100,11 +100,7 @@ export function series(
     match_penalties: { rows: [] },
     match_events: { rows },
   });
-  const scoring = new ScoringService(
-    db as never,
-    { resolve: vi.fn().mockResolvedValue(null) } as never,
-    new ClockService(db as never),
-  );
+  const scoring = new ScoringService(db as never, builtInResolver(), new ClockService(db as never));
   return { db, rows, bouts, scoring };
 }
 

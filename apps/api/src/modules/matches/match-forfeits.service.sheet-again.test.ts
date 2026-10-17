@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 import { hit, phase } from './scoring.service.corrections.fixtures';
 
 /**
@@ -99,11 +100,9 @@ function forfeitsOver(db: ReturnType<typeof seeded>, scoring: unknown) {
 describe('MatchForfeitsService.voidForfeit — the sheet after a take-back (ruling 322)', () => {
   it('a late entry on the forfeited bout does not stop the take-back', async () => {
     const db = seeded(RUNNING);
-    const scoring = new ScoringService(
-      db as never,
-      { resolve: vi.fn().mockResolvedValue(null) } as never,
-      { getClockState: vi.fn() } as never,
-    );
+    const scoring = new ScoringService(db as never, builtInResolver(), {
+      getClockState: vi.fn(),
+    } as never);
 
     await scoring.recomputeMatchScore(BOUT);
     expect(writesTo(db, 'matches')).toEqual([]);

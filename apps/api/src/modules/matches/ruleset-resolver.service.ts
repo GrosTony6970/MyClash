@@ -155,7 +155,7 @@ export class RulesetResolver {
 
   /**
    * Resolve the parent custom_rulesets row for (code, version). Returns null for
-   * a missing, unpublished, or system row. A coded fork (base_code set) resolves
+   * a missing or system row; a draft resolves (ruling 6). A coded fork (base_code set) resolves
    * to its base engine here too, so the fallback is correct independently of
    * whether the snapshot path already short-circuited.
    */
@@ -163,7 +163,7 @@ export class RulesetResolver {
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select(
-        `code, version, name, status, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
+        `code, version, name, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
       )
       .eq('code', code)
       .eq('version', version)
@@ -174,7 +174,6 @@ export class RulesetResolver {
       code: string;
       version: string;
       name: string;
-      status: string;
       is_system: boolean;
       base_code: string | null;
       base_version: string | null;
@@ -187,10 +186,10 @@ export class RulesetResolver {
     // it is retired from the catalog. Archiving is our soft-delete: it hides the
     // row from every picker/list (see SelectableRulesetsService and the org
     // Manage/Discover lists) but keeps THIS resolution path alive, so the pinned
-    // tournament's standings never 400 — delist ≠ delete. A ruleset is only
-    // archived once referenced, so it was necessarily published beforehand;
-    // resolving it here is correct. Only a never-published 'draft' is refused.
-    if ((row.status !== 'published' && row.status !== 'archived') || row.is_system) return null;
+    // tournament's standings never 400 — delist ≠ delete. A 'draft' resolves
+    // too: a Tournament pinned to a draft is scored as its draft (ruling 6 of
+    // "TF_v1 version", 2026-10-17), and the edit guard freezes a pinned draft.
+    if (row.is_system) return null;
     if (row.base_code) return this.resolveCodedBase(row.base_code, row.base_version);
     const config: FormulaConfig = {
       scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],

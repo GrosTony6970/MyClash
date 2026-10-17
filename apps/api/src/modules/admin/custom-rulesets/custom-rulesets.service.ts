@@ -202,6 +202,16 @@ export function grammarColumnsFrom(row: {
 }
 
 /**
+ * The version a club ruleset is stored under. "1" and "1.0" are stored as
+ * 1.0.0, the form every reader resolves a stored pair by
+ * (`normalizeRulesetVersion`): stored as typed, the picker listed a ruleset
+ * the door that sets a Tournament's pair then refused as unknown.
+ */
+function storedVersion(typed: string | undefined): string {
+  return normalizeRulesetVersion(typed?.trim() || '1.0.0');
+}
+
+/**
  * Auto-bump the patch component of a semver-ish string (e.g. '1.0.0' -> '1.0.1',
  * '2.3' -> '2.3.1'). Falls back to suffixing '.1' for non-numeric tails. The
  * operator can override this by passing an explicit `nextVersion` to publish().
@@ -457,7 +467,7 @@ export class CustomRulesetsService {
       .from('custom_rulesets')
       .insert({
         code,
-        version: dto.version?.trim() || '1.0.0',
+        version: storedVersion(dto.version),
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         status: 'draft',
@@ -507,7 +517,7 @@ export class CustomRulesetsService {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.description !== undefined) updates['description'] = dto.description?.trim() || null;
-    if (dto.version !== undefined) updates['version'] = dto.version.trim() || '1.0.0';
+    if (dto.version !== undefined) updates['version'] = storedVersion(dto.version);
 
     // The effective double-penalty spec (validated) — reused for the finite
     // dry-run below and the stored column.
@@ -661,8 +671,8 @@ export class CustomRulesetsService {
       );
 
     // Delist ≠ delete: a ruleset any tournament pins, or any bout carries, must
-    // resolve forever, so a hard delete would 400 that tournament's standings, or
-    // score a correction with TF_v1. Soft-archive instead —
+    // resolve forever, so a hard delete would 400 that tournament's standings, and
+    // the scorer would refuse every correction of its bouts. Soft-archive instead —
     // the row leaves every picker/list but stays resolvable. Only an
     // unreferenced ruleset is truly deleted.
     if (await this.isReferencedByAnyTournamentOrBout(existing.code)) {
@@ -692,7 +702,7 @@ export class CustomRulesetsService {
     // a minor/major bump).
     await this.snapshotVersion(existing, actorUserId);
 
-    const bumped = (nextVersion && nextVersion.trim()) || bumpPatchVersion(existing.version);
+    const bumped = storedVersion(nextVersion?.trim() || bumpPatchVersion(existing.version));
 
     const { error: bumpError } = await this.supabase.service
       .from('custom_rulesets')
@@ -760,8 +770,8 @@ export class CustomRulesetsService {
    */
   /**
    * Does a Tournament pin this code, or a bout carry it? A bout keeps the ruleset it was stamped
-   * with when its Tournament moves to another one: deleted, a correction of a finished bout was
-   * scored with TF_v1. A count that fails is an error: read as 0, the ruleset was deleted.
+   * with when its Tournament moves to another one: deleted, a correction of a finished bout could
+   * not be scored. A count that fails is an error: read as 0, the ruleset was deleted.
    */
   private async isReferencedByAnyTournamentOrBout(code: string): Promise<boolean> {
     for (const table of ['tournaments', 'matches'] as const) {
@@ -819,9 +829,9 @@ export class CustomRulesetsService {
     if (existing.is_system) {
       throw new ForbiddenException('System rulesets cannot be rolled back');
     }
-    // Rollback rewrites the parent row and drops it to draft. If a tournament
-    // pins the current version, both would break its resolution/scoring — refuse
-    // and steer the operator to publish a new version. Mirrors update()'s guard.
+    // Rollback rewrites the parent row and drops it to draft. A tournament pinning
+    // the current version would be scored by other rules — refuse and steer the
+    // operator to publish a new version. Mirrors update()'s guard.
     if (await this.isCurrentVersionFrozen(existing)) {
       throw new ConflictException(
         'This version is in use by a tournament and cannot be rolled back. ' +
@@ -873,10 +883,11 @@ export class CustomRulesetsService {
         'Cannot unpublish the default ruleset. Set another ruleset as default first.',
       );
     }
-    // A tournament pinning this version resolves it via the published parent row
-    // (an org row created for immediate use may carry no version snapshot).
-    // Dropping it to draft would 400 that tournament's standings — publish a new
-    // version to make changes instead. Mirrors update()'s freeze guard.
+    // A tournament pinning this version resolves it via the parent row (an org
+    // row created for immediate use may carry no version snapshot). Dropped to
+    // draft it still resolves (ruling 6), but it leaves the pickers while pinned
+    // and reads as editable — publish a new version to make changes instead.
+    // Mirrors update()'s freeze guard.
     if (await this.isCurrentVersionFrozen(existing)) {
       throw new ConflictException(
         'This version is in use by a tournament and cannot be unpublished. ' +
@@ -1044,7 +1055,7 @@ export class CustomRulesetsService {
       .from('custom_rulesets')
       .insert({
         code,
-        version: dto.version?.trim() || '1.0.0',
+        version: storedVersion(dto.version),
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         status: 'published', // org-scoped rulesets are usable immediately
@@ -1139,7 +1150,7 @@ export class CustomRulesetsService {
     // disabled when isCoded), so the base's resolved grammar stays authoritative
     // for afterblow rather than absorbing the form's client-side defaulting.
     Object.assign(row, {
-      version: dto.version?.trim() || '1.0.0',
+      version: storedVersion(dto.version),
       description: dto.description?.trim() || null,
       ...(dto.targets !== undefined ? { targets: dto.targets } : {}),
     });

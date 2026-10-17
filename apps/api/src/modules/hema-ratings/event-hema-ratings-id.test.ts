@@ -71,6 +71,8 @@ const LONGSWORD: SupabaseRow = {
   weapon: 'longsword',
   event_id: 'event-1',
   events: { organization_id: 'org-1' },
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.1.0',
 };
 
 describe("the Pool readers rate a fighter by the roster row's id first", () => {
@@ -182,7 +184,12 @@ describe("bracket seeding by rating rates a fighter by the roster row's id first
             id: 'phase-1',
             type: 'single_elim',
             tournament_id: 'tournament-1',
-            tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+            tournaments: {
+              event_id: 'event-1',
+              events: { organization_id: 'org-1' },
+              ruleset_code: 'TF_v1',
+              ruleset_version: '1.1.0',
+            },
             config_json: {},
           },
         ],

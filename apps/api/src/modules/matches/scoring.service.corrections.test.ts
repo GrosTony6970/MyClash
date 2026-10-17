@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 import {
   BOUT,
   hit,
@@ -258,12 +259,7 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
         match_penalties: { rows: [] },
         [table]: { data: null, error: { message: 'connection reset' } },
       });
-      const service = new ScoringService(
-        db as never,
-        { resolve: vi.fn().mockResolvedValue(null) } as never,
-        {} as never,
-        {} as never,
-      );
+      const service = new ScoringService(db as never, builtInResolver(), {} as never, {} as never);
 
       await expect(service.recomputeMatchScore(BOUT)).rejects.toThrow(
         'Could not read the sheet of match m1: connection reset',

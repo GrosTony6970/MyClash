@@ -1,17 +1,18 @@
 import { Logger } from '@nestjs/common';
-import { TF_v1, normalizeMatchFormatConfig } from '@myclash/rulesets';
+import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { MatchFormatConfig, Ruleset } from '@myclash/rulesets';
 import type { RulesetResolver } from './ruleset-resolver.service';
 
 const logger = new Logger('ScoredMatchFormat');
 
 /**
- * The ruleset a bout is scored with.
+ * The ruleset a bout is scored with: the one its pair names, and no other.
  *
- * A pair the resolver cannot read (an unknown code, a custom ruleset never
- * published) is scored with TF_v1. One owner: the scorer and the route that
- * tells the pad its rules must agree on that fallback, or the pad shows rules
- * the server does not apply.
+ * Every door that sets a Tournament's pair refuses one that does not resolve,
+ * and a bout's pair is copied from its Tournament's, so a pair that does not
+ * resolve here is a fault, said in the log and answered as one. It used to be
+ * scored with TF_v1: an engine nobody chose, deciding in silence. One owner:
+ * the scorer and the route that tells the pad its rules read the same answer.
  */
 export async function scoredRuleset(
   rulesets: RulesetResolver,
@@ -20,8 +21,8 @@ export async function scoredRuleset(
 ): Promise<Ruleset> {
   const ruleset = await rulesets.resolve(code, version);
   if (ruleset) return ruleset;
-  logger.warn(`Ruleset ${code}@${version} not found, falling back to TF_v1`);
-  return TF_v1;
+  logger.error(`Ruleset ${code}@${version} does not resolve; no bout is scored without it`);
+  throw new Error(`The ruleset ${code}@${version} does not resolve`);
 }
 
 /**

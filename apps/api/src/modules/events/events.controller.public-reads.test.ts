@@ -253,7 +253,7 @@ describe('GET tournaments/:id/match-config: the doubles limit the server scores 
     base_code: 'Generic_PointsCap',
     base_version: '1.0.0',
   };
-  /** A club's own formula, never published: the scorer cannot read it, and scores with TF_v1. */
+  /** A club's own formula, never published: scored as its draft (ruling 6). */
   const DRAFT_FORMULA = {
     ...COPY,
     id: 'cr-draft',
@@ -261,6 +261,9 @@ describe('GET tournaments/:id/match-config: the doubles limit the server scores 
     status: 'draft',
     base_code: null,
     base_version: null,
+    score_formula: { type: 'var', name: 'victories' },
+    constants: {},
+    tiebreakers: [],
   };
 
   async function limitsOf(
@@ -327,9 +330,14 @@ describe('GET tournaments/:id/match-config: the doubles limit the server scores 
     expect((error as HttpException).getStatus?.()).toBe(400);
   });
 
-  it('keeps the limit when the scorer cannot read the ruleset: it scores with TF_v1 then', async () => {
+  it("keeps the limit of a club's draft formula, which is scored as its draft", async () => {
     expect(await limitsOf(DRAFT_FORMULA.code, '1.0.0', [DRAFT_FORMULA])).toEqual([3, 3]);
-    expect(await limitsOf('no_such_ruleset', '1.0.0')).toEqual([3, 3]);
+  });
+
+  it('refuses a pair that does not resolve, as the scorer does: never TF_v1 in its place', async () => {
+    await expect(limitsOf('no_such_ruleset', '1.0.0')).rejects.toThrow(
+      'The ruleset no_such_ruleset@1.0.0 does not resolve',
+    );
   });
 });
 

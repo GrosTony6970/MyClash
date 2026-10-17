@@ -156,8 +156,9 @@ export class EventsService {
     // Optional for the same reason; the app provides it via PoolStandingsModule.
     // Used by the audited ruleset re-pin to snapshot before/after placings.
     @Optional() private readonly poolStandings?: PoolStandingsService,
-    // Optional for the same reason; provided via RulesetResolverModule. The
-    // re-pin uses it to REJECT a target ruleset that won't resolve for scoring.
+    // Optional for the same reason; provided via RulesetResolverModule. Every
+    // door that sets a Tournament's ruleset pair uses it to REJECT one that
+    // won't resolve for scoring (`assertRulesetPairResolves`).
     @Optional() private readonly rulesetResolver?: RulesetResolver,
     // Optional for the same reason; provided via RulesetHashModule. Computes the
     // tournament's effective content-hash identity, stamped at create/update/re-pin.
@@ -3063,6 +3064,7 @@ export class EventsService {
     const version = normalizeRulesetVersion(
       dto.rulesetVersion ?? defaultRulesetVersion(this.registry, code),
     );
+    await this.assertRulesetPairResolves(code, version);
     const rulesetDefaults = await resolveRulesetConfigDefaults(this.supabase, code, version);
     // An explicit caller override wins, merged onto the defaults exactly the
     // way updateTournament's ruleset-switch branch merges one. `rulesetConfig`
@@ -3304,6 +3306,7 @@ export class EventsService {
       // that code's own default version, never the old code's.
       const nextCode = dto.rulesetCode ?? currentCode ?? 'TF_v1';
       const nextVersion = dtoVersion ?? defaultRulesetVersion(this.registry, nextCode);
+      await this.assertRulesetPairResolves(nextCode, nextVersion);
       updates['ruleset_version'] = nextVersion;
       const newDefaults = await resolveRulesetConfigDefaults(this.supabase, nextCode, nextVersion);
       const callerPatch = dto.rulesetConfig ?? {};
@@ -3568,19 +3571,12 @@ export class EventsService {
 
     // Reject a target that will NOT resolve for scoring/standings before any
     // mutation. resolveRulesetConfigDefaults + validateTournamentRulesetConfig
-    // will happily reseed a TF-shaped config for an unknown/typo code or a
-    // still-draft custom ruleset, the re-point would commit, and then every
-    // standings read 400s (the after-snapshot's resolver error is swallowed) —
-    // a live tournament silently bricked behind a 200. The fork path guards its
-    // precondition the same way (isSystemRuleset).
-    if (!this.rulesetResolver) {
-      throw new BadRequestException('Ruleset resolver unavailable; cannot re-pin.');
-    }
-    if (!(await this.rulesetResolver.resolve(toCode, toVersion))) {
-      throw new BadRequestException(
-        `The selected ruleset (${toCode} ${toVersion}) is not available to re-pin to — publish it first.`,
-      );
-    }
+    // will happily reseed a TF-shaped config for an unknown/typo code, the
+    // re-point would commit, and then every standings read 400s (the
+    // after-snapshot's resolver error is swallowed) — a live tournament silently
+    // bricked behind a 200. The fork path guards its precondition the same way
+    // (isSystemRuleset).
+    await this.assertRulesetPairResolves(toCode, toVersion);
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
     const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
@@ -3649,11 +3645,7 @@ export class EventsService {
       dto.rulesetVersion ?? defaultRulesetVersion(this.registry, toCode),
     );
 
-    if (!this.rulesetResolver || !(await this.rulesetResolver.resolve(toCode, toVersion))) {
-      throw new BadRequestException(
-        `The selected ruleset (${toCode} ${toVersion}) is not available to re-pin to — publish it first.`,
-      );
-    }
+    await this.assertRulesetPairResolves(toCode, toVersion);
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
     const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
@@ -3662,6 +3654,24 @@ export class EventsService {
       { code: toCode, version: toVersion, config: newDefaults },
     );
     return { fromCode, toCode, diff };
+  }
+
+  /**
+   * Refuse, before anything is written, a ruleset pair no engine answers for.
+   * Every door that SETS a Tournament's pair asks this one owner: the pair is
+   * copied onto its bouts, and the scorer refuses a pair that does not resolve
+   * rather than scoring with TF_v1. A built-in is answered by the registry with
+   * no read; anything else by the resolver, which reads drafts too (ruling 6).
+   * A resolver missing is the server's wiring fault, never the caller's.
+   */
+  private async assertRulesetPairResolves(code: string, version: string): Promise<void> {
+    if (isSystemRuleset(this.registry, code, version)) return;
+    if (!this.rulesetResolver) {
+      throw new Error('Ruleset resolver unavailable; cannot check the ruleset.');
+    }
+    if (!(await this.rulesetResolver.resolve(code, version))) {
+      throw new BadRequestException(`The selected ruleset (${code} ${version}) does not exist.`);
+    }
   }
 
   /** Re-pin authorization: platform super-admin, or the org's owner. */

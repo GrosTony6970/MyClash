@@ -20,19 +20,20 @@ export interface MatchRulesetStamp {
   ruleset_content_hash: string | null;
 }
 
-const FALLBACK: MatchRulesetStamp = {
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
-  ruleset_content_hash: null,
-};
-
+/**
+ * The pair a Tournament's row holds. Every door that sets that pair refuses one
+ * that does not resolve (`assertRulesetPairResolves`), so a missing pair is a
+ * fault, never a reason to stamp TF_v1: an engine nobody chose.
+ */
 function toStamp(row: unknown): MatchRulesetStamp {
   const r = row as {
     ruleset_code?: unknown;
     ruleset_version?: unknown;
     ruleset_content_hash?: unknown;
   } | null;
-  if (!r || typeof r.ruleset_code !== 'string' || r.ruleset_code.length === 0) return FALLBACK;
+  if (!r || typeof r.ruleset_code !== 'string' || r.ruleset_code.length === 0) {
+    throw new Error('The Tournament has no ruleset pair to stamp on its bouts');
+  }
   return {
     ruleset_code: r.ruleset_code,
     ruleset_version: normalizeRulesetVersion(
@@ -86,8 +87,7 @@ export async function matchRulesetForTournament(
  * with no network is still `scheduled` here: it is moved, and its hits are
  * scored with the new pair when they arrive. The server cannot know better.
  *
- * A read that fails is an error, never "no Tournament": the fallback of
- * `toStamp` would put every bout on TF_v1.
+ * A read that fails is an error, never "no Tournament".
  */
 export async function restampUnstartedMatches(
   supabase: SupabaseClient,
@@ -186,8 +186,7 @@ function holdsAnotherStamp(stamp: MatchRulesetStamp): string {
  * bout finished before a re-pin, then reset, was fought again under the old
  * ruleset.
  *
- * Read before the door writes anything. A read that fails is an error: the
- * fallback of `toStamp` would put the bout on TF_v1.
+ * Read before the door writes anything. A read that fails is an error.
  */
 export async function matchRulesetForBout(
   supabase: SupabaseClient,

@@ -7,7 +7,6 @@ import {
   projectPenaltyBucketFromSnapshot,
   RulesetRegistry,
   stableStringify,
-  TF_v1,
   type PenaltyBehaviourInput,
   type ScoringBehaviourInput,
 } from '@myclash/rulesets';
@@ -210,7 +209,7 @@ export class RulesetHashService {
     const { data } = await this.supabase.service
       .from('custom_rulesets')
       .select(
-        'id, is_system, status, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
+        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
       )
       .eq('code', code)
       .maybeSingle();
@@ -226,12 +225,9 @@ export class RulesetHashService {
       };
     }
     const snapshot = await this.loadScoringSnapshot(parent['id'] as string, version);
-    // No published snapshot AND the parent is not published: RulesetResolver
-    // returns null for a draft, so the scorer falls back to TF_v1. Mirror that —
-    // otherwise the fingerprint describes a formula that never scored a bout.
-    if (!snapshot && parent['status'] !== 'published') {
-      return { kind: 'coded', engineCode: TF_v1.code, engineVersion: TF_v1.version };
-    }
+    // No published snapshot: the row itself, a draft included. The resolver
+    // scores a Tournament pinned to a draft as its draft (ruling 6), so the
+    // fingerprint describes that formula too.
     const def = snapshot ?? parent;
     return {
       kind: 'formula',

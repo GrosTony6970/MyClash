@@ -48,14 +48,17 @@ export class SelectableRulesetsService {
    * will short-circuit to anyway. The latest version of each only: an older
    * one stays registered for the bouts fought under it, not for new ones.
    */
-  async listForOrganization(orgId: string): Promise<RulesetSummary[]> {
+  async listForOrganization(
+    orgId: string,
+    { withDrafts = false }: { withDrafts?: boolean } = {},
+  ): Promise<RulesetSummary[]> {
     const coded = this.registry.latestOfEach();
     // Every registered version, not only the offered ones: a database row named
     // like an older built-in resolves to that engine and must not be listed.
     const seen = new Set(this.registry.list().map((r) => `${r.code}@${r.version}`));
     const summaries = coded.map((r) => toRulesetSummary(r, false));
 
-    for (const row of await this.candidateRows(orgId)) {
+    for (const row of await this.candidateRows(orgId, withDrafts)) {
       const key = `${row.code}@${row.version}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -74,17 +77,28 @@ export class SelectableRulesetsService {
    * The system disjunct is redundant here but the filter is shared with the
    * authoring catalog, where it is not.
    */
-  private async candidateRows(orgId: string): Promise<CandidateRow[]> {
-    const { data, error } = await this.supabase.service
+  private async candidateRows(orgId: string, withDrafts: boolean): Promise<CandidateRow[]> {
+    const visible = customRulesetOrgVisibilityFilter(orgId);
+    let query = this.supabase.service
       .from('custom_rulesets')
       .select('code, version')
       .eq('is_system', false)
-      .or(customRulesetOrgVisibilityFilter(orgId))
+      // A draft resolves (ruling 6), so this picker cannot rely on the resolver
+      // to hide one. The platform's own drafts (no owner, not shared yet, so
+      // the organization's filter alone would not list them) are offered to the
+      // super-admin only (ruling 9); an organization's row put back to draft is
+      // offered to nobody.
+      .or(
+        withDrafts
+          ? `and(status.neq.draft,or(${visible})),and(status.eq.draft,owner_organization_id.is.null)`
+          : visible,
+      )
       // An archived ruleset still RESOLVES (so tournaments pinned to it keep
       // scoring), but must not be offered for a NEW tournament — decouple
       // "resolvable" from "selectable" here, since this picker equates them.
-      .neq('status', 'archived')
-      .order('name', { ascending: true });
+      .neq('status', 'archived');
+    if (!withDrafts) query = query.neq('status', 'draft');
+    const { data, error } = await query.order('name', { ascending: true });
 
     if (error) {
       // A picker that 500s is worse than one showing only the built-ins: the

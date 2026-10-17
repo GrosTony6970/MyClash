@@ -6,6 +6,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { SelectableRulesetsService } from './selectable-rulesets.service';
 import { toRulesetSummary, type RulesetSummary } from './ruleset-summary';
 
@@ -68,6 +69,8 @@ export class RulesetsController {
     const userId = await resolveRequestUserId(req, this.supabase);
     await this.orgs.assertOrgRole(orgId, userId, 'admin');
 
-    return this.selectable.listForOrganization(orgId);
+    // A draft ruleset is offered to the super-admin only (ruling 9).
+    const withDrafts = await hasPlatformTier(this.supabase, userId, 'super_admin');
+    return this.selectable.listForOrganization(orgId, { withDrafts });
   }
 }

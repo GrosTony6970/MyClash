@@ -17,107 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { buildSeededScoringConfig } from './ruleset-defaults';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
-
-const assertOrgRole = vi.fn();
-
-function makeChain(result: unknown) {
-  // `update().eq().eq()` is the last hop of freezeRulesetVersion for a
-  // non-system ruleset; it resolves as a promise once the eq() chain ends.
-  const chain = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    update: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
-    then: (resolve: (v: unknown) => unknown) => resolve(result),
-  };
-  chain.select.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.update.mockReturnValue(chain);
-  return chain;
-}
-
-interface SeededScoringConfig {
-  afterblowMode: string;
-  buttons: {
-    clean: Array<{ label: string; value: number }>;
-    afterblow: Array<{ label: string }>;
-  };
-  display: { sideColors: { red: string; blue: string }; quickPenalties: number[] };
-}
-
-// tournaments: the slug existence check (maybeSingle → null) then the INSERT
-// (single). Captures whatever is inserted into `ref.current`.
-function makeTournamentsChain(ref: { current: Record<string, unknown> | null }) {
-  const chain = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    insert: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-    single: vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ data: { id: 't1', ...ref.current }, error: null }),
-      ),
-  };
-  chain.select.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.insert.mockImplementation((payload: Record<string, unknown>) => {
-    ref.current = payload;
-    return chain;
-  });
-  return chain;
-}
-
-function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
-  const ref: { current: Record<string, unknown> | null } = { current: null };
-  const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'events') {
-      return makeChain({
-        data: { id: 'e1', organization_id: 'org-1', status: 'draft' },
-        error: null,
-      });
-    }
-    // custom_rulesets: the tf_config override lookup, resolveRulesetGrammar's
-    // read, and the freeze parent lookup all read it; one row satisfies them.
-    if (table === 'custom_rulesets')
-      return makeChain({ data: opts?.customRow ?? null, error: null });
-    // freezeRulesetVersion's UPDATE, reached only for a non-system ruleset.
-    if (table === 'custom_ruleset_versions') return makeChain({ data: null, error: null });
-    return makeTournamentsChain(ref);
-  });
-
-  const svc = new EventsService(
-    { service: { from } } as never,
-    { assertOrgRole } as never,
-    {} as never,
-    createRulesetRegistry(),
-  );
-  return {
-    svc,
-    version: () => ref.current?.['ruleset_version'],
-    seeded: () => ref.current?.['scoring_config_json'] as SeededScoringConfig,
-    rulesetConfig: () => ref.current?.['ruleset_config'] as Record<string, unknown> | undefined,
-  };
-}
+import { assertOrgRole, makeChain, seedHarness } from './create-tournament.fixtures';
 
 describe('createTournament — seeds scoring_config_json', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertOrgRole.mockResolvedValue(undefined);
-  });
-
-  it('gives a new Tournament the latest version of its built-in when none is named', async () => {
-    const { svc, version } = seedHarness();
-    await svc.createTournament('e1', { slug: 's', name: 'T', rulesetCode: 'TF_v1' } as never, 'u1');
-    expect(version()).toBe('1.1.0');
-  });
-
-  it('keeps the version the caller names, "1" stored as 1.0.0', async () => {
-    const { svc, version } = seedHarness();
-    const dto = { slug: 's', name: 'T', rulesetCode: 'TF_v1', rulesetVersion: '1' };
-    await svc.createTournament('e1', dto as never, 'u1');
-    expect(version()).toBe('1.0.0');
   });
 
   it('seeds the federal pad byte-for-byte for TF_v1', async () => {

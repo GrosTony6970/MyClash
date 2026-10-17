@@ -169,7 +169,7 @@ describe('RulesetResolver — grammar', () => {
     expect(ruleset.metadata?.afterblowFixedValue).toBe(1);
   });
 
-  it('refuses an unpublished row', async () => {
+  it('resolves an unpublished row as its draft (ruling 6: a pinned draft is scored as itself)', async () => {
     const { resolver } = makeResolver({
       row: {
         code: 'custom_draft',
@@ -188,14 +188,19 @@ describe('RulesetResolver — grammar', () => {
       },
     });
 
-    // `=== null` rather than toBeNull(): see the serializer warning at the top.
-    expect((await resolver.resolve('custom_draft', '1.0.0')) === null).toBe(true);
+    const ruleset = await resolver.resolve('custom_draft', '1.0.0');
+    // Fields rather than the object: see the serializer warning at the top.
+    expect([ruleset?.code, ruleset?.version, ruleset?.displayName]).toEqual([
+      'custom_draft',
+      '1.0.0',
+      'Draft',
+    ]);
   });
 
   it('still resolves an archived row so a pinned tournament never loses its ruleset', async () => {
     // Delist ≠ delete: archiving is our soft-delete. The row is hidden from every
     // picker/list but a tournament already pinned to it must keep resolving and
-    // scoring — so resolution accepts 'archived' where it refuses 'draft'.
+    // scoring — so resolution accepts 'archived' as it accepts 'published'.
     const { resolver } = makeResolver({
       row: {
         code: 'custom_archived',

@@ -66,6 +66,12 @@
     "src/modules/matches/level-step.fixtures.ts",
     "src/modules/matches/match-summaries.fixtures.ts",
     "src/modules/matches/scoring.service.corrections.fixtures.ts",
+    // The real resolver over the built-ins, handed to the scorer by its tests
+    // (ruleset versions slice). Imported by tests and nothing else.
+    "src/modules/matches/built-in-resolver.fixtures.ts",
+    // createTournament's seeded tables, shared by its two test files, split out
+    // when its test reached the 400-line cap. It imports vitest.
+    "src/modules/events/create-tournament.fixtures.ts",
     "src/modules/penalties/penalties.void-black-card.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",

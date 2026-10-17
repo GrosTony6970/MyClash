@@ -42,7 +42,9 @@ function letIn(userId: string) {
   );
 }
 
-const PHASE_ORG = { event_id: 'event-1', events: { organization_id: 'org-1' } };
+/** The ruleset pair a Tournament's row always holds: its bouts are stamped with it. */
+const TF = { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' };
+const PHASE_ORG = { event_id: 'event-1', events: { organization_id: 'org-1' }, ...TF };
 
 /** Two fighters of the Tournament, enough for a bracket. */
 const FIGHTERS: SupabaseRow[] = ['reg-1', 'reg-2'].map((id) => ({
@@ -119,7 +121,9 @@ describe('a forced "generate Pools again" over fought bouts', () => {
     setup({
       phases,
       tournaments: {
-        rows: [{ id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: ORG }],
+        rows: [
+          { id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: ORG, ...TF },
+        ],
       },
       matches: { rows: bouts('pool-phase', fought) },
       registrations: { rows: [] },
@@ -236,7 +240,9 @@ describe('"Regenerate bracket" over fought bouts (ruling 279)', () => {
   const bracket = (fought: boolean) =>
     setup({
       phases: { rows: [BRACKET] },
-      tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+      tournaments: {
+        rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' }, ...TF }],
+      },
       matches: { rows: bouts('bracket-phase', fought) },
       audit_log: { rows: [] },
       // Two fighters: the delete comes after the bracket's own refusals, "at least 2" among them.

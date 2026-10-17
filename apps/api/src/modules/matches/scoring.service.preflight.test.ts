@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   filtersFor,
   mockSupabase,
@@ -7,6 +7,7 @@ import {
   selectsFor,
 } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 import {
   BOUT,
   hit,
@@ -169,12 +170,7 @@ describe('ScoringService.assertCorrectionLands', () => {
       ],
       match_penalties: { rows: [] },
     });
-    const service = new ScoringService(
-      db as never,
-      { resolve: vi.fn().mockResolvedValue(null) } as never,
-      {} as never,
-      {} as never,
-    );
+    const service = new ScoringService(db as never, builtInResolver(), {} as never, {} as never);
 
     await expect(
       service.assertCorrectionLands(BOUT, { restoreExchangeIds: ['e2'] }),

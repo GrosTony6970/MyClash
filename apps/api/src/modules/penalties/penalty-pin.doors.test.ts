@@ -81,6 +81,8 @@ beforeEach(() => {
           event_id: EVENT_A,
           slug: 'longsword',
           name: 'Longsword',
+          ruleset_code: 'TF_v1',
+          ruleset_version: '1.1.0',
           penalty_ruleset_id: null,
         },
         // Pinned while Club B still shared its ruleset; Club B stopped since.

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScoringService } from './scoring.service';
+import { builtInResolver } from './built-in-resolver.fixtures';
 
 /**
  * Ending a ROUND of a best-of match on the clock.
@@ -90,7 +91,7 @@ async function refusalOf(run: () => Promise<unknown>): Promise<Record<string, un
 describe('ScoringService.endRoundOnTime', () => {
   const fromMock = vi.fn();
   const supabase = { service: { from: fromMock } };
-  const rulesets = { resolve: vi.fn().mockResolvedValue(null) };
+  const rulesets = builtInResolver();
   /** 90s of the phase's 90s limit spent — the round is at 00:00. */
   const clock = {
     getClockState: vi.fn(),
@@ -127,9 +128,8 @@ describe('ScoringService.endRoundOnTime', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    rulesets.resolve.mockResolvedValue(null);
     atClock(90_000);
-    service = new ScoringService(supabase as never, rulesets as never, clock as never);
+    service = new ScoringService(supabase as never, rulesets, clock as never);
   });
 
   it('awards a round with a leader to whoever leads', async () => {
