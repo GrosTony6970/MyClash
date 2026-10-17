@@ -173,6 +173,16 @@ services:
       # through Nest, so fail2ban is the only rate control on this path.
       - traefik.http.routers.dev-auth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-auth@docker,dev-supabase-auth-strip
       - traefik.http.services.dev-auth.loadbalancer.server.port=9999
+      # Dev twin of prod's myclash-auth-signup: GoTrue's own sign-up door
+      # stores a password before the mailbox is proven, so it is refused for
+      # everyone (an allow-list of one TEST-NET address nobody holds).
+      - traefik.http.middlewares.dev-gotrue-signup-refused.ipallowlist.sourcerange=192.0.2.1/32
+      - traefik.http.routers.dev-auth-signup.rule=Host(`api.myclash.localhost`) && PathPrefix(`/auth/v1/signup`)
+      - traefik.http.routers.dev-auth-signup.entrypoints=websecure
+      - traefik.http.routers.dev-auth-signup.tls=true
+      - traefik.http.routers.dev-auth-signup.middlewares=dev-gotrue-signup-refused@docker
+      - traefik.http.routers.dev-auth-signup.priority=60
+      - traefik.http.routers.dev-auth-signup.service=dev-auth
 
   # ── Supabase REST (PostgREST) ─────────────────────────────────────
   supabase-rest:

@@ -1009,6 +1009,71 @@ requireContains(
 assertGoTruePasswordPolicy(composeText, 'infra/docker-compose.prod.yml');
 assertGoTruePasswordPolicy(devComposeText, 'infra/docker-compose.dev.yml');
 
+// GoTrue's own POST /auth/v1/signup stores the password it is given before the
+// mailbox is proven; our sign-ups store none (the password is chosen after the
+// mail). The edge refuses that door for everyone, so a stranger cannot plant a
+// password on Léa's address. The refusal is named literally: a ${MW_*} prefix
+// is emptied by TRAEFIK_PLUGINS=off, which would reopen the door in silence.
+assertGoTrueSignupRefused(composeText, 'infra/docker-compose.prod.yml', {
+  router: 'myclash-auth-signup',
+  middleware: 'myclash-gotrue-signup-refused',
+  host: 'app.${DOMAIN}',
+});
+assertGoTrueSignupRefused(devComposeText, 'infra/docker-compose.dev.yml', {
+  router: 'dev-auth-signup',
+  middleware: 'dev-gotrue-signup-refused',
+  host: 'api.myclash.localhost',
+});
+
+function assertGoTrueSignupRefused(text, label, { router, middleware, host }) {
+  requireContains(
+    text,
+    label,
+    `traefik.http.middlewares.${middleware}.ipallowlist.sourcerange=192.0.2.1/32`,
+  );
+  requireContains(
+    text,
+    label,
+    `traefik.http.routers.${router}.rule=Host(\`${host}\`) && PathPrefix(\`/auth/v1/signup\`)`,
+  );
+  const chain = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=(.*)`,
+    'u',
+  ).exec(text)?.[1];
+  if (!chain?.split(',').includes(`${middleware}@docker`) || chain.includes('${')) {
+    errors.push(
+      `${label} router ${router} must attach ${middleware}@docker literally, never through a ` +
+        '${MW_*} prefix that TRAEFIK_PLUGINS=off would empty.',
+    );
+  }
+  // Traefik's default priority is the rule's length: every other router on the
+  // same host, explicit or default, must lose to the refusal. A rule with no
+  // Host() matches every host, so it competes too.
+  const priorityOf = (name) => {
+    const explicit = new RegExp(
+      `traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.priority=(\\d+)`,
+      'u',
+    ).exec(text);
+    if (explicit) return Number(explicit[1]);
+    const rule = new RegExp(`traefik\\.http\\.routers\\.${escapeRegExp(name)}\\.rule=(.*)`, 'u')
+      .exec(text)?.[1]
+      .trim();
+    return rule?.length ?? 0;
+  };
+  const own = priorityOf(router);
+  for (const match of text.matchAll(/traefik\.http\.routers\.([\w-]+)\.rule=(.*)/gu)) {
+    const [, other, rule] = match;
+    const onHost = rule.includes(`Host(\`${host}\`)`) || !rule.includes('Host(');
+    if (other === router || !onHost) continue;
+    if (priorityOf(other) >= own) {
+      errors.push(
+        `${label} router ${router} (priority ${own}) must outrank ${other} ` +
+          `(priority ${priorityOf(other)}) on ${host}, or GoTrue's sign-up door reopens.`,
+      );
+    }
+  }
+}
+
 function assertGoTruePasswordPolicy(text, label) {
   requireContains(text, label, 'GOTRUE_PASSWORD_MIN_LENGTH: 12');
 
@@ -2342,6 +2407,7 @@ if (
 const publicRouters = [
   'myclash-api',
   'myclash-auth',
+  'myclash-auth-signup',
   'myclash-realtime',
   'myclash-storage',
   'myclash-public',

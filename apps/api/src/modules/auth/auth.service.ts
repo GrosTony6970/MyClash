@@ -1794,6 +1794,11 @@ export class AuthService {
    * confirmed" (specific 403 code) from generic "invalid credentials"
    * (401), so the UI can route the user to "Check your inbox" instead
    * of "Wrong password."
+   *
+   * Sign-up stores no password, and the edge refuses GoTrue's own sign-up, so
+   * the one door that gives an unconfirmed account a password she knows is the
+   * super admin's "regenerate temporary password" (`regenerateTempPassword`
+   * confirms nothing). That keeps this branch alive (ruling 2026-10-17).
    */
   private async requestPasswordTokenForPublic(
     email: string,

@@ -785,6 +785,20 @@ services:
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.url=http://supabase-auth:9999
+      # GoTrue's own sign-up door stores the password it is given before the
+      # mailbox is proven. Our sign-ups go through the API, which stores none
+      # (the password is chosen after the mail), so this door is refused for
+      # everyone: an allow-list of one TEST-NET address nobody holds. Named
+      # literally, never through a ${MW_*} prefix that TRAEFIK_PLUGINS=off
+      # would empty. Google's first sign-in goes through /callback, untouched.
+      - traefik.http.middlewares.myclash-gotrue-signup-refused.ipallowlist.sourcerange=192.0.2.1/32
+      - traefik.http.routers.myclash-auth-signup.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1/signup`)
+      - traefik.http.routers.myclash-auth-signup.entrypoints=websecure
+      - traefik.http.routers.myclash-auth-signup.tls=true
+      - traefik.http.routers.myclash-auth-signup.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth-signup.middlewares=myclash-security-headers@file,myclash-gotrue-signup-refused@docker
+      - traefik.http.routers.myclash-auth-signup.priority=60
+      - traefik.http.routers.myclash-auth-signup.service=myclash-supabase-auth
       # Realtime REST (broadcast/presence): /realtime/v1/api/* -> /api/*. Higher
       # priority than the websocket router so the more specific /api prefix wins.
       - traefik.http.routers.myclash-realtime-api.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1/api`)
