@@ -25,6 +25,7 @@ import {
   CUSTOM_RULESET_CONFIG_COLUMNS,
   CUSTOM_RULESET_GRAMMAR_COLUMNS,
   defaultRulesetConfigFor,
+  defaultRulesetVersion,
   FALLBACK_GRAMMAR,
   grammarFromRow,
   normalizeRulesetVersion,
@@ -41,6 +42,7 @@ export {
   CUSTOM_RULESET_CONFIG_COLUMNS,
   CUSTOM_RULESET_GRAMMAR_COLUMNS,
   defaultRulesetConfigFor,
+  defaultRulesetVersion,
   grammarFromRow,
   normalizeRulesetVersion,
 };

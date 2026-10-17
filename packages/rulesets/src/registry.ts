@@ -75,4 +75,21 @@ export class RulesetRegistry {
   has(code: string, version: string): boolean {
     return this.store.has(this.key(code, version));
   }
+
+  /**
+   * The newest registered version of `code`, or undefined when no version of it
+   * is registered (a club's ruleset never is). A new Tournament or fork gets
+   * this one: an older version stays registered only so the bouts fought under
+   * it are decided as they were.
+   */
+  latestVersionOf(code: string): string | undefined {
+    return this.list()
+      .filter((ruleset) => ruleset.code === code)
+      .at(-1)?.version;
+  }
+
+  /** The newest version of each registered code, sorted by code: what a picker offers. */
+  latestOfEach(): Ruleset[] {
+    return this.list().filter((ruleset) => this.latestVersionOf(ruleset.code) === ruleset.version);
+  }
 }

@@ -2,10 +2,11 @@
  * The picker's contract: everything it lists must actually resolve.
  *
  * The bug being fixed is that org-authored rulesets were invisible here —
- * `GET /rulesets` returned `registry.list()` and nothing registers a DB row —
+ * `GET /rulesets` returned the registry and nothing registers a DB row —
  * so an org could author, publish and share a ruleset it could never select.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { TF_v1 } from '@myclash/rulesets';
 import { SelectableRulesetsService } from './selectable-rulesets.service';
 import { createRulesetRegistry } from './ruleset-registry';
 
@@ -127,6 +128,39 @@ describe('SelectableRulesetsService', () => {
     // Archived rulesets still resolve (for tournaments pinned to them) but must
     // never be offered for a NEW tournament — delist ≠ delete.
     expect(chain.neq).toHaveBeenCalledWith('status', 'archived');
+  });
+
+  it('offers the latest version of a built-in only', async () => {
+    const { supabase } = makeSupabase({ data: [], error: null });
+    const registry = createRulesetRegistry();
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve: vi.fn() } as never,
+      registry,
+    );
+
+    const result = await service.listForOrganization('org-1');
+    expect(result.filter((r) => r.code === 'TF_v1').map((r) => r.version)).toEqual(['1.1.0']);
+  });
+
+  it('never lists a DB row named like an OLDER version of a built-in', async () => {
+    const { supabase } = makeSupabase({
+      data: [{ code: 'TF_v1', version: '1.0.0' }],
+      error: null,
+    });
+    const registry = createRulesetRegistry();
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    const resolve = vi.fn().mockResolvedValue(TF_v1);
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      registry,
+    );
+
+    const result = await service.listForOrganization('org-1');
+    expect(result.filter((r) => r.code === 'TF_v1').map((r) => r.version)).toEqual(['1.1.0']);
+    expect(resolve).not.toHaveBeenCalled();
   });
 
   it('never lets a coded code be shadowed by a DB row of the same name', async () => {

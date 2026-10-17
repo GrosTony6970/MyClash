@@ -134,4 +134,23 @@ describe('CustomRulesetsService.forkForOrg', () => {
     await service.forkForOrg('org-1', dto({ baseVersion: undefined }), 'actor');
     expect(insertedRow()['base_version']).toBe('1.0.0');
   });
+
+  describe('with two versions of the built-in registered', () => {
+    beforeEach(() => {
+      const registry = createRulesetRegistry();
+      registry.register({ ...TF_v1, version: '1.1.0' });
+      service = new CustomRulesetsService(mockSupabase as never, registry);
+      fromMock.mockReturnValue(makeChain({ data: { id: 'new-1' }, error: null }));
+    });
+
+    it('a "Clone" (no version named) is based on the latest', async () => {
+      await service.forkForOrg('org-1', dto({ baseVersion: undefined }), 'actor');
+      expect(insertedRow()['base_version']).toBe('1.1.0');
+    });
+
+    it('an "Adopt" of a 1.0.0 fork keeps 1.0.0', async () => {
+      await service.forkForOrg('org-1', dto({ baseVersion: '1.0.0' }), 'actor');
+      expect(insertedRow()['base_version']).toBe('1.0.0');
+    });
+  });
 });

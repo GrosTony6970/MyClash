@@ -20,7 +20,12 @@ export interface CloneSourceRow {
 
 export interface CodedCloneBase {
   baseCode: string;
-  baseVersion: string;
+  /**
+   * Absent for a clone of the built-in itself: the server bases it on the
+   * built-in's latest version. The mirror row's own version is the one it was
+   * seeded with, an older engine once a newer one is registered.
+   */
+  baseVersion?: string;
 }
 
 /**
@@ -31,14 +36,15 @@ export interface CodedCloneBase {
  * can be a base — its algorithm is the thing being reused — and the API's
  * `isSystemRuleset` check rejects anything else. This is what makes adopting
  * another org's shared fork produce a fork of TF v1 rather than a dangling
- * reference to a row that org could later delete.
+ * reference to a row that org could later delete. Adopting a fork keeps the
+ * version it is based on: a fork of 1.0.0 stays 1.0.0.
  */
 export function cloneCodedBase(src: CloneSourceRow): CodedCloneBase | null {
   if (src.base_code) {
     return { baseCode: src.base_code, baseVersion: src.base_version ?? '1.0.0' };
   }
   if (src.is_system) {
-    return { baseCode: src.code, baseVersion: src.version };
+    return { baseCode: src.code };
   }
   return null;
 }

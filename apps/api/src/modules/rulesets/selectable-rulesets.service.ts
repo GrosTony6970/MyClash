@@ -3,7 +3,7 @@
  *
  * Which rulesets a tournament in a given event may actually be pointed at.
  *
- * The gap this closes: `GET /rulesets` returns `registry.list()`, and the only
+ * The gap this closes: `GET /rulesets` returns the registry, and the only
  * production `registry.register` calls pass TF_v1 and Generic_PointsCap.
  * Nothing ever registers a DB row. Both tournament ruleset pickers — the
  * creation wizard and the settings Basics tab — read that endpoint, so an
@@ -45,11 +45,14 @@ export class SelectableRulesetsService {
    * Built-ins come from the registry rather than from their `is_system` mirror
    * rows: the mirrors carry empty `score_formula` placeholders that only mean
    * anything while `is_system` is true, and the registry is what the resolver
-   * will short-circuit to anyway.
+   * will short-circuit to anyway. The latest version of each only: an older
+   * one stays registered for the bouts fought under it, not for new ones.
    */
   async listForOrganization(orgId: string): Promise<RulesetSummary[]> {
-    const coded = this.registry.list();
-    const seen = new Set(coded.map((r) => `${r.code}@${r.version}`));
+    const coded = this.registry.latestOfEach();
+    // Every registered version, not only the offered ones: a database row named
+    // like an older built-in resolves to that engine and must not be listed.
+    const seen = new Set(this.registry.list().map((r) => `${r.code}@${r.version}`));
     const summaries = coded.map((r) => toRulesetSummary(r, false));
 
     for (const row of await this.candidateRows(orgId)) {

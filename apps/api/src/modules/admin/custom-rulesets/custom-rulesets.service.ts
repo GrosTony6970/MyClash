@@ -33,6 +33,7 @@ import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset
 import { resolveOrganizationNames } from '../../../common/organization-names';
 import {
   buildCodedForkRow,
+  defaultRulesetVersion,
   isSystemRuleset,
   normalizeRulesetVersion,
   resolveRulesetGrammar,
@@ -423,9 +424,10 @@ export class CustomRulesetsService {
    */
   private hydrateSystemRow(row: CustomRulesetRow): CustomRulesetRowHydrated {
     if (!row.is_system) return row;
-    const coded = this.registry.has(row.code, row.version)
-      ? this.registry.get(row.code, row.version)
-      : null;
+    // The mirror row keeps the version it was seeded with; the engine it shows
+    // is the built-in's latest, the one a new fork of it gets.
+    const latest = this.registry.latestVersionOf(row.code);
+    const coded = latest ? this.registry.get(row.code, latest) : null;
     if (!coded) return row;
     return {
       ...row,
@@ -1097,7 +1099,11 @@ export class CustomRulesetsService {
     dto: ForkCustomRulesetDto,
     actorUserId: string,
   ): Promise<CustomRulesetRow> {
-    const baseVersion = normalizeRulesetVersion(dto.baseVersion ?? '1.0.0');
+    // No base version named (a "Clone" of the built-in): its latest. A version
+    // named (an "Adopt" of a fork) is honoured: a fork of 1.0.0 stays 1.0.0.
+    const baseVersion = normalizeRulesetVersion(
+      dto.baseVersion ?? defaultRulesetVersion(this.registry, dto.baseCode),
+    );
     // Only a built-in can be a base: its algorithm is the thing being reused.
     // This is also what stops an org forking another org's row — adopting a
     // shared fork must re-base on that fork's OWN base, not on the fork.

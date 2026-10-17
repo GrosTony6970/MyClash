@@ -20,6 +20,7 @@
  */
 import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Generic_PointsCap, type RulesetRegistry } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
@@ -47,6 +48,7 @@ interface HarnessOpts {
   current: Record<string, unknown>;
   phases?: Array<{ id: string }>;
   scoredMatchCount?: number;
+  registry?: RulesetRegistry;
 }
 
 function tournamentsChain(current: Record<string, unknown>, cap: Captured) {
@@ -127,7 +129,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    createRulesetRegistry(),
+    opts.registry ?? createRulesetRegistry(),
   );
   return { svc, cap };
 }
@@ -194,6 +196,27 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     // Swap reseeds the config from the new ruleset's defaults.
     expect(cap.update?.['ruleset_config']).toBeDefined();
     expect((result as Record<string, unknown>)['ruleset_code']).toBe('Generic_PointsCap');
+  });
+
+  it('stores a version named in shorthand as the registry names it', async () => {
+    const { svc, cap } = harness({ current: { ...RUNNING_TF, status: 'draft' } });
+
+    await svc.updateTournament('t1', { rulesetCode: 'TF_v1', rulesetVersion: '1' } as never, 'u1');
+
+    expect(cap.update?.['ruleset_version']).toBe('1.0.0');
+  });
+
+  it('gives a swapped-in ruleset its own latest version, not the old ruleset’s', async () => {
+    const registry = createRulesetRegistry();
+    registry.register({ ...Generic_PointsCap, version: '1.1.0' });
+    const { svc, cap } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
+      registry,
+    });
+
+    await svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1');
+
+    expect(cap.update?.['ruleset_version']).toBe('1.1.0');
   });
 });
 

@@ -20,6 +20,24 @@ export interface SelectableRuleset {
 }
 
 /**
+ * The choices a picker shows. Both lists offer the latest version of each
+ * built-in only, so a Tournament pinned to an earlier one would show a blank
+ * choice: its pin is added, named for the earlier end rules it keeps. A pin
+ * the list holds, or a club ruleset's, adds nothing.
+ */
+export function withPinnedVersion(
+  list: SelectableRuleset[],
+  pinned: { code: string; version: string },
+  earlierLabel: (code: string, version: string) => string,
+): SelectableRuleset[] {
+  const listed = list.some((r) => r.code === pinned.code && r.version === pinned.version);
+  const builtIn = list.some((r) => r.code === pinned.code && !r.custom);
+  if (listed || !builtIn) return list;
+  const label = earlierLabel(pinned.code, pinned.version);
+  return [...list, { code: pinned.code, version: pinned.version, label, custom: false }];
+}
+
+/**
  * Falls back to the coded catalog when the event-scoped call fails.
  *
  * The endpoint requires org 'admin' — the same role tournament creation

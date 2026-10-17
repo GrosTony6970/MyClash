@@ -24,13 +24,14 @@ export class RulesetsController {
    *
    * Registry-only, and intentionally so: it needs no org context. It is NOT
    * sufficient for a tournament ruleset picker, because an org-authored
-   * ruleset is never in the registry — use `for-event/:eventId` there.
+   * ruleset is never in the registry — use `for-event/:eventId` there. The
+   * latest version of each, as there: the pickers fall back to this list.
    */
   @Public()
   @Get()
   @ApiOperation({ summary: 'List the coded (built-in) rulesets (public)' })
   list(): RulesetSummary[] {
-    return this.registry.list().map((ruleset) => toRulesetSummary(ruleset, false));
+    return this.registry.latestOfEach().map((ruleset) => toRulesetSummary(ruleset, false));
   }
 
   /**

@@ -8,7 +8,7 @@ import { useOrganizerSelectedEvent } from '@/components/organizer-event-context'
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
-import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
+import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -75,7 +75,9 @@ export function Step1Basics({
   const [weapon, setWeapon] = useState('');
   const [weaponTouched, setWeaponTouched] = useState(false);
   const [rulesetCode, setRulesetCode] = useState('TF_v1');
-  const [rulesetVersion, setRulesetVersion] = useState('1');
+  // None until the picker's list names one: a create that sends none gets the
+  // built-in's latest version from the server, never an older engine.
+  const [rulesetVersion, setRulesetVersion] = useState<string | undefined>(undefined);
   const [penaltyRulesetId, setPenaltyRulesetId] = useState<string>('');
   const [color, setColor] = useState<string>('');
   const [maxParticipants, setMaxParticipants] = useState<string>('');
@@ -270,7 +272,7 @@ export function Step1Basics({
           {t('organizer.tournaments.wizard.ruleset')}
         </span>
         <select
-          value={`${rulesetCode}:${rulesetVersion}`}
+          value={`${rulesetCode}:${rulesetVersion ?? ''}`}
           onChange={(e) => {
             const [c, v] = e.target.value.split(':');
             setRulesetCode(c!);
@@ -278,7 +280,15 @@ export function Step1Basics({
           }}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
         >
-          {rulesets.map((r) => (
+          {(rulesetVersion
+            ? withPinnedVersion(
+                rulesets,
+                { code: rulesetCode, version: rulesetVersion },
+                (code, version) =>
+                  t('organizer.tournaments.settings.rulesetEarlierEndRules', { code, version }),
+              )
+            : rulesets
+          ).map((r) => (
             <option key={`${r.code}:${r.version}`} value={`${r.code}:${r.version}`}>
               {r.label}
             </option>

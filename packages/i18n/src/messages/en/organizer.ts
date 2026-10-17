@@ -744,6 +744,7 @@ export const organizer = {
       slugLocked: 'The slug is locked after creation.',
       weapon: 'Weapon',
       ruleset: 'Ruleset',
+      rulesetEarlierEndRules: '{code} ({version}, earlier end rules)',
       penaltyRuleset: 'Penalty ruleset',
       pointCap: 'Point cap',
       timerMode: 'Timer mode',

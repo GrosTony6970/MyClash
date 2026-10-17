@@ -13,6 +13,7 @@
  */
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TF_v1, type RulesetRegistry } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
@@ -41,6 +42,7 @@ interface HarnessOpts {
   isSuperAdmin?: boolean;
   /** false => the target ruleset does not resolve (unknown/draft/wrong version). */
   resolverResolves?: boolean;
+  registry?: RulesetRegistry;
   standingsRows?: Array<{
     rank: number;
     registrationId: string;
@@ -112,7 +114,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    createRulesetRegistry(),
+    opts.registry ?? createRulesetRegistry(),
     undefined,
     undefined,
     undefined,
@@ -201,6 +203,19 @@ describe('repinTournamentRuleset', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('re-pins to the latest version of a built-in when none is named', async () => {
+    const registry = createRulesetRegistry();
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    const { svc, cap, rulesetResolver } = harness({ current: RUNNING_TF, registry });
+    const dto = { rulesetCode: 'TF_v1', justification: REPIN_JUSTIFICATION } as never;
+
+    await svc.repinTournamentRuleset('t1', dto, 'u1');
+
+    expect(rulesetResolver.resolve).toHaveBeenCalledWith('TF_v1', '1.1.0');
+    expect(cap.tournamentUpdate?.['ruleset_version']).toBe('1.1.0');
+    expect(cap.repinInsert?.['to_version']).toBe('1.1.0');
+  });
+
   it('rejects a re-pin to a target ruleset that does not resolve, before any mutation', async () => {
     // e.g. a typo code, a still-draft custom ruleset, or a wrong version — the
     // resolver returns null, so the live tournament must not be bricked.
@@ -285,6 +300,16 @@ describe('previewRepinBucketDiff', () => {
     // Read-only: nothing written.
     expect(cap.tournamentUpdate).toBeNull();
     expect(cap.repinInsert).toBeNull();
+  });
+
+  it('previews the latest version of a built-in when none is named, as the re-pin does', async () => {
+    const registry = createRulesetRegistry();
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    const { svc, rulesetResolver } = harness({ current: RUNNING_TF, registry });
+
+    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'TF_v1' }, 'u1');
+
+    expect(rulesetResolver.resolve).toHaveBeenCalledWith('TF_v1', '1.1.0');
   });
 
   it('enforces the same owner/super-admin gate as the re-pin', async () => {

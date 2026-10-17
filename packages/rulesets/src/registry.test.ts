@@ -58,4 +58,30 @@ describe('RulesetRegistry', () => {
   it('list() returns empty array when nothing registered', () => {
     expect(registry.list()).toHaveLength(0);
   });
+
+  it('latestVersionOf() is the newest version of the code, by its numbers', () => {
+    registry.register({ ...TF_v1, version: '10.0.0' });
+    registry.register({ ...TF_v1, version: '2.0.0' });
+    registry.register(TF_v1);
+    registry.register({ ...TF_v1, code: 'A_v1', version: '3.0.0' });
+
+    expect(registry.latestVersionOf('TF_v1')).toBe('10.0.0');
+    expect(registry.latestVersionOf('A_v1')).toBe('3.0.0');
+  });
+
+  it('latestVersionOf() is undefined for a code that is not registered', () => {
+    registry.register(TF_v1);
+    expect(registry.latestVersionOf('Club_formula')).toBeUndefined();
+  });
+
+  it('latestOfEach() keeps the newest version of each code only', () => {
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    registry.register(TF_v1);
+    registry.register({ ...TF_v1, code: 'A_v1' });
+
+    expect(registry.latestOfEach().map((ruleset) => `${ruleset.code}@${ruleset.version}`)).toEqual([
+      'A_v1@1.0.0',
+      'TF_v1@1.1.0',
+    ]);
+  });
 });

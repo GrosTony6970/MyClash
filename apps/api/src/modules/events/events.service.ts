@@ -71,6 +71,7 @@ import { deepMergeJson } from '../../common/deep-merge';
 import {
   buildCodedForkRow,
   buildSeededScoringConfig,
+  defaultRulesetVersion,
   freezeRulesetVersion,
   isSystemRuleset,
   normalizeRulesetVersion,
@@ -3059,7 +3060,9 @@ export class EventsService {
     // tournament inherits per-ruleset match-format defaults (and any
     // doublePenaltyFormula on custom rulesets) out of the box.
     const code = dto.rulesetCode ?? 'TF_v1';
-    const version = normalizeRulesetVersion(dto.rulesetVersion ?? '1');
+    const version = normalizeRulesetVersion(
+      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, code),
+    );
     const rulesetDefaults = await resolveRulesetConfigDefaults(this.supabase, code, version);
     // An explicit caller override wins, merged onto the defaults exactly the
     // way updateTournament's ruleset-switch branch merges one. `rulesetConfig`
@@ -3244,7 +3247,11 @@ export class EventsService {
     }
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.rulesetCode !== undefined) updates['ruleset_code'] = dto.rulesetCode;
-    if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;
+    // Stored canonical, as createTournament stores it: a picker compares the
+    // pair with the registry's versions, and "1" names no registered one.
+    if (dto.rulesetVersion !== undefined) {
+      updates['ruleset_version'] = normalizeRulesetVersion(dto.rulesetVersion);
+    }
     if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
     if (dto.color !== undefined) updates['color'] = dto.color;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
@@ -3293,15 +3300,15 @@ export class EventsService {
       );
       // Switching ruleset wipes the existing config and seeds defaults from the
       // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
-      // merged on top of the new defaults.
-      const newDefaults = await resolveRulesetConfigDefaults(
-        this.supabase,
-        dto.rulesetCode ?? currentCode ?? 'TF_v1',
-        dtoVersion ?? currentVersion ?? '1.0.0',
-      );
+      // merged on top of the new defaults. A new code with no version named gets
+      // that code's own default version, never the old code's.
+      const nextCode = dto.rulesetCode ?? currentCode ?? 'TF_v1';
+      const nextVersion = dtoVersion ?? defaultRulesetVersion(this.registry, nextCode);
+      updates['ruleset_version'] = nextVersion;
+      const newDefaults = await resolveRulesetConfigDefaults(this.supabase, nextCode, nextVersion);
       const callerPatch = dto.rulesetConfig ?? {};
       updates['ruleset_config'] = validateTournamentRulesetConfig(
-        dto.rulesetCode ?? currentCode ?? 'TF_v1',
+        nextCode,
         deepMergeJson(newDefaults, callerPatch),
       );
     } else if (dto.rulesetConfig !== undefined) {
@@ -3552,7 +3559,9 @@ export class EventsService {
     const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
     const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
     const toCode = dto.rulesetCode;
-    const toVersion = normalizeRulesetVersion(dto.rulesetVersion ?? '1.0.0');
+    const toVersion = normalizeRulesetVersion(
+      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, toCode),
+    );
     if (toCode === fromCode && toVersion === fromVersion) {
       throw new BadRequestException('The tournament already uses this ruleset.');
     }
@@ -3636,7 +3645,9 @@ export class EventsService {
     const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
     const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
     const toCode = dto.rulesetCode;
-    const toVersion = normalizeRulesetVersion(dto.rulesetVersion ?? '1.0.0');
+    const toVersion = normalizeRulesetVersion(
+      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, toCode),
+    );
 
     if (!this.rulesetResolver || !(await this.rulesetResolver.resolve(toCode, toVersion))) {
       throw new BadRequestException(

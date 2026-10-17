@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { TF_v1, type RulesetRegistry } from '@myclash/rulesets';
 import { RulesetsController } from './rulesets.controller';
 import type { SelectableRulesetsService } from './selectable-rulesets.service';
 import { createRulesetRegistry } from './ruleset-registry';
@@ -8,6 +9,7 @@ function makeController(overrides?: {
   selectable?: Partial<SelectableRulesetsService>;
   eventRow?: unknown;
   assertOrgRole?: ReturnType<typeof vi.fn>;
+  registry?: RulesetRegistry;
 }) {
   const maybeSingle = vi.fn().mockResolvedValue({ data: overrides?.eventRow ?? null });
   const supabase = {
@@ -31,7 +33,7 @@ function makeController(overrides?: {
     {
       assertOrgRole,
     } as never,
-    createRulesetRegistry(),
+    overrides?.registry ?? createRulesetRegistry(),
   );
   return { controller, selectable, assertOrgRole };
 }
@@ -62,6 +64,18 @@ describe('RulesetsController.list', () => {
   it('marks coded rulesets as not custom', () => {
     const { controller } = makeController();
     expect(controller.list().every((r) => r.custom === false)).toBe(true);
+  });
+
+  it('lists the latest version of a built-in only, as the event picker does', () => {
+    const registry = createRulesetRegistry();
+    registry.register({ ...TF_v1, version: '1.1.0' });
+    const { controller } = makeController({ registry });
+    expect(
+      controller
+        .list()
+        .filter((r) => r.code === 'TF_v1')
+        .map((r) => r.version),
+    ).toEqual(['1.1.0']);
   });
 });
 

@@ -3,7 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
+import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
 import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
@@ -175,8 +175,13 @@ export function BasicsTab({
     }
   }
 
+  const rulesetChoices = originalRuleset
+    ? withPinnedVersion(rulesets, originalRuleset, (code, version) =>
+        t('organizer.tournaments.settings.rulesetEarlierEndRules', { code, version }),
+      )
+    : rulesets;
   const rulesetLabel = (code: string, version: string): string =>
-    rulesets.find((r) => r.code === code && r.version === version)?.label ?? code;
+    rulesetChoices.find((r) => r.code === code && r.version === version)?.label ?? code;
 
   /**
    * Apply the pending ruleset change. Tries the ordinary PATCH first (the fast
@@ -319,7 +324,7 @@ export function BasicsTab({
           }}
           className="w-full rounded-md border border-border px-3 py-2 text-sm"
         >
-          {rulesets.map((r) => (
+          {rulesetChoices.map((r) => (
             <option key={`${r.code}:${r.version}`} value={`${r.code}:${r.version}`}>
               {r.label}
             </option>

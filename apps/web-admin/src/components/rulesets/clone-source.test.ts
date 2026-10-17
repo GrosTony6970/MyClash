@@ -13,11 +13,9 @@ function row(over: Partial<CloneSourceRow>): CloneSourceRow {
 }
 
 describe('cloneCodedBase', () => {
-  it('bases a clone of the built-in on the built-in itself', () => {
-    expect(cloneCodedBase(row({ code: 'TF_v1', version: '1.0.0', is_system: true }))).toEqual({
-      baseCode: 'TF_v1',
-      baseVersion: '1.0.0',
-    });
+  it('bases a clone of the built-in on the built-in, and names no version: the server takes its latest', () => {
+    const base = cloneCodedBase(row({ code: 'TF_v1', version: '1.0.0', is_system: true }));
+    expect(base).toStrictEqual({ baseCode: 'TF_v1' });
   });
 
   it("bases a clone of a fork on the fork's OWN base, never on the fork", () => {
