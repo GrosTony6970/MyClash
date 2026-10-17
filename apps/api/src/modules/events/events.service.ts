@@ -71,7 +71,6 @@ import { deepMergeJson } from '../../common/deep-merge';
 import {
   buildCodedForkRow,
   buildSeededScoringConfig,
-  defaultRulesetVersion,
   freezeRulesetVersion,
   isSystemRuleset,
   normalizeRulesetVersion,
@@ -158,7 +157,7 @@ export class EventsService {
     @Optional() private readonly poolStandings?: PoolStandingsService,
     // Optional for the same reason; provided via RulesetsModule. The four doors
     // that set a Tournament's pair from a request REJECT with it one it does not
-    // offer, or that won't resolve for scoring (`assertRulesetPairResolves`).
+    // offer, or that won't resolve for scoring (`usableRulesetVersion`).
     @Optional() private readonly selectableRulesets?: SelectableRulesetsService,
     // Optional for the same reason; provided via RulesetHashModule. Computes the
     // tournament's effective content-hash identity, stamped at create/update/re-pin.
@@ -3061,10 +3060,7 @@ export class EventsService {
     // tournament inherits per-ruleset match-format defaults (and any
     // doublePenaltyFormula on custom rulesets) out of the box.
     const code = dto.rulesetCode ?? 'TF_v1';
-    const version = normalizeRulesetVersion(
-      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, code),
-    );
-    await this.assertRulesetPairResolves(code, version, event, userId);
+    const version = await this.usableRulesetVersion(code, dto.rulesetVersion, event, userId);
     const rulesetDefaults = await resolveRulesetConfigDefaults(this.supabase, code, version);
     // An explicit caller override wins, merged onto the defaults exactly the
     // way updateTournament's ruleset-switch branch merges one. `rulesetConfig`
@@ -3303,10 +3299,9 @@ export class EventsService {
       // Switching ruleset wipes the existing config and seeds defaults from the
       // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
       // merged on top of the new defaults. A new code with no version named gets
-      // that code's own default version, never the old code's.
+      // that code's own latest or current version, never the old code's.
       const nextCode = dto.rulesetCode ?? currentCode ?? 'TF_v1';
-      const nextVersion = dtoVersion ?? defaultRulesetVersion(this.registry, nextCode);
-      await this.assertRulesetPairResolves(nextCode, nextVersion, event, userId);
+      const nextVersion = await this.usableRulesetVersion(nextCode, dtoVersion, event, userId);
       updates['ruleset_version'] = nextVersion;
       const newDefaults = await resolveRulesetConfigDefaults(this.supabase, nextCode, nextVersion);
       const callerPatch = dto.rulesetConfig ?? {};
@@ -3562,13 +3557,6 @@ export class EventsService {
     const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
     const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
     const toCode = dto.rulesetCode;
-    const toVersion = normalizeRulesetVersion(
-      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, toCode),
-    );
-    if (toCode === fromCode && toVersion === fromVersion) {
-      throw new BadRequestException('The tournament already uses this ruleset.');
-    }
-
     // Reject a target that will NOT resolve for scoring/standings before any
     // mutation. resolveRulesetConfigDefaults + validateTournamentRulesetConfig
     // will happily reseed a TF-shaped config for an unknown/typo code, the
@@ -3576,7 +3564,10 @@ export class EventsService {
     // after-snapshot's resolver error is swallowed) — a live tournament silently
     // bricked behind a 200. The fork path guards its precondition the same way
     // (isSystemRuleset).
-    await this.assertRulesetPairResolves(toCode, toVersion, event, userId);
+    const toVersion = await this.usableRulesetVersion(toCode, dto.rulesetVersion, event, userId);
+    if (toCode === fromCode && toVersion === fromVersion) {
+      throw new BadRequestException('The tournament already uses this ruleset.');
+    }
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
     const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
@@ -3641,11 +3632,7 @@ export class EventsService {
     const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
     const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
     const toCode = dto.rulesetCode;
-    const toVersion = normalizeRulesetVersion(
-      dto.rulesetVersion ?? defaultRulesetVersion(this.registry, toCode),
-    );
-
-    await this.assertRulesetPairResolves(toCode, toVersion, event, userId);
+    const toVersion = await this.usableRulesetVersion(toCode, dto.rulesetVersion, event, userId);
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
     const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
@@ -3657,36 +3644,43 @@ export class EventsService {
   }
 
   /**
-   * Refuse, before anything is written, a ruleset pair the Tournament may not
-   * use. The four doors that set a Tournament's pair from a request (create,
-   * the PATCH that swaps it, the re-pin and its preview) ask this one owner. A
-   * change only: a pair re-sent unchanged is not asked again. The pair
-   * is copied onto its bouts, and the scorer refuses a pair that does not
-   * resolve rather than scoring with TF_v1. A built-in is answered by the
-   * registry with no read. A club pair must be one the picker offers the
-   * Event's organisation (`isSelectable`): its own or a shared ruleset that
-   * resolves, a platform draft as `draftsOfferedTo` says. Another
-   * club's private ruleset is refused in the same words as an unknown one, so
-   * the answer says nothing of what exists. A checker missing is the server's
+   * The version a Tournament is pinned at, or a refusal before anything is
+   * written. The four doors that set a Tournament's pair from a request
+   * (create, the PATCH that swaps it, the re-pin and its preview) ask this one
+   * owner. The PATCH asks on a change only: a pair re-sent unchanged is not
+   * asked again; the re-pin asks before it refuses an unchanged pair. The
+   * pair is copied onto its bouts, and the scorer refuses a pair that does not
+   * resolve rather than scoring with TF_v1. A version named is kept, "1" read
+   * as 1.0.0; none named is a built-in's latest, or a club ruleset's current
+   * one (ruling "No version named"). A built-in is answered by the registry
+   * with no read. A club pair must be one the picker offers the Event's
+   * organisation (`offeredVersion`): its own or a shared ruleset that
+   * resolves, a platform draft as `draftsOfferedTo` says. Another club's
+   * private ruleset is refused in the same words as an unknown one, so the
+   * answer says nothing of what exists. A checker missing is the server's
    * wiring fault, never the caller's.
    */
-  private async assertRulesetPairResolves(
+  private async usableRulesetVersion(
     code: string,
-    version: string,
+    named: string | undefined,
     event: unknown,
     userId: string,
-  ): Promise<void> {
-    if (isSystemRuleset(this.registry, code, version)) return;
+  ): Promise<string> {
+    const version = named ? normalizeRulesetVersion(named) : this.registry.latestVersionOf(code);
+    if (version && isSystemRuleset(this.registry, code, version)) return version;
     if (!this.selectableRulesets) {
       throw new Error('Ruleset picker unavailable; cannot check the ruleset.');
     }
     const { organization_id } = event as { organization_id: string };
     const withDrafts = await this.selectableRulesets.draftsOfferedTo(userId);
-    if (
-      !(await this.selectableRulesets.isSelectable(organization_id, code, version, { withDrafts }))
-    ) {
-      throw new BadRequestException(`The selected ruleset (${code} ${version}) does not exist.`);
+    const offered = await this.selectableRulesets.offeredVersion(organization_id, code, version, {
+      withDrafts,
+    });
+    if (!offered) {
+      const pair = version ? `${code} ${version}` : code;
+      throw new BadRequestException(`The selected ruleset (${pair}) does not exist.`);
     }
+    return offered;
   }
 
   /** Re-pin authorization: platform super-admin, or the org's owner. */

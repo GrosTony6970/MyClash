@@ -125,7 +125,7 @@ function harness(opts: HarnessOpts) {
   });
   // A club ruleset this file names is offered to nobody; a built-in needs no read.
   const selectableRulesets = {
-    isSelectable: vi.fn().mockResolvedValue(false),
+    offeredVersion: vi.fn().mockResolvedValue(null),
     draftsOfferedTo: vi.fn().mockResolvedValue(false),
   };
   const svc = new EventsService(
@@ -213,12 +213,30 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
 
     await expect(
       svc.updateTournament('t1', { rulesetCode: 'custom_gone' } as never, 'u1'),
-    ).rejects.toThrow('The selected ruleset (custom_gone 1.0.0) does not exist.');
+    ).rejects.toThrow('The selected ruleset (custom_gone) does not exist.');
     expect(cap.update).toBeNull();
     // Asked in the Event's organisation's scope: an org admin is offered no draft.
-    expect(selectableRulesets.isSelectable).toHaveBeenCalledWith('org-1', 'custom_gone', '1.0.0', {
-      withDrafts: false,
+    // No version named: the ruleset's current one (ruling "No version named").
+    expect(selectableRulesets.offeredVersion).toHaveBeenCalledWith(
+      'org-1',
+      'custom_gone',
+      undefined,
+      {
+        withDrafts: false,
+      },
+    );
+  });
+
+  it('swaps to a club ruleset named with no version at its current one', async () => {
+    const { svc, cap, selectableRulesets } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
     });
+    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
+
+    await svc.updateTournament('t1', { rulesetCode: 'custom_house' } as never, 'u1');
+
+    expect(cap.update?.['ruleset_code']).toBe('custom_house');
+    expect(cap.update?.['ruleset_version']).toBe('1.0.1');
   });
 
   it('saves a Tournament that re-sends a club pair no longer offered: only a change is checked', async () => {
@@ -230,7 +248,7 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     const dto = { name: 'Renamed', rulesetCode: 'custom_x', rulesetVersion: '1.0.0' };
     await svc.updateTournament('t1', dto as never, 'u1');
 
-    expect(selectableRulesets.isSelectable).not.toHaveBeenCalled();
+    expect(selectableRulesets.offeredVersion).not.toHaveBeenCalled();
     expect(cap.update?.['name']).toBe('Renamed');
   });
 

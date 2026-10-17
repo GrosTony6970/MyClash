@@ -55,12 +55,12 @@ export function normalizeRulesetVersion(version: string): string {
 }
 
 /**
- * The version a NEW Tournament, re-pin or fork gets when the caller names none:
- * a built-in's latest registered version (an older one stays registered only so
- * the bouts fought under it are decided as they were, ruling "TF_v1 version"),
- * else 1.0.0, the version a club ruleset is made with unless its author named
- * another (the pickers always send a club ruleset's own version). A STORED
- * version is never defaulted here: on a row, "1" is 1.0.0.
+ * The version a fork of a built-in gets when the caller names none: its latest
+ * registered version (an older one stays registered only so the bouts fought
+ * under it are decided as they were, ruling "TF_v1 version"), else 1.0.0, which
+ * the fork then refuses as no built-in. A Tournament's pair takes its version
+ * from `usableRulesetVersion` instead. A STORED version is never defaulted
+ * here: on a row, "1" is 1.0.0.
  */
 export function defaultRulesetVersion(registry: RulesetRegistry, code: string): string {
   return registry.latestVersionOf(code) ?? '1.0.0';

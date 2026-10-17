@@ -47,35 +47,57 @@ describe('createTournament — its ruleset pair', () => {
     // An organiser of org-1 who knows the code of another club's private
     // ruleset: the picker does not offer it, so the door refuses it, in the
     // words it uses for a pair that does not exist.
-    const { svc, version, isSelectable } = seedHarness();
+    const { svc, version, offeredVersion } = seedHarness();
     const dto = { slug: 's', name: 'T', rulesetCode: 'custom_theirs', rulesetVersion: '1.0.0' };
     await expect(svc.createTournament('e1', dto as never, 'u1')).rejects.toThrow(
       'The selected ruleset (custom_theirs 1.0.0) does not exist.',
     );
-    expect(isSelectable).toHaveBeenCalledWith('org-1', 'custom_theirs', '1.0.0', {
+    expect(offeredVersion).toHaveBeenCalledWith('org-1', 'custom_theirs', '1.0.0', {
       withDrafts: false,
     });
     expect(version()).toBeUndefined();
   });
 
   it('offers the platform drafts as the picker does, to whom `draftsOfferedTo` names', async () => {
-    const { svc, version, isSelectable, draftsOfferedTo } = seedHarness({
+    const { svc, version, offeredVersion, draftsOfferedTo } = seedHarness({
       customRow: { code: 'custom_draft' },
     });
     draftsOfferedTo.mockResolvedValue(true);
     const dto = { slug: 's', name: 'T', rulesetCode: 'custom_draft', rulesetVersion: '1.0.0' };
     await svc.createTournament('e1', dto as never, 'u1');
     expect(draftsOfferedTo).toHaveBeenCalledWith('u1');
-    expect(isSelectable).toHaveBeenCalledWith('org-1', 'custom_draft', '1.0.0', {
+    expect(offeredVersion).toHaveBeenCalledWith('org-1', 'custom_draft', '1.0.0', {
       withDrafts: true,
     });
     expect(version()).toBe('1.0.0');
   });
 
+  it('pins a club ruleset named with no version at its current one', async () => {
+    // Club A published again (1.0.0 became 1.0.1); the AI assistant sends the
+    // code alone (ruling "No version named", 2026-10-18).
+    const { svc, version, offeredVersion } = seedHarness({ customRow: { code: 'custom_house' } });
+    offeredVersion.mockResolvedValue('1.0.1');
+    const dto = { slug: 's', name: 'T', rulesetCode: 'custom_house' };
+    await svc.createTournament('e1', dto as never, 'u1');
+    expect(offeredVersion).toHaveBeenCalledWith('org-1', 'custom_house', undefined, {
+      withDrafts: false,
+    });
+    expect(version()).toBe('1.0.1');
+  });
+
+  it('refuses a club code with no version that the picker does not offer, naming no version', async () => {
+    const { svc, version } = seedHarness();
+    const dto = { slug: 's', name: 'T', rulesetCode: 'custom_theirs' };
+    await expect(svc.createTournament('e1', dto as never, 'u1')).rejects.toThrow(
+      'The selected ruleset (custom_theirs) does not exist.',
+    );
+    expect(version()).toBeUndefined();
+  });
+
   it('asks the picker nothing for a built-in', async () => {
-    const { svc, isSelectable } = seedHarness();
+    const { svc, offeredVersion } = seedHarness();
     await svc.createTournament('e1', { slug: 's', name: 'T', rulesetCode: 'TF_v1' } as never, 'u1');
-    expect(isSelectable).not.toHaveBeenCalled();
+    expect(offeredVersion).not.toHaveBeenCalled();
   });
 
   it("answers a checker missing as the server's fault, not the caller's", async () => {

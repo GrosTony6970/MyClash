@@ -1,5 +1,5 @@
 /**
- * The doors' check (`isSelectable`): a Tournament may be pointed at a club pair
+ * The doors' check (`offeredVersion`): a Tournament may be pointed at a club pair
  * only as the picker offers it. Without it, an organiser who knew the code of
  * another club's private ruleset, or of a platform draft, could pin it, and so
  * freeze that club's ruleset (its edit guard counts the Tournaments on it).
@@ -30,11 +30,11 @@ function harness(result: { data?: unknown; error?: unknown }, resolved: unknown 
 
 const ROW = { data: [{ code: 'custom_house', version: '1.0.0' }], error: null };
 
-describe('SelectableRulesetsService.isSelectable', () => {
+describe('SelectableRulesetsService.offeredVersion', () => {
   it("asks for that pair in the organization's own scope, as the picker lists it", async () => {
     const { service, chain, resolve, from } = harness(ROW);
 
-    expect(await service.isSelectable('org-1', 'custom_house', '1.0.0')).toBe(true);
+    expect(await service.offeredVersion('org-1', 'custom_house', '1.0.0')).toBe('1.0.0');
     expect(from.mock.calls).toEqual([['custom_rulesets']]);
     expect(chain.eq).toHaveBeenCalledWith('is_system', false);
     expect(chain.eq).toHaveBeenCalledWith('code', 'custom_house');
@@ -47,15 +47,27 @@ describe('SelectableRulesetsService.isSelectable', () => {
     expect(resolve).toHaveBeenCalledWith('custom_house', '1.0.0');
   });
 
+  it('gives the current version of a ruleset named with no version', async () => {
+    // Club A published again: 1.0.0 became 1.0.1 (ruling "No version named").
+    const { service, chain, resolve } = harness({
+      data: [{ code: 'custom_house', version: '1.0.1' }],
+      error: null,
+    });
+    expect(await service.offeredVersion('org-1', 'custom_house', undefined)).toBe('1.0.1');
+    expect(chain.eq).not.toHaveBeenCalledWith('version', expect.anything());
+    expect(resolve).toHaveBeenCalledWith('custom_house', '1.0.1');
+  });
+
   it('refuses a pair the scope does not hold: another club’s private ruleset', async () => {
     const { service, resolve } = harness({ data: [], error: null });
-    expect(await service.isSelectable('org-1', 'custom_theirs', '1.0.0')).toBe(false);
+    expect(await service.offeredVersion('org-1', 'custom_theirs', '1.0.0')).toBeNull();
+    expect(await service.offeredVersion('org-1', 'custom_theirs', undefined)).toBeNull();
     expect(resolve).not.toHaveBeenCalled();
   });
 
   it('refuses a pair in scope that does not resolve', async () => {
     const { service } = harness(ROW, null);
-    expect(await service.isSelectable('org-1', 'custom_house', '1.0.0')).toBe(false);
+    expect(await service.offeredVersion('org-1', 'custom_house', '1.0.0')).toBeNull();
   });
 
   it.each([
@@ -85,7 +97,7 @@ describe('SelectableRulesetsService.isSelectable', () => {
 
   it('adds the platform drafts when they are offered, as the picker does', async () => {
     const { service, chain } = harness(ROW);
-    await service.isSelectable('org-1', 'custom_draft', '1.0.0', { withDrafts: true });
+    await service.offeredVersion('org-1', 'custom_draft', '1.0.0', { withDrafts: true });
     expect(chain.or).toHaveBeenCalledWith(
       'and(status.neq.draft,or(is_system.eq.true,public_visibility.eq.true,owner_organization_id.eq.org-1)),' +
         'and(status.eq.draft,owner_organization_id.is.null)',
@@ -95,13 +107,30 @@ describe('SelectableRulesetsService.isSelectable', () => {
 
   it('throws on a read that fails: a door must not answer it "does not exist"', async () => {
     const { service } = harness({ data: null, error: { message: 'db down' } });
-    await expect(service.isSelectable('org-1', 'custom_house', '1.0.0')).rejects.toThrow('db down');
+    await expect(service.offeredVersion('org-1', 'custom_house', '1.0.0')).rejects.toThrow(
+      'db down',
+    );
+  });
+
+  it('refuses to guess between two offered rows of one code: a server fault', async () => {
+    const { service, chain, resolve } = harness({
+      data: [
+        { code: 'custom_house', version: '1.0.0' },
+        { code: 'custom_house', version: '1.0.1' },
+      ],
+      error: null,
+    });
+    await expect(service.offeredVersion('org-1', 'custom_house', undefined)).rejects.toThrow(
+      'Two rulesets custom_house are offered',
+    );
+    expect(chain.limit).toHaveBeenCalledWith(2);
+    expect(resolve).not.toHaveBeenCalled();
   });
 
   it('lets a failed resolve through as the failure it is', async () => {
     const { service, resolve } = harness(ROW);
     resolve.mockRejectedValue(new Error('connection reset'));
-    await expect(service.isSelectable('org-1', 'custom_house', '1.0.0')).rejects.toThrow(
+    await expect(service.offeredVersion('org-1', 'custom_house', '1.0.0')).rejects.toThrow(
       'connection reset',
     );
   });

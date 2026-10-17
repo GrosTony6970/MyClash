@@ -96,26 +96,35 @@ export class SelectableRulesetsService {
   }
 
   /**
-   * May a Tournament of `orgId` be pointed at this club pair? The doors that
-   * set a Tournament's pair ask this, so "listed" and "usable" are one set:
-   * another club's private ruleset, an archived one, or a draft for anyone
-   * `draftsOfferedTo` refuses, is refused as an unknown one is. A built-in is the
-   * caller's to answer (it has no row here). A read that fails throws: a door
-   * answers it as the server's fault, never as "does not exist".
+   * The version at which a Tournament of `orgId` may be pointed at this club
+   * ruleset, or null. The doors that set a Tournament's pair ask this, so
+   * "listed" and "usable" are one set: another club's private ruleset, an
+   * archived one, or a draft for anyone `draftsOfferedTo` refuses, answers null
+   * as an unknown one does. With no version named, the ruleset's current one,
+   * as the picker lists it (ruling "No version named", 2026-10-18); a version
+   * named must be that one. A built-in is the caller's to answer (it has no
+   * row here). A read that fails throws: a door answers it as the server's
+   * fault, never as "does not exist".
    */
-  async isSelectable(
+  async offeredVersion(
     orgId: string,
     code: string,
-    version: string,
+    version: string | undefined,
     { withDrafts = false }: { withDrafts?: boolean } = {},
-  ): Promise<boolean> {
-    const { data, error } = await this.offered(orgId, withDrafts)
-      .eq('code', code)
-      .eq('version', version)
-      .limit(1);
-    if (error) throw new Error(`Failed to read the ruleset ${code}@${version}: ${error.message}`);
-    if (!data?.length) return false;
-    return (await this.resolver.resolve(code, version)) !== null;
+  ): Promise<string | null> {
+    let query = this.offered(orgId, withDrafts).eq('code', code);
+    if (version !== undefined) query = query.eq('version', version);
+    const { data, error } = await query.limit(2);
+    const pair = version === undefined ? code : `${code}@${version}`;
+    if (error) throw new Error(`Failed to read the ruleset ${pair}: ${error.message}`);
+    const rows = (data ?? []) as CandidateRow[];
+    // Every insert makes a fresh code, so one scope holds one row of a code;
+    // the schema allows two (0055's index), and which one to pin is then no
+    // read's to guess.
+    if (rows.length > 1) throw new Error(`Two rulesets ${pair} are offered; cannot tell which`);
+    const [row] = rows;
+    if (!row) return null;
+    return (await this.resolver.resolve(code, row.version)) ? row.version : null;
   }
 
   /**

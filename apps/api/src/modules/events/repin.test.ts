@@ -107,7 +107,7 @@ function harness(opts: HarnessOpts) {
   };
   // The picker's scope, which also resolves the pair: false for a target that does not resolve.
   const selectableRulesets = {
-    isSelectable: vi.fn().mockResolvedValue(opts.resolverResolves !== false),
+    offeredVersion: vi.fn().mockResolvedValue(opts.resolverResolves === false ? null : '1.0.0'),
     draftsOfferedTo: vi.fn().mockResolvedValue(opts.isSuperAdmin ?? false),
   };
   const registry = createRulesetRegistry();
@@ -232,10 +232,47 @@ describe('repinTournamentRuleset', () => {
     const target = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
     await svc.repinTournamentRuleset('t1', target, 'u1').catch(() => undefined);
     await svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_house' }, 'u1');
-    expect(selectableRulesets.isSelectable.mock.calls).toEqual([
-      ['org-1', 'custom_house', '1.0.0', { withDrafts: true }],
-      ['org-1', 'custom_house', '1.0.0', { withDrafts: true }],
+    expect(selectableRulesets.offeredVersion.mock.calls).toEqual([
+      ['org-1', 'custom_house', undefined, { withDrafts: true }],
+      ['org-1', 'custom_house', undefined, { withDrafts: true }],
     ]);
+  });
+
+  it('re-pins a club ruleset named with no version at its current one, and audits that version', async () => {
+    // Club A published again: 1.0.0 became 1.0.1 (ruling "No version named").
+    const { svc, cap, selectableRulesets } = harness({ current: RUNNING_TF });
+    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
+    const target = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
+
+    await svc.repinTournamentRuleset('t1', target, 'u1');
+
+    expect(cap.tournamentUpdate?.['ruleset_code']).toBe('custom_house');
+    expect(cap.tournamentUpdate?.['ruleset_version']).toBe('1.0.1');
+    expect(cap.repinInsert?.['to_version']).toBe('1.0.1');
+  });
+
+  it('previews that same version', async () => {
+    const { svc, selectableRulesets } = harness({ current: RUNNING_TF });
+    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
+    const diffed = vi.spyOn(
+      svc as unknown as { computeRulesetBucketDiff: (...a: unknown[]) => Promise<unknown> },
+      'computeRulesetBucketDiff',
+    );
+
+    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_house' }, 'u1');
+
+    expect(diffed.mock.calls[0]?.[1]).toMatchObject({ code: 'custom_house', version: '1.0.1' });
+  });
+
+  it('refuses a re-pin with no version named to the current version the Tournament already has', async () => {
+    const current = { ...RUNNING_TF, ruleset_code: 'custom_house', ruleset_version: '1.0.1' };
+    const { svc, selectableRulesets } = harness({ current });
+    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
+    const same = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
+
+    await expect(svc.repinTournamentRuleset('t1', same, 'u1')).rejects.toThrow(
+      'The tournament already uses this ruleset.',
+    );
   });
 
   it('allows a super-admin who is not the org owner', async () => {

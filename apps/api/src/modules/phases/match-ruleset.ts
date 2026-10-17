@@ -22,7 +22,7 @@ export interface MatchRulesetStamp {
 
 /**
  * The pair a Tournament's row holds. Every door that sets that pair refuses one
- * that does not resolve (`assertRulesetPairResolves`), so a missing pair is a
+ * that does not resolve (`usableRulesetVersion`), so a missing pair is a
  * fault, never a reason to stamp TF_v1: an engine nobody chose.
  */
 function toStamp(row: unknown): MatchRulesetStamp {

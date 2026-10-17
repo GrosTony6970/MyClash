@@ -389,7 +389,7 @@ export class UpdateTournamentDto extends createZodDto(updateTournamentSchema) {}
 const repinTournamentRulesetSchema = z
   .object({
     rulesetCode: z.string().min(1).max(50),
-    // Optional — normalised server-side; defaults to the ruleset's 1.0.0.
+    // Optional — normalised server-side; none named is a built-in's latest or a club ruleset's current.
     rulesetVersion: z.string().max(20).optional(),
     // Mandatory justification (the ceremony). Kept short-but-meaningful so the
     // public disclosure and the audit trail always carry a real reason.

@@ -81,7 +81,7 @@ export function seedHarness(opts?: { customRow?: Record<string, unknown> | null 
 
   // The club ruleset a case seeds is offered to the Event's organisation; none
   // is when the case seeds none.
-  const isSelectable = vi.fn().mockResolvedValue(Boolean(opts?.customRow));
+  const offeredVersion = vi.fn().mockResolvedValue(opts?.customRow ? '1.0.0' : null);
   const draftsOfferedTo = vi.fn().mockResolvedValue(false);
   const svc = new EventsService(
     { service: { from } } as never,
@@ -92,12 +92,12 @@ export function seedHarness(opts?: { customRow?: Record<string, unknown> | null 
     undefined,
     undefined,
     undefined,
-    { isSelectable, draftsOfferedTo } as never,
+    { offeredVersion, draftsOfferedTo } as never,
   );
   return {
     svc,
     from,
-    isSelectable,
+    offeredVersion,
     draftsOfferedTo,
     version: () => ref.current?.['ruleset_version'],
     seeded: () => ref.current?.['scoring_config_json'] as SeededScoringConfig,
