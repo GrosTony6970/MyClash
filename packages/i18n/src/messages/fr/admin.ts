@@ -1089,6 +1089,8 @@ export const admin = {
       targetHelp:
         "La date et l'heure que l'app publique doit considérer comme l'instant présent. L'horloge avance à partir de ce point.",
       saveButton: "Enregistrer l'heure simulée",
+      readoutSimulated: 'Les visiteurs voient {time}',
+      readoutReal: "Pas de simulation : les visiteurs voient l'heure réelle",
     },
     disableRealtime: {
       title: 'Désactiver Realtime',

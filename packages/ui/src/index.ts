@@ -328,7 +328,11 @@ export type { LegalFooterProps, LegalFooterLink } from './components/LegalFooter
 // ── Runtime feature-flags consumed by every app (banner + realtime) ──────
 
 export { MaintenanceBanner } from './components/MaintenanceBanner';
-export { useRuntimeFlags, getRuntimeFlagsCached } from './hooks/useRuntimeFlags';
+export {
+  useRuntimeFlags,
+  getRuntimeFlagsCached,
+  refreshRuntimeFlags,
+} from './hooks/useRuntimeFlags';
 export {
   deriveFreshness,
   fallbackPollMs,

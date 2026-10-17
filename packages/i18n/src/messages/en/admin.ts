@@ -1090,6 +1090,8 @@ export const admin = {
       targetHelp:
         'The date & time the public app should treat as the current moment. The clock advances forward from here.',
       saveButton: 'Save simulated time',
+      readoutSimulated: 'Visitors see {time}',
+      readoutReal: 'Not simulating: visitors see real time',
     },
     disableRealtime: {
       title: 'Disable Realtime',

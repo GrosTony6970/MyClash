@@ -7,11 +7,13 @@ import {
   type FeatureFlagGroup,
   type MaintenanceBannerSeverity,
 } from '@myclash/feature-flags';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, refreshRuntimeFlags } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { TimeSimulationControls } from './TimeSimulationControls';
+import { buildTimeSimPayload, isoToLocalInput, readSimulatedNowIso } from './time-sim-controls';
 
 interface FlagRow {
   key: string;
@@ -33,29 +35,6 @@ function bannerPayload(raw: Record<string, unknown> | null | undefined): {
   const safeSeverity: MaintenanceBannerSeverity =
     severity === 'warning' || severity === 'critical' ? severity : 'info';
   return { message, severity: safeSeverity };
-}
-
-/** Read the stored simulated "now" ISO (for the `time_simulation` flag). */
-function readSimulatedNowIso(raw: Record<string, unknown> | null | undefined): string | null {
-  if (!raw) return null;
-  return typeof raw['simulatedNowIso'] === 'string' ? (raw['simulatedNowIso'] as string) : null;
-}
-
-/** UTC ISO instant → a `datetime-local` value (`YYYY-MM-DDTHH:mm`, admin-local). */
-function isoToLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** `datetime-local` value → the `time_simulation` payload (the API stamps the anchor). */
-function buildTimeSimPayload(localValue: string): { simulatedNowIso: string } | undefined {
-  if (!localValue) return undefined;
-  const d = new Date(localValue);
-  if (Number.isNaN(d.getTime())) return undefined;
-  return { simulatedNowIso: d.toISOString() };
 }
 
 export default function AdminFeatureFlagsPage() {
@@ -106,6 +85,10 @@ export default function AdminFeatureFlagsPage() {
         return;
       }
       refresh();
+      // The time-simulation readout and the app's maintenance banner read the
+      // public snapshot; without this they would show the old value until its
+      // next 60 s poll.
+      void refreshRuntimeFlags(apiUrl);
     } finally {
       setBusyKey(null);
     }
@@ -313,31 +296,14 @@ function FlagItem({ def, row, busy, onSave, t, locale }: FlagItemProps) {
       )}
 
       {hasTimeSimPayload && (
-        <div className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
-            {t('admin.featureFlags.timeSimulation.targetLabel')}
-            <input
-              type="datetime-local"
-              value={simLocal}
-              onChange={(e) => setSimLocal(e.target.value)}
-              className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
-            />
-            <span className="text-[11px] font-normal text-muted">
-              {t('admin.featureFlags.timeSimulation.targetHelp')}
-            </span>
-          </label>
-          <button
-            type="button"
-            disabled={busy || !simLocal}
-            onClick={() => {
-              const payload = buildTimeSimPayload(simLocal);
-              if (payload) void onSave(def.key, { enabled: true, payloadJson: payload });
-            }}
-            className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            {t('admin.featureFlags.timeSimulation.saveButton')}
-          </button>
-        </div>
+        <TimeSimulationControls
+          busy={busy}
+          simLocal={simLocal}
+          onSimLocalChange={setSimLocal}
+          onSave={(payloadJson) => void onSave(def.key, { enabled: true, payloadJson })}
+          t={t}
+          locale={locale}
+        />
       )}
     </li>
   );

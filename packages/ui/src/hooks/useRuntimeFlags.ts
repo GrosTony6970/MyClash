@@ -130,6 +130,22 @@ export function useRuntimeFlags(apiUrl: string): RuntimeFlags | null {
 }
 
 /**
+ * Re-read the snapshot now instead of at the next 60 s poll, for the screen
+ * that just changed a flag and must show its effect. Every subscriber gets
+ * the new snapshot.
+ *
+ * The race: a poll already in flight may have left before the change was
+ * saved, and `refresh` would hand that stale answer back. So this waits for
+ * it to land, then reads again; any read it joins after that started after
+ * the save.
+ */
+export function refreshRuntimeFlags(apiUrl: string): Promise<RuntimeFlags | null> {
+  const cache = getCache(apiUrl);
+  const leftBefore = cache.inflight;
+  return leftBefore ? leftBefore.then(() => refresh(cache)) : refresh(cache);
+}
+
+/**
  * Synchronous accessor for cases that can't use a hook (e.g. inside
  * the realtime client setup). Returns the most recently cached
  * snapshot or a safe "everything off" default.
