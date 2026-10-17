@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useState } from 'react';
-import { useSecondsClock, useToast } from '@myclash/ui';
+import { SimulatedTimeBadge, useSecondsClock, useToast } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { failureMessage, type ApiFailure } from '@myclash/api-client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
@@ -48,7 +49,7 @@ function LiceRealtime({
 }
 
 export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const sayRefusal = useCallback(
     (refusal: ApiFailure) => {
@@ -102,6 +103,7 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
 
   return (
     <div className="p-4">
+      <SimulatedTimeBadge apiUrl={getPublicApiUrl()} t={t} bcp47Locale={localeToBcp47(locale)} />
       {/* per-lice realtime subscribers (render nothing) */}
       {rows.map((r) => (
         <LiceRealtime key={r.lice.id} liceId={r.lice.id} onChange={applyMatchChange} />

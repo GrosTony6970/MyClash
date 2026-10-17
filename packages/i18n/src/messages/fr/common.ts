@@ -230,4 +230,8 @@ export const common = {
     referee: 'Arbitre',
     overrideSlot: 'Modifier cette place',
   },
+  simulatedTime: {
+    running: 'Heure simulée : {time}',
+    paused: 'Heure simulée, en pause : {time}',
+  },
 } as const satisfies DeepString<typeof enCommon>;

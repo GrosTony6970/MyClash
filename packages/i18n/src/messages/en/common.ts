@@ -276,4 +276,10 @@ export const common = {
     referee: 'Referee',
     overrideSlot: 'Change this slot',
   },
+  // The badge shown while a super-admin simulates the clock. Here because the
+  // public app, the organiser live board and the display wall all show it.
+  simulatedTime: {
+    running: 'Simulated time: {time}',
+    paused: 'Simulated time, paused: {time}',
+  },
 } as const satisfies MessageTree;

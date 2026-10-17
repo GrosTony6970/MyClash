@@ -4,7 +4,6 @@ import type { publicApp as enPublicApp } from '../en/publicApp.js';
 // Locked to EN's exact shape: a missing or extra key is a tsc error here,
 // which is the guarantee the single-file `satisfies Messages` used to give.
 export const publicApp = {
-  simulatedTime: 'Heure simulée',
   eventFeedback: {
     title: "Comment ça s'est passé ?",
     subtitle: "Une minute de votre temps aide l'organisateur à mieux faire la prochaine fois.",

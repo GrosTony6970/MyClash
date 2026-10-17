@@ -1,5 +1,6 @@
 'use client';
-import { useSecondsClock } from '@myclash/ui';
+import { SimulatedTimeBadge, useSecondsClock } from '@myclash/ui';
+import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { groupBoardRows } from '@/lib/live-board/board-groups';
@@ -46,6 +47,7 @@ export function LiveWall({ eventId }: { eventId: string }) {
 
   return (
     <div className="h-screen overflow-y-auto px-8 py-6">
+      <SimulatedTimeBadge apiUrl={getPublicApiUrl()} t={t} bcp47Locale={localeToBcp47(locale)} />
       {groups.map((group) => (
         <section key={group.key} className="mb-6">
           {group.label && (

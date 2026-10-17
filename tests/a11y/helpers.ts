@@ -39,7 +39,7 @@ export async function expectNoPageIssues(issues: PageIssue[]) {
  *
  * The flags and `/me` answers carry the API's real shapes: a `{}` flags answer
  * crashes the page, because its readers assume `timeSimulation` is there
- * (`apps/web-public/app/_components/SimulatedTimeBadge.tsx`,
+ * (`packages/ui/src/components/SimulatedTimeBadge.tsx`,
  * `packages/ui/src/hooks/time-simulation.ts`). Every other call gets `{}`.
  * Register a spec's own routes AFTER this call: Playwright tries the last
  * registered route first.

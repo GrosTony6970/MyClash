@@ -1,8 +1,6 @@
 import type { MessageTree } from '../../message-tree.js';
 
 export const publicApp = {
-  /** Badge shown to every visitor while an operator is simulating the clock. */
-  simulatedTime: 'Simulated time',
   eventFeedback: {
     title: 'How did it go?',
     subtitle: 'A minute of your time helps the organiser run the next one better.',

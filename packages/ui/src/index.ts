@@ -328,6 +328,7 @@ export type { LegalFooterProps, LegalFooterLink } from './components/LegalFooter
 // ── Runtime feature-flags consumed by every app (banner + realtime) ──────
 
 export { MaintenanceBanner } from './components/MaintenanceBanner';
+export { SimulatedTimeBadge } from './components/SimulatedTimeBadge';
 export {
   useRuntimeFlags,
   getRuntimeFlagsCached,
