@@ -1526,7 +1526,7 @@ bouts is where an official sees that entries still wait.
   this, a bout whose page the tablet had never opened got the start page with
   no network, which could not check who was signed in (quick-win ruling 4).
 - **The worker's cache follows the deploy.** The root layout registers the
-  worker as `/sw.js?v=<commit served>` (`src/lib/served-commit.ts`, read on the
+  worker as `<mount>/sw.js?v=<commit served>` (`src/lib/served-commit.ts`, read on the
   server per request; `GIT_COMMIT` reaches the container at run time). The
   worker names its cache after the `v` of its own address. A deploy is a new
   address, so a new worker: it fills its own cache at install and removes the
@@ -1543,7 +1543,9 @@ bouts is where an official sees that entries still wait.
   address under it (the shells, `shellFor`, the start page). `/api/v1/` stays
   at the root on both sites. The referee site also answers pages under
   `/staff/…`, so one tablet can hold two workers: the mount is in the cache's
-  name, and a worker removes only its own mount's older caches.
+  name, a worker removes only its own mount's older caches, and it serves a
+  page only from its own cache (the root worker may hold a `/staff/` page it
+  was in charge of before the `/staff/` worker existed).
 - The Service Worker **resolves a synthetic `503 { error: 'offline', code:
 'offline' }`** for every `/api/` call rather than throwing, and caches no API
   response. Any client code branching on `!res.ok` is therefore on the OFFLINE

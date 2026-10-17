@@ -40,7 +40,7 @@ const CACHE_VERSION = new URL(self.location.href).searchParams.get('v') || 'unve
 const MOUNT = new URL(self.registration.scope).pathname.replace(/\/$/, '');
 
 /** The caches of this mount: `myclash-staff-<v>` at the root, `myclash-staff~staff-<v>` under `/staff`. */
-const CACHE_FAMILY = `myclash-staff${MOUNT.replaceAll('/', '~')}-`;
+const CACHE_FAMILY = `myclash-staff${MOUNT.replace('/', '~')}-`;
 const CACHE_NAME = CACHE_FAMILY + CACHE_VERSION;
 
 /** The start page. */
@@ -237,21 +237,24 @@ async function networkFirstApi(request) {
   }
 }
 
+/**
+ * A page comes from THIS worker's cache only. On the referee site the root
+ * worker keeps the first `/staff/…` page it was in charge of; asked across
+ * every cache, the `/staff/` worker would serve that page of an older app.
+ */
 async function networkFirstNavigate(request) {
+  const cache = await caches.open(CACHE_NAME);
   try {
     const res = await fetch(request);
     // Cache successful navigation responses for offline use
-    if (res.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, res.clone());
-    }
+    if (res.ok) cache.put(request, res.clone());
     return res;
   } catch {
-    const cached = await caches.match(request);
+    const cached = await cache.match(request);
     if (cached) return cached;
     // The shell of the address's route; the start page when that is not kept either.
     const shell =
-      (await caches.match(shellFor(new URL(request.url).pathname))) ?? (await caches.match(START));
+      (await cache.match(shellFor(new URL(request.url).pathname))) ?? (await cache.match(START));
     return shell ?? new Response('Offline', { status: 503 });
   }
 }

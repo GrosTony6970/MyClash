@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { STAFF_MOUNT } from '../lib/nav';
-import { online, worker, type Worker } from './sw.fixtures';
+import { online, page, worker, type Worker } from './sw.fixtures';
 
 /** The cache of the `/staff/` worker of commit `14f7b056`: the mount is in its name. */
 const CACHE = 'myclash-staff~staff-14f7b056';
@@ -118,6 +118,27 @@ describe('two mounts on one origin', () => {
       'myclash-staff-14f7b056',
       'myclash-staff~staff-14f7b056',
     ]);
+  });
+});
+
+describe('a page with no network, with two mounts on one origin', () => {
+  // The root worker was in charge of the first `/staff/` page, and kept it.
+  it('comes from the worker’s own cache, never from a page of an older app the other kept', async () => {
+    const root = worker('5bc3195f');
+    online(root);
+    await root.install();
+    root.network.set('/staff/', page('app 5bc3195f at /staff/'));
+    await root.ask('/staff/');
+    expect(root.stores.get('myclash-staff-5bc3195f')!.has('/staff/')).toBe(true);
+    const staff = worker('14f7b056', { mount: STAFF_MOUNT, stores: root.stores });
+    online(staff);
+    await staff.install();
+    await staff.activate();
+    staff.network.clear();
+
+    for (const path of ['/staff/', '/staff/never-opened']) {
+      expect(await (await staff.ask(path))?.text(), path).toMatch(/main\.js"><\/script>\/staff\/$/);
+    }
   });
 });
 

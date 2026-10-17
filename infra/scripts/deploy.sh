@@ -429,7 +429,7 @@ else
 fi
 
 # The cache of the scoring pad's service worker follows the deploy by itself: the
-# page registers /sw.js?v=<GIT_COMMIT served> (apps/web-staff ServiceWorkerRegistration).
+# page registers <mount>/sw.js?v=<GIT_COMMIT served> (apps/web-staff worker-registration.ts).
 # Nothing is stamped into a file here. The sed that did so had stopped matching the
 # file, behind `|| true`, and web-public's worker has no cache; web-admin has no worker.
 
