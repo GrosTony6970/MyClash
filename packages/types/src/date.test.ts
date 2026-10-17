@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { formatLocalizedDate, getDateFormat, parseLocalizedDate } from './date';
+import { formatLocalizedDate, getDateFormat, isCalendarDay, parseLocalizedDate } from './date';
+
+describe('isCalendarDay', () => {
+  it('takes a day a calendar holds, leap days and the two ends of the range included', () => {
+    for (const day of ['2027-03-14', '2028-02-29', '0001-01-01', '9999-12-31']) {
+      expect(isCalendarDay(day)).toBe(true);
+    }
+  });
+
+  it('refuses a day that does not exist, year 0000, free text and a full timestamp', () => {
+    const refused = ['2027-02-29', '2027-02-30', '2027-13-01', '0000-01-01', '0000-02-29'];
+    for (const day of [...refused, 'next Tuesday', '14/03/2027', '2027-03-14T10:00:00Z', '']) {
+      expect(isCalendarDay(day)).toBe(false);
+    }
+  });
+});
 
 describe('date helpers — fr', () => {
   it('round-trips 15/03/1990 ↔ 1990-03-15', () => {

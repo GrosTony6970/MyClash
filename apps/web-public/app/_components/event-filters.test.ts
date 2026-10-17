@@ -52,6 +52,10 @@ describe('parseEventFilters', () => {
   it('drops a malformed date', () => {
     expect(parseEventFilters({ from: '01/06/2026' }).from).toBeNull();
     expect(parseEventFilters({ to: 'tomorrow' }).to).toBeNull();
+    // Shaped like a day, but none the API takes (DATE columns, 0223): forwarded, the
+    // catalogue answered 400 and the page showed "Events are temporarily unavailable".
+    expect(parseEventFilters({ from: '2026-02-30' }).from).toBeNull();
+    expect(parseEventFilters({ to: '0000-01-01' }).to).toBeNull();
   });
 
   it('drops a weapon slug that is not slug-shaped', () => {

@@ -6,9 +6,12 @@
  * boundary: parse validates and DROPS anything malformed, so a hand-edited or
  * link-rotted URL can never forward junk to the API.
  *
- * Dependency-free (no React, no imports) — sibling of filter-events.ts and
- * unit-testable in isolation.
+ * No React — sibling of filter-events.ts and unit-testable in isolation. The
+ * one import is the API's own day check (`isCalendarDay`), so a day the API
+ * would refuse is dropped here, not answered with the "unavailable" banner.
  */
+
+import { isCalendarDay } from '@myclash/types';
 
 export interface EventFilters {
   q: string | null;
@@ -40,7 +43,6 @@ export const EMPTY_EVENT_FILTERS: EventFilters = {
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const COUNTRY_CODE = /^[A-Za-z]{2}$/;
 /** Matches the API's weapon slug shape; anything else is link rot. */
 const WEAPON_SLUG = /^[a-z0-9-]{1,100}$/;
@@ -67,8 +69,8 @@ export function parseEventFilters(params: RawSearchParams): EventFilters {
 
   // A reversed range is user error, not an attack — swap rather than drop, so
   // the results match what they plainly meant.
-  const validFrom = from && ISO_DATE.test(from) ? from : null;
-  const validTo = to && ISO_DATE.test(to) ? to : null;
+  const validFrom = from && isCalendarDay(from) ? from : null;
+  const validTo = to && isCalendarDay(to) ? to : null;
   const swap = validFrom && validTo && validFrom > validTo;
 
   return {

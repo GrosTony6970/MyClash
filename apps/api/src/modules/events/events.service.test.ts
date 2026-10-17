@@ -82,6 +82,7 @@ function makeAwaitableChain(result: unknown) {
     or: vi.fn(),
     limit: vi.fn(),
     lt: vi.fn(),
+    lte: vi.fn(),
     gte: vi.fn(),
     ilike: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
@@ -96,6 +97,7 @@ function makeAwaitableChain(result: unknown) {
     'or',
     'limit',
     'lt',
+    'lte',
     'gte',
     'ilike',
   ]) {
@@ -1210,6 +1212,23 @@ describe('EventsService', () => {
     );
   });
 
+  it('createEvent refuses an end before the start, with the sentence, and inserts nothing', async () => {
+    fromMock.mockReturnValueOnce(makeChain({ data: null, error: null }));
+    assertOrgRole.mockResolvedValue(undefined);
+    const dto = {
+      name: 'FAL 2027',
+      slug: 'fal-2027',
+      startDate: '2027-03-14',
+      endDate: '2027-03-13',
+    };
+
+    await expect(service.createEvent('org-1', dto, 'user-7')).rejects.toThrow(
+      'The Event cannot end before it starts',
+    );
+    // The slug probe only: no insert reached the table.
+    expect(fromMock).toHaveBeenCalledTimes(1);
+  });
+
   it('updateEvent writes a new slug after an org-scoped uniqueness probe (excluding self)', async () => {
     // 1) getEventById → current draft event
     const eventChain = makeChain({
@@ -1254,8 +1273,13 @@ describe('EventsService', () => {
       end_date: '2027-03-14',
     };
 
-    it('refuses an end before the stored start, and a start after the stored end, before any write', async () => {
-      for (const dto of [{ endDate: '2027-03-12' }, { startDate: '2027-03-15' }]) {
+    it('refuses an end before the stored start, a start after the stored end, and a reversed pair, before any write', async () => {
+      const reversed = [
+        { endDate: '2027-03-12' },
+        { startDate: '2027-03-15' },
+        { startDate: '2027-03-20', endDate: '2027-03-19' },
+      ];
+      for (const dto of reversed) {
         fromMock.mockReturnValueOnce(makeChain({ data: stored, error: null }));
         assertOrgRole.mockResolvedValue(undefined);
 
@@ -1263,8 +1287,8 @@ describe('EventsService', () => {
           'The Event cannot end before it starts',
         );
       }
-      // Only the two reads of the Event: no update reached the table.
-      expect(fromMock).toHaveBeenCalledTimes(2);
+      // Only the reads of the Event: no update reached the table.
+      expect(fromMock).toHaveBeenCalledTimes(3);
     });
 
     it('writes only the end it was sent, so a second organiser moving the other end is not undone', async () => {
@@ -2160,10 +2184,19 @@ describe('EventsService', () => {
 
       await service.listEvents({ from: '2026-06-01', to: '2026-06-30' });
 
-      // An event ending on/after `from` and starting before the day AFTER `to`
-      // overlaps the window — so a 3-day event surfaces for any day inside it.
+      // An event ending on/after `from` and starting on/before `to` overlaps the
+      // window — so a 3-day event surfaces for any day inside it.
       expect(chain.gte).toHaveBeenCalledWith('end_date', '2026-06-01');
-      expect(chain.lt).toHaveBeenCalledWith('start_date', '2026-07-01');
+      expect(chain.lte).toHaveBeenCalledWith('start_date', '2026-06-30');
+    });
+
+    it('sends the last day of the calendar as it is: no day after it to compute (a 500 before)', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await service.listEvents({ to: '9999-12-31' });
+
+      expect(chain.lte).toHaveBeenCalledWith('start_date', '9999-12-31');
     });
 
     it('filters by country code', async () => {
@@ -2224,8 +2257,8 @@ describe('EventsService', () => {
     it('paginates by cursor — applies start_date < cursor when set', async () => {
       const chain = makeAwaitableChain({ data: [], error: null });
       fromMock.mockReturnValueOnce(chain);
-      await service.listEvents({ cursor: '2026-01-01T00:00:00.000Z' });
-      expect(chain.lt).toHaveBeenCalledWith('start_date', '2026-01-01T00:00:00.000Z');
+      await service.listEvents({ cursor: '2026-01-01' });
+      expect(chain.lt).toHaveBeenCalledWith('start_date', '2026-01-01');
     });
   });
 

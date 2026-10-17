@@ -92,7 +92,8 @@ describe("a fighter's medals", () => {
     const granted = lastIndex(
       (s) =>
         s.startsWith('grant') &&
-        /\bon (table )?(public\.)?([a-z_]+, )*fighter_manual_medals[ ,]/.test(`${s} `) &&
+        (/\bon (table )?(public\.)?([a-z_]+, )*fighter_manual_medals[ ,]/.test(`${s} `) ||
+          s.includes(' on all tables in schema public ')) &&
         /\b(insert|update|delete|all)\b/.test(s.split(' on ')[0]!),
     );
     expect(revoked).toBeGreaterThan(-1);

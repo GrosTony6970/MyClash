@@ -1,31 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextIsoDay, overlapsWindow } from './date-window';
-
-describe('nextIsoDay', () => {
-  it('advances one day', () => {
-    expect(nextIsoDay('2026-06-01')).toBe('2026-06-02');
-  });
-
-  it('rolls over a month end', () => {
-    expect(nextIsoDay('2026-06-30')).toBe('2026-07-01');
-    expect(nextIsoDay('2026-01-31')).toBe('2026-02-01');
-  });
-
-  it('rolls over a year end', () => {
-    expect(nextIsoDay('2026-12-31')).toBe('2027-01-01');
-  });
-
-  it('handles a leap day and a non-leap February', () => {
-    expect(nextIsoDay('2028-02-28')).toBe('2028-02-29');
-    expect(nextIsoDay('2028-02-29')).toBe('2028-03-01');
-    expect(nextIsoDay('2026-02-28')).toBe('2026-03-01');
-  });
-
-  it('rejects a non-ISO input rather than silently producing NaN', () => {
-    expect(() => nextIsoDay('not-a-date')).toThrow();
-    expect(() => nextIsoDay('')).toThrow();
-  });
-});
+import { overlapsWindow } from './date-window';
 
 describe('overlapsWindow', () => {
   const event = { start: '2026-06-10', end: '2026-06-12' };
@@ -59,10 +33,7 @@ describe('overlapsWindow', () => {
     expect(overlapsWindow(event, { from: null, to: null })).toBe(true);
   });
 
-  it('stays correct when a row carries a full timestamp rather than a plain date', () => {
-    // The reason the upper bound is `start < nextIsoDay(to)` and not `start <= to`.
-    expect(overlapsWindow({ start: '2026-06-20T10:00:00Z', end: null }, { to: '2026-06-20' })).toBe(
-      true,
-    );
+  it('takes the last day of the calendar as a window end (no day after it to compute)', () => {
+    expect(overlapsWindow({ start: '9999-12-31', end: null }, { to: '9999-12-31' })).toBe(true);
   });
 });

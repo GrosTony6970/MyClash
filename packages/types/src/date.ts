@@ -37,6 +37,16 @@ function roundTripIso(iso: string): string | null {
   return dt.toISOString().slice(0, 10) === iso ? iso : null;
 }
 
+/**
+ * A day a calendar holds, as `YYYY-MM-DD`, from year 0001 to 9999: the day an Event's DATE columns
+ * (0223) and a date filter of the public catalogue take. Postgres has no year 0000, which a
+ * round-trip through `Date` (and zod's `z.iso.date()`) would let through. One owner for the API's
+ * DTOs and web-public's URL parser, so the page never forwards a day the API refuses.
+ */
+export function isCalendarDay(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !value.startsWith('0000') && !!roundTripIso(value);
+}
+
 const LOCALE_DATE_FORMATS: Record<DateLocale, DateFormatSpec> = {
   fr: {
     placeholder: 'JJ/MM/AAAA',

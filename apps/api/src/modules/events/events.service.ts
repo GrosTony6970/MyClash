@@ -41,7 +41,7 @@ import { sideColorsFromScoringConfig } from './side-colors';
 // A zod schema, not a provider — a plain file import, so no module edge to the
 // Swiss modules and nothing for module-graph.test.ts to object to.
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
-import { END_BEFORE_START, nextIsoDay } from './date-window';
+import { END_BEFORE_START } from './date-window';
 import { computeEventReadiness, type ReadinessRows } from './event-readiness';
 import { buildReadinessSnapshot } from './event-readiness-snapshot';
 import { isLive } from '../../common/live-status';
@@ -242,9 +242,9 @@ export class EventsService {
 
     // Overlap, not containment: a three-day event should surface when the user
     // asks for any single day inside it. The columns are DATE (0223) and the
-    // DTO admits real days only, so the comparison is exact.
+    // DTO admits calendar days only, so day against day is exact (`overlapsWindow`).
     if (query.from) q = q.gte('end_date', query.from) as typeof q;
-    if (query.to) q = q.lt('start_date', nextIsoDay(query.to)) as typeof q;
+    if (query.to) q = q.lte('start_date', query.to) as typeof q;
 
     if (query.q) {
       const clauses = await this.buildFreeTextClauses(query.q);
@@ -629,6 +629,7 @@ export class EventsService {
 
     if (existing)
       throw new ConflictException(`Event slug "${dto.slug}" already exists in this organization`);
+    if (dto.endDate < dto.startDate) throw new BadRequestException(END_BEFORE_START);
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -680,8 +681,8 @@ export class EventsService {
     }
     if (dto.city !== undefined) updates['city'] = dto.city;
     if (dto.country !== undefined) updates['country'] = dto.country;
-    // The DTO checks a pair; one end alone meets the stored other here. Only the ends sent are
-    // written: a second organiser moving the other end meanwhile meets 0223's CHECK, not a stale copy.
+    // One end alone meets the stored other end. Only the ends sent are written: a second
+    // organiser moving the other end meanwhile meets 0223's CHECK, not a stale copy.
     const stored = event as { start_date: string; end_date: string };
     if ((dto.endDate ?? stored.end_date) < (dto.startDate ?? stored.start_date))
       throw new BadRequestException(END_BEFORE_START);

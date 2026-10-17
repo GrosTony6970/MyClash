@@ -1,8 +1,13 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
-import { EVENT_KINDS } from '@myclash/types';
-import { END_BEFORE_START } from '../date-window';
+import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
+
+/**
+ * A day of an Event (DATE since 0223): `format: date` for the OpenAPI client, and a day Postgres
+ * takes (`isCalendarDay`: no 2027-02-30, no year 0000). The order of two days is the service's.
+ */
+const calendarDay = z.iso.date().refine(isCalendarDay, 'Not a calendar day');
 
 const createEventSchema = z
   .object({
@@ -12,8 +17,8 @@ const createEventSchema = z
       .min(2)
       .max(100)
       .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, digits, and hyphens'),
-    startDate: z.iso.date(),
-    endDate: z.iso.date(),
+    startDate: calendarDay,
+    endDate: calendarDay,
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
@@ -28,8 +33,7 @@ const createEventSchema = z
     //              still disposable
     eventKind: z.enum(EVENT_KINDS).optional(),
   })
-  .strict()
-  .refine((d) => d.endDate >= d.startDate, END_BEFORE_START);
+  .strict();
 export class CreateEventDto extends createZodDto(createEventSchema) {}
 
 const updateEventSchema = z
@@ -44,9 +48,8 @@ const updateEventSchema = z
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
-    // One end alone is checked against the stored other end by the service (`updateEvent`).
-    startDate: z.iso.date().optional(),
-    endDate: z.iso.date().optional(),
+    startDate: calendarDay.optional(),
+    endDate: calendarDay.optional(),
     // IANA timezone
     timezone: z.string().max(64).optional(),
     // Nullish: null clears the landing description (FE sends `value || null`).
@@ -60,8 +63,7 @@ const updateEventSchema = z
     // an unrated kind recomputes any league this event feeds.
     eventKind: z.enum(EVENT_KINDS).optional(),
   })
-  .strict()
-  .refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, END_BEFORE_START);
+  .strict();
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}
 
 const upsertEventThemeSchema = z
@@ -93,7 +95,7 @@ const eventQuerySchema = z
      * default `order by start_date desc` so the cursor walks backward in
      * time deterministically.
      */
-    cursor: z.iso.date().optional(),
+    cursor: calendarDay.optional(),
     /**
      * Free text over the event name, city, country and the ORGANISER's name.
      * The organiser term can't ride in the same PostgREST `.or()` as the event
@@ -112,12 +114,12 @@ const eventQuerySchema = z
      */
     weapon: z.string().trim().max(100).optional(),
     /**
-     * Inclusive window start, YYYY-MM-DD. Matches events that OVERLAP it. A real day: the columns
-     * are DATE (0223), so 2026-02-30 would fail the read instead of matching nothing.
+     * Inclusive window start, YYYY-MM-DD. Matches events that OVERLAP it. A calendar day: the
+     * columns are DATE (0223), so 2026-02-30 would fail the read instead of matching nothing.
      */
-    from: z.iso.date().optional(),
+    from: calendarDay.optional(),
     /** Inclusive window end, YYYY-MM-DD. */
-    to: z.iso.date().optional(),
+    to: calendarDay.optional(),
   })
   .strict();
 export class EventQueryDto extends createZodDto(eventQuerySchema) {}
