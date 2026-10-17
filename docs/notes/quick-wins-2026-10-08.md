@@ -3138,6 +3138,39 @@ seeded break.
 - O3's count is in memory per API container, reset on deploy (as the throttler was). R3's
   `createMatch` answers the bout as inserted, before its re-stamp.
 
+### Built on 2026-10-17: O6, an Event's dates and a fighter's medals
+
+O6 of "The server" (session 580b293a), with the rulings of 2026-10-17 ("real date column", "medal
+year floor"). Two cold reviews: the slice (one major: some date filters the API took still failed
+its read with a 500, and the public page showed "unavailable" for a day the API now refused), and
+its fix (no blocker, no major).
+
+| Item         | Built in               | What it turned out to be                                                                                                                                                                                                                            |
+| ------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Event dates  | `a19b84dd`, `085c05ec` | Migration `0223`: `start_date` / `end_date` are DATE, the end not before the start (a CHECK). Every date field takes a calendar day (`isCalendarDay`, @myclash/types, one owner for the API and the public page's URL); the order is the service's. |
+| Medal year   | `a19b84dd`             | Ruled: the table refuses a year before 2000; "not after this year" stays at the server.                                                                                                                                                             |
+| Medal writes | `a19b84dd`             | The fighter's write policy goes and the public roles lose their write grants, as 0216. The RLS probe tries the three writes; its seeded-row tables moved to `scripts/lib/rls-probe-tables.mjs` (the probe was past 400 lines).                      |
+| Date filters | `085c05ec`             | **The review found** year 0000 (taken by `z.iso.date()`, refused by Postgres) and `to=9999-12-31` (its next day is year 10000) answered 500. `to` is `start_date <= to` now; `nextIsoDay` is gone. The public page drops a day the API refuses.     |
+
+What ran: a fresh Postgres 17 replay of all 212 migrations, the RLS probe (red on the old schema:
+the three medal writes) and the merge probe; live SQL on the replay (DATE columns, the CHECKs
+refuse an end before the start, 2026-02-30, "next Tuesday" and 1999, take a one-day Event and
+2000); the gate chain (31 of 31, twice). Every new test ran red on the old code, or against a
+seeded break (only the end sent is written).
+
+Named, not fixed:
+
+- The archive worker kept its candidate set: `end_date <= the day 24 h ago` takes the rows its old
+  text comparison with a full timestamp took.
+- `next-bout-end.ts:59-62` throws on a start date that is "not a day": with a DATE column that
+  branch can no longer fire.
+- `overlapsWindow` (date-window.ts) is read by its own test only; nothing compares it with the
+  query the service sends.
+- The 0223 db test's schema-wide grant guard matches a grant to any role, the service role
+  included (it fails red, not green).
+- A live database with a free-text date, an end before its start, or a medal year before 2000
+  stops 0223 at deploy; a fresh stack has none.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
