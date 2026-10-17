@@ -357,7 +357,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Create a public email + password account */
+    /** Create a public email account */
     post: operations['AuthController_publicSignup'];
     delete?: never;
     options?: never;
@@ -410,6 +410,23 @@ export interface paths {
     put?: never;
     /** Confirm a password reset and sign in */
     post: operations['AuthController_publicPasswordResetConfirm'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/public-choose-password': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm an address, choose its password and sign in */
+    post: operations['AuthController_publicChoosePassword'];
     delete?: never;
     options?: never;
     head?: never;
@@ -9727,7 +9744,6 @@ export interface components {
     PublicSignupDto: {
       /** Format: email */
       email: string;
-      password: string;
       next?: string;
       acceptedTerms: string;
       acceptedPrivacy: string;
@@ -9749,6 +9765,11 @@ export interface components {
     PublicPasswordResetConfirmDto: {
       token: string;
       password: string;
+    };
+    PublicChoosePasswordDto: {
+      token_hash: string;
+      password: string;
+      next?: string;
     };
     MeUserDto: {
       id: string;
@@ -12319,13 +12340,6 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Weak password */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
       /** @description Signups temporarily disabled */
       503: {
         headers: {
@@ -12428,6 +12442,42 @@ export interface operations {
         content?: never;
       };
       /** @description Invalid or expired token */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AuthController_publicChoosePassword: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PublicChoosePasswordDto'];
+      };
+    };
+    responses: {
+      /** @description `saved` (true, false or "unknown") and `signedIn`, or `code: link_unchecked` (open the link again) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Weak password */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `code: link_expired`: the link was used or is too old */
       401: {
         headers: {
           [name: string]: unknown;

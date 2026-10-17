@@ -1,3 +1,4 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { ADMIN_LOCKDOWN_CODE, LINK_EXPIRED_CODE, LINK_UNCHECKED_CODE } from '@myclash/types';
 import { isAdminLockdownRefusal } from '../../common/admin-lockdown';
 import { MailedCodeRefused, MailedCodeUnjudged } from './auth-server-calls';
@@ -18,6 +19,23 @@ type RefusedLink =
 export function refusedLinkOrThrow(fault: unknown): RefusedLink {
   if (isAdminLockdownRefusal(fault)) return ADMIN_LOCKDOWN_CODE;
   if (fault instanceof MailedCodeRefused) return LINK_EXPIRED_CODE;
+  if (fault instanceof MailedCodeUnjudged) return LINK_UNCHECKED_CODE;
+  throw fault;
+}
+
+/**
+ * The same refusals at a door a page calls with `fetch` (a choose-password door): the page
+ * reads a status and a code. A refused code is a 401 `link_expired`; a code nobody judged is
+ * handed back for a 200 `link_unchecked` (open the link again, ruling 360). Any other fault,
+ * the lockdown's coded 503 among them, is thrown as it came.
+ */
+export function uncheckedLinkOrThrow(fault: unknown): typeof LINK_UNCHECKED_CODE {
+  if (fault instanceof MailedCodeRefused) {
+    throw new UnauthorizedException({
+      code: LINK_EXPIRED_CODE,
+      message: 'Invalid or expired link',
+    });
+  }
   if (fault instanceof MailedCodeUnjudged) return LINK_UNCHECKED_CODE;
   throw fault;
 }

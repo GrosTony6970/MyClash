@@ -19,7 +19,8 @@ export interface MagicLinkEmailOptions {
   magicLink: string;
   /**
    * 'claim' = participant claiming their profile; 'login' = a sign-in link;
-   * 'recovery' = setting a new password; 'confirm' = a new account's address.
+   * 'recovery' = setting a new password; 'confirm' = a sign-up's address, and
+   * the password chosen on the page its link opens.
    *
    * Recovery used to be sent as 'login', so someone who pressed "forgot my
    * password" was mailed a "Your MyClash login link" with a "Log in" button and

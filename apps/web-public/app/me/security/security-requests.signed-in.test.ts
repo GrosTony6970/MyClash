@@ -135,13 +135,15 @@ describe('the screens that speak after a password write', () => {
     expect(page).toMatch(
       /if \(body\?\.signedIn !== true\) \{[^}]*setPhase\('sign-in'\);\s+return;\s+\}\s+setPhase\('done'\);\s+router\.replace\('\/me\?password_reset=1'\);/,
     );
-    expect(page).toContain("if (phase === 'sign-in') return <SignInWithNewPassword t={t} />;");
+    expect(page).toMatch(
+      /if \(phase === 'sign-in'\) \{\s+return \(\s+<SignInWithNewPassword\s+t=\{t\}\s+title=\{t\('publicApp\.resetPassword\.title'\)\}\s+message=\{t\('publicApp\.resetPassword\.doneSignIn'\)\}/,
+    );
   });
 
   it('the reset page then says the sentence, with a link to the sign-in screen', () => {
-    const notice = read('..', '..', 'reset-password', 'SignInWithNewPassword.tsx');
+    const notice = read('..', '..', '..', 'src', 'components', 'SignInWithNewPassword.tsx');
 
-    expect(notice).toContain("{t('publicApp.resetPassword.doneSignIn')}");
+    expect(notice).toMatch(/role="status">\s+\{message\}\s+<\/p>/);
     expect(notice).toContain('<Link href="/login">{t(\'publicApp.home.signIn\')}</Link>');
   });
 });

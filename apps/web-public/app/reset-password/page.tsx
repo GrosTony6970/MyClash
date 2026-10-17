@@ -2,11 +2,10 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { Button, PasswordChecklist } from '@myclash/ui';
-import { validatePassword } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
-import { SignInWithNewPassword } from './SignInWithNewPassword';
+import { NewPasswordForm } from '@/components/NewPasswordForm';
+import { SignInWithNewPassword } from '@/components/SignInWithNewPassword';
 
 type Phase = 'idle' | 'submitting' | 'done' | 'sign-in';
 
@@ -14,8 +13,6 @@ function ResetPassword() {
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -33,19 +30,9 @@ function ResetPassword() {
     [searchParams, hashToken],
   );
 
-  const validation = useMemo(() => validatePassword(password), [password]);
-
-  async function submit(): Promise<void> {
+  async function submit(password: string): Promise<void> {
     if (!token) {
       setError(t('publicApp.resetPassword.errors.missingToken'));
-      return;
-    }
-    if (!validation.ok) {
-      setError(t('publicApp.login.errors.weakPassword'));
-      return;
-    }
-    if (password !== confirm) {
-      setError(t('publicApp.login.errors.passwordMismatch'));
       return;
     }
     setPhase('submitting');
@@ -84,69 +71,26 @@ function ResetPassword() {
     }
   }
 
-  if (phase === 'sign-in') return <SignInWithNewPassword t={t} />;
+  if (phase === 'sign-in') {
+    return (
+      <SignInWithNewPassword
+        t={t}
+        title={t('publicApp.resetPassword.title')}
+        message={t('publicApp.resetPassword.doneSignIn')}
+      />
+    );
+  }
 
   return (
-    <main
-      data-theme="dark"
-      data-accent="personal"
-      className="min-h-screen bg-background px-4 py-10 text-foreground"
-    >
-      <div className="mx-auto max-w-md rounded-lg border border-border bg-surface p-8 shadow-2xl">
-        <h1 className="text-2xl font-black">{t('publicApp.resetPassword.title')}</h1>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          {t('publicApp.resetPassword.description')}
-        </p>
-
-        <label className="mt-6 block">
-          <span className="text-sm font-semibold text-foreground-secondary">
-            {t('publicApp.resetPassword.newPassword')}
-          </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-          />
-        </label>
-
-        <label className="mt-4 block">
-          <span className="text-sm font-semibold text-foreground-secondary">
-            {t('publicApp.login.passwordConfirmLabel')}
-          </span>
-          <input
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-            className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-          />
-        </label>
-
-        <PasswordChecklist failing={validation.failing} t={t} className="mt-3 space-y-1 text-xs" />
-
-        <Button
-          type="button"
-          variant="primary"
-          className="mt-5 w-full py-3"
-          disabled={phase === 'submitting' || !validation.ok || password !== confirm}
-          loading={phase === 'submitting'}
-          onClick={() => void submit()}
-        >
-          {phase === 'submitting' ? t('common.loading') : t('publicApp.resetPassword.submit')}
-        </Button>
-
-        {error && (
-          <p
-            className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-      </div>
-    </main>
+    <NewPasswordForm
+      t={t}
+      title={t('publicApp.resetPassword.title')}
+      description={t('publicApp.resetPassword.description')}
+      submitLabel={t('publicApp.resetPassword.submit')}
+      busy={phase === 'submitting'}
+      error={error}
+      onSubmit={(password) => void submit(password)}
+    />
   );
 }
 

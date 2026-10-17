@@ -209,47 +209,26 @@ describe('MailService magic link', () => {
     expect(sendMock.mock.calls[0]![0].html as string).toContain('Se connecter / Log in');
   });
 
-  it("says confirm the address on a new account's link (ruling 2026-10-16)", async () => {
+  it("says confirm the address and choose a password on a sign-up's link (ruling Pre-takeover)", async () => {
     const service = new MailService(config as never, supabase as never);
 
     await service.sendMagicLink({
       to: 'lea@example.com',
-      magicLink: 'https://api.myclash.fr/api/v1/auth/callback?type=public_login&token_hash=c',
+      magicLink: 'https://app.myclash.fr/auth/choose-password?next=%2Fme&token_hash=c',
       type: 'confirm',
     });
 
     expect(sendMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
+        subject:
+          'Confirmez votre adresse et choisissez votre mot de passe MyClash / Confirm your address and choose your MyClash password',
       }),
     );
     const html = sendMock.mock.calls[0]![0].html as string;
-    expect(html).toContain('Confirmer mon adresse / Confirm my address');
-    expect(html).toContain('confirm your address and log in');
+    expect(html).toContain('Choisir mon mot de passe / Choose my password');
+    expect(html).toContain('confirm your address and choose your password');
     expect(html).not.toContain('Se connecter / Log in');
-    expect(html).not.toContain('already existed');
-  });
-
-  it('says any password chosen before stays, on a sign-up at an unconfirmed address (ruling 2026-10-16)', async () => {
-    const service = new MailService(config as never, supabase as never);
-
-    await service.sendMagicLink({
-      to: 'lea@example.com',
-      magicLink: 'https://api.myclash.fr/api/v1/auth/callback?type=public_login&token_hash=c',
-      type: 'confirmAgain',
-    });
-
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
-      }),
-    );
-    const html = sendMock.mock.calls[0]![0].html as string;
-    expect(html).toContain('Confirmer mon adresse / Confirm my address');
-    // True also for an account an "email me a link" made, which has no password chosen.
-    expect(html).toContain('Si un mot de passe a deja ete choisi pour ce compte');
-    expect(html).toContain('If a password was already chosen for it, that password still applies');
-    expect(html).toContain('Forgot password?');
-    expect(html).not.toContain('the first time');
+    // No password waits on any account any more: nothing says one "still applies".
+    expect(html).not.toContain('still applies');
   });
 });

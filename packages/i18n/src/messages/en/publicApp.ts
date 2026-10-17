@@ -188,12 +188,13 @@ export const publicApp = {
     tabSignUp: 'Sign up',
     signupTitle: 'Create your account',
     signupDescription:
-      'Use an email + password. We will email you a link to confirm your address before you can sign in.',
+      'Enter your email. We will email you a link: it confirms your address and lets you choose your password.',
     createAccount: 'Create account',
     passwordConfirmLabel: 'Confirm password',
     forgotPassword: 'Forgot password?',
     or: 'or',
-    signupCheckEmail: 'Check your inbox at {email} and click the link to confirm your account.',
+    signupCheckEmail:
+      'Check your inbox at {email} and click the link to confirm your address and choose your password.',
     resetTitle: 'Reset your password',
     resetDescription:
       'Enter your email. If an account exists, we will send a link to set a new password.',
@@ -226,6 +227,26 @@ export const publicApp = {
       expired: 'This reset link has expired. Request a new one.',
       generic: 'Could not update the password.',
       network: 'Could not reach the MyClash server. Try again.',
+    },
+  },
+  // The page a sign-up's mail opens (ruling "Pre-takeover"): the password is chosen
+  // only once the address is proven.
+  choosePassword: {
+    title: 'Choose your password',
+    description: 'Choose the password of your MyClash account. This also confirms your address.',
+    submit: 'Save my password',
+    doneSignIn: 'Password saved. Sign in with your new password.',
+    // The code was spent and she is signed in, but the write was refused or not judged.
+    notSaved: 'Your address is confirmed and you are signed in, but your password was not saved.',
+    unknown:
+      'Your address is confirmed and you are signed in, but we could not tell if your password was saved.',
+    setPassword: 'Set a password: we will email you a link',
+    errors: {
+      missingToken: 'This link is missing its code. Open the link in the mail again.',
+      // A spent link means the address is confirmed: a new sign-up mails nothing.
+      expired:
+        'This link was already used or is too old. To choose a password, use "Forgot password?" below.',
+      generic: 'Could not save the password. Try again in a moment.',
     },
   },
   personalShell: {
@@ -1253,6 +1274,7 @@ export const publicApp = {
     leagues: 'Leagues',
     login: 'Sign in',
     resetPassword: 'New password',
+    choosePassword: 'Choose a password',
     signingIn: 'Signing in',
     notifications: 'Notifications',
     me: 'My space',

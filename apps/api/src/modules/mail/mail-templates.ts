@@ -69,8 +69,8 @@ function button(url: string, label: string): string {
   return `  <p style="margin:32px 0"><a href="${escapeHtml(url)}" style="${BUTTON_STYLE}">${label}</a></p>`;
 }
 
-/** What a mailed link is for. `confirm`: the address of a new account (sign-up). */
-export type MagicLinkType = 'claim' | 'login' | 'recovery' | 'confirm' | 'confirmAgain';
+/** What a mailed link is for. `confirm`: a sign-up's address, and the password chosen after. */
+export type MagicLinkType = 'claim' | 'login' | 'recovery' | 'confirm';
 
 /**
  * The words of each kind of mailed link: the subject, the line above the button, the button.
@@ -101,20 +101,13 @@ export const MAGIC_LINK_WORDS: Record<
       '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>',
     label: 'Se connecter / Log in',
   },
+  // A sign-up stores no password (ruling "Pre-takeover"): the link opens "choose your password".
   confirm: {
-    subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
+    subject:
+      'Confirmez votre adresse et choisissez votre mot de passe MyClash / Confirm your address and choose your MyClash password',
     intro:
-      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Click the link below to confirm your address and log in to MyClash.</p>',
-    label: 'Confirmer mon adresse / Confirm my address',
-  },
-  // A sign-up on an address whose account waits for its confirmation (ruling 2026-10-16): the
-  // account keeps any password it had, and the reader is told so. It may have none: an
-  // "email me a link" makes an account too, with no password chosen.
-  confirmAgain: {
-    subject: 'Confirmez votre adresse MyClash / Confirm your MyClash address',
-    intro:
-      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et vous connecter a MyClash.</p><p>Cette adresse avait deja un compte en attente de confirmation. Si un mot de passe a deja ete choisi pour ce compte, c\'est toujours celui-la. Pour en choisir un autre, touchez "Mot de passe oublie ?" sur la page de connexion.</p><p>Click the link below to confirm your address and log in to MyClash.</p><p>This address already had an account waiting for confirmation. If a password was already chosen for it, that password still applies. To choose another, tap "Forgot password?" on the sign-in page.</p>',
-    label: 'Confirmer mon adresse / Confirm my address',
+      '<p>Cliquez sur le lien ci-dessous pour confirmer votre adresse et choisir votre mot de passe.</p><p>Click the link below to confirm your address and choose your password.</p>',
+    label: 'Choisir mon mot de passe / Choose my password',
   },
 };
 

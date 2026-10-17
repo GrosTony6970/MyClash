@@ -14,6 +14,7 @@ import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
 import { PasswordLoginDto } from './dto/password-login.dto';
 import {
+  PublicChoosePasswordDto,
   PublicLoginDto,
   PublicPasswordResetConfirmDto,
   PublicPasswordResetDto,
@@ -102,17 +103,16 @@ export class AuthController {
   /**
    * POST /api/v1/auth/public-signup
    *
-   * Create a Supabase auth.users row with email + password, and mail its
-   * confirmation link (the server mails it: GoTrue's admin calls never do).
-   * The user can't sign in with the password until they click the link.
+   * Create a Supabase auth.users row with an email and no password, and mail
+   * its confirmation link (the server mails it: GoTrue's admin calls never do).
+   * The link opens "choose your password" (`public-choose-password`).
    * Gated by the disable_public_signups feature flag.
    */
   @Post('public-signup')
   @HttpCode(HttpStatus.ACCEPTED)
   @Throttle(SIGNUP_ACTION_THROTTLE)
-  @ApiOperation({ summary: 'Create a public email + password account' })
+  @ApiOperation({ summary: 'Create a public email account' })
   @ApiResponse({ status: 202, description: 'Confirmation email queued' })
-  @ApiResponse({ status: 400, description: 'Weak password' })
   @ApiResponse({ status: 503, description: 'Signups temporarily disabled' })
   async publicSignup(
     @Body() dto: PublicSignupDto,
@@ -120,7 +120,6 @@ export class AuthController {
   ): Promise<{ message: string }> {
     return this.authService.publicSignup(
       dto.email,
-      dto.password,
       acceptedVersionsOf(dto),
       requestAcceptanceContext(request),
       dto.next,
@@ -185,6 +184,34 @@ export class AuthController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     await this.authService.publicPasswordResetConfirm(dto.token, dto.password, reply);
+  }
+
+  /**
+   * POST /api/v1/auth/public-choose-password
+   *
+   * The page a sign-up's mail opens: spend the code, write the chosen password,
+   * sign in with it. Any mailed sign-in code opens it: for the mailbox holder it
+   * is a reset door too.
+   */
+  @Post('public-choose-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Confirm an address, choose its password and sign in' })
+  @ApiResponse({
+    status: 200,
+    description:
+      '`saved` (true, false or "unknown") and `signedIn`, or `code: link_unchecked` (open the link again)',
+  })
+  @ApiResponse({ status: 400, description: 'Weak password' })
+  @ApiResponse({
+    status: 401,
+    description: '`code: link_expired`: the link was used or is too old',
+  })
+  async publicChoosePassword(
+    @Body() dto: PublicChoosePasswordDto,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    await this.authService.publicChoosePassword(dto.token_hash, dto.password, dto.next, reply);
   }
 
   @Post('logout')

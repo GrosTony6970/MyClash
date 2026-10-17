@@ -229,9 +229,7 @@ describe('the participant sign-up while sign-ups are switched off', () => {
       feature_flags: { rows: [{ key: 'disable_public_signups', enabled: true }] },
     });
 
-    const refusal = await service
-      .publicSignup(LEA.email, 'A-much-Longer-passw0rd!', {})
-      .catch((err: unknown) => err);
+    const refusal = await service.publicSignup(LEA.email, {}).catch((err: unknown) => err);
 
     expect(refusal).toBeInstanceOf(OperationalUnavailableException);
     expect((refusal as HttpException).getStatus()).toBe(503);
@@ -248,9 +246,7 @@ describe('the participant sign-up while sign-ups are switched off', () => {
 describe('the participant sign-up during read-only mode (ruling 341)', () => {
   const signUp = (flags: { key: string; enabled: boolean }[]) => {
     const built = build({ feature_flags: { rows: flags } });
-    const answer = built.service
-      .publicSignup(LEA.email, 'A-much-Longer-passw0rd!', {})
-      .catch((err: unknown) => err);
+    const answer = built.service.publicSignup(LEA.email, {}).catch((err: unknown) => err);
     return { built, answer };
   };
 

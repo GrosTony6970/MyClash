@@ -156,7 +156,9 @@ describe('every door asks loginHref, and sign-in lands by afterSignIn', () => {
       'app/auth/oauth/callback/page.tsx',
       'app/me/security/PasswordChangedNotice.tsx',
       'app/me/security/SessionEnded.tsx',
-      'app/reset-password/SignInWithNewPassword.tsx',
+      'src/components/SignInWithNewPassword.tsx',
+      // A spent sign-up link: the reset tab, a fresh request, not a sign-in return.
+      'app/auth/choose-password/page.tsx',
     ];
     const named: string[] = [];
     const walk = (dir: string) => {
@@ -175,7 +177,7 @@ describe('every door asks loginHref, and sign-in lands by afterSignIn', () => {
 
   it('the sign-in page reads `next` once, and every way in uses it', () => {
     const page = read('app', 'login', 'page.tsx');
-    expect(page).toContain("const landing = afterSignIn(use(searchParams)['next']);");
+    expect(page).toContain("const landing = afterSignIn(query['next']);");
     expect(page).toContain('router.replace(landing);');
     expect(page).toContain('requestMagicLink(apiUrl, email, landing)');
     expect(page).toContain('startGoogleSignIn(window.location.origin, landing)');

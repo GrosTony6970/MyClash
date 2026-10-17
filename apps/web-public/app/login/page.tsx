@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
-import { use, useMemo, useState, type FormEvent } from 'react';
+import { use, useState, type FormEvent } from 'react';
 import {
   AuthAltLink,
   AuthDivider,
@@ -12,10 +12,8 @@ import {
   AuthPanel,
   Button,
   GoogleIcon,
-  PasswordChecklist,
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
-import { validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { afterSignIn } from '../../src/lib/sign-in-return';
@@ -37,11 +35,12 @@ type Query = Promise<Record<string, string | string[] | undefined>>;
 export default function PublicLoginPage({ searchParams }: { searchParams: Query }) {
   const { t } = useI18n();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('signin');
+  const query = use(searchParams);
+  // The "Forgot password?" of a spent sign-up link opens the reset tab (choose-password).
+  const [tab, setTab] = useState<Tab>(query['tab'] === 'reset' ? 'reset' : 'signin');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
   const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const [busy, setBusy] = useState(false);
@@ -51,7 +50,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   const [message, setMessage] = useState<string | null>(opensOn.message);
   const [error, setError] = useState<string | null>(opensOn.error);
   // Where signing in lands: the page the door was on, or the personal space.
-  const landing = afterSignIn(use(searchParams)['next']);
+  const landing = afterSignIn(query['next']);
 
   const apiUrl = getPublicApiUrl();
   // The organizer workspace is a different host, so the cross-link needs the
@@ -59,8 +58,6 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   // PublicPersonalShell). Passed by both compose files; the default is the
   // production host so a bare `next build` still emits a working link.
   const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] ?? 'https://admin.myclash.fr';
-
-  const passwordValidation = useMemo(() => validatePassword(password), [password]);
 
   function reset() {
     setMessage(null);
@@ -106,22 +103,15 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
   }
 
   async function handleSignUp() {
-    if (busy || !nothingMissing(true)) return;
+    // No password: she chooses it on the page the mailed link opens (ruling "Pre-takeover").
+    if (busy || !nothingMissing(false)) return;
     if (!acceptedLegal) {
       setError(t('legal.accept.required'));
       return;
     }
-    if (!passwordValidation.ok) {
-      setError(t('publicApp.login.errors.weakPassword'));
-      return;
-    }
-    if (password !== passwordConfirm) {
-      setError(t('publicApp.login.errors.passwordMismatch'));
-      return;
-    }
     setBusy(true);
     reset();
-    const code = await requestSignUp(apiUrl, email, password, landing);
+    const code = await requestSignUp(apiUrl, email, landing);
     setBusy(false);
     if (code === 'ok') {
       setMessage(t('publicApp.login.signupCheckEmail', { email: email.trim() }));
@@ -275,11 +265,11 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
           onChange={(event) => setEmail(event.target.value)}
         />
 
-        {(tab === 'signin' || tab === 'signup') && (
+        {tab === 'signin' && (
           <AuthField
             id="password"
             type="password"
-            autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+            autoComplete="current-password"
             label={t('auth.login.password')}
             placeholder={t('auth.login.passwordPlaceholder')}
             value={password}
@@ -287,20 +277,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
           />
         )}
 
-        {tab === 'signup' && (
-          <>
-            <AuthField
-              id="passwordConfirm"
-              type="password"
-              autoComplete="new-password"
-              label={t('publicApp.login.passwordConfirmLabel')}
-              value={passwordConfirm}
-              onChange={(event) => setPasswordConfirm(event.target.value)}
-            />
-            <PasswordChecklist failing={passwordValidation.failing} t={t} />
-            <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
-          </>
-        )}
+        {tab === 'signup' && <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />}
 
         {tab === 'signin' && (
           <Button
@@ -317,9 +294,7 @@ export default function PublicLoginPage({ searchParams }: { searchParams: Query 
         {tab === 'signup' && (
           <Button
             type="submit"
-            disabled={
-              busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
-            }
+            disabled={busy || !acceptedLegal}
             loading={busy}
             variant="primary"
             className="w-full py-3"

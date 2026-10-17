@@ -64,10 +64,11 @@ import {
   MailedCodeRefused,
   removeAccount,
   spendMailedCode,
+  writeChosenPassword,
   writePassword,
 } from './auth-server-calls';
 import { linkTypeOf, type LinkType } from './link-type';
-import { refusedLinkOrThrow } from './refused-link';
+import { refusedLinkOrThrow, uncheckedLinkOrThrow } from './refused-link';
 import { clubPage, type SignupClub } from '../organizations/signup-club';
 import { claimPageOf, claimPagePath } from './claim-page';
 import { syncClaimedPersonRows } from './claimed-person-sync';
@@ -1546,7 +1547,6 @@ export class AuthService {
    */
   async publicSignup(
     email: string,
-    password: string,
     accepted: { terms?: string; privacy?: string },
     context: AcceptanceContext = {},
     next?: string,
@@ -1555,16 +1555,9 @@ export class AuthService {
     // Before the account exists, so a stale-policy client is turned away without
     // having created anything it would then have to be asked about.
     const versions = this.legal.assertCurrent(accepted);
-    const validation = validatePassword(password);
-    if (!validation.ok) {
-      throw new BadRequestException({
-        code: 'weak_password',
-        failing: validation.failing,
-      });
-    }
     const normalized = email.trim().toLowerCase();
 
-    const account = await signupAccount(this.supabase.service.auth.admin, normalized, password);
+    const account = await signupAccount(this.supabase.service.auth.admin, normalized);
     if (account.kind === 'none') {
       // A confirmed account, a password the auth server refused, etc. Every case answers the
       // same words (`SIGNUP_ANSWER`), so the answer never says that an address has an account.
@@ -1582,9 +1575,9 @@ export class AuthService {
   }
 
   /**
-   * Mail the account its confirmation link: the public site's sign-in door, which spends the
-   * code, signs its reader in and opens `next`. A sign-up on an address whose account waits for
-   * its confirmation gets the words that say any password it had stays (ruling 2026-10-16).
+   * Mail the account its confirmation link: the public site's "choose your password" page,
+   * which keeps the code until its reader sends a password (`publicChoosePassword`), then
+   * opens `next`. The same mail for a new address and for one that waits for its confirmation.
    * No code, no mail: a link that cannot work is worse than none, and the log says so. A mail
    * that fails is logged: a 500 for a new address only would tell that it is new.
    */
@@ -1593,16 +1586,14 @@ export class AuthService {
     account: Exclude<SignupAccount, { kind: 'none' }>,
     next: string | undefined,
   ): Promise<void> {
-    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-    const door = signInDoor(domain, 'public_login', safeRedirectPath(next));
-    const magicLink = mailedLink(door, account.code);
+    const page = `/auth/choose-password?next=${encodeURIComponent(safeRedirectPath(next))}`;
+    const magicLink = mailedLink(this.buildPostAuthRedirectUrl(page, 'public_login'), account.code);
     if (!magicLink) {
       this.logger.error(`public-signup: no confirmation code for ${email}`);
       return;
     }
-    const type = account.kind === 'created' ? 'confirm' : 'confirmAgain';
     try {
-      await this.mail.sendMagicLink({ to: email, magicLink, type });
+      await this.mail.sendMagicLink({ to: email, magicLink, type: 'confirm' });
     } catch (err) {
       this.logger.error(
         `public-signup: confirmation mail failed for ${email}: ${
@@ -1732,6 +1723,73 @@ export class AuthService {
     );
     await this.tryAutolinkGlobalPerson(data.user.id, data.user.email ?? null);
     void reply.send({ next: '/me', signedIn });
+  }
+
+  /**
+   * POST /auth/public-choose-password — the page a sign-up's mail opens: spend the
+   * code, write the password its reader chose, sign her in with it (ruling
+   * "Pre-takeover", 2026-10-16). A refused code is a 401 `link_expired`; a code
+   * nobody judged a 200 `link_unchecked`, the page says to open the link again.
+   */
+  async publicChoosePassword(
+    token: string,
+    password: string,
+    next: string | undefined,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const chosen = await this.choosePasswordFromCode(token, password, reply).catch(
+      uncheckedLinkOrThrow,
+    );
+    if (typeof chosen === 'string') {
+      void reply.send({ code: chosen });
+      return;
+    }
+    void reply.send({ ...chosen, next: safeRedirectPath(next) });
+  }
+
+  /**
+   * The one owner of "spend the code, choose the password". The order is the
+   * reset door's, with the profile link before the write: the password is
+   * checked first (a weak one leaves the link unspent), the code names the
+   * account (never the request), then the write, then a sign-in with the
+   * password (the write ends EVERY session of the account, ruling 352).
+   *
+   * A write the auth server refused (`saved: false`) or never judged
+   * (`'unknown'`) leaves her signed in by the spend's session: the page offers
+   * "Set a password", which needs one. A late write may still end it (the race
+   * named: the unjudged write against the spend's session). On success only the
+   * new password's login is handed: one set of auth cookies per answer.
+   */
+  async choosePasswordFromCode(
+    token: string,
+    password: string,
+    reply: FastifyReply,
+  ): Promise<{ saved: boolean | 'unknown'; signedIn: boolean }> {
+    const validation = validatePassword(password);
+    if (!validation.ok) {
+      throw new BadRequestException({ code: 'weak_password', failing: validation.failing });
+    }
+    const spent = await spendMailedCode(this.supabase.anon, token, 'email');
+    if (!spent?.session) throw new MailedCodeRefused();
+    const { session } = spent;
+    const { user } = session;
+    await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
+
+    const saved = await writeChosenPassword(this.supabase.service, user.id, password);
+    if (saved !== true) {
+      this.logger.warn(
+        `chosen password of ${user.id} not saved (${String(saved)}): spend's login handed`,
+      );
+      this.setAuthCookies(
+        reply,
+        session.access_token,
+        session.refresh_token ?? '',
+        session.expires_in,
+      );
+      return { saved, signedIn: true };
+    }
+    const signedIn = await this.signInWithNewPassword(reply, user.id, user.email, password);
+    return { saved, signedIn };
   }
 
   /**

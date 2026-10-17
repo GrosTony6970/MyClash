@@ -13,8 +13,8 @@ import { acceptedLegalShape } from '../../../common/legal/accepted-legal.schema'
 const publicSignupSchema = z
   .object({
     email: z.email().max(254),
-    password: z.string().max(256),
-    // The page the sign-up started from: the confirmation link lands there (safeRedirectPath).
+    // No password: it is chosen on the page the confirmation link opens (ruling "Pre-takeover").
+    // The page the sign-up started from: that page opens once she has chosen (safeRedirectPath).
     next: z.string().max(2048).optional(),
     // Account creation — see accepted-legal.schema.ts. Login below carries no
     // such fields: an existing account that is behind on a revised policy is
@@ -57,3 +57,13 @@ const publicPasswordResetConfirmSchema = z
   })
   .strict();
 export class PublicPasswordResetConfirmDto extends createZodDto(publicPasswordResetConfirmSchema) {}
+
+const publicChoosePasswordSchema = z
+  .object({
+    // The code of the sign-up's mailed link, read from the page's `?token_hash=`.
+    token_hash: z.string().min(10).max(2048),
+    password: z.string().max(256),
+    next: z.string().max(2048).optional(),
+  })
+  .strict();
+export class PublicChoosePasswordDto extends createZodDto(publicChoosePasswordSchema) {}

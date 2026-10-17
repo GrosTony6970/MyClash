@@ -187,13 +187,13 @@ export const publicApp = {
     tabSignUp: 'Créer un compte',
     signupTitle: 'Créez votre compte',
     signupDescription:
-      'Utilisez un email + mot de passe. Nous vous enverrons un lien pour confirmer votre email avant la première connexion.',
+      'Saisissez votre email. Nous vous enverrons un lien : il confirme votre adresse et vous permet de choisir votre mot de passe.',
     createAccount: 'Créer le compte',
     passwordConfirmLabel: 'Confirmer le mot de passe',
     forgotPassword: 'Mot de passe oublié ?',
     or: 'ou',
     signupCheckEmail:
-      'Vérifiez votre boîte mail à {email} et cliquez sur le lien pour confirmer votre compte.',
+      'Vérifiez votre boîte mail à {email} et cliquez sur le lien pour confirmer votre adresse et choisir votre mot de passe.',
     resetTitle: 'Réinitialiser le mot de passe',
     resetDescription:
       'Entrez votre email. Si un compte existe, nous enverrons un lien pour définir un nouveau mot de passe.',
@@ -224,6 +224,24 @@ export const publicApp = {
       expired: 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau.',
       generic: 'Impossible de mettre à jour le mot de passe.',
       network: 'Impossible de joindre le serveur MyClash. Réessayez.',
+    },
+  },
+  choosePassword: {
+    title: 'Choisissez votre mot de passe',
+    description:
+      'Choisissez le mot de passe de votre compte MyClash. Cela confirme aussi votre adresse.',
+    submit: 'Enregistrer mon mot de passe',
+    doneSignIn: 'Mot de passe enregistré. Connectez-vous avec votre nouveau mot de passe.',
+    notSaved:
+      "Votre adresse est confirmée et vous êtes connecté, mais votre mot de passe n'a pas été enregistré.",
+    unknown:
+      'Votre adresse est confirmée et vous êtes connecté, mais nous ne savons pas si votre mot de passe a été enregistré.',
+    setPassword: 'Définir un mot de passe : nous vous enverrons un lien par email',
+    errors: {
+      missingToken: 'Ce lien ne contient pas son code. Rouvrez le lien du mail.',
+      expired:
+        'Ce lien a déjà servi ou est trop ancien. Pour choisir un mot de passe, utilisez « Mot de passe oublié ? » ci-dessous.',
+      generic: "Impossible d'enregistrer le mot de passe. Réessayez dans un instant.",
     },
   },
   personalShell: {
@@ -1258,6 +1276,7 @@ export const publicApp = {
     leagues: 'Tournois fédéraux',
     login: 'Connexion',
     resetPassword: 'Nouveau mot de passe',
+    choosePassword: 'Choisir un mot de passe',
     signingIn: 'Connexion en cours',
     notifications: 'Notifications',
     me: 'Mon espace',

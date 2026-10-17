@@ -55,11 +55,13 @@ export async function requestPasswordSignIn(
 /** `maintenance` is read-only mode's refusal, by its code (operator ruling 341). */
 export type SignUpCode = 'ok' | 'signups_disabled' | 'maintenance' | 'legal_stale' | 'failed';
 
-/** `landing` is where the mailed confirmation link sends its reader: `afterSignIn` chose it. */
+/**
+ * No password: it is chosen on the page the mailed link opens (ruling "Pre-takeover").
+ * `landing` is the page that opens once she has chosen it: `afterSignIn` chose it.
+ */
 export async function requestSignUp(
   apiUrl: string,
   email: string,
-  password: string,
   landing: string,
 ): Promise<SignUpCode> {
   try {
@@ -69,7 +71,6 @@ export async function requestSignUp(
       headers: JSON_HEADERS,
       body: JSON.stringify({
         email: email.trim(),
-        password,
         next: landing,
         // Checked server-side against the published registry; a stale pair is
         // refused so a tab open across a policy revision cannot consent to the

@@ -64,6 +64,7 @@ const OUTSIDE_AN_EVENT: Array<[path: string, title: string]> = [
   ['/me/settings', 'Settings · MyClash'],
   ['/me/security', 'Security · MyClash'],
   ['/reset-password', 'New password · MyClash'],
+  ['/auth/choose-password', 'Choose a password · MyClash'],
   ['/fighters', 'Fighter directory · MyClash'],
   ['/notifications', 'Notifications · MyClash'],
 ];

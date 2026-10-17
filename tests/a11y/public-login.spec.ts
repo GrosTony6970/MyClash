@@ -130,3 +130,29 @@ test('Enter on the reset form asks for the reset link, once', async ({ page }) =
     { path: '/api/v1/auth/public-password-reset', body: { email: 'lea@example.test' } },
   ]);
 });
+
+// Ruling "Pre-takeover": a sign-up stores no password, the mailed link's page asks for it.
+test('the sign-up tab asks for the address only, and sends no password', async ({ page }) => {
+  const sent = await openLogin(page);
+  await page.getByRole('tab', { name: 'Sign up' }).click();
+
+  await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Confirm password')).toHaveCount(0);
+  await email(page).fill('lea@example.test');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await expect(
+    page.getByText('Check your inbox at lea@example.test', { exact: false }),
+  ).toBeVisible();
+  expect(sent.map((call) => call.path)).toEqual(['/api/v1/auth/public-signup']);
+  expect(sent[0]!.body).toMatchObject({ email: 'lea@example.test', next: '/me' });
+  expect(sent[0]!.body).not.toHaveProperty('password');
+});
+
+test('?tab=reset opens on the reset form', async ({ page }) => {
+  await stubPublicApi(page);
+  await page.goto(`${LOGIN}?tab=reset`);
+
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
+});

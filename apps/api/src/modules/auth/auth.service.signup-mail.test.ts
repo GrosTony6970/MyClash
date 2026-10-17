@@ -1,22 +1,24 @@
 /**
- * A Fighter's sign-up by email mails its own confirmation link (operator ruling 2026-10-16).
+ * A Fighter's sign-up by email mails its own confirmation link (operator ruling 2026-10-16), and
+ * stores no password (ruling "Pre-takeover", 2026-10-16).
  *
  * Léa signed up with an email and a password. The page said "check your email", and no mail
  * came: the account was made by GoTrue's admin create, which never mails, and production does
  * not confirm an address on its own. She could only get in by "email me a link".
  *
- * Her first mail went to spam, and she signed up again the next day. GoTrue's signup link
- * answers that like a new account: it hands back hers with a fresh code and keeps her first
- * password. A second ruling of 2026-10-16: send the link again, say that a password chosen
- * before stays, and write no second legal acceptance on her account.
+ * Then a stranger signed up with Léa's address and his own password. Léa never saw the mail.
+ * Weeks later she confirmed her address, and the stranger's password still opened her account:
+ * the auth server kept it from the first sign-up. Now a sign-up asks for the address only, and
+ * the mailed link opens "choose your password".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { validatePassword } from '@myclash/types';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import { mockSupabase } from '../../common/testing/supabase-chain';
+import { PublicSignupDto } from './dto/public-auth.dto';
 
 const EMAIL = 'lea@example.com';
-const PASSWORD = 'A-much-Longer-passw0rd!';
 const CREATED = { data: { user: { id: 'user-lea' } }, error: null };
 const EXISTS = {
   data: { user: null },
@@ -49,35 +51,55 @@ function build(created: unknown, link: unknown = LINK) {
     { assertCurrent: vi.fn(() => ({})), recordForUser } as unknown as LegalAcceptanceService,
     {} as never,
   );
-  const signUp = (next?: string) => service.publicSignup(` ${EMAIL} `, PASSWORD, {}, {}, next);
+  const signUp = (next?: string) => service.publicSignup(` ${EMAIL} `, {}, {}, next);
   return { signUp, createUser, generateLink, sendMagicLink, recordForUser };
 }
 
+/** The password `generateLink('signup')` was handed. */
+function linkPassword(generateLink: ReturnType<typeof vi.fn>, call = 0): string {
+  return (generateLink.mock.calls[call]![0] as { password: string }).password;
+}
+
 const SAME_ANSWER = { message: 'If this email is new, a confirmation link has been sent.' };
+const CHOOSE = 'https://app.myclash.fr/auth/choose-password';
 
 afterEach(() => vi.clearAllMocks());
 
 describe('the participant sign-up mails its confirmation link', () => {
-  it('makes the account, records her acceptance, and mails the link that lands where she began', async () => {
+  it('makes the account with no password, records her acceptance, and mails the choose-password page', async () => {
     const { signUp, createUser, generateLink, sendMagicLink, recordForUser } = build(CREATED);
 
     expect(await signUp('/e/fal-2026/w/longsword-basics')).toEqual(SAME_ANSWER);
 
-    expect(createUser).toHaveBeenCalledWith({
+    // No `password` key at all: the account holds nothing anyone typed.
+    expect(createUser).toHaveBeenCalledWith({ email: EMAIL, email_confirm: false });
+    expect(createUser.mock.calls[0]![0]).not.toHaveProperty('password');
+    expect(generateLink).toHaveBeenCalledWith({
+      type: 'signup',
       email: EMAIL,
-      password: PASSWORD,
-      email_confirm: false,
+      password: expect.any(String),
     });
-    expect(generateLink).toHaveBeenCalledWith({ type: 'signup', email: EMAIL, password: PASSWORD });
     expect(recordForUser).toHaveBeenCalledWith('user-lea', {}, {});
     expect(sendMagicLink).toHaveBeenCalledWith({
       to: EMAIL,
       type: 'confirm',
-      // The public site's sign-in door: it spends the code, signs her in, then opens the page.
+      // The public site's page keeps the code until she sends a password, then opens the page.
       magicLink:
-        'https://api.myclash.fr/api/v1/auth/callback?type=public_login' +
-        `&next=${encodeURIComponent('/e/fal-2026/w/longsword-basics')}&token_hash=c0de`,
+        `${CHOOSE}?next=${encodeURIComponent('/e/fal-2026/w/longsword-basics')}` +
+        '&token_hash=c0de',
     });
+  });
+
+  it('hands generateLink a random password that meets the policy, a new one each time', async () => {
+    const { signUp, generateLink } = build(CREATED);
+
+    await signUp();
+    await signUp();
+
+    const first = linkPassword(generateLink, 0);
+    expect(validatePassword(first).ok).toBe(true);
+    expect(first.length).toBeGreaterThanOrEqual(40);
+    expect(linkPassword(generateLink, 1)).not.toBe(first);
   });
 
   it('lands on the home page when the page it was given is not one of ours', async () => {
@@ -85,23 +107,20 @@ describe('the participant sign-up mails its confirmation link', () => {
 
     await signUp('https://evil.example/');
 
-    expect(sendMagicLink.mock.calls[0]![0].magicLink).toBe(
-      'https://api.myclash.fr/api/v1/auth/callback?type=public_login&next=%2F&token_hash=c0de',
-    );
+    expect(sendMagicLink.mock.calls[0]![0].magicLink).toBe(`${CHOOSE}?next=%2F&token_hash=c0de`);
   });
 
-  it('sends the link again to an address that waits for its confirmation, with no second acceptance', async () => {
-    const { signUp, sendMagicLink, recordForUser } = build(EXISTS);
+  it('sends the same mail again to an address that waits for its confirmation, with no second acceptance', async () => {
+    const { signUp, createUser, sendMagicLink, recordForUser } = build(EXISTS);
 
     expect(await signUp('/me')).toEqual(SAME_ANSWER);
 
+    expect(createUser).toHaveBeenCalledWith({ email: EMAIL, email_confirm: false });
     expect(recordForUser).not.toHaveBeenCalled();
     expect(sendMagicLink).toHaveBeenCalledWith({
       to: EMAIL,
-      // The words that say a password chosen before stays.
-      type: 'confirmAgain',
-      magicLink:
-        'https://api.myclash.fr/api/v1/auth/callback?type=public_login&next=%2Fme&token_hash=c0de',
+      type: 'confirm',
+      magicLink: `${CHOOSE}?next=%2Fme&token_hash=c0de`,
     });
   });
 
@@ -115,7 +134,7 @@ describe('the participant sign-up mails its confirmation link', () => {
   });
 
   it('asks for no link when the auth server refused the account for another reason', async () => {
-    const refused = { data: { user: null }, error: { code: 'weak_password', message: 'weak' } };
+    const refused = { data: { user: null }, error: { code: 'unexpected_failure', message: 'x' } };
     const { signUp, generateLink, sendMagicLink, recordForUser } = build(refused);
 
     expect(await signUp()).toEqual(SAME_ANSWER);
@@ -141,5 +160,25 @@ describe('the participant sign-up mails its confirmation link', () => {
     sendMagicLink.mockRejectedValueOnce(new Error('mail service down'));
 
     expect(await signUp()).toEqual(SAME_ANSWER);
+  });
+});
+
+describe('the sign-up form sends no password', () => {
+  const legal = { acceptedTerms: 'terms-1', acceptedPrivacy: 'privacy-1' };
+
+  it('refuses a body that still carries one: an old page would store it', () => {
+    const parsed = PublicSignupDto.schema.safeParse({
+      email: EMAIL,
+      password: 'A-much-Longer-passw0rd!',
+      ...legal,
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it('takes the address, the page and the legal acceptance', () => {
+    expect(PublicSignupDto.schema.safeParse({ email: EMAIL, next: '/me', ...legal }).success).toBe(
+      true,
+    );
   });
 });

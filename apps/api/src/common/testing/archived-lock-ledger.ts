@@ -247,6 +247,7 @@ export const OPEN_ON_PURPOSE: Readonly<Record<string, readonly string[]>> = {
       'POST admin/global-person-claim-requests/:id/reject',
       'POST auth/oauth/session',
       'POST auth/password-login',
+      'POST auth/public-choose-password',
       'POST auth/public-login',
       'POST auth/public-password-reset-confirm',
       'POST fighters/:id/promote',

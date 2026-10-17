@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /** The one answer of a sign-up by email, whatever the address holds: no address enumeration. */
@@ -14,11 +15,12 @@ type LinkCode = { hashed_token?: string } | null | undefined;
  * - `created`: this call made the account. `code` is its confirmation code, or none when the
  *   auth server gave none: the account stands and its acceptance is recorded all the same.
  * - `unconfirmed`: an account made earlier waits for its confirmation: by a sign-up, or by an
- *   "email me a link" (which makes one with no password chosen). `code` is a fresh one (the old
- *   link stops working). It keeps any password it had. A password stored before the address
- *   is proven is a known hole: the "password only after proof" slice (ruling 2026-10-16).
+ *   "email me a link". `code` is a fresh one (the old link stops working).
  * - `none`: a confirmed account holds the address, or the auth server refused. `why` is for
  *   the log only: the caller answers the same words in every case.
+ *
+ * No sign-up stores a password (ruling "Pre-takeover", 2026-10-16): the password is chosen on
+ * the page the link opens, once the address is proven.
  */
 export type SignupAccount =
   | { kind: 'created'; userId: string; code: LinkCode }
@@ -26,24 +28,31 @@ export type SignupAccount =
   | { kind: 'none'; why: string };
 
 /**
+ * The password `generateLink('signup')` requires (supabase-js types it so). The account exists
+ * before the call, and GoTrue v2.195.0 does not store it then: the hash it gave the account at
+ * `createUser` stays (proven 2026-10-17). Random, and it meets the password policy whatever the
+ * draw: twelve characters or more, one of each group (`prod.yml` `GOTRUE_PASSWORD_*`).
+ */
+export function throwawayPassword(): string {
+  return `${randomBytes(32).toString('base64url')}aA1!`;
+}
+
+/**
  * Make the account, or find the unconfirmed one at this address.
  *
  * Two calls, because GoTrue's `generateLink('signup')` answers the same for a new address and
- * for one that waits for its confirmation: it hands back that account with a fresh code and
- * keeps its password (`adminGenerateLink`, GoTrue v2.195.0). Read as "made", a stranger
- * who typed Léa's address wrote a legal acceptance on her account. `createUser` alone tells
- * the two apart: it refuses any address that has an account, with `email_exists`.
+ * for one that waits for its confirmation: it hands back that account with a fresh code
+ * (`adminGenerateLink`, GoTrue v2.195.0). Read as "made", a stranger who typed Léa's address
+ * wrote a legal acceptance on her account. `createUser` alone tells the two apart: it refuses
+ * any address that has an account, with `email_exists`. Neither call is given a password
+ * anyone knows.
  */
-export async function signupAccount(
-  admin: AuthAdmin,
-  email: string,
-  password: string,
-): Promise<SignupAccount> {
-  const made = await admin.createUser({ email, password, email_confirm: false });
+export async function signupAccount(admin: AuthAdmin, email: string): Promise<SignupAccount> {
+  const made = await admin.createUser({ email, email_confirm: false });
   if (made.error && made.error.code !== 'email_exists') {
     return { kind: 'none', why: made.error.message };
   }
-  const link = await admin.generateLink({ type: 'signup', email, password });
+  const link = await admin.generateLink({ type: 'signup', email, password: throwawayPassword() });
   if (!made.error) {
     return { kind: 'created', userId: made.data.user.id, code: link.data?.properties };
   }

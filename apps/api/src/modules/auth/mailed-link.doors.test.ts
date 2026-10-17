@@ -24,6 +24,7 @@ const GOTRUE = {
 
 const verifyOtp = vi.fn();
 const generateLink = vi.fn();
+const updateUserById = vi.fn();
 const sendMagicLink = vi.fn();
 const config = {
   getOrThrow: vi.fn(),
@@ -45,7 +46,10 @@ function build(organizations: unknown[] = []) {
   });
   const createUser = vi.fn().mockResolvedValue({ data: { user: { id: ANN.id } }, error: null });
   const supabase = {
-    service: { from: db.service.from, auth: { admin: { generateLink, createUser } } },
+    service: {
+      from: db.service.from,
+      auth: { admin: { generateLink, createUser, updateUserById } },
+    },
     anon: { auth: { verifyOtp } },
   };
   const mail = { sendMagicLink };
@@ -125,6 +129,28 @@ describe('a mailed link reaches its door with its code (ruling 303)', () => {
     expect(reply.redirect).toHaveBeenCalledWith(
       'https://app.myclash.localhost/auth/signed-in?next=%2Fme',
     );
+  });
+
+  it('the participant sign-up mail opens "choose your password", whose door spends its code', async () => {
+    const { auth, signIn, reply } = build();
+    updateUserById.mockResolvedValue({ error: null });
+    await auth.publicSignup(ANN.email, {}, {}, '/me');
+
+    const link = clicked();
+    expect(link.origin + link.pathname).toBe('https://app.myclash.localhost/auth/choose-password');
+    const q = link.searchParams;
+    await signIn.publicChoosePassword(
+      {
+        token_hash: q.get('token_hash')!,
+        password: 'A-much-Longer-passw0rd!',
+        next: q.get('next') ?? undefined,
+      },
+      reply as never,
+    );
+
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'c0de', type: 'email' });
+    expect(updateUserById).toHaveBeenCalledWith(ANN.id, { password: 'A-much-Longer-passw0rd!' });
+    expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ saved: true, next: '/me' }));
   });
 
   it('the sign-up mail signs her in and makes her club', async () => {

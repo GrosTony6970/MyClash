@@ -80,6 +80,31 @@ export function writePassword(service: SupabaseClient, userId: string, password:
   return heldToLimit(service.auth.admin.updateUserById(userId, { password }));
 }
 
+/**
+ * Write the password a mailed code's reader chose, after the code is spent. `true`: written.
+ * `false`: refused, a 4xx the auth server wrote but a throttle (`classifyGoTrueFailure`).
+ * `'unknown'`: no judgment (no answer in time, a throttle, a server fault, no status): the
+ * write may still land, and it ends every session of the account when it does. A call that
+ * throws is no judgment either: the code is spent by now, and a 500 would leave her with a
+ * dead link and no login.
+ */
+export async function writeChosenPassword(
+  service: SupabaseClient,
+  userId: string,
+  password: string,
+): Promise<boolean | 'unknown'> {
+  const written = await writePassword(service, userId, password).catch((fault: unknown) => {
+    logger.warn(`The write of a chosen password of ${userId} threw: ${String(fault)}`);
+    return null;
+  });
+  if (written && !written.error) return true;
+  const status = written?.error.status;
+  if (status && classifyGoTrueFailure(status) === 'invalid') return false;
+  if (written)
+    logger.warn(`A chosen password of ${userId} was not judged: ${written.error.message}`);
+  return 'unknown';
+}
+
 /** Remove an account from the auth server. */
 export function removeAccount(service: SupabaseClient, userId: string) {
   return heldToLimit(service.auth.admin.deleteUser(userId));

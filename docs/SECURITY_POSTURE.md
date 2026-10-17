@@ -65,6 +65,7 @@ CSRF posture for v1:
 - Guest and staff JWTs use separate secrets from Supabase JWTs. Existing tests confirm guest tokens cannot be verified with the Supabase secret; staff tests cover separate staff-token validation.
 - Logout/revoke flows clear the local cookie. Supabase refresh-token revocation depends on Supabase Auth session semantics and should be verified against the production Supabase project during final sign-off.
 - MFA is not a Phase 2 production blocker for first deploy; it is a roadmap item for organizer/super-admin accounts.
+- Pre-takeover by sign-up is closed for a Fighter's sign-up (ruling "Pre-takeover", 2026-10-16): `POST /auth/public-signup` stores no password, and the password is chosen only after the mailed code is spent (`POST /auth/public-choose-password`, ARCHITECTURE.md §12.7). Still open until the rest of that slice lands: the organizer sign-up's password method and GoTrue's own `POST /auth/v1/signup` at the edge.
 
 ## Secrets And Rotation
 
