@@ -2974,6 +2974,31 @@ Asked with a story at the start of session 580b293a (do not ask them again):
 | Single-add link | Claire wants Tom's row on Léa's account. Since O7 the import refuses that link; "Add participant" lets her search for Léa, pick her profile and save, and Léa's account takes the row. | **Trust the pick**: a profile picked by hand in "Add participant" is a deliberate choice. O7 stays a consistency fix of the import. Nothing to build. |
 | Medal year (O6) | A medal's year holds at the server only (2000 to this year); the table checks nothing, and a table rule cannot safely read "this year".                                                | **Floor only**: the table refuses a year before 2000. "Not after this year" stays at the server.                                                      |
 
+### Rulings — operator, 2026-10-17: the four planned slices
+
+Asked with a story in session 17f390f8, once each plan had converged in review (plans:
+`C:\Users\Tony\.claude\plans\slice-*-plan.md`). Do not ask them again.
+
+| Slice    | Row               | Story                                                                                                           | Ruling                                                                                                                   |
+| -------- | ----------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Password | Organiser sign-up | A stranger signs up as an organiser with Claire's address and his password; her club exists at once.            | **A choose-password page on the organiser site too**: no password at sign-up there either.                               |
+| Password | GoTrue's own door | The stranger sends one request straight to the login server, with a password.                                   | **Refuse `POST /auth/v1/signup` at the edge.**                                                                           |
+| Offline  | What a bout keeps | A tablet starts under TF_v1, cap 5; offline, the Tournament moves to Generic_PointsCap, cap 10, new card rules. | **Everything it started under**: the engine, the settings and the card rules. A Match carries its own copy of its rules. |
+| Offline  | Mixed Pool        | Four bouts of a Pool on TF_v1, two on Generic: the tables, stats and TV use the Tournament's ruleset.           | **Keep: they follow the Tournament.**                                                                                    |
+| Offline  | A stale tablet    | A tablet that kept the 8:00 rules starts a bout at 11:00 WITH a network, after a 9:00 switch.                   | **Only a Start pressed with no network keeps the tablet's rules**; an online Start takes the Tournament's.               |
+| Settings | Database door     | A co-admin writes the cap straight through the database's web door: no ceremony.                                | **Close direct writes to the whole Tournament table** in this slice (as 0216).                                           |
+| Settings | Preview           | The ceremony does not decide finished bouts again, so placings before/after would read "no change".             | **The changed settings only** ("Point cap 5 → 7").                                                                       |
+| Settings | Public notice     | A ruleset change at 9:00, then a cap change at 11:00.                                                           | **Every change, newest first.**                                                                                          |
+| Settings | Who may           | An Event admin changes the cap today; the ceremony is the owner's or the super-admin's.                         | **Event admins too** may run the settings ceremony.                                                                      |
+| Settings | Finished bouts    | Bout 4 ended 5-3 at cap 5; the cap goes to 7; a later correction would decide it under 7.                       | **A finished bout keeps the rules it ended under.**                                                                      |
+| Settings | The same second   | A cap change saved as the first bout starts: no ceremony.                                                       | **Accept** (a window of seconds).                                                                                        |
+| Versions | Generic_PointsCap | Its countdown both-at-zero answer moved on 10-11 too.                                                           | **Bump it too**: 1.0.0 and 1.1.0 both registered.                                                                        |
+| Versions | Club formulas     | They use the shared end rule but carry the club's own version.                                                  | **Freeze per snapshot**: each published formula snapshot records the end rule of its day.                                |
+| Versions | What "1" means    | Old rows and defaults spell version "1".                                                                        | **"1" = 1.0.0**, the old rule.                                                                                           |
+| Versions | A version move    | A Tournament on 1.0.0 with a cap of 7 moves to 1.1.0; today every setting resets.                               | **Keep the settings** on a same-ruleset version move.                                                                    |
+| Versions | Draft rulesets    | A test Tournament pinned to a ruleset not yet published is scored with TF_v1 without a word.                    | **Allow it, and score it as its draft.**                                                                                 |
+| Versions | The number        | ARCHITECTURE §7bis.2 says a change of TF_v1's maths is 2.0.0; the 10-11 change is to the end decision only.     | **1.1.0**: a minor for the end decision; 2.0.0 stays for the ranking maths.                                              |
+
 ### Built on 2026-10-16: the server pass, first batch
 
 The plain bugs of "The server" that the ruling round named first, and the rulings "Late End round"
