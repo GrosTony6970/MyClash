@@ -66,12 +66,15 @@ export const budgets = [
     app: 'web-public',
     budgetBytes: 360 * 1024,
   },
+  // The pad's raised on 2026-10-17 (operator, "Pad budget"): 327,694 measured
+  // against 320 KiB when the end decision gained its editions, the headroom
+  // spent by the offline bout. 330 KiB gives room for the rest of that slice.
   {
     name: 'web-staff every page load',
     type: 'page-load',
     root: join('apps', 'web-staff'),
     app: 'web-staff',
-    budgetBytes: 320 * 1024,
+    budgetBytes: 330 * 1024,
   },
   {
     name: 'web-admin every page load',
