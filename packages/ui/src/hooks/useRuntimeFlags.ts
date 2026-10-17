@@ -36,7 +36,7 @@ const cacheByUrl = new Map<string, Cache>();
 const EMPTY: RuntimeFlags = {
   maintenanceBanner: { enabled: false, message: null, severity: null },
   realtimeDisabled: false,
-  timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+  timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
   clockSkewMs: 0,
 };
 

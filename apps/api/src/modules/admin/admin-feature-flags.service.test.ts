@@ -201,7 +201,10 @@ describe('AdminFeatureFlagsService', () => {
 
     await service.upsertFlag(
       'time_simulation',
-      { enabled: true, payloadJson: { simulatedNowIso: '2027-05-22T08:00:00.000Z' } },
+      {
+        enabled: true,
+        payloadJson: { simulatedNowIso: '2027-05-22T08:00:00.000Z', mode: 'frozen' },
+      },
       'actor-user',
     );
 
@@ -211,9 +214,26 @@ describe('AdminFeatureFlagsService', () => {
         payload_json: {
           simulatedNowIso: '2027-05-22T08:00:00.000Z',
           anchorRealIso: '2026-07-13T12:00:00.000Z',
+          mode: 'frozen',
         },
       }),
     );
+  });
+
+  it.each([
+    ['no mode', { simulatedNowIso: '2027-05-22T08:00:00.000Z' }],
+    ['an unknown mode', { simulatedNowIso: '2027-05-22T08:00:00.000Z', mode: 'paused' }],
+  ])('refuses a time_simulation body with %s', async (_label, payloadJson) => {
+    const upsert = vi.fn().mockResolvedValue({ data: null, error: null });
+    fromMock.mockImplementation(() => ({
+      upsert,
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+
+    await expect(
+      service.upsertFlag('time_simulation', { enabled: true, payloadJson }, 'actor-user'),
+    ).rejects.toThrow(/mode: running\|frozen/);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it('refuses a time_simulation body that carries its own anchor', async () => {
@@ -231,6 +251,7 @@ describe('AdminFeatureFlagsService', () => {
           payloadJson: {
             simulatedNowIso: '2027-05-22T08:00:00.000Z',
             anchorRealIso: '2026-07-13T12:00:00.000Z',
+            mode: 'running',
           },
         },
         'actor-user',
@@ -314,7 +335,7 @@ describe('AdminFeatureFlagsService', () => {
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
-        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
         serverNowIso,
       });
     });
@@ -343,7 +364,7 @@ describe('AdminFeatureFlagsService', () => {
           severity: 'critical',
         },
         realtimeDisabled: false,
-        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
         serverNowIso,
       });
     });
@@ -373,7 +394,7 @@ describe('AdminFeatureFlagsService', () => {
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: true,
-        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
         serverNowIso,
       });
       expect(snap).not.toHaveProperty('adminLockdown');
@@ -381,6 +402,34 @@ describe('AdminFeatureFlagsService', () => {
     });
 
     it('includes the time simulation payload when the flag is on', async () => {
+      fromMock.mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockResolvedValue({
+          data: [
+            {
+              key: 'time_simulation',
+              enabled: true,
+              payload_json: {
+                simulatedNowIso: '2027-05-22T08:00:00.000Z',
+                anchorRealIso: '2026-07-13T12:00:00.000Z',
+                mode: 'frozen',
+              },
+            },
+          ],
+          error: null,
+        }),
+      });
+
+      const snap = await service.getPublicFlagsSnapshot();
+      expect(snap.timeSimulation).toEqual({
+        enabled: true,
+        simulatedNowIso: '2027-05-22T08:00:00.000Z',
+        anchorRealIso: '2026-07-13T12:00:00.000Z',
+        mode: 'frozen',
+      });
+    });
+
+    it('hands out no simulated clock for a stored row without a mode', async () => {
       fromMock.mockReturnValue({
         select: vi.fn().mockReturnThis(),
         in: vi.fn().mockResolvedValue({
@@ -401,8 +450,9 @@ describe('AdminFeatureFlagsService', () => {
       const snap = await service.getPublicFlagsSnapshot();
       expect(snap.timeSimulation).toEqual({
         enabled: true,
-        simulatedNowIso: '2027-05-22T08:00:00.000Z',
-        anchorRealIso: '2026-07-13T12:00:00.000Z',
+        simulatedNowIso: null,
+        anchorRealIso: null,
+        mode: null,
       });
     });
 
@@ -416,7 +466,7 @@ describe('AdminFeatureFlagsService', () => {
       expect(snap).toEqual({
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
-        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
         serverNowIso,
       });
     });

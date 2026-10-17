@@ -57,7 +57,7 @@ export async function stubPublicApi(page: Page) {
       json: {
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
-        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
         serverNowIso: new Date().toISOString(),
       },
     }),

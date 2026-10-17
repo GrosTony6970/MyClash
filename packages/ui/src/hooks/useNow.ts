@@ -2,14 +2,16 @@
 
 import { useSyncExternalStore } from 'react';
 import { useRuntimeFlags } from './useRuntimeFlags';
-import { isTimeSimulationActive, timeSimulationOffsetMs } from './time-simulation';
+import { isTimeSimulationActive, isTimeSimulationFrozen, simulatedNowMs } from './time-simulation';
 
 /** The current clock, plus whether a super-admin simulation is driving it. */
 export interface ClockState {
-  /** Epoch ms, already shifted by any active time simulation. */
+  /** Epoch ms, already shifted (or held) by any active time simulation. */
   nowMs: number;
   /** True when the `time_simulation` flag is active — so `nowMs` is not wall-clock. */
   simulated: boolean;
+  /** True when that simulation holds the clock still — so `nowMs` does not advance. */
+  frozen: boolean;
 }
 
 // ── Shared tick stores ────────────────────────────────────────────────────────
@@ -77,13 +79,23 @@ const secondsStore = createTickStore(SECONDS_TICK_MS);
 
 const getServerClockMs = (): number => 0;
 
-/** Offset + active flag from the shared runtime-flags snapshot. */
-function useSimulation(apiUrl: string): { offset: number; simulated: boolean } {
+interface Simulation {
+  /** This browser's clock → what "now" reads under the simulation. */
+  toNow: (realMs: number) => number;
+  simulated: boolean;
+  frozen: boolean;
+}
+
+const REAL_TIME: Simulation = { toNow: (realMs) => realMs, simulated: false, frozen: false };
+
+/** The simulation from the shared runtime-flags snapshot. */
+function useSimulation(apiUrl: string): Simulation {
   const flags = useRuntimeFlags(apiUrl);
-  if (!flags) return { offset: 0, simulated: false };
+  if (!flags) return REAL_TIME;
   return {
-    offset: timeSimulationOffsetMs(flags.timeSimulation, flags.clockSkewMs),
+    toNow: (realMs) => simulatedNowMs(flags.timeSimulation, realMs, flags.clockSkewMs),
     simulated: isTimeSimulationActive(flags.timeSimulation),
+    frozen: isTimeSimulationFrozen(flags.timeSimulation),
   };
 }
 
@@ -99,8 +111,8 @@ export function useClientClock(apiUrl: string): ClockState {
     minuteStore.getSnapshot,
     getServerClockMs,
   );
-  const { offset, simulated } = useSimulation(apiUrl);
-  return { nowMs: base === 0 ? 0 : base + offset, simulated };
+  const { toNow, simulated, frozen } = useSimulation(apiUrl);
+  return { nowMs: base === 0 ? 0 : toNow(base), simulated, frozen };
 }
 
 /**
@@ -113,8 +125,8 @@ export function useClock(apiUrl: string): ClockState {
     minuteStore.getSnapshot,
     getServerClockMs,
   );
-  const { offset, simulated } = useSimulation(apiUrl);
-  return { nowMs: (base === 0 ? Date.now() : base) + offset, simulated };
+  const { toNow, simulated, frozen } = useSimulation(apiUrl);
+  return { nowMs: toNow(base === 0 ? Date.now() : base), simulated, frozen };
 }
 
 /**
@@ -148,8 +160,8 @@ export function useSecondsClock(apiUrl: string): ClockState {
     secondsStore.getSnapshot,
     getServerClockMs,
   );
-  const { offset, simulated } = useSimulation(apiUrl);
-  return { nowMs: (base === 0 ? Date.now() : base) + offset, simulated };
+  const { toNow, simulated, frozen } = useSimulation(apiUrl);
+  return { nowMs: toNow(base === 0 ? Date.now() : base), simulated, frozen };
 }
 
 /** `useSecondsClock` when the caller does not need the `simulated` flag. */

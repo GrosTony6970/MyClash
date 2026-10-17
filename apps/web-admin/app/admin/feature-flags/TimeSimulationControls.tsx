@@ -1,15 +1,18 @@
 'use client';
 
+import type { TimeSimulationMode } from '@myclash/feature-flags';
 import { useSecondsClock } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { buildTimeSimPayload } from './time-sim-controls';
+import { buildTimeSimPayload, payloadAt, type TimeSimInput } from './time-sim-controls';
 
 interface TimeSimulationControlsProps {
   busy: boolean;
   simLocal: string;
   onSimLocalChange: (value: string) => void;
-  onSave: (payloadJson: Record<string, unknown>) => void;
+  /** The mode last saved; a new date keeps it. */
+  storedMode: TimeSimulationMode;
+  onSave: (payloadJson: TimeSimInput) => void;
   t: (key: string, vars?: Record<string, string>) => string;
   locale: AppLocale;
 }
@@ -18,27 +21,44 @@ interface TimeSimulationControlsProps {
  * The `time_simulation` panel. The readout is the clock every visitor runs,
  * read from the same public snapshot and the same seconds clock, so what the
  * super-admin sees here is what the public app, the live board and the wall
- * show.
+ * show. Pause and Resume take "now" from it, so the clock stops, and later
+ * runs on, from the instant visitors see.
  */
 export function TimeSimulationControls({
   busy,
   simLocal,
   onSimLocalChange,
+  storedMode,
   onSave,
   t,
   locale,
 }: TimeSimulationControlsProps) {
-  const { nowMs, simulated } = useSecondsClock(getPublicApiUrl());
+  const { nowMs, simulated, frozen } = useSecondsClock(getPublicApiUrl());
+  const time = new Date(nowMs).toLocaleString(localeToBcp47(locale));
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
-      <p className="text-sm font-medium text-foreground" role="status">
-        {simulated
-          ? t('admin.featureFlags.timeSimulation.readoutSimulated', {
-              time: new Date(nowMs).toLocaleString(localeToBcp47(locale)),
-            })
-          : t('admin.featureFlags.timeSimulation.readoutReal')}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium text-foreground" role="status">
+          {!simulated
+            ? t('admin.featureFlags.timeSimulation.readoutReal')
+            : frozen
+              ? t('admin.featureFlags.timeSimulation.readoutFrozen', { time })
+              : t('admin.featureFlags.timeSimulation.readoutRunning', { time })}
+        </p>
+        {simulated && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSave(payloadAt(nowMs, frozen ? 'running' : 'frozen'))}
+            className="h-9 rounded-md border border-border bg-surface px-3 text-sm font-medium text-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {frozen
+              ? t('admin.featureFlags.timeSimulation.resumeButton')
+              : t('admin.featureFlags.timeSimulation.pauseButton')}
+          </button>
+        )}
+      </div>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
           {t('admin.featureFlags.timeSimulation.targetLabel')}
@@ -56,7 +76,7 @@ export function TimeSimulationControls({
           type="button"
           disabled={busy || !simLocal}
           onClick={() => {
-            const payload = buildTimeSimPayload(simLocal);
+            const payload = buildTimeSimPayload(simLocal, storedMode);
             if (payload) onSave(payload);
           }}
           className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"

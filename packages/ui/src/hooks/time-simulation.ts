@@ -13,37 +13,47 @@ export function clockSkewMs(serverNowIso: string, sentAtMs: number, receivedAtMs
 }
 
 /**
- * Epoch-ms offset to add to this browser's clock when a super-admin time
- * simulation is active. The simulation stores the datetime it should read as
- * "now" (`simulatedNowIso`) plus the server instant it was saved
- * (`anchorRealIso`). Their difference shifts server time, and `skewMs` (see
- * `clockSkewMs`) turns this browser's clock into server time, so the
- * simulated clock advances with real time from the set point and reads the
- * same on every device.
+ * What "now" reads, in epoch ms, given this browser's clock (`realMs`).
  *
- * Returns 0 (real time) when the simulation is disabled, incomplete, or
+ * The simulation stores the datetime it should read as "now"
+ * (`simulatedNowIso`) plus the server instant it was saved (`anchorRealIso`).
+ * - `frozen`: the clock stays on `simulatedNowIso`, whatever real time does.
+ * - `running`: the clock advances with real time from the set point. Their
+ *   difference shifts server time, and `skewMs` (see `clockSkewMs`) turns
+ *   this browser's clock into server time, so it reads the same on every
+ *   device.
+ *
+ * Returns `realMs` untouched when the simulation is disabled, incomplete, or
  * carries unparseable timestamps — a safe no-op fallback.
  */
-export function timeSimulationOffsetMs(
+export function simulatedNowMs(
   sim: PublicFeatureFlagsSnapshot['timeSimulation'],
+  realMs: number,
   skewMs: number,
 ): number {
-  if (!isTimeSimulationActive(sim)) return 0;
-  return Date.parse(sim.simulatedNowIso!) - Date.parse(sim.anchorRealIso!) + skewMs;
+  if (!isTimeSimulationActive(sim)) return realMs;
+  const simulatedMs = Date.parse(sim.simulatedNowIso!);
+  if (sim.mode === 'frozen') return simulatedMs;
+  return realMs + skewMs + simulatedMs - Date.parse(sim.anchorRealIso!);
 }
 
 /**
- * Whether a simulation is actually driving the clock — enabled, with both
- * timestamps present and parseable.
+ * Whether a simulation is actually driving the clock — enabled, with a mode
+ * and both timestamps present and parseable.
  *
- * Deliberately not derived from `timeSimulationOffsetMs(sim) !== 0`:
+ * Deliberately not derived from `simulatedNowMs(sim, t, 0) !== t`:
  * simulating to roughly the present is a legitimate near-zero offset, and
  * callers use this to decide whether live *data* can be trusted (see the
  * fight rule in the personal schedule), not just how far the clock moved.
  */
 export function isTimeSimulationActive(sim: PublicFeatureFlagsSnapshot['timeSimulation']): boolean {
-  if (!sim.enabled || !sim.simulatedNowIso || !sim.anchorRealIso) return false;
+  if (!sim.enabled || !sim.simulatedNowIso || !sim.anchorRealIso || !sim.mode) return false;
   return (
     !Number.isNaN(Date.parse(sim.simulatedNowIso)) && !Number.isNaN(Date.parse(sim.anchorRealIso))
   );
+}
+
+/** Whether an active simulation holds the clock still. */
+export function isTimeSimulationFrozen(sim: PublicFeatureFlagsSnapshot['timeSimulation']): boolean {
+  return isTimeSimulationActive(sim) && sim.mode === 'frozen';
 }

@@ -157,13 +157,21 @@ export interface MaintenanceBannerPayload {
  * `simulatedNowIso − anchorRealIso`, so the simulated clock advances
  * with real time. Surfaced through `GET /api/v1/public/feature-flags`.
  *
- * The admin sends only `simulatedNowIso`; the API stamps `anchorRealIso`
- * from its own clock, so the admin's browser clock never enters the sum.
+ * The admin sends `simulatedNowIso` and `mode`; the API stamps
+ * `anchorRealIso` from its own clock, so the admin's browser clock never
+ * enters the sum. A `frozen` clock ignores the anchor and reads
+ * `simulatedNowIso` until it is resumed.
  */
 export interface TimeSimulationPayload {
   simulatedNowIso: string;
   anchorRealIso: string;
+  mode: TimeSimulationMode;
 }
+
+/** `running` advances with real time from the set point; `frozen` stays on it. */
+export type TimeSimulationMode = 'running' | 'frozen';
+
+export const TIME_SIMULATION_MODES: readonly TimeSimulationMode[] = ['running', 'frozen'];
 
 /**
  * Public feature-flags snapshot shape — what the FE consumes from
@@ -181,6 +189,7 @@ export interface PublicFeatureFlagsSnapshot {
     enabled: boolean;
     simulatedNowIso: string | null;
     anchorRealIso: string | null;
+    mode: TimeSimulationMode | null;
   };
   /**
    * The API's clock when it built this answer. A browser compares it with

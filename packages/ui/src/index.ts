@@ -355,4 +355,4 @@ export { CsvExportMenu, downloadServerCsv } from './components/CsvExportMenu';
 export type { CsvExportMenuProps } from './components/CsvExportMenu';
 export { useNow, useClock, useClientClock, useSecondsClock, useNowSeconds } from './hooks/useNow';
 export type { ClockState } from './hooks/useNow';
-export { timeSimulationOffsetMs, isTimeSimulationActive } from './hooks/time-simulation';
+export { simulatedNowMs, isTimeSimulationActive } from './hooks/time-simulation';

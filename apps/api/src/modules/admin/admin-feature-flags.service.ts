@@ -6,6 +6,8 @@ import {
   type MaintenanceBannerPayload,
   type MaintenanceBannerSeverity,
   type PublicFeatureFlagsSnapshot,
+  TIME_SIMULATION_MODES,
+  type TimeSimulationMode,
   type TimeSimulationPayload,
 } from '@myclash/feature-flags';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -42,6 +44,10 @@ function parseMaintenanceBannerPayload(
   return { message, severity: severity as MaintenanceBannerSeverity };
 }
 
+function isTimeSimulationMode(value: unknown): value is TimeSimulationMode {
+  return TIME_SIMULATION_MODES.includes(value as TimeSimulationMode);
+}
+
 function parseTimeSimulationPayload(
   raw: Record<string, unknown> | null | undefined,
 ): TimeSimulationPayload | null {
@@ -50,27 +56,30 @@ function parseTimeSimulationPayload(
     typeof raw['simulatedNowIso'] === 'string' ? (raw['simulatedNowIso'] as string) : null;
   const anchorRealIso =
     typeof raw['anchorRealIso'] === 'string' ? (raw['anchorRealIso'] as string) : null;
-  if (!simulatedNowIso || !anchorRealIso) return null;
+  const mode = raw['mode'];
+  if (!simulatedNowIso || !anchorRealIso || !isTimeSimulationMode(mode)) return null;
   if (Number.isNaN(Date.parse(simulatedNowIso)) || Number.isNaN(Date.parse(anchorRealIso))) {
     return null;
   }
-  return { simulatedNowIso, anchorRealIso };
+  return { simulatedNowIso, anchorRealIso, mode };
 }
 
 /**
- * What the admin may send for `time_simulation`: only the instant the clock
- * should read. The anchor is the server's to stamp, so a body that carries
- * one is a stale client and is refused rather than silently overwritten.
+ * What the admin may send for `time_simulation`: the instant the clock
+ * should read, and whether it runs or stays there. The anchor is the
+ * server's to stamp, so a body that carries one is a stale client and is
+ * refused rather than silently overwritten.
  */
 function parseTimeSimulationInput(
   raw: Record<string, unknown>,
-): Pick<TimeSimulationPayload, 'simulatedNowIso'> | null {
-  if (Object.keys(raw).some((k) => k !== 'simulatedNowIso')) return null;
-  const simulatedNowIso = raw['simulatedNowIso'];
+): Omit<TimeSimulationPayload, 'anchorRealIso'> | null {
+  if (Object.keys(raw).some((k) => k !== 'simulatedNowIso' && k !== 'mode')) return null;
+  const { simulatedNowIso, mode } = raw;
   if (typeof simulatedNowIso !== 'string' || Number.isNaN(Date.parse(simulatedNowIso))) {
     return null;
   }
-  return { simulatedNowIso };
+  if (!isTimeSimulationMode(mode)) return null;
+  return { simulatedNowIso, mode };
 }
 
 const FLAG_CACHE_TTL_MS = 5_000;
@@ -127,7 +136,7 @@ export class AdminFeatureFlagsService {
       const parsed = parseTimeSimulationInput(dto.payloadJson);
       if (!parsed) {
         throw new BadRequestException(
-          'time_simulation payload must be { simulatedNowIso: ISO string }; the server sets the anchor',
+          'time_simulation payload must be { simulatedNowIso: ISO string, mode: running|frozen }; the server sets the anchor',
         );
       }
       const stored: TimeSimulationPayload = { ...parsed, anchorRealIso: now };
@@ -162,7 +171,7 @@ export class AdminFeatureFlagsService {
     const empty: PublicFeatureFlagsSnapshot = {
       maintenanceBanner: { enabled: false, message: null, severity: null },
       realtimeDisabled: false,
-      timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+      timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
       serverNowIso,
     };
 
@@ -195,6 +204,7 @@ export class AdminFeatureFlagsService {
           enabled: !!timeSim?.enabled,
           simulatedNowIso: simPayload?.simulatedNowIso ?? null,
           anchorRealIso: simPayload?.anchorRealIso ?? null,
+          mode: simPayload?.mode ?? null,
         },
         serverNowIso,
       };

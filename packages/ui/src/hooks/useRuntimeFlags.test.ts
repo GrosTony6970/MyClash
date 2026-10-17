@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
 import { getRuntimeFlagsCached, refreshRuntimeFlags, toRuntimeFlags } from './useRuntimeFlags';
 
-const snapshot = {
+const snapshot: PublicFeatureFlagsSnapshot = {
   maintenanceBanner: { enabled: false, message: null, severity: null },
   realtimeDisabled: false,
   timeSimulation: {
     enabled: true,
     simulatedNowIso: '2027-05-22T08:00:00.000Z',
     anchorRealIso: '2026-07-13T12:00:00.000Z',
+    mode: 'running',
   },
   serverNowIso: '2026-07-13T12:10:00.000Z',
 };

@@ -13,7 +13,12 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { TimeSimulationControls } from './TimeSimulationControls';
-import { buildTimeSimPayload, isoToLocalInput, readSimulatedNowIso } from './time-sim-controls';
+import {
+  buildTimeSimPayload,
+  isoToLocalInput,
+  readSimulatedNowIso,
+  readTimeSimMode,
+} from './time-sim-controls';
 
 interface FlagRow {
   key: string;
@@ -197,6 +202,7 @@ function FlagItem({ def, row, busy, onSave, t, locale }: FlagItemProps) {
   const [simLocal, setSimLocal] = useState(() =>
     isoToLocalInput(readSimulatedNowIso(row?.payloadJson ?? null)),
   );
+  const storedTimeSimMode = readTimeSimMode(row?.payloadJson);
 
   // Resync local payload state when the row refreshes from the server
   // (e.g. another admin edited it). Without this, the local edits
@@ -237,7 +243,7 @@ function FlagItem({ def, row, busy, onSave, t, locale }: FlagItemProps) {
               payloadJson: hasBannerPayload
                 ? { message, severity }
                 : hasTimeSimPayload
-                  ? buildTimeSimPayload(simLocal)
+                  ? buildTimeSimPayload(simLocal, storedTimeSimMode)
                   : undefined,
             })
           }
@@ -300,6 +306,7 @@ function FlagItem({ def, row, busy, onSave, t, locale }: FlagItemProps) {
           busy={busy}
           simLocal={simLocal}
           onSimLocalChange={setSimLocal}
+          storedMode={storedTimeSimMode}
           onSave={(payloadJson) => void onSave(def.key, { enabled: true, payloadJson })}
           t={t}
           locale={locale}
