@@ -143,21 +143,10 @@ export function formatInZone(
 }
 
 // --- Locale-aware display helpers ---------------------------------------
-// The UI locale is the two-letter app locale ('en' | 'fr'); date formatting
-// needs a BCP-47 tag. Inlined here (not imported from @myclash/i18n) to keep
-// this package dependency-light — it is shared by the api too.
-
-/** The two-letter UI locale. Mirror of `Locale` in @myclash/i18n. */
-export type AppLocale = 'en' | 'fr';
-
-/**
- * Map a UI locale to the BCP-47 tag used for date/number formatting. English
- * uses `en-GB` (DD/MM, 24h) rather than `en-US` — MyClash is a European HEMA
- * platform, so day-first + 24-hour reads correctly for both audiences.
- */
-export function localeToBcp47(locale: AppLocale): string {
-  return locale === 'fr' ? 'fr-FR' : 'en-GB';
-}
+// Owned by ./locale (its own Luxon-free entry point); re-exported here so the
+// root keeps serving every existing caller.
+import { localeToBcp47, type AppLocale } from './locale';
+export { localeToBcp47, type AppLocale };
 
 const DATE_OPTS: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
 const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };

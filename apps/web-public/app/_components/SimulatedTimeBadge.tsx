@@ -1,7 +1,8 @@
 'use client';
 
 import { SimulatedTimeBadge as Badge } from '@myclash/ui';
-import { localeToBcp47 } from '@myclash/time';
+// The Luxon-free entry point: this module is in the root layout, on every page.
+import { localeToBcp47 } from '@myclash/time/locale';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 

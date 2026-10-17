@@ -69,51 +69,84 @@ export function TimeSimulationControls({
         )}
       </div>
       {simulated && (
-        <div
-          role="group"
-          aria-label={t('admin.featureFlags.timeSimulation.nudgeGroup')}
-          className="flex flex-wrap gap-2"
-        >
-          {NUDGES.map(({ minutes, labelKey }) => (
-            <button
-              key={minutes}
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                onSave(payloadAt(nowMs + minutes * 60_000, frozen ? 'frozen' : 'running'))
-              }
-              className="h-8 rounded-md border border-border bg-surface px-3 text-xs font-medium tabular-nums text-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              {t(labelKey)}
-            </button>
-          ))}
-        </div>
+        <NudgeButtons nowMs={nowMs} frozen={frozen} busy={busy} onSave={onSave} t={t} />
       )}
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
-          {t('admin.featureFlags.timeSimulation.targetLabel')}
-          <input
-            type="datetime-local"
-            value={simLocal}
-            onChange={(e) => onSimLocalChange(e.target.value)}
-            className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
-          />
-          <span className="text-[11px] font-normal text-muted">
-            {t('admin.featureFlags.timeSimulation.targetHelp')}
-          </span>
-        </label>
+      <DateForm
+        busy={busy}
+        simLocal={simLocal}
+        onSimLocalChange={onSimLocalChange}
+        storedMode={storedMode}
+        onSave={onSave}
+        t={t}
+      />
+    </div>
+  );
+}
+
+function NudgeButtons({
+  nowMs,
+  frozen,
+  busy,
+  onSave,
+  t,
+}: Pick<TimeSimulationControlsProps, 'busy' | 'onSave' | 't'> & {
+  nowMs: number;
+  frozen: boolean;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={t('admin.featureFlags.timeSimulation.nudgeGroup')}
+      className="flex flex-wrap gap-2"
+    >
+      {NUDGES.map(({ minutes, labelKey }) => (
         <button
+          key={minutes}
           type="button"
-          disabled={busy || !simLocal}
-          onClick={() => {
-            const payload = buildTimeSimPayload(simLocal, storedMode);
-            if (payload) onSave(payload);
-          }}
-          className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          disabled={busy}
+          onClick={() => onSave(payloadAt(nowMs + minutes * 60_000, frozen ? 'frozen' : 'running'))}
+          className="h-8 rounded-md border border-border bg-surface px-3 text-xs font-medium tabular-nums text-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-          {t('admin.featureFlags.timeSimulation.saveButton')}
+          {t(labelKey)}
         </button>
-      </div>
+      ))}
+    </div>
+  );
+}
+
+function DateForm({
+  busy,
+  simLocal,
+  onSimLocalChange,
+  storedMode,
+  onSave,
+  t,
+}: Omit<TimeSimulationControlsProps, 'locale'>) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
+        {t('admin.featureFlags.timeSimulation.targetLabel')}
+        <input
+          type="datetime-local"
+          value={simLocal}
+          onChange={(e) => onSimLocalChange(e.target.value)}
+          className="rounded border border-border bg-surface px-2 py-1 text-sm text-foreground"
+        />
+        <span className="text-[11px] font-normal text-muted">
+          {t('admin.featureFlags.timeSimulation.targetHelp')}
+        </span>
+      </label>
+      <button
+        type="button"
+        disabled={busy || !simLocal}
+        onClick={() => {
+          const payload = buildTimeSimPayload(simLocal, storedMode);
+          if (payload) onSave(payload);
+        }}
+        className="h-9 rounded-md bg-strong px-3 text-sm font-medium text-strong-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+      >
+        {t('admin.featureFlags.timeSimulation.saveButton')}
+      </button>
     </div>
   );
 }
