@@ -3246,6 +3246,47 @@ Named, not fixed:
   since `2c7ebeb0` / `1120d6ce` a piste is remembered only for the person signed in, and the probe's
   stub answers "not signed in". The probe is out of date, not the app.
 
+### Built on 2026-10-17: password after proof
+
+Ruling "Pre-takeover" (2026-10-16) and the rulings "Organiser sign-up", "GoTrue's own door" and
+"Unconfirmed sign-in" (2026-10-17). Before, a stranger could sign up with Léa's address and his own
+password; once Léa confirmed, his password still opened her account. Now no sign-up stores a
+password: the mailed link opens "choose your password", and the code is spent only with it.
+
+| Commit     | What it does                                                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `b2a7dedd` | The Fighter's sign-up asks for the address only. The mail opens `app…/auth/choose-password`; one door checks the password, spends the code, writes it and signs in. |
+| `de429ab1` | The organiser's sign-up the same way, on `admin…/auth/choose-password`. The club is made after the password is chosen, never at sign-up.                            |
+| `4a08b22f` | The edge refuses GoTrue's own `POST /auth/v1/signup` for everyone (prod and dev), held by `infra:review`.                                                           |
+
+**The review found** that the "confirm your email" answer of the participant sign-in is not dead:
+the super admin's "regenerate temporary password" gives an unconfirmed account a password she
+knows. Ruled: keep it.
+
+What ran: a GoTrue v2.195.0 proof before any code (an account made with no password holds a random
+hash of GoTrue's own, which no one knows; the throwaway password the link needs is never stored);
+two cold reviews per commit (each first pass found a blocker or a major, each second pass none);
+falsifiers 13 of 13, 13 of 13 and 11 of 11 red; the gate chain (31 of 31, each commit); API
+coverage (667 files / 8606 tests); the browser suite (439 of 439 on a rerun; the first run lost one
+fake-clock step of `live-blocks-freshness.spec.ts`, which none of these commits touches); CI run
+39052643966, every job green on its first attempt. **Not run
+yet: after the redeploy**, one real sign-up end to end, and a `POST /auth/v1/signup` on the deployed
+edge (403) beside `/auth/v1/token` (answers).
+
+Named, not fixed:
+
+- The organiser choose-password page has no browser spec (a jsdom page test and `clubAnswer` unit
+  tests only). The 15-second abort of both choose-password pages can say "network" over a door that
+  finished; the reset pages have the same shape.
+- web-admin `AuthPage.tsx` repeats the branded panel props that `NewPasswordPanel` now owns.
+- In dev, Traefik gives `dev-api` the length of its rule as priority (29), above `dev-auth`,
+  `dev-rest`, `dev-storage` and `dev-realtime` (20, 25) on the same host: if so, those paths reach
+  the API, not Supabase. Not checked on a running dev stack.
+- `infra:review` measures a router's default priority on the rule as written, before `${DOMAIN}` is
+  filled in. No router on `app.${DOMAIN}` relies on the default today.
+- From the plan: `PUT /auth/v1/user` is public at the edge and sets a password without the current
+  one; the super admin's "assign owner" adopts any existing account by address.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
