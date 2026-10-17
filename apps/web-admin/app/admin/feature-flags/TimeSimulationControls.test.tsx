@@ -108,6 +108,34 @@ describe('Pause and Resume', () => {
     });
   });
 
+  it('offers no nudges while nothing is simulated', async () => {
+    Object.assign(clock, { nowMs: Date.now(), simulated: false, frozen: false });
+    await render('en');
+    expect(container.querySelector('[role="group"]')).toBeNull();
+  });
+
+  it.each([
+    ['−15 min', '2027-05-22T08:00:30.000Z'],
+    ['+5 min', '2027-05-22T08:20:30.000Z'],
+    ['+15 min', '2027-05-22T08:30:30.000Z'],
+    ['+1 h', '2027-05-22T09:15:30.000Z'],
+  ])('%s moves a running clock from the instant visitors see', async (label, iso) => {
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: false });
+    await render('en');
+    await act(async () => button(label)!.click());
+    expect(onSave).toHaveBeenCalledWith({ simulatedNowIso: iso, mode: 'running' });
+  });
+
+  it('a nudge keeps a paused clock paused', async () => {
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: true });
+    await render('en');
+    await act(async () => button('+15 min')!.click());
+    expect(onSave).toHaveBeenCalledWith({
+      simulatedNowIso: '2027-05-22T08:30:30.000Z',
+      mode: 'frozen',
+    });
+  });
+
   it('Resume runs the clock on from the frozen instant', async () => {
     Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: true });
     await render('en');

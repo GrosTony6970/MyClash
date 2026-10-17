@@ -6,6 +6,14 @@ import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { buildTimeSimPayload, payloadAt, type TimeSimInput } from './time-sim-controls';
 
+/** Steps through a Pool without typing dates: each moves the clock from where visitors see it. */
+const NUDGES = [
+  { minutes: -15, labelKey: 'admin.featureFlags.timeSimulation.nudgeBack15' },
+  { minutes: 5, labelKey: 'admin.featureFlags.timeSimulation.nudgeForward5' },
+  { minutes: 15, labelKey: 'admin.featureFlags.timeSimulation.nudgeForward15' },
+  { minutes: 60, labelKey: 'admin.featureFlags.timeSimulation.nudgeForward60' },
+] as const;
+
 interface TimeSimulationControlsProps {
   busy: boolean;
   simLocal: string;
@@ -21,8 +29,9 @@ interface TimeSimulationControlsProps {
  * The `time_simulation` panel. The readout is the clock every visitor runs,
  * read from the same public snapshot and the same seconds clock, so what the
  * super-admin sees here is what the public app, the live board and the wall
- * show. Pause and Resume take "now" from it, so the clock stops, and later
- * runs on, from the instant visitors see.
+ * show. Pause, Resume and the nudges take "now" from it, so the clock stops,
+ * runs on, or moves from the instant visitors see. A nudge keeps the mode: a
+ * paused clock stays paused at its new instant.
  */
 export function TimeSimulationControls({
   busy,
@@ -59,6 +68,27 @@ export function TimeSimulationControls({
           </button>
         )}
       </div>
+      {simulated && (
+        <div
+          role="group"
+          aria-label={t('admin.featureFlags.timeSimulation.nudgeGroup')}
+          className="flex flex-wrap gap-2"
+        >
+          {NUDGES.map(({ minutes, labelKey }) => (
+            <button
+              key={minutes}
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                onSave(payloadAt(nowMs + minutes * 60_000, frozen ? 'frozen' : 'running'))
+              }
+              className="h-8 rounded-md border border-border bg-surface px-3 text-xs font-medium tabular-nums text-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <label className="flex flex-col gap-1 text-xs font-medium text-foreground-secondary">
           {t('admin.featureFlags.timeSimulation.targetLabel')}

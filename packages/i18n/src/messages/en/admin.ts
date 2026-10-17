@@ -1095,6 +1095,11 @@ export const admin = {
       readoutReal: 'Not simulating: visitors see real time',
       pauseButton: 'Pause',
       resumeButton: 'Resume',
+      nudgeGroup: 'Move the clock',
+      nudgeBack15: '−15 min',
+      nudgeForward5: '+5 min',
+      nudgeForward15: '+15 min',
+      nudgeForward60: '+1 h',
     },
     disableRealtime: {
       title: 'Disable Realtime',
