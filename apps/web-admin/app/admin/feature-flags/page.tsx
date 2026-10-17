@@ -50,14 +50,12 @@ function isoToLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** `datetime-local` value → the `time_simulation` payload (anchored to real now). */
-function buildTimeSimPayload(
-  localValue: string,
-): { simulatedNowIso: string; anchorRealIso: string } | undefined {
+/** `datetime-local` value → the `time_simulation` payload (the API stamps the anchor). */
+function buildTimeSimPayload(localValue: string): { simulatedNowIso: string } | undefined {
   if (!localValue) return undefined;
   const d = new Date(localValue);
   if (Number.isNaN(d.getTime())) return undefined;
-  return { simulatedNowIso: d.toISOString(), anchorRealIso: new Date().toISOString() };
+  return { simulatedNowIso: d.toISOString() };
 }
 
 export default function AdminFeatureFlagsPage() {

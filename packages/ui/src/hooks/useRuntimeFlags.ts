@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
+import { clockSkewMs } from './time-simulation';
 
 const POLL_INTERVAL_MS = 60_000;
+
+/**
+ * The public snapshot as a browser holds it: the server's clock reading is
+ * replaced by this browser's distance from it, measured when it arrived.
+ */
+export interface RuntimeFlags extends Omit<PublicFeatureFlagsSnapshot, 'serverNowIso'> {
+  /** Server clock minus this browser's clock, in ms (see `clockSkewMs`). */
+  clockSkewMs: number;
+}
 
 /**
  * Module-scoped cache shared across every hook consumer in the same
@@ -14,33 +24,45 @@ const POLL_INTERVAL_MS = 60_000;
  */
 interface Cache {
   apiUrl: string;
-  data: PublicFeatureFlagsSnapshot | null;
+  data: RuntimeFlags | null;
   fetchedAt: number;
-  inflight: Promise<PublicFeatureFlagsSnapshot | null> | null;
-  listeners: Set<(snap: PublicFeatureFlagsSnapshot | null) => void>;
+  inflight: Promise<RuntimeFlags | null> | null;
+  listeners: Set<(snap: RuntimeFlags | null) => void>;
   timer: ReturnType<typeof setInterval> | null;
 }
 
 const cacheByUrl = new Map<string, Cache>();
 
-const EMPTY: PublicFeatureFlagsSnapshot = {
+const EMPTY: RuntimeFlags = {
   maintenanceBanner: { enabled: false, message: null, severity: null },
   realtimeDisabled: false,
   timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+  clockSkewMs: 0,
 };
 
-async function fetchOnce(apiUrl: string): Promise<PublicFeatureFlagsSnapshot | null> {
+async function fetchOnce(apiUrl: string): Promise<RuntimeFlags | null> {
   try {
+    const sentAtMs = Date.now();
     const res = await fetch(`${apiUrl}/api/v1/public/feature-flags`, {
       // Public endpoint — no credentials so we don't carry cookies on
       // a hot, public-cacheable call.
       credentials: 'omit',
     });
+    const receivedAtMs = Date.now();
     if (!res.ok) return null;
-    return (await res.json()) as PublicFeatureFlagsSnapshot;
+    return toRuntimeFlags((await res.json()) as PublicFeatureFlagsSnapshot, sentAtMs, receivedAtMs);
   } catch {
     return null;
   }
+}
+
+/** The API's answer → what the browser keeps, given when the request left and its answer came. */
+export function toRuntimeFlags(
+  { serverNowIso, ...snap }: PublicFeatureFlagsSnapshot,
+  sentAtMs: number,
+  receivedAtMs: number,
+): RuntimeFlags {
+  return { ...snap, clockSkewMs: clockSkewMs(serverNowIso, sentAtMs, receivedAtMs) };
 }
 
 function getCache(apiUrl: string): Cache {
@@ -59,7 +81,7 @@ function getCache(apiUrl: string): Cache {
   return cache;
 }
 
-function refresh(cache: Cache): Promise<PublicFeatureFlagsSnapshot | null> {
+function refresh(cache: Cache): Promise<RuntimeFlags | null> {
   if (cache.inflight) return cache.inflight;
   cache.inflight = fetchOnce(cache.apiUrl).then((snap) => {
     cache.data = snap;
@@ -76,8 +98,8 @@ function refresh(cache: Cache): Promise<PublicFeatureFlagsSnapshot | null> {
  * snapshot (or `null` while loading / on a fetch failure). Multiple
  * components in the same app share one timer and one cached payload.
  */
-export function useRuntimeFlags(apiUrl: string): PublicFeatureFlagsSnapshot | null {
-  const [snap, setSnap] = useState<PublicFeatureFlagsSnapshot | null>(() => {
+export function useRuntimeFlags(apiUrl: string): RuntimeFlags | null {
+  const [snap, setSnap] = useState<RuntimeFlags | null>(() => {
     return cacheByUrl.get(apiUrl)?.data ?? null;
   });
 
@@ -112,6 +134,6 @@ export function useRuntimeFlags(apiUrl: string): PublicFeatureFlagsSnapshot | nu
  * the realtime client setup). Returns the most recently cached
  * snapshot or a safe "everything off" default.
  */
-export function getRuntimeFlagsCached(apiUrl: string): PublicFeatureFlagsSnapshot {
+export function getRuntimeFlagsCached(apiUrl: string): RuntimeFlags {
   return cacheByUrl.get(apiUrl)?.data ?? EMPTY;
 }

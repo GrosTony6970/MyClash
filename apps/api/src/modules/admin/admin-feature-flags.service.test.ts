@@ -187,7 +187,9 @@ describe('AdminFeatureFlagsService', () => {
     );
   });
 
-  it('persists a valid payload_json for the time_simulation flag', async () => {
+  it('stamps the time_simulation anchor from the server clock, not the request', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-13T12:00:00.000Z'));
     const flagsChain = {
       upsert: vi.fn().mockResolvedValue({ data: null, error: null }),
     };
@@ -199,13 +201,7 @@ describe('AdminFeatureFlagsService', () => {
 
     await service.upsertFlag(
       'time_simulation',
-      {
-        enabled: true,
-        payloadJson: {
-          simulatedNowIso: '2027-05-22T08:00:00.000Z',
-          anchorRealIso: '2026-07-13T12:00:00.000Z',
-        },
-      },
+      { enabled: true, payloadJson: { simulatedNowIso: '2027-05-22T08:00:00.000Z' } },
       'actor-user',
     );
 
@@ -218,6 +214,29 @@ describe('AdminFeatureFlagsService', () => {
         },
       }),
     );
+  });
+
+  it('refuses a time_simulation body that carries its own anchor', async () => {
+    const upsert = vi.fn().mockResolvedValue({ data: null, error: null });
+    fromMock.mockImplementation(() => ({
+      upsert,
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+
+    await expect(
+      service.upsertFlag(
+        'time_simulation',
+        {
+          enabled: true,
+          payloadJson: {
+            simulatedNowIso: '2027-05-22T08:00:00.000Z',
+            anchorRealIso: '2026-07-13T12:00:00.000Z',
+          },
+        },
+        'actor-user',
+      ),
+    ).rejects.toThrow(/the server sets the anchor/);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it('rejects malformed time_simulation payloads', async () => {
@@ -278,6 +297,13 @@ describe('AdminFeatureFlagsService', () => {
   });
 
   describe('getPublicFlagsSnapshot', () => {
+    const serverNowIso = '2026-07-13T12:34:56.000Z';
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(serverNowIso));
+    });
+
     it('returns the empty default when no rows are stored', async () => {
       fromMock.mockReturnValue({
         select: vi.fn().mockReturnThis(),
@@ -289,6 +315,7 @@ describe('AdminFeatureFlagsService', () => {
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
         timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        serverNowIso,
       });
     });
 
@@ -317,6 +344,7 @@ describe('AdminFeatureFlagsService', () => {
         },
         realtimeDisabled: false,
         timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        serverNowIso,
       });
     });
 
@@ -346,6 +374,7 @@ describe('AdminFeatureFlagsService', () => {
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: true,
         timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        serverNowIso,
       });
       expect(snap).not.toHaveProperty('adminLockdown');
       expect(snap).not.toHaveProperty('readOnlyMode');
@@ -388,6 +417,7 @@ describe('AdminFeatureFlagsService', () => {
         maintenanceBanner: { enabled: false, message: null, severity: null },
         realtimeDisabled: false,
         timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+        serverNowIso,
       });
     });
   });

@@ -57,6 +57,22 @@ function parseTimeSimulationPayload(
   return { simulatedNowIso, anchorRealIso };
 }
 
+/**
+ * What the admin may send for `time_simulation`: only the instant the clock
+ * should read. The anchor is the server's to stamp, so a body that carries
+ * one is a stale client and is refused rather than silently overwritten.
+ */
+function parseTimeSimulationInput(
+  raw: Record<string, unknown>,
+): Pick<TimeSimulationPayload, 'simulatedNowIso'> | null {
+  if (Object.keys(raw).some((k) => k !== 'simulatedNowIso')) return null;
+  const simulatedNowIso = raw['simulatedNowIso'];
+  if (typeof simulatedNowIso !== 'string' || Number.isNaN(Date.parse(simulatedNowIso))) {
+    return null;
+  }
+  return { simulatedNowIso };
+}
+
 const FLAG_CACHE_TTL_MS = 5_000;
 
 @Injectable()
@@ -96,6 +112,7 @@ export class AdminFeatureFlagsService {
     // other key we silently drop the payload so a bad client can't
     // smuggle structured data into a boolean flag row.
     const def = FEATURE_FLAG_REGISTRY.find((f) => f.key === key);
+    const now = new Date().toISOString();
     let payload: Record<string, unknown> | null = null;
     if (def?.payload === 'maintenance_banner' && dto.payloadJson) {
       const parsed = parseMaintenanceBannerPayload(dto.payloadJson);
@@ -107,16 +124,16 @@ export class AdminFeatureFlagsService {
       payload = { ...parsed };
     }
     if (def?.payload === 'time_simulation' && dto.payloadJson) {
-      const parsed = parseTimeSimulationPayload(dto.payloadJson);
+      const parsed = parseTimeSimulationInput(dto.payloadJson);
       if (!parsed) {
         throw new BadRequestException(
-          'time_simulation payload must be { simulatedNowIso: ISO string, anchorRealIso: ISO string }',
+          'time_simulation payload must be { simulatedNowIso: ISO string }; the server sets the anchor',
         );
       }
-      payload = { ...parsed };
+      const stored: TimeSimulationPayload = { ...parsed, anchorRealIso: now };
+      payload = { ...stored };
     }
 
-    const now = new Date().toISOString();
     const { error } = await this.supabase.service.from('feature_flags').upsert({
       key,
       description: dto.description ?? null,
@@ -141,10 +158,12 @@ export class AdminFeatureFlagsService {
    * "everything off" if the rows don't exist yet.
    */
   async getPublicFlagsSnapshot(): Promise<PublicFeatureFlagsSnapshot> {
+    const serverNowIso = new Date().toISOString();
     const empty: PublicFeatureFlagsSnapshot = {
       maintenanceBanner: { enabled: false, message: null, severity: null },
       realtimeDisabled: false,
       timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+      serverNowIso,
     };
 
     try {
@@ -177,6 +196,7 @@ export class AdminFeatureFlagsService {
           simulatedNowIso: simPayload?.simulatedNowIso ?? null,
           anchorRealIso: simPayload?.anchorRealIso ?? null,
         },
+        serverNowIso,
       };
     } catch {
       return empty;

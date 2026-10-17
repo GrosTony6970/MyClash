@@ -156,6 +156,9 @@ export interface MaintenanceBannerPayload {
  * the moment it was saved (`anchorRealIso`); the effective offset is
  * `simulatedNowIso − anchorRealIso`, so the simulated clock advances
  * with real time. Surfaced through `GET /api/v1/public/feature-flags`.
+ *
+ * The admin sends only `simulatedNowIso`; the API stamps `anchorRealIso`
+ * from its own clock, so the admin's browser clock never enters the sum.
  */
 export interface TimeSimulationPayload {
   simulatedNowIso: string;
@@ -179,4 +182,10 @@ export interface PublicFeatureFlagsSnapshot {
     simulatedNowIso: string | null;
     anchorRealIso: string | null;
   };
+  /**
+   * The API's clock when it built this answer. A browser compares it with
+   * its own clock to run the simulation on server time, so a visitor whose
+   * clock is off still reads the same simulated "now" as everyone else.
+   */
+  serverNowIso: string;
 }

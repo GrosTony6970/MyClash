@@ -82,7 +82,7 @@ function useSimulation(apiUrl: string): { offset: number; simulated: boolean } {
   const flags = useRuntimeFlags(apiUrl);
   if (!flags) return { offset: 0, simulated: false };
   return {
-    offset: timeSimulationOffsetMs(flags.timeSimulation),
+    offset: timeSimulationOffsetMs(flags.timeSimulation, flags.clockSkewMs),
     simulated: isTimeSimulationActive(flags.timeSimulation),
   };
 }
