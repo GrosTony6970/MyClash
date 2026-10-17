@@ -268,13 +268,14 @@ done
 # ── The pad's offline cache follows the commit (see deploy.sh) ────
 for svc in "${SERVICES[@]}"; do
   if [[ "$svc" == "web-staff" ]]; then
-    if curl -fsSL "https://staff.${DOMAIN}/login" 2>/dev/null | grep -q "sw.js?v=${GIT_COMMIT:0:8}"; then
+    # `grep -F >/dev/null`, not `grep -q`: see deploy.sh (EPIPE under pipefail).
+    if curl -fsSL "https://staff.${DOMAIN}/login" 2>/dev/null | grep -F "sw.js?v=${GIT_COMMIT:0:8}" >/dev/null; then
       ok "Scoring pad serves its service worker as ${GIT_COMMIT:0:8}"
     else
       warn "Scoring pad does not serve sw.js?v=${GIT_COMMIT:0:8}: the tablets keep their old offline cache"
     fi
     # On the organiser site only /staff/* reaches the pad (O2a, see deploy.sh).
-    if curl -fsSL "https://admin.${DOMAIN}/staff/sw.js?v=${GIT_COMMIT:0:8}" 2>/dev/null | grep -q "CACHE_FAMILY"; then
+    if curl -fsSL "https://admin.${DOMAIN}/staff/sw.js?v=${GIT_COMMIT:0:8}" 2>/dev/null | grep -F "CACHE_FAMILY" >/dev/null; then
       ok "Scoring pad's worker answers under admin.${DOMAIN}/staff"
     else
       warn "admin.${DOMAIN}/staff/sw.js is not the pad's worker: no offline copy on the organiser site"

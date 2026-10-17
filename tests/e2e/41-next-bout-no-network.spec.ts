@@ -22,8 +22,9 @@ import { createPoolTournament, readPoolMatches, type PoolMatch } from './_pool';
  * from the dev server there. Only this spec, and the probe recorded in
  * ARCHITECTURE 10.4, run the worker.
  *
- * It needs the STAFF address (`E2E_STAFF_URL`): the admin mount
- * (`<admin>/staff/…`) serves no service worker.
+ * It needs the STAFF address (`E2E_STAFF_URL`): a PIN session's piste pages
+ * push root addresses (`/lices/…`), which leave the admin mount
+ * (`<admin>/staff/…`); the piste stays for PIN sessions on the staff address.
  *
  * WRITTEN BY READING THE CODE, on 2026-10-13, when the deployed build was
  * older than this work. Read its first run as a first run.
@@ -37,7 +38,7 @@ test('with no network the Next tile opens a bout the tablet never opened, and it
 }) => {
   test.skip(
     !STAFF_URL,
-    'set E2E_STAFF_URL: the service worker is served on the staff address only',
+    'set E2E_STAFF_URL: the piste of a PIN session runs on the staff address only',
   );
   test.setTimeout(300_000);
   const api = apiFor(request);

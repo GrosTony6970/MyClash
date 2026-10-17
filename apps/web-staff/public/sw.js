@@ -39,7 +39,10 @@ const CACHE_VERSION = new URL(self.location.href).searchParams.get('v') || 'unve
 /** `''` or `/staff`: the reach of this worker, with no slash at its end. */
 const MOUNT = new URL(self.registration.scope).pathname.replace(/\/$/, '');
 
-/** The caches of this mount: `myclash-staff-<v>` at the root, `myclash-staff~staff-<v>` under `/staff`. */
+/**
+ * The caches of this mount: `myclash-staff-<v>` at the root, `myclash-staff~staff-<v>` under `/staff`.
+ * Its NAME is what infra/scripts/deploy.sh and redeploy.sh look for in the served file: rename both.
+ */
 const CACHE_FAMILY = `myclash-staff${MOUNT.replace('/', '~')}-`;
 const CACHE_NAME = CACHE_FAMILY + CACHE_VERSION;
 
@@ -245,7 +248,15 @@ async function networkFirstApi(request) {
  * worker would serve that page of an older app, or a file it never kept and
  * loses when the root worker's next deploy removes its cache.
  */
-const ownCache = () => caches.open(CACHE_NAME);
+/**
+ * A cache that cannot open (storage refused, a private window) is an empty
+ * one, said in the console: the network still answers every strategy.
+ */
+const ownCache = () =>
+  caches.open(CACHE_NAME).catch((err) => {
+    console.warn('[SW] No cache to use:', CACHE_NAME, err);
+    return null;
+  });
 
 async function networkFirstNavigate(request) {
   try {
@@ -253,30 +264,22 @@ async function networkFirstNavigate(request) {
     // Cache successful navigation responses for offline use
     if (res.ok) {
       const copy = res.clone();
-      ownCache()
-        .then((cache) => cache.put(request, copy))
-        .catch(() => undefined);
+      ownCache().then((cache) => cache?.put(request, copy));
     }
     return res;
   } catch {
-    try {
-      const cache = await ownCache();
-      const cached = await cache.match(request);
-      if (cached) return cached;
-      // The shell of the address's route; the start page when that is not kept either.
-      const shell =
-        (await cache.match(shellFor(new URL(request.url).pathname))) ?? (await cache.match(START));
-      if (shell) return shell;
-    } catch {
-      // No cache to read: the same answer as an empty one.
-    }
-    return new Response('Offline', { status: 503 });
+    const cache = await ownCache();
+    const cached = await cache?.match(request);
+    if (cached) return cached;
+    // The shell of the address's route; the start page when that is not kept either.
+    const shell =
+      (await cache?.match(shellFor(new URL(request.url).pathname))) ?? (await cache?.match(START));
+    return shell ?? new Response('Offline', { status: 503 });
   }
 }
 
 async function cacheFirst(request) {
-  // A cache that cannot open is an empty one: the network still answers.
-  const cache = await ownCache().catch(() => null);
+  const cache = await ownCache();
   const cached = await cache?.match(request);
   if (cached) return cached;
   try {
@@ -290,10 +293,10 @@ async function cacheFirst(request) {
 
 async function staleWhileRevalidate(request) {
   const cache = await ownCache();
-  const cached = await cache.match(request);
+  const cached = await cache?.match(request);
   const fetchPromise = fetch(request)
     .then((res) => {
-      if (res.ok) cache.put(request, res.clone());
+      if (res.ok) cache?.put(request, res.clone());
       return res;
     })
     .catch(() => cached);

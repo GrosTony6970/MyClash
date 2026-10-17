@@ -166,6 +166,27 @@ describe('a page with no network, with two mounts on one origin', () => {
   });
 });
 
+// Storage refused (a private window): every strategy still answers from the
+// network, and the worker says why it kept nothing.
+describe('a cache the browser will not open', () => {
+  it('leaves every request to the network, and says so', async () => {
+    const sw = worker('14f7b056', { mount: STAFF_MOUNT, noCache: true });
+    online(sw);
+    sw.network.set('/staff/manifest.json', () => new Response('{}'));
+
+    for (const [path, mode] of [
+      ['/staff/matches/_', 'navigate'],
+      ['/_next/static/chunks/bout.js', 'no-cors'],
+      ['/staff/manifest.json', 'no-cors'],
+    ] as const) {
+      expect((await sw.ask(path, mode))?.status, path).toBe(200);
+    }
+    sw.network.clear();
+    expect((await sw.ask('/staff/matches/bout-1'))?.status).toBe(503);
+    expect(sw.warned.some((line) => line.startsWith('[SW] No cache to use'))).toBe(true);
+  });
+});
+
 describe('a request of the API on the organiser site', () => {
   // The API is at the root on both sites: the mount does not move it.
   it('is never kept, and with no network is the 503 the pad reads as "no network"', async () => {

@@ -485,8 +485,8 @@ with no network, a reload on the tablet's copy included, is `40-offline-bout.spe
 was older than these doors: read their first run as a first run.
 `41-next-bout-no-network.spec.ts` is "Next match" with no network for a bout the tablet
 never opened: a PIN session on a piste of three bouts, on the STAFF address
-(`E2E_STAFF_URL`; the admin mount serves no service worker, and the spec skips without
-it). Written by reading the code on 2026-10-13, as `39` and `40` were.
+(`E2E_STAFF_URL`; a PIN session's piste pages leave the admin mount, and the spec skips
+without it). Written by reading the code on 2026-10-13, as `39` and `40` were.
 
 Things worth knowing before touching it:
 

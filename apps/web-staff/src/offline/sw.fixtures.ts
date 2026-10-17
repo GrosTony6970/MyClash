@@ -34,6 +34,8 @@ export interface Worker {
   ask: (path: string, mode?: string) => Promise<Response> | undefined;
   /** What the worker did to take over: `skipWaiting` at install, `claim` at activate. */
   took: string[];
+  /** What the worker said with `console.warn`, first argument each. */
+  warned: string[];
   shellFor: (pathname: string) => string;
   staticFilesOf: (html: string) => string[];
 }
@@ -95,13 +97,17 @@ function eventsOf(handlers: Map<string, Handler>): Pick<Worker, 'install' | 'act
   };
 }
 
-/** `stores`: the caches of another worker, for two workers of one origin. */
+/**
+ * `stores`: the caches of another worker, for two workers of one origin.
+ * `noCache`: the browser refuses to open a cache (storage refused, a private window).
+ */
 export function worker(
   version?: string,
-  opts: { active?: boolean; mount?: string; stores?: Stores } = {},
+  opts: { active?: boolean; mount?: string; stores?: Stores; noCache?: boolean } = {},
 ): Worker {
   const mount = opts.mount ?? '';
   const took: string[] = [];
+  const warned: string[] = [];
   const stores: Stores = opts.stores ?? new Map();
   const network = new Map<string, () => Response>();
   const asked: string[] = [];
@@ -111,7 +117,7 @@ export function worker(
     Response,
     Set,
     Promise,
-    console: { warn: () => undefined },
+    console: { warn: (first: unknown) => warned.push(String(first)) },
     self: {
       location: {
         origin: ORIGIN,
@@ -124,7 +130,12 @@ export function worker(
       skipWaiting: () => Promise.resolve(took.push('skipWaiting')),
       clients: { claim: () => Promise.resolve(took.push('claim')) },
     },
-    caches: cachesOver(stores),
+    caches: opts.noCache
+      ? {
+          ...cachesOver(stores),
+          open: () => Promise.reject(new DOMException('refused', 'UnknownError')),
+        }
+      : cachesOver(stores),
     fetch: (target: string | { url: string }) => {
       const path = pathOf(target);
       asked.push(path);
@@ -136,7 +147,7 @@ export function worker(
     Worker,
     'shellFor' | 'staticFilesOf'
   >;
-  return { mount, stores, network, asked, took, ...exposed, ...eventsOf(handlers) };
+  return { mount, stores, network, asked, took, warned, ...exposed, ...eventsOf(handlers) };
 }
 
 export const page = (body: string) => () =>
