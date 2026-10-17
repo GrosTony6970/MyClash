@@ -27,12 +27,12 @@ let container: HTMLDivElement;
 let root: Root;
 let onSave: ReturnType<typeof vi.fn<(payloadJson: TimeSimInput) => void>>;
 
-function Panel() {
+function Panel({ simLocal }: { simLocal: string }) {
   const { t, locale } = useI18n();
   return (
     <TimeSimulationControls
       busy={false}
-      simLocal=""
+      simLocal={simLocal}
       onSimLocalChange={() => undefined}
       storedMode="running"
       onSave={onSave}
@@ -42,18 +42,18 @@ function Panel() {
   );
 }
 
-async function render(locale: 'en' | 'fr') {
+async function render(locale: 'en' | 'fr', simLocal = '') {
   await act(async () => {
     root.render(
       <I18nProvider locale={locale}>
-        <Panel />
+        <Panel simLocal={simLocal} />
       </I18nProvider>,
     );
   });
 }
 
 function readout(): string {
-  return container.querySelector('[role="status"]')?.textContent ?? '';
+  return container.querySelector('p')?.textContent ?? '';
 }
 
 function button(label: string): HTMLButtonElement | undefined {
@@ -86,6 +86,12 @@ describe('the time-simulation readout', () => {
     await render('fr');
     const time = new Date(NOW_MS).toLocaleString(localeToBcp47('fr'));
     expect(readout()).toBe(`Les visiteurs voient ${time}, en pause`);
+  });
+
+  it('is no live region, so a screen reader does not read it out every second', async () => {
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: false });
+    await render('en');
+    expect(container.querySelector('[role="status"], [aria-live]')).toBeNull();
   });
 
   it('says visitors see real time when nothing is simulated, and offers no pause', async () => {
@@ -133,6 +139,27 @@ describe('Pause and Resume', () => {
     expect(onSave).toHaveBeenCalledWith({
       simulatedNowIso: '2027-05-22T08:30:30.000Z',
       mode: 'frozen',
+    });
+  });
+
+  it('a new date keeps the clock paused when visitors see it paused, whatever the list last loaded', async () => {
+    // Another tab paused the clock; this tab's list still says running.
+    Object.assign(clock, { nowMs: NOW_MS, simulated: true, frozen: true });
+    await render('en', '2027-05-23T10:00');
+    await act(async () => button('Save simulated time')!.click());
+    expect(onSave).toHaveBeenCalledWith({
+      simulatedNowIso: new Date('2027-05-23T10:00').toISOString(),
+      mode: 'frozen',
+    });
+  });
+
+  it('a new date takes the mode last saved while nothing is simulated', async () => {
+    Object.assign(clock, { nowMs: Date.now(), simulated: false, frozen: false });
+    await render('en', '2027-05-23T10:00');
+    await act(async () => button('Save simulated time')!.click());
+    expect(onSave).toHaveBeenCalledWith({
+      simulatedNowIso: new Date('2027-05-23T10:00').toISOString(),
+      mode: 'running',
     });
   });
 

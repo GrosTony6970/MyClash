@@ -18,7 +18,7 @@ interface TimeSimulationControlsProps {
   busy: boolean;
   simLocal: string;
   onSimLocalChange: (value: string) => void;
-  /** The mode last saved; a new date keeps it. */
+  /** The mode last saved; a new date keeps it while nothing is simulated. */
   storedMode: TimeSimulationMode;
   onSave: (payloadJson: TimeSimInput) => void;
   t: (key: string, vars?: Record<string, string>) => string;
@@ -32,6 +32,14 @@ interface TimeSimulationControlsProps {
  * show. Pause, Resume and the nudges take "now" from it, so the clock stops,
  * runs on, or moves from the instant visitors see. A nudge keeps the mode: a
  * paused clock stays paused at its new instant.
+ *
+ * A new date keeps the mode too. While a simulation is live, that is the mode
+ * visitors run — the snapshot Pause reads — not the admin list, which loads
+ * once: another tab may have paused the clock since, and Save must not
+ * un-pause it.
+ *
+ * The readout is no live region: it ticks every second, and a screen reader
+ * would read it out every second.
  */
 export function TimeSimulationControls({
   busy,
@@ -48,7 +56,7 @@ export function TimeSimulationControls({
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-medium text-foreground" role="status">
+        <p className="text-sm font-medium text-foreground">
           {!simulated
             ? t('admin.featureFlags.timeSimulation.readoutReal')
             : frozen
@@ -75,7 +83,7 @@ export function TimeSimulationControls({
         busy={busy}
         simLocal={simLocal}
         onSimLocalChange={onSimLocalChange}
-        storedMode={storedMode}
+        storedMode={simulated ? (frozen ? 'frozen' : 'running') : storedMode}
         onSave={onSave}
         t={t}
       />

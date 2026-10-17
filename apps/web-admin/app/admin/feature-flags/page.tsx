@@ -92,8 +92,11 @@ export default function AdminFeatureFlagsPage() {
       refresh();
       // The time-simulation readout and the app's maintenance banner read the
       // public snapshot; without this they would show the old value until its
-      // next 60 s poll.
-      void refreshRuntimeFlags(apiUrl);
+      // next 60 s poll. Awaited, so the row stays busy until it lands: Pause and
+      // the nudges compute from that readout, and a second click before it
+      // landed would start from the pre-save clock (two +5 giving +5, or a nudge
+      // right after Pause un-pausing it).
+      await refreshRuntimeFlags(apiUrl);
     } finally {
       setBusyKey(null);
     }
