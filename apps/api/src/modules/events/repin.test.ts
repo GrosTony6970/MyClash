@@ -108,6 +108,7 @@ function harness(opts: HarnessOpts) {
   // The picker's scope, which also resolves the pair: false for a target that does not resolve.
   const selectableRulesets = {
     isSelectable: vi.fn().mockResolvedValue(opts.resolverResolves !== false),
+    draftsOfferedTo: vi.fn().mockResolvedValue(opts.isSuperAdmin ?? false),
   };
   const registry = createRulesetRegistry();
   const svc = new EventsService(

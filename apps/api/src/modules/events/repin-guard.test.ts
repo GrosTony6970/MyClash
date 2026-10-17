@@ -124,7 +124,10 @@ function harness(opts: HarnessOpts) {
     return nullRowChain();
   });
   // A club ruleset this file names is offered to nobody; a built-in needs no read.
-  const selectableRulesets = { isSelectable: vi.fn().mockResolvedValue(false) };
+  const selectableRulesets = {
+    isSelectable: vi.fn().mockResolvedValue(false),
+    draftsOfferedTo: vi.fn().mockResolvedValue(false),
+  };
   const svc = new EventsService(
     { service: { from } } as never,
     { assertOrgRole } as never,

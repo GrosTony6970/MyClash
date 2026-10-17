@@ -22,6 +22,7 @@ import { RulesetRegistry, type Ruleset } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { customRulesetOrgVisibilityFilter } from '../../common/custom-ruleset-visibility';
+import { hasPlatformTier } from '../../common/auth/platform-role';
 import { toRulesetSummary, type RulesetSummary } from './ruleset-summary';
 
 interface CandidateRow {
@@ -70,6 +71,15 @@ export class SelectableRulesetsService {
     return summaries;
   }
 
+  /**
+   * Are platform drafts offered to this user? To platform_admin and above, who
+   * author them (ruling "Drafts for whom", 2026-10-18, widening "Pinning a
+   * draft"). The one owner for the picker and the doors.
+   */
+  draftsOfferedTo(userId: string): Promise<boolean> {
+    return hasPlatformTier(this.supabase, userId, 'platform_admin');
+  }
+
   /** The club rows the picker lists, by name. */
   private async candidateRows(orgId: string, withDrafts: boolean): Promise<CandidateRow[]> {
     const { data, error } = await this.offered(orgId, withDrafts).order('name', {
@@ -86,10 +96,10 @@ export class SelectableRulesetsService {
   }
 
   /**
-   * May a Tournament of `orgId` be pointed at this club pair? Every door that
-   * sets a Tournament's pair asks this, so "listed" and "usable" are one set:
-   * another club's private ruleset, an archived one, or a draft for anyone but
-   * the super-admin, is refused as an unknown one is. A built-in is the
+   * May a Tournament of `orgId` be pointed at this club pair? The doors that
+   * set a Tournament's pair ask this, so "listed" and "usable" are one set:
+   * another club's private ruleset, an archived one, or a draft for anyone
+   * `draftsOfferedTo` refuses, is refused as an unknown one is. A built-in is the
    * caller's to answer (it has no row here). A read that fails throws: a door
    * answers it as the server's fault, never as "does not exist".
    */
@@ -124,8 +134,8 @@ export class SelectableRulesetsService {
       .eq('is_system', false)
       // A draft resolves (ruling 6), so this picker cannot rely on the resolver
       // to hide one. The platform's own drafts (no owner, not shared yet, so
-      // the organization's filter alone would not list them) are offered to the
-      // super-admin only (ruling 9); an organization's row put back to draft is
+      // the organization's filter alone would not list them) are offered as
+      // `draftsOfferedTo` says; an organization's row put back to draft is
       // offered to nobody.
       .or(
         withDrafts

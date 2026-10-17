@@ -58,12 +58,14 @@ describe('createTournament — its ruleset pair', () => {
     expect(version()).toBeUndefined();
   });
 
-  it('offers the platform drafts to the super-admin only, as the picker does', async () => {
-    const { svc, version, isSelectable } = seedHarness({ customRow: { code: 'custom_draft' } });
-    const superAdmin = svc as unknown as { isSuperAdmin: () => Promise<boolean> };
-    vi.spyOn(superAdmin, 'isSuperAdmin').mockResolvedValue(true);
+  it('offers the platform drafts as the picker does, to whom `draftsOfferedTo` names', async () => {
+    const { svc, version, isSelectable, draftsOfferedTo } = seedHarness({
+      customRow: { code: 'custom_draft' },
+    });
+    draftsOfferedTo.mockResolvedValue(true);
     const dto = { slug: 's', name: 'T', rulesetCode: 'custom_draft', rulesetVersion: '1.0.0' };
     await svc.createTournament('e1', dto as never, 'u1');
+    expect(draftsOfferedTo).toHaveBeenCalledWith('u1');
     expect(isSelectable).toHaveBeenCalledWith('org-1', 'custom_draft', '1.0.0', {
       withDrafts: true,
     });

@@ -58,7 +58,32 @@ describe('SelectableRulesetsService.isSelectable', () => {
     expect(await service.isSelectable('org-1', 'custom_house', '1.0.0')).toBe(false);
   });
 
-  it('adds the platform drafts for the super-admin, as the picker does', async () => {
+  it.each([
+    ['super_admin', true],
+    ['platform_admin', true],
+    ['platform_viewer', false],
+    [null, false],
+  ])('offers the platform drafts to a %s: %s', async (role, offered) => {
+    // platform_admin authors the drafts (ruling "Drafts for whom", 2026-10-18).
+    const row = role ? { user_id: 'u1', role } : null;
+    const chain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+    };
+    const from = vi.fn().mockReturnValue(chain);
+    const service = new SelectableRulesetsService(
+      { service: { from } } as never,
+      { resolve: vi.fn() } as never,
+      createRulesetRegistry(),
+    );
+    expect(await service.draftsOfferedTo('u1')).toBe(offered);
+    // This user's own role, read from its table.
+    expect(from).toHaveBeenCalledWith('platform_roles');
+    expect(chain.eq).toHaveBeenCalledWith('user_id', 'u1');
+  });
+
+  it('adds the platform drafts when they are offered, as the picker does', async () => {
     const { service, chain } = harness(ROW);
     await service.isSelectable('org-1', 'custom_draft', '1.0.0', { withDrafts: true });
     expect(chain.or).toHaveBeenCalledWith(

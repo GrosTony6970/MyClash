@@ -128,11 +128,11 @@ describe('SelectableRulesetsService', () => {
     // Archived rulesets still resolve (for tournaments pinned to them) but must
     // never be offered for a NEW tournament — delist ≠ delete.
     expect(chain.neq).toHaveBeenCalledWith('status', 'archived');
-    // A draft resolves too (ruling 6): offered to the super-admin only (ruling 9).
+    // A draft resolves too (ruling 6): offered only to whom `draftsOfferedTo` names.
     expect(chain.neq).toHaveBeenCalledWith('status', 'draft');
   });
 
-  it("offers the super-admin the drafts, which no organization's filter lists", async () => {
+  it("offers the drafts when asked, which no organization's filter lists", async () => {
     const { supabase, chain } = makeSupabase({
       data: [{ code: 'custom_draft', version: '1.0.0' }],
       error: null,

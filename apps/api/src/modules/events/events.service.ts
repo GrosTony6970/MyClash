@@ -3665,7 +3665,7 @@ export class EventsService {
    * resolve rather than scoring with TF_v1. A built-in is answered by the
    * registry with no read. A club pair must be one the picker offers the
    * Event's organisation (`isSelectable`): its own or a shared ruleset that
-   * resolves, a platform draft for the super-admin only (ruling 9). Another
+   * resolves, a platform draft as `draftsOfferedTo` says. Another
    * club's private ruleset is refused in the same words as an unknown one, so
    * the answer says nothing of what exists. A checker missing is the server's
    * wiring fault, never the caller's.
@@ -3681,7 +3681,7 @@ export class EventsService {
       throw new Error('Ruleset picker unavailable; cannot check the ruleset.');
     }
     const { organization_id } = event as { organization_id: string };
-    const withDrafts = await this.isSuperAdmin(userId);
+    const withDrafts = await this.selectableRulesets.draftsOfferedTo(userId);
     if (
       !(await this.selectableRulesets.isSelectable(organization_id, code, version, { withDrafts }))
     ) {
