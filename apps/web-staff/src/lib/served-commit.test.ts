@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { staffRoutePrefix } from './nav';
 import { servedCommit } from './served-commit';
 import { registrationScript, workerUrl } from './worker-registration';
 
@@ -35,9 +37,36 @@ describe('the registration of the service worker', () => {
   it('registers the worker under its version, so a deploy is a new worker', () => {
     expect(workerUrl('14f7b056')).toBe('/sw.js?v=14f7b056');
     expect(registrationScript('14f7b056')).toContain(
-      'navigator.serviceWorker.register("/sw.js?v=14f7b056")',
+      'navigator.serviceWorker.register(mount + "/sw.js?v=14f7b056")',
     );
-    expect(registrationScript('5bc3195f')).toContain('register("/sw.js?v=5bc3195f")');
+    expect(registrationScript('5bc3195f')).toContain('register(mount + "/sw.js?v=5bc3195f")');
+  });
+
+  // O2a: on the organiser site `/sw.js` is the organiser app's, with no worker.
+  it('registers the worker under the mount of the page, by the rule of staffRoutePrefix', () => {
+    const registered = (pathname: string) => {
+      let address = '';
+      let onLoad = () => undefined as void;
+      const register = (url: string) => {
+        address = url;
+        return { then: () => ({ catch: () => undefined }) };
+      };
+      runInNewContext(registrationScript('14f7b056'), {
+        location: { pathname },
+        navigator: { serviceWorker: { register } },
+        window: { addEventListener: (_: string, run: () => void) => (onLoad = run) },
+      });
+      onLoad();
+      return address;
+    };
+
+    for (const pathname of ['/', '/matches/bout-1', '/staff', '/staff/', '/staff/matches/bout-1']) {
+      expect(registered(pathname), pathname).toBe(
+        staffRoutePrefix(pathname) + workerUrl('14f7b056'),
+      );
+    }
+    expect(registered('/staff/matches/bout-1')).toBe('/staff/sw.js?v=14f7b056');
+    expect(registered('/matches/bout-1')).toBe('/sw.js?v=14f7b056');
   });
 
   it('is written by the root layout’s component with the commit served, on the server', () => {

@@ -20,10 +20,23 @@
  * `/sw.js?v=<commit served>` (`ServiceWorkerRegistration.tsx`). A deploy is a
  * new address, so a new worker: it fills a cache of its own at install, and at
  * activate removes every older one, so a page of the old app never serves.
+ *
+ * THE MOUNT is the folder of this worker's own address, its reach: nothing on
+ * the referee site, `/staff` on the organiser site, where the page registers
+ * `/staff/sw.js` (`src/lib/worker-registration.ts`). Every page address it
+ * builds starts with it: on the organiser site `/login` is the organiser app's.
+ * The API (`/api/…`) is at the root on both sites, and static files are matched
+ * under either prefix.
  */
 
 const CACHE_VERSION = new URL(self.location.href).searchParams.get('v') || 'unversioned';
 const CACHE_NAME = `myclash-staff-${CACHE_VERSION}`;
+
+/** `''` or `/staff`: the reach of this worker, with no slash at its end. */
+const MOUNT = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+
+/** The start page. */
+const START = `${MOUNT}/`;
 
 /** The id a page is asked with to keep its shell. In step with `SHELL_ID` in `src/lib/nav.ts`. */
 const SHELL_ID = '_';
@@ -33,28 +46,31 @@ const SHELL_ROUTES = ['matches', 'lices'];
 
 /** Shell URLs to precache on install. */
 const SHELL_URLS = [
-  '/',
-  '/login',
-  '/lices',
-  '/offline',
-  // The two desks. With a cache that follows the deploy, a page that is not
-  // kept here is lost at each deploy until its next visit with a network.
-  '/desk',
-  '/gear',
-  ...SHELL_ROUTES.map((route) => `/${route}/${SHELL_ID}`),
+  START,
+  ...[
+    '/login',
+    '/lices',
+    '/offline',
+    // The two desks. With a cache that follows the deploy, a page that is not
+    // kept here is lost at each deploy until its next visit with a network.
+    '/desk',
+    '/gear',
+    ...SHELL_ROUTES.map((route) => `/${route}/${SHELL_ID}`),
+  ].map((path) => MOUNT + path),
 ];
 
 /**
  * The shell that serves `pathname` when the network is gone and the tablet
  * holds no copy of that very address: the shell of its route for an address
- * with an id, the start page for anything else.
+ * with an id, the start page for anything else. `pathname` is in this worker's
+ * reach, so it starts with the mount.
  */
 function shellFor(pathname) {
-  const [, route, id, ...more] = pathname.split('/');
+  const [, route, id, ...more] = pathname.slice(MOUNT.length).split('/');
   // `/matches/x` and `/matches/x/`: the page reads both as bout x (`idFromPath`).
   const noMore = more.length === 0 || (more.length === 1 && more[0] === '');
-  if (SHELL_ROUTES.includes(route) && id && noMore) return `/${route}/${SHELL_ID}`;
-  return '/';
+  if (SHELL_ROUTES.includes(route) && id && noMore) return `${MOUNT}/${route}/${SHELL_ID}`;
+  return START;
 }
 
 /**
@@ -227,7 +243,7 @@ async function networkFirstNavigate(request) {
     if (cached) return cached;
     // The shell of the address's route; the start page when that is not kept either.
     const shell =
-      (await caches.match(shellFor(new URL(request.url).pathname))) ?? (await caches.match('/'));
+      (await caches.match(shellFor(new URL(request.url).pathname))) ?? (await caches.match(START));
     return shell ?? new Response('Offline', { status: 503 });
   }
 }

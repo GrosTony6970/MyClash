@@ -21,6 +21,8 @@ type Handler = (event: {
 }) => void;
 
 export interface Worker {
+  /** `''` (the referee site) or `/staff` (the organiser site): the folder the worker was registered in. */
+  mount: string;
   /** The cache's entries, by cache name then address. */
   stores: Map<string, Map<string, Response>>;
   /** What the network answers, by path. A path that is not here fails, as with no network. */
@@ -93,7 +95,8 @@ function eventsOf(handlers: Map<string, Handler>): Pick<Worker, 'install' | 'act
   };
 }
 
-export function worker(version?: string, opts: { active?: boolean } = {}): Worker {
+export function worker(version?: string, opts: { active?: boolean; mount?: string } = {}): Worker {
+  const mount = opts.mount ?? '';
   const took: string[] = [];
   const stores: Stores = new Map();
   const network = new Map<string, () => Response>();
@@ -106,10 +109,14 @@ export function worker(version?: string, opts: { active?: boolean } = {}): Worke
     Promise,
     console: { warn: () => undefined },
     self: {
-      location: { origin: ORIGIN, href: `${ORIGIN}/sw.js${version ? `?v=${version}` : ''}` },
+      location: {
+        origin: ORIGIN,
+        href: `${ORIGIN}${mount}/sw.js${version ? `?v=${version}` : ''}`,
+      },
       addEventListener: (type: string, handler: Handler) => handlers.set(type, handler),
-      // A worker of an earlier version is in charge of the pages, or none is.
-      registration: { active: opts.active ? {} : null },
+      // A worker's reach is the folder of its address. A worker of an earlier
+      // version is in charge of the pages, or none is.
+      registration: { scope: `${ORIGIN}${mount}/`, active: opts.active ? {} : null },
       skipWaiting: () => Promise.resolve(took.push('skipWaiting')),
       clients: { claim: () => Promise.resolve(took.push('claim')) },
     },
@@ -125,20 +132,33 @@ export function worker(version?: string, opts: { active?: boolean } = {}): Worke
     Worker,
     'shellFor' | 'staticFilesOf'
   >;
-  return { stores, network, asked, took, ...exposed, ...eventsOf(handlers) };
+  return { mount, stores, network, asked, took, ...exposed, ...eventsOf(handlers) };
 }
 
 export const page = (body: string) => () =>
   new Response(body, { status: 200, headers: { 'Content-Type': 'text/html' } });
 export const file = () => new Response('/* a chunk */', { status: 200 });
 
-/** A hall with a network: every shell answers, and names its scripts both ways. */
+/**
+ * A hall with a network: every shell answers under the worker's mount, and
+ * names its scripts both ways. The scripts stay at `/_next/static/…`: their
+ * prefix is the build's, not the mount's.
+ */
 export function online(sw: Worker) {
-  for (const url of ['/', '/login', '/lices', '/offline', '/desk', '/gear', `/lices/${SHELL_ID}`]) {
+  for (const path of [
+    '/',
+    '/login',
+    '/lices',
+    '/offline',
+    '/desk',
+    '/gear',
+    `/lices/${SHELL_ID}`,
+  ]) {
+    const url = sw.mount + path;
     sw.network.set(url, page(`<script src="/_next/static/chunks/main.js"></script>${url}`));
   }
   sw.network.set(
-    `/matches/${SHELL_ID}`,
+    `${sw.mount}/matches/${SHELL_ID}`,
     page(
       '<link rel="stylesheet" href="/_next/static/css/pad.css">' +
         '<script src="/_next/static/chunks/bout.js" async></script>' +

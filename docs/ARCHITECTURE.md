@@ -1534,6 +1534,14 @@ bouts is where an official sees that entries still wait.
   short FAILS when a worker is already active, so half a cache never replaces a
   whole one; the next page with a network tries again. Nothing stamps a version
   into a file: the deploy scripts only check that the pad serves the new one.
+- **The worker lives under the page's mount.** One build serves the referee
+  site at its root and the organiser site under `/staff` (`staffRoutePrefix`,
+  `STAFF_MOUNT`). The page registers `/staff/sw.js?v=…` on the organiser site
+  (`src/lib/worker-registration.ts`): there `/sw.js` is the organiser app's,
+  and the worker's reach is `/staff/`, never the organiser app's own pages. The
+  worker reads its mount from `self.registration.scope` and builds every page
+  address under it (the shells, `shellFor`, the start page). `/api/` stays at
+  the root on both sites.
 - The Service Worker **resolves a synthetic `503 { error: 'offline', code:
 'offline' }`** for every `/api/` call rather than throwing, and caches no API
   response. Any client code branching on `!res.ok` is therefore on the OFFLINE

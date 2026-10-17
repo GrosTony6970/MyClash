@@ -37,6 +37,13 @@ export function safeReturnHref(raw: string | null, currentOrigin: string): strin
 }
 
 /**
+ * The mount of the organiser site. Read by `staffRoutePrefix` and by the
+ * registration of the service worker (`worker-registration.ts`), whose script
+ * runs before React and applies the same rule.
+ */
+export const STAFF_MOUNT = '/staff';
+
+/**
  * The route prefix the staff app is mounted under: `/staff` when served via
  * the admin same-origin proxy, `''` on the canonical staff subdomain (root
  * mount). In-app navigation hrefs must be prefixed with this so they don't
@@ -47,7 +54,7 @@ export function safeReturnHref(raw: string | null, currentOrigin: string): strin
  * the same prefix seen from the edge, the build, and the client.
  */
 export function staffRoutePrefix(pathname: string): string {
-  return pathname.startsWith('/staff') ? '/staff' : '';
+  return pathname.startsWith(STAFF_MOUNT) ? STAFF_MOUNT : '';
 }
 
 /**
