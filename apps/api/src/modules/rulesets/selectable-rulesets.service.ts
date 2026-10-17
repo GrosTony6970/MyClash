@@ -128,8 +128,43 @@ export class SelectableRulesetsService {
   }
 
   /**
+   * May a restored Tournament or bout of `orgId` keep this club pair? A restore
+   * brings back what was pinned, at any version that still resolves (ruling
+   * "Restore a pair", 2026-10-18, and the operator's two answers of that day):
+   * the club's own ruleset whatever its status, archived or back in draft; a
+   * shared one unless it is a draft; a platform draft as `draftsOfferedTo`
+   * says. Another club's private ruleset never. A read that fails throws, as
+   * `offeredVersion` does. Its own scope on purpose, so a hand copy of
+   * `customRulesetOrgVisibilityFilter`'s "own" and "shared": a change of what
+   * "shared" means belongs in both.
+   */
+  async restorable(
+    orgId: string,
+    code: string,
+    version: string,
+    { withDrafts = false }: { withDrafts?: boolean } = {},
+  ): Promise<boolean> {
+    const kept = [
+      `owner_organization_id.eq.${orgId}`,
+      'and(public_visibility.eq.true,status.neq.draft)',
+    ];
+    if (withDrafts) kept.push('and(status.eq.draft,owner_organization_id.is.null)');
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .select('code, version')
+      .eq('is_system', false)
+      .eq('code', code)
+      .or(kept.join(','))
+      .limit(1);
+    if (error) throw new Error(`Failed to read the ruleset ${code}@${version}: ${error.message}`);
+    if (!data?.length) return false;
+    return (await this.resolver.resolve(code, version)) !== null;
+  }
+
+  /**
    * The club rows offered to an organization: the one scope of the picker's
-   * list and of the doors' check. Non-system rows the org may see. `.or()` is
+   * list and of the doors' check (a restore has its own, `restorable`).
+   * Non-system rows the org may see. `.or()` is
    * ANDed with the sibling `.eq('is_system', false)`, so this is
    * `(public OR owned OR system) AND NOT system` — i.e. public or owned.
    * The system disjunct is redundant here but the filter is shared with the

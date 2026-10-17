@@ -135,3 +135,47 @@ describe('SelectableRulesetsService.offeredVersion', () => {
     );
   });
 });
+
+describe('SelectableRulesetsService.restorable', () => {
+  it("keeps the club's own ruleset at an older version, whatever its status, if it resolves", async () => {
+    // The row is at 1.0.1 now, archived or back in draft; the archive's
+    // Tournament was pinned at 1.0.0.
+    const { service, chain, resolve, from } = harness({
+      data: [{ code: 'custom_house', version: '1.0.1' }],
+      error: null,
+    });
+    expect(await service.restorable('org-1', 'custom_house', '1.0.0')).toBe(true);
+    expect(from.mock.calls).toEqual([['custom_rulesets']]);
+    expect(chain.eq).toHaveBeenCalledWith('is_system', false);
+    expect(chain.eq).toHaveBeenCalledWith('code', 'custom_house');
+    // Its own rows at any status; a shared one unless a draft; no platform draft.
+    expect(chain.or.mock.calls).toEqual([
+      ['owner_organization_id.eq.org-1,and(public_visibility.eq.true,status.neq.draft)'],
+    ]);
+    expect(chain.eq).not.toHaveBeenCalledWith('version', expect.anything());
+    expect(chain.neq).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledWith('custom_house', '1.0.0');
+  });
+
+  it('adds the platform drafts when they are offered', async () => {
+    const { service, chain } = harness(ROW);
+    await service.restorable('org-1', 'custom_draft', '1.0.0', { withDrafts: true });
+    expect(chain.or).toHaveBeenCalledWith(
+      'owner_organization_id.eq.org-1,and(public_visibility.eq.true,status.neq.draft),' +
+        'and(status.eq.draft,owner_organization_id.is.null)',
+    );
+  });
+
+  it("refuses another club's private ruleset, and a version that no longer resolves", async () => {
+    const theirs = harness({ data: [], error: null });
+    expect(await theirs.service.restorable('org-1', 'custom_theirs', '1.0.0')).toBe(false);
+    expect(theirs.resolve).not.toHaveBeenCalled();
+    const gone = harness(ROW, null);
+    expect(await gone.service.restorable('org-1', 'custom_house', '0.9.0')).toBe(false);
+  });
+
+  it('throws on a read that fails', async () => {
+    const { service } = harness({ data: null, error: { message: 'db down' } });
+    await expect(service.restorable('org-1', 'custom_house', '1.0.0')).rejects.toThrow('db down');
+  });
+});

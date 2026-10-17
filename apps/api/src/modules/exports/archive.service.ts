@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { RulesetRegistry } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
 import { archivedEventRefusal } from '../../common/event-readonly/event-readonly.guard';
 import { dropRestoredPins } from './archive-pins';
+import { assertRestoredRulesetsUsable } from './archive-rulesets';
 import { readArchivedRows } from './archive-read';
 import { danglingReferences, describeDangling } from './archive-references';
 import {
@@ -30,6 +32,7 @@ import {
 } from './archive.tables';
 import type { ArchiveTableName } from './archive.tables';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import type {
@@ -123,7 +126,17 @@ export class ArchiveService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    // Value imports: Nest needs the runtime classes for DI metadata. A restore
+    // sets the ruleset pair of its Tournaments and bouts (`archive-rulesets.ts`).
+    private readonly registry: RulesetRegistry,
+    private readonly selectableRulesets: SelectableRulesetsService,
   ) {}
+
+  /** Both restores, before anything is written: `archive-rulesets.ts`. */
+  private assertRestoredRulesets(data: ArchiveTables, orgId: string, userId: string) {
+    const rulesets = { registry: this.registry, selectable: this.selectableRulesets };
+    return assertRestoredRulesetsUsable(rulesets, data, orgId, userId);
+  }
 
   async assertEventAdmin(eventId: string, userId: string): Promise<ArchiveRow> {
     const event = await this.getRequiredRow('events', eventId, 'Event');
@@ -292,6 +305,7 @@ export class ArchiveService {
 
     const crossOrg =
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
+    await this.assertRestoredRulesets(data, targetOrganizationId, userId);
     const droppedPins = await dropRestoredPins(this.supabase, data, targetOrganizationId);
     await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
@@ -384,6 +398,7 @@ export class ArchiveService {
     const sourceOrgId = archive.data.events?.[0]?.['organization_id'] as string | undefined;
     const targetOrgId = String(targetEvent['organization_id']);
     const crossOrg = sourceOrgId !== undefined && sourceOrgId !== targetOrgId;
+    await this.assertRestoredRulesets(data, targetOrgId, userId);
     const droppedPins = await dropRestoredPins(this.supabase, data, targetOrgId);
     await this.insertMappedTables(data, maps, {
       targetEventId: options.targetEventId,

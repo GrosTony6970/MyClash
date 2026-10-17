@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { describe, expect, it, vi } from 'vitest';
 import { danglingReferences } from './archive-references';
 import { ArchiveService } from './archive.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables';
 
 type TableRows = Record<string, Record<string, unknown>[]>;
@@ -83,7 +84,11 @@ function makeService(rows: TableRows = {}) {
   const { supabase, inserted } = makeSupabase(rows);
   const orgs = { assertOrgRole: vi.fn(() => Promise.resolve()) };
   return {
-    service: new ArchiveService(supabase as never, orgs as never),
+    // Every club pair in these archives may be kept (`archive-rulesets.test.ts` has the refusal).
+    service: new ArchiveService(supabase as never, orgs as never, createRulesetRegistry(), {
+      draftsOfferedTo: vi.fn(async () => false),
+      restorable: vi.fn(async () => true),
+    } as never),
     orgs,
     inserted,
   };

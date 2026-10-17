@@ -17,6 +17,7 @@ import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { ArchiveService } from './archive.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const BUILT_IN = '66666666-6666-4666-8666-666666666666';
 const SHARED_B = '77777777-7777-4777-8777-777777777777';
@@ -86,7 +87,12 @@ function build(penaltyRulesets: object = RULESETS, compensationPlans: object = P
     referee_compensation_event_settings: { rows: [] },
   });
   const orgs = { assertOrgRole: vi.fn(async () => undefined) };
-  service = new ArchiveService({ service: db.service } as never, orgs as never);
+  service = new ArchiveService(
+    { service: db.service } as never,
+    orgs as never,
+    createRulesetRegistry(),
+    { draftsOfferedTo: vi.fn(async () => false), restorable: vi.fn(async () => true) } as never,
+  );
 }
 
 beforeEach(() => build());

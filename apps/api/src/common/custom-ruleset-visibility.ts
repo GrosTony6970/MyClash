@@ -10,6 +10,8 @@
  * the tournament ruleset picker (`SelectableRulesetsService`). Two hand-written
  * copies of a visibility predicate is precisely the shape that drifts into a
  * leak: widen one and the other silently keeps hiding rows, or vice versa.
+ * The one deliberate copy is the restore's scope
+ * (`SelectableRulesetsService.restorable`): a change here belongs there too.
  */
 
 /**
