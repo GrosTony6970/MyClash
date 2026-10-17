@@ -1245,6 +1245,48 @@ describe('EventsService', () => {
     );
   });
 
+  describe('updateEvent: one end of the dates alone (O6)', () => {
+    const stored = {
+      id: 'event-1',
+      organization_id: 'org-1',
+      status: 'draft',
+      start_date: '2027-03-13',
+      end_date: '2027-03-14',
+    };
+
+    it('refuses an end before the stored start, and a start after the stored end, before any write', async () => {
+      for (const dto of [{ endDate: '2027-03-12' }, { startDate: '2027-03-15' }]) {
+        fromMock.mockReturnValueOnce(makeChain({ data: stored, error: null }));
+        assertOrgRole.mockResolvedValue(undefined);
+
+        await expect(service.updateEvent('event-1', dto, 'user-7')).rejects.toThrow(
+          'The Event cannot end before it starts',
+        );
+      }
+      // Only the two reads of the Event: no update reached the table.
+      expect(fromMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('writes only the end it was sent, so a second organiser moving the other end is not undone', async () => {
+      const updateChain = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { id: 'event-1' }, error: null }),
+      };
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: stored, error: null }))
+        .mockReturnValueOnce(updateChain);
+      assertOrgRole.mockResolvedValue(undefined);
+
+      await service.updateEvent('event-1', { endDate: '2027-03-15' }, 'user-7');
+
+      const written = updateChain.update.mock.calls[0]![0] as Record<string, unknown>;
+      expect(written['end_date']).toBe('2027-03-15');
+      expect(written).not.toHaveProperty('start_date');
+    });
+  });
+
   it('updateEvent rejects a slug already used by another event in the org', async () => {
     const eventChain = makeChain({
       data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },

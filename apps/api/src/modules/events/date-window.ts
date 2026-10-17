@@ -1,11 +1,14 @@
 /**
  * Date-window helpers for the public event catalogue.
  *
- * `events.start_date` / `end_date` are TEXT holding ISO dates, so comparisons
- * are lexicographic — which is exact for `YYYY-MM-DD`.
+ * `events.start_date` / `end_date` are DATE (0223) and travel as `YYYY-MM-DD`,
+ * so a text comparison of two of them is exact.
  *
  * Pure, no I/O.
  */
+
+/** The refusal of an Event whose end comes before its start (the DTO and `updateEvent`). */
+export const END_BEFORE_START = 'The Event cannot end before it starts';
 
 /**
  * The day after `iso`, as `YYYY-MM-DD`.

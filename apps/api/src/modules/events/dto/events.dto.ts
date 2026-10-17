@@ -2,6 +2,7 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
 import { EVENT_KINDS } from '@myclash/types';
+import { END_BEFORE_START } from '../date-window';
 
 const createEventSchema = z
   .object({
@@ -11,8 +12,8 @@ const createEventSchema = z
       .min(2)
       .max(100)
       .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, digits, and hyphens'),
-    startDate: z.string(),
-    endDate: z.string(),
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
@@ -27,7 +28,8 @@ const createEventSchema = z
     //              still disposable
     eventKind: z.enum(EVENT_KINDS).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => d.endDate >= d.startDate, END_BEFORE_START);
 export class CreateEventDto extends createZodDto(createEventSchema) {}
 
 const updateEventSchema = z
@@ -42,8 +44,9 @@ const updateEventSchema = z
     city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
     country: z.string().min(2).max(2).nullable().optional(),
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
+    // One end alone is checked against the stored other end by the service (`updateEvent`).
+    startDate: z.iso.date().optional(),
+    endDate: z.iso.date().optional(),
     // IANA timezone
     timezone: z.string().max(64).optional(),
     // Nullish: null clears the landing description (FE sends `value || null`).
@@ -57,7 +60,8 @@ const updateEventSchema = z
     // an unrated kind recomputes any league this event feeds.
     eventKind: z.enum(EVENT_KINDS).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, END_BEFORE_START);
 export class UpdateEventDto extends createZodDto(updateEventSchema) {}
 
 const upsertEventThemeSchema = z
@@ -89,7 +93,7 @@ const eventQuerySchema = z
      * default `order by start_date desc` so the cursor walks backward in
      * time deterministically.
      */
-    cursor: z.string().optional(),
+    cursor: z.iso.date().optional(),
     /**
      * Free text over the event name, city, country and the ORGANISER's name.
      * The organiser term can't ride in the same PostgREST `.or()` as the event
@@ -107,16 +111,13 @@ const eventQuerySchema = z
      * degrade to "no results", not an error page.
      */
     weapon: z.string().trim().max(100).optional(),
-    /** Inclusive window start, YYYY-MM-DD. Matches events that OVERLAP it. */
-    from: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
+    /**
+     * Inclusive window start, YYYY-MM-DD. Matches events that OVERLAP it. A real day: the columns
+     * are DATE (0223), so 2026-02-30 would fail the read instead of matching nothing.
+     */
+    from: z.iso.date().optional(),
     /** Inclusive window end, YYYY-MM-DD. */
-    to: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/)
-      .optional(),
+    to: z.iso.date().optional(),
   })
   .strict();
 export class EventQueryDto extends createZodDto(eventQuerySchema) {}

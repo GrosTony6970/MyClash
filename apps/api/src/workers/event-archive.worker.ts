@@ -66,7 +66,9 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
       .from('events')
       .select('id, status, end_date')
       .in('status', ['running', 'completed'])
-      .lt('end_date', twentyFourHoursAgo.toISOString());
+      // end_date is a DATE (0223): every Event that ended on or before the day 24 h ago, the same
+      // rows the old text comparison with the full timestamp took. The loop below holds the 24 h.
+      .lte('end_date', twentyFourHoursAgo.toISOString().slice(0, 10));
 
     if (candidatesErr) {
       this.logger.error(`Failed to list candidate events: ${candidatesErr.message}`);

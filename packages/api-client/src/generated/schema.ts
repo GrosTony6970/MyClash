@@ -10982,7 +10982,9 @@ export interface components {
     CreateEventDto: {
       name: string;
       slug: string;
+      /** Format: date */
       startDate: string;
+      /** Format: date */
       endDate: string;
       city?: string | null;
       country?: string | null;
@@ -10995,7 +10997,9 @@ export interface components {
       slug?: string;
       city?: string | null;
       country?: string | null;
+      /** Format: date */
       startDate?: string;
+      /** Format: date */
       endDate?: string;
       timezone?: string;
       publicLandingMd?: string | null;

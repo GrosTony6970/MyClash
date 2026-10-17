@@ -27,7 +27,7 @@ function makeQueue() {
 function makeChain(result: unknown) {
   type AnyFn = ReturnType<typeof vi.fn>;
   const chain: Record<string, AnyFn | unknown> = {};
-  const methods = ['select', 'eq', 'in', 'lt', 'update', 'insert', 'neq'];
+  const methods = ['select', 'eq', 'in', 'lt', 'lte', 'update', 'insert', 'neq'];
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
@@ -85,6 +85,23 @@ describe('EventArchiveWorker', () => {
     const result = await worker.runAutoArchive();
 
     expect(result.archived).toEqual(['event-1']);
+  });
+
+  it('asks for the Events that ended on or before the day 24 h ago, as a day (end_date is a DATE)', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-17T01:30:00.000Z') });
+    try {
+      const candidatesChain = makeChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(candidatesChain);
+
+      await makeWorker().runAutoArchive();
+
+      // The old text filter `end_date < '2026-10-16T01:30:00.000Z'` took an Event ending on the
+      // 16th; a timestamp cast to a DATE would not.
+      expect(candidatesChain.lte).toHaveBeenCalledWith('end_date', '2026-10-16');
+      expect(candidatesChain.lt).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('skips an event whose end_date is only 12h ago (within 24h grace window)', async () => {

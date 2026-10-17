@@ -98,6 +98,8 @@ INSERT INTO league_tournament_results
    'eeeeeeee-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a', 'longsword', 1);
 INSERT INTO league_rankings (id, league_id, ranking_group_key, global_person_id, rank) VALUES
   ('1eaf0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', 'longsword', '9e000000-0000-4000-8000-00000000000a', 1);
+INSERT INTO fighter_manual_medals (id, global_person_id, competition, year, rank, weapon) VALUES
+  ('ed000000-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a', 'Open de Lyon', 2024, 3, 'Longsword');
 INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, built_in, public_visibility) VALUES
   ('fe000000-0000-4000-8000-00000000000a', 'rls-probe-club', '1', 'Club', 'aaaaaaaa-0000-4000-8000-000000000001',
    false, false);
