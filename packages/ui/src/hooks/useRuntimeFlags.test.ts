@@ -20,7 +20,7 @@ describe('toRuntimeFlags', () => {
     const browserMs = Date.parse('2026-07-13T12:08:00.000Z');
     const flags = toRuntimeFlags(snapshot, browserMs - 500, browserMs + 500);
 
-    expect(flags.clockSkewMs).toBe(2 * 60_000);
+    expect(flags.serverSkewMs).toBe(2 * 60_000);
     expect(flags).not.toHaveProperty('serverNowIso');
     expect(flags.timeSimulation).toEqual(snapshot.timeSimulation);
   });

@@ -4,11 +4,20 @@ import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
  * The API's clock minus this browser's, from a snapshot's `serverNowIso`.
  * The server stamped it somewhere between the request leaving and the answer
  * arriving, so it is read against the midpoint; the error is half a round
- * trip. 0 when the server time does not parse (an API older than the field).
+ * trip.
+ *
+ * 0 when the server time does not parse — an API that answered without the
+ * field, which only a half-done deploy produces. This browser then runs on
+ * its own clock, so it says so in the console rather than drift unseen.
  */
-export function clockSkewMs(serverNowIso: string, sentAtMs: number, receivedAtMs: number): number {
+export function serverSkewMs(serverNowIso: string, sentAtMs: number, receivedAtMs: number): number {
   const serverMs = Date.parse(serverNowIso);
-  if (Number.isNaN(serverMs)) return 0;
+  if (Number.isNaN(serverMs)) {
+    console.warn(
+      `[time-simulation] the flags snapshot carried no usable serverNowIso (${String(serverNowIso)}); this browser runs on its own clock`,
+    );
+    return 0;
+  }
   return serverMs - (sentAtMs + receivedAtMs) / 2;
 }
 
@@ -19,7 +28,7 @@ export function clockSkewMs(serverNowIso: string, sentAtMs: number, receivedAtMs
  * (`simulatedNowIso`) plus the server instant it was saved (`anchorRealIso`).
  * - `frozen`: the clock stays on `simulatedNowIso`, whatever real time does.
  * - `running`: the clock advances with real time from the set point. Their
- *   difference shifts server time, and `skewMs` (see `clockSkewMs`) turns
+ *   difference shifts server time, and `skewMs` (see `serverSkewMs`) turns
  *   this browser's clock into server time, so it reads the same on every
  *   device.
  *

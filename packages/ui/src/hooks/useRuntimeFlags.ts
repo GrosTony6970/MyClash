@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { PublicFeatureFlagsSnapshot } from '@myclash/feature-flags';
-import { clockSkewMs } from './time-simulation';
+import { serverSkewMs } from './time-simulation';
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -11,8 +11,8 @@ const POLL_INTERVAL_MS = 60_000;
  * replaced by this browser's distance from it, measured when it arrived.
  */
 export interface RuntimeFlags extends Omit<PublicFeatureFlagsSnapshot, 'serverNowIso'> {
-  /** Server clock minus this browser's clock, in ms (see `clockSkewMs`). */
-  clockSkewMs: number;
+  /** Server clock minus this browser's clock, in ms (see `serverSkewMs`). */
+  serverSkewMs: number;
 }
 
 /**
@@ -37,7 +37,7 @@ const EMPTY: RuntimeFlags = {
   maintenanceBanner: { enabled: false, message: null, severity: null },
   realtimeDisabled: false,
   timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null, mode: null },
-  clockSkewMs: 0,
+  serverSkewMs: 0,
 };
 
 async function fetchOnce(apiUrl: string): Promise<RuntimeFlags | null> {
@@ -62,7 +62,7 @@ export function toRuntimeFlags(
   sentAtMs: number,
   receivedAtMs: number,
 ): RuntimeFlags {
-  return { ...snap, clockSkewMs: clockSkewMs(serverNowIso, sentAtMs, receivedAtMs) };
+  return { ...snap, serverSkewMs: serverSkewMs(serverNowIso, sentAtMs, receivedAtMs) };
 }
 
 function getCache(apiUrl: string): Cache {

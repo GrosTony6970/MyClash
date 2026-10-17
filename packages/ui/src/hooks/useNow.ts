@@ -93,7 +93,7 @@ function useSimulation(apiUrl: string): Simulation {
   const flags = useRuntimeFlags(apiUrl);
   if (!flags) return REAL_TIME;
   return {
-    toNow: (realMs) => simulatedNowMs(flags.timeSimulation, realMs, flags.clockSkewMs),
+    toNow: (realMs) => simulatedNowMs(flags.timeSimulation, realMs, flags.serverSkewMs),
     simulated: isTimeSimulationActive(flags.timeSimulation),
     frozen: isTimeSimulationFrozen(flags.timeSimulation),
   };

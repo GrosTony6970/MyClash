@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-  clockSkewMs,
+  serverSkewMs,
   isTimeSimulationActive,
   isTimeSimulationFrozen,
   simulatedNowMs,
@@ -20,20 +20,23 @@ const running = {
 };
 const frozen = { ...running, mode: 'frozen' as const };
 
-describe('clockSkewMs', () => {
+describe('serverSkewMs', () => {
   it('is 0 for a browser in step with the server', () => {
     const sent = anchorMs - 100;
-    expect(clockSkewMs(anchor, sent, sent + 200)).toBe(0);
+    expect(serverSkewMs(anchor, sent, sent + 200)).toBe(0);
   });
 
   it('is negative for a browser that runs fast, read against the round-trip midpoint', () => {
     // The browser reads 12:03:00 when the server reads 12:00:00.
     const browserMs = anchorMs + 3 * MIN;
-    expect(clockSkewMs(anchor, browserMs - 400, browserMs + 400)).toBe(-3 * MIN);
+    expect(serverSkewMs(anchor, browserMs - 400, browserMs + 400)).toBe(-3 * MIN);
   });
 
-  it('is 0 when the server time does not parse', () => {
-    expect(clockSkewMs('not-a-date', 1_000, 2_000)).toBe(0);
+  it('is 0 when the server time does not parse, and says so', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(serverSkewMs('not-a-date', 1_000, 2_000)).toBe(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('runs on its own clock'));
+    warn.mockRestore();
   });
 });
 
@@ -52,7 +55,7 @@ describe('simulatedNowMs', () => {
   it('gives a browser 3 min fast the same simulated now as the server', () => {
     const serverMs = anchorMs + 10 * MIN;
     const fastBrowserMs = serverMs + 3 * MIN;
-    const skew = clockSkewMs(new Date(serverMs).toISOString(), fastBrowserMs, fastBrowserMs);
+    const skew = serverSkewMs(new Date(serverMs).toISOString(), fastBrowserMs, fastBrowserMs);
     expect(simulatedNowMs(running, fastBrowserMs, skew)).toBe(simulatedNowMs(running, serverMs, 0));
     expect(simulatedNowMs(running, fastBrowserMs, skew)).toBe(targetMs + 10 * MIN);
   });
