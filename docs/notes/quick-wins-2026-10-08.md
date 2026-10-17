@@ -3010,9 +3010,11 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Foundation | A direct bout write | A scorekeeper points a bout at another Tournament's rules copy through the database's web door.                          | **A database trigger refuses a copy of another Tournament.**                                                             |
 | Foundation | Older archives      | The foundation's last commit removes three columns that every older archive still carries.                               | **Skip these three columns only** on restore, no fix for the whole class.                                                |
 | All five   | Go                  | Every plan converged in review.                                                                                          | **Go on all five**, in the order password → versions → foundation 1-4 → offline → foundation 6 → settings.               |
+| Password   | Unconfirmed sign-in | Léa's mail never came; the super admin gives her a regenerated password; her address is still unconfirmed.               | **Keep the "confirm your email" answer**: password commit 3 ships the edge refusal only.                                 |
 
-The last four rows were asked in session 100141ce (14:35-15:40), after the foundation's review
-passes 4-6.
+Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
+review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
+of password commit 3 found that `regenerateTempPassword` confirms nothing.
 
 ### Built on 2026-10-16: the server pass, first batch
 
