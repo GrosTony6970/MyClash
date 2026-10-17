@@ -1085,10 +1085,10 @@ export const admin = {
     timeSimulation: {
       title: 'Time simulation',
       description:
-        'Shift the clock the public app (app.myclash.fr) uses so time-dependent UI can be tested on demand: the personal schedule "Live" / "Next" badges, the event-home "Live now" workshops, and the tournament grid now-line (which also opens on the simulated day). While simulating, a scheduled fight follows its slot time instead of waiting to be started — real statuses still win, so a bout marked running stays Live and a completed one stays past. Live data computed server-side (the /live board, the organizer live banner) keeps the real clock. The clock advances forward from the datetime you set, or stays on it while paused. ⚠️ While on, EVERY public visitor sees the simulated time (a badge shows the active value). Turn it off after testing.',
+        'Shift the clock every browser uses so time-dependent screens can be tested on demand. In the public app (app.myclash.fr): the personal schedule "Live" / "Next" badges, the event-home "Live now" workshops, and the tournament grid now-line (which also opens on the simulated day). For organisers: the timers of the live control room and of the display wall. While simulating, a scheduled fight follows its slot time instead of waiting to be started — real statuses still win, so a bout marked running stays Live and a completed one stays past. The server keeps the real clock, and so does anything it computes (the public /live board\'s data, the organizer live banner). The clock advances forward from the datetime you set, or stays on it while paused. ⚠️ While on, EVERY visitor and organiser sees the simulated time (a badge shows the active value). Turn it off after testing.',
       targetLabel: 'Simulated "now"',
       targetHelp:
-        'The date & time the public app should treat as the current moment. The clock advances forward from here, or stays here while paused.',
+        'The date & time every browser should treat as the current moment. The clock advances forward from here, or stays here while paused.',
       saveButton: 'Save simulated time',
       readoutRunning: 'Visitors see {time}, running',
       readoutFrozen: 'Visitors see {time}, paused',

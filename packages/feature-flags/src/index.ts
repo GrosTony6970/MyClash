@@ -151,8 +151,10 @@ export interface MaintenanceBannerPayload {
 
 /**
  * Payload shape for the `time_simulation` flag — a super-admin testing
- * aid that shifts the clock the public app uses. Stored as an offset
- * anchor: `simulatedNowIso` is what the clock should read as "now" at
+ * aid that shifts the browser clock of every app (the public app, the
+ * organiser live board, the display wall); the API keeps real time.
+ * A running clock is stored as an anchor:
+ * `simulatedNowIso` is what the clock should read as "now" at
  * the moment it was saved (`anchorRealIso`); the effective offset is
  * `simulatedNowIso − anchorRealIso`, so the simulated clock advances
  * with real time. Surfaced through `GET /api/v1/public/feature-flags`.

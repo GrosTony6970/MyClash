@@ -1084,10 +1084,10 @@ export const admin = {
     timeSimulation: {
       title: 'Simulation temporelle',
       description:
-        "Décale l'horloge utilisée par l'app publique (app.myclash.fr) pour tester à la demande les éléments dépendant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l'accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simulé). Pendant la simulation, un combat programmé suit son créneau au lieu d'attendre son lancement — les statuts réels priment toujours, donc un combat en cours reste En direct et un combat terminé reste passé. Les données live calculées côté serveur (le tableau /live, la bannière live organisateur) gardent l'horloge réelle. L'horloge avance à partir de la date/heure choisie, ou reste dessus pendant une pause. ⚠️ Quand active, TOUS les visiteurs publics voient l'heure simulée (un badge affiche la valeur active). À désactiver après les tests.",
+        "Décale l'horloge de tous les navigateurs pour tester à la demande les écrans dépendant du temps. Dans l'app publique (app.myclash.fr) : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l'accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simulé). Pour les organisateurs : les chronos de la salle de contrôle live et du mur d'affichage. Pendant la simulation, un combat programmé suit son créneau au lieu d'attendre son lancement — les statuts réels priment toujours, donc un combat en cours reste En direct et un combat terminé reste passé. Le serveur garde l'horloge réelle, tout comme ce qu'il calcule (les données du tableau public /live, la bannière live organisateur). L'horloge avance à partir de la date/heure choisie, ou reste dessus pendant une pause. ⚠️ Quand active, TOUS les visiteurs et organisateurs voient l'heure simulée (un badge affiche la valeur active). À désactiver après les tests.",
       targetLabel: 'Instant simulé (« maintenant »)',
       targetHelp:
-        "La date et l'heure que l'app publique doit considérer comme l'instant présent. L'horloge avance à partir de ce point, ou y reste pendant une pause.",
+        "La date et l'heure que tous les navigateurs doivent considérer comme l'instant présent. L'horloge avance à partir de ce point, ou y reste pendant une pause.",
       saveButton: "Enregistrer l'heure simulée",
       readoutRunning: 'Les visiteurs voient {time}, en marche',
       readoutFrozen: 'Les visiteurs voient {time}, en pause',
