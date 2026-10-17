@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
@@ -39,6 +40,7 @@ import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isOver } from '../../common/live-status';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
 import {
@@ -210,6 +212,9 @@ export class StaffService {
     // Value import, not `import type` — a type-only import erases the DI
     // metadata Nest needs to resolve this.
     private readonly phases: PhasesService,
+    // The edition each bout of a piste carries to the pad. Absent, a bout
+    // carries none, as a read of it that failed.
+    @Optional() private readonly rulesets?: RulesetResolver,
   ) {}
 
   async listAccounts(eventId: string, userId: string) {
@@ -1277,7 +1282,7 @@ export class StaffService {
    */
   async getAssignedLiceBouts(req: FastifyRequest, liceId: string) {
     await this.requireLiceAccess(req, liceId);
-    return liceBouts(this.supabase.service, liceId);
+    return liceBouts(this.supabase.service, liceId, this.rulesets, this.logger);
   }
 
   /**

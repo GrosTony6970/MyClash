@@ -14,6 +14,9 @@ import { insertAuditLog } from '../../common/audit-log';
 import { matchSummaries } from './match-summaries';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+// Value import: Nest needs the runtime class for DI metadata.
+import { RulesetResolver } from './ruleset-resolver.service';
+import { withDecisionEdition } from './bout-edition';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { scoredAtServer } from './late-press';
@@ -97,6 +100,8 @@ export class MatchesService {
     private readonly refereeBoard: AssignmentBoardService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly matchCompletion?: MatchCompletionService,
+    // Absent, a bout read carries no edition, as a read of it that failed.
+    @Optional() private readonly rulesets?: RulesetResolver,
   ) {}
 
   private readonly logger = new Logger(MatchesService.name);
@@ -123,7 +128,8 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
-    return data;
+    // The pad decides as the server will: the edition of the bout's own version.
+    return withDecisionEdition(data as Record<string, unknown>, this.rulesets, this.logger);
   }
 
   /**

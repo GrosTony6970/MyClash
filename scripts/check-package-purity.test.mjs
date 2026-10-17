@@ -306,6 +306,9 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // `EDITION_2026_10` joined when a ruleset version began to keep the end
   // decision of its day: a constant the pad hands `roundOutcome` and
   // `pointCapWinnerColor`, so they decide as the server does. It computes nothing.
+  // `isDecisionEdition` joined when the pad began to read each bout's own edition:
+  // the server checks nothing on the pad's side, and a name it does not know
+  // would throw in a decider, so the pad checks it where it comes in.
   assert.deepEqual([...allowed].sort(), [
     'EDITION_2026_10',
     'applyScoringDirection',
@@ -317,6 +320,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'effectiveTimeLimitSeconds',
     'extraTimeAdjustmentMs',
     'getEffectiveMaxDoubles',
+    'isDecisionEdition',
     'penaltyScoreDelta',
     'pendingLevelStep',
     'pointCapWinnerColor',

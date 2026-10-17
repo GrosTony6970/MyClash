@@ -21,6 +21,7 @@ const ROW = {
   blue_round_wins: 0,
   rounds_json: [{ round: 1 }],
   awaiting_round_advance: true,
+  decision_edition: '2026-04',
 };
 const SUMMARY = {
   roundCode: 'LSW-P1-M3',
@@ -101,6 +102,8 @@ describe('readBout', () => {
         blueRoundWins: 0,
         roundsJson: [{ round: 1 }],
         awaitingRoundAdvance: true,
+        // The end decision of the bout's own version, as the server sent it.
+        decisionEdition: '2026-04',
       },
     });
   });

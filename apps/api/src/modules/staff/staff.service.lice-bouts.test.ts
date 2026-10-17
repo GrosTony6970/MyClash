@@ -5,6 +5,7 @@ import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
 import { liceBouts } from './lice-bouts';
 import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
 import { summarySeed } from '../matches/match-summaries.fixtures';
+import { builtInResolver } from '../matches/built-in-resolver.fixtures';
 
 /**
  * `GET /staff/lices/:liceId/bouts`: every bout of a piste, each as the pad reads
@@ -38,7 +39,7 @@ const bout = (id: string, over: Record<string, unknown> = {}) => ({
 });
 
 const BOUTS = [
-  bout('swiss', { scheduled_at: at(30) }),
+  bout('swiss', { scheduled_at: at(30), ruleset_version: '1.1.0' }),
   bout('bracket', { scheduled_at: at(20), status: 'completed', red_score: 5, blue_score: 3 }),
   // Same hour as `pool`, and a higher number: text order would put it first.
   bout('late', { match_number_label: 'L1-P1-M10' }),
@@ -50,9 +51,15 @@ const BOUTS = [
 const staffRequest = () =>
   ({ cookies: { [STAFF_COOKIE_NAME]: 'token' }, headers: {} }) as unknown as FastifyRequest;
 
-function build(
-  opts: { role?: string; status?: string; assigned?: boolean; eventStatus?: string } = {},
-) {
+interface BuildOpts {
+  role?: string;
+  status?: string;
+  assigned?: boolean;
+  eventStatus?: string;
+  withResolver?: boolean;
+}
+
+function build(opts: BuildOpts = {}) {
   const supabase = mockSupabase({
     ...summarySeed(),
     matches: { rows: BOUTS },
@@ -91,11 +98,32 @@ function build(
     },
   });
   const jwt = { verify: () => ({ sub: ACCOUNT, event_id: EVENT, type: 'staff' }) };
-  const svc = new StaffService(supabase as never, {} as never, jwt as never, {} as never);
+  const rulesets = opts.withResolver ? builtInResolver() : undefined;
+  const svc = new StaffService(supabase as never, {} as never, jwt as never, {} as never, rulesets);
   return { svc, from: supabase.from };
 }
 
 describe('StaffService.getAssignedLiceBouts', () => {
+  it('gives each bout the end-decision edition of its own ruleset version', async () => {
+    const { svc } = build({ withResolver: true });
+
+    const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
+
+    const editions = bouts.map((entry) => [entry.match['id'], entry.match['decision_edition']]);
+    expect(editions).toEqual([
+      ['pool', '2026-04'],
+      ['late', '2026-04'],
+      ['bracket', '2026-04'],
+      ['swiss', '2026-10'],
+    ]);
+  });
+
+  it('gives a bout no edition when no resolver is there to read it', async () => {
+    const { svc } = build();
+    const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
+    expect(bouts.every((entry) => !('decision_edition' in entry.match))).toBe(true);
+  });
+
   it('answers every bout of the piste in the order of the piste list', async () => {
     const { svc } = build();
 
@@ -197,9 +225,9 @@ describe('liceBouts', () => {
   it('answers a piste that is gone as the piste list does', async () => {
     const supabase = mockSupabase({ lices: { rows: [] } });
 
-    await expect(liceBouts(supabase.service as never, 'nowhere')).rejects.toEqual(
-      new NotFoundException('Lice not found'),
-    );
+    await expect(
+      liceBouts(supabase.service as never, 'nowhere', undefined, console),
+    ).rejects.toEqual(new NotFoundException('Lice not found'));
   });
 
   it('answers an empty piste with no bout, and reads no summary', async () => {
@@ -208,7 +236,7 @@ describe('liceBouts', () => {
       matches: { rows: [] },
     });
 
-    expect(await liceBouts(supabase.service as never, LICE)).toEqual({
+    expect(await liceBouts(supabase.service as never, LICE, undefined, console)).toEqual({
       liceId: LICE,
       liceName: 'Lice 4',
       bouts: [],

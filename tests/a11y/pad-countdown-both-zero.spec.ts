@@ -10,7 +10,9 @@
  *
  * Before, the tablet read that board as level: a Pool bout could end only at
  * its time, as a draw, and a bracket bout could not end until the network was
- * back. The rule has its unit tests (`end-guard.test.ts`,
+ * back. A bout of a ruleset version from before the ruling is still decided the
+ * old way: the pad asks with the edition the server sends with the bout. The
+ * rule has its unit tests (`end-guard.test.ts`,
  * `pad-series.countdown-zero.test.ts`); what the server does with the same
  * exchange has its own (`scoring.service.countdown-zero.test.ts`).
  */
@@ -117,3 +119,32 @@ for (const phaseType of ['pool', 'single_elim']) {
     expect(stub.sent, 'nothing reached the server').toEqual([]);
   });
 }
+
+test('with no network, a bout of a ruleset version from before the ruling reads that board as level', async ({
+  page,
+}) => {
+  // The server sent the 2026-04 edition with the bout (a 1.0.0 version): the
+  // board decides, and a bracket bout level at 0 – 0 at ten seconds of ninety
+  // has no winner yet, on the tablet as on the server.
+  const stub = await openBout(page, {
+    rules: RULES,
+    phaseType: 'single_elim',
+    row: { status: 'paused', red_score: 1, blue_score: 2, decision_edition: '2026-04' },
+    clock: { status: 'halted', activeMs: 10_000, startedAt: '2026-01-01T10:00:00.000Z' },
+  });
+  const afterblow = column(page, 'red').getByTestId('afterblow-button');
+  await expect(afterblow).toHaveCount(1);
+  stub.network = 'down';
+
+  await afterblow.click();
+  await expect(numeral(page, 'red')).toHaveText('0');
+  await expect(numeral(page, 'blue')).toHaveText('0');
+  await page.getByTestId('clock-end-button').click();
+
+  // Asked first: nobody has won. Ended anyway, it is refused, as the server
+  // refuses it: level, and the time is not finished.
+  await page.getByTestId('end-early-confirm').click();
+  await expect(page.locator('main').getByText(/level/i).first()).toBeVisible();
+  await expect(result(page)).toHaveCount(0);
+  expect(stub.sent, 'nothing reached the server').toEqual([]);
+});

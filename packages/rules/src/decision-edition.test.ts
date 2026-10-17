@@ -15,8 +15,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Match, MatchFormatConfig } from './index';
 import {
+  DECISION_EDITIONS,
   EDITION_2026_04,
   EDITION_2026_10,
+  isDecisionEdition,
   capLeader,
   evaluateRound,
   getPointCapWinnerRegistrationId,
@@ -152,5 +154,15 @@ describe('a bout that counts up', () => {
       endReason: 'max_doubles',
     });
     expect(pointCapWinnerColor({ redScore: 5, blueScore: 6 }, up, edition)).toBe('blue');
+  });
+});
+
+describe('isDecisionEdition', () => {
+  it('knows the name of every edition, and nothing else read off the network', () => {
+    expect(DECISION_EDITIONS.every((name) => isDecisionEdition(name))).toBe(true);
+    expect([EDITION_2026_04, EDITION_2026_10].every((name) => isDecisionEdition(name))).toBe(true);
+    for (const value of ['2027-03', '', '2026-10 ', undefined, null, 202610, {}]) {
+      expect(isDecisionEdition(value)).toBe(false);
+    }
   });
 });

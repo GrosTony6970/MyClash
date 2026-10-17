@@ -472,10 +472,20 @@ export type CapScore = Pick<MatchScore, 'redScore' | 'blueScore'> &
  *
  * Every decider takes one. A ruleset version carries its own, and the server
  * asks with the edition of the bout's version, so a bout fought before a change
- * and corrected after it is decided as it was fought. The pad still asks with
- * `EDITION_2026_10` until it reads the bout's own.
+ * and corrected after it is decided as it was fought. The pad asks with the
+ * edition the server sends with the bout (`decision_edition`).
  */
-export type DecisionEdition = '2026-04' | '2026-10';
+export const DECISION_EDITIONS = ['2026-04', '2026-10'] as const;
+export type DecisionEdition = (typeof DECISION_EDITIONS)[number];
+
+/**
+ * Is this the name of an edition? A name read from the network or a store can
+ * be anything (an older bundle, a newer server): checked where it comes in, an
+ * unknown one never reaches a decider, which would throw on it.
+ */
+export function isDecisionEdition(value: unknown): value is DecisionEdition {
+  return DECISION_EDITIONS.some((edition) => edition === value);
+}
 
 /** The end decision before 2026-10-11. */
 export const EDITION_2026_04: DecisionEdition = '2026-04';

@@ -3,7 +3,11 @@
  * round view reads it: the server's row, the server's hits, and what the tablet
  * still holds.
  */
-import { DEFAULT_MATCH_FORMAT_CONFIG, type MatchFormatConfig } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  EDITION_2026_10,
+  type MatchFormatConfig,
+} from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
 import type { PadSeriesArgs, ServerRounds } from './pad-series';
@@ -117,6 +121,7 @@ export function bout(over: Partial<PadSeriesArgs> = {}): PadSeriesArgs {
     queuedPenalties: [],
     roundPresses: [],
     held: false,
+    edition: EDITION_2026_10,
     ...over,
   };
 }

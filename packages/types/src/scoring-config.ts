@@ -200,7 +200,7 @@ export { belowZero } from '@myclash/rules/pad';
 export type { CapScore } from '@myclash/rules/pad';
 
 /** The end decision the pad asks the server's deciders with, as the server does. */
-export { EDITION_2026_10 } from '@myclash/rules/pad';
+export { EDITION_2026_10, isDecisionEdition } from '@myclash/rules/pad';
 export type { DecisionEdition } from '@myclash/rules/pad';
 
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────

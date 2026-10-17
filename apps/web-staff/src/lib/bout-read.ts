@@ -50,6 +50,8 @@ export interface BoutRow {
   blue_round_wins: number | null;
   rounds_json: unknown;
   awaiting_round_advance: boolean | null;
+  /** Not a column: the edition of the bout's own version (`withDecisionEdition`). */
+  decision_edition?: string;
 }
 
 export interface BoutSummary {
@@ -140,5 +142,6 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     blueRoundWins: raw.blue_round_wins ?? 0,
     roundsJson: raw.rounds_json ?? null,
     awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
+    decisionEdition: raw.decision_edition,
   };
 }

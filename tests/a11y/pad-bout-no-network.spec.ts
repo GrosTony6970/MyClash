@@ -19,6 +19,7 @@ const ROW = {
   status: 'scheduled',
   ruleset_code: 'TF',
   ruleset_version: '1.0.0',
+  decision_edition: '2026-10',
   red_registration_id: 'red-1',
   blue_registration_id: 'blue-1',
   red_score: 0,

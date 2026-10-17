@@ -26,9 +26,9 @@ import {
   getEffectiveMaxDoubles,
   roundOutcome,
   seriesResult,
+  type DecisionEdition,
   type MatchFormatConfig,
   type PhaseType,
-  EDITION_2026_10,
 } from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
@@ -117,6 +117,8 @@ export interface PadSeriesArgs {
   roundPresses: readonly OutboxEntry[];
   /** A row of this bout is held in the inbox: the server's row stands. */
   held: boolean;
+  /** The end decision of the bout's ruleset version (`editionOf`). */
+  edition: DecisionEdition;
 }
 
 const leader = (score: { redScore: number; blueScore: number }): Color | null =>
@@ -291,7 +293,7 @@ function tabletRound(args: PadSeriesArgs, count: ReturnType<typeof roundCount>):
     : { redScore: count.redScore, blueScore: count.blueScore };
   // A round over by itself is judged on the whole count: with both at zero in
   // a bout that counts down, how far under each side went names the winner.
-  const outcome = roundOutcome(args, count, args.matchFormat, EDITION_2026_10);
+  const outcome = roundOutcome(args, count, args.matchFormat, args.edition);
   // "End round" gives the round to the leader, or to the fighter the cap had
   // given it to at the tap (`pressedOn`). A round over by itself has the
   // winner its rule names: nobody, for a round the doubles limit wiped, and
@@ -349,7 +351,7 @@ export function padSeries(args: PadSeriesArgs): PadSeries {
 
   const count = roundCount(args, open, server.currentRound);
   const ended = args.roundPresses.some((row) => row.roundAction === 'end' && row.round === open);
-  const over = roundOutcome(args, count, args.matchFormat, EDITION_2026_10).autoOver;
+  const over = roundOutcome(args, count, args.matchFormat, args.edition).autoOver;
   if (!known(open) && (ended || over)) closed.push(tabletRound(args, count));
 
   const stoodOn = closed.find((row) => row.round === open);

@@ -90,6 +90,12 @@ export type { CapScore } from './match-format';
  */
 export { EDITION_2026_10 } from './match-format';
 export type { DecisionEdition } from './match-format';
+
+/**
+ * Is a name read from the server or the tablet's store an edition the pad
+ * knows? An unknown one falls back to `EDITION_2026_10`, said in the console.
+ */
+export { isDecisionEdition } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';

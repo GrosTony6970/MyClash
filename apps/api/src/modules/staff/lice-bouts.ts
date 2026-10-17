@@ -11,9 +11,11 @@
  * order the pad's Next and Previous tiles walk.
  */
 
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, type Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { withDecisionEdition } from '../matches/bout-edition';
 import { matchSummaries, type MatchSummary } from '../matches/match-summaries';
+import type { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { compareLiceMatchOrder, LICE_MATCH_STATUSES } from './lice-matches';
 
 export interface LiceBoutsPayload {
@@ -31,7 +33,13 @@ export interface LiceBoutsPayload {
   }>;
 }
 
-export async function liceBouts(db: SupabaseClient, liceId: string): Promise<LiceBoutsPayload> {
+export async function liceBouts(
+  db: SupabaseClient,
+  liceId: string,
+  /** Each bout carries the edition of its own version, as `GET /matches/:id` gives it. */
+  rulesets: RulesetResolver | undefined,
+  logger: Pick<Logger, 'warn'>,
+): Promise<LiceBoutsPayload> {
   const { data: lice, error: liceError } = await db
     .from('lices')
     .select('id,name')
@@ -55,9 +63,11 @@ export async function liceBouts(db: SupabaseClient, liceId: string): Promise<Lic
   return {
     liceId: (lice as { id: string }).id,
     liceName: (lice as { name: string }).name,
-    bouts: rows.map((match) => ({
-      match,
-      summary: summaries.get(match['id'] as string) ?? null,
-    })),
+    bouts: await Promise.all(
+      rows.map(async (match) => ({
+        match: await withDecisionEdition(match, rulesets, logger),
+        summary: summaries.get(match['id'] as string) ?? null,
+      })),
+    ),
   };
 }

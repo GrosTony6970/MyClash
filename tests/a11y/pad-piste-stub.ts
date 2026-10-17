@@ -26,6 +26,7 @@ const row = (id: string, redScore: number) => ({
   status: id === 'match-1' ? 'running' : 'scheduled',
   ruleset_code: 'TF',
   ruleset_version: '1.0.0',
+  decision_edition: '2026-10',
   red_registration_id: `red-${id}`,
   blue_registration_id: `blue-${id}`,
   red_score: id === 'match-1' ? redScore : 0,

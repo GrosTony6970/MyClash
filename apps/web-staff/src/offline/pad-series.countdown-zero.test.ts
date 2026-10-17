@@ -94,4 +94,14 @@ describe('a round of a best-of bout that counts down, both out of points on the 
     const decided = round([afterblow('red', 4, 3, 1), hit('blue', 1, 1)], BRACKET);
     expect(decided.closed).toMatchObject([{ round: 1, winnerColor: 'blue' }]);
   });
+
+  it('decides a bout of a version from before 2026-10-11 by the board, as the server does', () => {
+    // A 1.0.0 bout: the server sent the 2026-04 edition with it. Blue less far
+    // below zero names nobody then: the board reads 0 - 0.
+    const old = { edition: '2026-04' as const };
+    expect(round([afterblow('red', 3, 3, 1)], old).closed).toEqual([
+      { round: 1, redScore: 0, blueScore: 0, winnerColor: null, by: 'tablet' },
+    ]);
+    expect(round([afterblow('red', 3, 3, 1)], { ...old, ...BRACKET }).closed).toEqual([]);
+  });
 });

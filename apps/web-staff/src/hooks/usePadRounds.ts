@@ -15,7 +15,8 @@
  * goes back to the server's row, and the reason is said at the clock.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EDITION_2026_10, type MatchFormatConfig } from '@myclash/types';
+import type { MatchFormatConfig } from '@myclash/types';
+import { editionOf } from '../lib/bout-edition';
 import { endRefusedOnPad, pressedOn } from '../components/end-guard';
 import type { MatchInfo } from '../components/MatchView';
 import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock';
@@ -87,6 +88,7 @@ function useServerRounds(match: MatchInfo): ServerRounds {
 function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): PadSeries {
   const bestOf = match.bestOf ?? 1;
   const phaseType = match.phaseType ?? undefined;
+  const edition = editionOf(match);
   const server = useServerRounds(match);
   const { matchNumberLabel, redRegistrationId, blueRegistrationId } = match;
   const { activeExchanges, activePenalties, pendingExchanges, pendingPenalties } = scoring;
@@ -107,6 +109,7 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
         queuedPenalties: pendingPenalties,
         roundPresses: queuedRoundPresses,
         held,
+        edition,
       }),
     [
       bestOf,
@@ -122,6 +125,7 @@ function useSeriesNow({ match, matchFormat, scoring, held }: PadRoundsArgs): Pad
       pendingPenalties,
       queuedRoundPresses,
       held,
+      edition,
     ],
   );
 }
@@ -194,6 +198,7 @@ export function usePadRounds(args: PadRoundsArgs): PadRounds {
   // gives it are given here first, in the same words, and nothing is queued
   // (`endRefusedOnPad`). A round with a leader ends, as with a network.
   const endRound = () => {
+    const edition = editionOf(match);
     const refused = endRefusedOnPad({
       matchFormat,
       phaseType: match.phaseType ?? undefined,
@@ -201,11 +206,11 @@ export function usePadRounds(args: PadRoundsArgs): PadRounds {
       elapsedMs: elapsedActiveMs(clockState, Date.now()),
       score: series,
       levelStepsTaken: clockState?.levelResolutionSteps ?? 0,
-      edition: EDITION_2026_10,
+      edition,
     });
     if (refused) setError(endRefusalMessage(refused, t));
     // The row carries the score it is pressed on: the round is closed on it.
-    else void press('end', series.round, pressedOn(series, matchFormat, match, EDITION_2026_10));
+    else void press('end', series.round, pressedOn(series, matchFormat, match, edition));
   };
 
   return { isBestOf: bestOf > 1, bestOf, series, startNextRound, endRound, forget };

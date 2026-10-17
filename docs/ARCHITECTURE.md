@@ -729,7 +729,8 @@ that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 | `roundOutcome` (`@myclash/rules`)                    | close a round of a best-of bout with no network, on the score the pad shows: at the cap or the doubles limit, by the server's own function |
 | `seriesResult` (`@myclash/rules`)                    | say a best-of series is decided, and for whom, from the rounds closed on the server and on the tablet                                      |
 | `belowZero` (`@myclash/rules`)                       | say how far under zero each side went in a bout that counts down, its unsent hits included, so both at zero names the same winner          |
-| `EDITION_2026_10` (`@myclash/rules`)                 | ask `roundOutcome` and `pointCapWinnerColor` with the end decision the server asks them with: a name, it computes nothing                  |
+| `EDITION_2026_10` (`@myclash/rules`)                 | ask `roundOutcome` and `pointCapWinnerColor` with today's end decision when a bout carries no edition the pad knows: a name                |
+| `isDecisionEdition` (`@myclash/rules`)               | check the edition the server sends with a bout, or the tablet kept, before a decider is asked with it: an unknown name would throw there   |
 
 **Both fighters out of points in a bout that counts down.** A `reverse_zero_loses` board stops at
 zero, so one afterblow can leave both sides at 0. The scorer (`computeMatchFormatScore`) then says
