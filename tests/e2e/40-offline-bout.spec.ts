@@ -40,11 +40,18 @@ test('a whole bout runs with no network, and reaches the server when it is back'
   await expect(pad.primary).toBeEnabled({ timeout: 30_000 });
   await expect(pad.clock).toHaveAttribute('data-status', 'idle');
   // The worker keeps the shells at its first install while the page runs: with
-  // no network before it is in charge, the reload below has nothing to open.
+  // no network before it is in charge AND holds the bout shell, the reload
+  // below has nothing to open. A first install takes over even with misses.
   await expect
-    .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)), {
-      timeout: 30_000,
-    })
+    .poll(
+      () =>
+        page.evaluate(
+          async () =>
+            Boolean(navigator.serviceWorker.controller) &&
+            Boolean(await caches.match(location.pathname.replace(/[^/]+$/, '_'))),
+        ),
+      { timeout: 30_000 },
+    )
     .toBe(true);
 
   await context.setOffline(true);

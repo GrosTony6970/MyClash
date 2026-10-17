@@ -95,10 +95,14 @@ function eventsOf(handlers: Map<string, Handler>): Pick<Worker, 'install' | 'act
   };
 }
 
-export function worker(version?: string, opts: { active?: boolean; mount?: string } = {}): Worker {
+/** `stores`: the caches of another worker, for two workers of one origin. */
+export function worker(
+  version?: string,
+  opts: { active?: boolean; mount?: string; stores?: Stores } = {},
+): Worker {
   const mount = opts.mount ?? '';
   const took: string[] = [];
-  const stores: Stores = new Map();
+  const stores: Stores = opts.stores ?? new Map();
   const network = new Map<string, () => Response>();
   const asked: string[] = [];
   const handlers = new Map<string, Handler>();

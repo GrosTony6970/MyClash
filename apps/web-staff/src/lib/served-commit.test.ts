@@ -60,7 +60,16 @@ describe('the registration of the service worker', () => {
       return address;
     };
 
-    for (const pathname of ['/', '/matches/bout-1', '/staff', '/staff/', '/staff/matches/bout-1']) {
+    for (const pathname of [
+      '/',
+      '/matches/bout-1',
+      '/staff',
+      '/staff/',
+      '/staff/matches/bout-1',
+      // Where a rule by segment and a rule by letters part: they must part together.
+      '/staffing',
+      '/staffx/y',
+    ]) {
       expect(registered(pathname), pathname).toBe(
         staffRoutePrefix(pathname) + workerUrl('14f7b056'),
       );

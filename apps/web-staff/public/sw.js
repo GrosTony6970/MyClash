@@ -17,23 +17,31 @@
  * dead address (quick-win ruling 4).
  *
  * THE VERSION is the `v` of this worker's own address: the page registers
- * `/sw.js?v=<commit served>` (`ServiceWorkerRegistration.tsx`). A deploy is a
- * new address, so a new worker: it fills a cache of its own at install, and at
- * activate removes every older one, so a page of the old app never serves.
+ * `<mount>/sw.js?v=<commit served>` (`src/lib/worker-registration.ts`). A
+ * deploy is a new address, so a new worker: it fills a cache of its own at
+ * install, and at activate removes every older one of its mount, so a page of
+ * the old app never serves.
  *
  * THE MOUNT is the folder of this worker's own address, its reach: nothing on
  * the referee site, `/staff` on the organiser site, where the page registers
- * `/staff/sw.js` (`src/lib/worker-registration.ts`). Every page address it
- * builds starts with it: on the organiser site `/login` is the organiser app's.
- * The API (`/api/…`) is at the root on both sites, and static files are matched
- * under either prefix.
+ * `/staff/sw.js`. Every page address it builds starts with it: on the organiser
+ * site `/login` is the organiser app's. The API (`/api/v1/…`) is at the root on
+ * both sites, and static files are matched under either prefix.
+ *
+ * ONE ORIGIN CAN HOLD TWO MOUNTS: the referee site also answers pages under
+ * `/staff/…`, so a tablet may hold a root worker and a `/staff/` one. Each
+ * updates only on a page of its own reach, so each owns the caches of its
+ * mount (the mount is in the name) and removes no other mount's.
  */
 
 const CACHE_VERSION = new URL(self.location.href).searchParams.get('v') || 'unversioned';
-const CACHE_NAME = `myclash-staff-${CACHE_VERSION}`;
 
 /** `''` or `/staff`: the reach of this worker, with no slash at its end. */
 const MOUNT = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+
+/** The caches of this mount: `myclash-staff-<v>` at the root, `myclash-staff~staff-<v>` under `/staff`. */
+const CACHE_FAMILY = `myclash-staff${MOUNT.replaceAll('/', '~')}-`;
+const CACHE_NAME = CACHE_FAMILY + CACHE_VERSION;
 
 /** The start page. */
 const START = `${MOUNT}/`;
@@ -171,7 +179,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith('myclash-staff-') && key !== CACHE_NAME)
+            .filter((key) => key.startsWith(CACHE_FAMILY) && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       )

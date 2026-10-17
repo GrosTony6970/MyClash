@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { STAFF_MOUNT } from '../lib/nav';
-import { CACHE, online, worker, type Worker } from './sw.fixtures';
+import { online, worker, type Worker } from './sw.fixtures';
+
+/** The cache of the `/staff/` worker of commit `14f7b056`: the mount is in its name. */
+const CACHE = 'myclash-staff~staff-14f7b056';
 
 /**
  * The worker on the organiser site, registered as `/staff/sw.js` (O2a, ruling
@@ -79,6 +82,42 @@ describe('a navigation with no network on the organiser site', () => {
     sw.stores.get(CACHE)!.delete('/staff/matches/_');
 
     expect(await text(sw.ask('/staff/matches/bout-2'))).toMatch(/main\.js"><\/script>\/staff\/$/);
+  });
+});
+
+// The referee site also answers pages under `/staff/…`: one tablet can hold a
+// root worker and a `/staff/` one. Each updates only on a page of its reach, so
+// a deploy that reaches one first must not empty the other's cache.
+describe('two mounts on one origin', () => {
+  it('keep a cache each, and a new version of one removes only its own older cache', async () => {
+    const root = worker('5bc3195f');
+    online(root);
+    await root.install();
+    const staff = worker('5bc3195f', { mount: STAFF_MOUNT, stores: root.stores });
+    online(staff);
+    await staff.install();
+    expect([...root.stores.keys()].sort()).toEqual([
+      'myclash-staff-5bc3195f',
+      'myclash-staff~staff-5bc3195f',
+    ]);
+
+    const nextRoot = worker('14f7b056', { stores: root.stores });
+    online(nextRoot);
+    await nextRoot.install();
+    await nextRoot.activate();
+    expect([...root.stores.keys()].sort()).toEqual([
+      'myclash-staff-14f7b056',
+      'myclash-staff~staff-5bc3195f',
+    ]);
+
+    const nextStaff = worker('14f7b056', { mount: STAFF_MOUNT, stores: root.stores });
+    online(nextStaff);
+    await nextStaff.install();
+    await nextStaff.activate();
+    expect([...root.stores.keys()].sort()).toEqual([
+      'myclash-staff-14f7b056',
+      'myclash-staff~staff-14f7b056',
+    ]);
   });
 });
 

@@ -1540,8 +1540,10 @@ bouts is where an official sees that entries still wait.
   (`src/lib/worker-registration.ts`): there `/sw.js` is the organiser app's,
   and the worker's reach is `/staff/`, never the organiser app's own pages. The
   worker reads its mount from `self.registration.scope` and builds every page
-  address under it (the shells, `shellFor`, the start page). `/api/` stays at
-  the root on both sites.
+  address under it (the shells, `shellFor`, the start page). `/api/v1/` stays
+  at the root on both sites. The referee site also answers pages under
+  `/staff/…`, so one tablet can hold two workers: the mount is in the cache's
+  name, and a worker removes only its own mount's older caches.
 - The Service Worker **resolves a synthetic `503 { error: 'offline', code:
 'offline' }`** for every `/api/` call rather than throwing, and caches no API
   response. Any client code branching on `!res.ok` is therefore on the OFFLINE
