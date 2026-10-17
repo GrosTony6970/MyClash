@@ -3,6 +3,7 @@ import {
   applyScoringDirection,
   computeMatchFormatScore,
   displayClockMs,
+  EDITION_2026_04,
   EDITION_2026_10,
   effectiveTimeLimitSeconds,
   evaluateRound,
@@ -54,6 +55,7 @@ export {
   applyScoringDirection,
   computeMatchFormatScore,
   displayClockMs,
+  EDITION_2026_04,
   EDITION_2026_10,
   effectiveTimeLimitSeconds,
   evaluateRound,
@@ -301,9 +303,10 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
 
 /**
  * The end decision for a ruleset that HAS a doubles ceiling: first to the point
- * cap, then max-doubles. In a bout that counts down, max-doubles first: the
- * order, and why, is `roundOutcome` in `@myclash/rules`, which a round of a
- * best-of bout asks too. This used to be a second copy of it.
+ * cap, then max-doubles. In a bout that counts down, max-doubles first under
+ * an edition since 2026-10-11: the order, and why, is `roundOutcome` in
+ * `@myclash/rules`, which a round of a best-of bout asks too. This used to be a
+ * second copy of it.
  *
  * One owner, because two rulesets need exactly this and they used not to agree.
  * TF_v1 implemented it; `createFormulaRuleset` delegated to `Generic_PointsCap`,

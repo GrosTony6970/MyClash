@@ -114,10 +114,14 @@ export function createFormulaRuleset(
   grammar?: RulesetGrammar | null,
 ): Ruleset {
   const hasAfterblow = grammar?.hasAfterblow ?? false;
+  // Today's end decision for every club ruleset, until the row keeps the
+  // edition of the day it was published (a later commit of this slice).
+  const decisionEdition = EDITION_2026_10;
   return {
     code,
     version,
     displayName,
+    decisionEdition,
     computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig) {
       // Reuses Generic_PointsCap's hit remapping — it has no afterblow concept
       // either, and the authored formula is the standings half, below.
@@ -130,7 +134,7 @@ export function createFormulaRuleset(
 
     /**
      * The cap and the doubles ceiling — the same decision TF_v1 makes, in the
-     * same order (the ceiling first in a bout that counts down).
+     * same order (in a bout that counts down, the order of its edition).
      *
      * This used to delegate to `Generic_PointsCap.isMatchOver`, which has no
      * `max_doubles` branch because that ruleset has no ceiling. Scoring zeroed
@@ -142,7 +146,7 @@ export function createFormulaRuleset(
         match,
         score,
         normalizeGenericPointsCapConfig(runtimeConfig).matchFormat,
-        EDITION_2026_10,
+        decisionEdition,
       );
     },
 

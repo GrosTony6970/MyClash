@@ -14,7 +14,14 @@ import type {
   StandingsColumn,
   RankingRule,
 } from '../types';
-import { computeAggregates, computeScore, type FighterAggregates } from '@myclash/rules';
+import {
+  computeAggregates,
+  computeScore,
+  EDITION_2026_04,
+  EDITION_2026_10,
+  type DecisionEdition,
+  type FighterAggregates,
+} from '@myclash/rules';
 import { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config } from './config';
 import { computeMatchScore, isMatchOver } from './score';
 import { formatDoublePenalty } from './double-penalty';
@@ -44,9 +51,13 @@ const TF_V1_RANKING_CHAIN: RankingRule[] = [
   { key: 'hitsReceived', direction: 'asc' },
 ];
 
-export const TF_v1: Ruleset = {
+/**
+ * What every version of TF_v1 shares: the maths, the config, the standings.
+ * The versions differ in their end decision only (ruling "TF_v1 version",
+ * 2026-10-16), and the FAL 2026 golden test holds the maths of all of them.
+ */
+const TF_V1_SHARED = {
   code: 'TF_v1',
-  version: '1.0.0',
   displayName: 'TF_v1',
 
   computeMatchScore(
@@ -57,10 +68,6 @@ export const TF_v1: Ruleset = {
   ) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
     return computeMatchScore(match, exchanges, cfg, afterblowMode);
-  },
-
-  isMatchOver(match: Match, score: MatchScore, config: unknown) {
-    return isMatchOver(match, score, TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig));
   },
 
   scorePoolFighters({
@@ -125,7 +132,25 @@ export const TF_v1: Ruleset = {
     shallowTargetDefault: TFv1DefaultConfig.targetValues.shallowTarget,
     scoreFormula: 'score = (wins × winBonus + targetPoints) / (timesHit + doublePenalty(doubles))',
   },
-};
+} satisfies Omit<Ruleset, 'version' | 'decisionEdition' | 'isMatchOver'>;
+
+function tfV1(version: string, decisionEdition: DecisionEdition): Ruleset {
+  return {
+    ...TF_V1_SHARED,
+    version,
+    decisionEdition,
+    isMatchOver(match: Match, score: MatchScore, config: unknown) {
+      const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
+      return isMatchOver(match, score, cfg, decisionEdition);
+    },
+  };
+}
+
+/** TF_v1 as it decides since 2026-10-11: the latest, what a new Tournament gets. */
+export const TF_v1 = tfV1('1.1.0', EDITION_2026_10);
+
+/** TF_v1 as it decided before 2026-10-11, kept for the bouts fought under it. */
+export const TF_v1_1_0_0 = tfV1('1.0.0', EDITION_2026_04);
 
 export { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config };
 export {

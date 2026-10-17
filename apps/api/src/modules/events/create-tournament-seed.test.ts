@@ -14,7 +14,6 @@
  * queue, which desyncs the moment a query is added — the matches mock lesson.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TF_v1, type RulesetRegistry } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { buildSeededScoringConfig } from './ruleset-defaults';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
@@ -70,10 +69,7 @@ function makeTournamentsChain(ref: { current: Record<string, unknown> | null }) 
   return chain;
 }
 
-function seedHarness(opts?: {
-  customRow?: Record<string, unknown> | null;
-  registry?: RulesetRegistry;
-}) {
+function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
   const ref: { current: Record<string, unknown> | null } = { current: null };
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'events') {
@@ -95,7 +91,7 @@ function seedHarness(opts?: {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    opts?.registry ?? createRulesetRegistry(),
+    createRulesetRegistry(),
   );
   return {
     svc,
@@ -112,17 +108,13 @@ describe('createTournament — seeds scoring_config_json', () => {
   });
 
   it('gives a new Tournament the latest version of its built-in when none is named', async () => {
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
-    const { svc, version } = seedHarness({ registry });
+    const { svc, version } = seedHarness();
     await svc.createTournament('e1', { slug: 's', name: 'T', rulesetCode: 'TF_v1' } as never, 'u1');
     expect(version()).toBe('1.1.0');
   });
 
   it('keeps the version the caller names, "1" stored as 1.0.0', async () => {
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
-    const { svc, version } = seedHarness({ registry });
+    const { svc, version } = seedHarness();
     const dto = { slug: 's', name: 'T', rulesetCode: 'TF_v1', rulesetVersion: '1' };
     await svc.createTournament('e1', dto as never, 'u1');
     expect(version()).toBe('1.0.0');

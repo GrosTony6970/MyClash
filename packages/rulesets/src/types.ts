@@ -14,6 +14,7 @@
 // nothing importing from this module changed.
 import type {
   AfterblowMode,
+  DecisionEdition,
   Exchange,
   ExchangeType,
   Match,
@@ -183,6 +184,13 @@ export interface Ruleset {
 
   /** Human-readable name for display */
   displayName: string;
+
+  /**
+   * The end decision this version runs (ruling "TF_v1 version", 2026-10-16: a
+   * version keeps the decision of its day). The scorer, `isMatchOver` and the
+   * best-of round all ask with it.
+   */
+  decisionEdition: DecisionEdition;
 
   /**
    * Compute one match's score from its exchanges.

@@ -86,8 +86,11 @@ export {
 } from './forfeits';
 export type { ForfeitPolicy, ForfeitReason, ForfeitReasonPolicy } from './forfeits';
 
+// Every built-in engine, each version of it
+export { BUILT_IN_RULESETS } from './built-ins';
+
 // TF_v1 ruleset
-export { TF_v1 } from './tf_v1';
+export { TF_v1, TF_v1_1_0_0 } from './tf_v1';
 export { TFv1ConfigSchema, TFv1DefaultConfig } from './tf_v1/config';
 export type { TFv1Config } from './tf_v1/config';
 // Named targets — the grammar half of a ruleset. Exported so the API validates
@@ -124,6 +127,7 @@ export {
 // Generic_PointsCap ruleset
 export {
   Generic_PointsCap,
+  Generic_PointsCap_1_0_0,
   GenericPointsCapConfigSchema,
   GenericPointsCapDefaultConfig,
 } from './generic_points_cap';

@@ -23,10 +23,10 @@ import {
   pendingLevelStep,
   seriesResult,
   timeIsFinished,
-  EDITION_2026_10,
 } from '@myclash/rulesets';
 import type {
   AfterblowMode,
+  DecisionEdition,
   Exchange as RulesetExchange,
   Match as RulesetMatch,
   MatchEndDecision,
@@ -38,6 +38,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
+import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
 import { ClockService, type ClockState, type SheetEnds } from './clock.service';
 import {
   backInPlayColumns,
@@ -114,7 +115,8 @@ function rulesetMatch(
     redRegistrationId: m['red_registration_id'] as string,
     blueRegistrationId: m['blue_registration_id'] as string,
     rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
-    rulesetVersion: (m['ruleset_version'] as string) ?? '1.0.0',
+    // "1" on a row is 1.0.0 (ruling 3): the scorer resolves the version it names.
+    rulesetVersion: normalizeRulesetVersion((m['ruleset_version'] as string) ?? '1.0.0'),
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
     phaseType,
     matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
@@ -518,6 +520,7 @@ export class ScoringService {
         match,
         score,
         matchFormat,
+        ruleset.decisionEdition,
       ),
     };
   }
@@ -629,9 +632,10 @@ export class ScoringService {
     match: RulesetMatch,
     score: MatchScore,
     matchFormat: MatchFormatConfig,
+    edition: DecisionEdition,
   ): string | null {
     if (reason === 'first_to_points') {
-      return getPointCapWinnerRegistrationId(match, score, matchFormat, EDITION_2026_10);
+      return getPointCapWinnerRegistrationId(match, score, matchFormat, edition);
     }
     if (reason === 'max_doubles_result_stands') {
       const leader = leadingColor(score);
@@ -764,12 +768,17 @@ export class ScoringService {
     matchFormat: MatchFormatConfig,
     roundPenalties: Record<string, unknown>[],
   ): RoundEvaluation {
-    return evaluateRound(match, openExchanges, matchFormat, EDITION_2026_10, (m, exchanges) =>
-      this.applyPenaltyDeltas(
-        ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
-        match,
-        roundPenalties,
-      ),
+    return evaluateRound(
+      match,
+      openExchanges,
+      matchFormat,
+      ruleset.decisionEdition,
+      (m, exchanges) =>
+        this.applyPenaltyDeltas(
+          ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
+          match,
+          roundPenalties,
+        ),
     );
   }
 
@@ -1280,16 +1289,7 @@ export class ScoringService {
       .eq('match_id', matchId)
       .eq('voided', false);
 
-    const match: RulesetMatch = {
-      id: m['id'] as string,
-      redRegistrationId: m['red_registration_id'] as string,
-      blueRegistrationId: m['blue_registration_id'] as string,
-      rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
-      rulesetVersion: (m['ruleset_version'] as string) ?? '1.0.0',
-      status: (m['status'] as RulesetMatch['status']) ?? 'running',
-      phaseType: this.phaseType(m['phases']),
-      matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
-    };
+    const match = rulesetMatch(m, this.phaseType(m['phases']));
 
     const ruleset = await scoredRuleset(this.rulesets, match.rulesetCode, match.rulesetVersion);
 
@@ -1459,9 +1459,10 @@ export class ScoringService {
    * A Reopen does not read the sheet again (ruling 331: the referee may correct it first). A
    * bout that counts down and ended with both out of points keeps a board of 0 - 0, which names
    * no leader: the End read it as level and gave a draw, or "play sudden death", to a bout the
-   * fighter less far below zero had won. The sheet's own end decides it, with its winner. A
-   * board with a leader is the End's to decide, as before, and so is a sheet still level. A
-   * series ends its rounds by its own door (`endRoundOnTime`).
+   * fighter less far below zero had won (under an edition since 2026-10-11). The sheet's own end
+   * decides it, with its winner, by the bout's version. A board with a leader is the End's to
+   * decide, as before, and so is a sheet still level. A series ends its rounds by its own door
+   * (`endRoundOnTime`).
    *
    * Asked by the clock's two doors (`SheetEnds`), once their refusals have passed. A completed
    * bout is never asked, so neither is one a forfeit record holds (ruling 322): a record holds

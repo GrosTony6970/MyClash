@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TF_v1_1_0_0 as OLD } from '@myclash/rulesets';
 import {
   BOUT,
   hit,
@@ -123,6 +124,40 @@ describe('ScoringService.recomputeMatchScore — a countdown bout at the doubles
       red_round_wins: 0,
       blue_round_wins: 0,
       awaiting_round_advance: true,
+    });
+  });
+});
+
+/**
+ * Ruling "TF_v1 version" (2026-10-16): a bout of TF_v1 1.0.0 is decided as it
+ * was before 2026-10-11, when the cap was asked first.
+ */
+describe('ScoringService.recomputeMatchScore — a countdown bout of TF_v1 1.0.0 at the doubles limit', () => {
+  it('ends it "first to points" with nobody ahead, as before', async () => {
+    const bout = inPlay(pool('reverse_zero_loses'));
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT, [], [], OLD);
+
+    await service.recomputeMatchScore(BOUT);
+
+    expect(written()?.row).toMatchObject({
+      status: 'completed',
+      winner_registration_id: null,
+      end_reason: 'first_to_points',
+    });
+  });
+
+  it('names the fighter a card left ahead on the wiped board, as before', async () => {
+    const card = { id: 'card-1', match_id: BOUT, score_delta: -1, registration_id: 'red' };
+    const cards = [{ ...card, voided: false, round_number: 1 }];
+    const bout = inPlay(pool('reverse_zero_loses'));
+    const { service, written } = setup(bout, STORY, RUNNING_EVENT, cards, [], OLD);
+
+    await service.recomputeMatchScore(BOUT);
+
+    expect(written()?.row).toMatchObject({
+      status: 'completed',
+      winner_registration_id: 'blue',
+      end_reason: 'first_to_points',
     });
   });
 });

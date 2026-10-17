@@ -1,4 +1,4 @@
-import { Generic_PointsCap, RulesetRegistry, TF_v1 } from '@myclash/rulesets';
+import { BUILT_IN_RULESETS, RulesetRegistry } from '@myclash/rulesets';
 
 /**
  * A registry holding the coded built-ins, and the one list of what those are.
@@ -11,9 +11,12 @@ import { Generic_PointsCap, RulesetRegistry, TF_v1 } from '@myclash/rulesets';
  *
  * `register` throws on a duplicate, deliberately — a built-in listed twice is a
  * boot failure here rather than a silently ignored second registration.
+ *
+ * Every version of each built-in: an older one is kept for the bouts fought
+ * under it (ruling "TF_v1 version"); a new Tournament gets the latest.
  */
 export function createRulesetRegistry(): RulesetRegistry {
   const registry = new RulesetRegistry();
-  for (const ruleset of [TF_v1, Generic_PointsCap]) registry.register(ruleset);
+  for (const ruleset of BUILT_IN_RULESETS) registry.register(ruleset);
   return registry;
 }

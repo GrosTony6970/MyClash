@@ -13,7 +13,6 @@
  */
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TF_v1, type RulesetRegistry } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
@@ -42,7 +41,6 @@ interface HarnessOpts {
   isSuperAdmin?: boolean;
   /** false => the target ruleset does not resolve (unknown/draft/wrong version). */
   resolverResolves?: boolean;
-  registry?: RulesetRegistry;
   standingsRows?: Array<{
     rank: number;
     registrationId: string;
@@ -114,7 +112,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    opts.registry ?? createRulesetRegistry(),
+    createRulesetRegistry(),
     undefined,
     undefined,
     undefined,
@@ -197,16 +195,14 @@ describe('repinTournamentRuleset', () => {
     await expect(
       svc.repinTournamentRuleset(
         't1',
-        { rulesetCode: 'TF_v1', justification: 'x'.repeat(12) } as never,
+        { rulesetCode: 'TF_v1', rulesetVersion: '1.0.0', justification: 'x'.repeat(12) } as never,
         'u1',
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('re-pins to the latest version of a built-in when none is named', async () => {
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
-    const { svc, cap, rulesetResolver } = harness({ current: RUNNING_TF, registry });
+    const { svc, cap, rulesetResolver } = harness({ current: RUNNING_TF });
     const dto = { rulesetCode: 'TF_v1', justification: REPIN_JUSTIFICATION } as never;
 
     await svc.repinTournamentRuleset('t1', dto, 'u1');
@@ -303,9 +299,7 @@ describe('previewRepinBucketDiff', () => {
   });
 
   it('previews the latest version of a built-in when none is named, as the re-pin does', async () => {
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
-    const { svc, rulesetResolver } = harness({ current: RUNNING_TF, registry });
+    const { svc, rulesetResolver } = harness({ current: RUNNING_TF });
 
     await svc.previewRepinBucketDiff('t1', { rulesetCode: 'TF_v1' }, 'u1');
 

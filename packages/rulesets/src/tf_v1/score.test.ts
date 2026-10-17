@@ -5,6 +5,7 @@
  *   SCORE = (4×3 + 37) / (10 + 2×1/3) = 49 / 10.67 ≈ 4.59 → rounds to 4.6
  */
 import { describe, it, expect } from 'vitest';
+import { EDITION_2026_10 } from '@myclash/rules';
 import {
   WIN_BONUS,
   doublePenalty,
@@ -298,6 +299,7 @@ describe('isMatchOver', () => {
       BASE_MATCH,
       scoreOf(BASE_MATCH, [], TFv1DefaultConfig),
       TFv1DefaultConfig,
+      EDITION_2026_10,
     );
     expect(result.isOver).toBe(false);
   });
@@ -316,7 +318,12 @@ describe('isMatchOver', () => {
         firstStrikeValue: 1,
       }),
     );
-    const result = isMatchOver(BASE_MATCH, scoreOf(BASE_MATCH, exchanges, config), config);
+    const result = isMatchOver(
+      BASE_MATCH,
+      scoreOf(BASE_MATCH, exchanges, config),
+      config,
+      EDITION_2026_10,
+    );
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('first_to_points');
   });
@@ -337,7 +344,7 @@ describe('isMatchOver', () => {
       }),
     );
     const pool: Match = { ...BASE_MATCH, phaseType: 'pool' };
-    const result = isMatchOver(pool, scoreOf(pool, exchanges, config), config);
+    const result = isMatchOver(pool, scoreOf(pool, exchanges, config), config, EDITION_2026_10);
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('max_doubles');
   });
@@ -358,7 +365,7 @@ describe('isMatchOver', () => {
       }),
     );
     const bout: Match = { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' };
-    const bracket = isMatchOver(bout, scoreOf(bout, exchanges, config), config);
+    const bracket = isMatchOver(bout, scoreOf(bout, exchanges, config), config, EDITION_2026_10);
     expect(bracket.isOver).toBe(false);
   });
 });

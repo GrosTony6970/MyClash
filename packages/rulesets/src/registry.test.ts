@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RulesetRegistry } from './registry';
-import { TF_v1 } from './tf_v1';
+// TF_v1_1_0_0, the 1.0.0 engine: most cases read its version.
+import { TF_v1, TF_v1_1_0_0 } from './tf_v1';
 
 describe('RulesetRegistry', () => {
   // A fresh registry per case — the isolation `clear()` used to fake on a
@@ -11,12 +12,12 @@ describe('RulesetRegistry', () => {
   });
 
   it('register() adds a ruleset', () => {
-    registry.register(TF_v1);
+    registry.register(TF_v1_1_0_0);
     expect(registry.has('TF_v1', '1.0.0')).toBe(true);
   });
 
   it('get() returns the registered ruleset', () => {
-    registry.register(TF_v1);
+    registry.register(TF_v1_1_0_0);
     const r = registry.get('TF_v1', '1.0.0');
     expect(r.code).toBe('TF_v1');
     expect(r.version).toBe('1.0.0');
@@ -27,12 +28,12 @@ describe('RulesetRegistry', () => {
   });
 
   it('register() throws on duplicate', () => {
-    registry.register(TF_v1);
-    expect(() => registry.register(TF_v1)).toThrow('already registered');
+    registry.register(TF_v1_1_0_0);
+    expect(() => registry.register(TF_v1_1_0_0)).toThrow('already registered');
   });
 
   it('list() returns all registered rulesets sorted', () => {
-    registry.register(TF_v1);
+    registry.register(TF_v1_1_0_0);
     const list = registry.list();
     expect(list).toHaveLength(1);
     expect(list[0]?.code).toBe('TF_v1');
@@ -42,10 +43,10 @@ describe('RulesetRegistry', () => {
     // Registered out of order, so the result proves the sort rather than the
     // insertion. A version's numbers compare as numbers: "2.0.0" sorts before
     // "10.0.0", which a text sort would put first.
-    registry.register({ ...TF_v1, version: '10.0.0' });
-    registry.register({ ...TF_v1, version: '2.0.0' });
-    registry.register(TF_v1);
-    registry.register({ ...TF_v1, code: 'A_v1' });
+    registry.register({ ...TF_v1_1_0_0, version: '10.0.0' });
+    registry.register({ ...TF_v1_1_0_0, version: '2.0.0' });
+    registry.register(TF_v1_1_0_0);
+    registry.register({ ...TF_v1_1_0_0, code: 'A_v1' });
 
     expect(registry.list().map((ruleset) => `${ruleset.code}@${ruleset.version}`)).toEqual([
       'A_v1@1.0.0',
@@ -60,24 +61,24 @@ describe('RulesetRegistry', () => {
   });
 
   it('latestVersionOf() is the newest version of the code, by its numbers', () => {
-    registry.register({ ...TF_v1, version: '10.0.0' });
-    registry.register({ ...TF_v1, version: '2.0.0' });
-    registry.register(TF_v1);
-    registry.register({ ...TF_v1, code: 'A_v1', version: '3.0.0' });
+    registry.register({ ...TF_v1_1_0_0, version: '10.0.0' });
+    registry.register({ ...TF_v1_1_0_0, version: '2.0.0' });
+    registry.register(TF_v1_1_0_0);
+    registry.register({ ...TF_v1_1_0_0, code: 'A_v1', version: '3.0.0' });
 
     expect(registry.latestVersionOf('TF_v1')).toBe('10.0.0');
     expect(registry.latestVersionOf('A_v1')).toBe('3.0.0');
   });
 
   it('latestVersionOf() is undefined for a code that is not registered', () => {
-    registry.register(TF_v1);
+    registry.register(TF_v1_1_0_0);
     expect(registry.latestVersionOf('Club_formula')).toBeUndefined();
   });
 
   it('latestOfEach() keeps the newest version of each code only', () => {
-    registry.register({ ...TF_v1, version: '1.1.0' });
     registry.register(TF_v1);
-    registry.register({ ...TF_v1, code: 'A_v1' });
+    registry.register(TF_v1_1_0_0);
+    registry.register({ ...TF_v1_1_0_0, code: 'A_v1' });
 
     expect(registry.latestOfEach().map((ruleset) => `${ruleset.code}@${ruleset.version}`)).toEqual([
       'A_v1@1.0.0',

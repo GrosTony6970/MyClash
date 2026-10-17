@@ -14,7 +14,7 @@ import {
   endOnPointCapOrMaxDoubles,
   normalizeMatchFormatConfig,
   type AfterblowMode,
-  EDITION_2026_10,
+  type DecisionEdition,
 } from '../match-format';
 import {
   doublePenalty,
@@ -74,8 +74,9 @@ export function computeMatchScore(
 // ── Match end decision ────────────────────────────────────────────────────────
 
 /**
- * Decide if a TF_v1 match has ended: first-to-points, then max-doubles
- * (max-doubles first in a bout that counts down).
+ * Decide if a TF_v1 match has ended: first-to-points, then max-doubles (in a
+ * bout that counts down, the order is the edition's: max-doubles first since
+ * 2026-10-11).
  *
  * Reads the SCORE the caller already holds instead of re-deriving it from the
  * exchanges. Two things came out of the old shape. It scored every bout twice,
@@ -86,7 +87,12 @@ export function computeMatchScore(
  * production call passed a literal 0, so the branch could never fire; a single
  * fight that runs out of time is completed by `ClockService`.
  */
-export function isMatchOver(match: Match, score: MatchScore, config: TFv1Config): MatchEndDecision {
+export function isMatchOver(
+  match: Match,
+  score: MatchScore,
+  config: TFv1Config,
+  edition: DecisionEdition,
+): MatchEndDecision {
   // The cap-then-ceiling decision is shared with `createFormulaRuleset`, which
   // used to inherit a branchless one from Generic_PointsCap and get stuck at
   // 0-0. One owner in `../match-format`.
@@ -94,6 +100,6 @@ export function isMatchOver(match: Match, score: MatchScore, config: TFv1Config)
     match,
     score,
     normalizeMatchFormatConfig(config.matchFormat),
-    EDITION_2026_10,
+    edition,
   );
 }

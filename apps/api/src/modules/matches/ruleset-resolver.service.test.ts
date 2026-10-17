@@ -19,7 +19,7 @@
  * the diff is over booleans.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TF_v1 } from '@myclash/rulesets';
+import { TF_v1, TF_v1_1_0_0 } from '@myclash/rulesets';
 import { createFormulaRuleset } from '@myclash/rulesets';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
@@ -294,7 +294,8 @@ describe('RulesetResolver — coded forks (base_code)', () => {
       },
     });
     const ruleset = await resolver.resolve('custom_fork_x', '1.0.0');
-    expect(ruleset === TF_v1).toBe(true);
+    // A fork of 1.0.0 runs the 1.0.0 engine: its base, not today's version.
+    expect(ruleset === TF_v1_1_0_0).toBe(true);
   });
 
   it('resolves a base_code fork on the parent-row fallback path too', async () => {
@@ -320,7 +321,13 @@ describe('RulesetResolver — coded forks (base_code)', () => {
       },
     });
     const ruleset = await resolver.resolve('custom_fork_y', '1.0.0');
-    expect(ruleset === TF_v1).toBe(true);
+    expect(ruleset === TF_v1_1_0_0).toBe(true);
+  });
+
+  it('resolves a fork of the latest base to the latest engine', async () => {
+    const parent = { id: 'fork3', name: 'Fork', is_system: false, base_code: 'TF_v1' };
+    const { resolver } = makeResolver({ parent: { ...parent, base_version: '1.1.0' } });
+    expect((await resolver.resolve('custom_fork_w', '1.0.0')) === TF_v1).toBe(true);
   });
 
   it('normalises a shorthand base_version so a fork of `1` still resolves', async () => {
@@ -335,7 +342,7 @@ describe('RulesetResolver — coded forks (base_code)', () => {
     });
     // base_version null defaults to '1.0.0', the registry key.
     const ruleset = await resolver.resolve('custom_fork_z', '1.0.0');
-    expect(ruleset === TF_v1).toBe(true);
+    expect(ruleset === TF_v1_1_0_0).toBe(true);
   });
 
   it('returns null (not a crash) when the fork names an unregistered base', async () => {

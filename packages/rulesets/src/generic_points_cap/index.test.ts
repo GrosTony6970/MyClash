@@ -38,7 +38,7 @@ describe('Generic_PointsCap', () => {
 
   it('registers in the registry', () => {
     registry.register(Generic_PointsCap);
-    expect(registry.has('Generic_PointsCap', '1.0.0')).toBe(true);
+    expect(registry.has('Generic_PointsCap', '1.1.0')).toBe(true);
   });
 
   describe('computeMatchScore', () => {

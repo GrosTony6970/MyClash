@@ -20,7 +20,6 @@
  */
 import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Generic_PointsCap, type RulesetRegistry } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
@@ -48,7 +47,6 @@ interface HarnessOpts {
   current: Record<string, unknown>;
   phases?: Array<{ id: string }>;
   scoredMatchCount?: number;
-  registry?: RulesetRegistry;
 }
 
 function tournamentsChain(current: Record<string, unknown>, cap: Captured) {
@@ -129,7 +127,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
-    opts.registry ?? createRulesetRegistry(),
+    createRulesetRegistry(),
   );
   return { svc, cap };
 }
@@ -207,12 +205,7 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
   });
 
   it('gives a swapped-in ruleset its own latest version, not the old ruleset’s', async () => {
-    const registry = createRulesetRegistry();
-    registry.register({ ...Generic_PointsCap, version: '1.1.0' });
-    const { svc, cap } = harness({
-      current: { ...RUNNING_TF, status: 'draft' },
-      registry,
-    });
+    const { svc, cap } = harness({ current: { ...RUNNING_TF, status: 'draft' } });
 
     await svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1');
 

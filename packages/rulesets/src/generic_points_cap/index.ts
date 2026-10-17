@@ -15,7 +15,9 @@ import {
   computeMatchFormatScore,
   normalizeMatchFormatConfig,
   pointCapEndsBout,
+  EDITION_2026_04,
   EDITION_2026_10,
+  type DecisionEdition,
 } from '../match-format';
 import type {
   AfterblowMode,
@@ -146,8 +148,9 @@ function matchOver(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: MatchScore,
   config: GenericPointsCapConfig,
+  edition: DecisionEdition,
 ): MatchEndDecision {
-  if (pointCapEndsBout(match, score, config.matchFormat, EDITION_2026_10)) {
+  if (pointCapEndsBout(match, score, config.matchFormat, edition)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   return { isOver: false, reason: null };
@@ -218,9 +221,9 @@ const GENERIC_RANKING_CHAIN: RankingRule[] = [
 
 // ── Ruleset ───────────────────────────────────────────────────────────────────
 
-export const Generic_PointsCap: Ruleset = {
+/** What every version shares; they differ in their end decision only. */
+const GENERIC_SHARED = {
   code: 'Generic_PointsCap',
-  version: '1.0.0',
   displayName: 'Points Cap (Premier à N points)',
 
   // This ruleset has no afterblow concept — `metadata.hasAfterblow` is false —
@@ -236,10 +239,6 @@ export const Generic_PointsCap: Ruleset = {
       exchanges,
       withoutMaxDoubles(normalizeGenericPointsCapConfig(config)),
     );
-  },
-
-  isMatchOver(match: Match, score: MatchScore, config: unknown) {
-    return matchOver(match, score, normalizeGenericPointsCapConfig(config));
   },
 
   scorePoolFighters({ registrationIds, completedMatches, config }: ScorePoolFightersInput) {
@@ -269,4 +268,24 @@ export const Generic_PointsCap: Ruleset = {
     deepTargetDefault: null,
     shallowTargetDefault: null,
   },
-};
+} satisfies Omit<Ruleset, 'version' | 'decisionEdition' | 'isMatchOver'>;
+
+function genericPointsCap(version: string, decisionEdition: DecisionEdition): Ruleset {
+  return {
+    ...GENERIC_SHARED,
+    version,
+    decisionEdition,
+    isMatchOver(match: Match, score: MatchScore, config: unknown) {
+      return matchOver(match, score, normalizeGenericPointsCapConfig(config), decisionEdition);
+    },
+  };
+}
+
+/**
+ * The latest, what a new Tournament gets. Both at zero in a bout that counts
+ * down moved on 2026-10-11 here too (`c7cedc92`); it has no doubles limit.
+ */
+export const Generic_PointsCap = genericPointsCap('1.1.0', EDITION_2026_10);
+
+/** As it decided before 2026-10-11, kept for the bouts fought under it. */
+export const Generic_PointsCap_1_0_0 = genericPointsCap('1.0.0', EDITION_2026_04);

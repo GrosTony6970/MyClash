@@ -7,6 +7,7 @@ import {
   projectPenaltyBucketFromSnapshot,
   RulesetRegistry,
   stableStringify,
+  TF_v1,
   type PenaltyBehaviourInput,
   type ScoringBehaviourInput,
 } from '@myclash/rulesets';
@@ -229,7 +230,7 @@ export class RulesetHashService {
     // returns null for a draft, so the scorer falls back to TF_v1. Mirror that —
     // otherwise the fingerprint describes a formula that never scored a bout.
     if (!snapshot && parent['status'] !== 'published') {
-      return { kind: 'coded', engineCode: 'TF_v1', engineVersion: '1.0.0' };
+      return { kind: 'coded', engineCode: TF_v1.code, engineVersion: TF_v1.version };
     }
     const def = snapshot ?? parent;
     return {

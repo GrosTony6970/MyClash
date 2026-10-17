@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import type { Ruleset } from '@myclash/rulesets';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { ScoringService } from './scoring.service';
 
@@ -87,14 +88,14 @@ function leagueDouble(completion: {
   return { leagueRescore, bracketToldBeforeLeagues };
 }
 
-export function setup(
+/** The bout's rows, beside a second bout's that no read or write may take. */
+function boutDb(
   bout: Record<string, unknown>,
   sheet: Array<Record<string, unknown>>,
-  context: Record<string, boolean> = OVER_EVENT,
-  cards: Array<Record<string, unknown>> = [],
-  records: Array<Record<string, unknown>> = [],
+  cards: Array<Record<string, unknown>>,
+  records: Array<Record<string, unknown>>,
 ) {
-  const db = mockSupabase({
+  return mockSupabase({
     // A second bout: unscoped, the reads and the write would take it too.
     matches: { rows: [bout, storedBout({ id: 'm2' })] },
     exchanges: { rows: [...sheet, { ...hit(9, 'red', 3), match_id: 'm2' }] },
@@ -102,6 +103,18 @@ export function setup(
     // The second bout's record is live: it holds nothing of the first (ruling 322).
     match_forfeits: { rows: [...records, { id: 'f2', match_id: 'm2', voided_at: null }] },
   });
+}
+
+export function setup(
+  bout: Record<string, unknown>,
+  sheet: Array<Record<string, unknown>>,
+  context: Record<string, boolean> = OVER_EVENT,
+  cards: Array<Record<string, unknown>> = [],
+  records: Array<Record<string, unknown>> = [],
+  /** What the resolver answers for the bout's pair; none = the scorer's TF_v1. */
+  ruleset: Ruleset | null = null,
+) {
+  const db = boutDb(bout, sheet, cards, records);
   const writesWhenToldTheBracket: number[] = [];
   const matchCompletion = {
     onMatchCompleted: vi.fn().mockResolvedValue(undefined),
@@ -115,9 +128,10 @@ export function setup(
     getClockState: vi.fn().mockResolvedValue({ levelResolutionSteps: 0, status: 'ended' }),
   };
   const { leagueRescore, bracketToldBeforeLeagues } = leagueDouble(matchCompletion);
+  const rulesets = { resolve: vi.fn().mockResolvedValue(ruleset) };
   const service = new ScoringService(
     db as never,
-    { resolve: vi.fn().mockResolvedValue(null) } as never,
+    rulesets as never,
     clock as never,
     matchCompletion as never,
     leagueRescore as never,
@@ -125,6 +139,7 @@ export function setup(
   const written = () => writesTo(db, 'matches')[0];
   return {
     db,
+    rulesets,
     clock,
     matchCompletion,
     leagueRescore,

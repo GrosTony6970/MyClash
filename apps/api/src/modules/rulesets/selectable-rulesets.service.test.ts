@@ -132,12 +132,10 @@ describe('SelectableRulesetsService', () => {
 
   it('offers the latest version of a built-in only', async () => {
     const { supabase } = makeSupabase({ data: [], error: null });
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
     const service = new SelectableRulesetsService(
       supabase as never,
       { resolve: vi.fn() } as never,
-      registry,
+      createRulesetRegistry(),
     );
 
     const result = await service.listForOrganization('org-1');
@@ -149,13 +147,11 @@ describe('SelectableRulesetsService', () => {
       data: [{ code: 'TF_v1', version: '1.0.0' }],
       error: null,
     });
-    const registry = createRulesetRegistry();
-    registry.register({ ...TF_v1, version: '1.1.0' });
     const resolve = vi.fn().mockResolvedValue(TF_v1);
     const service = new SelectableRulesetsService(
       supabase as never,
       { resolve } as never,
-      registry,
+      createRulesetRegistry(),
     );
 
     const result = await service.listForOrganization('org-1');

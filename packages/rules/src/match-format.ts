@@ -470,9 +470,10 @@ export type CapScore = Pick<MatchScore, 'redScore' | 'blueScore'> &
  * column, and in code only an edition that exists can be named (a name read
  * from the network or a store is checked where it comes in).
  *
- * Every decider takes one. Today every caller passes `EDITION_2026_10`; a
- * ruleset version is to carry its own, so a bout fought before a change and
- * corrected after it is decided as it was fought.
+ * Every decider takes one. A ruleset version carries its own, and the server
+ * asks with the edition of the bout's version, so a bout fought before a change
+ * and corrected after it is decided as it was fought. The pad still asks with
+ * `EDITION_2026_10` until it reads the bout's own.
  */
 export type DecisionEdition = '2026-04' | '2026-10';
 
@@ -530,8 +531,8 @@ export function pointCapWinnerColor(
   edition: DecisionEdition,
 ): 'red' | 'blue' | null {
   if (config.scoringDirection === 'reverse_zero_loses') {
-    // Both out of points: the fighter less far below zero. Both as far below
-    // is level and answers nobody.
+    // Both out of points: the leader `capLeader` names by the edition (the
+    // fighter less far below zero since 2026-10-11). Level answers nobody.
     if (score.redScore <= 0 && score.blueScore <= 0) return capLeader(score, config, edition);
     if (score.redScore <= 0) return 'blue';
     if (score.blueScore <= 0) return 'red';
@@ -887,7 +888,8 @@ export function evaluateRound(
  *
  * A bout of ONE round asks it too (`endOnPointCapOrMaxDoubles` in
  * `@myclash/rulesets`): the order of the cap and the doubles ceiling has this
- * one owner. The cap first, except in a bout that counts down.
+ * one owner. The cap first, except in a bout that counts down under an edition
+ * since 2026-10-11.
  */
 export function roundOutcome(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,

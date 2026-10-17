@@ -30,12 +30,16 @@ import { deepMergeJson } from '../../common/deep-merge';
 /**
  * Canonical defaults keyed by `${code}:${normalisedVersion}`.
  * "1" and "1.0.0" are treated as the same version for all built-in rulesets.
+ * The versions of a built-in share their config: they differ in the end
+ * decision only.
  */
 const RULESET_DEFAULTS: Record<string, Record<string, unknown>> = {
   'TF_v1:1': TFv1DefaultConfig as Record<string, unknown>,
   'TF_v1:1.0.0': TFv1DefaultConfig as Record<string, unknown>,
+  'TF_v1:1.1.0': TFv1DefaultConfig as Record<string, unknown>,
   'Generic_PointsCap:1': GenericPointsCapDefaultConfig as Record<string, unknown>,
   'Generic_PointsCap:1.0.0': GenericPointsCapDefaultConfig as Record<string, unknown>,
+  'Generic_PointsCap:1.1.0': GenericPointsCapDefaultConfig as Record<string, unknown>,
 };
 
 /**
