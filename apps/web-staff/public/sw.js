@@ -238,36 +238,50 @@ async function networkFirstApi(request) {
 }
 
 /**
- * A page comes from THIS worker's cache only. On the referee site the root
- * worker keeps the first `/staff/…` page it was in charge of; asked across
- * every cache, the `/staff/` worker would serve that page of an older app.
+ * EVERY strategy reads THIS worker's cache only, never `caches.match` across
+ * all of them. On the referee site the root worker keeps the first `/staff/…`
+ * page it was in charge of, and every `/staff/_next/static/…` file a root page
+ * asked for (one build, one asset prefix). Asked across caches, the `/staff/`
+ * worker would serve that page of an older app, or a file it never kept and
+ * loses when the root worker's next deploy removes its cache.
  */
+const ownCache = () => caches.open(CACHE_NAME);
+
 async function networkFirstNavigate(request) {
-  const cache = await caches.open(CACHE_NAME);
   try {
     const res = await fetch(request);
     // Cache successful navigation responses for offline use
-    if (res.ok) cache.put(request, res.clone());
+    if (res.ok) {
+      const copy = res.clone();
+      ownCache()
+        .then((cache) => cache.put(request, copy))
+        .catch(() => undefined);
+    }
     return res;
   } catch {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    // The shell of the address's route; the start page when that is not kept either.
-    const shell =
-      (await cache.match(shellFor(new URL(request.url).pathname))) ?? (await cache.match(START));
-    return shell ?? new Response('Offline', { status: 503 });
+    try {
+      const cache = await ownCache();
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      // The shell of the address's route; the start page when that is not kept either.
+      const shell =
+        (await cache.match(shellFor(new URL(request.url).pathname))) ?? (await cache.match(START));
+      if (shell) return shell;
+    } catch {
+      // No cache to read: the same answer as an empty one.
+    }
+    return new Response('Offline', { status: 503 });
   }
 }
 
 async function cacheFirst(request) {
-  const cached = await caches.match(request);
+  // A cache that cannot open is an empty one: the network still answers.
+  const cache = await ownCache().catch(() => null);
+  const cached = await cache?.match(request);
   if (cached) return cached;
   try {
     const res = await fetch(request);
-    if (res.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, res.clone());
-    }
+    if (res.ok) cache?.put(request, res.clone());
     return res;
   } catch {
     return new Response('Asset unavailable offline', { status: 503 });
@@ -275,7 +289,7 @@ async function cacheFirst(request) {
 }
 
 async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await ownCache();
   const cached = await cache.match(request);
   const fetchPromise = fetch(request)
     .then((res) => {

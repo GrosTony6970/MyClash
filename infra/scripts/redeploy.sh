@@ -273,6 +273,12 @@ for svc in "${SERVICES[@]}"; do
     else
       warn "Scoring pad does not serve sw.js?v=${GIT_COMMIT:0:8}: the tablets keep their old offline cache"
     fi
+    # On the organiser site only /staff/* reaches the pad (O2a, see deploy.sh).
+    if curl -fsSL "https://admin.${DOMAIN}/staff/sw.js?v=${GIT_COMMIT:0:8}" 2>/dev/null | grep -q "CACHE_FAMILY"; then
+      ok "Scoring pad's worker answers under admin.${DOMAIN}/staff"
+    else
+      warn "admin.${DOMAIN}/staff/sw.js is not the pad's worker: no offline copy on the organiser site"
+    fi
     break
   fi
 done

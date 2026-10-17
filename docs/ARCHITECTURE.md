@@ -1543,9 +1543,10 @@ bouts is where an official sees that entries still wait.
   address under it (the shells, `shellFor`, the start page). `/api/v1/` stays
   at the root on both sites. The referee site also answers pages under
   `/staff/…`, so one tablet can hold two workers: the mount is in the cache's
-  name, a worker removes only its own mount's older caches, and it serves a
-  page only from its own cache (the root worker may hold a `/staff/` page it
-  was in charge of before the `/staff/` worker existed).
+  name, a worker removes only its own mount's older caches, and it reads only
+  its own cache, pages and static files alike (the root worker may hold a
+  `/staff/` page it was in charge of before the `/staff/` worker existed, and
+  every `/staff/_next/static/…` file a root page asked for).
 - The Service Worker **resolves a synthetic `503 { error: 'offline', code:
 'offline' }`** for every `/api/` call rather than throwing, and caches no API
   response. Any client code branching on `!res.ok` is therefore on the OFFLINE

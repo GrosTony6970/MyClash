@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { STAFF_MOUNT } from '../lib/nav';
-import { online, page, worker, type Worker } from './sw.fixtures';
+import { file, online, page, worker, type Worker } from './sw.fixtures';
 
 /** The cache of the `/staff/` worker of commit `14f7b056`: the mount is in its name. */
 const CACHE = 'myclash-staff~staff-14f7b056';
@@ -139,6 +139,30 @@ describe('a page with no network, with two mounts on one origin', () => {
     for (const path of ['/staff/', '/staff/never-opened']) {
       expect(await (await staff.ask(path))?.text(), path).toMatch(/main\.js"><\/script>\/staff\/$/);
     }
+    // A bout whose shell this worker did not keep falls to ITS start page, not the other's copy.
+    staff.stores.get(CACHE)!.delete('/staff/matches/_');
+    root.stores.get('myclash-staff-5bc3195f')!.set('/staff/matches/_', page('app 5bc3195f')());
+    expect(await (await staff.ask('/staff/matches/bout-2'))?.text()).toMatch(
+      /main\.js"><\/script>\/staff\/$/,
+    );
+  });
+
+  // One build, one asset prefix: a root page asks for `/staff/_next/static/…` too.
+  it('keeps its own copy of a static file the other worker already holds', async () => {
+    const root = worker('5bc3195f');
+    const staff = worker('5bc3195f', { mount: STAFF_MOUNT, stores: root.stores });
+    const chunk = '/staff/_next/static/chunks/lazy-9.js';
+    root.network.set(chunk, file);
+    await root.ask(chunk, 'no-cors');
+    expect(root.stores.get('myclash-staff-5bc3195f')!.has(chunk)).toBe(true);
+
+    staff.network.set(chunk, file);
+    await staff.ask(chunk, 'no-cors');
+    // The root worker's next deploy removes its cache: the `/staff/` copy must stay.
+    root.stores.delete('myclash-staff-5bc3195f');
+    staff.network.clear();
+
+    expect((await staff.ask(chunk, 'no-cors'))?.status).toBe(200);
   });
 });
 
