@@ -15,7 +15,7 @@
  * goes back to the server's row, and the reason is said at the clock.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { MatchFormatConfig } from '@myclash/types';
+import { EDITION_2026_10, type MatchFormatConfig } from '@myclash/types';
 import { endRefusedOnPad, pressedOn } from '../components/end-guard';
 import type { MatchInfo } from '../components/MatchView';
 import { elapsedActiveMs, type ClockState } from '../components/scoreboard-clock';
@@ -201,10 +201,11 @@ export function usePadRounds(args: PadRoundsArgs): PadRounds {
       elapsedMs: elapsedActiveMs(clockState, Date.now()),
       score: series,
       levelStepsTaken: clockState?.levelResolutionSteps ?? 0,
+      edition: EDITION_2026_10,
     });
     if (refused) setError(endRefusalMessage(refused, t));
     // The row carries the score it is pressed on: the round is closed on it.
-    else void press('end', series.round, pressedOn(series, matchFormat, match));
+    else void press('end', series.round, pressedOn(series, matchFormat, match, EDITION_2026_10));
   };
 
   return { isBestOf: bestOf > 1, bestOf, series, startNextRound, endRound, forget };

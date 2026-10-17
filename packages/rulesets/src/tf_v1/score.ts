@@ -14,6 +14,7 @@ import {
   endOnPointCapOrMaxDoubles,
   normalizeMatchFormatConfig,
   type AfterblowMode,
+  EDITION_2026_10,
 } from '../match-format';
 import {
   doublePenalty,
@@ -89,5 +90,10 @@ export function isMatchOver(match: Match, score: MatchScore, config: TFv1Config)
   // The cap-then-ceiling decision is shared with `createFormulaRuleset`, which
   // used to inherit a branchless one from Generic_PointsCap and get stuck at
   // 0-0. One owner in `../match-format`.
-  return endOnPointCapOrMaxDoubles(match, score, normalizeMatchFormatConfig(config.matchFormat));
+  return endOnPointCapOrMaxDoubles(
+    match,
+    score,
+    normalizeMatchFormatConfig(config.matchFormat),
+    EDITION_2026_10,
+  );
 }

@@ -16,6 +16,7 @@ import {
   endOnPointCapOrMaxDoubles,
   evaluateRound,
   MatchFormatConfigSchema,
+  EDITION_2026_10,
 } from './match-format';
 
 const BASE_MATCH: Match = {
@@ -92,6 +93,7 @@ describe('maxDoubleHitOutcome', () => {
         pool,
         computeMatchFormatScore(pool, twoDoublesAndAHit, config),
         config,
+        EDITION_2026_10,
       ).reason;
     };
     expect(reasonFor('double_loss_zero_scores')).toBe('max_doubles');
@@ -118,6 +120,7 @@ describe('evaluateRound at the doubles ceiling', () => {
         makeExchange({ id: 'd2', sequence: 3, type: 'double', firstStrikerColor: null }),
       ],
       { ...cfg, maxDoubleHits: 2, maxDoubleHitOutcome: 'draw_zero_scores' as const },
+      EDITION_2026_10,
     );
     expect(ev.autoOver).toBe(true);
     expect(ev.winnerColor).toBeNull();
@@ -135,6 +138,7 @@ describe('evaluateRound at the doubles ceiling', () => {
         makeExchange({ id: 'd2', sequence: 3, type: 'double', firstStrikerColor: null }),
       ],
       { ...cfg, maxDoubleHits: 2, maxDoubleHitOutcome: 'result_stands' as const },
+      EDITION_2026_10,
     );
     expect(ev.autoOver).toBe(true);
     expect(ev.winnerColor).toBe('red');
@@ -151,6 +155,7 @@ describe('evaluateRound at the doubles ceiling', () => {
         makeExchange({ id: 'd2', sequence: 2, type: 'double', firstStrikerColor: null }),
       ],
       { ...cfg, maxDoubleHits: 2, maxDoubleHitOutcome: 'result_stands' as const },
+      EDITION_2026_10,
     );
     expect(ev.autoOver).toBe(true);
     expect(ev.winnerColor).toBeNull();

@@ -303,7 +303,11 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // `belowZero` joined for a bout that counts down with both fighters out of
   // points: the board stops at zero, and the pad says how far under each side
   // went by the scorer's own subtraction, beside `applyScoringDirection`.
+  // `EDITION_2026_10` joined when a ruleset version began to keep the end
+  // decision of its day: a constant the pad hands `roundOutcome` and
+  // `pointCapWinnerColor`, so they decide as the server does. It computes nothing.
   assert.deepEqual([...allowed].sort(), [
+    'EDITION_2026_10',
     'applyScoringDirection',
     'belowZero',
     'clockAfterPress',

@@ -10,7 +10,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Exchange, Match } from './types';
 import { DEFAULT_FORMULA_CONSTANTS, Generic_PointsCap, TF_v1, createFormulaRuleset } from './index';
-import { DEFAULT_MATCH_FORMAT_CONFIG, getPointCapWinnerRegistrationId } from './match-format';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  getPointCapWinnerRegistrationId,
+  EDITION_2026_10,
+} from './match-format';
 import { TFv1DefaultConfig } from './tf_v1/config';
 
 const FORMAT = {
@@ -65,14 +69,16 @@ describe('TF_v1, both at zero in a bout that counts down', () => {
       const score = scored(bout, story());
       expect(score).toMatchObject({ redScore: 0, blueScore: 0 });
       expect(TF_v1.isMatchOver(bout, score, TF_CONFIG)).toEqual(OVER);
-      expect(getPointCapWinnerRegistrationId(bout, score, FORMAT)).toBe('reg-blue');
+      expect(getPointCapWinnerRegistrationId(bout, score, FORMAT, EDITION_2026_10)).toBe(
+        'reg-blue',
+      );
     }
   });
 
   it('ends a true tie as a draw in a Pool', () => {
     const score = scored(POOL, trueTie());
     expect(TF_v1.isMatchOver(POOL, score, TF_CONFIG)).toEqual(OVER);
-    expect(getPointCapWinnerRegistrationId(POOL, score, FORMAT)).toBeNull();
+    expect(getPointCapWinnerRegistrationId(POOL, score, FORMAT, EDITION_2026_10)).toBeNull();
   });
 
   it('keeps a true tie open in a bracket, and the next hit ends it', () => {
@@ -80,7 +86,9 @@ describe('TF_v1, both at zero in a bout that counts down', () => {
 
     const after = scored(BRACKET, [...trueTie(), hit('red', 1)]);
     expect(TF_v1.isMatchOver(BRACKET, after, TF_CONFIG)).toEqual(OVER);
-    expect(getPointCapWinnerRegistrationId(BRACKET, after, FORMAT)).toBe('reg-red');
+    expect(getPointCapWinnerRegistrationId(BRACKET, after, FORMAT, EDITION_2026_10)).toBe(
+      'reg-red',
+    );
   });
 });
 

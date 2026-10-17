@@ -32,6 +32,7 @@ import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
   pointCapWinnerColor,
+  EDITION_2026_10,
 } from '@myclash/types';
 import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
@@ -507,7 +508,7 @@ export function MatchView({
   // cannot end a bout: the result overlay opens on the CLOCK being ended, and
   // only "End match" ends the clock. `series` says how far under zero each
   // side went in a bout that counts down: with both at zero, one has won.
-  const capWinnerSide = pointCapWinnerColor(series, matchFormat);
+  const capWinnerSide = pointCapWinnerColor(series, matchFormat, EDITION_2026_10);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // The controls' clock buttons. "End match" before the cap or the time is asked
@@ -524,6 +525,7 @@ export function MatchView({
         match.matchNumberLabel,
         elapsedActiveMs(clockState, Date.now()),
         series,
+        EDITION_2026_10,
       );
     if (early) setPendingEnd(true);
     else if (action === 'end') endMatch();
@@ -542,17 +544,21 @@ export function MatchView({
       elapsedMs: elapsedActiveMs(clockState, Date.now()),
       score: series,
       levelStepsTaken: levelSteps,
+      edition: EDITION_2026_10,
     });
     if (refused) setClockError(endRefusalMessage(refused, t));
     // The End carries the score it is pressed on, for the result screen.
-    else void onClockAction('end', false, pressedOn(series, matchFormat, match));
+    else void onClockAction('end', false, pressedOn(series, matchFormat, match, EDITION_2026_10));
   }
 
   // The result is the tablet's own until the server's row says "completed":
   // the score the End was pressed on, and its leader. Never an old row of the
   // server, and never a score that moves while the queue goes out (ruling 11).
   const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');
-  const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match));
+  const ownResult = tabletResult(
+    padClock.endScore,
+    pressedOn(series, matchFormat, match, EDITION_2026_10),
+  );
   // A board at 0 - 0 that a fighter won (a bout that counts down): the
   // tablet's own result names that fighter, as the server's row will.
   const ownWinner = seriesDecided ? undefined : ownResult.winner;

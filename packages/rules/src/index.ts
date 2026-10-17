@@ -39,6 +39,8 @@ export {
   applyScoringDirection,
   computeMatchFormatScore,
   displayClockMs,
+  EDITION_2026_04,
+  EDITION_2026_10,
   effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
@@ -66,6 +68,7 @@ export {
 export type {
   BoutOutcome,
   ByPhase,
+  DecisionEdition,
   LevelStep,
   MatchFormatConfig,
   MaxDoubleHitEndReason,

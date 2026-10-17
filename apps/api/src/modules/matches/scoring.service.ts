@@ -23,6 +23,7 @@ import {
   pendingLevelStep,
   seriesResult,
   timeIsFinished,
+  EDITION_2026_10,
 } from '@myclash/rulesets';
 import type {
   AfterblowMode,
@@ -630,7 +631,7 @@ export class ScoringService {
     matchFormat: MatchFormatConfig,
   ): string | null {
     if (reason === 'first_to_points') {
-      return getPointCapWinnerRegistrationId(match, score, matchFormat);
+      return getPointCapWinnerRegistrationId(match, score, matchFormat, EDITION_2026_10);
     }
     if (reason === 'max_doubles_result_stands') {
       const leader = leadingColor(score);
@@ -763,7 +764,7 @@ export class ScoringService {
     matchFormat: MatchFormatConfig,
     roundPenalties: Record<string, unknown>[],
   ): RoundEvaluation {
-    return evaluateRound(match, openExchanges, matchFormat, (m, exchanges) =>
+    return evaluateRound(match, openExchanges, matchFormat, EDITION_2026_10, (m, exchanges) =>
       this.applyPenaltyDeltas(
         ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
         match,

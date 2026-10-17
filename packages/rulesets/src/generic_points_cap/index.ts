@@ -15,6 +15,7 @@ import {
   computeMatchFormatScore,
   normalizeMatchFormatConfig,
   pointCapEndsBout,
+  EDITION_2026_10,
 } from '../match-format';
 import type {
   AfterblowMode,
@@ -146,7 +147,7 @@ function matchOver(
   score: MatchScore,
   config: GenericPointsCapConfig,
 ): MatchEndDecision {
-  if (pointCapEndsBout(match, score, config.matchFormat)) {
+  if (pointCapEndsBout(match, score, config.matchFormat, EDITION_2026_10)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   return { isOver: false, reason: null };

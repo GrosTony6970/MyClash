@@ -121,7 +121,7 @@ describe('"End match" on the tablet', () => {
     // The End carries the score it is pressed on, for the result screen, and
     // the winner of a board at 0 - 0 that a fighter won (`pressedOn`).
     expect(view).toContain(
-      "else void onClockAction('end', false, pressedOn(series, matchFormat, match));",
+      "else void onClockAction('end', false, pressedOn(series, matchFormat, match, EDITION_2026_10));",
     );
     // The controls, the resume warning and the early-End question: no other End.
     expect(view.match(/onClockAction\('end'/g)).toHaveLength(1);
@@ -136,11 +136,13 @@ describe('"End match" on the tablet', () => {
     expect(view).toMatch(
       /endIsEarly\([^)]*elapsedActiveMs\(clockState, Date\.now\(\)\),\s+series,/,
     );
-    expect(view).toContain('const capWinnerSide = pointCapWinnerColor(series, matchFormat);');
+    expect(view).toContain(
+      'const capWinnerSide = pointCapWinnerColor(series, matchFormat, EDITION_2026_10);',
+    );
     expect(rounds).toMatch(/endRefusedOnPad\(\{[^}]*score: series,/);
     // "End round" carries the winner the cap names too, as "End match" does.
     expect(rounds).toContain(
-      "else void press('end', series.round, pressedOn(series, matchFormat, match));",
+      "else void press('end', series.round, pressedOn(series, matchFormat, match, EDITION_2026_10));",
     );
     // The score on the screen is the round view's: the server's part of the
     // open round plus what the tablet holds of it (`padSeries`).
@@ -153,8 +155,8 @@ describe('"End match" on the tablet', () => {
       "const unconfirmed = resultUnconfirmed(match.status, boutClock?.status ?? 'idle');",
     );
     // The score the End was pressed on: the score on screen moves while the queue goes out.
-    expect(view).toContain(
-      'const ownResult = tabletResult(padClock.endScore, pressedOn(series, matchFormat, match));',
+    expect(view).toMatch(
+      /const ownResult = tabletResult\(\s+padClock\.endScore,\s+pressedOn\(series, matchFormat, match, EDITION_2026_10\),\s+\);/,
     );
     expect(view).toContain('unconfirmed={unconfirmed}');
     // A decided series is said by its rounds won, confirmed or not; else the

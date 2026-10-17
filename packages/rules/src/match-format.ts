@@ -464,6 +464,38 @@ export type CapScore = Pick<MatchScore, 'redScore' | 'blueScore'> &
   Partial<Pick<MatchScore, 'redBelowZero' | 'blueBelowZero'>>;
 
 /**
+ * Which end decision a ruleset version runs (operator ruling "TF_v1 version",
+ * 2026-10-16: bump the version when an engine's decision changes, and keep the
+ * old engine registered). A name, so it travels as it is to the pad and into a
+ * column, and in code only an edition that exists can be named (a name read
+ * from the network or a store is checked where it comes in).
+ *
+ * Every decider takes one. Today every caller passes `EDITION_2026_10`; a
+ * ruleset version is to carry its own, so a bout fought before a change and
+ * corrected after it is decided as it was fought.
+ */
+export type DecisionEdition = '2026-04' | '2026-10';
+
+/** The end decision before 2026-10-11. */
+export const EDITION_2026_04: DecisionEdition = '2026-04';
+
+/** The end decision since 2026-10-11 (`c7cedc92`, `6b30e5bc`). */
+export const EDITION_2026_10: DecisionEdition = '2026-10';
+
+/**
+ * What moved on 2026-10-11, for a bout that counts down only: with both
+ * fighters out of points, the fighter less far below zero is ahead (before:
+ * the leader on the board), and the doubles limit is asked before the cap.
+ */
+const COUNTDOWN_RULES: Record<
+  DecisionEdition,
+  { readonly lessFarBelowLeads: boolean; readonly doublesBeforeCap: boolean }
+> = {
+  '2026-04': { lessFarBelowLeads: false, doublesBeforeCap: false },
+  '2026-10': { lessFarBelowLeads: true, doublesBeforeCap: true },
+};
+
+/**
  * Who is ahead, for the two rules of the point cap.
  *
  * In a bout that counts down the board stops at zero, so two fighters out of
@@ -472,10 +504,16 @@ export type CapScore = Pick<MatchScore, 'redScore' | 'blueScore'> &
  * are in the score already, so a card counts here as it counts on the board.
  *
  * A caller that holds the two scores alone gets the leader on the board, as
- * before. So does every bout that counts up.
+ * before. So does every bout that counts up, and every bout of an edition
+ * before that ruling.
  */
-export function capLeader(score: CapScore, config: MatchFormatConfig): 'red' | 'blue' | null {
+export function capLeader(
+  score: CapScore,
+  config: MatchFormatConfig,
+  edition: DecisionEdition,
+): 'red' | 'blue' | null {
   if (config.scoringDirection !== 'reverse_zero_loses') return leadingColor(score);
+  if (!COUNTDOWN_RULES[edition].lessFarBelowLeads) return leadingColor(score);
   return leadingColor({
     redScore: score.redScore - (score.redBelowZero ?? 0),
     blueScore: score.blueScore - (score.blueBelowZero ?? 0),
@@ -489,11 +527,12 @@ export function capLeader(score: CapScore, config: MatchFormatConfig): 'red' | '
 export function pointCapWinnerColor(
   score: CapScore,
   config: MatchFormatConfig,
+  edition: DecisionEdition,
 ): 'red' | 'blue' | null {
   if (config.scoringDirection === 'reverse_zero_loses') {
     // Both out of points: the fighter less far below zero. Both as far below
     // is level and answers nobody.
-    if (score.redScore <= 0 && score.blueScore <= 0) return capLeader(score, config);
+    if (score.redScore <= 0 && score.blueScore <= 0) return capLeader(score, config, edition);
     if (score.redScore <= 0) return 'blue';
     if (score.blueScore <= 0) return 'red';
     return null;
@@ -533,9 +572,10 @@ export function pointCapEndsBout(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: CapScore,
   config: MatchFormatConfig,
+  edition: DecisionEdition,
 ): boolean {
   if (!isPointCapReached(score as MatchScore, config)) return false;
-  if (capLeader(score, config) !== null) return true;
+  if (capLeader(score, config, edition) !== null) return true;
   return chainAllowsLevelEnd(config, match.phaseType, match.matchNumberLabel);
 }
 
@@ -770,11 +810,12 @@ export function getPointCapWinnerRegistrationId(
   match: Match,
   score: CapScore,
   config: MatchFormatConfig,
+  edition: DecisionEdition,
 ): string | null {
   // The registration-id shape of {@link pointCapWinnerColor}, delegating so the
   // two cannot answer differently — which they would have done the moment both
   // fighters could sit over the cap at once.
-  const color = pointCapWinnerColor(score, config);
+  const color = pointCapWinnerColor(score, config, edition);
   if (color === null) return null;
   return color === 'red' ? match.redRegistrationId : match.blueRegistrationId;
 }
@@ -829,10 +870,11 @@ export function evaluateRound(
   match: Match,
   roundExchanges: Exchange[],
   config: MatchFormatConfig,
+  edition: DecisionEdition,
   scoreRound: RoundScorer = (m, exchanges) => computeMatchFormatScore(m, exchanges, config),
 ): RoundEvaluation {
   const score = scoreRound(match, roundExchanges);
-  return { score, ...roundOutcome(match, score, config) };
+  return { score, ...roundOutcome(match, score, config, edition) };
 }
 
 /**
@@ -851,6 +893,7 @@ export function roundOutcome(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: CapScore & Pick<MatchScore, 'doubles'>,
   config: MatchFormatConfig,
+  edition: DecisionEdition,
 ): Pick<RoundEvaluation, 'autoOver' | 'winnerColor' | 'endReason'> {
   const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
   const atTheCeiling = effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles;
@@ -866,17 +909,19 @@ export function roundOutcome(
   // ceiling wipes the board to 0-0, and there 0-0 reads as "both out of
   // points": asked first, the cap ended that bout as a draw, or for whoever a
   // card had left ahead, where the same bout counting up is a loss for both.
-  if (atTheCeiling && config.scoringDirection === 'reverse_zero_loses') return ceiling;
+  // An edition before that ruling asks the cap first here too.
+  const countdown = config.scoringDirection === 'reverse_zero_loses';
+  if (atTheCeiling && countdown && COUNTDOWN_RULES[edition].doublesBeforeCap) return ceiling;
 
   // A ROUND asks the cap exactly what a single bout asks it, through the same
   // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
   // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
   // nobody won counts for neither side, so the series never reached its win
   // target and the bout could not finish at all.
-  if (pointCapEndsBout(match, score, config)) {
+  if (pointCapEndsBout(match, score, config, edition)) {
     return {
       autoOver: true,
-      winnerColor: pointCapWinnerColor(score, config),
+      winnerColor: pointCapWinnerColor(score, config, edition),
       endReason: 'first_to_points',
     };
   }

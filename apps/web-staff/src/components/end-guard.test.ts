@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MATCH_FORMAT_CONFIG, type MatchFormatConfig } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  EDITION_2026_10,
+  type MatchFormatConfig,
+} from '@myclash/types';
 import { endIsEarly, endRefusedOnPad, levelBoardWinner, limitEnd, pressedOn } from './end-guard';
 
 // A 90s pool bout to 10 points.
@@ -17,25 +21,27 @@ const POOL = { phaseType: 'pool' as const, matchNumberLabel: null };
 
 describe('endIsEarly', () => {
   it('is early while neither the cap nor the time is reached', () => {
-    expect(endIsEarly(format, 'pool', null, 30_000, score(3, 1))).toBe(true);
-    expect(endIsEarly(format, 'pool', null, 89_999, score(9, 9))).toBe(true);
-    expect(endIsEarly(format, 'pool', null, 0, score(0, 0))).toBe(true);
+    expect(endIsEarly(format, 'pool', null, 30_000, score(3, 1), EDITION_2026_10)).toBe(true);
+    expect(endIsEarly(format, 'pool', null, 89_999, score(9, 9), EDITION_2026_10)).toBe(true);
+    expect(endIsEarly(format, 'pool', null, 0, score(0, 0), EDITION_2026_10)).toBe(true);
   });
 
   it('is not early once the time is reached', () => {
-    expect(endIsEarly(format, 'pool', null, 90_000, score(3, 1))).toBe(false);
-    expect(endIsEarly(format, 'pool', null, 95_000, score(0, 0))).toBe(false);
+    expect(endIsEarly(format, 'pool', null, 90_000, score(3, 1), EDITION_2026_10)).toBe(false);
+    expect(endIsEarly(format, 'pool', null, 95_000, score(0, 0), EDITION_2026_10)).toBe(false);
   });
 
   it('is not early once a fighter is at the cap', () => {
-    expect(endIsEarly(format, 'pool', null, 30_000, score(10, 4))).toBe(false);
-    expect(endIsEarly(format, 'pool', null, 30_000, score(4, 11))).toBe(false);
+    expect(endIsEarly(format, 'pool', null, 30_000, score(10, 4), EDITION_2026_10)).toBe(false);
+    expect(endIsEarly(format, 'pool', null, 30_000, score(4, 11), EDITION_2026_10)).toBe(false);
   });
 
   it("counts the time against the bout's own phase", () => {
     // 100s is past the pool's 90s and inside the bracket's 180s.
-    expect(endIsEarly(format, 'pool', null, 100_000, score(3, 1))).toBe(false);
-    expect(endIsEarly(format, 'single_elim', null, 100_000, score(3, 1))).toBe(true);
+    expect(endIsEarly(format, 'pool', null, 100_000, score(3, 1), EDITION_2026_10)).toBe(false);
+    expect(endIsEarly(format, 'single_elim', null, 100_000, score(3, 1), EDITION_2026_10)).toBe(
+      true,
+    );
   });
 
   it('is never early in a phase with no time limit: there is no time to wait for', () => {
@@ -43,13 +49,13 @@ describe('endIsEarly', () => {
       ...format,
       timeLimitsSeconds: { pool: null, swiss: null, bracket: null, finals: null },
     };
-    expect(endIsEarly(unlimited, 'pool', null, 30_000, score(3, 1))).toBe(false);
+    expect(endIsEarly(unlimited, 'pool', null, 30_000, score(3, 1), EDITION_2026_10)).toBe(false);
   });
 
   it('reads the cap the way the format scores: at zero when it counts down', () => {
     const reverse: MatchFormatConfig = { ...format, scoringDirection: 'reverse_zero_loses' };
-    expect(endIsEarly(reverse, 'pool', null, 30_000, score(4, 0))).toBe(false);
-    expect(endIsEarly(reverse, 'pool', null, 30_000, score(4, 2))).toBe(true);
+    expect(endIsEarly(reverse, 'pool', null, 30_000, score(4, 0), EDITION_2026_10)).toBe(false);
+    expect(endIsEarly(reverse, 'pool', null, 30_000, score(4, 2), EDITION_2026_10)).toBe(true);
   });
 });
 
@@ -74,6 +80,7 @@ describe('endRefusedOnPad', () => {
       elapsedMs,
       score: score(redScore, blueScore),
       levelStepsTaken,
+      edition: EDITION_2026_10,
     });
 
   it('ends a bout that has a leader, at any time', () => {
@@ -132,12 +139,13 @@ describe('both at zero in a bout that counts down', () => {
       elapsedMs: 30_000,
       score,
       levelStepsTaken: 0,
+      edition: EDITION_2026_10,
     });
 
   it('ends at any time, in a bracket and in a Pool: a fighter has won it', () => {
     expect(ask(blueWon)).toBeNull();
     expect(ask(blueWon, 'pool')).toBeNull();
-    expect(endIsEarly(reverse, 'single_elim', null, 30_000, blueWon)).toBe(false);
+    expect(endIsEarly(reverse, 'single_elim', null, 30_000, blueWon, EDITION_2026_10)).toBe(false);
   });
 
   it('is still a level bout when both went as far below', () => {
@@ -151,30 +159,38 @@ describe('both at zero in a bout that counts down', () => {
   });
 
   it('names the winner of a level board, and nobody where the board has a leader', () => {
-    expect(levelBoardWinner(blueWon, reverse)).toBe('blue');
-    expect(levelBoardWinner({ ...blueWon, redBelowZero: 0, blueBelowZero: 3 }, reverse)).toBe(
-      'red',
-    );
-    expect(levelBoardWinner(trueTie, reverse)).toBeNull();
+    expect(levelBoardWinner(blueWon, reverse, EDITION_2026_10)).toBe('blue');
+    expect(
+      levelBoardWinner({ ...blueWon, redBelowZero: 0, blueBelowZero: 3 }, reverse, EDITION_2026_10),
+    ).toBe('red');
+    expect(levelBoardWinner(trueTie, reverse, EDITION_2026_10)).toBeNull();
     // A leader on the board is read from the board, as before.
-    expect(levelBoardWinner({ redScore: 0, blueScore: 2 }, reverse)).toBeNull();
+    expect(levelBoardWinner({ redScore: 0, blueScore: 2 }, reverse, EDITION_2026_10)).toBeNull();
     // A bout that counts up, level at the cap: nobody.
-    expect(levelBoardWinner({ redScore: 10, blueScore: 10 }, format)).toBeNull();
+    expect(levelBoardWinner({ redScore: 10, blueScore: 10 }, format, EDITION_2026_10)).toBeNull();
   });
 
   it('presses the End on the score of the screen, with the winner the cap names', () => {
-    expect(pressedOn(blueWon, reverse, POOL)).toEqual({ red: 0, blue: 0, winner: 'blue' });
-    expect(pressedOn(trueTie, reverse, POOL)).toEqual({ red: 0, blue: 0 });
+    expect(pressedOn(blueWon, reverse, POOL, EDITION_2026_10)).toEqual({
+      red: 0,
+      blue: 0,
+      winner: 'blue',
+    });
+    expect(pressedOn(trueTie, reverse, POOL, EDITION_2026_10)).toEqual({ red: 0, blue: 0 });
     // A card is on the board: red at -3, blue at -1 and a card of -1. The two
     // numbers alone would name red.
     const carded = { ...score(0, -1), redBelowZero: 3, blueBelowZero: 1 };
-    expect(pressedOn(carded, reverse, POOL)).toEqual({ red: 0, blue: -1, winner: 'blue' });
+    expect(pressedOn(carded, reverse, POOL, EDITION_2026_10)).toEqual({
+      red: 0,
+      blue: -1,
+      winner: 'blue',
+    });
   });
 
   it('presses an End with no winner while the cap has given the bout to nobody', () => {
-    expect(pressedOn(score(4, 2), reverse, POOL)).toEqual({ red: 4, blue: 2 });
-    expect(pressedOn(score(3, 1), format, POOL)).toEqual({ red: 3, blue: 1 });
-    expect(pressedOn(score(10, 4), format, POOL)).toEqual({
+    expect(pressedOn(score(4, 2), reverse, POOL, EDITION_2026_10)).toEqual({ red: 4, blue: 2 });
+    expect(pressedOn(score(3, 1), format, POOL, EDITION_2026_10)).toEqual({ red: 3, blue: 1 });
+    expect(pressedOn(score(10, 4), format, POOL, EDITION_2026_10)).toEqual({
       red: 10,
       blue: 4,
       winner: 'red',
@@ -206,7 +222,14 @@ describe('"End match" at the doubles limit', () => {
     matchFormat: MatchFormatConfig,
     bout: { phaseType: 'pool' | 'swiss' | 'single_elim'; matchNumberLabel: string | null } = POOL,
   ) =>
-    endRefusedOnPad({ matchFormat, ...bout, elapsedMs: 30_000, score: board, levelStepsTaken: 0 });
+    endRefusedOnPad({
+      matchFormat,
+      ...bout,
+      elapsedMs: 30_000,
+      score: board,
+      levelStepsTaken: 0,
+      edition: EDITION_2026_10,
+    });
 
   it('ends a level board with time left: the limit is the result', () => {
     expect(refused(score(1, 1, 3), limited())).toBeNull();
@@ -216,24 +239,26 @@ describe('"End match" at the doubles limit', () => {
   });
 
   it('asks no "end now?" at the limit', () => {
-    expect(endIsEarly(limited(), 'pool', null, 30_000, score(2, 1, 3))).toBe(false);
-    expect(endIsEarly(down(), 'swiss', null, 30_000, score(8, 9, 3))).toBe(false);
-    expect(endIsEarly(limited(), 'pool', null, 30_000, score(2, 1, 2))).toBe(true);
+    expect(endIsEarly(limited(), 'pool', null, 30_000, score(2, 1, 3), EDITION_2026_10)).toBe(
+      false,
+    );
+    expect(endIsEarly(down(), 'swiss', null, 30_000, score(8, 9, 3), EDITION_2026_10)).toBe(false);
+    expect(endIsEarly(limited(), 'pool', null, 30_000, score(2, 1, 2), EDITION_2026_10)).toBe(true);
   });
 
   it('presses the End on a wiped board with nobody ahead: a loss for both', () => {
     const lossForBoth = { red: 0, blue: 0, endReason: 'max_doubles' };
     // Counting up, blue leads 2 - 1. Counting down, red leads 9 - 8.
-    expect(pressedOn(score(1, 2, 3), limited(), POOL)).toEqual(lossForBoth);
-    expect(pressedOn(score(9, 8, 3), down(), POOL)).toEqual(lossForBoth);
-    expect(pressedOn(score(1, 2, 4), limited(), { ...POOL, phaseType: 'swiss' })).toEqual(
-      lossForBoth,
-    );
+    expect(pressedOn(score(1, 2, 3), limited(), POOL, EDITION_2026_10)).toEqual(lossForBoth);
+    expect(pressedOn(score(9, 8, 3), down(), POOL, EDITION_2026_10)).toEqual(lossForBoth);
+    expect(
+      pressedOn(score(1, 2, 4), limited(), { ...POOL, phaseType: 'swiss' }, EDITION_2026_10),
+    ).toEqual(lossForBoth);
   });
 
   it('presses it as the draw the format asks for, on a wiped board', () => {
     const draw = { maxDoubleHitOutcome: 'draw_zero_scores' as const };
-    expect(pressedOn(score(1, 2, 3), limited(draw), POOL)).toEqual({
+    expect(pressedOn(score(1, 2, 3), limited(draw), POOL, EDITION_2026_10)).toEqual({
       red: 0,
       blue: 0,
       endReason: 'max_doubles_draw',
@@ -242,13 +267,13 @@ describe('"End match" at the doubles limit', () => {
 
   it('keeps the board where the result stands: its leader is read from it', () => {
     const stands = { maxDoubleHitOutcome: 'result_stands' as const };
-    expect(pressedOn(score(1, 2, 3), limited(stands), POOL)).toEqual({
+    expect(pressedOn(score(1, 2, 3), limited(stands), POOL, EDITION_2026_10)).toEqual({
       red: 1,
       blue: 2,
       endReason: 'max_doubles_result_stands',
     });
     // Level there is a draw: the board stands, and nobody is named.
-    expect(pressedOn(score(2, 2, 3), limited(stands), POOL)).toEqual({
+    expect(pressedOn(score(2, 2, 3), limited(stands), POOL, EDITION_2026_10)).toEqual({
       red: 2,
       blue: 2,
       endReason: 'max_doubles_result_stands',
@@ -257,19 +282,26 @@ describe('"End match" at the doubles limit', () => {
   });
 
   it('has no limit in a bracket, and none where the format has none', () => {
-    expect(limitEnd(score(1, 2, 3), BRACKET, limited())).toBeNull();
-    expect(pressedOn(score(1, 2, 3), limited(), BRACKET)).toEqual({ red: 1, blue: 2 });
+    expect(limitEnd(score(1, 2, 3), BRACKET, limited(), EDITION_2026_10)).toBeNull();
+    expect(pressedOn(score(1, 2, 3), limited(), BRACKET, EDITION_2026_10)).toEqual({
+      red: 1,
+      blue: 2,
+    });
     expect(refused(score(1, 1, 3), limited(), BRACKET)).toEqual({ reason: 'time_not_finished' });
-    expect(endIsEarly(limited(), 'single_elim', null, 30_000, score(2, 1, 3))).toBe(true);
-    expect(pressedOn(score(1, 2, 3), limited({ maxDoubleHits: null }), POOL)).toEqual({
+    expect(
+      endIsEarly(limited(), 'single_elim', null, 30_000, score(2, 1, 3), EDITION_2026_10),
+    ).toBe(true);
+    expect(
+      pressedOn(score(1, 2, 3), limited({ maxDoubleHits: null }), POOL, EDITION_2026_10),
+    ).toEqual({
       red: 1,
       blue: 2,
     });
   });
 
   it('leaves a board at the cap AND at the limit to the cap, in a bout that counts up', () => {
-    expect(limitEnd(score(10, 4, 3), POOL, limited())).toBeNull();
-    expect(pressedOn(score(10, 4, 3), limited(), POOL)).toEqual({
+    expect(limitEnd(score(10, 4, 3), POOL, limited(), EDITION_2026_10)).toBeNull();
+    expect(pressedOn(score(10, 4, 3), limited(), POOL, EDITION_2026_10)).toEqual({
       red: 10,
       blue: 4,
       winner: 'red',
@@ -278,10 +310,84 @@ describe('"End match" at the doubles limit', () => {
 
   it('asks the limit first in a bout that counts down, as the server does', () => {
     // Red is out of points and the doubles are at the limit: a loss for both.
-    expect(pressedOn(score(0, 4, 3), down(), POOL)).toEqual({
+    expect(pressedOn(score(0, 4, 3), down(), POOL, EDITION_2026_10)).toEqual({
       red: 0,
       blue: 0,
       endReason: 'max_doubles',
     });
+  });
+});
+
+/**
+ * Each wrapper asks with the edition it is given, never one of its own: a bout
+ * of a ruleset version from before 2026-10-11 is decided as it was then. The
+ * pad holds only today's edition by name; the older one is written out.
+ */
+describe('the edition of the end decision', () => {
+  const OLD = '2026-04' as const;
+  const reverse: MatchFormatConfig = {
+    ...format,
+    pointCap: 5,
+    scoringDirection: 'reverse_zero_loses',
+    maxDoubleHits: 3,
+    maxDoubleHitOutcome: 'double_loss_zero_scores',
+  };
+  // Both out of points on one afterblow: red 2 below zero, blue 1 below.
+  const bothOut = { ...score(0, 0), redBelowZero: 2, blueBelowZero: 1 };
+  const wiped = score(0, 0, 3);
+  const BRACKET = { phaseType: 'single_elim' as const, matchNumberLabel: null };
+
+  it('limitEnd and pressedOn: the doubles limit first since, the cap first before', () => {
+    expect(limitEnd(wiped, POOL, reverse, OLD)).toBeNull();
+    expect(limitEnd(wiped, POOL, reverse, EDITION_2026_10)).toBe('max_doubles');
+    expect(pressedOn(wiped, reverse, POOL, OLD)).toEqual({ red: 0, blue: 0 });
+    expect(pressedOn(wiped, reverse, POOL, EDITION_2026_10)).toEqual({
+      red: 0,
+      blue: 0,
+      endReason: 'max_doubles',
+    });
+    expect(pressedOn(bothOut, reverse, POOL, OLD)).toEqual({ red: 0, blue: 0 });
+    expect(pressedOn(bothOut, reverse, POOL, EDITION_2026_10)).toEqual({
+      red: 0,
+      blue: 0,
+      winner: 'blue',
+    });
+  });
+
+  it('endIsEarly and endRefusedOnPad ask the doubles limit with the edition too', () => {
+    expect(endIsEarly(reverse, 'pool', null, 30_000, wiped, OLD)).toBe(true);
+    expect(endIsEarly(reverse, 'pool', null, 30_000, wiped, EDITION_2026_10)).toBe(false);
+    const refused = (edition: typeof OLD | typeof EDITION_2026_10) =>
+      endRefusedOnPad({
+        matchFormat: reverse,
+        ...POOL,
+        elapsedMs: 30_000,
+        score: wiped,
+        levelStepsTaken: 0,
+        edition,
+      });
+    expect(refused(OLD)).toEqual({ reason: 'time_not_finished' });
+    expect(refused(EDITION_2026_10)).toBeNull();
+  });
+
+  it('levelBoardWinner and endIsEarly: both at zero is nobody before, blue since', () => {
+    expect(levelBoardWinner(bothOut, reverse, OLD)).toBeNull();
+    expect(levelBoardWinner(bothOut, reverse, EDITION_2026_10)).toBe('blue');
+    expect(endIsEarly(reverse, 'pool', null, 30_000, bothOut, OLD)).toBe(true);
+    expect(endIsEarly(reverse, 'pool', null, 30_000, bothOut, EDITION_2026_10)).toBe(false);
+  });
+
+  it('endRefusedOnPad: a level bracket board waits for its time before, ends since', () => {
+    const refused = (edition: typeof OLD | typeof EDITION_2026_10) =>
+      endRefusedOnPad({
+        matchFormat: reverse,
+        ...BRACKET,
+        elapsedMs: 30_000,
+        score: bothOut,
+        levelStepsTaken: 0,
+        edition,
+      });
+    expect(refused(OLD)).toEqual({ reason: 'time_not_finished' });
+    expect(refused(EDITION_2026_10)).toBeNull();
   });
 });

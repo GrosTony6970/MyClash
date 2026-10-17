@@ -10,7 +10,7 @@ import {
   computeGenericPointsCapScore,
   normalizeGenericPointsCapConfig,
 } from '../generic_points_cap';
-import { endOnPointCapOrMaxDoubles, type AfterblowMode } from '../match-format';
+import { endOnPointCapOrMaxDoubles, type AfterblowMode, EDITION_2026_10 } from '../match-format';
 import type { Ruleset, StandingsColumn, RankingRule } from '../types';
 import { deriveFighterStats } from '@myclash/rules';
 import { evaluateFormula, type FormulaScope } from '@myclash/rules';
@@ -142,6 +142,7 @@ export function createFormulaRuleset(
         match,
         score,
         normalizeGenericPointsCapConfig(runtimeConfig).matchFormat,
+        EDITION_2026_10,
       );
     },
 

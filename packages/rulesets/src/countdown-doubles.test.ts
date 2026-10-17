@@ -11,7 +11,13 @@
  * round is decided by that same function, with the score its own scorer made.
  */
 import { describe, expect, it } from 'vitest';
-import { roundOutcome, type MatchFormatConfig, type MaxDoubleHitOutcome } from '@myclash/rules';
+import {
+  roundOutcome,
+  type MatchFormatConfig,
+  type MaxDoubleHitOutcome,
+  EDITION_2026_04,
+  EDITION_2026_10,
+} from '@myclash/rules';
 import type { Exchange, Match } from './types';
 import { DEFAULT_FORMULA_CONSTANTS, TF_v1, createFormulaRuleset } from './index';
 import { DEFAULT_MATCH_FORMAT_CONFIG, endOnPointCapOrMaxDoubles } from './match-format';
@@ -141,18 +147,30 @@ describe('endOnPointCapOrMaxDoubles answers what roundOutcome answers', () => {
     ({ scoringDirection, maxDoubleHitOutcome, bout, board }) => {
       const matchFormat = format({ scoringDirection, maxDoubleHitOutcome });
       const score = full(board);
-      const round = roundOutcome(bout, score, matchFormat);
-      expect(endOnPointCapOrMaxDoubles(bout, score, matchFormat)).toEqual({
+      const round = roundOutcome(bout, score, matchFormat, EDITION_2026_10);
+      expect(endOnPointCapOrMaxDoubles(bout, score, matchFormat, EDITION_2026_10)).toEqual({
         isOver: round.autoOver,
         reason: round.endReason,
       });
     },
   );
 
+  it('asks with the edition it is given: before 2026-10-11 the cap came first', () => {
+    const wiped = full({ redScore: 0, blueScore: 0, doubles: 3 });
+    expect(endOnPointCapOrMaxDoubles(POOL, wiped, format(), EDITION_2026_04)).toEqual({
+      isOver: true,
+      reason: 'first_to_points',
+    });
+    expect(endOnPointCapOrMaxDoubles(POOL, wiped, format(), EDITION_2026_10)).toEqual({
+      isOver: true,
+      reason: 'max_doubles',
+    });
+  });
+
   it('still asks the cap before the limit in a bout that counts up', () => {
     const score = full({ redScore: 5, blueScore: 1, doubles: 3 });
     const stands = format({ scoringDirection: 'normal', maxDoubleHitOutcome: 'result_stands' });
-    expect(endOnPointCapOrMaxDoubles(POOL, score, stands)).toEqual({
+    expect(endOnPointCapOrMaxDoubles(POOL, score, stands, EDITION_2026_10)).toEqual({
       isOver: true,
       reason: 'first_to_points',
     });

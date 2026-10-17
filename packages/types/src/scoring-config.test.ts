@@ -3,6 +3,7 @@ import {
   computeAfterblowDeltas,
   pointCapWinnerColor,
   DEFAULT_MATCH_FORMAT_CONFIG,
+  EDITION_2026_10,
   type MatchFormatConfig,
 } from './scoring-config';
 
@@ -59,31 +60,47 @@ describe('computeAfterblowDeltas', () => {
 describe('pointCapWinnerColor', () => {
   describe('normal scoring — first to the cap wins', () => {
     it('returns the side that reached the cap', () => {
-      expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normalCap5)).toBe('red');
-      expect(pointCapWinnerColor({ redScore: 3, blueScore: 5 }, normalCap5)).toBe('blue');
+      expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normalCap5, EDITION_2026_10)).toBe(
+        'red',
+      );
+      expect(pointCapWinnerColor({ redScore: 3, blueScore: 5 }, normalCap5, EDITION_2026_10)).toBe(
+        'blue',
+      );
     });
 
     it('returns null when neither side has reached the cap', () => {
-      expect(pointCapWinnerColor({ redScore: 3, blueScore: 4 }, normalCap5)).toBeNull();
+      expect(
+        pointCapWinnerColor({ redScore: 3, blueScore: 4 }, normalCap5, EDITION_2026_10),
+      ).toBeNull();
     });
 
     it('returns null when both somehow reached the cap', () => {
-      expect(pointCapWinnerColor({ redScore: 5, blueScore: 5 }, normalCap5)).toBeNull();
+      expect(
+        pointCapWinnerColor({ redScore: 5, blueScore: 5 }, normalCap5, EDITION_2026_10),
+      ).toBeNull();
     });
   });
 
   describe('reverse scoring — the side that hits zero loses', () => {
     it('returns the opponent of the side that hit zero', () => {
-      expect(pointCapWinnerColor({ redScore: 2, blueScore: 0 }, reverseCap5)).toBe('red');
-      expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverseCap5)).toBe('blue');
+      expect(pointCapWinnerColor({ redScore: 2, blueScore: 0 }, reverseCap5, EDITION_2026_10)).toBe(
+        'red',
+      );
+      expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverseCap5, EDITION_2026_10)).toBe(
+        'blue',
+      );
     });
 
     it('returns null while both fighters still have points', () => {
-      expect(pointCapWinnerColor({ redScore: 3, blueScore: 2 }, reverseCap5)).toBeNull();
+      expect(
+        pointCapWinnerColor({ redScore: 3, blueScore: 2 }, reverseCap5, EDITION_2026_10),
+      ).toBeNull();
     });
 
     it('returns null when both reached zero', () => {
-      expect(pointCapWinnerColor({ redScore: 0, blueScore: 0 }, reverseCap5)).toBeNull();
+      expect(
+        pointCapWinnerColor({ redScore: 0, blueScore: 0 }, reverseCap5, EDITION_2026_10),
+      ).toBeNull();
     });
   });
 });

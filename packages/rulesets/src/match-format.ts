@@ -3,6 +3,7 @@ import {
   applyScoringDirection,
   computeMatchFormatScore,
   displayClockMs,
+  EDITION_2026_10,
   effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
@@ -26,6 +27,7 @@ import {
   seriesResult,
   timeIsFinished,
   winnerColorFrom,
+  type DecisionEdition,
   type Match,
   type MatchFormatConfig,
   type BoutOutcome,
@@ -52,6 +54,7 @@ export {
   applyScoringDirection,
   computeMatchFormatScore,
   displayClockMs,
+  EDITION_2026_10,
   effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
@@ -77,6 +80,7 @@ export {
 };
 export type {
   BoutOutcome,
+  DecisionEdition,
   LevelStep,
   MaxDoubleHitEndReason,
   MaxDoubleHitOutcome,
@@ -321,11 +325,12 @@ export function endOnPointCapOrMaxDoubles(
   match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: MatchScore,
   matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
 ): MatchEndDecision {
   // The organiser's chosen outcome is resolved into the REASON there, once.
   // Every later reader of the finished bout then has the answer on the row —
   // which the SQL stats function and the cross-event fighter stats need,
   // because neither can reach the tournament's match format.
-  const { autoOver, endReason } = roundOutcome(match, score, matchFormat);
+  const { autoOver, endReason } = roundOutcome(match, score, matchFormat, edition);
   return { isOver: autoOver, reason: endReason };
 }

@@ -20,6 +20,7 @@ import {
   evaluateRound,
   pointCapEndsBout,
   pointCapWinnerColor,
+  EDITION_2026_10,
 } from './match-format';
 
 const CONFIG: MatchFormatConfig = { ...DEFAULT_MATCH_FORMAT_CONFIG, pointCap: 10 };
@@ -43,24 +44,24 @@ describe('pointCapEndsBout', () => {
   it('keeps a level bracket bout OPEN at the cap', () => {
     // 9-9 plus a 1-1 afterblow. Nobody has won, and this phase's chain has no
     // `draw` step, so the bout stays open and sudden death runs on.
-    expect(pointCapEndsBout(BRACKET, score(10, 10), CONFIG)).toBe(false);
+    expect(pointCapEndsBout(BRACKET, score(10, 10), CONFIG, EDITION_2026_10)).toBe(false);
   });
 
   it('still ends a level POOL bout at the cap', () => {
     // The pool chain IS a draw, so 10-10 there is a finished bout — unchanged.
-    expect(pointCapEndsBout(POOL, score(10, 10), CONFIG)).toBe(true);
+    expect(pointCapEndsBout(POOL, score(10, 10), CONFIG, EDITION_2026_10)).toBe(true);
   });
 
   it('ends any bout where someone leads at the cap', () => {
-    expect(pointCapEndsBout(BRACKET, score(10, 3), CONFIG)).toBe(true);
+    expect(pointCapEndsBout(BRACKET, score(10, 3), CONFIG, EDITION_2026_10)).toBe(true);
     // BOTH over the cap with a leader — the exchange after a 10-10 that kept the
     // bout open. It must finish, or sudden death has no exit.
-    expect(pointCapEndsBout(BRACKET, score(12, 10), CONFIG)).toBe(true);
+    expect(pointCapEndsBout(BRACKET, score(12, 10), CONFIG, EDITION_2026_10)).toBe(true);
   });
 
   it('is not reached below the cap', () => {
-    expect(pointCapEndsBout(BRACKET, score(9, 9), CONFIG)).toBe(false);
-    expect(pointCapEndsBout(POOL, score(9, 9), CONFIG)).toBe(false);
+    expect(pointCapEndsBout(BRACKET, score(9, 9), CONFIG, EDITION_2026_10)).toBe(false);
+    expect(pointCapEndsBout(POOL, score(9, 9), CONFIG, EDITION_2026_10)).toBe(false);
   });
 
   it('follows a bracket configured to allow a draw', () => {
@@ -69,7 +70,7 @@ describe('pointCapEndsBout', () => {
       ...CONFIG,
       levelAtTime: { ...CONFIG.levelAtTime, bracket: [{ kind: 'draw' }] },
     };
-    expect(pointCapEndsBout(BRACKET, score(10, 10), drawable)).toBe(true);
+    expect(pointCapEndsBout(BRACKET, score(10, 10), drawable, EDITION_2026_10)).toBe(true);
   });
 });
 
@@ -78,22 +79,22 @@ describe('pointCapWinnerColor with both sides at the cap', () => {
     // It used to answer null whenever both were at the cap, which is how a
     // 12-10 finish — the exchange that decides a bout held open at 10-10 —
     // would have completed with no winner all over again.
-    expect(pointCapWinnerColor(score(12, 10), CONFIG)).toBe('red');
-    expect(pointCapWinnerColor(score(10, 11), CONFIG)).toBe('blue');
+    expect(pointCapWinnerColor(score(12, 10), CONFIG, EDITION_2026_10)).toBe('red');
+    expect(pointCapWinnerColor(score(10, 11), CONFIG, EDITION_2026_10)).toBe('blue');
   });
 
   it('still answers nobody on a genuine tie', () => {
-    expect(pointCapWinnerColor(score(10, 10), CONFIG)).toBeNull();
+    expect(pointCapWinnerColor(score(10, 10), CONFIG, EDITION_2026_10)).toBeNull();
   });
 });
 
 describe('the end decisions both rulesets run', () => {
   it('endOnPointCapOrMaxDoubles keeps a level bracket bout open', () => {
-    expect(endOnPointCapOrMaxDoubles(BRACKET, score(10, 10), CONFIG)).toEqual({
+    expect(endOnPointCapOrMaxDoubles(BRACKET, score(10, 10), CONFIG, EDITION_2026_10)).toEqual({
       isOver: false,
       reason: null,
     });
-    expect(endOnPointCapOrMaxDoubles(POOL, score(10, 10), CONFIG)).toEqual({
+    expect(endOnPointCapOrMaxDoubles(POOL, score(10, 10), CONFIG, EDITION_2026_10)).toEqual({
       isOver: true,
       reason: 'first_to_points',
     });
@@ -149,26 +150,30 @@ describe('evaluateRound at the point cap', () => {
   const board = (red: number, blue: number) => () => score(red, blue);
 
   it('keeps a level BRACKET round open', () => {
-    const ev = evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 10));
+    const ev = evaluateRound(roundMatch(BRACKET), [], CONFIG, EDITION_2026_10, board(10, 10));
     expect(ev.autoOver).toBe(false);
     expect(ev.winnerColor).toBeNull();
     expect(ev.endReason).toBeNull();
   });
 
   it('closes a level POOL round as a draw — its chain says draw', () => {
-    const ev = evaluateRound(roundMatch(POOL), [], CONFIG, board(10, 10));
+    const ev = evaluateRound(roundMatch(POOL), [], CONFIG, EDITION_2026_10, board(10, 10));
     expect(ev).toMatchObject({ autoOver: true, winnerColor: null, endReason: 'first_to_points' });
   });
 
   it('still closes a bracket round to whoever leads at the cap', () => {
-    expect(evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 3))).toMatchObject({
+    expect(
+      evaluateRound(roundMatch(BRACKET), [], CONFIG, EDITION_2026_10, board(10, 3)),
+    ).toMatchObject({
       autoOver: true,
       winnerColor: 'red',
       endReason: 'first_to_points',
     });
     // The exchange after a 10-10 that was held open. It must finish, or the
     // round's sudden death has no exit.
-    expect(evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 12))).toMatchObject({
+    expect(
+      evaluateRound(roundMatch(BRACKET), [], CONFIG, EDITION_2026_10, board(10, 12)),
+    ).toMatchObject({
       autoOver: true,
       winnerColor: 'blue',
       endReason: 'first_to_points',
@@ -181,7 +186,7 @@ describe('evaluateRound at the point cap', () => {
     // difference shows on a bracket configured with a ceiling it will not use.
     const capped: MatchFormatConfig = { ...CONFIG, maxDoubleHits: 2 };
     const doubled = () => ({ ...score(1, 1), doubles: 2 });
-    expect(evaluateRound(roundMatch(POOL), [], capped, doubled)).toMatchObject({
+    expect(evaluateRound(roundMatch(POOL), [], capped, EDITION_2026_10, doubled)).toMatchObject({
       autoOver: true,
       winnerColor: null,
       endReason: 'max_doubles',

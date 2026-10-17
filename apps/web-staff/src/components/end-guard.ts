@@ -16,6 +16,7 @@ import {
   pointCapWinnerColor,
   roundOutcome,
   type CapScore,
+  type DecisionEdition,
   type LevelStep,
   type MatchFormatConfig,
 } from '@myclash/types';
@@ -49,9 +50,10 @@ export function limitEnd(
   score: EndBoard,
   bout: BoutPhase,
   matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
 ): LimitReason | null {
   const phase = { phaseType: bout.phaseType ?? undefined, matchNumberLabel: bout.matchNumberLabel };
-  const { endReason } = roundOutcome(phase, score, matchFormat);
+  const { endReason } = roundOutcome(phase, score, matchFormat, edition);
   return endReason === 'first_to_points' ? null : endReason;
 }
 
@@ -61,9 +63,10 @@ export function endIsEarly(
   matchNumberLabel: string | null | undefined,
   elapsedMs: number,
   score: EndBoard,
+  edition: DecisionEdition,
 ): boolean {
-  if (pointCapWinnerColor(score, matchFormat) !== null) return false;
-  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat) !== null) return false;
+  if (pointCapWinnerColor(score, matchFormat, edition) !== null) return false;
+  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat, edition) !== null) return false;
   return !timeIsFinished(elapsedMs, matchFormat, phaseType, matchNumberLabel);
 }
 
@@ -79,9 +82,10 @@ export function endIsEarly(
 export function levelBoardWinner(
   score: CapScore,
   matchFormat: MatchFormatConfig,
+  edition: DecisionEdition,
 ): 'red' | 'blue' | null {
   if (score.redScore !== score.blueScore) return null;
-  return pointCapWinnerColor(score, matchFormat);
+  return pointCapWinnerColor(score, matchFormat, edition);
 }
 
 /**
@@ -100,13 +104,14 @@ export function pressedOn(
   score: EndBoard,
   matchFormat: MatchFormatConfig,
   bout: BoutPhase,
+  edition: DecisionEdition,
 ): PressedOn {
-  const endReason = limitEnd(score, bout, matchFormat);
+  const endReason = limitEnd(score, bout, matchFormat, edition);
   if (endReason) {
     const wiped = endReason !== 'max_doubles_result_stands';
     return { red: wiped ? 0 : score.redScore, blue: wiped ? 0 : score.blueScore, endReason };
   }
-  const winner = pointCapWinnerColor(score, matchFormat);
+  const winner = pointCapWinnerColor(score, matchFormat, edition);
   return { red: score.redScore, blue: score.blueScore, ...(winner ? { winner } : {}) };
 }
 
@@ -139,11 +144,12 @@ export function endRefusedOnPad(args: {
   elapsedMs: number;
   score: EndBoard;
   levelStepsTaken: number;
+  edition: DecisionEdition;
 }): EndRefusedOnPad | null {
-  const { matchFormat, phaseType, matchNumberLabel, score } = args;
-  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat) !== null) return null;
+  const { matchFormat, phaseType, matchNumberLabel, score, edition } = args;
+  if (limitEnd(score, { phaseType, matchNumberLabel }, matchFormat, edition) !== null) return null;
   if (score.redScore !== score.blueScore) return null;
-  if (levelBoardWinner(score, matchFormat) !== null) return null;
+  if (levelBoardWinner(score, matchFormat, edition) !== null) return null;
   if (!timeIsFinished(args.elapsedMs, matchFormat, phaseType, matchNumberLabel)) {
     return { reason: 'time_not_finished' };
   }

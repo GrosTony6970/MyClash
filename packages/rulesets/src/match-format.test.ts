@@ -16,6 +16,7 @@ import {
   normalizeMatchFormatConfig,
   pointCapWinnerColor,
   roundWinTarget,
+  EDITION_2026_10,
 } from './match-format';
 
 const BASE_MATCH: Match = {
@@ -274,6 +275,7 @@ describe('match format config', () => {
           pointCap: 5,
           scoringDirection: 'normal',
         },
+        EDITION_2026_10,
       ),
     ).toBe('reg-red');
 
@@ -286,6 +288,7 @@ describe('match format config', () => {
           pointCap: 5,
           scoringDirection: 'reverse_zero_loses',
         },
+        EDITION_2026_10,
       ),
     ).toBe('reg-red');
   });
@@ -335,16 +338,20 @@ describe('best-of rounds', () => {
       pointCap: 5,
       scoringDirection: 'normal' as const,
     };
-    expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normal)).toBe('red');
-    expect(pointCapWinnerColor({ redScore: 2, blueScore: 5 }, normal)).toBe('blue');
-    expect(pointCapWinnerColor({ redScore: 3, blueScore: 3 }, normal)).toBeNull();
+    expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normal, EDITION_2026_10)).toBe('red');
+    expect(pointCapWinnerColor({ redScore: 2, blueScore: 5 }, normal, EDITION_2026_10)).toBe(
+      'blue',
+    );
+    expect(pointCapWinnerColor({ redScore: 3, blueScore: 3 }, normal, EDITION_2026_10)).toBeNull();
 
     const reverse = {
       ...DEFAULT_MATCH_FORMAT_CONFIG,
       pointCap: 5,
       scoringDirection: 'reverse_zero_loses' as const,
     };
-    expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverse)).toBe('blue');
+    expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverse, EDITION_2026_10)).toBe(
+      'blue',
+    );
   });
 
   describe('evaluateRound', () => {
@@ -358,6 +365,7 @@ describe('best-of rounds', () => {
           makeExchange({ id: 'r2', sequence: 2, firstStrikerColor: 'red', firstStrikeValue: 1 }),
         ],
         cfg,
+        EDITION_2026_10,
       );
       expect(ev.autoOver).toBe(true);
       expect(ev.winnerColor).toBe('red');
@@ -370,6 +378,7 @@ describe('best-of rounds', () => {
         { ...BASE_MATCH, phaseType: 'single_elim' },
         [makeExchange({ id: 'r1', sequence: 1, firstStrikerColor: 'blue', firstStrikeValue: 1 })],
         cfg,
+        EDITION_2026_10,
       );
       expect(ev.autoOver).toBe(false);
       expect(ev.winnerColor).toBeNull();
@@ -385,6 +394,7 @@ describe('best-of rounds', () => {
           makeExchange({ id: 'd2', sequence: 2, type: 'double', firstStrikerColor: null }),
         ],
         { ...cfg, maxDoubleHits: 2 },
+        EDITION_2026_10,
       );
       expect(ev.autoOver).toBe(true);
       expect(ev.winnerColor).toBeNull();
@@ -399,6 +409,7 @@ describe('best-of rounds', () => {
           makeExchange({ id: 'd2', sequence: 2, type: 'double', firstStrikerColor: null }),
         ],
         { ...cfg, maxDoubleHits: 2 },
+        EDITION_2026_10,
       );
       expect(ev.autoOver).toBe(false);
     });

@@ -83,6 +83,13 @@ export type { SeriesResult } from './match-format';
  */
 export { belowZero } from './match-format';
 export type { CapScore } from './match-format';
+
+/**
+ * The end decision the pad asks `roundOutcome` and `pointCapWinnerColor` with,
+ * today's for every bout until a Match carries its ruleset version's own.
+ */
+export { EDITION_2026_10 } from './match-format';
+export type { DecisionEdition } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';
