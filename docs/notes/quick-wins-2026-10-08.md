@@ -3171,6 +3171,39 @@ Named, not fixed:
 - A live database with a free-text date, an end before its start, or a medal year before 2000
   stops 0223 at deploy; a fresh stack has none.
 
+### Built on 2026-10-17: O2a, the scoring screen's offline worker on the organiser site
+
+O2a of "The server", ruling "No-PIN piste" (session 17f390f8). On `admin.${DOMAIN}` only `/staff/*`
+reaches the scoring app, so the page's `/sw.js` was the organiser app's (a 404): no worker, and a
+reload with no network showed the browser's own page. Four cold reviews: one major each on the
+first three (all on a tablet that holds TWO workers: the referee site also answers pages under
+`/staff/…`), then no blocker and no major.
+
+| Item        | Built in                           | What it turned out to be                                                                                                                                                                                                                     |
+| ----------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The address | `24223c6e`                         | The page registers `<mount>/sw.js?v=` by the rule of `staffRoutePrefix` (`STAFF_MOUNT`, one owner in the scoring app); the worker reads its mount from its own reach and keeps its shells under it.                                          |
+| Two workers | `ad86d786`, `6b98cac9`, `827cdfbe` | **The reviews found** two workers on one tablet emptying each other's cache at a deploy, then serving an older app's page, then a static file the other kept. The mount is in the cache's name, and every strategy reads its own cache only. |
+| No cache    | `63131795`                         | A cache the browser refuses leaves every request to the network, with a warning. The deploy scripts also check `admin.${DOMAIN}/staff/sw.js`, with a grep that `pipefail` cannot turn into a false warning.                                  |
+
+What ran: the real worker on a `/staff`-prefixed production build, behind a front server built as
+the organiser host (`/staff/*` to the app with the prefix taken off, `/api/v1` to a stub, the rest a
+404 of the organiser app): on the old code no worker and the reload fails; on the new code 12 of 12
+at both mounts (a reload and a bout never opened open from the tablet). Every new unit test red on
+the old code or on a seeded break; the gate chain (31 of 31, each fix); the browser suite (430 of
+430, on the first commit; it blocks workers). **Not run: the deployed spec 40**, which opens the pad
+at `admin…/staff` and now waits for the bout shell before it cuts the network: it needs the
+operator's redeploy.
+
+Named, not fixed:
+
+- The piste pages and the bout header's back link with no `?return=` push root addresses
+  (`MatchHeader.tsx:119`, `app/lices/page.tsx`, `last-piste.ts`, …): on the organiser site they leave
+  the worker's reach. By the ruling the piste stays for PIN sessions on the staff address.
+- A page at `/staff` with no slash is outside the `/staff/` reach (no link builds it).
+- The earlier real-worker probe's three "start page opens the last piste" checks fail on main too:
+  since `2c7ebeb0` / `1120d6ce` a piste is remembered only for the person signed in, and the probe's
+  stub answers "not signed in". The probe is out of date, not the app.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
