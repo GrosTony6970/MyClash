@@ -105,6 +105,14 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
   it('match-forfeits.service value-imports ScoringService', () => {
     valueImports('./match-forfeits.service.ts', 'ScoringService');
   });
+
+  it("the ruleset doors' check is wired: an @Optional() that is not provided refuses every club pair", () => {
+    valueImports('../events/events.service.ts', 'SelectableRulesetsService');
+    expect(read('../events/events.module.ts')).toMatch(/imports: \[[^\]]*\bRulesetsModule,/);
+    expect(read('../rulesets/rulesets.module.ts')).toMatch(
+      /exports: \[[^\]]*\bSelectableRulesetsService\b/,
+    );
+  });
 });
 
 /**

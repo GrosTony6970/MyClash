@@ -70,14 +70,53 @@ export class SelectableRulesetsService {
     return summaries;
   }
 
+  /** The club rows the picker lists, by name. */
+  private async candidateRows(orgId: string, withDrafts: boolean): Promise<CandidateRow[]> {
+    const { data, error } = await this.offered(orgId, withDrafts).order('name', {
+      ascending: true,
+    });
+
+    if (error) {
+      // A picker that 500s is worse than one showing only the built-ins: the
+      // organizer can still create the tournament they came to create.
+      this.logger.warn(`Failed to list custom rulesets for org ${orgId}: ${error.message}`);
+      return [];
+    }
+    return (data ?? []) as CandidateRow[];
+  }
+
   /**
-   * Non-system rows the org may see. `.or()` is ANDed with the sibling
-   * `.eq('is_system', false)`, so this is
+   * May a Tournament of `orgId` be pointed at this club pair? Every door that
+   * sets a Tournament's pair asks this, so "listed" and "usable" are one set:
+   * another club's private ruleset, an archived one, or a draft for anyone but
+   * the super-admin, is refused as an unknown one is. A built-in is the
+   * caller's to answer (it has no row here). A read that fails throws: a door
+   * answers it as the server's fault, never as "does not exist".
+   */
+  async isSelectable(
+    orgId: string,
+    code: string,
+    version: string,
+    { withDrafts = false }: { withDrafts?: boolean } = {},
+  ): Promise<boolean> {
+    const { data, error } = await this.offered(orgId, withDrafts)
+      .eq('code', code)
+      .eq('version', version)
+      .limit(1);
+    if (error) throw new Error(`Failed to read the ruleset ${code}@${version}: ${error.message}`);
+    if (!data?.length) return false;
+    return (await this.resolver.resolve(code, version)) !== null;
+  }
+
+  /**
+   * The club rows offered to an organization: the one scope of the picker's
+   * list and of the doors' check. Non-system rows the org may see. `.or()` is
+   * ANDed with the sibling `.eq('is_system', false)`, so this is
    * `(public OR owned OR system) AND NOT system` — i.e. public or owned.
    * The system disjunct is redundant here but the filter is shared with the
    * authoring catalog, where it is not.
    */
-  private async candidateRows(orgId: string, withDrafts: boolean): Promise<CandidateRow[]> {
+  private offered(orgId: string, withDrafts: boolean) {
     const visible = customRulesetOrgVisibilityFilter(orgId);
     let query = this.supabase.service
       .from('custom_rulesets')
@@ -98,15 +137,7 @@ export class SelectableRulesetsService {
       // "resolvable" from "selectable" here, since this picker equates them.
       .neq('status', 'archived');
     if (!withDrafts) query = query.neq('status', 'draft');
-    const { data, error } = await query.order('name', { ascending: true });
-
-    if (error) {
-      // A picker that 500s is worse than one showing only the built-ins: the
-      // organizer can still create the tournament they came to create.
-      this.logger.warn(`Failed to list custom rulesets for org ${orgId}: ${error.message}`);
-      return [];
-    }
-    return (data ?? []) as CandidateRow[];
+    return query;
   }
 
   private async resolveQuietly(row: CandidateRow): Promise<Ruleset | null> {

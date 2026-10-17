@@ -14,5 +14,8 @@ import { SelectableRulesetsService } from './selectable-rulesets.service';
   imports: [OrganizationsModule, RulesetResolverModule],
   controllers: [RulesetsController],
   providers: [SelectableRulesetsService],
+  // EventsModule: every door that sets a Tournament's pair asks the picker's
+  // own scope. Acyclic: this module imports neither Events nor anything above it.
+  exports: [SelectableRulesetsService],
 })
 export class RulesetsModule {}

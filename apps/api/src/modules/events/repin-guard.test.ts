@@ -123,8 +123,8 @@ function harness(opts: HarnessOpts) {
     if (table === 'matches') return matchesChain(scored);
     return nullRowChain();
   });
-  // A club ruleset this file names resolves to nothing; a built-in needs no read.
-  const rulesetResolver = { resolve: vi.fn().mockResolvedValue(null) };
+  // A club ruleset this file names is offered to nobody; a built-in needs no read.
+  const selectableRulesets = { isSelectable: vi.fn().mockResolvedValue(false) };
   const svc = new EventsService(
     { service: { from } } as never,
     { assertOrgRole } as never,
@@ -134,9 +134,9 @@ function harness(opts: HarnessOpts) {
     undefined,
     undefined,
     undefined,
-    rulesetResolver as never,
+    selectableRulesets as never,
   );
-  return { svc, cap };
+  return { svc, cap, selectableRulesets };
 }
 
 const RUNNING_TF = {
@@ -204,12 +204,31 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
   });
 
   it('refuses a swap to a ruleset pair that does not resolve, before any write', async () => {
-    const { svc, cap } = harness({ current: { ...RUNNING_TF, status: 'draft' } });
+    const { svc, cap, selectableRulesets } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
+    });
 
     await expect(
       svc.updateTournament('t1', { rulesetCode: 'custom_gone' } as never, 'u1'),
     ).rejects.toThrow('The selected ruleset (custom_gone 1.0.0) does not exist.');
     expect(cap.update).toBeNull();
+    // Asked in the Event's organisation's scope: an org admin is offered no draft.
+    expect(selectableRulesets.isSelectable).toHaveBeenCalledWith('org-1', 'custom_gone', '1.0.0', {
+      withDrafts: false,
+    });
+  });
+
+  it('saves a Tournament that re-sends a club pair no longer offered: only a change is checked', async () => {
+    // Pinned to a club ruleset since archived or unshared: the form re-sends it.
+    const { svc, cap, selectableRulesets } = harness({
+      current: { ...RUNNING_TF, status: 'draft', ruleset_code: 'custom_x' },
+    });
+
+    const dto = { name: 'Renamed', rulesetCode: 'custom_x', rulesetVersion: '1.0.0' };
+    await svc.updateTournament('t1', dto as never, 'u1');
+
+    expect(selectableRulesets.isSelectable).not.toHaveBeenCalled();
+    expect(cap.update?.['name']).toBe('Renamed');
   });
 
   it('stores a version named in shorthand as the registry names it', async () => {

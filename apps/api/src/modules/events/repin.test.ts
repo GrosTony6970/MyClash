@@ -105,8 +105,9 @@ function harness(opts: HarnessOpts) {
   const poolStandings = {
     getPoolStandings: vi.fn().mockResolvedValue({ rows: opts.standingsRows ?? [] }),
   };
-  const rulesetResolver = {
-    resolve: vi.fn().mockResolvedValue(opts.resolverResolves === false ? null : {}),
+  // The picker's scope, which also resolves the pair: false for a target that does not resolve.
+  const selectableRulesets = {
+    isSelectable: vi.fn().mockResolvedValue(opts.resolverResolves !== false),
   };
   const registry = createRulesetRegistry();
   const svc = new EventsService(
@@ -118,9 +119,9 @@ function harness(opts: HarnessOpts) {
     undefined,
     undefined,
     poolStandings as never,
-    rulesetResolver as never,
+    selectableRulesets as never,
   );
-  return { svc, cap, poolStandings, rulesetResolver, registry };
+  return { svc, cap, poolStandings, selectableRulesets, registry };
 }
 
 const RUNNING_TF = {
@@ -222,6 +223,18 @@ describe('repinTournamentRuleset', () => {
     );
     expect(cap.tournamentUpdate).toBeNull();
     expect(cap.repinInsert).toBeNull();
+  });
+
+  it("re-pins only to a club pair the picker offers the Tournament's organisation", async () => {
+    // The super-admin re-pins a Tournament of org-1: org-1's scope, drafts included.
+    const { svc, selectableRulesets } = harness({ current: RUNNING_TF, isSuperAdmin: true });
+    const target = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
+    await svc.repinTournamentRuleset('t1', target, 'u1').catch(() => undefined);
+    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_house' }, 'u1');
+    expect(selectableRulesets.isSelectable.mock.calls).toEqual([
+      ['org-1', 'custom_house', '1.0.0', { withDrafts: true }],
+      ['org-1', 'custom_house', '1.0.0', { withDrafts: true }],
+    ]);
   });
 
   it('allows a super-admin who is not the org owner', async () => {
