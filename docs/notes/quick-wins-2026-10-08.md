@@ -3030,6 +3030,8 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Versions   | Penalty door        | A club admin rewrites a card's cost under a running Tournament, straight through the database's web door.                | **Close it**, in its own commit (as 0225).                                                                                  |
 | Versions   | Flake evidence      | The share-button test fails on CI about half the time and never here; CI keeps only the error line.                      | **Keep a trace** of every failing browser test. The fix ("fix it now", 13:00) waits on the first trace.                     |
 | Versions   | Re-pin log          | A super admin rewrites a re-pin's record (its reason, the placings before and after) through the web door.               | **Only the app writes it** (as 0225).                                                                                       |
+| Versions   | Club edit           | Lyon's ruleset is made in October; in April, after a new end rule, Lyon rewrites it in place as version 2.0.0.           | **It keeps the October end rule**: a club ruleset takes its end rule when it is made.                                       |
+| Versions   | Import rule         | An admin edits an exported file by hand to name the old end rule, then imports it.                                       | **The import keeps the rule the file names**; an unknown one is refused, none = 2026-10.                                    |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
@@ -3045,7 +3047,8 @@ admin" (04:30) after its second; "Fake tag" and "Direct login" (06:00) after its
 "Club version" (12:30) was asked during versions commit 6 (`4238621d`); "Penalty door" and "fix it
 now" (13:00) after the cold review of migration `0225`, which found the penalty rulesets open the
 same way; "Flake evidence" (14:50) after CI lost a share-button test on two attempts of `010c3ca7`;
-"Re-pin log" (15:20) after the cold review of `0226`.
+"Re-pin log" (15:20) after the cold review of `0226`. "Club edit" and "Import rule" were asked in
+session 9db6c7e9 (16:40), after the cold review of migration `0228`.
 
 ### Built on 2026-10-16: the server pass, first batch
 
@@ -3391,6 +3394,47 @@ Named, not fixed:
   only. `resolveRulesetConfigDefaults` reads a club ruleset's current row whatever version is named
   (no door offers an older one today).
 - `ruleset_submissions`: nothing writes it (the intake path was retired); it could be dropped.
+
+### Built on 2026-10-17 and 18: real ruleset versions
+
+On 2026-10-11 the end decision of a bout that counts down changed, and TF_v1 stayed 1.0.0: a bout
+fought before and corrected after was decided by the new rule, and nothing said so (ruling "TF_v1
+version", 2026-10-16: bump the version when an engine's decision changes, keep the old engine). The
+plan: `C:\Users\Tony\.claude\plans\slice-tf-v1-real-versions-plan.md`. Each version now names its
+end decision, every decider asks the bout's own, and a club formula keeps the one of its day.
+
+| Commit     | What it does                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `1ebeee65` | 1: every end decider takes an edition (`DecisionEdition`, `'2026-04'` or `'2026-10'`); behaviour unchanged.                   |
+| `f15c0373` | 2: a new Tournament or fork gets the latest version of its ruleset; the pickers list the latest.                              |
+| `f187c880` | 3: TF_v1 and Generic_PointsCap at 1.0.0 (2026-04) and 1.1.0 (2026-10); `registered-editions.test.ts` holds both.              |
+| `4ce81d26` | 4: a pair that does not resolve is refused where it is set, never scored as TF_v1; a draft is scored as its draft.            |
+| `da0ba4c2` | 5: the pad decides a bout's end by the edition the server sends with it.                                                      |
+| `4238621d` | 6: a built-in's version move keeps the settings; a club version takes its content (rulings "A version move", "Club version"). |
+| `cb094e5d` | 6b: migration `0228`, a club formula keeps the end decision it was published with; the content hash carries it.               |
+| `485b8691` | 6b: a club version stays frozen while a bout carries it, not only a Tournament; a failed count refuses the edit.              |
+| `4689fd17` | 7: ARCHITECTURE §7bis.6, what a version decides.                                                                              |
+
+The pair doors and the web doors closed on the way are their own sections above. What ran on the
+last three: cold reviews to no blocker and no major (6b-edition two passes, 6b-guard one plus its
+minors); red first (17 and 5 tests on the old sources); falsifiers 30 of 30 and 4 of 4; the gate
+chain 31 of 31; for `0228` a fresh PG17 replay, the RLS and merge probes, the CHECKs read back live
+and proved by inserts, and its backfill proved over stored club rows.
+
+Rulings asked during 6b-edition (operator, 16:40, from its cold review): "Club edit" and "Import
+rule" in the table of the four planned slices.
+
+Named, not fixed:
+
+- A club version frozen by its bouts (or a Tournament) says "Publish a new version", but a club has
+  no publish door: its way out is to archive and make a new ruleset. Not new; the bouts widen it.
+- The super admin's lock display reads `is_frozen` from a snapshot, which nothing sets for a bout;
+  its banner says "a tournament already references it".
+- Bouts voided count toward the freeze (as for a delete); the freeze counts scan `matches` with no
+  index on `(ruleset_code, ruleset_version)`.
+- The penalty edit guard (`penalties.service.ts`) still reads a failed count as 0.
+- A formula snapshot with no edition (only an out-of-band write) hashes as none and is scored as
+  2026-10. A stack not wiped shows the drift banner on every formula Tournament after `0228`.
 
 ### Fixed since they were named
 
