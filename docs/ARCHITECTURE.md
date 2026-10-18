@@ -652,7 +652,10 @@ so the decision was made from a number nobody would ever see.
 - **TF_v1** — the canonical ruleset spec'd in §6.
 - **Generic_PointsCap** — first-to-N points, no algorithm score (for clubs that just want simple pool play).
 
-(These two are the only rulesets registered today; see `packages/rulesets/src/index.ts`. Data-driven `FormulaRuleset` variants are also supported via the registry.)
+Each is registered at two versions, 1.0.0 and 1.1.0 (`BUILT_IN_RULESETS`,
+`packages/rulesets/src/built-ins.ts`): the end decision of a bout that counts down moved on
+2026-10-11, and the old engine stays registered (§7bis.6). Data-driven `FormulaRuleset` variants are
+built by the API's resolver from a stored definition, not registered.
 
 Additional rulesets are added by:
 
@@ -859,8 +862,10 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 
 - **Versions are snapshotted.** Publishing captures the payload immutably (`custom_ruleset_versions` for
   scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
-  rather than overwriting destructively. `is_frozen` flips `TRUE` the moment a tournament pins the
-  ruleset, after which the edit-guard refuses further edits. Only the API writes a scoring or a
+  rather than overwriting destructively. The edit guard refuses to edit, roll back or unpublish a
+  version while a Tournament pins it or a bout carries it (`isCurrentVersionFrozen`): a bout keeps
+  its pair when its Tournament moves to another ruleset, so a correction of it is still scored by
+  the formula it was fought under. Only the API writes a scoring or a
   penalty ruleset, a penalty ruleset's entries, or their snapshots (migrations `0225`, `0226`:
   SELECT policies only, no INSERT, UPDATE or DELETE for `anon` or `authenticated`), so the guard
   cannot be gone around through PostgREST.
@@ -898,6 +903,41 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Organisation** | `GET catalog` · `POST fork` · `POST validate` · `PATCH :id` · `DELETE :id` (soft-archives if referenced) · `POST :id/submit` · `GET :id/export` · `POST import`                         |
 | **Super admin**  | `POST :id/publish` / `:id/unpublish` · `GET :id/versions` · `POST :id/versions/:versionId/rollback` · `POST :id/set-default` · `POST :id/approve-public` · `POST :id/reject-submission` |
+
+### 7bis.6 Ruleset versions: what a version decides
+
+A version names the behaviour a bout is decided by, so a bout fought before a change and corrected
+after it is decided as it was fought (operator ruling "TF_v1 version", 2026-10-16).
+
+- **When a built-in's version moves.** A change to how a bout ENDS is a minor version (TF_v1 and
+  Generic_PointsCap 1.1.0, 2026-10-11: both fighters at zero in a bout that counts down, and the
+  doubles limit asked before the cap); a change to the ranking maths is a major one (2.0.0). The old
+  engine stays registered beside the new: `BUILT_IN_RULESETS` lists every version, and
+  `packages/rulesets/test/registered-editions.test.ts` asks each how a set of boards end, so a change
+  to the shared decision that moves a registered version's answer turns it red.
+- **The end decision is an edition.** `DecisionEdition` (`'2026-04' | '2026-10'`, `DECISION_EDITIONS`
+  in `@myclash/rules`) is a required argument of every decider; a version carries its own
+  (`Ruleset.decisionEdition`). The server sends a bout's edition with it (`decision_edition`, both
+  bout reads); the pad checks it with `isDecisionEdition` and decides an unknown or missing one with
+  `EDITION_2026_10`, and says so (§7.3).
+- **A club formula keeps the edition of its day.** `decision_edition` on `custom_rulesets` and
+  `custom_ruleset_versions` (migration `0228`): a ruleset takes today's edition when it is created,
+  and again when a version is published, unless a Tournament or a bout already uses that version;
+  the snapshot copies it; a coded fork holds none (its base engine names it); export and import carry
+  it. A club's edit in place keeps it (rulings "Club formulas", "Edition day", "Club edit", "Import
+  rule"). The content hash of a formula Tournament includes it.
+- **`'1'` means 1.0.0.** Rows and defaults written before versions moved spell `'1'`;
+  `normalizeRulesetVersion` reads it as 1.0.0, the old rule, and every writer stores the full form.
+- **New work gets the latest.** A new Tournament, and a fork of a built-in with no base version
+  named, take `latestVersionOf(code)`; the pickers list the latest version of each code, and a
+  Tournament on an older one shows it as "earlier end rules". Adopting another club's fork keeps that
+  fork's base version.
+- **A version move.** On a built-in, moving to its other version keeps the Tournament's settings; a
+  club ruleset's other version is its content, so the settings follow it (`settingsAfterMove`,
+  `apps/api/src/modules/events/ruleset-move-config.ts`, rulings "A version move", "Club version").
+- **An unknown pair is refused** at every door that sets one (create, edit, the re-pin and its
+  preview, the fork), before anything is written. A Tournament may be pinned to a draft and is scored
+  as its draft.
 
 ---
 
