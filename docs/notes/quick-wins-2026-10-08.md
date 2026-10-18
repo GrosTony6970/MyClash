@@ -3032,6 +3032,8 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Versions   | Re-pin log          | A super admin rewrites a re-pin's record (its reason, the placings before and after) through the web door.               | **Only the app writes it** (as 0225).                                                                                       |
 | Versions   | Club edit           | Lyon's ruleset is made in October; in April, after a new end rule, Lyon rewrites it in place as version 2.0.0.           | **It keeps the October end rule**: a club ruleset takes its end rule when it is made.                                       |
 | Versions   | Import rule         | An admin edits an exported file by hand to name the old end rule, then imports it.                                       | **The import keeps the rule the file names**; an unknown one is refused, none = 2026-10.                                    |
+| Foundation | Last seen (J)       | Rules go A, then B, then A again; the tablet never got bout 9's own copy, and the wifi drops.                            | **The Tournament's rules as the tablet last read them**, with the "not confirmed" notice; not "refuse to open".             |
+| Foundation | Bout read (K)       | The bout read lands; a second read of its copy fails on a weak hall network.                                             | **The bout read carries the bout's own rules**; no separate route.                                                          |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
@@ -3048,7 +3050,10 @@ admin" (04:30) after its second; "Fake tag" and "Direct login" (06:00) after its
 now" (13:00) after the cold review of migration `0225`, which found the penalty rulesets open the
 same way; "Flake evidence" (14:50) after CI lost a share-button test on two attempts of `010c3ca7`;
 "Re-pin log" (15:20) after the cold review of `0226`. "Club edit" and "Import rule" were asked in
-session 9db6c7e9 (16:40), after the cold review of migration `0228`.
+session 9db6c7e9 (16:40), after the cold review of migration `0228`. "Last seen" (22:40) and "Bout
+read" (22:55) were asked in session 9f57c49e, before the foundation's commit 4: the first
+after its recon found that a copy found by digest keeps its older date, the second after the plan
+review's cold reviewer found the simpler shape.
 
 ### Built on 2026-10-16: the server pass, first batch
 
@@ -3478,6 +3483,47 @@ Named, not fixed:
 - The TV shows a running bout the Tournament's best-of of now, the pad its copy's (ruled).
 - The built-in card-ruleset predicate is written twice in `penalties.service.ts`.
 - Fixed by commit 3: the penalty edit guard no longer reads a failed count as 0.
+
+### Built on 2026-10-18: the pad scores each bout with its own rules (the foundation, commit 4)
+
+Bout 2 started on +3 buttons at 9:55; the organiser switched the Tournament to +2 at 10:00. The
+pad read its buttons from the Tournament, so it showed +2, and a 2 was stored. Rulings K and J
+(table above): the bout read carries the bout's own rules; a bout whose own rules the tablet lacks,
+with no network, takes its Tournament's as last read, and says so.
+
+| Commit     | What it does                                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `f23d2407` | 4a: both bout reads carry `rules` (format, afterblow mode, buttons, card pin) from the bout's copy, read by the scorer's own readers.  |
+| `0d809e2b` | 4b: the pad scores with them and takes the display from the Tournament; the kept bout keeps them; the catalogue is kept by card rules. |
+
+What the build chose, not ruled:
+
+- The edition and the doubles rule come from the pair the scorer decides with: the bout row's own,
+  until commit 6 moves the scorer and the bout answer to the copy's pair together.
+- A bout with no copy, or a format the server refuses, still sends its edition; only its rules are
+  left out (logged; the read never fails, nor its piste's read).
+- An answer without the bout's rules (a passing server fault) never replaces the rules held for
+  that bout, on screen or in the kept copy: a running bout's +3 must not turn into +2 mid-bout.
+- The penalty catalogue is kept under the card rules the ANSWER is, not the ones the bout read
+  named a moment before: a change between the two reads cannot file one list under another's name.
+- The "not confirmed" notice now also shows for a bout read without its own rules, though its
+  Tournament's config is fresh.
+
+What ran: plan review to convergence (2 passes, 4 reviewers each, every serious finding checked by a
+skeptic); cold reviews to no blocker and no major (4a two passes, 4b three); red first (14 tests,
+and the 4 new browser stories on the old pad); falsifiers 17 of 17 (4a) and 26 of 26 (4b), each red
+with the same number of tests collected; the gate chain 31 of 31; coverage 682 files / 8780 tests;
+the browser suite 444 of 444.
+
+Named, not fixed:
+
+- Until commit 5 the stamp can move a scheduled bout from copy A to B while its pad is open on A:
+  the pad re-reads the bout only after a send.
+- Quick penalties are display, but they are entry numbers of the bout's catalogue: after a
+  card-rules change a running bout's quick pick may name another offence.
+- A catalogue from a fallback tier raises no notice.
+- After a reload mid-bout, a first answer without rules shows the Tournament's rules (with the
+  notice), though the kept copy holds the bout's own.
 
 ### Fixed since they were named
 
