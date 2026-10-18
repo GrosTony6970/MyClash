@@ -40,24 +40,24 @@ function times(skewMinutes = 0) {
   return { occurredAt: tablet(SCORED_AT), sentAt: tablet(NOW) };
 }
 
+const BOUT = {
+  id: 'm1',
+  phase_id: 'phase-1',
+  status: 'running',
+  locked_at: null,
+  red_registration_id: 'reg-red',
+  blue_registration_id: 'reg-blue',
+  current_round: 1,
+  awaiting_round_advance: false,
+  // Its copy of its rules (0229) pins no card rules: the built-in prices a card.
+  match_rules: { penalty_ruleset_id: null },
+};
+
 function setup() {
   const db = mockSupabase({
     exchanges: { rows: [], returning: { id: 'ex-new' } },
     match_penalties: { rows: [], returning: { id: 'card-new' } },
-    matches: {
-      rows: [
-        {
-          id: 'm1',
-          phase_id: 'phase-1',
-          status: 'running',
-          locked_at: null,
-          red_registration_id: 'reg-red',
-          blue_registration_id: 'reg-blue',
-          current_round: 1,
-          awaiting_round_advance: false,
-        },
-      ],
-    },
+    matches: { rows: [BOUT] },
     match_events: { rows: [] },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
     tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null }] },

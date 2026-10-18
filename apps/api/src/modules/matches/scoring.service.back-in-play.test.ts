@@ -86,12 +86,10 @@ describe('a finished bout of one round that a correction hands back to the refer
 });
 
 describe('a closed round of a best-of series that a correction puts back in play', () => {
+  // The bout's copy of its rules (0229): best of 3, first to 7.
   const bestOfThree = {
-    type: 'single_elim',
-    tournaments: {
-      ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
-      scoring_config_json: null,
-    },
+    ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
+    scoring_config_json: {},
   };
   const inRound = (round: number, row: ReturnType<typeof hit>) => ({ ...row, round_number: round });
   // Round 1: Red 7, Blue 6, closed by the cap.
@@ -113,7 +111,8 @@ describe('a closed round of a best-of series that a correction puts back in play
     sheet.filter((row) => !ids.includes(row.id));
   const series = (over: Record<string, unknown> = {}) =>
     storedBout({
-      phases: bestOfThree,
+      phases: { type: 'single_elim' },
+      match_rules: bestOfThree,
       match_number_label: 'QF1',
       status: 'running',
       winner_registration_id: null,

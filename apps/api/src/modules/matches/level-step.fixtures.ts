@@ -30,10 +30,9 @@ export function level(events: SupabaseRow[], bout: SupabaseRow = {}, eventStatus
     red_score: 2,
     blue_score: 2,
     match_number_label: 'QF1',
-    phases: {
-      type: 'single_elim',
-      tournaments: { ruleset_config: {}, events: { status: eventStatus } },
-    },
+    phases: { type: 'single_elim', tournaments: { events: { status: eventStatus } } },
+    // Its copy of its rules (0229): no format set.
+    match_rules: { ruleset_config: {}, scoring_config_json: {} },
     ...bout,
   });
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { supabaseRpc } from '../../common/testing/supabase-chain';
 import { PenaltiesService } from './penalties.service';
 
 // Harness whose chains are awaitable (thenable) so a bare `.select().eq()` count
@@ -32,7 +33,10 @@ function fakeSupabase(state: TableState) {
     };
     return api;
   }
-  return { updated, deleted, service: { from: vi.fn((table: string) => chain(table)) } };
+  // No bout holds a copy of these rules: the bout half of the guard is
+  // `penalties.bout-copy.test.ts`'s.
+  const rpc = supabaseRpc({ card_ruleset_held_by_a_bout: () => ({ data: false, error: null }) });
+  return { updated, deleted, service: { from: vi.fn((table: string) => chain(table)), rpc } };
 }
 
 function customRow(overrides: Record<string, unknown> = {}) {
@@ -50,7 +54,7 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
 
     await expect(
       service.updateRuleset('pr-1', { name: 'Renamed' } as never, 'user-1'),
-    ).rejects.toThrow(/in use by a tournament or event/i);
+    ).rejects.toThrow(/in use by a tournament, an event or a bout/i);
     expect(supabase.updated.penalty_rulesets).toBeUndefined();
   });
 
@@ -64,7 +68,7 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
 
     await expect(
       service.updateRuleset('pr-1', { name: 'Renamed' } as never, 'user-1'),
-    ).rejects.toThrow(/in use by a tournament or event/i);
+    ).rejects.toThrow(/in use by a tournament, an event or a bout/i);
   });
 
   it('allows editing an unreferenced custom ruleset', async () => {

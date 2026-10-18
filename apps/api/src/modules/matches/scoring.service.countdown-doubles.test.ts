@@ -17,24 +17,22 @@ import {
  *
  * Countdown from 5, limit 3. Red hits for 2, then three doubles.
  */
+/** The Pool bout's copy of its rules (0229). */
 const pool = (direction: 'normal' | 'reverse_zero_loses', bestOf = 1) => ({
-  type: 'pool',
-  tournaments: {
-    ruleset_config: {
-      matchFormat: {
-        pointCap: 5,
-        scoringDirection: direction,
-        maxDoubleHits: 3,
-        bestOf: { pool: bestOf, bracket: bestOf, finals: bestOf },
-        levelAtTime: {
-          pool: [{ kind: 'draw' }],
-          bracket: [{ kind: 'sudden_death' }],
-          finals: [{ kind: 'sudden_death' }],
-        },
+  ruleset_config: {
+    matchFormat: {
+      pointCap: 5,
+      scoringDirection: direction,
+      maxDoubleHits: 3,
+      bestOf: { pool: bestOf, bracket: bestOf, finals: bestOf },
+      levelAtTime: {
+        pool: [{ kind: 'draw' }],
+        bracket: [{ kind: 'sudden_death' }],
+        finals: [{ kind: 'sudden_death' }],
       },
     },
-    scoring_config_json: null,
   },
+  scoring_config_json: {},
 });
 
 const double = (seq: number) => ({
@@ -46,9 +44,10 @@ const double = (seq: number) => ({
 
 const STORY = [hit(1, 'red', 2), double(2), double(3), double(4)];
 
-const inPlay = (phases: ReturnType<typeof pool>, over: Record<string, unknown> = {}) =>
+const inPlay = (rules: ReturnType<typeof pool>, over: Record<string, unknown> = {}) =>
   storedBout({
-    phases,
+    phases: { type: 'pool' },
+    match_rules: rules,
     match_number_label: 'L1-P1-M01',
     status: 'running',
     winner_registration_id: null,

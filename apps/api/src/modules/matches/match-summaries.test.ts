@@ -165,11 +165,10 @@ describe('matchSummaries', () => {
       'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
     ]);
     expect(selectsFor(from, 'matches')).toEqual([
-      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance',
+      'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, match_rules(ruleset_config)',
     ]);
-    expect(selectsFor(from, 'tournaments')).toEqual([
-      'id, weapon, name, ruleset_config, scoring_config_json',
-    ]);
+    // The format is the bout's copy's: the Tournament's of now is not read.
+    expect(selectsFor(from, 'tournaments')).toEqual(['id, weapon, name, scoring_config_json']);
     expect(selectsFor(from, 'phases')).toEqual(['id, config_json']);
     expect(selectsFor(from, 'pools')).toEqual(['id, sort_order']);
     expect(selectsFor(from, 'events')).toEqual(['id, timezone']);
@@ -186,26 +185,28 @@ describe('matchSummaries', () => {
     expect(lists).toEqual([100, 1]);
   });
 
-  // Every write checks a format, so only a hand edit gets here: one such Tournament threw out of
-  // the whole list (a piste's bouts, the referee assignments, the match lists).
-  it("lists every bout when one Tournament's stored format does not read", async () => {
+  /** The four bouts, with the `matches` row of one bout changed by `change`. */
+  const withBout = (
+    id: string,
+    change: (row: Record<string, unknown>) => Record<string, unknown>,
+  ) => {
     const seed = summarySeed();
-    const supabase = mockSupabase({
+    const rows = (seed.matches as { rows: Record<string, unknown>[] }).rows;
+    return {
       ...seed,
-      tournaments: {
-        rows: [
-          ...(seed.tournaments as { rows: Record<string, unknown>[] }).rows.filter(
-            (t) => t['id'] !== 't2',
-          ),
-          {
-            id: 't2',
-            weapon: 'sabre',
-            name: 'Sabre',
-            ruleset_config: { matchFormat: { pointCap: 0 } },
-          },
-        ],
-      },
-    });
+      matches: { rows: rows.map((row) => (row['id'] === id ? change(row) : row)) },
+    };
+  };
+
+  // Every write checks a format, so only a hand edit gets here: one such bout threw out of the
+  // whole list (a piste's bouts, the referee assignments, the match lists).
+  it("lists every bout when one bout's stored format does not read", async () => {
+    const supabase = mockSupabase(
+      withBout('bracket', (row) => ({
+        ...row,
+        match_rules: { ruleset_config: { matchFormat: { pointCap: 0 } } },
+      })),
+    );
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
     const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
@@ -213,9 +214,67 @@ describe('matchSummaries', () => {
     expect(summaries.get('bracket')).toMatchObject({ matchFormat: null, bestOf: 1 });
     expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
     expect(logged).toHaveBeenCalledWith(
-      'Tournament t2 has a match format that does not read',
+      'Bout bracket has a match format that does not read',
       expect.anything(),
     );
+    logged.mockRestore();
+  });
+
+  // Ruling E: a bout keeps the format it started under, and the public bout page shows it. The
+  // organiser then makes the Tournament best of one: the bout is still best of three.
+  it('gives a bout the format of its copy, when its Tournament now says another', async () => {
+    const seed = summarySeed();
+    const supabase = mockSupabase({
+      ...seed,
+      tournaments: {
+        rows: (seed.tournaments as { rows: Record<string, unknown>[] }).rows.map((t) =>
+          t['id'] === 't1'
+            ? {
+                ...t,
+                ruleset_config: { matchFormat: { bestOf: { pool: 1, bracket: 1, finals: 1 } } },
+              }
+            : t,
+        ),
+      },
+    });
+
+    const summaries = await matchSummaries(supabase.service as never, ['pool']);
+
+    expect(summaries.get('pool')?.bestOf).toBe(3);
+    expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
+  });
+
+  // Every bout holds a copy: one with none is a fault. It must not take the list down with it,
+  // and it must not borrow its Tournament's format of now.
+  it('lists a bout with no copy of its rules with no format, the others intact, and names it', async () => {
+    const supabase = mockSupabase(withBout('swiss', ({ match_rules: _copy, ...row }) => row));
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+
+    expect(summaries.get('swiss')).toMatchObject({
+      matchFormat: null,
+      bestOf: 1,
+      roundToken: 'S3',
+    });
+    expect(summaries.get('pool')).toMatchObject({ bestOf: 3, liceName: 'Lice 4' });
+    expect(summaries.get('pool')?.matchFormat?.bestOf).toEqual({ pool: 3, bracket: 5, finals: 5 });
+    expect([...summaries.keys()]).toEqual(SUMMARY_BOUTS);
+    expect(logged).toHaveBeenCalledWith('Bout swiss holds no copy of its rules');
+    expect(logged).toHaveBeenCalledTimes(1);
+    logged.mockRestore();
+  });
+
+  // The piste read polls the list: a bout deleted between its two reads is an ordinary race, not
+  // a fault to log at every poll.
+  it('lists a bout deleted since the list was read with no format, and logs nothing', async () => {
+    const supabase = mockSupabase(withBout('swiss', () => ({ id: 'deleted-since' })));
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const summaries = await matchSummaries(supabase.service as never, SUMMARY_BOUTS);
+
+    expect(summaries.get('swiss')).toMatchObject({ matchFormat: null, bestOf: 1 });
+    expect(logged).not.toHaveBeenCalled();
     logged.mockRestore();
   });
 

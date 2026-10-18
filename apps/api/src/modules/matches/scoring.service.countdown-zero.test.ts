@@ -17,24 +17,22 @@ import {
  * Countdown from 5. Red has 1 point left, blue has 2. Red strikes for 3 and
  * blue answers with an afterblow of 3: red at -2, blue at -1. Blue wins.
  */
-const countdown = (type: 'pool' | 'single_elim', bestOf = 1) => ({
-  type,
-  tournaments: {
-    ruleset_config: {
-      matchFormat: {
-        pointCap: 5,
-        scoringDirection: 'reverse_zero_loses',
-        maxDoubleHits: null,
-        bestOf: { pool: bestOf, bracket: bestOf, finals: bestOf },
-        levelAtTime: {
-          pool: [{ kind: 'draw' }],
-          bracket: [{ kind: 'sudden_death' }],
-          finals: [{ kind: 'sudden_death' }],
-        },
+/** The bout's copy of its rules (0229). */
+const countdown = (bestOf = 1) => ({
+  ruleset_config: {
+    matchFormat: {
+      pointCap: 5,
+      scoringDirection: 'reverse_zero_loses',
+      maxDoubleHits: null,
+      bestOf: { pool: bestOf, bracket: bestOf, finals: bestOf },
+      levelAtTime: {
+        pool: [{ kind: 'draw' }],
+        bracket: [{ kind: 'sudden_death' }],
+        finals: [{ kind: 'sudden_death' }],
       },
     },
-    scoring_config_json: { afterblowMode: 'full' },
   },
+  scoring_config_json: { afterblowMode: 'full' },
 });
 
 const afterblow = (seq: number, color: 'red' | 'blue', value: number, answer: number) => ({
@@ -49,7 +47,8 @@ const TRUE_TIE = [hit(1, 'blue', 4), hit(2, 'red', 4), afterblow(3, 'red', 2, 2)
 
 const inPlay = (type: 'pool' | 'single_elim', over: Record<string, unknown> = {}) =>
   storedBout({
-    phases: countdown(type),
+    phases: { type },
+    match_rules: countdown(),
     match_number_label: type === 'pool' ? 'L1-P1-M01' : 'QF1',
     status: 'running',
     winner_registration_id: null,
@@ -200,7 +199,7 @@ describe('ScoringService.recomputeMatchScore — both at zero in a bout that cou
 describe('ScoringService.recomputeMatchScore — a round of a best-of bout that counts down', () => {
   const series = (type: 'pool' | 'single_elim') =>
     inPlay(type, {
-      phases: countdown(type, 3),
+      match_rules: countdown(3),
       current_round: 1,
       rounds_json: [],
       red_round_wins: 0,

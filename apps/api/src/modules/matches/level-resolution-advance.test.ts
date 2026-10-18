@@ -80,14 +80,11 @@ describe('ClockService.advanceLevelResolution', () => {
 
   it('writes no correction in a phase with no time limit: there is nothing to extend', async () => {
     const { db, clock } = level(SPENT, {
-      phases: {
-        type: 'single_elim',
-        tournaments: {
-          ruleset_config: {
-            matchFormat: { timeLimitsSeconds: { pool: null, bracket: null, finals: null } },
-          },
-          events: { status: 'running' },
+      match_rules: {
+        ruleset_config: {
+          matchFormat: { timeLimitsSeconds: { pool: null, bracket: null, finals: null } },
         },
+        scoring_config_json: {},
       },
     });
 
@@ -156,7 +153,7 @@ describe('ClockService.advanceLevelResolution', () => {
     // simply ends it.
     const { db, clock } = level(SPENT, {
       match_number_label: 'L1-P1-M01',
-      phases: { type: 'pool', tournaments: { ruleset_config: {}, events: { status: 'running' } } },
+      phases: { type: 'pool', tournaments: { events: { status: 'running' } } },
     });
 
     await expect(clock.advanceLevelResolution(BOUT, STAFF)).rejects.toThrow(/No further remedy/);
@@ -226,12 +223,9 @@ describe('ClockService.advanceLevelResolution', () => {
     // count-up bout that did not rewind could have its End accepted the instant
     // the extra time was granted, and the minute would exist only as advice.
     const { db, clock } = level(SPENT, {
-      phases: {
-        type: 'single_elim',
-        tournaments: {
-          ruleset_config: { matchFormat: { timerMode: 'countup' } },
-          events: { status: 'running' },
-        },
+      match_rules: {
+        ruleset_config: { matchFormat: { timerMode: 'countup' } },
+        scoring_config_json: {},
       },
     });
 
@@ -265,7 +259,8 @@ describe('ClockService.advanceLevelResolution', () => {
       'id, status, locked_at, current_round, red_registration_id, blue_registration_id, ' +
         'winner_registration_id, red_score, blue_score, match_number_label, ' +
         'awaiting_round_advance, back_in_play_at, ' +
-        'phases(type, tournaments(ruleset_config, events(status)))',
+        'phases(type, tournaments(events(status))), ' +
+        'match_rules(ruleset_config, scoring_config_json)',
     );
   });
 });

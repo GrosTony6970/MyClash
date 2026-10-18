@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { bracketToken } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
+import { asRow } from './bout-rules';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import {
@@ -30,9 +31,10 @@ type Row = Record<string, unknown>;
 const VIEW_SELECT =
   'match_id, match_number_label, status, pool_id, pool_name, bracket_round, swiss_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type';
 
-/** `lice_id` is on the bout's row, not on the view. */
+/** `lice_id` is on the bout's row, not on the view; so is its copy of its rules (its format). */
 const ROUND_SELECT =
-  'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance';
+  'id, lice_id, current_round, red_round_wins, blue_round_wins, rounds_json, awaiting_round_advance, ' +
+  'match_rules(ruleset_config)';
 
 /** Ids per read: a longer `in.(…)` list makes an address some proxies refuse. */
 const IDS_PER_READ = 100;
@@ -111,7 +113,7 @@ async function contextOf(db: SupabaseClient, views: ViewRow[]): Promise<SummaryC
     referees,
     tournaments: await rowsById(
       db,
-      byId('tournaments', 'id, weapon, name, ruleset_config, scoring_config_json'),
+      byId('tournaments', 'id, weapon, name, scoring_config_json'),
       views.map((row) => row.tournament_id),
     ),
     // Only a bracket bout needs its phase: the size turns a round number into
@@ -186,9 +188,10 @@ function roundOf(row: ViewRow, context: SummaryContext, weapon: string | null) {
 function summaryOf(row: ViewRow, context: SummaryContext) {
   const tournament = context.tournaments.get(row.tournament_id);
   const weapon = (tournament?.['weapon'] as string | null | undefined) ?? null;
-  const rulesetConfig = (tournament?.['ruleset_config'] ?? {}) as { matchFormat?: unknown };
-  const matchFormat = storedMatchFormat(rulesetConfig.matchFormat, row.tournament_id);
   const bout = context.bouts.get(row.match_id);
+  // The format the bout is fought under: its copy's, not its Tournament's of now (ruling E: the
+  // public bout page shows the bout's copy).
+  const matchFormat = boutMatchFormat(row.match_id, bout);
   const liceId = (bout?.['lice_id'] as string | null | undefined) ?? null;
   // A public field, joined into a sentence by the public match page: names
   // only, each once, whatever the number of roles a person holds.
@@ -232,19 +235,27 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
 }
 
 /**
- * A Tournament's stored match format, or null when it does not read. Every write checks it, so
- * only a hand edit or a schema change gets here; one such Tournament threw out of the whole list
- * (a piste's bouts, the referee assignments, the match lists). Its bouts now say "no format", and
- * the log names the Tournament. The public bout page draws the default for none.
+ * A bout's match format, from its copy of its rules, or null when it does not read. Every write
+ * checks it, so only a hand edit or a schema change gets here; one such Tournament threw out of
+ * the whole list (a piste's bouts, the referee assignments, the match lists). Its bouts now say
+ * "no format", and the log names the bout. A bout with no copy (a fault: every bout holds one)
+ * says the same, logged; one deleted since the list was read too, not logged (an ordinary race,
+ * the piste read polls). The public bout page draws the default for none.
  */
-function storedMatchFormat(
-  stored: unknown,
-  tournamentId: string,
+function boutMatchFormat(
+  matchId: string,
+  bout: Row | undefined,
 ): ReturnType<typeof normalizeMatchFormatConfig> | null {
+  if (!bout) return null; // deleted since the list was read: the list drops it next read
+  const copy = asRow(bout['match_rules']);
+  if (!copy) {
+    logger.error(`Bout ${matchId} holds no copy of its rules`);
+    return null;
+  }
   try {
-    return normalizeMatchFormatConfig(stored ?? {});
+    return normalizeMatchFormatConfig(asRow(copy['ruleset_config'])?.['matchFormat'] ?? {});
   } catch (err) {
-    logger.error(`Tournament ${tournamentId} has a match format that does not read`, err);
+    logger.error(`Bout ${matchId} has a match format that does not read`, err);
     return null;
   }
 }

@@ -28,19 +28,18 @@ function thenable(data: unknown) {
   return chain;
 }
 
-const phase = (type: string, over: Record<string, unknown> = {}) => ({
-  type,
-  tournaments: {
-    ruleset_config: {
-      matchFormat: {
-        pointCap: 10,
-        timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
-        bestOf: { pool: 3, bracket: 3, finals: 3 },
-        ...over,
-      },
-    },
-    scoring_config_json: null,
-  },
+/** A best-of-3 of 90s rounds, first to 10. */
+const format = (over: Record<string, unknown> = {}) => ({
+  pointCap: 10,
+  timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
+  bestOf: { pool: 3, bracket: 3, finals: 3 },
+  ...over,
+});
+
+/** The bout's copy of its rules (0229): what the round's end decides with. */
+const rules = (over: Record<string, unknown> = {}) => ({
+  ruleset_config: { matchFormat: format(over) },
+  scoring_config_json: {},
 });
 
 function matchRow(over: Record<string, unknown> = {}) {
@@ -58,7 +57,8 @@ function matchRow(over: Record<string, unknown> = {}) {
     red_round_wins: 0,
     blue_round_wins: 0,
     awaiting_round_advance: false,
-    phases: phase('single_elim'),
+    phases: { type: 'single_elim' },
+    match_rules: rules(),
     ...over,
   };
 }
@@ -183,7 +183,7 @@ describe('ScoringService.endRoundOnTime', () => {
   it('DRAWS a level round where the phase chain says draw', async () => {
     // A pool best-of. The drawn round is a real result — and the only way a
     // series can reach the end of its rounds without a winner.
-    wire(matchRow({ match_number_label: 'L1-P1-M01', phases: phase('pool') }), [
+    wire(matchRow({ match_number_label: 'L1-P1-M01', phases: { type: 'pool' } }), [
       hit(1, 'red', 2),
       hit(2, 'blue', 2),
     ]);
@@ -203,7 +203,7 @@ describe('ScoringService.endRoundOnTime', () => {
     wire(
       matchRow({
         match_number_label: 'L1-P1-M01',
-        phases: phase('pool'),
+        phases: { type: 'pool' },
         current_round: 3,
         rounds_json: [
           {
@@ -236,13 +236,43 @@ describe('ScoringService.endRoundOnTime', () => {
   });
 
   it('refuses a single-round match, and an already-ended round', async () => {
-    wire(
-      matchRow({ phases: phase('single_elim', { bestOf: { pool: 1, bracket: 1, finals: 1 } }) }),
-      [],
-    );
+    wire(matchRow({ match_rules: rules({ bestOf: { pool: 1, bracket: 1, finals: 1 } }) }), []);
     await expect(service.endRoundOnTime('m1')).rejects.toThrow(/Not a best-of match/);
 
     wire(matchRow({ awaiting_round_advance: true }), []);
     await expect(service.endRoundOnTime('m1')).rejects.toThrow(/advance to the next round/);
+  });
+
+  it('a level round gets the extra time its bout started under, though its Tournament now says sudden death', async () => {
+    // The bout started with 30s of extra time for a level round. The organiser has since set the
+    // Tournament to sudden death. The bout keeps the rules it started under (ruling, 2026-10-17).
+    const startedUnder = {
+      bracket: [{ kind: 'extra_time', seconds: 30 }, { kind: 'sudden_death' }],
+    };
+    const tournamentNow = {
+      ruleset_config: {
+        matchFormat: format({ levelAtTime: { bracket: [{ kind: 'sudden_death' }] } }),
+      },
+    };
+    wire(
+      matchRow({
+        phases: { type: 'single_elim', tournaments: tournamentNow },
+        match_rules: rules({ levelAtTime: startedUnder }),
+      }),
+      [hit(1, 'red', 2), hit(2, 'blue', 2)],
+    );
+
+    const body = await refusalOf(() => service.endRoundOnTime('m1'));
+
+    expect(body).toMatchObject({
+      code: 'level_at_time_unresolved',
+      remedy: 'extra_time',
+      seconds: 30,
+    });
+    // The double hands back every column it holds: the read must ASK for the copy.
+    const read = fromMock.mock.results[0]?.value as { select: ReturnType<typeof vi.fn> };
+    expect(read.select.mock.calls[0]?.[0]).toContain(
+      'match_rules(ruleset_config, scoring_config_json)',
+    );
   });
 });

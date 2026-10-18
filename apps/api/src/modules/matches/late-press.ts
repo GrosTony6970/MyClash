@@ -7,7 +7,7 @@ import { assertScoredAfterLastReset } from './hit-before-reset';
 import { matchLocked } from './match-locked';
 import { assertPressedAfterBackInPlay } from './press-before-reopen';
 import { roundAwaitsAdvance } from './round-awaits-advance';
-import { asRow } from './time-limit-result';
+import { asRow } from './bout-rules';
 
 type Database = SupabaseService['service'];
 

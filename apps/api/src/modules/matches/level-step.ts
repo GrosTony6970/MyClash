@@ -30,6 +30,7 @@ import { nextSequence } from './timeline-sequence';
 import { ROUND_AWAITS_ADVANCE } from './round-awaits-advance';
 import { roundNotOpen } from './round-end';
 import { isLevelBout, matchFormatContext } from './time-limit-result';
+import { BOUT_RULES } from './bout-rules';
 
 type Database = SupabaseService['service'];
 
@@ -76,7 +77,8 @@ const BOUT_COLUMNS =
   'id, status, locked_at, current_round, red_registration_id, blue_registration_id, ' +
   'winner_registration_id, red_score, blue_score, match_number_label, ' +
   'awaiting_round_advance, back_in_play_at, ' +
-  'phases(type, tournaments(ruleset_config, events(status)))';
+  'phases(type, tournaments(events(status))), ' +
+  BOUT_RULES;
 
 /** The codes of the two refusals below. The pad holds the step and says them. */
 export const BOUT_NOT_LEVEL = 'bout_not_level';

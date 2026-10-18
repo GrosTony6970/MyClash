@@ -32,6 +32,7 @@ import { restampUnstartedMatches } from '../phases/match-ruleset';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { assertBoutTakes } from '../matches/bout-not-started';
+import { BOUT_CARD_PIN, cardPinOf } from '../matches/bout-rules';
 import { scoredAtServer } from '../matches/late-press';
 import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
@@ -71,6 +72,12 @@ interface PenaltyActor {
 }
 
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
+
+/** The Tournament's forfeit policy and card rules of now, which say how far a black card reaches. */
+interface BlackCardReach {
+  policy: Record<string, unknown> | null;
+  cardRules: Record<string, unknown> | null;
+}
 
 /**
  * A computed penalty lineage lamp: the baseline's display name plus whether
@@ -299,26 +306,41 @@ export class PenaltiesService {
    * picker so organizers can pin common entries to the scoreboard.
    */
   async getEffectiveRulesetForTournament(tournamentId: string) {
+    const id = await this.tournamentCardRulesetId(tournamentId);
+    return id ? this.getRuleset(id) : null;
+  }
+
+  /**
+   * The id of a Tournament's card rules of now: its pin, else its Event's, else the built-in.
+   * One resolver for the admin picker and for how far a black card reaches (ruling G); the copy
+   * of a bout's rules pins the same way (`build_match_rules`, `card-pin-parity.test.ts`). A read
+   * that fails is an error, never the built-in: a black card reaches as far as the rules say.
+   */
+  private async tournamentCardRulesetId(tournamentId: string): Promise<string | null> {
     const { data: t, error } = await this.supabase.service
       .from('tournaments')
       .select('penalty_ruleset_id, event_id')
       .eq('id', tournamentId)
       .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      throw new Error(`The card rules of ${tournamentId} were not read: ${error.message}`);
+    }
     const tour = t as { penalty_ruleset_id?: string | null; event_id?: string | null } | null;
-    if (tour?.penalty_ruleset_id) return this.getRuleset(tour.penalty_ruleset_id);
+    if (tour?.penalty_ruleset_id) return tour.penalty_ruleset_id;
     if (tour?.event_id) {
-      const { data: ev } = await this.supabase.service
+      const { data: ev, error: eventError } = await this.supabase.service
         .from('events')
         .select('penalty_ruleset_id')
         .eq('id', tour.event_id)
         .maybeSingle();
+      if (eventError) {
+        throw new Error(`The card rules of ${tour.event_id} were not read: ${eventError.message}`);
+      }
       const evRulesetId =
         (ev as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
-      if (evRulesetId) return this.getRuleset(evRulesetId);
+      if (evRulesetId) return evRulesetId;
     }
-
-    return this.loadBuiltInPenaltyRuleset();
+    return this.loadBuiltInPenaltyRulesetId();
   }
 
   async createRuleset(dto: CreatePenaltyRulesetDto, userId?: string) {
@@ -516,7 +538,7 @@ export class PenaltiesService {
     // is_system carve-out). To evolve a pinned ruleset, duplicate + re-pin.
     if (!row['built_in'] && (await this.isPenaltyRulesetReferenced(id))) {
       throw new ConflictException(
-        'This penalty ruleset is in use by a tournament or event and cannot be edited. Duplicate it to make changes, then re-pin.',
+        'This penalty ruleset is in use by a tournament, an event or a bout and cannot be edited. Duplicate it to make changes, then re-pin.',
       );
     }
 
@@ -961,6 +983,7 @@ export class PenaltiesService {
     const scoreDelta = activePenaltyRuleset
       ? this.cardScoreDelta(activePenaltyRuleset, sanction.card)
       : sanction.scoreDelta;
+    const reach = sanction.causesMatchForfeit ? await this.blackCardReach(match) : null;
 
     // For non-black cards `causes_match_forfeit` stays as the sanction said
     // (false). For black cards we'll override based on the resolved scope
@@ -1025,12 +1048,9 @@ export class PenaltiesService {
     const causedAt = scoredAtServer(dto);
     await this.scoring?.recomputeMatchScore(matchId, causedAt);
 
-    if (sanction.causesMatchForfeit) {
-      const { blackCount, scope } = await this.blackCardScope(
-        match,
-        dto.registrationId,
-        activePenaltyRuleset,
-      );
+    // `reach` is read exactly when the card forfeits.
+    if (reach) {
+      const { blackCount, scope } = await this.blackCardScope(match, dto.registrationId, reach);
 
       if (scope !== 'none') {
         if (this.forfeits) {
@@ -1095,25 +1115,31 @@ export class PenaltiesService {
     return typeof value === 'number' ? value : 0;
   }
 
+  /** A read that fails is an error: read as none, a card was priced and reached by defaults. */
   private async loadPenaltyRulesetRow(rulesetId: string): Promise<Row | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select(
         'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit',
       )
       .eq('id', rulesetId)
       .maybeSingle();
+    if (error) throw new Error(`Card rules ${rulesetId} were not read: ${error.message}`);
     return (data as Row | null) ?? null;
   }
 
+  /** A read that fails is an error: read as none, a "withdrawn" policy read as "ask". */
   private async loadTournamentRulesetConfig(
     tournamentId: string,
   ): Promise<Record<string, unknown> | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('ruleset_config')
       .eq('id', tournamentId)
       .maybeSingle();
+    if (error) {
+      throw new Error(`The forfeit rules of ${tournamentId} were not read: ${error.message}`);
+    }
     return (data as { ruleset_config?: Record<string, unknown> } | null)?.ruleset_config ?? null;
   }
 
@@ -1121,13 +1147,17 @@ export class PenaltiesService {
     tournamentId: string,
     registrationId: string,
   ): Promise<number> {
-    const { count } = await this.supabase.service
+    const { count, error } = await this.supabase.service
       .from('match_penalties')
       .select('id', { count: 'exact', head: true })
       .eq('tournament_id', tournamentId)
       .eq('registration_id', registrationId)
       .eq('card', 'black')
       .eq('voided', false);
+    // Read as none, a second black card counted as a first.
+    if (error) {
+      throw new Error(`The black cards of ${registrationId} were not counted: ${error.message}`);
+    }
     return count ?? 0;
   }
 
@@ -1262,23 +1292,38 @@ export class PenaltiesService {
   /**
    * How far a black card reaches: the bout, the whole Tournament, or nothing. The ordinal counts
    * this Registration's non-voided black cards in the Tournament, the card just written included.
+   *
+   * The Tournament's of now decides, its forfeit policy and its card rules alike (rulings A and G,
+   * 2026-10-17): the bout's copy prices the card, and how far a forfeit reaches is the
+   * Tournament's, so the scope and the forfeit record it creates answer alike.
    */
   private async blackCardScope(
     match: MatchContext,
     registrationId: string,
-    activePenaltyRuleset: Awaited<ReturnType<PenaltiesService['loadPenaltyRulesetRow']>> | null,
+    reach: BlackCardReach,
   ): Promise<{ blackCount: number; scope: BlackCardForfeitScope }> {
     const blackCount = await this.countBlackCardsForRegistration(
       match.tournamentId,
       registrationId,
     );
-    const scoringConfig = await this.loadTournamentRulesetConfig(match.tournamentId);
-    const scope: BlackCardForfeitScope = activePenaltyRuleset
-      ? this.resolveBlackCardForfeitScope(activePenaltyRuleset, scoringConfig, blackCount)
+    const scope: BlackCardForfeitScope = reach.cardRules
+      ? this.resolveBlackCardForfeitScope(reach.cardRules, reach.policy, blackCount)
       : blackCount >= 2
         ? 'tournament'
         : 'match';
     return { blackCount, scope };
+  }
+
+  /**
+   * What decides how far a black card reaches, but its count: the Tournament's forfeit policy and
+   * card rules of now. Read before the card is written: a read that fails then leaves no card
+   * saved with no forfeit, which the tablet's resend would not repair.
+   */
+  private async blackCardReach(match: MatchContext): Promise<BlackCardReach> {
+    const policy = await this.loadTournamentRulesetConfig(match.tournamentId);
+    const cardRulesId = await this.tournamentCardRulesetId(match.tournamentId);
+    const cardRules = cardRulesId ? await this.loadPenaltyRulesetRow(cardRulesId) : null;
+    return { policy, cardRules };
   }
 
   /** Mark a Registration disqualified. A failed write is thrown, as a server error. */
@@ -1390,13 +1435,14 @@ export class PenaltiesService {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance',
+        'id, status, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance, ' +
+          BOUT_CARD_PIN,
       )
       .eq('id', matchId)
       .maybeSingle();
     if (matchError) throw new BadRequestException(matchError.message);
     if (!matchData) throw new NotFoundException(`Match ${matchId} not found`);
-    const match = matchData as Row;
+    const match = matchData as unknown as Row;
 
     const { data: phaseData, error: phaseError } = await this.supabase.service
       .from('phases')
@@ -1409,7 +1455,7 @@ export class PenaltiesService {
 
     const { data: tournamentData, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, event_id, penalty_ruleset_id')
+      .select('id, event_id')
       .eq('id', phase['tournament_id'] as string)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
@@ -1419,7 +1465,7 @@ export class PenaltiesService {
 
     const { data: eventData } = await this.supabase.service
       .from('events')
-      .select('id, organization_id, penalty_ruleset_id')
+      .select('id, organization_id')
       .eq('id', tournament['event_id'] as string)
       .maybeSingle();
     const event = (eventData ?? {}) as Row;
@@ -1432,7 +1478,9 @@ export class PenaltiesService {
       tournamentId: tournament['id'] as string,
       eventId: tournament['event_id'] as string,
       organizationId: event['organization_id'] as string,
-      // The EFFECTIVE ruleset: tournament → event → the platform built-in. The
+      // The EFFECTIVE ruleset of the bout: the one its copy of its rules pins
+      // (resolved tournament → event → built-in when the copy was made; a bout
+      // keeps the card rules it started under), else the platform built-in. The
       // last step is not optional decoration — it is what almost every match
       // resolves through, because almost nobody pins a ruleset explicitly.
       // Without it this field was null on those matches, and every consumer
@@ -1442,10 +1490,7 @@ export class PenaltiesService {
       // `ruleset_id` lost the provenance of a card that plainly came from one.
       // Meanwhile the pad's picker DID fall back, so it offered 28 entries that
       // could not be recorded. Read and write now resolve the same way.
-      penaltyRulesetId:
-        (tournament['penalty_ruleset_id'] as string | null) ??
-        (event['penalty_ruleset_id'] as string | null) ??
-        (await this.loadBuiltInPenaltyRulesetId()),
+      penaltyRulesetId: cardPinOf(match) ?? (await this.loadBuiltInPenaltyRulesetId()),
       status: (match['status'] as string | null) ?? null,
       currentRound: (match['current_round'] as number | null) ?? 1,
       awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
@@ -1454,7 +1499,9 @@ export class PenaltiesService {
 
   /** Id of the built-in default, without dragging its entries along. */
   private async loadBuiltInPenaltyRulesetId(): Promise<string | null> {
-    const { data } = await this.builtInPenaltyRulesetQuery('id');
+    const { data, error } = await this.builtInPenaltyRulesetQuery('id');
+    // Read as "no built-in", a failed read refused every card of a bout that pins none.
+    if (error) throw new Error('The built-in card rules were not read');
     return ((data as Row | null)?.['id'] as string | undefined) ?? null;
   }
 
@@ -1555,10 +1602,8 @@ export class PenaltiesService {
       const registrationId = String(stored['registration_id']);
       if (stored['causes_match_forfeit'] === true) {
         const match = await this.getMatchContext(String(stored['match_id']));
-        const ruleset = match.penaltyRulesetId
-          ? await this.loadPenaltyRulesetRow(match.penaltyRulesetId)
-          : null;
-        const { scope } = await this.blackCardScope(match, registrationId, ruleset);
+        const reach = await this.blackCardReach(match);
+        const { scope } = await this.blackCardScope(match, registrationId, reach);
         if (scope === 'tournament') await this.disqualify(registrationId);
       }
       await syncSecondBlackCardReview(
@@ -1785,22 +1830,30 @@ export class PenaltiesService {
   }
 
   /**
-   * True if any tournament or event pins this penalty ruleset by id. Powers the
-   * edit/delete immutability guards — the penalty analogue of scoring's
-   * isCurrentVersionFrozen (which queries tournaments by (code, version); here
-   * the pin is a UUID FK on tournaments/events.penalty_ruleset_id).
+   * True if any tournament or event pins this penalty ruleset by id, or a bout holds a copy of
+   * its rules that pins it (migration 0230: a card is priced from the live row, and a bout keeps
+   * the card rules it started under). Powers the edit/delete immutability guards — the penalty
+   * analogue of scoring's isCurrentVersionFrozen (which queries tournaments by (code, version);
+   * here the pin is a UUID FK on tournaments/events.penalty_ruleset_id). A count that fails is
+   * an error: read as none, it unlocked the edit of a ruleset in use.
    */
   private async isPenaltyRulesetReferenced(id: string): Promise<boolean> {
-    const { count: tournamentCount } = await this.supabase.service
-      .from('tournaments')
-      .select('id', { count: 'exact', head: true })
-      .eq('penalty_ruleset_id', id);
-    if ((tournamentCount ?? 0) > 0) return true;
-    const { count: eventCount } = await this.supabase.service
-      .from('events')
-      .select('id', { count: 'exact', head: true })
-      .eq('penalty_ruleset_id', id);
-    return (eventCount ?? 0) > 0;
+    for (const table of ['tournaments', 'events'] as const) {
+      const { count, error } = await this.supabase.service
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('penalty_ruleset_id', id);
+      if (error) {
+        throw new Error(`The ${table} pinning ruleset ${id} were not counted: ${error.message}`);
+      }
+      if ((count ?? 0) > 0) return true;
+    }
+    const { data: held, error } = await this.supabase.service.rpc('card_ruleset_held_by_a_bout', {
+      p_ruleset_id: id,
+    });
+    if (error)
+      throw new Error(`The bouts holding ruleset ${id} were not counted: ${error.message}`);
+    return held === true;
   }
 
   /** The tournament's currently-pinned penalty ruleset id (null if none). */
@@ -1895,7 +1948,7 @@ export class PenaltiesService {
     await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
     if (await this.isPenaltyRulesetReferenced(id)) {
       throw new ConflictException(
-        'This penalty ruleset is in use by a tournament or event and cannot be rolled back. Duplicate it instead.',
+        'This penalty ruleset is in use by a tournament, an event or a bout and cannot be rolled back. Duplicate it instead.',
       );
     }
 

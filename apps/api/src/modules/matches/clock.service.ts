@@ -29,6 +29,7 @@ import {
   reopenedResultColumns,
 } from './reopen-match-columns';
 import { timeLimitResult } from './time-limit-result';
+import { BOUT_RULES } from './bout-rules';
 import { takeLevelStep, type LateLevelPress } from './level-step';
 import { endRefusal } from './level-at-time-refusal';
 import { isOver } from '../../common/live-status';
@@ -142,7 +143,7 @@ interface ClockStep {
   sequence?: number;
 }
 
-// The scores and the phase's match format are here so `end` can NAME
+// The scores and the bout's match format (its copy of its rules) are here so `end` can NAME
 // the winner of a bout that ran out of time — see `timeLimitResult`.
 // `status` is there because a bout already completed is not decided
 // again, and `winner_registration_id` because the decision reads the
@@ -151,7 +152,8 @@ const BOUT_COLUMNS =
   'id, status, locked_at, started_at, rounds_json, current_round, ' +
   'red_registration_id, blue_registration_id, winner_registration_id, ' +
   'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
-  'phases(type, tournaments(ruleset_config, events(status)))';
+  'phases(type, tournaments(events(status))), ' +
+  BOUT_RULES;
 
 /** Postgres: a unique key refused the row. */
 const UNIQUE_VIOLATION = '23505';

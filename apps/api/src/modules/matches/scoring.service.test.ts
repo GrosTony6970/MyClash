@@ -18,16 +18,15 @@ function thenableResult(data: unknown) {
   return chain;
 }
 
-// A bracket phase carrying a per-phase best-of config (bracket = N).
-const bracketPhase = (bestOf: number, pointCap = 3) => ({
-  type: 'single_elim',
-  tournaments: {
-    ruleset_config: {
-      matchFormat: { pointCap, bestOf: { pool: 1, bracket: bestOf, finals: bestOf } },
-    },
-    scoring_config_json: null,
-  },
+/** A bout of a `type` phase, scored under the match format its copy of its rules holds. */
+const boutOf = (type: string, matchFormat: Record<string, unknown>) => ({
+  phases: { type },
+  match_rules: { ruleset_config: { matchFormat }, scoring_config_json: null },
 });
+
+// A bracket bout whose copy carries a per-phase best-of config (bracket = N).
+const bracketBout = (bestOf: number, pointCap = 3) =>
+  boutOf('single_elim', { pointCap, bestOf: { pool: 1, bracket: bestOf, finals: bestOf } });
 
 /** The server's time of a hit a tablet kept in its queue (`scoredAtServer`). */
 const QUEUED_HIT_AT = '2026-01-01T10:20:00.000Z';
@@ -47,7 +46,7 @@ function matchRow(overrides: Record<string, unknown> = {}) {
     red_round_wins: 0,
     blue_round_wins: 0,
     awaiting_round_advance: false,
-    phases: bracketPhase(3),
+    ...bracketBout(3),
     ...overrides,
   };
 }
@@ -254,7 +253,7 @@ describe('ScoringService — best-of rounds', () => {
 
   it('BO5: a won round at 1-1 makes it 2-1 and keeps the series open (needs 3)', async () => {
     const match = matchRow({
-      phases: bracketPhase(5),
+      ...bracketBout(5),
       current_round: 3,
       red_round_wins: 1,
       blue_round_wins: 1,
@@ -275,16 +274,8 @@ describe('ScoringService — best-of rounds', () => {
   });
 
   it('pool phase resolves to BO1 → a single won round completes the match', async () => {
-    const poolPhase = {
-      type: 'pool',
-      tournaments: {
-        ruleset_config: {
-          matchFormat: { pointCap: 3, bestOf: { pool: 1, bracket: 3, finals: 3 } },
-        },
-        scoring_config_json: null,
-      },
-    };
-    const match = matchRow({ phases: poolPhase, match_number_label: 'P1M1' });
+    const poolBout = boutOf('pool', { pointCap: 3, bestOf: { pool: 1, bracket: 3, finals: 3 } });
+    const match = matchRow({ ...poolBout, match_number_label: 'P1M1' });
     // Red reaches the cap → a BO1 pool match completes outright (single round,
     // no "awaiting advance" — that's the best-of path only).
     wire(match, [ex(1, 'red', 2), ex(2, 'red', 1)]);
@@ -345,28 +336,20 @@ describe('ScoringService — best-of rounds', () => {
   });
 
   /**
-   * The round lifecycle applies the doubles ceiling from the tournament's match
+   * The round lifecycle applies the doubles ceiling from the bout's match
    * format, and `evaluateRound` is deliberately ruleset-blind. Generic_PointsCap
    * has no ceiling, so the format it plays under must not carry one — otherwise
    * a round of a ruleset with no such rule closes on it anyway.
    */
   it('does not close a Generic_PointsCap round on the doubles ceiling', async () => {
     rulesets.resolve.mockResolvedValue(Generic_PointsCap);
-    const poolPhase = {
-      type: 'pool',
-      tournaments: {
-        ruleset_config: {
-          matchFormat: {
-            pointCap: 10,
-            maxDoubleHits: 2,
-            bestOf: { pool: 3, bracket: 1, finals: 1 },
-          },
-        },
-        scoring_config_json: null,
-      },
-    };
+    const poolBout = boutOf('pool', {
+      pointCap: 10,
+      maxDoubleHits: 2,
+      bestOf: { pool: 3, bracket: 1, finals: 1 },
+    });
     const match = matchRow({
-      phases: poolPhase,
+      ...poolBout,
       match_number_label: 'P1M1',
       ruleset_code: 'Generic_PointsCap',
     });
@@ -528,23 +511,15 @@ describe('ScoringService — best-of rounds', () => {
    * them — the doubles ceiling in a pool, below.
    */
   describe('a series whose rounds are spent', () => {
-    const CEILING_POOL = {
-      type: 'pool',
-      tournaments: {
-        ruleset_config: {
-          matchFormat: {
-            pointCap: 3,
-            maxDoubleHits: 2,
-            bestOf: { pool: 3, bracket: 1, finals: 1 },
-          },
-        },
-        scoring_config_json: null,
-      },
-    };
+    const CEILING_POOL = boutOf('pool', {
+      pointCap: 3,
+      maxDoubleHits: 2,
+      bestOf: { pool: 3, bracket: 1, finals: 1 },
+    });
     /** A pool BO3 on its LAST round, with `closed` already behind it. */
     const lastRound = (closed: Array<Record<string, unknown>>) =>
       matchRow({
-        phases: CEILING_POOL,
+        ...CEILING_POOL,
         match_number_label: 'L1-P1-M01',
         current_round: 3,
         rounds_json: closed,
@@ -634,7 +609,7 @@ describe('ScoringService — best-of rounds', () => {
       const closed = [wonBy(1, 'red'), ceilingDraw(2), ceilingDraw(3)];
       wire(
         matchRow({
-          phases: CEILING_POOL,
+          ...CEILING_POOL,
           match_number_label: 'L1-P1-M01',
           status: 'running',
           current_round: 3,
@@ -738,14 +713,8 @@ describe('ScoringService — a single fight, penalties included', () => {
   let lastUpdate: Record<string, unknown> | null;
 
   /** A bout with no best-of, so it takes the single-fight branch. */
-  const singleFightPhase = (over: Record<string, unknown> = {}) => ({
-    type: 'single_elim',
-    tournaments: {
-      ruleset_config: { matchFormat: { pointCap: 3, bestOf: { pool: 1, bracket: 1, finals: 1 } } },
-      scoring_config_json: null,
-      ...over,
-    },
-  });
+  const singleFightBout = () =>
+    boutOf('single_elim', { pointCap: 3, bestOf: { pool: 1, bracket: 1, finals: 1 } });
 
   function wireSingle(
     match: Record<string, unknown>,
@@ -787,7 +756,7 @@ describe('ScoringService — a single fight, penalties included', () => {
   it('ends the bout and names the winner when the cap is reached on exchanges alone', () => {
     // The control: three points, no penalty. Establishes that the fixture DOES
     // reach the cap, so the case below fails for the penalty and nothing else.
-    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)]);
+    wireSingle(matchRow(singleFightBout()), [ex(1, 'red', 3)]);
     return service.recomputeMatchScore('m1').then(() => {
       expect(lastUpdate?.['status']).toBe('completed');
       expect(lastUpdate?.['end_reason']).toBe('first_to_points');
@@ -799,7 +768,7 @@ describe('ScoringService — a single fight, penalties included', () => {
     ['at the time of the queued hit that reached the cap', QUEUED_HIT_AT],
     ['now, for a hit that carries no time', undefined],
   ])('ends the clock %s', async (_, causedAt) => {
-    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)]);
+    wireSingle(matchRow(singleFightBout()), [ex(1, 'red', 3)]);
 
     await service.recomputeMatchScore('m1', causedAt);
 
@@ -813,7 +782,7 @@ describe('ScoringService — a single fight, penalties included', () => {
     // fix the decision was taken on the bare exchanges and said 'first_to_points'
     // while the winner was read from the penalised 2 and came back NULL — a
     // completed bout with a reason and nobody named.
-    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)], [penalty('red', -1)]);
+    wireSingle(matchRow(singleFightBout()), [ex(1, 'red', 3)], [penalty('red', -1)]);
 
     const result = await service.recomputeMatchScore('m1');
 
@@ -827,7 +796,7 @@ describe('ScoringService — a single fight, penalties included', () => {
     // Blue is on 2 and red concedes a penalty point to blue, taking blue to 3.
     // The mirror of the case above: if the cap were still read off the bare
     // exchanges this would not end at all.
-    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'blue', 2)], [penalty('blue', 1)]);
+    wireSingle(matchRow(singleFightBout()), [ex(1, 'blue', 2)], [penalty('blue', 1)]);
 
     await service.recomputeMatchScore('m1');
 
@@ -841,7 +810,7 @@ describe('ScoringService — a single fight, penalties included', () => {
     // sees a bout below the cap that is still marked completed. Both the write
     // and the void call this method, so the transition has to run both ways.
     wireSingle(
-      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      matchRow({ status: 'completed', winner_registration_id: 'red', ...singleFightBout() }),
       [ex(1, 'red', 2)],
       [],
     );
@@ -870,22 +839,15 @@ describe('ScoringService — a single fight, penalties included', () => {
    * reach the tournament's config — get the answer straight off the row.
    */
   it('names a winner when the ceiling is reached under result_stands', async () => {
-    const poolPhase = (outcome: string) => ({
-      type: 'pool',
-      tournaments: {
-        ruleset_config: {
-          matchFormat: {
-            pointCap: 10,
-            maxDoubleHits: 2,
-            maxDoubleHitOutcome: outcome,
-            bestOf: { pool: 1, bracket: 1, finals: 1 },
-          },
-        },
-        scoring_config_json: null,
-      },
-    });
+    const poolBout = (outcome: string) =>
+      boutOf('pool', {
+        pointCap: 10,
+        maxDoubleHits: 2,
+        maxDoubleHitOutcome: outcome,
+        bestOf: { pool: 1, bracket: 1, finals: 1 },
+      });
     wireSingle(
-      matchRow({ phases: poolPhase('result_stands'), match_number_label: 'P1M1' }),
+      matchRow({ ...poolBout('result_stands'), match_number_label: 'P1M1' }),
       [ex(1, 'red', 2), dbl(2), dbl(3)],
       [],
     );
@@ -902,27 +864,20 @@ describe('ScoringService — a single fight, penalties included', () => {
   });
 
   it('wipes the board and names nobody under the two zeroing outcomes', async () => {
-    const poolPhase = (outcome: string) => ({
-      type: 'pool',
-      tournaments: {
-        ruleset_config: {
-          matchFormat: {
-            pointCap: 10,
-            maxDoubleHits: 2,
-            maxDoubleHitOutcome: outcome,
-            bestOf: { pool: 1, bracket: 1, finals: 1 },
-          },
-        },
-        scoring_config_json: null,
-      },
-    });
+    const poolBout = (outcome: string) =>
+      boutOf('pool', {
+        pointCap: 10,
+        maxDoubleHits: 2,
+        maxDoubleHitOutcome: outcome,
+        bestOf: { pool: 1, bracket: 1, finals: 1 },
+      });
 
     for (const [outcome, reason] of [
       ['double_loss_zero_scores', 'max_doubles'],
       ['draw_zero_scores', 'max_doubles_draw'],
     ]) {
       wireSingle(
-        matchRow({ phases: poolPhase(outcome!), match_number_label: 'P1M1' }),
+        matchRow({ ...poolBout(outcome!), match_number_label: 'P1M1' }),
         [ex(1, 'red', 2), dbl(2), dbl(3)],
         [],
       );
@@ -943,7 +898,7 @@ describe('ScoringService — a single fight, penalties included', () => {
 
   it('does not reopen a bout that still meets its end condition', async () => {
     wireSingle(
-      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      matchRow({ status: 'completed', winner_registration_id: 'red', ...singleFightBout() }),
       [ex(1, 'red', 3)],
       [],
     );
@@ -959,7 +914,7 @@ describe('ScoringService — a single fight, penalties included', () => {
     // void that triggered the recompute must still succeed.
     matchCompletion.onMatchUncompleted.mockRejectedValueOnce(new Error('result is frozen'));
     wireSingle(
-      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      matchRow({ status: 'completed', winner_registration_id: 'red', ...singleFightBout() }),
       [ex(1, 'red', 2)],
       [],
     );

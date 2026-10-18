@@ -4,6 +4,7 @@ import type { TableSeed } from '../../common/testing/supabase-chain';
  * Four bouts of one Event, one of each kind a summary must name: a Pool bout on
  * a piste with a referee, a double-elimination bout of another Tournament with
  * no piste, a Swiss bout, and a bout with no phase and a piste that is gone.
+ * Each bout holds its copy of its rules, as every bout does.
  */
 const view = (id: string, over: Record<string, unknown>) => ({
   match_id: id,
@@ -26,6 +27,11 @@ const view = (id: string, over: Record<string, unknown>) => ({
 
 export const SUMMARY_BOUTS = ['pool', 'bracket', 'swiss', 'bare'];
 
+/** The copy of its rules a bout of the Open Longsword holds: its format is the bout's. */
+const OPEN_LONGSWORD = {
+  ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 5, finals: 5 } } },
+};
+
 const SEED: Record<string, TableSeed> = {
   vw_tournament_query_matches: {
     rows: [
@@ -47,10 +53,9 @@ const SEED: Record<string, TableSeed> = {
         id: 't1',
         weapon: 'longsword',
         name: 'Open Longsword',
-        ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 5, finals: 5 } } },
         scoring_config_json: { sides: { a: 'gold' } },
       },
-      { id: 't2', weapon: 'sabre', name: 'Sabre', ruleset_config: null, scoring_config_json: null },
+      { id: 't2', weapon: 'sabre', name: 'Sabre', scoring_config_json: null },
     ],
   },
   phases: {
@@ -72,10 +77,11 @@ const SEED: Record<string, TableSeed> = {
         blue_round_wins: 0,
         rounds_json: [{ round: 1 }],
         awaiting_round_advance: true,
+        match_rules: OPEN_LONGSWORD,
       },
-      { id: 'bracket', lice_id: null },
-      { id: 'swiss', lice_id: 'lice-1', rounds_json: 'not-a-list' },
-      { id: 'bare', lice_id: 'lice-gone' },
+      { id: 'bracket', lice_id: null, match_rules: { ruleset_config: null } },
+      { id: 'swiss', lice_id: 'lice-1', rounds_json: 'not-a-list', match_rules: OPEN_LONGSWORD },
+      { id: 'bare', lice_id: 'lice-gone', match_rules: OPEN_LONGSWORD },
     ],
   },
   lices: { rows: [{ id: 'lice-1', name: 'Lice 4' }] },

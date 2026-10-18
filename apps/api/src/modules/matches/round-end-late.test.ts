@@ -71,13 +71,13 @@ describe('a late "End round" of the open round', () => {
     });
   });
 
-  it('reads the status of the bout’s Event with the bout', async () => {
+  it('reads the status of the bout’s Event, and its copy of its rules, with the bout', async () => {
     const { db, scoring } = series();
 
     await scoring.endRoundOnTime(BOUT, STAFF, endRound('10:01:30'));
 
     expect(selectsFor(db.from, 'matches')[0]).toContain(
-      'phases(type, tournaments(ruleset_config, scoring_config_json, events(status)))',
+      'phases(type, tournaments(events(status))), match_rules(ruleset_config, scoring_config_json)',
     );
   });
 

@@ -6,7 +6,8 @@
  * points the Matches not started at the Tournament's copy of now, keeps the one each held as
  * earlier (once, never NULL), leaves a started Match on its own, writes no Match it does not move
  * (one that holds the copy, one of another Tournament); the card pin resolves Tournament,
- * Event, built-in; a copy never changes but for its pin set NULL by a delete (a card ruleset's, an
+ * Event, built-in; a card ruleset a bout's copy pins, now or (not started) before, is held (0230), one only a
+ * dead copy pins is not; a copy never changes but for its pin set NULL by a delete (a card ruleset's, an
  * organisation's); an Event delete still cascades; a Match takes only a copy of its own Tournament,
  * whoever writes it; and neither public role, nor the service role for the backfill, may call the
  * functions. Every case runs in a savepoint always rolled back.
@@ -257,6 +258,33 @@ async function immutableFailures(tx, failures) {
   });
 }
 
+/**
+ * A card ruleset a bout holds, by its copy or, while it is not started, by one it held before, is
+ * held (0230): the edit guard keeps it as it is. A copy no bout holds does not count.
+ */
+async function heldCardFailures(tx, failures) {
+  await isolated(tx, async (sp) => {
+    const heldNow = async () =>
+      (await sp`SELECT public.card_ruleset_held_by_a_bout(${OTHER_CARDS}) AS held`)[0].held;
+    await sp`INSERT INTO organizations (id, slug, name) VALUES (${OTHER_CLUB}, 'rls-probe-c2', 'C2')`;
+    await sp`INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, public_visibility)
+             VALUES (${OTHER_CARDS}, 'rls-probe-c2', '2', 'C2', ${OTHER_CLUB}, true)`;
+    await sp`UPDATE tournaments SET penalty_ruleset_id = ${OTHER_CARDS} WHERE id = ${TOURNAMENT}`;
+    // A copy that pins it, which no bout points at.
+    await sp`SELECT public.build_match_rules(${TOURNAMENT}, 'TF_v1', '1.0.0', 'no-bout')`;
+    if (await heldNow()) failures.push('a card ruleset only a copy no bout holds pins was held');
+    await stamp(sp);
+    if (!(await heldNow())) failures.push("a card ruleset a bout's copy pins was not held");
+    await sp`UPDATE tournaments SET penalty_ruleset_id = NULL WHERE id = ${TOURNAMENT}`;
+    await stamp(sp);
+    if (!(await heldNow()))
+      failures.push('a card ruleset a not-started bout held before was not held');
+    // Started on its copy of now, the bout holds its earlier copies no more.
+    await sp`UPDATE matches SET status = 'running' WHERE id = ${BOUT}`;
+    if (await heldNow()) failures.push('a card ruleset a started bout held before was held');
+  });
+}
+
 async function ownTournamentFailures(tx, failures) {
   await isolated(tx, async (sp) => {
     const other = await stamp(sp, OTHER_TOURNAMENT);
@@ -285,6 +313,8 @@ async function grantFailures(tx, failures) {
       (sp) => sp`SELECT public.build_match_rules(${TOURNAMENT}, 'TF_v1', '1.1.0', null)`,
     ],
     ['service_role', (sp) => sp`SELECT public.backfill_match_rules()`],
+    ['anon', (sp) => sp`SELECT public.card_ruleset_held_by_a_bout(${CLUB_CARDS})`],
+    ['authenticated', (sp) => sp`SELECT public.card_ruleset_held_by_a_bout(${CLUB_CARDS})`],
   ];
   for (const [role, call] of calls) {
     const error = await attempt(tx, role, call);
@@ -308,6 +338,7 @@ export async function matchRulesFailures(tx) {
   await scoringKeysFailures(tx, failures);
   await cardPinFailures(tx, failures);
   await immutableFailures(tx, failures);
+  await heldCardFailures(tx, failures);
   await ownTournamentFailures(tx, failures);
   await grantFailures(tx, failures);
   return failures;

@@ -14,6 +14,7 @@ import {
   winnerColorFrom,
 } from '@myclash/rulesets';
 import type { LevelStep, Match, MatchFormatConfig } from '@myclash/rulesets';
+import { asRow, boutRulesOf } from './bout-rules';
 
 /** The match format a bout is being fought under, plus what dispatches it. */
 export interface MatchFormatContext {
@@ -23,8 +24,8 @@ export interface MatchFormatContext {
 }
 
 /**
- * Pull the phase's match format off a `matches` row with the
- * `phases(type, tournaments(ruleset_config))` embed.
+ * Pull the bout's match format off a `matches` row with the `phases(type)` embed and its copy of
+ * its rules (`BOUT_RULES`): the format it is fought under, not its Tournament's of now.
  *
  * One reader, because the clock resolves this twice — once to decide what
  * ending does, once to apply the remedy the referee chose — and the two must
@@ -32,10 +33,9 @@ export interface MatchFormatContext {
  */
 export function matchFormatContext(match: Record<string, unknown>): MatchFormatContext {
   const phase = asRow(match['phases']);
-  const tournament = asRow(phase?.['tournaments']);
   return {
     matchFormat: normalizeMatchFormatConfig(
-      (asRow(tournament?.['ruleset_config'])?.['matchFormat'] as unknown) ?? {},
+      (boutRulesOf(match).rulesetConfig['matchFormat'] as unknown) ?? {},
     ),
     phaseType: phase?.['type'] as Match['phaseType'],
     matchNumberLabel: (match['match_number_label'] as string | null) ?? null,
@@ -164,10 +164,4 @@ export function timeLimitResult(
   const step = pendingLevelStep(matchFormat, phaseType, matchNumberLabel, levelStepsTaken);
   if (step?.kind === 'draw') return { complete: {} };
   return { refuse: { reason: 'level', step } };
-}
-
-/** A PostgREST embed arrives as an object or a one-element array. */
-export function asRow(value: unknown): Record<string, unknown> | null {
-  const row = Array.isArray(value) ? value[0] : value;
-  return row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
 }

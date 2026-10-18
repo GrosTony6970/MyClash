@@ -29,25 +29,35 @@ export function hit(seq: number, color: 'red' | 'blue', value: number) {
 }
 
 /** A Pool that may end level, a bracket that may not; first to 7. */
+const FORMAT = {
+  pointCap: 7,
+  bestOf: { pool: 1, bracket: 1, finals: 1 },
+  levelAtTime: {
+    pool: [{ kind: 'draw' }],
+    bracket: [{ kind: 'sudden_death' }],
+    finals: [{ kind: 'sudden_death' }],
+  },
+};
+
+/** The bout's Tournament: its forfeit readers read it (they follow the Tournament, ruling A). */
 export const phase = (type: 'pool' | 'single_elim') => ({
   type,
   tournaments: {
     ruleset_code: 'TF_v1',
     ruleset_version: '1.1.0',
-    ruleset_config: {
-      matchFormat: {
-        pointCap: 7,
-        bestOf: { pool: 1, bracket: 1, finals: 1 },
-        levelAtTime: {
-          pool: [{ kind: 'draw' }],
-          bracket: [{ kind: 'sudden_death' }],
-          finals: [{ kind: 'sudden_death' }],
-        },
-      },
-    },
+    ruleset_config: { matchFormat: structuredClone(FORMAT) },
     scoring_config_json: null,
   },
 });
+
+/**
+ * The bout's copy of its rules (0229), which scoring decides with: the Tournament's, here. Its
+ * own objects: a test that changes a bout's copy changes no other bout's.
+ */
+export const RULES = {
+  ruleset_config: { matchFormat: structuredClone(FORMAT) },
+  scoring_config_json: {},
+};
 
 /** Red won 5-4 when the time ran out. The sheet below says what it reads NOW. */
 export function storedBout(over: Record<string, unknown> = {}) {
@@ -68,6 +78,7 @@ export function storedBout(over: Record<string, unknown> = {}) {
     current_round: 1,
     rounds_json: null,
     phases: phase('pool'),
+    match_rules: structuredClone(RULES),
     ...over,
   };
 }

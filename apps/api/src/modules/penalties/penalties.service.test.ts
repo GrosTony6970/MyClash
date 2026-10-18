@@ -13,15 +13,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -74,15 +71,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       match_events: { maybeSingle: null },
     });
     const recomputeMatchScore = vi.fn();
@@ -139,15 +133,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const recomputeMatchScore = vi.fn();
     const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
@@ -184,15 +175,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
 
@@ -231,15 +219,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -280,15 +265,12 @@ describe('PenaltiesService', () => {
           phase_id: 'phase-1',
           current_round: 3,
           awaiting_round_advance: false,
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -325,15 +307,12 @@ describe('PenaltiesService', () => {
           phase_id: 'phase-1',
           current_round: 2,
           awaiting_round_advance: true,
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -377,6 +356,7 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
@@ -424,6 +404,7 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
@@ -487,15 +468,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       tournament_penalty_reviews: { maybeSingle: null },
     });
     const service = new PenaltiesService(
@@ -532,15 +510,13 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          // The bout's copy of its rules pins the card rules that price the card.
+          match_rules: { penalty_ruleset_id: 'pr-1' },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       penalty_rulesets: {
         maybeSingle: {
           id: 'pr-1',
@@ -593,6 +569,7 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: 'pr-1' },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
@@ -654,6 +631,7 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: 'pr-1' },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
@@ -711,6 +689,7 @@ describe('PenaltiesService', () => {
         red_registration_id: 'reg-red',
         blue_registration_id: 'reg-blue',
         phase_id: 'phase-1',
+        match_rules: { penalty_ruleset_id: 'pr-1' },
       },
     },
     phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
@@ -812,15 +791,12 @@ describe('PenaltiesService', () => {
           red_registration_id: 'reg-red',
           blue_registration_id: 'reg-blue',
           phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: 'pr-1' },
         },
       },
       phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
-      tournaments: {
-        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
-      },
-      events: {
-        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
-      },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       penalty_rulesets: {
         maybeSingle: {
           id: 'pr-1',

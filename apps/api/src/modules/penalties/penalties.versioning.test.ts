@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { supabaseRpc } from '../../common/testing/supabase-chain';
 import { PenaltiesService, bumpPenaltyVersion } from './penalties.service';
 
 type TableState = Record<
@@ -68,8 +69,13 @@ function fakeSupabase(state: TableState) {
     };
     return api;
   }
-  return { inserted, updated, deleted, service: { from: vi.fn((table: string) => chain(table)) } };
+  const from = vi.fn((table: string) => chain(table));
+  return { inserted, updated, deleted, service: { from, rpc: noBoutHolds() } };
 }
+
+/** No bout holds a copy of these rules (the bout half of the guard: `penalties.bout-copy.test.ts`). */
+const noBoutHolds = () =>
+  supabaseRpc({ card_ruleset_held_by_a_bout: () => ({ data: false, error: null }) });
 
 const ENTRIES = [
   {
@@ -307,7 +313,7 @@ describe('PenaltiesService — rollback + listVersions', () => {
     });
 
     await expect(service.rollbackRuleset('pr-1', 'ver-1', 'user-1')).rejects.toThrow(
-      /in use by a tournament or event/i,
+      /in use by a tournament, an event or a bout/i,
     );
     expect(supabase.updated.penalty_rulesets).toBeUndefined();
   });

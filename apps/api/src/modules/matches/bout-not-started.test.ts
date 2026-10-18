@@ -55,6 +55,8 @@ const BOUT = {
   blue_registration_id: 'reg-blue',
   current_round: 1,
   awaiting_round_advance: false,
+  // Its copy of its rules (0229): it pins no card rules, so the built-in prices a card.
+  match_rules: { penalty_ruleset_id: null },
 };
 /** The bout was reset twice; a later reset of ANOTHER bout is a decoy. */
 const RESETS = [

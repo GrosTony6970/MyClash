@@ -44,7 +44,7 @@ const ENTRY: Row = {
   sanctions: ['yellow', 'red'],
 };
 
-/** Rows for a match whose tournament and event both pin nothing. */
+/** Rows for a match whose copy of its rules, tournament and event all pin nothing. */
 const TABLES = (): Record<string, Row[]> => ({
   matches: [
     {
@@ -53,6 +53,7 @@ const TABLES = (): Record<string, Row[]> => ({
       locked_at: null,
       red_registration_id: 'reg-red',
       blue_registration_id: 'reg-blue',
+      match_rules: { penalty_ruleset_id: null },
     },
   ],
   phases: [{ id: 'ph-1', tournament_id: 't-1' }],

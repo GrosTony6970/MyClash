@@ -23,11 +23,19 @@ function setup(eventStatus: string, lockedAt: string | null = null) {
     match_penalties: {
       rows: [{ id: 'card-1', match_id: 'm1', voided: false, client_uuid: 'card-uuid' }],
     },
-    matches: { rows: [{ id: 'm1', phase_id: 'phase-1', locked_at: lockedAt, current_round: 1 }] },
-    phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
-    tournaments: {
-      rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'ruleset-1' }],
+    matches: {
+      rows: [
+        {
+          id: 'm1',
+          phase_id: 'phase-1',
+          locked_at: lockedAt,
+          current_round: 1,
+          match_rules: { penalty_ruleset_id: 'ruleset-1' },
+        },
+      ],
     },
+    phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
+    tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
     events: { rows: [{ id: 'event-1', organization_id: 'org-1', status: eventStatus }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
   });

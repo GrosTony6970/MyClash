@@ -134,14 +134,12 @@ describe('ScoringService.assertCorrectionLands', () => {
 
   it('a best-of series with no closed round has nothing to refuse', async () => {
     const series = storedBout({
-      phases: {
-        type: 'single_elim',
-        tournaments: {
-          ruleset_config: {
-            matchFormat: { pointCap: 7, bestOf: { pool: 1, bracket: 3, finals: 3 } },
-          },
-          scoring_config_json: null,
+      phases: { type: 'single_elim' },
+      match_rules: {
+        ruleset_config: {
+          matchFormat: { pointCap: 7, bestOf: { pool: 1, bracket: 3, finals: 3 } },
         },
+        scoring_config_json: null,
       },
       match_number_label: 'QF1',
     });

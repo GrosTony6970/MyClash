@@ -83,6 +83,7 @@ export const BOUT = {
   red_registration_id: 'reg-red',
   blue_registration_id: 'reg-blue',
   ...AFTER_THE_CARD,
+  match_rules: { penalty_ruleset_id: 'ruleset-1' },
 };
 export const LATER_BOUT = { id: 'm2', status: 'scheduled', started_at: null };
 
@@ -111,9 +112,7 @@ export function setup(seed: Seed = {}) {
       ? { data: null, error: { message: 'connection lost' } }
       : { rows: seed.reviews ?? [] },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
-    tournaments: {
-      rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'ruleset-1' }],
-    },
+    tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
     events: { rows: [{ id: 'event-1', ...event }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
   });

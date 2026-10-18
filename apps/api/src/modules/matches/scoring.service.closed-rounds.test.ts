@@ -22,11 +22,8 @@ import {
  * A best of 3, first to 7. Round 1: Red 7, Blue 6, closed by the cap.
  */
 const bestOfThree = {
-  type: 'single_elim',
-  tournaments: {
-    ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
-    scoring_config_json: null,
-  },
+  ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
+  scoring_config_json: null,
 };
 const inRound = (round: number, row: ReturnType<typeof hit>) => ({ ...row, round_number: round });
 const ROUND_1 = [
@@ -50,7 +47,8 @@ const without = (sheet: Array<{ id: string }>, ...ids: string[]) =>
 /** The series in round 2, round 1 closed. */
 const series = (over: Record<string, unknown> = {}) =>
   storedBout({
-    phases: bestOfThree,
+    phases: { type: 'single_elim' },
+    match_rules: bestOfThree,
     match_number_label: 'QF1',
     status: 'running',
     winner_registration_id: null,

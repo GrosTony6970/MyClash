@@ -65,10 +65,9 @@ export function setup(
       match_number_label: 'P1M1',
       awaiting_round_advance: false,
       back_in_play_at: null,
-      phases: {
-        type: 'pool',
-        tournaments: { ruleset_config: {}, events: { status: eventStatus } },
-      },
+      phases: { type: 'pool', tournaments: { events: { status: eventStatus } } },
+      // Its copy of its rules (0229): no format set.
+      match_rules: { ruleset_config: {}, scoring_config_json: {} },
       ...bout,
     },
   ];

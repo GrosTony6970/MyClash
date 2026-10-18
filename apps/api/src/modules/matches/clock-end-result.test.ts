@@ -46,6 +46,12 @@ const EARLY = [
   { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:00:30.000Z' },
 ];
 
+/** The bout's copy of its rules (0229), which the End decides with. */
+const copyOf = (matchFormat?: Record<string, unknown>) => ({
+  ruleset_config: matchFormat ? { matchFormat } : {},
+  scoring_config_json: {},
+});
+
 function matchRow(over: Record<string, unknown> = {}) {
   return {
     id: 'm1',
@@ -59,12 +65,8 @@ function matchRow(over: Record<string, unknown> = {}) {
     red_score: 3,
     blue_score: 1,
     match_number_label: 'P1M1',
-    phases: {
-      type: 'pool',
-      tournaments: {
-        ruleset_config: { matchFormat: { bestOf: { pool: 1, bracket: 1, finals: 1 } } },
-      },
-    },
+    phases: { type: 'pool' },
+    match_rules: copyOf({ bestOf: { pool: 1, bracket: 1, finals: 1 } }),
     ...over,
   };
 }
@@ -177,12 +179,8 @@ describe('ClockService — what ending the clock records', () => {
     // routes there and never reaches this branch — the guard is defensive.
     wireEnd(
       matchRow({
-        phases: {
-          type: 'single_elim',
-          tournaments: {
-            ruleset_config: { matchFormat: { bestOf: { pool: 1, bracket: 3, finals: 3 } } },
-          },
-        },
+        phases: { type: 'single_elim' },
+        match_rules: copyOf({ bestOf: { pool: 1, bracket: 3, finals: 3 } }),
         match_number_label: 'QF1',
       }),
     );
@@ -210,6 +208,8 @@ describe('ClockService — what ending the clock records', () => {
       // The decided test is the LADDER, not the scores.
       'winner_registration_id',
       'phases(',
+      // The format the bout is decided by: its copy of its rules, not its Tournament's of now.
+      'match_rules(ruleset_config',
     ]) {
       expect(matchProjection).toContain(column);
     }
@@ -239,7 +239,8 @@ describe('ClockService — what ending the clock records', () => {
       red_score: 2,
       blue_score: 2,
       match_number_label: 'QF1',
-      phases: { type: 'single_elim', tournaments: { ruleset_config: {} } },
+      phases: { type: 'single_elim' },
+      match_rules: copyOf(),
       ...over,
     });
 
@@ -367,15 +368,13 @@ describe('timeLimitResult', () => {
     red_score: 3,
     blue_score: 1,
     match_number_label: 'P1M1',
-    phases: { type: 'pool', tournaments: { ruleset_config: {} } },
+    phases: { type: 'pool' },
+    match_rules: copyOf(),
     ...over,
   });
 
   const withBestOf = (type: string, bestOf: Record<string, number>, label = 'P1M1') =>
-    bout({
-      match_number_label: label,
-      phases: { type, tournaments: { ruleset_config: { matchFormat: { bestOf } } } },
-    });
+    bout({ match_number_label: label, phases: { type }, match_rules: copyOf({ bestOf }) });
 
   it('names the leader when no match format is configured at all', () => {
     // `normalizeMatchFormatConfig({})` defaults bestOf to 1, so an older
@@ -436,18 +435,14 @@ describe('timeLimitResult', () => {
     const perPhase = { pool: 30, bracket: 120, finals: 120 };
     const asPool = bout({
       ...level,
-      phases: {
-        type: 'pool',
-        tournaments: { ruleset_config: { matchFormat: { timeLimitsSeconds: perPhase } } },
-      },
+      phases: { type: 'pool' },
+      match_rules: copyOf({ timeLimitsSeconds: perPhase }),
     });
     const asBracket = bout({
       ...level,
       match_number_label: 'QF1',
-      phases: {
-        type: 'single_elim',
-        tournaments: { ruleset_config: { matchFormat: { timeLimitsSeconds: perPhase } } },
-      },
+      phases: { type: 'single_elim' },
+      match_rules: copyOf({ timeLimitsSeconds: perPhase }),
     });
 
     expect(timeLimitResult(asPool, 0, 60_000)).toEqual({ complete: {} });
@@ -462,12 +457,8 @@ describe('timeLimitResult', () => {
     const noLimit = bout({
       red_score: 2,
       blue_score: 2,
-      phases: {
-        type: 'pool',
-        tournaments: {
-          ruleset_config: { matchFormat: { timeLimitsSeconds: { pool: null } } },
-        },
-      },
+      phases: { type: 'pool' },
+      match_rules: copyOf({ timeLimitsSeconds: { pool: null } }),
     });
 
     expect(timeLimitResult(noLimit, 0, 0)).toEqual({ complete: {} });
@@ -485,7 +476,7 @@ describe('timeLimitResult', () => {
     // PostgREST returns an embedded row either way depending on the join.
     expect(
       timeLimitResult(
-        bout({ phases: [{ type: 'pool', tournaments: [{ ruleset_config: {} }] }] }),
+        bout({ phases: [{ type: 'pool' }], match_rules: [copyOf()] }),
         0,
         ELAPSED_ZERO,
       ),

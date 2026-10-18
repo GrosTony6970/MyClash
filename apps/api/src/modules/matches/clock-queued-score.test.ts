@@ -188,6 +188,8 @@ const FORFEITED_BOUT = {
     config_json: {},
     tournaments: { id: 'tournament-1', ruleset_config: {}, events: { status: 'running' } },
   },
+  // The clock decides with the bout's copy of its rules (0229); the forfeit, with its Tournament.
+  match_rules: { ruleset_config: {}, scoring_config_json: {} },
 };
 
 /**

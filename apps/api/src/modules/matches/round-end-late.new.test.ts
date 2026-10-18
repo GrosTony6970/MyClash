@@ -99,10 +99,9 @@ describe('a late "End round" the server does not hold', () => {
   });
 
   it('is a bad request on a bout that is not a best-of', async () => {
-    const single = { ruleset_config: { matchFormat: {} }, events: { status: 'running' } };
-    const { db, scoring } = series(BLUE_LEADS, RUNNING, {
-      phases: { type: 'single_elim', tournaments: single },
-    });
+    // The bout's copy of its rules names no best-of.
+    const single = { ruleset_config: { matchFormat: {} }, scoring_config_json: {} };
+    const { db, scoring } = series(BLUE_LEADS, RUNNING, { match_rules: single });
 
     await expect(scoring.endRoundOnTime(BOUT, STAFF, endRound('10:01:30'))).rejects.toThrow(
       'Not a best-of match',

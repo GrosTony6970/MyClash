@@ -34,7 +34,8 @@ const bout = (over: SupabaseRow = {}): SupabaseRow => ({
   blue_registration_id: 'blue',
   match_number_label: 'P1M1',
   back_in_play_at: null,
-  phases: { type: 'pool', tournaments: { ruleset_config: {} } },
+  phases: { type: 'pool' },
+  match_rules: { ruleset_config: {}, scoring_config_json: {} },
   ...over,
 });
 

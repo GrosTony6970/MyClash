@@ -80,6 +80,7 @@ function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean 
  * `matches.lice_id` is null on purpose: a piste id here would send the summary
  * on to `lices`, and that table would then have to be declared too.
  * `referee_assignments: []` short-circuits `referee_skills` the same way.
+ * The bout's copy of its rules names no format: every bout holds a copy.
  */
 const summarySeed = (
   view: Record<string, unknown>,
@@ -88,7 +89,7 @@ const summarySeed = (
   vw_tournament_query_matches: { rows: [view] },
   tournaments: { rows: [{ id: 't1', weapon: 'longsword' }] },
   events: { rows: [{ id: 'event-1', timezone: 'UTC' }] },
-  matches: { rows: [{ id: view['match_id'], lice_id: null }] },
+  matches: { rows: [{ id: view['match_id'], lice_id: null, match_rules: { ruleset_config: {} } }] },
   referee_assignments: { rows: [] },
   ...extra,
 });
@@ -280,7 +281,8 @@ describe('MatchesService', () => {
           id: 'm1',
           current_round: 1,
           awaiting_round_advance: false,
-          phases: { tournaments: { scoring_config_json: { afterblowMode: 'full' } } },
+          // The bout's copy of its rules: what `getAfterblowMode` reads.
+          match_rules: { ruleset_config: {}, scoring_config_json: { afterblowMode: 'full' } },
           ...over,
         },
       ],
@@ -497,7 +499,7 @@ describe('MatchesService', () => {
   });
 
   // The exchange row stores the referee's RAW button values; the materialized
-  // red/blue_score_delta apply the tournament's afterblow mode. Deductive
+  // red/blue_score_delta apply the bout's afterblow mode. Deductive
   // subtracts the afterblow from the attacker (defender nets 0).
   describe('createExchange — afterblow mode netting', () => {
     async function recordAfterblow(
@@ -507,7 +509,7 @@ describe('MatchesService', () => {
       const { service: exchangeService, supabase } = makeService({
         exchanges: [NEW_EXCHANGE, { data: { id: 'ex-ab' }, error: null }],
         ...scorableMatch({
-          phases: { tournaments: { scoring_config_json: { afterblowMode } } },
+          match_rules: { ruleset_config: {}, scoring_config_json: { afterblowMode } },
         }),
       });
 

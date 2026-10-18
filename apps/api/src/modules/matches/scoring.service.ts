@@ -38,6 +38,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
+import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
 import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
 import { ClockService, type ClockState, type SheetEnds } from './clock.service';
 import {
@@ -441,11 +442,12 @@ export class ScoringService {
         // `back_in_play_at`: a recompute that puts the bout back in play keeps a later mark
         // (`backInPlayColumns`); not asked for, the mark moved back all the same. With
         // `started_at`, the end of a bout decided late is never before either (`endedAtOf`).
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
+          BOUT_RULES,
       )
       .eq('id', matchId)
       .maybeSingle();
-    return error || !data ? null : (data as Record<string, unknown>);
+    return error || !data ? null : (data as unknown as Record<string, unknown>);
   }
 
   /** Everything a score is derived from: the live exchanges, the live cards, the ruleset. */
@@ -473,17 +475,19 @@ export class ScoringService {
     // Resolve the ruleset (registry first, then DB-driven FormulaRuleset).
     const ruleset = await scoredRuleset(this.rulesets, match.rulesetCode, match.rulesetVersion);
 
-    const config = this.rulesetConfig(m['phases']);
+    // The bout's copy of its rules, never its Tournament's of now (`bout-rules.ts`).
+    const rules = boutRulesOf(m);
+    const config = rules.rulesetConfig;
     return {
       match,
       ruleset,
       config,
-      // afterblowMode lives in the tournament's scoring_config_json, not in
+      // afterblowMode lives in the copy's scoring_config_json, not in
       // ruleset_config. It used to be spliced ONTO the config object so the engine
       // could dig it back out before its Zod parse; the contract takes it as a
       // required parameter now, so the splice is gone and the config travels as
       // the ruleset authored it.
-      afterblowMode: this.afterblowMode(m['phases']),
+      afterblowMode: afterblowModeOf(rules),
       matchFormat: scoredMatchFormat(config, ruleset),
       stored: storedBout(m),
       rawRows: (exchangeRows ?? []) as Record<string, unknown>[],
@@ -1270,12 +1274,13 @@ export class ScoringService {
     const { data: matchData } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(ruleset_config, scoring_config_json, events(status)))',
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
+          BOUT_RULES,
       )
       .eq('id', matchId)
       .maybeSingle();
     if (!matchData) return null;
-    const m = matchData as Record<string, unknown>;
+    const m = matchData as unknown as Record<string, unknown>;
 
     const { data: exchangeRows } = await this.supabase.service
       .from('exchanges')
@@ -1293,8 +1298,9 @@ export class ScoringService {
 
     const ruleset = await scoredRuleset(this.rulesets, match.rulesetCode, match.rulesetVersion);
 
-    const config = this.rulesetConfig(m['phases']);
-    const afterblowMode = this.afterblowMode(m['phases']);
+    const rules = boutRulesOf(m);
+    const config = rules.rulesetConfig;
+    const afterblowMode = afterblowModeOf(rules);
     const matchFormat = scoredMatchFormat(config, ruleset);
 
     return {
@@ -1544,28 +1550,6 @@ export class ScoringService {
     return type === 'pool' || type === 'single_elim' || type === 'double_elim' || type === 'swiss'
       ? type
       : undefined;
-  }
-
-  private rulesetConfig(value: unknown): unknown {
-    const phase = Array.isArray(value) ? value[0] : value;
-    const tournaments = (phase as { tournaments?: unknown } | null)?.tournaments;
-    const tournament = Array.isArray(tournaments) ? tournaments[0] : tournaments;
-    return (tournament as { ruleset_config?: unknown } | null)?.ruleset_config ?? {};
-  }
-
-  /**
-   * The tournament's afterblow mode, read from scoring_config_json (defaults to
-   * 'full'). Drives deductive netting in the score engine.
-   */
-  private afterblowMode(value: unknown): 'full' | 'deductive' {
-    const phase = Array.isArray(value) ? value[0] : value;
-    const tournaments = (phase as { tournaments?: unknown } | null)?.tournaments;
-    const tournament = Array.isArray(tournaments) ? tournaments[0] : tournaments;
-    const scoringConfig = (tournament as { scoring_config_json?: unknown } | null)
-      ?.scoring_config_json;
-    return (scoringConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
-      ? 'deductive'
-      : 'full';
   }
 }
 

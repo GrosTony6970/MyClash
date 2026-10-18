@@ -24,6 +24,7 @@ import { scoringAwaitsRoundAdvance } from './round-awaits-advance';
 import type { LateRoundPress } from './round-advance';
 import { matchLocked } from './match-locked';
 import { unplayedMatchColumns } from './unplayed-match-columns';
+import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
 import { nextSequence } from './timeline-sequence';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
@@ -1188,25 +1189,19 @@ export class MatchesService {
   }
 
   /**
-   * Resolve a match's tournament afterblow mode from scoring_config_json
-   * (defaults to 'full'). Used at exchange write to net the materialized
-   * score deltas; the raw afterblow values are preserved on the row.
+   * The bout's afterblow mode, from its copy of its rules (defaults to 'full'). Used at exchange
+   * write to net the materialized score deltas; the raw afterblow values are preserved on the row.
    */
   private async getAfterblowMode(matchId: string): Promise<AfterblowMode> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('matches')
-      .select('phases(tournaments(scoring_config_json))')
+      .select(`id, ${BOUT_RULES}`)
       .eq('id', matchId)
       .maybeSingle();
-    const phases = (data as { phases?: unknown } | null)?.phases;
-    const phase = Array.isArray(phases) ? phases[0] : phases;
-    const tournaments = (phase as { tournaments?: unknown } | null)?.tournaments;
-    const tournament = Array.isArray(tournaments) ? tournaments[0] : tournaments;
-    const scoringConfig = (tournament as { scoring_config_json?: unknown } | null)
-      ?.scoring_config_json;
-    return (scoringConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
-      ? 'deductive'
-      : 'full';
+    if (error) throw new Error(`The rules of bout ${matchId} were not read: ${error.message}`);
+    return afterblowModeOf(
+      boutRulesOf((data as Record<string, unknown> | null) ?? { id: matchId }),
+    );
   }
 
   /**

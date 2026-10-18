@@ -84,13 +84,13 @@ function database(status: string, odd: Odd) {
               events: { organization_id: ORG, status },
             },
           },
+          // Its copy of its rules (0229) pins the card rules a card is priced by.
+          match_rules: { penalty_ruleset_id: 'ruleset-1' },
         },
       ],
     },
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
-    tournaments: {
-      rows: [{ id: 'tournament-1', event_id: EVENT, penalty_ruleset_id: 'ruleset-1' }],
-    },
+    tournaments: { rows: [{ id: 'tournament-1', event_id: EVENT }] },
     events: { rows: [{ id: EVENT, organization_id: ORG, status, end_date: '2026-10-03' }] },
     platform_roles: { rows: [] },
     event_staff_accounts: {

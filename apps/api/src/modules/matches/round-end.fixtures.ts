@@ -68,19 +68,17 @@ export const boutRow = (bout: SupabaseRow, eventStatus: string) => ({
   blue_score: 2,
   awaiting_round_advance: false,
   back_in_play_at: null,
-  phases: {
-    type: 'single_elim',
-    tournaments: {
-      ruleset_config: {
-        matchFormat: {
-          pointCap: 10,
-          timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
-          bestOf: { pool: 3, bracket: 3, finals: 3 },
-        },
+  phases: { type: 'single_elim', tournaments: { events: { status: eventStatus } } },
+  // Its copy of its rules (0229): what the round's end decides with.
+  match_rules: {
+    ruleset_config: {
+      matchFormat: {
+        pointCap: 10,
+        timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
+        bestOf: { pool: 3, bracket: 3, finals: 3 },
       },
-      scoring_config_json: null,
-      events: { status: eventStatus },
     },
+    scoring_config_json: {},
   },
   ...bout,
 });

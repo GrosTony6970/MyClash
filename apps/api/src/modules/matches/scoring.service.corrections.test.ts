@@ -7,6 +7,7 @@ import {
   BOUT,
   hit,
   phase,
+  RULES,
   RUNNING_EVENT,
   OVER_EVENT,
   setup,
@@ -88,10 +89,15 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
     });
 
     it('keeps them in a best-of series too', async () => {
-      const series = phase('pool');
-      series.tournaments.ruleset_config.matchFormat.bestOf.pool = 3;
+      const { matchFormat } = RULES.ruleset_config;
+      const series = {
+        ...RULES,
+        ruleset_config: {
+          matchFormat: { ...matchFormat, bestOf: { ...matchFormat.bestOf, pool: 3 } },
+        },
+      };
       const { service, db } = setup(
-        { ...held(), phases: series },
+        { ...held(), match_rules: series },
         SHEET_3_4,
         RUNNING_EVENT,
         [],
@@ -274,7 +280,7 @@ describe('ScoringService.recomputeMatchScore — a correction on a finished bout
     await service.recomputeMatchScore(BOUT);
 
     expect(selectsFor(db.from, 'matches')).toEqual([
-      'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type, tournaments(ruleset_config, scoring_config_json))',
+      'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), match_rules(ruleset_config, scoring_config_json)',
     ]);
     expect(selectsFor(db.from, 'match_penalties')).toEqual([
       'id, score_delta, registration_id, round_number',

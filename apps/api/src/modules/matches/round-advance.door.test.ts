@@ -97,10 +97,13 @@ const boutRow = (round: number, ofEvent: Record<string, unknown>) => ({
       id: 'tournament-1',
       event_id: EVENT,
       lock_config_json: null,
-      ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 3, finals: 3 } } },
-      scoring_config_json: null,
       events: ofEvent,
     },
+  },
+  // Its copy of its rules (0229): a best of 3.
+  match_rules: {
+    ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 3, finals: 3 } } },
+    scoring_config_json: {},
   },
 });
 
