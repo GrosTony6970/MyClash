@@ -481,6 +481,11 @@ describe('ArchiveService', () => {
         corrected_exchange_id: 'ex-1',
       },
     ],
+    // The copy of its rules the bout holds, and one it held before (0229).
+    match_rules: [
+      { id: 'mr-now', tournament_id: 't-1', ruleset_code: 'TF_v1', digest: 'd-now' },
+      { id: 'mr-before', tournament_id: 't-1', ruleset_code: 'TF_v1', digest: 'd-before' },
+    ],
     matches: [
       {
         id: 'm-1',
@@ -490,6 +495,8 @@ describe('ArchiveService', () => {
         red_registration_id: 'r-1',
         // Reopened once at the source (0222).
         back_in_play_at: '2026-01-01T10:10:00Z',
+        match_rules_id: 'mr-now',
+        earlier_rules_ids: ['mr-before'],
       },
     ],
     referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
@@ -741,6 +748,23 @@ describe('ArchiveService', () => {
       const { inserted, matchId } = await restoreScoped();
       expect(inserted.match_events).toEqual([
         expect.objectContaining({ match_id: matchId, type: 'start', client_uuid: null }),
+      ]);
+    });
+
+    it("copies a bout's copy of its rules under a new id, the bout pointing at it", async () => {
+      // A finished bout keeps the rules it ended under: its copy travels with it, remapped to the
+      // restored Tournament. The copies it held before are the source's history, not the copy's.
+      const { inserted, matchId } = await restoreScoped();
+      const copies = inserted.match_rules as Array<Record<string, unknown>>;
+      const now = copies.find((row) => row['digest'] === 'd-now');
+      expect(now?.['id']).not.toBe('mr-now');
+      expect(now?.['tournament_id']).toBe(inserted.tournaments?.[0]?.id);
+      expect(inserted.matches).toEqual([
+        expect.objectContaining({
+          id: matchId,
+          match_rules_id: now?.['id'],
+          earlier_rules_ids: [],
+        }),
       ]);
     });
 

@@ -166,6 +166,9 @@ describe('archive migration coverage', () => {
  */
 const JSON_COLUMNS_WITHOUT_IDS = new Set<string>([
   'matches.rounds_json',
+  // A bout's copy of its Tournament's rules (0229): the same two settings, copied.
+  'match_rules.ruleset_config',
+  'match_rules.scoring_config_json',
   'tournaments.ruleset_config',
   'tournaments.scoring_config_json',
   'tournaments.lock_config_json',
@@ -210,6 +213,9 @@ const FK_COLUMNS_NOT_REMAPPED = new Set<string>([
   'events.organization_id',
   'events.penalty_ruleset_id',
   'tournaments.penalty_ruleset_id',
+  // A bout's copy pins its card rules as its Tournament does (0229); a restore
+  // drops a pin the target organisation may not keep (archive-pins.ts).
+  'match_rules.penalty_ruleset_id',
   'persons.club_id',
   'referee_compensation_event_settings.plan_id',
   // external identifier

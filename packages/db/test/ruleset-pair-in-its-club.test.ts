@@ -16,57 +16,17 @@
  * knows how to spell. The RLS probe (check 10, `pnpm db:rls-probe` after
  * `pnpm db:migrations:replay`) reads the same facts off the running database.
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-
-const migrationsDir = join(__dirname, '..', 'migrations');
-
-/** Every migration in order, comments out and identifier quotes dropped. */
-function allSql(): string {
-  return readdirSync(migrationsDir)
-    .filter((name) => /^\d{4}_.+\.sql$/.test(name))
-    .sort()
-    .map((file) => readFileSync(join(migrationsDir, file), 'utf8').replace(/--[^\n]*/g, ''))
-    .join('\n')
-    .replaceAll('"', '');
-}
-
-const flat = (text: string | null | undefined) =>
-  (text ?? '').replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim().toLowerCase();
-
-/** `create [or replace] function [public.]name(`, whatever the argument list. */
-const createOf = (name: string) =>
-  `create\\s+(?:or\\s+replace\\s+)?function\\s+(?:public\\.)?${name}\\s*\\(`;
-
-/** A function or procedure named `name`, in an ALTER, GRANT or DROP. */
-const routine = (name: string) => `(?:function|routine|procedure)\\s+(?:public\\.)?${name}\\b`;
-
-/** The last CREATE [OR REPLACE] of `name`, from its name to the closing dollar quotes. */
-function functionStatement(sql: string, name: string): string {
-  const pattern = new RegExp(`${createOf(name)}[\\s\\S]*?\\$\\$[\\s\\S]*?\\$\\$`, 'gi');
-  return flat([...sql.matchAll(pattern)].map((hit) => hit[0]).at(-1));
-}
-
-/** The last CREATE [OR REPLACE] TRIGGER statement for `name`, up to its semicolon. */
-function triggerStatement(sql: string, name: string): string {
-  const pattern = new RegExp(
-    `create\\s+(?:or\\s+replace\\s+)?trigger\\s+${name}\\b[\\s\\S]*?;`,
-    'gi',
-  );
-  return flat([...sql.matchAll(pattern)].map((hit) => hit[0]).at(-1));
-}
-
-/** Every match of `pattern` in `sql`, flattened. */
-const matches = (sql: string, pattern: string) =>
-  [...sql.matchAll(new RegExp(pattern, 'gi'))].map((hit) => ({
-    at: hit.index,
-    text: flat(hit[0]),
-  }));
-
-/** Index of the last match of `pattern` in `sql`, or -1. */
-const lastIndex = (sql: string, pattern: string) =>
-  Math.max(-1, ...matches(sql, pattern).map((hit) => hit.at));
+import {
+  allSql,
+  createOf,
+  flat,
+  functionStatement,
+  lastIndex,
+  matches,
+  routine,
+  triggerStatement,
+} from './migration-sql';
 
 const DEFINER = 'security definer set search_path = public, pg_catalog as $$';
 const EXEMPT = `if current_setting('role') in ('service_role', 'none') then return new; end if;`;

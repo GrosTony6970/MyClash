@@ -52,7 +52,7 @@ const ROLLBACK = new Error('rollback');
  * rolled back: a released one would keep the role for the rest of the transaction. Its error, or
  * null.
  */
-async function attempt(tx, role, statement, sub = ORG_ADMIN) {
+export async function attempt(tx, role, statement, sub = ORG_ADMIN) {
   let failure = null;
   try {
     await tx.savepoint(async (sp) => {

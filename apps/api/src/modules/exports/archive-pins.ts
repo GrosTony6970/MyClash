@@ -37,8 +37,11 @@ export async function dropRestoredPins(
 
 /**
  * Clears every restored Event and Tournament penalty ruleset pin the target
- * organisation may not pin (operator ruling 67). A cleared pin falls back to
- * the Event default or the built-in; the restore goes on.
+ * organisation may not pin (operator ruling 67), and counts them: a cleared pin
+ * falls back to the Event default or the built-in; the restore goes on. A copy
+ * of a bout's rules (0229) carries its Tournament's pin of its day: the same
+ * rule clears it, to the built-in, and it is not counted, so the organiser's
+ * count stays the pins they set.
  */
 async function dropUnpinnablePenaltyPins(
   supabase: SupabaseService,
@@ -46,21 +49,25 @@ async function dropUnpinnablePenaltyPins(
   organizationId: string,
 ): Promise<number> {
   const verdicts = new Map<string, boolean>();
-  let dropped = 0;
-  for (const row of [...data.events, ...data.tournaments]) {
+  const cleared = async (row: Record<string, unknown>): Promise<boolean> => {
     const rulesetId = row['penalty_ruleset_id'];
-    if (typeof rulesetId !== 'string') continue;
+    if (typeof rulesetId !== 'string') return false;
     if (!verdicts.has(rulesetId)) {
       verdicts.set(
         rulesetId,
         Boolean(await pinnablePenaltyRuleset(supabase, rulesetId, organizationId)),
       );
     }
-    if (verdicts.get(rulesetId)) continue;
+    if (verdicts.get(rulesetId)) return false;
     row['penalty_ruleset_id'] = null;
     row['penalty_ruleset_version'] = null;
-    dropped += 1;
+    return true;
+  };
+  let dropped = 0;
+  for (const row of [...data.events, ...data.tournaments]) {
+    if (await cleared(row)) dropped += 1;
   }
+  for (const row of data.matchRules) await cleared(row);
   return dropped;
 }
 

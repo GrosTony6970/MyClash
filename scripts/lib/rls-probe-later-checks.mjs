@@ -4,6 +4,7 @@
  */
 
 import { accountEmailsFailures } from './account-emails-probe.mjs';
+import { matchRulesFailures } from './match-rules-probe.mjs';
 import { pushAddressFailures } from './push-address-probe.mjs';
 import { rosterHolderFailures } from './roster-holder-probe.mjs';
 import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
@@ -15,5 +16,6 @@ export async function laterCheckFailures(tx) {
     ...(await pushAddressFailures(tx)),
     ...(await rosterHolderFailures(tx)),
     ...(await rulesetPairFailures(tx)),
+    ...(await matchRulesFailures(tx)),
   ];
 }

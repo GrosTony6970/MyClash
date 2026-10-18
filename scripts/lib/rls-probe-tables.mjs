@@ -78,6 +78,13 @@ export const VERDICTS = [
     hidden: ['c5000000-0000-4000-8000-00000000000a'],
   },
   {
+    // A bout's copy of its rules is read with its Tournament (0229).
+    table: 'match_rules',
+    key: 'id',
+    visible: ['ad000000-0000-4000-8000-00000000000a'],
+    hidden: ['ad000000-0000-4000-8000-00000000000b', 'ad000000-0000-4000-8000-00000000000c'],
+  },
+  {
     table: 'organization_members',
     key: 'user_id',
     visible: [],
@@ -126,6 +133,8 @@ export const API_ONLY_WRITES = [
   { table: 'penalty_ruleset_versions', key: 'id', row: 'fe200000-0000-4000-8000-00000000000a' },
   // The record of an audited re-pin: one writer, the API (0227).
   { table: 'tournament_ruleset_repins', key: 'id', row: '7e900000-0000-4000-8000-00000000000a' },
+  // A bout's copy of its rules: written by the API's stamp only, and never changed (0229).
+  { table: 'match_rules', key: 'id', row: 'ad000000-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';

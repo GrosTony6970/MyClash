@@ -22,8 +22,8 @@ function doubles(restorable: (code: string) => boolean = () => true) {
   return { registry: createRulesetRegistry(), selectable: selectable as never, spy: selectable };
 }
 
-function tables(tournaments: object[], matches: object[] = []) {
-  return { ...emptyArchiveTables(), tournaments, matches } as never;
+function tables(tournaments: object[], matches: object[] = [], matchRules: object[] = []) {
+  return { ...emptyArchiveTables(), tournaments, matches, matchRules } as never;
 }
 
 describe('assertRestoredRulesetsUsable', () => {
@@ -70,11 +70,13 @@ describe('assertRestoredRulesetsUsable', () => {
     expect(rulesets.spy.restorable).not.toHaveBeenCalled();
   });
 
-  it("refuses another club's private ruleset, on a bout as on a Tournament", async () => {
+  it("refuses another club's private ruleset, on a bout, a Tournament or a copy of a bout's rules", async () => {
     const theirs = (code: string) => code !== 'custom_theirs';
     for (const data of [
       tables([{ ruleset_code: 'custom_theirs', ruleset_version: '1.0.4' }]),
       tables([], [{ ruleset_code: 'custom_theirs', ruleset_version: '1.0.4' }]),
+      // A bout is scored by its copy (0229): a hand-edited copy is a pair door too.
+      tables([], [], [{ ruleset_code: 'custom_theirs', ruleset_version: '1.0.4' }]),
     ]) {
       await expect(
         assertRestoredRulesetsUsable(doubles(theirs), data, 'org-a', 'u1'),

@@ -37,6 +37,7 @@ export const ID_MAP_NAMES = [
   'pools',
   'bracketSlots',
   'swissRounds',
+  'matchRules',
   'matches',
   // A correction points at the exchange it replaced, so exchanges need to be
   // findable by name. Before the registry this one resolved through the generic

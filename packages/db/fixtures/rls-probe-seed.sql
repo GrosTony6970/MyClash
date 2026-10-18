@@ -125,3 +125,12 @@ INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization
 INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers, decision_edition) VALUES
   ('c5100000-0000-4000-8000-00000000000a', 'c5000000-0000-4000-8000-00000000000a', '1.0.0', 'Club scoring',
    '{}', '{}', '[]', '2026-10');
+-- A copy of the rules of each of three Tournaments (0229): read with its Tournament, so the
+-- published one's is visible, the draft Event's and the draft Tournament's are hidden.
+INSERT INTO match_rules (id, tournament_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, digest) VALUES
+  ('ad000000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-a'),
+  ('ad000000-0000-4000-8000-00000000000b', '77777777-0000-4000-8000-00000000000b', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-b'),
+  ('ad000000-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-c');

@@ -821,12 +821,14 @@ export class CustomRulesetsService {
    * one. Delete callers use this to soft-archive instead.
    */
   /**
-   * Does a Tournament pin this code, or a bout carry it? A bout keeps the ruleset it was stamped
-   * with when its Tournament moves to another one: deleted, a correction of a finished bout could
-   * not be scored. A count that fails is an error: read as 0, the ruleset was deleted.
+   * Does a Tournament pin this code, or a bout carry it, or a copy of a bout's rules name it
+   * (0229)? A bout keeps the ruleset it was stamped with when its Tournament moves to another one:
+   * deleted, a correction of a finished bout could not be scored, and an archive carrying the copy
+   * could not be restored (its pair would not resolve). A count that fails is an error: read as 0,
+   * the ruleset was deleted.
    */
   private async isReferencedByAnyTournamentOrBout(code: string): Promise<boolean> {
-    for (const table of ['tournaments', 'matches'] as const) {
+    for (const table of ['tournaments', 'matches', 'match_rules'] as const) {
       const { count, error } = await this.supabase.service
         .from(table)
         .select('id', { count: 'exact', head: true })

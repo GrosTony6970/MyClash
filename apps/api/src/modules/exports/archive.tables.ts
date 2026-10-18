@@ -330,6 +330,16 @@ const TABLES = {
   },
 
   // ── Scoring ───────────────────────────────────────────────────────────────
+  // Before `matches`: a bout points at the copy of the rules it holds (0229). A
+  // structure archive carries no bouts, so it carries no copies either.
+  match_rules: {
+    key: 'matchRules',
+    collect: {
+      event: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
+      tournament: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
+    },
+    idMap: 'matchRules',
+  },
   matches: {
     key: 'matches',
     collect: {
@@ -337,9 +347,11 @@ const TABLES = {
       tournament: { from: 'phases', local: 'phase_id', include: 'scoring' },
     },
     idMap: 'matches',
+    fk: { match_rules_id: 'matchRules' },
     // When the source bout was last put back in play (0222) says nothing of
-    // the copy: no tablet holds a press for it.
-    set: { back_in_play_at: null },
+    // the copy: no tablet holds a press for it. Nor do the copies of its rules
+    // it held before: the copy starts from the one it holds.
+    set: { back_in_play_at: null, earlier_rules_ids: [] },
   },
   referee_assignments: {
     key: 'refereeAssignments',

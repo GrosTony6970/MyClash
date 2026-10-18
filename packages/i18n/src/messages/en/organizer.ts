@@ -2901,6 +2901,7 @@ export const organizer = {
       bracketSlots: 'Bracket slots',
       swissEntrants: 'Swiss entrants',
       swissRounds: 'Swiss rounds',
+      matchRules: 'Match rules',
       matches: 'Matches',
       refereeAssignments: 'Referee assignments',
       matchEvents: 'Match events',

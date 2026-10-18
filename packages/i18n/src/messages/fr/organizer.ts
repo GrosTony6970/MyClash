@@ -2869,6 +2869,7 @@ export const organizer = {
       bracketSlots: 'Places du tableau',
       swissEntrants: 'Participants suisse',
       swissRounds: 'Rondes suisse',
+      matchRules: 'Règles des matchs',
       matches: 'Matchs',
       refereeAssignments: 'Affectations des arbitres',
       matchEvents: 'Événements de match',

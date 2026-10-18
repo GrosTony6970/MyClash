@@ -32,6 +32,8 @@ describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
     boutCount?: number;
     countError?: { message: string };
     boutCountError?: { message: string };
+    /** The copies of a bout's rules that name the code (0229), held by a bout or not. */
+    copyCount?: number;
     capture: {
       update?: Record<string, unknown>;
       deleted?: boolean;
@@ -45,7 +47,9 @@ describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
           ? { count: opts.tournamentCount, error: opts.countError ?? null }
           : table === 'matches'
             ? { count: opts.boutCount ?? 0, error: opts.boutCountError ?? null }
-            : { data: refParent, error: null };
+            : table === 'match_rules'
+              ? { count: opts.copyCount ?? 0, error: null }
+              : { data: refParent, error: null };
       const filters: Array<[string, unknown]> = [];
       if (table === 'matches') (opts.capture.boutFilters ??= []).push(filters);
       const chain: Record<string, unknown> = {
@@ -95,6 +99,20 @@ describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
       );
       await expect(service[door]('r1', 'actor-1')).resolves.toEqual({ archived: true });
       expect(capture.update).toMatchObject({ status: 'archived' });
+      expect(capture.deleted).toBeUndefined();
+    },
+  );
+
+  // A Tournament moved off the ruleset before any bout started: only a copy names it now, and an
+  // archive carrying that copy restores only if the ruleset still resolves (0229).
+  it.each<['remove' | 'deleteForOrg']>([['remove'], ['deleteForOrg']])(
+    'soft-archives when only a copy of a bout’s rules names it (%s)',
+    async (door) => {
+      const capture: { update?: Record<string, unknown>; deleted?: boolean } = {};
+      fromMock.mockImplementation(
+        durabilityDispatch({ tournamentCount: 0, boutCount: 0, copyCount: 1, capture }),
+      );
+      await expect(service[door]('r1', 'actor-1')).resolves.toEqual({ archived: true });
       expect(capture.deleted).toBeUndefined();
     },
   );

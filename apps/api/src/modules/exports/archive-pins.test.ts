@@ -81,6 +81,7 @@ function build(penaltyRulesets: object = RULESETS, compensationPlans: object = P
       ],
     },
     tournaments: { rows: [] },
+    match_rules: { rows: [] },
     lices: { rows: [] },
     audit_log: { rows: [] },
     referee_compensation_plans: compensationPlans,
@@ -111,7 +112,11 @@ function tournament(id: string, penaltyRulesetId: string | null) {
 function archive(
   scope: 'event' | 'tournament',
   tournaments: Record<string, unknown>[],
-  extra: { organizationId?: string; settings?: Record<string, unknown>[] } = {},
+  extra: {
+    organizationId?: string;
+    settings?: Record<string, unknown>[];
+    matchRules?: Record<string, unknown>[];
+  } = {},
 ) {
   return Buffer.from(
     JSON.stringify({
@@ -140,6 +145,7 @@ function archive(
         ],
         tournaments,
         refereeCompensationEventSettings: extra.settings ?? [],
+        matchRules: extra.matchRules ?? [],
       },
       reports: { tournaments: [] },
     }),
@@ -184,6 +190,36 @@ describe('archive restore penalty pins', () => {
     expect(bySlug.get('t-none')).toEqual({ id: null, version: null });
     // The Event's own pin, the foreign Tournament pin and the missing one.
     expect(result.droppedPenaltyRulesetPins).toBe(3);
+  });
+
+  // A bout's copy of its rules pins card rules too (0229): the same rule, the same count.
+  it("clears a copy's pin the target club may not pin, and keeps a shared one", async () => {
+    const copy = (id: string, pin: string) => ({
+      id,
+      tournament_id: 't-own',
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.1.0',
+      ruleset_config: {},
+      scoring_config_json: {},
+      penalty_ruleset_id: pin,
+      penalty_ruleset_version: 'archived-version',
+      digest: id,
+    });
+    const result = await service.restoreArchiveCopy(
+      archive('event', [tournament('t-own', PRIVATE_A)], {
+        matchRules: [copy('copy-foreign', PRIVATE_B), copy('copy-shared', SHARED_B)],
+      }),
+      'u-admin-ab',
+      { targetOrganizationId: 'org-a', confirmation: CONFIRMATION },
+    );
+
+    const byDigest = new Map(
+      rowsOf('match_rules').map((row) => [String(row['digest']), pinOf(row)]),
+    );
+    expect(byDigest.get('copy-foreign')).toEqual({ id: null, version: null });
+    expect(byDigest.get('copy-shared')).toEqual({ id: SHARED_B, version: 'archived-version' });
+    // The Event's own pin: a copy's is cleared, not counted (the organiser set the Event's).
+    expect(result.droppedPenaltyRulesetPins).toBe(1);
   });
 
   it("clears a hand-edited Tournament pin to another club's private ruleset", async () => {
