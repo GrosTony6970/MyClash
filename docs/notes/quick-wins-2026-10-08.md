@@ -3436,6 +3436,49 @@ Named, not fixed:
 - A formula snapshot with no edition (only an out-of-band write) hashes as none and is scored as
   2026-10. A stack not wiped shows the drift banner on every formula Tournament after `0228`.
 
+### Built on 2026-10-18: a bout keeps a copy of its rules (the foundation, commits 1 to 3)
+
+Bout 4 ended 5-3 at the cap of 5; the organiser raised the cap to 7; a correction of bout 4 was
+decided at 7, because every scoring reader took the settings live from the Tournament. Rulings
+(2026-10-17, table of the four planned slices): a bout keeps everything it started under, a
+finished bout the rules it ended under; the tables, stats, TV and forfeits follow the Tournament.
+The plan: `C:\Users\Tony\.claude\plans\slice-match-rules-copy-plan.md`. The three deploy together.
+
+| Commit     | What it does                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `81ad5e60` | 1: migration `0229`, `match_rules` (one immutable copy per digest), `matches.match_rules_id`, the stamp, its row builder, a backfill. |
+| `69bb36c5` | 2: every door that makes a bout, or puts one back to not started, stamps it through the database; an archive made before gets copies. |
+| `36cb6ff0` | 3: migration `0230` (the backfill again, the card guard's question); the score, end, clock, rounds, summary and card price read it.   |
+
+What the build chose, not ruled:
+
+- A bout put back to not started asks for the copy again after its write (the review found the
+  race: a change between its read and its write left it on the older copy).
+- A bout with no copy is refused loudly by a scoring read, never scored with its Tournament's
+  rules; the bout summary list logs it and lists it with no format. After two backfills and every
+  writer stamping, only a direct database write can make one; the foundation's commit 6 makes it
+  impossible.
+- A card ruleset is locked for edits while a bout holds a copy pinning it, or, while the bout is
+  not started, held one before (an offline Start may name it: the offline-bout slice). A re-pin
+  before any start keeps the old ruleset locked until those bouts start.
+- How far a black card reaches is read before the card is written, and every read that decides it
+  is an error when it fails (before, a second black card failed to count as a first).
+
+What ran: cold reviews to no blocker and no major (commit 1 two passes, 2 two, 3 three); red first;
+falsifiers 37 of 37 (commit 1, static and live), 32 of 32 (2), 33 of 33 and 4 of 4 live (3); the
+gate chain 31 of 31; fresh PG17 replays and the production Supabase image with the RLS and merge
+probes; each backfill proved over stored bouts.
+
+Named, not fixed:
+
+- A signed-in scorekeeper can set a bout's `match_rules_id` to NULL through PostgREST until
+  commit 6 (every scoring read of that bout then answers 500).
+- A black card saved, then failing after (its count, the recompute, the forfeit), keeps no forfeit:
+  the tablet's resend only disqualifies. Older than the foundation.
+- The TV shows a running bout the Tournament's best-of of now, the pad its copy's (ruled).
+- The built-in card-ruleset predicate is written twice in `penalties.service.ts`.
+- Fixed by commit 3: the penalty edit guard no longer reads a failed count as 0.
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
