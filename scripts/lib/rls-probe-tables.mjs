@@ -66,6 +66,12 @@ export const VERDICTS = [
     hidden: ['fe000000-0000-4000-8000-00000000000a'],
   },
   {
+    table: 'penalty_ruleset_entries',
+    key: 'id',
+    visible: [],
+    hidden: ['fe100000-0000-4000-8000-00000000000a'],
+  },
+  {
     table: 'custom_rulesets',
     key: 'id',
     visible: [],
@@ -114,6 +120,10 @@ export const API_ONLY_WRITES = [
   // A club scoring ruleset and its snapshots, past the edit guard and the review of sharing (0225).
   { table: 'custom_rulesets', key: 'id', row: 'c5000000-0000-4000-8000-00000000000a' },
   { table: 'custom_ruleset_versions', key: 'id', row: 'c5100000-0000-4000-8000-00000000000a' },
+  // A penalty ruleset, its entries and its snapshots, past the edit guard of one in use (0226).
+  { table: 'penalty_rulesets', key: 'id', row: 'fe000000-0000-4000-8000-00000000000a' },
+  { table: 'penalty_ruleset_entries', key: 'id', row: 'fe100000-0000-4000-8000-00000000000a' },
+  { table: 'penalty_ruleset_versions', key: 'id', row: 'fe200000-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';

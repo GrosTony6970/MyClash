@@ -103,6 +103,15 @@ INSERT INTO fighter_manual_medals (id, global_person_id, competition, year, rank
 INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, built_in, public_visibility) VALUES
   ('fe000000-0000-4000-8000-00000000000a', 'rls-probe-club', '1', 'Club', 'aaaaaaaa-0000-4000-8000-000000000001',
    false, false);
+-- An entry and a published snapshot of the club's penalty ruleset: only the API writes them (0226).
+INSERT INTO penalty_ruleset_entries (id, ruleset_id, group_number, ref_number, short_name, description, sanctions) VALUES
+  ('fe100000-0000-4000-8000-00000000000a', 'fe000000-0000-4000-8000-00000000000a', 1, 1, 'Probe', 'Probe entry',
+   '["warning"]');
+INSERT INTO penalty_ruleset_versions
+  (id, penalty_ruleset_id, version, name, accumulation_scope, yellow_card_points, red_card_points,
+   black_card_points, first_black_card_forfeit, second_black_card_forfeit) VALUES
+  ('fe200000-0000-4000-8000-00000000000a', 'fe000000-0000-4000-8000-00000000000a', '1', 'Club', 'match', 0, 1, 0,
+   'match', 'tournament');
 -- The club's own scoring ruleset and its published snapshot: only the API writes them (0225).
 INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization_id) VALUES
   ('c5000000-0000-4000-8000-00000000000a', 'rls-probe-club-scoring', '1.0.0', 'Club scoring', 'published',
