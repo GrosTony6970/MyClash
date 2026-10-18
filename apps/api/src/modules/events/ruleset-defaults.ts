@@ -2,8 +2,8 @@
  * apps/api/src/modules/events/ruleset-defaults.ts
  *
  * Returns the default `ruleset_config` JSONB shape for a given ruleset code +
- * version.  Used by `updateTournament` when a `rulesetCode` switch wipes the
- * stale config of the previous ruleset and seeds the new one from scratch.
+ * version.  Used when a Tournament's pair moves (`settingsAfterMove`): a new
+ * code, or a club ruleset's other version, is seeded from these.
  *
  * Design decision — hardcoded map, not registry lookup:
  *   The `Ruleset` interface (packages/rulesets/src/types.ts) does NOT expose a

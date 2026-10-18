@@ -68,6 +68,7 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
+import { settingsAfterMove } from './ruleset-move-config';
 import {
   buildCodedForkRow,
   buildSeededScoringConfig,
@@ -3296,19 +3297,20 @@ export class EventsService {
         [tournamentId],
         'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
       );
-      // Switching ruleset wipes the existing config and seeds defaults from the
-      // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
-      // merged on top of the new defaults. A new code with no version named gets
-      // that code's own latest or current version, never the old code's.
+      // A built-in's other version keeps the stored settings; another code, or a
+      // club ruleset's other version, starts from that pair's. Any rulesetConfig
+      // sent beside it goes on top. No version named: the code's latest/current.
       const nextCode = dto.rulesetCode ?? currentCode ?? 'TF_v1';
       const nextVersion = await this.usableRulesetVersion(nextCode, dtoVersion, event, userId);
       updates['ruleset_version'] = nextVersion;
-      const newDefaults = await resolveRulesetConfigDefaults(this.supabase, nextCode, nextVersion);
-      const callerPatch = dto.rulesetConfig ?? {};
-      updates['ruleset_config'] = validateTournamentRulesetConfig(
+      const settings = await this.settingsOfMove(
+        currentCode ?? 'TF_v1',
+        currentJson['ruleset_config'],
         nextCode,
-        deepMergeJson(newDefaults, callerPatch),
+        nextVersion,
+        dto.rulesetConfig,
       );
+      updates['ruleset_config'] = validateTournamentRulesetConfig(nextCode, settings);
     } else if (dto.rulesetConfig !== undefined) {
       // Same ruleset — merge caller patch onto the existing stored config.
       // We backfill from resolveRulesetConfigDefaults first so the strict
@@ -3570,17 +3572,17 @@ export class EventsService {
     }
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
-    const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
+    const newConfig = await this.settingsOfMove(fromCode, oldConfig, toCode, toVersion);
     const diff = await this.computeRulesetBucketDiff(
       { code: fromCode, version: fromVersion, config: oldConfig },
-      { code: toCode, version: toVersion, config: newDefaults },
+      { code: toCode, version: toVersion, config: newConfig },
     );
 
     // Order matters: snapshot on the OLD pointer, re-point, snapshot on the NEW
     // pointer, then record. The audit insert throws — an unaudited re-pin must
     // not silently happen.
     const before = await this.snapshotPlacings(tournamentId);
-    const updated = await this.repointAndReseed(tournamentId, toCode, toVersion, newDefaults);
+    const updated = await this.repointWithSettings(tournamentId, toCode, toVersion, newConfig);
     const after = await this.snapshotPlacings(tournamentId);
     await this.writeRepinAudit({
       eventId: row['event_id'] as string,
@@ -3635,10 +3637,10 @@ export class EventsService {
     const toVersion = await this.usableRulesetVersion(toCode, dto.rulesetVersion, event, userId);
 
     const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
-    const newDefaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
+    const newConfig = await this.settingsOfMove(fromCode, oldConfig, toCode, toVersion);
     const diff = await this.computeRulesetBucketDiff(
       { code: fromCode, version: fromVersion, config: oldConfig },
-      { code: toCode, version: toVersion, config: newDefaults },
+      { code: toCode, version: toVersion, config: newConfig },
     );
     return { fromCode, toCode, diff };
   }
@@ -3765,15 +3767,28 @@ export class EventsService {
     }
   }
 
-  /** Re-point + reseed ruleset_config from the new ruleset's defaults (the
-   *  score-changing swap, mirroring updateTournament's ruleset-change branch). */
-  private async repointAndReseed(
+  /** The settings the PATCH's swap, the re-pin and its preview give the new pair. */
+  private async settingsOfMove(
+    fromCode: string,
+    stored: unknown,
+    toCode: string,
+    toVersion: string,
+    patch?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const defaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
+    const builtIn = isSystemRuleset(this.registry, toCode, toVersion);
+    return settingsAfterMove({ fromCode, toCode, builtIn, stored, defaults, patch });
+  }
+
+  /** Re-point + store the settings of the move (the score-changing swap,
+   *  mirroring updateTournament's ruleset-change branch). */
+  private async repointWithSettings(
     tournamentId: string,
     toCode: string,
     toVersion: string,
-    newDefaults: Record<string, unknown>,
+    settings: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const rulesetConfig = validateTournamentRulesetConfig(toCode, newDefaults);
+    const rulesetConfig = validateTournamentRulesetConfig(toCode, settings);
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .update({
