@@ -850,7 +850,8 @@ Because a live pointer change rewrites recorded standings, mid-event re-pinning 
 it is an audited ceremony (typed confirmation, mandatory justification, org-owner or super-admin,
 blocked on completed/archived tournaments). `tournament_ruleset_repins` is its append-only record:
 actor, from → to, the per-bucket diff, whether ranking stayed compatible, and the materialised
-before/after placings.
+before/after placings. Only the API writes it (migration `0227`: SELECT policies only, no INSERT,
+UPDATE or DELETE for `anon` or `authenticated`), so the record has one writer.
 
 ### 7bis.4 Immutability and delisting
 

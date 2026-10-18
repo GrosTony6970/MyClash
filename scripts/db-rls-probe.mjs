@@ -24,7 +24,8 @@
  *      db:review's static rule, which missed 0193;
  *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
  *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
- *      writes it (0209, ruling 144; the League tables, 0216; club scoring rulesets, 0225; penalty rulesets, 0226);
+ *      writes it (0209, ruling 144; the League tables, 0216; club scoring rulesets, 0225;
+ *      penalty rulesets, 0226; re-pin records, 0227);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar;

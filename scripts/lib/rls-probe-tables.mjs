@@ -124,6 +124,8 @@ export const API_ONLY_WRITES = [
   { table: 'penalty_rulesets', key: 'id', row: 'fe000000-0000-4000-8000-00000000000a' },
   { table: 'penalty_ruleset_entries', key: 'id', row: 'fe100000-0000-4000-8000-00000000000a' },
   { table: 'penalty_ruleset_versions', key: 'id', row: 'fe200000-0000-4000-8000-00000000000a' },
+  // The record of an audited re-pin: one writer, the API (0227).
+  { table: 'tournament_ruleset_repins', key: 'id', row: '7e900000-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';
