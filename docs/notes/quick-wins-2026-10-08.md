@@ -3016,13 +3016,28 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Versions   | Pair through the DB | An organiser admin writes another club's private ruleset onto a Tournament straight through the database's web door.     | **A trigger, as 0199**: a new pair must be the club's own or shared, not archived, not a club's draft; service role exempt. |
 | Versions   | Drafts for whom     | Ruling "Pinning a draft" shows drafts to the super-admin; drafts are authored by platform_admin.                         | **Widen to platform_admin** and above, in the picker and at the doors.                                                      |
 | Versions   | No version named    | Club A publishes again (1.0.0 becomes 1.0.1); the AI assistant sends a club code with no version.                        | **No version = the ruleset's current one**; an older version named is still refused.                                        |
+| Versions   | Restore any version | Club A restores last season's Event, pinned to its own 1.0.0, since republished or archived.                             | **Allow the club's own or a shared ruleset at any version that resolves.**                                                  |
+| Versions   | Restore own draft   | The same, but Club A has put that ruleset back to draft.                                                                 | **The club's own drafts restore**; another club's draft is refused; a shared one must not be a draft.                       |
+| Versions   | Decoy code          | Club A makes its own row with Lyon's private code, pins it through the database's web door, then deletes the decoy.      | **The trigger reads every row of the code**: a code another owner holds unshared is refused. Replaced by "One tag".         |
+| Versions   | Platform draft      | A super admin names a platform draft on a Tournament through the database's web door.                                    | **Refuse every draft there**, the platform's too: that door stays narrower than the app.                                    |
+| Versions   | Version check       | Through that door, Club A names its own ruleset at version 99.9.9; only its own standings fail later.                    | **Versions stay the app's job**: the trigger checks the code.                                                               |
+| Versions   | Exempt list         | A new database role for the tablets is added next season; the trigger checked only the two web-door roles by name.       | **Skip only the app** (service role) and direct connections; every other role is checked, new ones included.                |
+| Versions   | Super admin         | A super admin writes an ownerless row marked as a built-in, leaves it a draft, and pins it through the web door.         | **Trust the super admin**: an ownerless built-in mark counts as a built-in.                                                 |
+| Versions   | Direct login        | A partner's tool gets its own database login and writes Tournaments directly; it never switches role.                    | **Keep direct logins exempt** (they need the database password); the comments say so.                                       |
+| Versions   | Fake tag            | Club A makes the decoy row, then picks Lyon's code in the normal app, which writes as the service role.                  | **The app says no too.** Superseded the same morning by "One tag", which makes the decoy impossible.                        |
+| Versions   | One tag             | A club copies Lyon's public code onto a private row of its own: the decoy rule then blocks Lyon from its own ruleset.    | **One code, one row** across every owner (a unique index); the decoy check and the "Fake tag" commit are dropped.           |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
 of password commit 3 found that `regenerateTempPassword` confirms nothing; "Pad budget" at 20:05, when
 commit 1 of the versions slice met the bundle gate. "Restore a pair" to "No version named" were asked in
 session 3856d5d0 (2026-10-18 00:20), after the cold review of the pair doors' authz fix (`0f478f1b`)
-found the restore and the database door uncovered.
+found the restore and the database door uncovered. "Restore any version" (01:00) and "Restore own
+draft" (01:28) were asked in the same session, during the restore refusal (`18b9fa13`); "Decoy code",
+"Platform draft" and "Version check" in session 5ed049cf (02:30), after the first cold review of
+migration `0224`, whose three reviewers each found the decoy on a replay; "Exempt list" and "Super
+admin" (04:30) after its second; "Fake tag" and "Direct login" (06:00) after its third; "One tag"
+(11:40) after its fourth, which found that the decoy rule let a squatter block a club's own code.
 
 ### Built on 2026-10-16: the server pass, first batch
 
@@ -3294,6 +3309,43 @@ Named, not fixed:
   filled in. No router on `app.${DOMAIN}` relies on the default today.
 - From the plan: `PUT /auth/v1/user` is public at the edge and sets a password without the current
   one; the super admin's "assign owner" adopts any existing account by address.
+
+### Built on 2026-10-18: the pair doors
+
+The review of the versions slice found that the doors which set a Tournament's ruleset checked only
+that the ruleset existed: an organisation admin who knew another club's private code could pin it,
+which also froze that club's ruleset. Now "listed" and "usable" are one set at every door, the
+restore has its own scope, and the database holds the rule under PostgREST.
+
+| Commit     | What it does                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0f478f1b` | The four pair doors (create, edit, re-pin, preview) take only a pair the picker offers the Event's organisation.                                                 |
+| `f1377dd2` | Platform drafts are offered to platform_admin and above, in the picker and at the doors (ruling "Drafts for whom").                                              |
+| `5f30c3bd` | A club ruleset named with no version takes its current one; an older version named is still refused (ruling "No version named").                                 |
+| `18b9fa13` | A restore naming a ruleset the club may not keep is refused before anything is written; the club's own at any status and version (rulings 3, 7, 8 of the table). |
+| `5c797558` | Migration `0224`: one ruleset code, one row, across every owner; AFTER triggers refuse a web-door Tournament a ruleset its club is not offered.                  |
+
+**The reviews found**, on `0224` alone, five passes: the decoy (a club's own row with another
+club's code), a stranger hearing the trigger before RLS refused them, a deny-list exemption that a
+new role would pass, and finally that the decoy rule let a squatter block a club's own code. Each
+went to the operator; "One tag" made the decoy and the squatter impossible.
+
+What ran: two or more cold reviews per commit, to no blocker and no major; falsifiers 19 of 19,
+4 of 4, 10 of 10, 16 of 16, and for `0224` 42 of 42 static and 11 of 11 live on a replay; the gate
+chain (31 of 31, each commit); API coverage (672 files / 8681 tests) and the browser suite (440 of 440) before the push of `f1377dd2..18b9fa13`, CI run 39081960544 all green; for `0224`, fresh PG17
+replays with the RLS probe (check 10 writes signed in, with the looping RLS helpers made SECURITY
+DEFINER inside its savepoint) and the merge probe.
+
+Named, not fixed:
+
+- A club can still set `public_visibility` or `status` on its own ruleset row through PostgREST
+  (`custom_rulesets_org_owner_manage`), skipping the super admin's review; any organisation admin
+  may re-pin there, where the API asks for the owner. Both are latent behind the signed-in RLS loop.
+- A ruleset code is stamped to the millisecond: two clubs making one name in the same millisecond
+  clash (409; `clone` answers 400 with the database's message).
+- The `is_system` mirror rows are not kept in step with `BUILT_IN_RULESETS`; `matches.ruleset_code`
+  can still be written through PostgREST under its own policy; the restore preview says
+  `canRestore: true` where the restore then refuses.
 
 ### Fixed since they were named
 
