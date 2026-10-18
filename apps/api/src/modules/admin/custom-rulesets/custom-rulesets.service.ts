@@ -528,7 +528,7 @@ export class CustomRulesetsService {
     // snapshot table separately (see Round 6 + Round 7 design notes).
     if (!existing.is_system && (await this.isCurrentVersionFrozen(existing))) {
       throw new ConflictException(
-        'This version is locked because a tournament already references it. ' +
+        'This version is locked because a tournament or a bout already uses it. ' +
           'Publish a new version to apply edits.',
       );
     }
@@ -789,17 +789,28 @@ export class CustomRulesetsService {
   }
 
   /**
-   * True if the current (code, version) pair on the parent row is referenced by
-   * at least one tournament, in which case further edits would silently change
-   * scoring for those tournaments.
+   * True if the current (code, version) pair on the parent row is pinned by a
+   * Tournament or carried by a bout, in which case further edits would silently
+   * change scoring for them. A bout keeps the pair it was stamped with when its
+   * Tournament moves to another ruleset: counting Tournaments alone, the row was
+   * editable again while bouts fought under it still scored with it, and a
+   * correction of one was then decided by the edited formula. A count that fails
+   * is an error: read as 0, the edit went through.
    */
   private async isCurrentVersionFrozen(row: CustomRulesetRow): Promise<boolean> {
-    const { count } = await this.supabase.service
-      .from('tournaments')
-      .select('id', { count: 'exact', head: true })
-      .eq('ruleset_code', row.code)
-      .eq('ruleset_version', row.version);
-    return (count ?? 0) > 0;
+    for (const table of ['tournaments', 'matches'] as const) {
+      const { count, error } = await this.supabase.service
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('ruleset_code', row.code)
+        .eq('ruleset_version', row.version);
+      if (error)
+        throw new Error(
+          `The ${table} of ruleset ${row.code}@${row.version} were not counted: ${error.message}`,
+        );
+      if ((count ?? 0) > 0) return true;
+    }
+    return false;
   }
 
   /**
@@ -875,7 +886,7 @@ export class CustomRulesetsService {
     // operator to publish a new version. Mirrors update()'s guard.
     if (await this.isCurrentVersionFrozen(existing)) {
       throw new ConflictException(
-        'This version is in use by a tournament and cannot be rolled back. ' +
+        'This version is in use by a tournament or a bout and cannot be rolled back. ' +
           'Publish a new version to make changes.',
       );
     }
@@ -931,7 +942,7 @@ export class CustomRulesetsService {
     // Mirrors update()'s freeze guard.
     if (await this.isCurrentVersionFrozen(existing)) {
       throw new ConflictException(
-        'This version is in use by a tournament and cannot be unpublished. ' +
+        'This version is in use by a tournament or a bout and cannot be unpublished. ' +
           'Publish a new version to make changes.',
       );
     }

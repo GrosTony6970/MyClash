@@ -31,18 +31,29 @@ describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
     /** The bouts that carry the ruleset's code; a Tournament may have moved off it since. */
     boutCount?: number;
     countError?: { message: string };
-    capture: { update?: Record<string, unknown>; deleted?: boolean };
+    boutCountError?: { message: string };
+    capture: {
+      update?: Record<string, unknown>;
+      deleted?: boolean;
+      /** The `.eq()` filters of each bout count: the double answers whatever is filtered. */
+      boutFilters?: Array<Array<[string, unknown]>>;
+    };
   }) {
     return vi.fn().mockImplementation((table: string) => {
       const result =
         table === 'tournaments'
           ? { count: opts.tournamentCount, error: opts.countError ?? null }
           : table === 'matches'
-            ? { count: opts.boutCount ?? 0, error: null }
+            ? { count: opts.boutCount ?? 0, error: opts.boutCountError ?? null }
             : { data: refParent, error: null };
+      const filters: Array<[string, unknown]> = [];
+      if (table === 'matches') (opts.capture.boutFilters ??= []).push(filters);
       const chain: Record<string, unknown> = {
         select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockImplementation((column: string, value: unknown) => {
+          filters.push([column, value]);
+          return chain;
+        }),
         order: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue(result),
         single: vi.fn().mockResolvedValue(result),
@@ -130,5 +141,40 @@ describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
   it('refuses to roll back a version a tournament still references', async () => {
     fromMock.mockImplementation(durabilityDispatch({ tournamentCount: 1, capture: {} }));
     await expect(service.rollback('r1', 'v1', 'actor-1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // The Tournament moved to another ruleset after its bouts were fought under this version. Edited,
+  // a correction of one of those bouts was decided by the new formula, and nothing said so.
+  const freezeDoors = {
+    update: () => service.update('r1', { name: 'Renamed' }, 'actor-1'),
+    unpublish: () => service.unpublish('r1', 'actor-1'),
+    rollback: () => service.rollback('r1', 'v1', 'actor-1'),
+  };
+  it.each(Object.keys(freezeDoors) as Array<keyof typeof freezeDoors>)(
+    'refuses %s while a bout still carries this version, its Tournament gone elsewhere',
+    async (door) => {
+      const capture: Parameters<typeof durabilityDispatch>[0]['capture'] = {};
+      fromMock.mockImplementation(
+        durabilityDispatch({ tournamentCount: 0, boutCount: 2, capture }),
+      );
+      await expect(freezeDoors[door]()).rejects.toBeInstanceOf(ConflictException);
+      expect(capture.update).toBeUndefined();
+      // Asked about this version, not about the code: another version's bouts do not freeze it.
+      expect(capture.boutFilters).toContainEqual([
+        ['ruleset_code', 'custom_x'],
+        ['ruleset_version', '1.0.0'],
+      ]);
+    },
+  );
+
+  // "Could not count" is not "no one uses it": read as 0, the edit went through.
+  it.each([
+    ['Tournaments', { countError: { message: 'connection reset' } }],
+    ['bouts', { boutCountError: { message: 'connection reset' } }],
+  ])('refuses an edit when the %s cannot be counted', async (_who, failure) => {
+    const capture: Parameters<typeof durabilityDispatch>[0]['capture'] = {};
+    fromMock.mockImplementation(durabilityDispatch({ tournamentCount: 0, ...failure, capture }));
+    await expect(freezeDoors.update()).rejects.toThrow('connection reset');
+    expect(capture.update).toBeUndefined();
   });
 });

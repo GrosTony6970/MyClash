@@ -49,11 +49,15 @@ interface Written {
 }
 
 /** Every table answers `row`; a Tournament count answers `pinned`. Writes are kept. */
-function serviceOver(row: Record<string, unknown>, pinned = 0) {
+function serviceOver(row: Record<string, unknown>, pinned = 0, bouts = 0) {
   const written: Written = { inserts: [], updates: [], counts: [] };
   const from = vi.fn().mockImplementation((table: string) => {
     const answer =
-      table === 'tournaments' ? { count: pinned, error: null } : { data: row, error: null };
+      table === 'tournaments'
+        ? { count: pinned, error: null }
+        : table === 'matches'
+          ? { count: bouts, error: null }
+          : { data: row, error: null };
     const filters: Filters = [];
     if (table === 'tournaments') written.counts.push(filters);
     const chain: Record<string, unknown> = {
@@ -141,6 +145,13 @@ describe('the end decision a club formula ruleset is written with', () => {
 
   it('publishing a version a Tournament already scores with keeps the one it is scored under', async () => {
     const { service, written } = serviceOver(formulaRow(), 1);
+    await service.publish('r1', 'actor-1');
+    expect(editionUpdates(written)).toEqual([]);
+    expect(inserted(written, 'custom_ruleset_versions')?.decision_edition).toBe('2026-04');
+  });
+
+  it('so does one only bouts still carry, their Tournament moved to another ruleset', async () => {
+    const { service, written } = serviceOver(formulaRow(), 0, 3);
     await service.publish('r1', 'actor-1');
     expect(editionUpdates(written)).toEqual([]);
     expect(inserted(written, 'custom_ruleset_versions')?.decision_edition).toBe('2026-04');
