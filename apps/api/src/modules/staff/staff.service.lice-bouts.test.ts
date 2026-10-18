@@ -35,6 +35,8 @@ const bout = (id: string, over: Record<string, unknown> = {}) => ({
   blue_registration_id: `blue-${id}`,
   red_score: 0,
   blue_score: 0,
+  // Its copy of its rules (0229): no format set.
+  match_rules: { ruleset_config: {} },
   ...over,
 });
 
