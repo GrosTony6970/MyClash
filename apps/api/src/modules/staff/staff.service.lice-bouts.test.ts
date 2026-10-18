@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
 import { liceBouts } from './lice-bouts';
@@ -35,13 +35,24 @@ const bout = (id: string, over: Record<string, unknown> = {}) => ({
   blue_registration_id: `blue-${id}`,
   red_score: 0,
   blue_score: 0,
-  // Its copy of its rules (0229): no format set.
-  match_rules: { ruleset_config: {} },
+  // Its copy of its rules (0229): no format set, no card rules pinned.
+  match_rules: { ruleset_config: {}, scoring_config_json: {}, penalty_ruleset_id: null },
   ...over,
 });
 
+/** A bout as the pad gets it: its copy is not sent as read (`withBoutRules`). */
+const withoutCopy = ({ match_rules: _copy, ...row }: Record<string, unknown>) => row;
+
 const BOUTS = [
-  bout('swiss', { scheduled_at: at(30), ruleset_version: '1.1.0' }),
+  bout('swiss', {
+    scheduled_at: at(30),
+    ruleset_version: '1.1.0',
+    match_rules: {
+      ruleset_config: { matchFormat: { pointCap: 7 } },
+      scoring_config_json: { afterblowMode: 'deductive' },
+      penalty_ruleset_id: 'cards-swiss',
+    },
+  }),
   bout('bracket', { scheduled_at: at(20), status: 'completed', red_score: 5, blue_score: 3 }),
   // Same hour as `pool`, and a higher number: text order would put it first.
   bout('late', { match_number_label: 'L1-P1-M10' }),
@@ -120,10 +131,52 @@ describe('StaffService.getAssignedLiceBouts', () => {
     ]);
   });
 
-  it('gives a bout no edition when no resolver is there to read it', async () => {
+  // Ruling K: each bout carries its own copy's rules, as `GET /matches/:id` gives them.
+  it('gives each bout the rules of its own copy', async () => {
+    const { svc } = build({ withResolver: true });
+
+    const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
+    const rulesOf = (id: string) => bouts.find((entry) => entry.match['id'] === id)!.match['rules'];
+
+    expect(rulesOf('swiss')).toMatchObject({
+      matchFormat: { pointCap: 7 },
+      afterblowMode: 'deductive',
+      cardRulesetId: 'cards-swiss',
+    });
+    expect(rulesOf('pool')).toMatchObject({
+      matchFormat: { pointCap: 10 },
+      afterblowMode: 'full',
+      cardRulesetId: null,
+    });
+    expect(bouts.every((entry) => !('match_rules' in entry.match))).toBe(true);
+  });
+
+  // One bad copy is that bout's fault, logged; the tablet still keeps the rest of its piste.
+  it('answers the other bouts when one copy holds a format the schema refuses', async () => {
+    const refused = bout('pool', {
+      match_rules: { ruleset_config: { matchFormat: { pointCap: 'x' } } },
+    });
+    const supabase = mockSupabase({
+      ...summarySeed(),
+      lices: { rows: [{ id: LICE, name: 'Lice 4' }] },
+      matches: { rows: [refused, BOUTS[2]!] },
+    });
+    const logger = { warn: vi.fn() };
+
+    const { bouts } = await liceBouts(supabase.service as never, LICE, builtInResolver(), logger);
+
+    expect(bouts.map((entry) => [entry.match['id'], 'rules' in entry.match])).toEqual([
+      ['pool', false],
+      ['late', true],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Bout pool'));
+  });
+
+  it('gives a bout no edition and no rules when no resolver is there to read them', async () => {
     const { svc } = build();
     const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
     expect(bouts.every((entry) => !('decision_edition' in entry.match))).toBe(true);
+    expect(bouts.every((entry) => !('rules' in entry.match))).toBe(true);
   });
 
   it('answers every bout of the piste in the order of the piste list', async () => {
@@ -149,7 +202,7 @@ describe('StaffService.getAssignedLiceBouts', () => {
     const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
     const played = bouts.find((entry) => entry.match['id'] === 'bracket')!;
 
-    expect(played.match).toEqual(BOUTS[1]);
+    expect(played.match).toEqual(withoutCopy(BOUTS[1]!));
     expect(played.summary).toMatchObject({
       roundCode: 'SBR-B-WBSF-M2',
       redName: 'Red bracket',
@@ -166,17 +219,19 @@ describe('StaffService.getAssignedLiceBouts', () => {
     const { bouts } = await svc.getAssignedLiceBouts(staffRequest(), LICE);
 
     expect(bouts.find((entry) => entry.match['id'] === 'late')).toEqual({
-      match: BOUTS[2],
+      match: withoutCopy(BOUTS[2]!),
       summary: null,
     });
   });
 
   // The double answers the whole row whatever is selected.
-  it('selects the whole row of a bout, as GET /matches/:id does', async () => {
+  it('selects the whole row of a bout and its copy, as GET /matches/:id does', async () => {
     const { svc, from } = build();
     await svc.getAssignedLiceBouts(staffRequest(), LICE);
 
-    expect(selectsFor(from, 'matches')[0]).toBe('*');
+    expect(selectsFor(from, 'matches')[0]).toBe(
+      '*, match_rules(ruleset_config, scoring_config_json, penalty_ruleset_id)',
+    );
     expect(selectsFor(from, 'lices')[0]).toBe('id,name');
   });
 

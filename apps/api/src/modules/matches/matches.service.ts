@@ -16,7 +16,7 @@ import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 // Value import: Nest needs the runtime class for DI metadata.
 import { RulesetResolver } from './ruleset-resolver.service';
-import { withDecisionEdition } from './bout-edition';
+import { withBoutRules } from './bout-answer';
 import { assertBoutTakes } from './bout-not-started';
 import { assertSavedAfterLastReset, type SavedHit } from './hit-before-reset';
 import { scoredAtServer } from './late-press';
@@ -123,14 +123,14 @@ export class MatchesService {
   async getMatch(matchId: string) {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('*')
+      .select('*, match_rules(ruleset_config, scoring_config_json, penalty_ruleset_id)')
       .eq('id', matchId)
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
-    // The pad decides as the server will: the edition of the bout's own version.
-    return withDecisionEdition(data as Record<string, unknown>, this.rulesets, this.logger);
+    // The pad decides as the server will: the bout's own rules and the edition it is decided with.
+    return withBoutRules(data as Record<string, unknown>, this.rulesets, this.logger);
   }
 
   /**

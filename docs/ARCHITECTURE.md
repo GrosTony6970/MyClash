@@ -918,8 +918,10 @@ after it is decided as it was fought (operator ruling "TF_v1 version", 2026-10-1
 - **The end decision is an edition.** `DecisionEdition` (`'2026-04' | '2026-10'`, `DECISION_EDITIONS`
   in `@myclash/rules`) is a required argument of every decider; a version carries its own
   (`Ruleset.decisionEdition`). The server sends a bout's edition with it (`decision_edition`, both
-  bout reads); the pad checks it with `isDecisionEdition` and decides an unknown or missing one with
-  `EDITION_2026_10`, and says so (§7.3).
+  bout reads, `withBoutRules`), and the bout's own rules (`rules`: the format, the afterblow mode,
+  the buttons and the card pin of its copy of its rules; ruling K, 2026-10-18); the pad checks the
+  edition with `isDecisionEdition` and decides an unknown or missing one with `EDITION_2026_10`, and
+  says so (§7.3).
 - **A club formula keeps the edition of its day.** `decision_edition` on `custom_rulesets` and
   `custom_ruleset_versions` (migration `0228`): a ruleset takes today's edition when it is created,
   and again when a version is published, unless a Tournament or a bout already uses that version;
