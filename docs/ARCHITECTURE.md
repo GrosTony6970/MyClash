@@ -854,7 +854,7 @@ before/after placings.
 
 ### 7bis.4 Immutability and delisting
 
-Two rules keep a pinned definition from shifting under a tournament:
+These rules keep a pinned definition from shifting under a tournament, or from leaving its club:
 
 - **Versions are snapshotted.** Publishing captures the payload immutably (`custom_ruleset_versions` for
   scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
@@ -868,6 +868,21 @@ Two rules keep a pinned definition from shifting under a tournament:
   says so), and triggers on `events` and `tournaments` hold it underneath (migration `0199`),
   including when an Event moves to another organisation with its Tournaments. An unchanged pin and
   version re-sent by an edit are let through, so a ruleset its owner stops sharing blocks nothing.
+- **A scoring ruleset pair stays in its club too.** A Tournament names a built-in, or a club
+  ruleset that is shared or its organisation's own and neither archived nor a draft (the API also
+  offers a platform draft to platform_admin and above, `draftsOfferedTo`). The API
+  applies it at its four pair doors (`usableRulesetVersion`, `apps/api/src/modules/events/events.service.ts`,
+  scoped by `SelectableRulesetsService.offeredVersion`), which also check the version; an archive
+  restore has its own wider scope (the club's own ruleset at any status, `assertRestoredRulesetsUsable`,
+  `apps/api/src/modules/exports/archive-rulesets.ts`). Underneath, triggers on `tournaments` and
+  `events` (migration `0224`, `ruleset_code_offered_to`) refuse any other code to a writer signed in
+  through PostgREST, a platform draft included. A ruleset code has one row across every owner (the
+  same migration's unique index), so a club's own row cannot borrow another club's code, nor a
+  built-in's, and the resolver never finds two. The triggers run after the row is written (RLS refuses a
+  writer without authority first), check the code, not the version, and exempt only the service role
+  (the API, its workers and the restore) and direct logins, which set no role (migrations, seed
+  scripts, the probes, an operator's session). An unchanged
+  pair re-sent by an edit, or kept on a move to another Event of the same club, is let through.
 - **Delist ≠ delete.** Deleting a ruleset that any tournament pins would 400 that tournament's
   standings, so the service **soft-archives** it instead: the row leaves every picker and list but stays
   resolvable forever. Only an unreferenced ruleset is truly deleted. System and default rulesets cannot

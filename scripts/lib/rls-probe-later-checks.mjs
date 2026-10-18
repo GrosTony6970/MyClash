@@ -6,6 +6,7 @@
 import { accountEmailsFailures } from './account-emails-probe.mjs';
 import { pushAddressFailures } from './push-address-probe.mjs';
 import { rosterHolderFailures } from './roster-holder-probe.mjs';
+import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
 
 /** What is wrong, as sentences; none when all is right. Each check leaves no row behind. */
 export async function laterCheckFailures(tx) {
@@ -13,5 +14,6 @@ export async function laterCheckFailures(tx) {
     ...(await accountEmailsFailures(tx)),
     ...(await pushAddressFailures(tx)),
     ...(await rosterHolderFailures(tx)),
+    ...(await rulesetPairFailures(tx)),
   ];
 }

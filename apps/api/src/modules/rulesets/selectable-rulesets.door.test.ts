@@ -112,21 +112,6 @@ describe('SelectableRulesetsService.offeredVersion', () => {
     );
   });
 
-  it('refuses to guess between two offered rows of one code: a server fault', async () => {
-    const { service, chain, resolve } = harness({
-      data: [
-        { code: 'custom_house', version: '1.0.0' },
-        { code: 'custom_house', version: '1.0.1' },
-      ],
-      error: null,
-    });
-    await expect(service.offeredVersion('org-1', 'custom_house', undefined)).rejects.toThrow(
-      'Two rulesets custom_house are offered',
-    );
-    expect(chain.limit).toHaveBeenCalledWith(2);
-    expect(resolve).not.toHaveBeenCalled();
-  });
-
   it('lets a failed resolve through as the failure it is', async () => {
     const { service, resolve } = harness(ROW);
     resolve.mockRejectedValue(new Error('connection reset'));

@@ -114,15 +114,11 @@ export class SelectableRulesetsService {
   ): Promise<string | null> {
     let query = this.offered(orgId, withDrafts).eq('code', code);
     if (version !== undefined) query = query.eq('version', version);
-    const { data, error } = await query.limit(2);
+    // A code has one row across every owner (migration 0224's unique index).
+    const { data, error } = await query.limit(1);
     const pair = version === undefined ? code : `${code}@${version}`;
     if (error) throw new Error(`Failed to read the ruleset ${pair}: ${error.message}`);
-    const rows = (data ?? []) as CandidateRow[];
-    // Every insert makes a fresh code, so one scope holds one row of a code;
-    // the schema allows two (0055's index), and which one to pin is then no
-    // read's to guess.
-    if (rows.length > 1) throw new Error(`Two rulesets ${pair} are offered; cannot tell which`);
-    const [row] = rows;
+    const [row] = (data ?? []) as CandidateRow[];
     if (!row) return null;
     return (await this.resolver.resolve(code, row.version)) ? row.version : null;
   }
