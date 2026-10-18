@@ -3026,6 +3026,10 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Versions   | Direct login        | A partner's tool gets its own database login and writes Tournaments directly; it never switches role.                    | **Keep direct logins exempt** (they need the database password); the comments say so.                                       |
 | Versions   | Fake tag            | Club A makes the decoy row, then picks Lyon's code in the normal app, which writes as the service role.                  | **The app says no too.** Superseded the same morning by "One tag", which makes the decoy impossible.                        |
 | Versions   | One tag             | A club copies Lyon's public code onto a private row of its own: the decoy rule then blocks Lyon from its own ruleset.    | **One code, one row** across every owner (a unique index); the decoy check and the "Fake tag" commit are dropped.           |
+| Versions   | Club version        | Club A publishes 1.0.1 with a cap of 10; a Tournament on its 1.0.0 with a cap of 7 moves to it.                          | **A built-in keeps the settings; a club's other version takes its content** (its version is its content).                   |
+| Versions   | Penalty door        | A club admin rewrites a card's cost under a running Tournament, straight through the database's web door.                | **Close it**, in its own commit (as 0225).                                                                                  |
+| Versions   | Flake evidence      | The share-button test fails on CI about half the time and never here; CI keeps only the error line.                      | **Keep a trace** of every failing browser test. The fix ("fix it now", 13:00) waits on the first trace.                     |
+| Versions   | Re-pin log          | A super admin rewrites a re-pin's record (its reason, the placings before and after) through the web door.               | **Only the app writes it** (as 0225).                                                                                       |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
@@ -3038,6 +3042,10 @@ draft" (01:28) were asked in the same session, during the restore refusal (`18b9
 migration `0224`, whose three reviewers each found the decoy on a replay; "Exempt list" and "Super
 admin" (04:30) after its second; "Fake tag" and "Direct login" (06:00) after its third; "One tag"
 (11:40) after its fourth, which found that the decoy rule let a squatter block a club's own code.
+"Club version" (12:30) was asked during versions commit 6 (`4238621d`); "Penalty door" and "fix it
+now" (13:00) after the cold review of migration `0225`, which found the penalty rulesets open the
+same way; "Flake evidence" (14:50) after CI lost a share-button test on two attempts of `010c3ca7`;
+"Re-pin log" (15:20) after the cold review of `0226`.
 
 ### Built on 2026-10-16: the server pass, first batch
 
@@ -3346,6 +3354,43 @@ Named, not fixed:
 - The `is_system` mirror rows are not kept in step with `BUILT_IN_RULESETS`; `matches.ruleset_code`
   can still be written through PostgREST under its own policy; the restore preview says
   `canRestore: true` where the restore then refuses.
+
+### Built on 2026-10-18: a version move, and three more web doors closed
+
+A Tournament on TF_v1 1.0.0 with a cap of 7 that moved to 1.1.0 lost its settings: every door
+seeded them again from the defaults. And three tables a running Tournament depends on could still be
+written straight through the database's web door, past the app's checks.
+
+| Commit     | What it does                                                                                                                                                                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `4238621d` | Versions commit 6: a built-in's version move keeps the settings; a club ruleset's other version takes its content (rulings "A version move", "Club version"). One owner, `settingsAfterMove`, for the PATCH swap, the audited re-pin and its preview. |
+| `8e968196` | Migration `0225`: only the app writes club scoring rulesets and their versions (ruling "Club ruleset door").                                                                                                                                          |
+| `9454aaa6` | CI keeps the trace of a failing browser test in `playwright-report/` (ruling "Flake evidence").                                                                                                                                                       |
+| `209077d1` | Migration `0226`: only the app writes penalty rulesets, their entries and their versions (ruling "Penalty door").                                                                                                                                     |
+| `3992d351` | Migration `0227`: only the app writes the record of a mid-event re-pin (ruling "Re-pin log").                                                                                                                                                         |
+
+What ran, per commit: cold reviews to no blocker and no major; falsifiers 17 of 17, 11 of 11,
+11 of 11 and 10 of 10; the gate chain (31 of 31); for each migration, red first (a replay without it
+makes the RLS probe name its tables), then a fresh PG17 replay with the RLS and merge probes. The
+trace setting was proved with a throwaway failing spec. API coverage (673 files / 8690 tests) and the
+browser suite (440 of 440) ran on the tree of `9454aaa6`.
+
+Closed since they were named above: a club setting `public_visibility` or `status` on its own
+ruleset row through PostgREST (`0225` revokes the writes).
+
+Named, not fixed:
+
+- The db tests of `0216`, `0225` and `0226` miss a grant that names another table first
+  (`grant … on public.a, public.<table>`; the test of `0227` has the fix), and none reads who gets
+  the grant. TRUNCATE stays granted to anon and authenticated on every table (PostgREST cannot
+  issue it).
+- The re-pin lamps (`diffRulesetBuckets`) say "unchanged" for a TF_v1 1.0.0 → 1.1.0 re-pin (the
+  end-decision edition is in no bucket) and for a club version re-pin (both sides read the current
+  row).
+- A club version move takes the new settings but not the scoring buttons, which are built at create
+  only. `resolveRulesetConfigDefaults` reads a club ruleset's current row whatever version is named
+  (no door offers an older one today).
+- `ruleset_submissions`: nothing writes it (the intake path was retired); it could be dropped.
 
 ### Fixed since they were named
 
