@@ -84,10 +84,11 @@ test('a bout opened from the tablet names its own next bout, to the end of the p
   await expect(page.getByRole('link', { name: /Ana Red|Eli Third/ })).toHaveCount(0);
 });
 
-// A copy with no rules would open with the default buttons and say nothing: a
-// +2 tapped where the Tournament says +3 is stored as a 2. So the tablet keeps
-// no bout of a Tournament whose rules it does not hold, and says "not loaded".
-test('a bout whose rules the tablet does not hold is not opened from the tablet', async ({
+// The bout carries its own rules, but its Tournament's display does not ride
+// with it: a copy with the default side colours over the Tournament's own is a
+// hit given to the wrong side. So the tablet keeps no bout of a Tournament
+// whose `/match-config` it does not hold, and says "not loaded".
+test('a bout whose Tournament’s display the tablet does not hold is not opened from the tablet', async ({
   page,
 }) => {
   const stub = await openFirstBout(page, { rules: false });

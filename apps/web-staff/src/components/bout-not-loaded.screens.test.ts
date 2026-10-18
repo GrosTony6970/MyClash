@@ -55,7 +55,7 @@ describe('the page’s read of the bout', () => {
 
   it('keeps the bout the server gave, and forgets the one it said is gone', () => {
     expect(page).toMatch(
-      /if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);[^}]*if \(answer\.kind === 'gone'\) void forgetBout\(matchId\)\.catch\(\(\) => undefined\);\s+return;\s+\}\s+setShown\(\{ match: answer\.match, readAt: null \}\);/,
+      /if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);[^}]*if \(answer\.kind === 'gone'\) void forgetBout\(matchId\)\.catch\(\(\) => undefined\);\s+return;\s+\}\s+\/\/[^\n]*\s+setShown\(\(now\) => \(\{ match: withHeldRules\(answer\.match, now\?\.match\), readAt: null \}\)\);/,
     );
     // A bout with no names is shown, and not kept over a copy that has them.
     expect(page).toContain(

@@ -17,6 +17,7 @@
  */
 import type { MatchInfo } from '../components/MatchView';
 import type { ClockState } from '../components/scoreboard-clock';
+import { withHeldRules } from '../lib/bout-read';
 import { db } from './db';
 
 const keyOf = (matchId: string) => `bout/${matchId}`;
@@ -50,14 +51,19 @@ export async function keepBout(match: MatchInfo, askedAt: number = Date.now()): 
  * send. So an answer never replaces a copy of a LATER ask. Read and written
  * in one transaction, or another write could land between the two.
  *
- * The copy takes the time of the ask: that is how old its word is.
+ * The copy takes the time of the ask: that is how old its word is. An answer
+ * without the bout's rules keeps the rules the copy holds (`withHeldRules`).
  */
 export async function keepBoutsAskedAt(matches: MatchInfo[], askedAt: number): Promise<number> {
   return db.transaction('rw', db.reads, async () => {
     const paths = matches.map((match) => keyOf(match.id));
     const held = await db.reads.bulkGet(paths);
     const rows = matches
-      .map((match, i) => ({ path: paths[i]!, body: match, fetchedAt: askedAt }))
+      .map((match, i) => ({
+        path: paths[i]!,
+        body: withHeldRules(match, held[i]?.body as MatchInfo | undefined),
+        fetchedAt: askedAt,
+      }))
       .filter((_row, i) => !held[i] || held[i].fetchedAt <= askedAt);
     await db.reads.bulkPut(rows);
     return rows.length;

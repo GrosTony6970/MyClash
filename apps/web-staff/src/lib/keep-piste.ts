@@ -1,6 +1,7 @@
 /**
- * Reads the piste and keeps it on the tablet: its bouts, their order, and the
- * rules and the penalty catalogue of each Tournament on it (quick-win ruling 4).
+ * Reads the piste and keeps it on the tablet: its bouts with their own rules,
+ * their order, the `/match-config` of each Tournament on it and the penalty
+ * catalogue of each card ruleset its bouts name (quick-win ruling 4).
  *
  * Story. The wifi drops at piste 2 for forty minutes. Bout 1 ends on the tablet
  * and the official taps "Next match". The tablet had kept a bout only after its
@@ -10,11 +11,11 @@
  * WHICH BOUTS ARE KEPT. A copy read ahead is the bout's row and its names,
  * with no clock, no hits and no cards. That is the whole truth of a bout NOT
  * STARTED, and of no other. So a bout is kept when:
- *   - the tablet holds the scoring rules of its Tournament. A copy with no
- *     rules opens with the default buttons and says nothing: a +2 tapped where
- *     the Tournament says +3 is stored as a 2. A bout with no summary names no
- *     Tournament, so it has no rules, and no names either: the bout screen
- *     does not keep such a bout;
+ *   - it carries its own rules (ruling K), and the tablet holds its
+ *     Tournament's `/match-config`, the display. A copy with neither opens with
+ *     the default buttons: a +2 tapped where the bout says +3 is stored as a 2.
+ *     A bout with no summary names no Tournament, so it has no display, and no
+ *     names either: the bout screen does not keep such a bout;
  *   - it is not started, or the tablet holds its clock (its own screen opened
  *     it, and keeps its clock and its lists). A bout in play on another tablet,
  *     read ahead, would open here at 0:00 with Start and no double counted.
@@ -30,26 +31,43 @@ import type { MatchInfo } from '../components/MatchView';
 import { clocksHeld, keepBoutsAskedAt } from '../offline/kept-bout';
 import { keepPiste } from '../offline/kept-piste';
 import { readMatchConfig } from './match-config-read';
-import { readPenaltyCatalogue } from './penalty-catalogue';
+import { cardCatalogueKey, readPenaltyCatalogue } from './penalty-catalogue';
 import { readPiste, type PisteRead } from './piste-read';
 
 /**
- * The Tournaments of these bouts whose rules the tablet holds after asking for
- * them: just read, or kept from before. The catalogue is asked beside them, by
- * one bout per Tournament; without it the penalty picker is empty, which the
- * official sees.
+ * The Tournaments of these bouts whose `/match-config` the tablet holds after
+ * asking for it, just read or kept from before: their display (the side
+ * colours tell the referee which side to tap) and the rules of a bout read
+ * without its own.
  */
-async function tournamentsWithRules(apiUrl: string, bouts: MatchInfo[]): Promise<Set<string>> {
-  const firstOf = new Map<string, string>();
-  for (const { id, tournamentId } of bouts) {
-    if (tournamentId && !firstOf.has(tournamentId)) firstOf.set(tournamentId, id);
-  }
+async function tournamentsWithConfig(apiUrl: string, bouts: MatchInfo[]): Promise<Set<string>> {
+  const tournaments = new Set<string>();
+  for (const { tournamentId } of bouts) if (tournamentId) tournaments.add(tournamentId);
   const held = new Set<string>();
-  for (const [tournamentId, matchId] of firstOf) {
+  for (const tournamentId of tournaments) {
     if (await readMatchConfig(apiUrl, tournamentId)) held.add(tournamentId);
-    await readPenaltyCatalogue(apiUrl, matchId, tournamentId);
   }
   return held;
+}
+
+/**
+ * The penalty catalogue of each card ruleset the bouts' rules name, asked by one
+ * bout each (`penalty-catalogue.ts`). A bout read without its rules is not kept,
+ * so its catalogue is not asked. Without one the penalty picker is empty, which
+ * the official sees. A catalogue not read (the tablet's store refusing it) keeps
+ * nothing from being kept.
+ */
+async function keepCatalogues(apiUrl: string, bouts: MatchInfo[]): Promise<void> {
+  const firstOf = new Map<string, MatchInfo>();
+  for (const bout of bouts) {
+    if (!bout.rules) continue;
+    const cardKey = cardCatalogueKey(bout.rules.cardRulesetId);
+    if (!firstOf.has(cardKey)) firstOf.set(cardKey, bout);
+  }
+  for (const [cardKey, bout] of firstOf) {
+    const keys = { cardKey, tournamentId: bout.tournamentId };
+    await readPenaltyCatalogue(apiUrl, bout.id, keys).catch(() => null);
+  }
 }
 
 /**
@@ -67,11 +85,14 @@ export async function keepPisteOf(
   const read = await readPiste(apiUrl, liceId, fetchFn);
   if (read.kind !== 'piste') return read.kind;
 
-  const ruled = await tournamentsWithRules(apiUrl, read.bouts);
+  const configured = await tournamentsWithConfig(apiUrl, read.bouts);
+  await keepCatalogues(apiUrl, read.bouts);
   const opened = await clocksHeld(read.bouts.map((bout) => bout.id));
   const whole = read.bouts.filter(
     (bout) =>
-      ruled.has(bout.tournamentId ?? '') && (bout.status === 'scheduled' || opened.has(bout.id)),
+      bout.rules !== undefined &&
+      configured.has(bout.tournamentId ?? '') &&
+      (bout.status === 'scheduled' || opened.has(bout.id)),
   );
   await keepBoutsAskedAt(whole, askedAt);
   await keepPiste(

@@ -282,7 +282,7 @@ export interface UndoNotice {
  * A GET response held on the tablet so the pad can seed from it before the
  * network answers — and instead of the network, when there is none.
  *
- * Setup data: the tournament's scoring rules and its penalty catalogue. The
+ * Setup data: a Tournament's config and the penalty catalogues. The
  * service worker deliberately caches no /api/ response, and the reason is that
  * serving a stale score as the server's is worse than serving none. Serving a
  * stale BUTTON is not: the alternative is the federal default, which is

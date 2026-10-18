@@ -821,7 +821,7 @@
     "apps/web-staff/src/components/MatchHeader.tsx:74",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:100",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:186",
-    "apps/web-staff/src/components/MatchView.tsx:120",
+    "apps/web-staff/src/components/MatchView.tsx:122",
     "apps/web-staff/src/components/ScoringCenterControls.tsx:136",
     "apps/web-staff/src/components/ScoringColumn.tsx:108",
     "apps/web-staff/src/hooks/useMatchScoringData.ts:104",

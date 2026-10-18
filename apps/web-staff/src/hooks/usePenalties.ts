@@ -93,8 +93,10 @@ export function usePenalties(
   apiUrl: string,
   matchId: string | null | undefined,
   refreshKey: number,
-  /** The bout's Tournament: the catalogue is kept by it (`penalty-catalogue.ts`). */
+  /** The bout's Tournament: the catalogue is kept by it too (`penalty-catalogue.ts`). */
   tournamentId?: string | null,
+  /** Where the catalogue of the bout's own card rules is kept; null without its rules. */
+  cardKey?: string | null,
 ): UsePenaltiesResult {
   const [ruleset, setRuleset] = useState<PenaltyRuleset | null>(null);
   const [scope, setScope] = useState<PenaltyScope | null>(null);
@@ -111,7 +113,12 @@ export function usePenalties(
       // The catalogue is SETUP data — which entries exist and what card each
       // one carries — so it is cached on the tablet. Without it an offline pad
       // shows an empty penalty picker and no referee can card anyone.
-      readPenaltyCatalogue<PenaltyRuleset | null>(apiUrl, matchId, tournamentId, controller.signal),
+      readPenaltyCatalogue<PenaltyRuleset | null>(
+        apiUrl,
+        matchId,
+        { cardKey, tournamentId },
+        controller.signal,
+      ),
       // The cards themselves are live match state. With no network the read
       // gives the rows the tablet kept, under the bout's own rule: a copy is
       // shown only when the server cannot be reached (`bout-list-read.ts`).
@@ -143,7 +150,7 @@ export function usePenalties(
         setLoading(false);
       });
     return () => controller.abort();
-  }, [apiUrl, matchId, tournamentId]);
+  }, [apiUrl, matchId, tournamentId, cardKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() kicks off the fetch (sets loading); intentional on mount/refresh.

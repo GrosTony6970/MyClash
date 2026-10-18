@@ -47,6 +47,15 @@ describe('the copy of a bout the tablet keeps', () => {
     expect((await keptBout('bout-1'))?.match.redScore).toBe(5);
   });
 
+  // A later answer without the bout's rules (a passing fault of the server) keeps the copy's.
+  it('keeps the rules it holds when a newer read carries none', async () => {
+    const rules = { cardRulesetId: 'cards-a' } as MatchInfo['rules'];
+    await keepBout({ ...BOUT, rules });
+    await keepBout({ ...BOUT, redScore: 5 });
+
+    expect((await keptBout('bout-1'))?.match).toMatchObject({ redScore: 5, rules });
+  });
+
   it('is kept per bout', async () => {
     await keepBout(BOUT);
     await keepBout({ ...BOUT, id: 'bout-2', redFighterName: 'Cy Next' });

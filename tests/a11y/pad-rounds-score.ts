@@ -71,3 +71,14 @@ export const rulesOf = (countdown: boolean, pointCap: number) => ({
     scoringDirection: countdown ? 'reverse_zero_loses' : 'normal',
   },
 });
+
+/** The same rules as a bout read carries them (`rules`, ruling K), pinning the built-in cards. */
+export const boutRules = (countdown: boolean, pointCap: number) => {
+  const { scoringConfig, matchFormat } = rulesOf(countdown, pointCap);
+  return {
+    matchFormat,
+    afterblowMode: scoringConfig.afterblowMode,
+    buttons: scoringConfig.buttons,
+    cardRulesetId: null,
+  };
+};

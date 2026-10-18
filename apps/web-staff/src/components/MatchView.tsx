@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
@@ -28,12 +28,11 @@ import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import {
-  DEFAULT_MATCH_FORMAT_CONFIG,
-  DEFAULT_SCORING_CONFIG,
-  pointCapWinnerColor,
-} from '@myclash/types';
+import { pointCapWinnerColor } from '@myclash/types';
 import { editionOf } from '../lib/bout-edition';
+import type { PadBoutRules } from '../lib/bout-read';
+import { rulesOnPad, settledConfig, type HeldMatchConfig } from '../lib/bout-rules';
+import { cardCatalogueKey } from '../lib/penalty-catalogue';
 import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
@@ -94,6 +93,9 @@ export interface MatchInfo {
   /** The end-decision edition of the bout's ruleset version, as the server sent it
    *  (or a kept copy holds it). Read it through `editionOf`, never directly. */
   decisionEdition?: string;
+  /** The bout's own rules (`PadBoutRules`); none on a bout kept before they were sent, or when
+   *  the server could not build them. Read them through `rulesOnPad`, never directly. */
+  rules?: PadBoutRules;
 }
 
 export interface MatchViewProps {
@@ -165,9 +167,6 @@ export function MatchView({
       controller.abort();
     };
   }, [apiUrl, match.id]);
-  const [scoringConfig, setScoringConfig] =
-    useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
-  const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(DEFAULT_MATCH_FORMAT_CONFIG);
   const [clockLoading, setClockLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   // The clock on screen: the server's last answer plus the presses this
@@ -201,22 +200,21 @@ export function MatchView({
   const [resultDismissed, setResultDismissed] = useState(false);
 
   /**
-   * The tournament's scoring rules — the buttons the referee presses.
+   * The rules the referee presses, and the display around them.
    *
-   * Cached on the tablet, because the failure mode here is silent and
-   * permanent. This state starts at DEFAULT_SCORING_CONFIG (+2/+1, deductive)
-   * and the fetch was guarded `if (res.ok)`, so a failure left the federal
-   * default in place and said nothing. The match and the config are separate
-   * requests: on a weak hall network one lands and the other does not, and the
-   * pad then renders a working scoring surface with the WRONG buttons. A
-   * referee taps +2 on a tournament whose ruleset says +3, a 2 is queued, a 2
-   * is stored, and nothing ever mentions it.
+   * The bout's own rules ride on the bout read (`match.rules`); its
+   * Tournament's `/match-config` gives the display, and the rules of a bout
+   * read without its own (`rulesOnPad`). Cached on the tablet, because the
+   * failure mode here is silent and permanent: the match and the config are
+   * separate requests, on a weak hall network one lands and the other does not,
+   * and a pad on the default +2/+1 under a ruleset that says +3 queues a 2,
+   * stores a 2, and nothing ever mentions it.
    *
-   * `configStale` drives the notice: seeded from the tablet, not confirmed with
-   * the server. Better than the default in every case, and unlike the default
-   * it admits what it is.
+   * `configStale` drives the notice: the rules are not the bout's own, or the
+   * display came off the tablet. Better than the default in every case, and
+   * unlike the default it admits what it is.
    */
-  const [configStale, setConfigStale] = useState(false);
+  const [config, setConfig] = useState<HeldMatchConfig | null | undefined>(undefined);
   useEffect(() => {
     if (!match.tournamentId) return;
     const controller = new AbortController();
@@ -225,16 +223,20 @@ export function MatchView({
       scoringConfig: TournamentScoringConfig;
       matchFormat: MatchFormatConfig;
     }>(apiUrl, match.tournamentId, controller.signal).then((result) => {
-      if (cancelled || !result) return;
-      setScoringConfig(result.body.scoringConfig);
-      setMatchFormat(result.body.matchFormat);
-      setConfigStale(!result.fresh);
+      if (cancelled) return;
+      setConfig(result && { ...result.body, fresh: result.fresh });
     });
     return () => {
       cancelled = true;
       controller.abort();
     };
   }, [match.tournamentId, apiUrl]);
+  const heldConfig = settledConfig(match.tournamentId, config);
+  const {
+    scoringConfig,
+    matchFormat,
+    stale: configStale,
+  } = useMemo(() => rulesOnPad(match.rules, heldConfig), [match.rules, heldConfig]);
 
   /**
    * The score, plus what the tablet is still holding.
@@ -271,6 +273,7 @@ export function MatchView({
     apiUrl,
     matchId: match.id,
     tournamentId: match.tournamentId,
+    cardKey: match.rules ? cardCatalogueKey(match.rules.cardRulesetId) : null,
     refreshKey,
     config: scoringConfig,
     syncPendingCount: syncState?.pendingCount ?? 0,
@@ -764,10 +767,10 @@ export function MatchView({
         </div>
       )}
 
-      {/* The buttons below came off the tablet, not the server. Said out loud
-          because the alternative this replaced was the federal default arming
-          itself in silence — and a referee cannot tell +2 from +3 by looking
-          at a button that says +2. */}
+      {/* The buttons below are not the bout's own as the server just said
+          (`rulesOnPad`). Said out loud because the alternative this replaced
+          was the federal default arming itself in silence — and a referee
+          cannot tell +2 from +3 by looking at a button that says +2. */}
       {configStale && (
         <div className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning">
           {t('scoring.match.configFromCache')}

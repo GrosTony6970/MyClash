@@ -8,7 +8,7 @@
  * 503 with `{ error: 'offline' }`.
  */
 import { expect, type Page, type Route } from '@playwright/test';
-import { rulesOf } from './pad-rounds-score';
+import { boutRules, rulesOf } from './pad-rounds-score';
 
 export const PAD = 'http://localhost:3002';
 export const LICE = 'lice-1';
@@ -20,7 +20,7 @@ const NAMES: Record<string, [string, string]> = {
   'match-3': ['Eli Third', 'Fay Third'],
 };
 
-const row = (id: string, redScore: number) => ({
+const row = (id: string, redScore: number, rules: PisteStub['boutRules']) => ({
   id,
   match_number_label: `L1-P1-M${id.slice(-1)}`,
   status: id === 'match-1' ? 'running' : 'scheduled',
@@ -40,6 +40,8 @@ const row = (id: string, redScore: number) => ({
   blue_round_wins: 0,
   rounds_json: null,
   awaiting_round_advance: false,
+  // Its own rules (ruling K): the tablet keeps no bout read without them.
+  ...(rules ? { rules: rules(id) } : {}),
 });
 
 const summary = (id: string) => ({
@@ -76,8 +78,12 @@ export interface PisteStub {
   pisteRedScore: number | null;
   /** Every request that is not a read, by method and path. */
   sent: string[];
-  /** Whether the server gives the Tournament's rules. */
+  /** Whether the server gives the Tournament's `/match-config` (its display). */
   rules: boolean;
+  /** The rules each bout read carries, by bout (`rules`, ruling K); null: read without them. */
+  boutRules: ((id: string) => unknown) | null;
+  /** The penalty catalogue each bout's card rules give, by bout; none answers null. */
+  catalogues: Record<string, unknown>;
   /** How many times the whole piste was asked. */
   pisteReads: number;
   /** Set to hold the answer of the piste read; call it to let the answer go. */
@@ -95,7 +101,7 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
       liceId: LICE,
       liceName: 'Piste 2',
       bouts: ORDER.map((id) => ({
-        match: row(id, stub.pisteRedScore ?? stub.redScore),
+        match: row(id, stub.pisteRedScore ?? stub.redScore, stub.boutRules),
         summary: summary(id),
       })),
     };
@@ -104,8 +110,8 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
     return undefined;
   }
   if (path.endsWith('/api/v1/me')) return route.fulfill({ json: { type: 'anonymous' } });
-  // The Tournament's rules: the tablet keeps no bout of a Tournament whose
-  // rules it does not hold. A story may take them away.
+  // The Tournament's config: the tablet keeps no bout of a Tournament whose
+  // display it does not hold. A story may take it away.
   if (path.endsWith('/match-config')) {
     return stub.rules ? route.fulfill({ json: rulesOf(false, 5) }) : route.fulfill(OFFLINE);
   }
@@ -114,12 +120,15 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
     const at = ORDER.indexOf(bout);
     return route.fulfill({ json: { previous: tile(ORDER[at - 1]), next: tile(ORDER[at + 1]) } });
   }
-  if (path.endsWith(`/matches/${bout}`)) return route.fulfill({ json: row(bout, stub.redScore) });
+  if (path.endsWith(`/matches/${bout}`)) {
+    return route.fulfill({ json: row(bout, stub.redScore, stub.boutRules) });
+  }
   if (path.endsWith('/summary')) return route.fulfill({ json: summary(bout) });
   if (path.endsWith('/exchanges') || path.endsWith('/penalties'))
     return route.fulfill({ json: [] });
   if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });
-  if (path.endsWith('/penalty-ruleset')) return route.fulfill({ json: null });
+  if (path.endsWith('/penalty-ruleset'))
+    return route.fulfill({ json: stub.catalogues[bout] ?? null });
   return route.fulfill({ status: 404, json: {} });
 }
 
@@ -131,6 +140,8 @@ export async function stubPiste(page: Page): Promise<PisteStub> {
     pisteRedScore: null,
     sent: [],
     rules: true,
+    boutRules: () => boutRules(false, 5),
+    catalogues: {},
     pisteReads: 0,
     holdPiste: false,
     releasePiste: () => undefined,
@@ -191,10 +202,10 @@ export function queuedFor(page: Page, matchId: string): Promise<number> {
 /** Opens bout 1 with the network up, and waits until the tablet holds its piste. */
 export async function openFirstBout(
   page: Page,
-  start: { rules?: boolean } = {},
+  start: Partial<Pick<PisteStub, 'rules' | 'boutRules' | 'catalogues'>> = {},
 ): Promise<PisteStub> {
   const stub = await stubPiste(page);
-  stub.rules = start.rules ?? true;
+  Object.assign(stub, start);
   await page.goto(`${PAD}/matches/match-1`);
   await expect(page.getByTestId('double-button')).toBeEnabled();
   await expect.poll(() => keptRow(page, `piste/${LICE}`)).toEqual(ORDER);

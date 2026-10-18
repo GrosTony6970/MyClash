@@ -20,7 +20,7 @@ import {
 } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
-import { readBout } from '../../../src/lib/bout-read';
+import { readBout, withHeldRules } from '../../../src/lib/bout-read';
 import { forgetBout, keepBout, keptBout } from '../../../src/offline/kept-bout';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { idFromPath, safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
@@ -200,7 +200,8 @@ export default function MatchScoringPage() {
         if (answer.kind === 'gone') void forgetBout(matchId).catch(() => undefined);
         return;
       }
-      setShown({ match: answer.match, readAt: null });
+      // An answer without the bout's rules keeps the rules on screen (`withHeldRules`).
+      setShown((now) => ({ match: withHeldRules(answer.match, now?.match), readAt: null }));
       // Kept for the next read that finds no network. A store that refuses the
       // write costs that convenience only. A bout read without its names (the
       // summary did not land) does not replace a copy that has them.

@@ -44,25 +44,30 @@ describe('the tablet keeps its piste', () => {
     }
   });
 
-  // The catalogue is kept by Tournament: a hook that asks without the bout's
-  // Tournament reads the per-bout key, which a bout never opened does not have.
-  it('hands the bout’s Tournament down to the read of the penalty catalogue', () => {
-    expect(read('src', 'components', 'MatchView.tsx')).toContain(
-      'tournamentId: match.tournamentId,',
+  // The catalogue is kept by the card rules the bout's own rules name, and as
+  // its Tournament's last: a hook that asks without them reads the per-bout
+  // key, which a bout never opened does not have.
+  it('hands the bout’s card rules and Tournament down to the read of the penalty catalogue', () => {
+    const view = read('src', 'components', 'MatchView.tsx');
+    expect(view).toContain('tournamentId: match.tournamentId,');
+    expect(view).toContain(
+      'cardKey: match.rules ? cardCatalogueKey(match.rules.cardRulesetId) : null,',
     );
     expect(read('src', 'hooks', 'useMatchScoringData.ts')).toContain(
-      'usePenalties(apiUrl, matchId, refreshKey, args.tournamentId);',
+      'usePenalties(apiUrl, matchId, refreshKey, args.tournamentId, args.cardKey);',
     );
     const penalties = read('src', 'hooks', 'usePenalties.ts');
-    expect(penalties).toContain(
-      'readPenaltyCatalogue<PenaltyRuleset | null>(apiUrl, matchId, tournamentId, controller.signal)',
-    );
-    expect(penalties).toContain('}, [apiUrl, matchId, tournamentId]);');
+    expect(penalties).toContain('{ cardKey, tournamentId },');
+    expect(penalties).toContain('}, [apiUrl, matchId, tournamentId, cardKey]);');
   });
 
   it('reads a Tournament’s rules through one function, on the bout screen too', () => {
     const view = read('src', 'components', 'MatchView.tsx');
     expect(view).toContain('}>(apiUrl, match.tournamentId, controller.signal).then((result) => {');
     expect(view).not.toContain('/api/v1/tournaments/');
+    // A bout naming no Tournament settles with no config: waiting forever would score on the
+    // defaults and never say so (`settledConfig`).
+    expect(view).toContain('const heldConfig = settledConfig(match.tournamentId, config);');
+    expect(view).toContain('rulesOnPad(match.rules, heldConfig)');
   });
 });

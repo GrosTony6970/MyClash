@@ -16,8 +16,23 @@
  *
  * Pure but for the fetch it is given.
  */
+import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import type { MatchInfo } from '../components/MatchView';
 import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
+
+/**
+ * The rules a bout scores with, from its own copy of its rules (ruling K, 2026-10-18: the bout
+ * read carries them; `withBoutRules` on the server builds them). A bout keeps the rules it
+ * started under, so these, not its Tournament's of now, are what the pad scores with. Display
+ * (side colours, quick penalties) is the Tournament's, read from `/match-config`.
+ */
+export interface PadBoutRules {
+  matchFormat: MatchFormatConfig;
+  afterblowMode: TournamentScoringConfig['afterblowMode'];
+  buttons: TournamentScoringConfig['buttons'];
+  /** The card ruleset the copy pins; null is the built-in. */
+  cardRulesetId: string | null;
+}
 
 export type BoutRead =
   /** `labelled` is false when the summary did not land: the bout has no names. */
@@ -50,8 +65,10 @@ export interface BoutRow {
   blue_round_wins: number | null;
   rounds_json: unknown;
   awaiting_round_advance: boolean | null;
-  /** Not a column: the edition of the bout's own version (`withDecisionEdition`). */
+  /** Not a column: the edition the server decides the bout with (`withBoutRules`). */
   decision_edition?: string;
+  /** Not a column: the bout's own rules. Left out when the server could not build them. */
+  rules?: PadBoutRules;
 }
 
 export interface BoutSummary {
@@ -143,5 +160,18 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     roundsJson: raw.rounds_json ?? null,
     awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
     decisionEdition: raw.decision_edition,
+    rules: raw.rules,
   };
+}
+
+/**
+ * The bout of a new answer, keeping the rules already held for it when the answer carries none.
+ * A started bout's copy never changes, and a scheduled bout's new copy arrives WITH its rules, so
+ * an answer without them is a passing server fault: it must not switch a running bout's +3
+ * buttons to its Tournament's +2. The rule `labelled` follows for the names, here for the rules;
+ * the screen's bout and the kept copy both go through it.
+ */
+export function withHeldRules(next: MatchInfo, held: MatchInfo | null | undefined): MatchInfo {
+  if (next.rules || !held?.rules || held.id !== next.id) return next;
+  return { ...next, rules: held.rules };
 }

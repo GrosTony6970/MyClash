@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { offlineResponse } from '../offline/failure-kind';
-import { readBout } from './bout-read';
+import type { MatchInfo } from '../components/MatchView';
+import { readBout, withHeldRules } from './bout-read';
 
 const ROW = {
   id: 'bout-1',
@@ -22,6 +23,12 @@ const ROW = {
   rounds_json: [{ round: 1 }],
   awaiting_round_advance: true,
   decision_edition: '2026-04',
+  rules: {
+    matchFormat: { pointCap: 5 },
+    afterblowMode: 'deductive',
+    buttons: { clean: [3, 1], afterblow: [1] },
+    cardRulesetId: 'cards-a',
+  },
 };
 const SUMMARY = {
   roundCode: 'LSW-P1-M3',
@@ -104,6 +111,8 @@ describe('readBout', () => {
         awaitingRoundAdvance: true,
         // The end decision of the bout's own version, as the server sent it.
         decisionEdition: '2026-04',
+        // The bout's own rules (ruling K), as the server sent them.
+        rules: ROW.rules,
       },
     });
   });
@@ -162,5 +171,28 @@ describe('readBout', () => {
     const { fetchFn } = answering(() => new Response('<html>Sign in to the wifi</html>'));
 
     expect(await readBout('https://api.test', 'bout-1', fetchFn)).toEqual({ kind: 'unreachable' });
+  });
+});
+
+describe('withHeldRules', () => {
+  const bout = (over: Partial<MatchInfo> = {}) =>
+    ({ id: 'bout-1', redScore: 3, ...over }) as MatchInfo;
+  const RULES = ROW.rules as unknown as MatchInfo['rules'];
+
+  // A passing fault of the server mid-bout must not switch +3 buttons to the Tournament's +2.
+  it('keeps the rules held for the bout when the new answer carries none', () => {
+    expect(withHeldRules(bout({ redScore: 4 }), bout({ rules: RULES }))).toEqual(
+      bout({ redScore: 4, rules: RULES }),
+    );
+  });
+
+  it('takes the new answer’s rules: a scheduled bout’s new copy', () => {
+    const newer = { ...RULES!, cardRulesetId: 'cards-b' };
+    expect(withHeldRules(bout({ rules: newer }), bout({ rules: RULES })).rules).toBe(newer);
+  });
+
+  it('never takes the rules of another bout, nor rules held by none', () => {
+    expect(withHeldRules(bout(), bout({ id: 'bout-2', rules: RULES })).rules).toBeUndefined();
+    expect(withHeldRules(bout(), null).rules).toBeUndefined();
   });
 });

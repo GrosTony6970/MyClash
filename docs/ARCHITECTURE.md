@@ -673,8 +673,9 @@ Additional rulesets are added by:
 **The pad never resolves a ruleset.** A tournament's scoring buttons are SEEDED
 into `tournaments.scoring_config_json` when the tournament is created
 (`buildScoringButtons` off the ruleset's grammar), and the pad renders that seed.
-It sends RAW button values; the server nets them under the tournament's afterblow
-mode at read.
+It sends RAW button values; the server nets them under the afterblow mode of the
+bout's copy of its rules (`afterblowModeOf`). Since foundation commit 4 the pad
+renders the buttons of that copy too, which the bout read carries (`rules`).
 
 That is the whole reason offline scoring works on a federation's own custom
 ruleset. `ruleset-resolver.service.ts` can fall back to a DB-driven
@@ -1620,23 +1621,32 @@ bouts is where an official sees that entries still wait.
   page tells this answer from a server that is up and answers 503
   (`answeredFault`, `neverLanded`). `offlineResponse()`
   (`offline/failure-kind.ts`) is the pad's copy of that body; a test pins the
-  two as one. Setup data (the tournament's scoring rules, the penalty
-  catalogue) is cached separately in IndexedDB by `offline/cached-reads.ts`.
+  two as one. Setup data (a Tournament's config, the penalty catalogues) is
+  cached separately in IndexedDB by `offline/cached-reads.ts`.
 - **The tablet keeps its whole piste** (quick-win ruling 4). While the piste
   list or a bout screen is open, `useKeepPiste` reads
   `GET /staff/lices/:liceId/bouts` at the opening, when the network or the tab
   comes back, and every five minutes (thirty seconds after a read that got no
   answer). `lib/keep-piste.ts` keeps the order of the piste
-  (`offline/kept-piste.ts`), the rules and the penalty catalogue of each
-  Tournament on it, and the bouts it can open WHOLE: a bout whose Tournament's
-  rules the tablet holds, and that is not started or whose clock the tablet
-  holds. A copy read ahead has no clock, no hits and no cards, which is the
-  truth of a bout not started only; a copy with no rules would open with the
-  default buttons. A bout that is not kept stays in the order, and its tile
-  leads to "not loaded". The penalty catalogue is kept by Tournament
-  (`lib/penalty-catalogue.ts`), so a bout never opened has it. An answer never
-  replaces a copy of a later ask (`keepBoutsAskedAt`): the piste read and the
-  bout screen's own read write the same copy.
+  (`offline/kept-piste.ts`), the `/match-config` of each Tournament on it (the
+  display), the penalty catalogue of each card ruleset its bouts name, and the
+  bouts it can open WHOLE: a bout that carries its own rules (the bout read
+  sends them, ruling K), whose Tournament's display the tablet holds, and that
+  is not started or whose clock the tablet holds. A copy read ahead has no
+  clock, no hits and no cards, which is the truth of a bout not started only; a
+  copy with no rules would open with its Tournament's of now. A bout that is
+  not kept stays in the order, and its tile leads to "not loaded". The penalty
+  catalogue is kept by the card ruleset the answer is, and as its Tournament's
+  last (`lib/penalty-catalogue.ts`), so a bout never opened has its own. An
+  answer never replaces a copy of a later ask (`keepBoutsAskedAt`), and one
+  without the bout's rules keeps the rules the copy holds (`withHeldRules`): the
+  piste read and the bout screen's own read write the same copy.
+- **A bout scores with its own rules** (foundation commit 4, rulings K and J).
+  The bout screen takes the buttons, the afterblow mode and the format from the
+  bout read (`rules`), and the display from its Tournament's `/match-config`
+  (`lib/bout-rules.ts`, `rulesOnPad`). A bout read without its own rules takes
+  its Tournament's as the tablet last read them, and the "not confirmed" notice
+  says so.
 - **The Next and Previous tiles** are the server's once it has answered for the
   bout on screen, and "no neighbour" is such an answer. Until then they come
   from the order the tablet keeps (`usePadNeighbours`), so a bout opened from

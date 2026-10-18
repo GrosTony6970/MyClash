@@ -2,15 +2,15 @@
  * Setup data the pad keeps on the tablet, so it can seed from the last good
  * answer instead of the federal default.
  *
- * WHY THIS EXISTS. The pad reads its scoring buttons from the tournament at
- * runtime, into state that starts at `DEFAULT_SCORING_CONFIG` — `+2`/`+1`,
- * deductive. The fetch is guarded `if (res.ok)`, so a failure leaves the
- * defaults and reports nothing, and the service worker caches no `/api/`
- * response at all. The match and the config are separate requests, so on a weak
- * hall network one lands and the other does not: the pad then renders a working
- * scoring surface with the wrong buttons. A referee taps `+2` on a tournament
- * whose ruleset says `+3`, a 2 is queued, a 2 is stored, and nothing ever says
- * so.
+ * WHY THIS EXISTS. The pad read its scoring buttons from the tournament at
+ * runtime, into state that started at `DEFAULT_SCORING_CONFIG` — `+2`/`+1`,
+ * deductive — and the service worker caches no `/api/` response at all. The
+ * match and the config are separate requests, so on a weak hall network one
+ * landed and the other did not: the pad rendered a working scoring surface with
+ * the wrong buttons. A referee tapped `+2` on a tournament whose ruleset says
+ * `+3`, a 2 was queued, a 2 was stored, and nothing ever said so. A bout's own
+ * rules now ride on its read (`PadBoutRules`); the Tournament's config, its
+ * display, is still kept here.
  *
  * WHAT IT DOES NOT DO. These functions serve setup data, never live match
  * state: a stale BUTTON beats a default that is silently wrong and equally
@@ -55,8 +55,8 @@ export async function writeCached(path: string, body: unknown): Promise<void> {
  * separates a real answer from a manufactured one.
  *
  * `key` is where the answer is kept. It is the path, but for an answer that
- * several paths give: the penalty catalogue is asked by bout and is the same
- * for every bout of a Tournament (`lib/penalty-catalogue.ts`).
+ * several paths give: the penalty catalogue is asked by bout and kept as its
+ * Tournament's last (`lib/penalty-catalogue.ts`).
  */
 export async function fetchWithCache<T>(
   apiUrl: string,

@@ -104,8 +104,11 @@ export interface MatchScoringData {
 export function useMatchScoringData(args: {
   apiUrl: string;
   matchId: string;
-  /** The bout's Tournament, when its summary was read: the penalty catalogue is kept by it. */
+  /** The bout's Tournament, when its summary was read: its catalogue is kept by it too. */
   tournamentId?: string | null;
+  /** Where the catalogue of the bout's own card rules is kept (`cardCatalogueKey`); null for a
+   *  bout read without its rules. */
+  cardKey?: string | null;
   refreshKey: number;
   config: TournamentScoringConfig;
   /**
@@ -137,7 +140,7 @@ export function useMatchScoringData(args: {
     priors,
     ruleSetCards,
     active: serverPenalties,
-  } = usePenalties(apiUrl, matchId, refreshKey, args.tournamentId);
+  } = usePenalties(apiUrl, matchId, refreshKey, args.tournamentId, args.cardKey);
   const activeExchanges = notTakenBack(serverExchanges, takenBack);
   const activePenalties = notTakenBack(serverPenalties, takenBack);
 

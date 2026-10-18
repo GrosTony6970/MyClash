@@ -7,12 +7,14 @@ import { keptPiste } from '../offline/kept-piste';
 import { readCached } from '../offline/cached-reads';
 import type { ClockState } from '../components/scoreboard-clock';
 import { keepPisteOf } from './keep-piste';
-import { catalogueKey, readPenaltyCatalogue } from './penalty-catalogue';
+import { cardCatalogueKey, catalogueKey, readPenaltyCatalogue } from './penalty-catalogue';
 import { readPiste } from './piste-read';
-import { PISTE, json } from './piste-read.fixtures';
+import { PISTE, json, row, rulesOf, summary } from './piste-read.fixtures';
 
 const CONFIG = { scoringConfig: { afterblowMode: 'full' }, matchFormat: { pointCap: 7 } };
-const CATALOGUE = { id: 'ruleset-1', name: 'House rules' };
+/** The catalogue a bout's card rules give: bout 2 pins card rules B, the others A (the fixture). */
+const catalogueOf = (matchId: string) =>
+  matchId === 'bout-2' ? { id: 'cards-b', name: 'Club rules' } : { id: 'cards-a', name: 'House' };
 const CLOCK = { status: 'halted' } as unknown as ClockState;
 
 type Answer = () => Response | Promise<Response>;
@@ -31,7 +33,7 @@ function server(answers: Answers = {}) {
     if (url.endsWith('/match-config')) {
       return answers.config?.(url.split('/').at(-2)!) ?? json(CONFIG);
     }
-    if (url.endsWith('/penalty-ruleset')) return json(CATALOGUE);
+    if (url.endsWith('/penalty-ruleset')) return json(catalogueOf(url.split('/').at(-2)!));
     return json({ detail: 'not stubbed' }, 404);
   };
   const fetchFn = ((url: string) => Promise.resolve(answer(url))) as typeof fetch;
@@ -57,6 +59,7 @@ beforeEach(async () => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('keepPisteOf: which bouts are kept', () => {
@@ -91,9 +94,21 @@ describe('keepPisteOf: which bouts are kept', () => {
     expect((await keptBout('bout-1'))?.match).toMatchObject({ status: 'running', redScore: 3 });
   });
 
-  // The copy would open with the default buttons and say nothing: a +2 tapped
-  // where the Tournament says +3 is stored as a 2.
-  it('does not keep a bout whose Tournament’s rules the tablet does not hold', async () => {
+  // Ruling K: a bout's rules ride on its read. One read without them (a server
+  // fault) would open on its Tournament's rules of now, not the bout's own.
+  it('does not keep a bout read without its own rules', async () => {
+    const { rules: _rules, ...bare } = PISTE.bouts[1]!.match;
+    const piste = { ...PISTE, bouts: [PISTE.bouts[0]!, { ...PISTE.bouts[1]!, match: bare }] };
+    const { fetchFn } = server({ piste: () => json(piste) });
+
+    expect(await keepPisteOf('', 'lice-1', fetchFn)).toBe('piste');
+
+    expect(await keptBout('bout-2')).toBeNull();
+  });
+
+  // The side colours tell the referee which side to tap: a copy with the
+  // default colours over the Tournament's own is a hit given to the wrong side.
+  it('does not keep a bout whose Tournament’s display the tablet does not hold', async () => {
     await keepClock('bout-1', CLOCK);
     const { fetchFn } = server({
       config: (id) => (id === 'tournament-2' ? offlineResponse() : json(CONFIG)),
@@ -131,7 +146,9 @@ describe('keepPisteOf: what else is kept', () => {
     });
   });
 
-  it('keeps the rules and the penalty catalogue of each Tournament, asked once each', async () => {
+  // Bouts 1 and 3 pin card rules A, bout 2 card rules B: one catalogue read
+  // each, by the first bout naming it. Bout 3 is of no Tournament: no config.
+  it('keeps the config of each Tournament and the catalogue of each card ruleset, asked once each', async () => {
     const { asked, fetchFn } = server();
 
     await keepPisteOf('', 'lice-1', fetchFn);
@@ -139,28 +156,95 @@ describe('keepPisteOf: what else is kept', () => {
     expect(asked).toEqual([
       '/api/v1/staff/lices/lice-1/bouts',
       '/api/v1/tournaments/tournament-1/match-config',
-      '/api/v1/matches/bout-1/penalty-ruleset',
       '/api/v1/tournaments/tournament-2/match-config',
+      '/api/v1/matches/bout-1/penalty-ruleset',
       '/api/v1/matches/bout-2/penalty-ruleset',
     ]);
     expect((await readCached('/api/v1/tournaments/tournament-2/match-config'))?.body).toEqual(
       CONFIG,
     );
-    expect((await readCached(catalogueKey('tournament-2')))?.body).toEqual(CATALOGUE);
+    expect((await readCached(cardCatalogueKey('cards-b')))?.body).toEqual(catalogueOf('bout-2'));
+    expect((await readCached(catalogueKey('tournament-2')))?.body).toEqual(catalogueOf('bout-2'));
+  });
+
+  // Two copies of ONE Tournament pin two card rulesets: two reads. One card
+  // ruleset across two Tournaments: one read.
+  it('asks one catalogue per card ruleset its bouts name, whatever their Tournaments', async () => {
+    const bout = (id: string, cards: string, tournamentId: string) => ({
+      match: row(id, { rules: rulesOf(cards) }),
+      summary: summary(id, tournamentId),
+    });
+    const piste = {
+      ...PISTE,
+      bouts: [
+        bout('one', 'cards-a', 'tournament-1'),
+        bout('two', 'cards-b', 'tournament-1'),
+        bout('three', 'cards-a', 'tournament-2'),
+      ],
+    };
+    const { asked, fetchFn } = server({ piste: () => json(piste) });
+
+    await keepPisteOf('', 'lice-1', fetchFn);
+
+    expect(asked.filter((url) => url.endsWith('/penalty-ruleset'))).toEqual([
+      '/api/v1/matches/one/penalty-ruleset',
+      '/api/v1/matches/two/penalty-ruleset',
+    ]);
   });
 
   // The whole point of the catalogue's key: a bout the tablet never opened has
-  // the catalogue of its Tournament when the network is gone.
+  // the catalogue of its own card rules when the network is gone.
   it('gives a bout never opened its catalogue with no network', async () => {
     const { fetchFn } = server();
     await keepPisteOf('', 'lice-1', fetchFn);
     vi.stubGlobal('fetch', () => Promise.resolve(offlineResponse()));
 
-    const kept = await readPenaltyCatalogue('', 'bout-9-never-opened', 'tournament-1');
+    const kept = await readPenaltyCatalogue('', 'bout-9-never-opened', {
+      cardKey: cardCatalogueKey('cards-b'),
+      tournamentId: 'tournament-1',
+    });
 
-    expect(kept).toMatchObject({ body: CATALOGUE, fresh: false });
-    // A bout of a Tournament the tablet holds nothing of has none.
-    expect(await readPenaltyCatalogue('', 'bout-9', 'tournament-9')).toBeNull();
+    expect(kept).toMatchObject({ body: catalogueOf('bout-2'), fresh: false });
+    // A bout of card rules and a Tournament the tablet holds nothing of has none.
+    expect(
+      await readPenaltyCatalogue('', 'bout-9', {
+        cardKey: cardCatalogueKey('cards-z'),
+        tournamentId: 'tournament-9',
+      }),
+    ).toBeNull();
+  });
+
+  // A catalogue that fails, or answers no ruleset (no built-in on the server), keeps nothing out.
+  it('keeps the bouts whatever a catalogue read answers', async () => {
+    const answers = [() => Promise.reject(new Error('boom')), () => Promise.resolve(json(null))];
+    for (const catalogue of answers) {
+      await db.reads.clear();
+      const { fetchFn } = server();
+      vi.stubGlobal('fetch', (url: string) =>
+        url.endsWith('/penalty-ruleset') ? catalogue() : fetchFn(url),
+      );
+
+      expect(await keepPisteOf('', 'lice-1', fetchFn)).toBe('piste');
+
+      expect(await keptBout('bout-2')).not.toBeNull();
+    }
+  });
+
+  // The read itself never throws on the network (`fetchWithCache`); the tablet's store can.
+  it('keeps the bouts when the tablet’s store refuses a catalogue read', async () => {
+    const { fetchFn } = server();
+    vi.stubGlobal('fetch', (url: string) =>
+      url.endsWith('/penalty-ruleset') ? Promise.reject(new Error('boom')) : fetchFn(url),
+    );
+    const get = db.reads.get.bind(db.reads);
+    vi.spyOn(db.reads, 'get').mockImplementation(((key: string) =>
+      key.startsWith('penalty-ruleset/')
+        ? Promise.reject(new Error('the store refused'))
+        : get(key)) as typeof db.reads.get);
+
+    expect(await keepPisteOf('', 'lice-1', fetchFn)).toBe('piste');
+
+    expect(await keptBout('bout-2')).not.toBeNull();
   });
 
   it('changes nothing on the tablet when the piste is not answered', async () => {
