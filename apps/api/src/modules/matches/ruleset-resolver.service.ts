@@ -18,6 +18,7 @@ import {
   type Ruleset,
   type RulesetGrammar,
 } from '@myclash/rulesets';
+import { EDITION_2026_10, isDecisionEdition, type DecisionEdition } from '@myclash/rules';
 import { SupabaseService } from '../supabase/supabase.service';
 
 const CACHE_TTL_MS = 5_000;
@@ -51,6 +52,12 @@ const GRAMMAR_COLUMNS =
   'targets, has_afterblow, afterblow_mode, afterblow_valuation, afterblow_fixed_value';
 
 /**
+ * Read on BOTH paths with the grammar, for the same reason: the end decision a
+ * formula ruleset was published with (migration 0228).
+ */
+const SCORED_COLUMNS = `${GRAMMAR_COLUMNS}, decision_edition`;
+
+/**
  * The grammar columns added by migration 0143, as they come off a row.
  * Present on both `custom_rulesets` and `custom_ruleset_versions`, so a
  * published version round-trips its grammar rather than silently resetting it.
@@ -62,6 +69,15 @@ interface GrammarColumns {
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
 }
+
+/** A stored formula as it comes off a row or a snapshot: the formula, the grammar, the edition. */
+type StoredFormula = GrammarColumns & {
+  score_formula: unknown;
+  constants: unknown;
+  tiebreakers: unknown;
+  double_penalty_formula: unknown;
+  decision_edition: unknown;
+};
 
 /**
  * Rows written before 0143 read as nulls, which `createFormulaRuleset` turns
@@ -103,6 +119,20 @@ export class RulesetResolver {
   private resolveCodedBase(baseCode: string, baseVersion: string | null): Ruleset | null {
     const v = baseVersion ?? '1.0.0';
     return this.registry.has(baseCode, v) ? this.registry.get(baseCode, v) : null;
+  }
+
+  /**
+   * The end decision a formula row or snapshot was published with. A name read
+   * from a column is checked where it comes in: an unknown one would throw in a
+   * decider. The database refuses one (0228's CHECKs), so this answers the
+   * decision every formula ruleset ran before 0228, and says so.
+   */
+  private editionOf(code: string, version: string, stored: unknown): DecisionEdition {
+    if (isDecisionEdition(stored)) return stored;
+    this.logger.warn(
+      `The ruleset ${code}@${version} holds no known end decision (${String(stored)}): decided with ${EDITION_2026_10}`,
+    );
+    return EDITION_2026_10;
   }
 
   async resolve(code: string, version: string): Promise<Ruleset | null> {
@@ -163,7 +193,7 @@ export class RulesetResolver {
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select(
-        `code, version, name, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
+        `code, version, name, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, ${SCORED_COLUMNS}`,
       )
       .eq('code', code)
       .eq('version', version)
@@ -177,11 +207,7 @@ export class RulesetResolver {
       is_system: boolean;
       base_code: string | null;
       base_version: string | null;
-      score_formula: unknown;
-      constants: unknown;
-      tiebreakers: unknown;
-      double_penalty_formula: unknown;
-    } & GrammarColumns;
+    } & StoredFormula;
     // A ruleset that a tournament already pins must resolve forever, even after
     // it is retired from the catalog. Archiving is our soft-delete: it hides the
     // row from every picker/list (see SelectableRulesetsService and the org
@@ -191,13 +217,24 @@ export class RulesetResolver {
     // "TF_v1 version", 2026-10-17), and the edit guard freezes a pinned draft.
     if (row.is_system) return null;
     if (row.base_code) return this.resolveCodedBase(row.base_code, row.base_version);
+    return this.formulaRuleset(row.code, row.version, row.name, row);
+  }
+
+  /** A stored formula, a row's or a snapshot's, as the ruleset that scores with it. */
+  private formulaRuleset(
+    code: string,
+    version: string,
+    name: string,
+    stored: StoredFormula,
+  ): Ruleset {
     const config: FormulaConfig = {
-      scoreFormula: row.score_formula as FormulaConfig['scoreFormula'],
-      constants: row.constants as FormulaConfig['constants'],
-      tiebreakers: row.tiebreakers as FormulaConfig['tiebreakers'],
-      doublePenaltyFormula: row.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
+      scoreFormula: stored.score_formula as FormulaConfig['scoreFormula'],
+      constants: stored.constants as FormulaConfig['constants'],
+      tiebreakers: stored.tiebreakers as FormulaConfig['tiebreakers'],
+      doublePenaltyFormula: stored.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
     };
-    return createFormulaRuleset(row.code, row.version, row.name, config, toGrammar(row));
+    const edition = this.editionOf(code, version, stored.decision_edition);
+    return createFormulaRuleset(code, version, name, config, edition, toGrammar(stored));
   }
 
   /**
@@ -230,27 +267,15 @@ export class RulesetResolver {
     const { data, error } = await this.supabase.service
       .from('custom_ruleset_versions')
       .select(
-        `version, score_formula, constants, tiebreakers, double_penalty_formula, ${GRAMMAR_COLUMNS}`,
+        `version, score_formula, constants, tiebreakers, double_penalty_formula, ${SCORED_COLUMNS}`,
       )
       .eq('custom_ruleset_id', parentRow.id)
       .eq('version', version)
       .maybeSingle();
     if (error) throw new RulesetReadFailed(code, version, error.message);
     if (!data) return null;
-    const snap = data as {
-      version: string;
-      score_formula: unknown;
-      constants: unknown;
-      tiebreakers: unknown;
-      double_penalty_formula: unknown;
-    } & GrammarColumns;
-    const config: FormulaConfig = {
-      scoreFormula: snap.score_formula as FormulaConfig['scoreFormula'],
-      constants: snap.constants as FormulaConfig['constants'],
-      tiebreakers: snap.tiebreakers as FormulaConfig['tiebreakers'],
-      doublePenaltyFormula: snap.double_penalty_formula as FormulaConfig['doublePenaltyFormula'],
-    };
-    return createFormulaRuleset(code, snap.version, parentRow.name, config, toGrammar(snap));
+    const snap = data as { version: string } & StoredFormula;
+    return this.formulaRuleset(code, snap.version, parentRow.name, snap);
   }
 
   /** Invalidate the cache for a single ruleset (call after upsert/publish/etc). */

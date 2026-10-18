@@ -38,6 +38,7 @@ export type {
 export {
   applyScoringDirection,
   computeMatchFormatScore,
+  DECISION_EDITIONS,
   displayClockMs,
   EDITION_2026_04,
   EDITION_2026_10,
@@ -47,6 +48,7 @@ export {
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
+  isDecisionEdition,
   isMedalMatchLabel,
   isPointCapReached,
   pointCapEndsBout,

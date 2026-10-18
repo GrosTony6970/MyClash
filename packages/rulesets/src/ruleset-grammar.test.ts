@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { TF_v1 } from './tf_v1';
 import { Generic_PointsCap } from './generic_points_cap';
 import { createFormulaRuleset } from './formula/ruleset';
+import { EDITION_2026_10 } from './match-format';
 import { DEFAULT_FORMULA_CONSTANTS, type FormulaConfig } from './formula/types';
 import type { ScoredMatch } from './types';
 
@@ -40,33 +41,39 @@ describe('every ruleset declares its grammar', () => {
   });
 
   it('a formula ruleset always carries metadata — never undefined', () => {
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config);
+    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, EDITION_2026_10);
     expect(ruleset.metadata).toBeDefined();
     // Not `undefined`: a UI reading this must get a definite answer.
     expect(ruleset.metadata?.hasAfterblow).toBe(false);
   });
 
   it('renders the authored AST into a display scoreFormula (was null)', () => {
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', {
-      scoreFormula: {
-        type: 'binop',
-        op: '/',
-        left: {
+    const ruleset = createFormulaRuleset(
+      'custom_x',
+      '1.0.0',
+      'Custom',
+      {
+        scoreFormula: {
           type: 'binop',
-          op: '*',
-          left: { type: 'var', name: 'victories' },
-          right: { type: 'var', name: 'pointsPerVictory' },
+          op: '/',
+          left: {
+            type: 'binop',
+            op: '*',
+            left: { type: 'var', name: 'victories' },
+            right: { type: 'var', name: 'pointsPerVictory' },
+          },
+          right: {
+            type: 'binop',
+            op: '+',
+            left: { type: 'var', name: 'hitsReceived' },
+            right: { type: 'var', name: 'doublePenalty' },
+          },
         },
-        right: {
-          type: 'binop',
-          op: '+',
-          left: { type: 'var', name: 'hitsReceived' },
-          right: { type: 'var', name: 'doublePenalty' },
-        },
+        constants: DEFAULT_FORMULA_CONSTANTS,
+        tiebreakers: [],
       },
-      constants: DEFAULT_FORMULA_CONSTANTS,
-      tiebreakers: [],
-    });
+      EDITION_2026_10,
+    );
     expect(ruleset.metadata?.scoreFormula).toBe(
       'victories * pointsPerVictory / (hitsReceived + doublePenalty)',
     );
@@ -76,14 +83,21 @@ describe('every ruleset declares its grammar', () => {
     // The UI gates afterblow on rulesetCode === 'TF_v1' today, so a custom
     // ruleset has never been offered afterblow controls. `false` keeps it that
     // way rather than silently switching on a new surface at deploy.
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, null);
+    const ruleset = createFormulaRuleset(
+      'custom_x',
+      '1.0.0',
+      'Custom',
+      config,
+      EDITION_2026_10,
+      null,
+    );
     expect(ruleset.metadata?.hasAfterblow).toBe(false);
     expect(ruleset.metadata?.defaultAfterblowMode).toBe(null);
     expect(ruleset.metadata?.targets).toBe(null);
   });
 
   it('declares an authored grammar when the row provides one', () => {
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, {
+    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, EDITION_2026_10, {
       hasAfterblow: true,
       defaultAfterblowMode: 'deductive',
       targets: [
@@ -99,7 +113,7 @@ describe('every ruleset declares its grammar', () => {
   it('reports no afterblow mode when the ruleset has no afterblow', () => {
     // A mode without the concept is meaningless, and would seed a tournament
     // with a setting its own grammar cannot produce.
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, {
+    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, EDITION_2026_10, {
       hasAfterblow: false,
       defaultAfterblowMode: 'deductive',
     });
@@ -141,6 +155,7 @@ describe('defaultAfterblowMode is a seed, never a runtime input', () => {
       '1.0.0',
       'Custom',
       { ...config, scoreFormula: { type: 'var', name: 'hitsGiven' } },
+      EDITION_2026_10,
       { hasAfterblow: true, defaultAfterblowMode },
     );
 

@@ -38,6 +38,7 @@ type ScoringStructure =
       constants: Record<string, number>;
       tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
       doublePenaltyFormula: unknown;
+      decisionEdition: string | null;
     };
 
 /**
@@ -193,6 +194,7 @@ export class RulesetHashService {
             constants: structure.constants,
             tiebreakers: structure.tiebreakers,
             doublePenaltyFormula: structure.doublePenaltyFormula,
+            decisionEdition: structure.decisionEdition,
           };
     return canonicalizeScoringBehaviour(input);
   }
@@ -209,7 +211,7 @@ export class RulesetHashService {
     const { data } = await this.supabase.service
       .from('custom_rulesets')
       .select(
-        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula',
+        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, decision_edition',
       )
       .eq('code', code)
       .maybeSingle();
@@ -237,13 +239,15 @@ export class RulesetHashService {
         (def['tiebreakers'] as ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>) ??
         [],
       doublePenaltyFormula: def['double_penalty_formula'] ?? null,
+      // The edition a published version keeps (0228): the formula alone is not its behaviour.
+      decisionEdition: (def['decision_edition'] as string | null | undefined) ?? null,
     };
   }
 
   private async loadScoringSnapshot(customRulesetId: string, version: string): Promise<Row | null> {
     const { data } = await this.supabase.service
       .from('custom_ruleset_versions')
-      .select('score_formula, constants, tiebreakers, double_penalty_formula')
+      .select('score_formula, constants, tiebreakers, double_penalty_formula, decision_edition')
       .eq('custom_ruleset_id', customRulesetId)
       .eq('version', version)
       .maybeSingle();

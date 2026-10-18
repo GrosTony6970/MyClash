@@ -10,7 +10,11 @@ import {
   computeGenericPointsCapScore,
   normalizeGenericPointsCapConfig,
 } from '../generic_points_cap';
-import { endOnPointCapOrMaxDoubles, type AfterblowMode, EDITION_2026_10 } from '../match-format';
+import {
+  endOnPointCapOrMaxDoubles,
+  type AfterblowMode,
+  type DecisionEdition,
+} from '../match-format';
 import type { Ruleset, StandingsColumn, RankingRule } from '../types';
 import { deriveFighterStats } from '@myclash/rules';
 import { evaluateFormula, type FormulaScope } from '@myclash/rules';
@@ -106,17 +110,20 @@ export interface RulesetGrammar {
   afterblowFixedValue?: number | null;
 }
 
+/**
+ * `decisionEdition` is the end decision of the day the ruleset was published,
+ * stored with it (`decision_edition`, migration 0228): a club formula keeps it
+ * when the shared decision moves on (ruling "Club formulas", 2026-10-17).
+ */
 export function createFormulaRuleset(
   code: string,
   version: string,
   displayName: string,
   config: FormulaConfig,
+  decisionEdition: DecisionEdition,
   grammar?: RulesetGrammar | null,
 ): Ruleset {
   const hasAfterblow = grammar?.hasAfterblow ?? false;
-  // Today's end decision for every club ruleset, until the row keeps the
-  // edition of the day it was published (a later commit of this slice).
-  const decisionEdition = EDITION_2026_10;
   return {
     code,
     version,

@@ -51,6 +51,9 @@ export interface FormulaScoringBehaviour {
   constants: Record<string, number>;
   tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
   doublePenaltyFormula: unknown;
+  /** The end decision it was published with (`decision_edition`, 0228). A coded
+   *  engine's is named by its version, which `engine` already carries. */
+  decisionEdition: string | null;
 }
 
 export type ScoringBehaviourInput = CodedScoringBehaviour | FormulaScoringBehaviour;
@@ -109,6 +112,7 @@ export function canonicalizeScoringBehaviour(
       direction: tie.direction,
     })),
     doublePenaltyFormula: input.doublePenaltyFormula ?? null,
+    decisionEdition: input.decisionEdition ?? null,
   };
 }
 

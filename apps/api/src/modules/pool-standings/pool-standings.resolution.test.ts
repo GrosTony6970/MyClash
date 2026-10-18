@@ -141,16 +141,22 @@ describe('ruleset resolution', () => {
       )
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
 
-    const custom = createFormulaRuleset('ORG_CUSTOM', '1.0.0', 'Org Custom', {
-      scoreFormula: {
-        type: 'binop',
-        op: '*',
-        left: { type: 'var', name: 'victories' },
-        right: { type: 'var', name: 'pointsPerVictory' },
+    const custom = createFormulaRuleset(
+      'ORG_CUSTOM',
+      '1.0.0',
+      'Org Custom',
+      {
+        scoreFormula: {
+          type: 'binop',
+          op: '*',
+          left: { type: 'var', name: 'victories' },
+          right: { type: 'var', name: 'pointsPerVictory' },
+        },
+        constants: { pointsPerVictory: 10, pointsPerTie: 0, pointsPerLoss: 0, doublePenalty: 0 },
+        tiebreakers: [{ variable: 'hitsReceived', direction: 'asc' }],
       },
-      constants: { pointsPerVictory: 10, pointsPerTie: 0, pointsPerLoss: 0, doublePenalty: 0 },
-      tiebreakers: [{ variable: 'hitsReceived', direction: 'asc' }],
-    });
+      '2026-10',
+    );
 
     // The author's tiebreaker is projected onto a standings column, so the
     // API's applyRanking honours it (its own sort is discarded, and "overall"

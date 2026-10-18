@@ -27,6 +27,7 @@ import {
   type StandingsColumn,
   type Tiebreaker,
 } from '@myclash/rulesets';
+import { DECISION_EDITIONS, EDITION_2026_10, type DecisionEdition } from '@myclash/rules';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { insertAuditLog } from '../../../common/audit-log';
 import { customRulesetOrgVisibilityFilter } from '../../../common/custom-ruleset-visibility';
@@ -86,6 +87,13 @@ export interface CustomRulesetRow {
   /** Decides the button grid — see buildScoringButtons. */
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
+  /**
+   * The end decision a formula ruleset was published with (migration 0228).
+   * Null on a built-in's mirror row and on a coded fork, whose engine names it.
+   */
+  decision_edition: DecisionEdition | null;
+  /** Set on a coded fork (0148): the built-in whose engine it reuses. */
+  base_code: string | null;
   is_default: boolean;
   is_system: boolean;
   /** Set when an organizer authored the ruleset; null for platform/system rows. */
@@ -130,6 +138,8 @@ export interface CustomRulesetVersionRow {
   afterblow_mode: 'full' | 'deductive' | null;
   afterblow_valuation: 'fixed' | 'weighted' | null;
   afterblow_fixed_value: number | null;
+  /** Copied from the row when the snapshot is taken (0228); none for a coded fork. */
+  decision_edition: DecisionEdition | null;
   published_at: string;
   published_by_user_id: string | null;
   is_frozen: boolean;
@@ -210,6 +220,13 @@ export function grammarColumnsFrom(row: {
 function storedVersion(typed: string | undefined): string {
   return normalizeRulesetVersion(typed?.trim() || '1.0.0');
 }
+
+/**
+ * The end decision a formula ruleset written today runs: the newest edition,
+ * the one the shared decision makes now (ruling "Edition day", 2026-10-17: the
+ * day it is published fixes it).
+ */
+export const TODAYS_EDITION: DecisionEdition = DECISION_EDITIONS[DECISION_EDITIONS.length - 1]!;
 
 /**
  * Auto-bump the patch component of a semver-ish string (e.g. '1.0.0' -> '1.0.1',
@@ -476,6 +493,8 @@ export class CustomRulesetsService {
         tiebreakers: config.tiebreakers,
         match_format_defaults: dto.matchFormatDefaults ?? null,
         double_penalty_formula: doublePenaltyFormula,
+        // A draft is scored as its draft (ruling 6); publishing it sets the edition of its day.
+        decision_edition: TODAYS_EDITION,
         is_default: false,
         is_system: false,
         ...grammarColumns(dto),
@@ -611,6 +630,9 @@ export class CustomRulesetsService {
    * (`/org/:slug/rulesets/scoring/new?cloneFrom=<id>`), which pre-fills the
    * form from the built-in and requires the operator to author a score
    * formula before `createForOrg` will accept it.
+   *
+   * The copy is a new draft, not the source's version: it takes today's end
+   * decision, and its own publish day's later (0228).
    */
   async clone(id: string, actorUserId: string): Promise<CustomRulesetRow> {
     const src = await this.getById(id);
@@ -640,6 +662,7 @@ export class CustomRulesetsService {
         tiebreakers: config.tiebreakers,
         match_format_defaults: src.match_format_defaults,
         double_penalty_formula: src.double_penalty_formula,
+        decision_edition: TODAYS_EDITION,
         is_default: false,
         is_system: false,
         // Carry the source's grammar. Dropping it here would repeat the bug
@@ -700,7 +723,7 @@ export class CustomRulesetsService {
     // the parent row's version (patch) so subsequent edits target a fresh slot.
     // Caller can override the next version string via `nextVersion` (e.g. for
     // a minor/major bump).
-    await this.snapshotVersion(existing, actorUserId);
+    await this.snapshotVersion(await this.withTodaysEdition(existing), actorUserId);
 
     const bumped = storedVersion(nextVersion?.trim() || bumpPatchVersion(existing.version));
 
@@ -719,9 +742,26 @@ export class CustomRulesetsService {
   }
 
   /**
+   * The row as its version is published: a formula takes the end decision of
+   * the day (ruling "Edition day"), unless a Tournament already scores with that
+   * version, which then keeps the one it is scored under, as the edit guard
+   * keeps its formula. A coded fork holds none: its base engine names it.
+   */
+  private async withTodaysEdition(row: CustomRulesetRow): Promise<CustomRulesetRow> {
+    if (row.base_code || row.decision_edition === TODAYS_EDITION) return row;
+    if (await this.isCurrentVersionFrozen(row)) return row;
+    const { error } = await this.supabase.service
+      .from('custom_rulesets')
+      .update({ decision_edition: TODAYS_EDITION })
+      .eq('id', row.id);
+    if (error) throw new BadRequestException(error.message);
+    return { ...row, decision_edition: TODAYS_EDITION };
+  }
+
+  /**
    * Insert a snapshot row into custom_ruleset_versions capturing the parent
-   * row's current payload. Called from publish() and never directly from
-   * the controller.
+   * row's current payload, its end decision included. Called from publish()
+   * and never directly from the controller.
    */
   private async snapshotVersion(existing: CustomRulesetRow, actorUserId: string): Promise<void> {
     const { error } = await this.supabase.service.from('custom_ruleset_versions').insert({
@@ -735,6 +775,7 @@ export class CustomRulesetsService {
       match_format_defaults: existing.match_format_defaults,
       double_penalty_formula: existing.double_penalty_formula,
       ...grammarColumnsFrom(existing),
+      decision_edition: existing.decision_edition,
       published_by_user_id: actorUserId === 'unknown' ? null : actorUserId,
     });
     if (error) {
@@ -1025,11 +1066,15 @@ export class CustomRulesetsService {
    * with `owner_organization_id` and is **immediately usable** on that org's
    * tournaments — no review required. The "submit for review" action is a
    * separate step (`submitForReview` below).
+   *
+   * Born published, it takes the end decision of today; an import keeps the
+   * one its file was published with (`importForOrg`).
    */
   async createForOrg(
     orgId: string,
     dto: CreateCustomRulesetDto,
     actorUserId: string,
+    decisionEdition: DecisionEdition = TODAYS_EDITION,
   ): Promise<CustomRulesetRow> {
     const config = this.validateConfig({
       scoreFormula: dto.scoreFormula,
@@ -1064,6 +1109,7 @@ export class CustomRulesetsService {
         tiebreakers: config.tiebreakers,
         match_format_defaults: dto.matchFormatDefaults ?? null,
         double_penalty_formula: doublePenaltyFormula,
+        decision_edition: decisionEdition,
         is_default: false,
         is_system: false,
         ...grammarColumns(dto),
@@ -1226,7 +1272,7 @@ export class CustomRulesetsService {
    */
   async exportForOrg(id: string, orgId: string): Promise<RulesetExportEnvelope> {
     const row = await this.assertOrgOwns(id, orgId);
-    if ((row as unknown as { base_code?: string | null }).base_code) {
+    if (row.base_code) {
       throw new BadRequestException(
         'A coded fork reuses a built-in engine and cannot be exported. Recreate it with "Customise this format" on the target platform instead.',
       );
@@ -1248,6 +1294,7 @@ export class CustomRulesetsService {
       afterblowMode: row.afterblow_mode,
       afterblowValuation: row.afterblow_valuation,
       afterblowFixedValue: row.afterblow_fixed_value,
+      decisionEdition: row.decision_edition,
     });
   }
 
@@ -1289,7 +1336,8 @@ export class CustomRulesetsService {
       afterblowValuation: def.afterblowValuation ?? undefined,
       afterblowFixedValue: def.afterblowFixedValue ?? undefined,
     } as CreateCustomRulesetDto;
-    return this.createForOrg(orgId, dto, actorUserId);
+    // A file exported before 0228 names no edition: every formula ruleset was decided by 2026-10.
+    return this.createForOrg(orgId, dto, actorUserId, def.decisionEdition ?? EDITION_2026_10);
   }
 
   /**
@@ -1461,9 +1509,9 @@ export class CustomRulesetsService {
     if (row.is_system) return;
     this.assertGrammarNonEmpty(row.targets);
 
-    const raw = row as unknown as Record<string, unknown>;
-    const baseCode = (raw['base_code'] as string | null) ?? null;
+    const baseCode = row.base_code;
     if (baseCode) {
+      const raw = row as unknown as Record<string, unknown>;
       const baseVersion = (raw['base_version'] as string | null) ?? '1.0.0';
       if (!isSystemRuleset(this.registry, baseCode, baseVersion)) {
         throw new BadRequestException(

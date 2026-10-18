@@ -98,8 +98,9 @@ async function seedInside(sp) {
   for (const [code, owner, shared, status, system] of RULESETS)
     await sp`
       INSERT INTO custom_rulesets
-        (code, version, name, status, owner_organization_id, public_visibility, is_system)
-      VALUES (${code}, '1.0.0', ${code}, ${status}, ${owner}, ${shared}, ${system})`;
+        (code, version, name, status, owner_organization_id, public_visibility, is_system,
+         decision_edition)
+      VALUES (${code}, '1.0.0', ${code}, ${status}, ${owner}, ${shared}, ${system}, '2026-10')`;
 }
 
 async function writeFailures(sp, failures) {
@@ -137,8 +138,9 @@ async function codeFailures(sp, failures) {
       sp,
       'service_role',
       (inner) => inner`
-        INSERT INTO custom_rulesets (code, version, name, status, owner_organization_id)
-        VALUES (${code}, '1.0.0', 'Decoy', 'published', ${CLUB})`,
+        INSERT INTO custom_rulesets
+          (code, version, name, status, owner_organization_id, decision_edition)
+        VALUES (${code}, '1.0.0', 'Decoy', 'published', ${CLUB}, '2026-10')`,
     );
     if (error?.code !== '23505' || error.constraint_name !== 'custom_rulesets_code_unique_idx')
       failures.push(

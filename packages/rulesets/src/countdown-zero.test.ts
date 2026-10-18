@@ -13,6 +13,7 @@ import { DEFAULT_FORMULA_CONSTANTS, Generic_PointsCap, TF_v1, createFormulaRules
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   getPointCapWinnerRegistrationId,
+  EDITION_2026_04,
   EDITION_2026_10,
 } from './match-format';
 import { TFv1DefaultConfig } from './tf_v1/config';
@@ -119,13 +120,36 @@ describe('the two other scorers read the same rule', () => {
   });
 
   it('a club formula ruleset', () => {
-    const formula = createFormulaRuleset('Club_X', '1.0.0', 'Club X', {
-      scoreFormula: { type: 'var', name: 'victories' },
-      constants: DEFAULT_FORMULA_CONSTANTS,
-      tiebreakers: [],
-    });
+    const formula = createFormulaRuleset(
+      'Club_X',
+      '1.0.0',
+      'Club X',
+      {
+        scoreFormula: { type: 'var', name: 'victories' },
+        constants: DEFAULT_FORMULA_CONSTANTS,
+        tiebreakers: [],
+      },
+      EDITION_2026_10,
+    );
     expect(formula.isMatchOver(BRACKET, bothUnder, config)).toEqual(OVER);
     expect(formula.isMatchOver(BRACKET, level, config)).toEqual(OPEN);
+  });
+
+  it('a club formula ruleset of the 2026-04 edition keeps the leader on the board', () => {
+    // Both at 0 on the board: before 2026-10-11 nobody led, so a bracket bout went on.
+    const formula = createFormulaRuleset(
+      'Club_X',
+      '1.0.0',
+      'Club X',
+      {
+        scoreFormula: { type: 'var', name: 'victories' },
+        constants: DEFAULT_FORMULA_CONSTANTS,
+        tiebreakers: [],
+      },
+      EDITION_2026_04,
+    );
+    expect(formula.decisionEdition).toBe(EDITION_2026_04);
+    expect(formula.isMatchOver(BRACKET, bothUnder, config)).toEqual(OPEN);
   });
 
   it('carries the two numbers from its scorer to its end decision', () => {

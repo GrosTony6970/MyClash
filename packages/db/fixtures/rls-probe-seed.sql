@@ -118,9 +118,10 @@ INSERT INTO tournament_ruleset_repins
   ('7e900000-0000-4000-8000-00000000000a', 'eeeeeeee-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
    'TF_v1', '1.0.0', 'TF_v1', '1.1.0', 'The 2026-10 end rule applies from today.', true);
 -- The club's own scoring ruleset and its published snapshot: only the API writes them (0225).
-INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization_id) VALUES
+-- A formula row holds the end decision it was published with (0228); its snapshot copies it.
+INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization_id, decision_edition) VALUES
   ('c5000000-0000-4000-8000-00000000000a', 'rls-probe-club-scoring', '1.0.0', 'Club scoring', 'published',
-   'aaaaaaaa-0000-4000-8000-000000000001');
-INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers) VALUES
+   'aaaaaaaa-0000-4000-8000-000000000001', '2026-10');
+INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers, decision_edition) VALUES
   ('c5100000-0000-4000-8000-00000000000a', 'c5000000-0000-4000-8000-00000000000a', '1.0.0', 'Club scoring',
-   '{}', '{}', '[]');
+   '{}', '{}', '[]', '2026-10');

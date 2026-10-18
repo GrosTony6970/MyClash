@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { DECISION_EDITIONS } from '@myclash/rules';
 import { stableStringify } from '@myclash/rulesets';
 
 /**
@@ -40,6 +41,8 @@ export const scoringRulesetExportDefinitionSchema = z
     afterblowMode: z.enum(['full', 'deductive']).nullish(),
     afterblowValuation: z.enum(['fixed', 'weighted']).nullish(),
     afterblowFixedValue: z.number().nullish(),
+    /** The end decision it was published with (0228); absent in a file made before. */
+    decisionEdition: z.enum(DECISION_EDITIONS).nullish(),
   })
   .strict();
 export type ScoringRulesetExportDefinition = z.infer<typeof scoringRulesetExportDefinitionSchema>;

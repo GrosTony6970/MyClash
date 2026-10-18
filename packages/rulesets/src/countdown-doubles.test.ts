@@ -88,11 +88,17 @@ describe('a bout that counts down, at the doubles limit', () => {
   });
 
   it('a club formula ruleset ends it as a loss for both', () => {
-    const formula = createFormulaRuleset('Club_X', '1.0.0', 'Club X', {
-      scoreFormula: { type: 'var', name: 'victories' },
-      constants: DEFAULT_FORMULA_CONSTANTS,
-      tiebreakers: [],
-    });
+    const formula = createFormulaRuleset(
+      'Club_X',
+      '1.0.0',
+      'Club X',
+      {
+        scoreFormula: { type: 'var', name: 'victories' },
+        constants: DEFAULT_FORMULA_CONSTANTS,
+        tiebreakers: [],
+      },
+      EDITION_2026_10,
+    );
     const config = { matchFormat: format() };
     const score = formula.computeMatchScore(POOL, STORY, 'full', config);
     expect(score).toMatchObject({ redScore: 0, blueScore: 0, doubles: 3 });

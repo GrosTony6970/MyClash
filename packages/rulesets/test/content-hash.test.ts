@@ -52,6 +52,7 @@ const formulaBase: FormulaScoringBehaviour = {
     { variable: 'hitsReceived', direction: 'asc' },
   ],
   doublePenaltyFormula: null,
+  decisionEdition: '2026-10',
 };
 
 const hashOf = (input: CodedScoringBehaviour | FormulaScoringBehaviour) =>
@@ -142,6 +143,10 @@ describe('canonicalizeScoringBehaviour — formula', () => {
       ],
     };
     expect(hashOf(swapped)).not.toBe(hashOf(formulaBase));
+  });
+
+  it('changes when the end decision it was published with changes', () => {
+    expect(hashOf({ ...formulaBase, decisionEdition: '2026-04' })).not.toBe(hashOf(formulaBase));
   });
 });
 
@@ -246,6 +251,7 @@ describe('coded vs formula never collide', () => {
       constants: { pointsPerVictory: 0, pointsPerTie: 0, pointsPerLoss: 0, doublePenalty: 0 },
       tiebreakers: [],
       doublePenaltyFormula: null,
+      decisionEdition: null,
     });
     expect(coded).not.toBe(formula);
   });

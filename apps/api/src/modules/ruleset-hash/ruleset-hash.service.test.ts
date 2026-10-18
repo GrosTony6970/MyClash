@@ -4,11 +4,17 @@ import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 type TableState = Record<string, { maybeSingle?: unknown }>;
 
+/** Every column list asked of a table, in order: the doubles answer whatever is asked. */
+const selects: Array<{ table: string; columns: string }> = [];
+
 function fakeSupabase(state: TableState) {
   function chain(table: string) {
     const t = state[table] ?? {};
     const api: Record<string, unknown> = {
-      select: vi.fn(() => api),
+      select: vi.fn((columns: string) => {
+        selects.push({ table, columns });
+        return api;
+      }),
       eq: vi.fn(() => api),
       is: vi.fn(() => api),
       limit: vi.fn(() => api),
@@ -90,6 +96,38 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     const wins = { type: 'var', name: 'victories' };
     const points = { type: 'var', name: 'targetPoints' };
     expect(await hashOf(onDraft(wins))).not.toBe(await hashOf(onDraft(points)));
+  });
+
+  it('describes a club formula by the end decision it was published with too (0228)', async () => {
+    const formula = { id: 'cr-1', is_system: false, base_code: null, base_version: null };
+    const body = {
+      score_formula: { type: 'var', name: 'victories' },
+      constants: {},
+      tiebreakers: [],
+    };
+    const tournament = {
+      ...(stateFor().tournaments!.maybeSingle as Record<string, unknown>),
+      ruleset_code: 'custom_club',
+    };
+    const onRow = (edition: string) => ({
+      ...stateFor(),
+      tournaments: { maybeSingle: tournament },
+      custom_rulesets: { maybeSingle: { ...formula, ...body, decision_edition: edition } },
+    });
+    const onSnapshot = (edition: string) => ({
+      ...onRow('2026-10'),
+      custom_ruleset_versions: { maybeSingle: { ...body, decision_edition: edition } },
+    });
+    selects.length = 0;
+    expect(await hashOf(onRow('2026-04'))).not.toBe(await hashOf(onRow('2026-10')));
+    expect(await hashOf(onSnapshot('2026-04'))).not.toBe(await hashOf(onSnapshot('2026-10')));
+    // The doubles answer whatever is asked: the two reads must ask for the column.
+    for (const table of ['custom_rulesets', 'custom_ruleset_versions'])
+      expect(
+        selects.some(
+          (s) => s.table === table && /\bscore_formula\b.*\bdecision_edition\b/.test(s.columns),
+        ),
+      ).toBe(true);
   });
 
   it('produces a deterministic 64-char sha256 hex', async () => {

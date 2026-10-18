@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { EDITION_2026_10 } from '@myclash/rules';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import { buildRulesetExport } from '../../../common/ruleset-export';
 import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
@@ -80,7 +81,34 @@ describe('CustomRulesetsService — portable export/import', () => {
       'org-1',
       expect.objectContaining({ name: 'Imported', version: '2.0.0' }),
       'actor-1',
+      // A file made before 0228 names no end decision: every formula ruleset then ran
+      // 2026-10, the fixed rule, not whichever edition is newest when it is imported.
+      EDITION_2026_10,
     );
+  });
+
+  it('carries the end decision it was published with, out and back in (0228)', async () => {
+    const svc = serviceWithRow({ ...formulaRow, decision_edition: '2026-04' });
+    const env = await svc.exportForOrg('r1', 'org-1');
+    expect((env.definition as { decisionEdition: unknown }).decisionEdition).toBe('2026-04');
+
+    const spy = vi.spyOn(svc, 'createForOrg').mockResolvedValue(formulaRow as never);
+    await svc.importForOrg('org-1', env, 'actor-1');
+    expect(spy.mock.calls[0]?.[3]).toBe('2026-04');
+  });
+
+  it('refuses a file naming an end decision this platform does not know', async () => {
+    const svc = serviceWithRow(formulaRow);
+    const spy = vi.spyOn(svc, 'createForOrg').mockResolvedValue(formulaRow as never);
+    const env = buildRulesetExport('scoring', {
+      name: 'Imported',
+      scoreFormula: { type: 'var', name: 'victories' },
+      decisionEdition: '2027-01',
+    });
+    await expect(svc.importForOrg('org-1', env, 'actor-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('refuses to import a penalty envelope as a scoring ruleset', async () => {
