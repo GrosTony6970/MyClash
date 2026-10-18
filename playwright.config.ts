@@ -29,6 +29,11 @@ export default defineConfig({
   // scoring spec whenever the worker took control before the test's last check — CI run
   // 35226838601, after five green runs. Offline behaviour is tested by the prod suite in
   // `tests/e2e` (`playwright.e2e.config.ts`), which this does not touch.
-  use: { ...devices['Desktop Chrome'], serviceWorkers: 'block' },
+  //
+  // A failing test keeps its trace (page snapshots, console, network, timings), which the html
+  // reporter copies into playwright-report/ for CI's upload. A flake that never fails on a laptop
+  // (the share button, 2026-10-18: "Copied!" outlived its two seconds on CI only) left nothing
+  // but its error line to read.
+  use: { ...devices['Desktop Chrome'], serviceWorkers: 'block', trace: 'retain-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
