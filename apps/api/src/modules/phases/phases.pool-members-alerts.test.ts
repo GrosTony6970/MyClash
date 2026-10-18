@@ -10,6 +10,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
+import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
 const pool = (id: string) => ({
   id,
@@ -33,6 +34,7 @@ const PHASES = {
   rows: [
     {
       id: 'phase-1',
+      tournament_id: 't-1',
       tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0', ruleset_content_hash: null },
     },
   ],
@@ -40,11 +42,13 @@ const PHASES = {
 
 function makeService(seed: Record<string, TableSeed>) {
   // The ruleset is read before any member write, so every story reads its phase.
-  const supabase = mockSupabase({
-    pools: { rows: [pool('pool-0'), pool('pool-1')] },
-    phases: PHASES,
-    ...seed,
-  });
+  const supabase = mockSupabase(
+    ...withStampedRules({
+      pools: { rows: [pool('pool-0'), pool('pool-1')] },
+      phases: PHASES,
+      ...seed,
+    }),
+  );
   /** The writes of bouts that had landed each time the seam was asked. */
   const boutWritesWhenAsked: string[][] = [];
   const matchAlerts = {
@@ -150,25 +154,39 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
     expect(matchAlerts.refreshPools.mock.calls).toEqual([[['pool-1']]]);
   });
 
-  // The Pool's door read TF_v1; the Tournament moved to points-cap before its bouts were in (R3).
+  // The Pool's door read its stamp; the Tournament's rules may change before its bouts are in
+  // (R3). The database re-stamps the bouts not started, so the door asks for the stamp again
+  // once its bouts are in.
   it('re-stamps its new bouts with the ruleset in force once they are in', async () => {
     const { service, supabase } = makeService({
       pool_members: { rows: [member('reg-2', 1), member('reg-3', 2)] },
       matches: { rows: [{ id: 'old-1', pool_id: 'pool-1' }] },
-      phases: { rows: [{ ...PHASES.rows[0], tournament_id: 't-1' }] },
       tournaments: {
         rows: [{ id: 't-1', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' }],
       },
     });
+    /** The writes of bouts that had landed each time the stamp was asked. */
+    const boutWritesWhenStamped: string[][] = [];
+    const stamp = supabase.rpc.getMockImplementation()!;
+    supabase.rpc.mockImplementation((name, args) => {
+      boutWritesWhenStamped.push(writesTo(supabase, 'matches').map((write) => write.op));
+      return stamp(name, args);
+    });
 
     await service.removePoolMember('pool-1', 'reg-1', 'user-1');
 
-    const writes = writesTo(supabase, 'matches');
-    expect(writes.map((write) => write.op)).toEqual(['delete', 'insert', 'update']);
-    expect(writes[2]?.row).toMatchObject({
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-    });
+    expect(boutWritesWhenStamped).toEqual([[], ['delete', 'insert']]);
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+    ]);
+    expect(writesTo(supabase, 'matches')[1]?.row).toMatchObject([
+      {
+        match_rules_id: rulesOf('t-1'),
+        ruleset_code: 'Generic_PointsCap',
+        ruleset_version: '1.0.0',
+      },
+    ]);
   });
 
   it('never names the bouts to the bout door: the old ones are gone, the new ones have no time', async () => {

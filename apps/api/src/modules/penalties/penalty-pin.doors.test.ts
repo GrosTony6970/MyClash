@@ -18,6 +18,7 @@ import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { PenaltiesService } from './penalties.service';
+import { withStampedRules } from '../phases/match-rules.fixtures';
 
 const EVENT_A = '11111111-1111-4111-8111-111111111111';
 const TOURNAMENT_A = '33333333-3333-4333-8333-333333333333';
@@ -47,70 +48,74 @@ let penalties: PenaltiesService;
 let events: EventsService;
 
 beforeEach(() => {
-  db = mockSupabase({
-    penalty_rulesets: {
-      rows: [
-        ruleset(PRIVATE_B, {
-          version: '1.0.4',
-          built_in: false,
-          public_visibility: false,
-          owner_organization_id: 'org-b',
-        }),
-        ruleset(PRIVATE_A, {
-          version: '2.1.0',
-          built_in: false,
-          public_visibility: false,
-          owner_organization_id: 'org-a',
-        }),
-        ruleset(SHARED_B, {
-          version: '3.0.0',
-          built_in: false,
-          public_visibility: true,
-          owner_organization_id: 'org-b',
-        }),
-      ],
-    },
-    penalty_ruleset_versions: { rows: [] },
-    events: {
-      rows: [{ id: EVENT_A, organization_id: 'org-a', status: 'draft', penalty_ruleset_id: null }],
-    },
-    tournaments: {
-      rows: [
-        {
-          id: TOURNAMENT_A,
-          event_id: EVENT_A,
-          slug: 'longsword',
-          name: 'Longsword',
-          ruleset_code: 'TF_v1',
-          ruleset_version: '1.1.0',
-          penalty_ruleset_id: null,
-        },
-        // Pinned while Club B still shared its ruleset; Club B stopped since.
-        {
-          id: TOURNAMENT_LEGACY,
-          event_id: EVENT_A,
-          slug: 'sabre-old',
-          name: 'Sabre',
-          penalty_ruleset_id: PRIVATE_B,
-        },
-      ],
-      // What Tournament create reads back: the row it wrote, with its new id.
-      returning: { id: 'tournament-new' },
-    },
-    // Tournament create reads a custom scoring ruleset's defaults; TF_v1 has none.
-    custom_rulesets: { rows: [] },
-    phases: { rows: [{ id: 'phase-a', tournament_id: TOURNAMENT_A }] },
-    matches: { rows: [] },
-    organization_members: {
-      rows: [
-        { organization_id: 'org-a', user_id: 'u-admin-a', role: 'admin' },
-        // Sam: admin of both clubs.
-        { organization_id: 'org-a', user_id: 'u-admin-ab', role: 'admin' },
-        { organization_id: 'org-b', user_id: 'u-admin-ab', role: 'admin' },
-      ],
-    },
-    platform_roles: { rows: [] },
-  });
+  db = mockSupabase(
+    ...withStampedRules({
+      penalty_rulesets: {
+        rows: [
+          ruleset(PRIVATE_B, {
+            version: '1.0.4',
+            built_in: false,
+            public_visibility: false,
+            owner_organization_id: 'org-b',
+          }),
+          ruleset(PRIVATE_A, {
+            version: '2.1.0',
+            built_in: false,
+            public_visibility: false,
+            owner_organization_id: 'org-a',
+          }),
+          ruleset(SHARED_B, {
+            version: '3.0.0',
+            built_in: false,
+            public_visibility: true,
+            owner_organization_id: 'org-b',
+          }),
+        ],
+      },
+      penalty_ruleset_versions: { rows: [] },
+      events: {
+        rows: [
+          { id: EVENT_A, organization_id: 'org-a', status: 'draft', penalty_ruleset_id: null },
+        ],
+      },
+      tournaments: {
+        rows: [
+          {
+            id: TOURNAMENT_A,
+            event_id: EVENT_A,
+            slug: 'longsword',
+            name: 'Longsword',
+            ruleset_code: 'TF_v1',
+            ruleset_version: '1.1.0',
+            penalty_ruleset_id: null,
+          },
+          // Pinned while Club B still shared its ruleset; Club B stopped since.
+          {
+            id: TOURNAMENT_LEGACY,
+            event_id: EVENT_A,
+            slug: 'sabre-old',
+            name: 'Sabre',
+            penalty_ruleset_id: PRIVATE_B,
+          },
+        ],
+        // What Tournament create reads back: the row it wrote, with its new id.
+        returning: { id: 'tournament-new' },
+      },
+      // Tournament create reads a custom scoring ruleset's defaults; TF_v1 has none.
+      custom_rulesets: { rows: [] },
+      phases: { rows: [{ id: 'phase-a', tournament_id: TOURNAMENT_A }] },
+      matches: { rows: [] },
+      organization_members: {
+        rows: [
+          { organization_id: 'org-a', user_id: 'u-admin-a', role: 'admin' },
+          // Sam: admin of both clubs.
+          { organization_id: 'org-a', user_id: 'u-admin-ab', role: 'admin' },
+          { organization_id: 'org-b', user_id: 'u-admin-ab', role: 'admin' },
+        ],
+      },
+      platform_roles: { rows: [] },
+    }),
+  );
   const supabase = { service: db.service };
   const orgs = new OrganizationsService(db as never);
   penalties = new PenaltiesService(supabase as never, undefined, undefined, orgs);
@@ -192,23 +197,28 @@ describe('penalty ruleset pin doors', () => {
     '$door stamps the bouts not yet started again: their stamp follows the new penalty rules',
     async ({ pin }) => {
       // The pin's own comment said "the match stamps track the new penalty";
-      // nothing wrote a bout (operator, 2026-10-11).
+      // nothing wrote a bout (operator, 2026-10-11). The database stamps the
+      // bouts not started (`stamp_match_rules`), asked after the pin is written.
+      /** The writes of the Tournament that had landed each time the stamp was asked. */
+      const pinWritesWhenStamped: number[] = [];
+      const stamp = db.rpc.getMockImplementation()!;
+      db.rpc.mockImplementation((name, args) => {
+        pinWritesWhenStamped.push(writesTo(db, 'tournaments').length);
+        return stamp(name, args);
+      });
+
       await pin(PRIVATE_A, 'u-admin-a');
 
-      const stamped = writesTo(db, 'matches');
-      expect(stamped.map((write) => write.op)).toEqual(['update']);
-      expect(stamped[0]?.filters.map((filter) => [filter.method, ...filter.args])).toEqual([
-        ['in', 'phase_id', ['phase-a']],
-        ['eq', 'status', 'scheduled'],
-        // Only a bout that holds another stamp (`match-ruleset.restamp.test.ts`).
-        ['or', expect.stringContaining('ruleset_code.neq.')],
-      ]);
+      expect(db.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: TOURNAMENT_A }]]);
+      expect(pinWritesWhenStamped).toEqual([1]);
+      expect(writesTo(db, 'matches')).toEqual([]);
     },
   );
 
   it.each(DOORS)('$door stamps no bout when the pin is refused', async ({ pin }) => {
     await expect(pin(PRIVATE_B, 'u-admin-a')).rejects.toBeInstanceOf(BadRequestException);
     expect(writesTo(db, 'matches')).toEqual([]);
+    expect(db.rpc).not.toHaveBeenCalled();
   });
 
   it('Tournament edit lets an unchanged pin through: every settings save re-sends it', async () => {

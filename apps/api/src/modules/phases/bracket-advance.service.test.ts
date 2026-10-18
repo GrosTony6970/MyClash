@@ -3,10 +3,16 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
 import { singleElimBracket } from '@myclash/rules/scheduling';
+import { supabaseRpc } from '../../common/testing/supabase-chain';
+import { rulesOf } from './match-rules.fixtures';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
+
+/** The database's stamp of a new bout's rules, for a hand-made double: the copy of t-1. */
+const stampRpc = () =>
+  supabaseRpc({ stamp_match_rules: () => ({ data: rulesOf('t-1'), error: null }) });
 
 // ── buildSelfRef ──────────────────────────────────────────────────────────────
 
@@ -713,8 +719,8 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
               table === 'matches'
                 ? input.existingMatch
                 : table === 'phases'
-                  ? { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } }
-                  : table === 'tournaments'
+                  ? { tournament_id: 't-1' }
+                  : table === 'match_rules'
                     ? { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' }
                     : { id: 'ds-1' },
             error: null,
@@ -732,7 +738,8 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
       });
       return api;
     });
-    return { matchUpdates, matchInserts, slotUpdates, mockSupabase: { service: { from } } };
+    const service = { from, rpc: stampRpc() };
+    return { matchUpdates, matchInserts, slotUpdates, mockSupabase: { service } };
   }
 
   function advanceFrom(service: BracketAdvanceService) {
@@ -804,6 +811,7 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
       red_registration_id: 'reg-winner',
       blue_registration_id: 'reg-loser',
       match_number_label: '3',
+      match_rules_id: rulesOf('t-1'),
     });
   });
 });
@@ -850,8 +858,10 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
               table === 'matches'
                 ? existing
                 : table === 'phases'
-                  ? { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' } }
-                  : slot,
+                  ? { tournament_id: 't-1' }
+                  : table === 'match_rules'
+                    ? { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' }
+                    : slot,
             error: null,
           }),
         ),
@@ -866,7 +876,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
       });
       return api;
     });
-    return { updates, inserts, mockSupabase: { service: { from } } };
+    return { updates, inserts, mockSupabase: { service: { from, rpc: stampRpc() } } };
   }
 
   const SLOT = {
@@ -958,6 +968,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
       blue_registration_id: 'reg-b',
       status: 'scheduled',
       match_number_label: '3',
+      match_rules_id: rulesOf('t-1'),
     });
   });
 

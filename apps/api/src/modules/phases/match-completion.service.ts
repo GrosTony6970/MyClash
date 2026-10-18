@@ -12,6 +12,7 @@ import { PhasesService } from './phases.service';
 import { SwissAdvanceService } from '../swiss/swiss-advance.service';
 import { FrozenResultsGuard, type ExchangeEditRequestRow } from '../matches/frozen-results.guard';
 import { clearDependentPairing, dependentClosure, type DependentBout } from './bracket-dependents';
+import { restampAfterInsert } from './match-ruleset';
 import { revertMatchToUnplayed } from './revert-match';
 import {
   assertForfeitsVoidableHere,
@@ -180,9 +181,11 @@ export class MatchCompletionService {
     closed: ExchangeEditRequestRow[],
   ): Promise<void> {
     const reason = opts.reason ?? 'result of an earlier bout was undone';
+    let reverted: string | null = null;
     for (const bout of fought) {
       if (!bout.matchId) continue;
       await revertMatchToUnplayed(this.supabase.service, bout.matchId, reason, opts.actor ?? {});
+      reverted = bout.matchId;
       closed.push(
         ...(await this.frozenResults.rejectPendingEditsForMatch(
           [bout.matchId],
@@ -190,6 +193,10 @@ export class MatchCompletionService {
         )),
       );
     }
+    // Each bout read its copy before its write: a change of the rules between left it on the
+    // older one (R3). Once for the walk: every dependent is in one phase (`dependentClosure`).
+    if (reverted)
+      await restampAfterInsert(this.supabase.service, { matchId: reverted }, this.logger);
   }
 
   /**

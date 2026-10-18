@@ -1,3 +1,5 @@
+import type { MatchRulesetStamp } from '../phases/match-ruleset';
+
 /**
  * "This bout was never played", as a column set.
  *
@@ -30,6 +32,10 @@
  *                         A lock outliving its result makes the bout
  *                         unscoreable with no route back but a manual unlock.
  *   best-of round state   a stale `rounds_json` re-opens the series mid-way.
+ *   the rules             a bout not started takes its Tournament's rules of now
+ *                         (`rules`, the copy `matchRulesetForBout` read), and
+ *                         forgets the copies it held before (`earlier_rules_ids`):
+ *                         a bout fought again is fought under the new copy only.
  *
  * NOT included, on purpose: `side_order` (the operator's display choice, not a
  * result), `scorekeeper_user_id` (an assignment), `lice_id` / `scheduled_at`
@@ -38,8 +44,13 @@
  * A plain object rather than a write, so callers stay in charge of the where
  * clause and can fold it into an update they are already making.
  */
-export function unplayedMatchColumns(now = new Date().toISOString()): Record<string, unknown> {
+export function unplayedMatchColumns(
+  rules: MatchRulesetStamp,
+  now = new Date().toISOString(),
+): Record<string, unknown> {
   return {
+    ...rules,
+    earlier_rules_ids: [],
     status: 'scheduled',
     red_score: 0,
     blue_score: 0,

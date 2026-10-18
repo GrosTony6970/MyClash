@@ -9,6 +9,7 @@ import {
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { MatchesService } from './matches.service';
+import { rulesOf, withStampedRules } from '../phases/match-rules.fixtures';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ const mockFrozenResults = {
  */
 function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean }) {
   // A bout never reset: `createExchange` reads its last reset (ruling 290).
-  const supabase = mockSupabase({ match_events: { rows: [] }, ...seed });
+  const supabase = mockSupabase(...withStampedRules({ match_events: { rows: [] }, ...seed }));
   // The placement service is doubled, not exercised. It makes reads of its own —
   // the sheet, the phases, the strip's occupants — and this file seeds a table
   // per query, so running it for real would need every one of those in every
@@ -1034,6 +1035,7 @@ describe('MatchesService', () => {
             // The bout's Tournament was re-pinned since the bout was fought.
             ruleset_code: 'TF_v1',
             phases: {
+              tournament_id: 't-1',
               tournaments: {
                 ruleset_code: 'Generic_PointsCap',
                 ruleset_version: '1',
@@ -1102,18 +1104,35 @@ describe('MatchesService', () => {
       // Fought under TF_v1, then the Tournament was re-pinned. A bout that is
       // not started takes the Tournament's ruleset (operator, 2026-10-11).
       const { service: resetService, supabase } = makeService(resettableMatch());
+      const stamp = supabase.rpc.getMockImplementation()!;
+      const boutWritesAtStamp: number[] = [];
+      supabase.rpc.mockImplementation((name, args) => {
+        boutWritesAtStamp.push(writesTo(supabase, 'matches').length);
+        return stamp(name, args);
+      });
 
       await resetService.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' });
 
+      // Asked again once the bout is written: a change of the rules between the read and the
+      // write left it on the older copy (R3).
+      expect(boutWritesAtStamp).toEqual([0, 1]);
+      expect(supabase.rpc.mock.calls.map(([, args]) => args)).toEqual([
+        { p_tournament_id: 't-1' },
+        { p_tournament_id: 't-1' },
+      ]);
+      // The copy of the Tournament's rules of now, and no earlier copy kept.
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
         status: 'scheduled',
+        match_rules_id: rulesOf('t-1'),
+        earlier_rules_ids: [],
         ruleset_code: 'Generic_PointsCap',
         ruleset_version: '1.0.0',
         ruleset_content_hash: 'hash-now',
       });
-      expect(selectsFor(supabase.from, 'matches')).toContain(
-        'phases(tournaments(ruleset_code, ruleset_version, ruleset_content_hash))',
-      );
+      expect(selectsFor(supabase.from, 'matches')).toContain('phases(tournament_id)');
+      expect(selectsFor(supabase.from, 'match_rules')).toEqual([
+        'ruleset_code, ruleset_version, ruleset_content_hash',
+      ]);
     });
 
     it('resetMatch writes nothing when the ruleset of the bout cannot be read', async () => {
@@ -1229,9 +1248,14 @@ describe('MatchesService', () => {
     const seed = (): Record<string, TableSeed> => ({
       phases: {
         rows: [
-          { id: 'phase-elsewhere', tournaments: { event_id: 'event-2', ruleset_code: 'TF_v1' } },
+          {
+            id: 'phase-elsewhere',
+            tournament_id: 't-2',
+            tournaments: { event_id: 'event-2', ruleset_code: 'TF_v1' },
+          },
           {
             id: 'phase-1',
+            tournament_id: 't-1',
             tournaments: {
               event_id: 'event-1',
               ruleset_code: 'Generic_PointsCap',
@@ -1267,9 +1291,13 @@ describe('MatchesService', () => {
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
       expect(selectsFor(supabase.from, 'phases')).toEqual([
         'id, tournaments!inner(event_id)',
-        'tournaments(ruleset_code, ruleset_version, ruleset_content_hash)',
+        // The Tournament whose rules are stamped on the bout.
+        'tournament_id',
         // After the insert: the Tournament whose ruleset in force the bout takes (R3).
         'tournament_id',
+      ]);
+      expect(selectsFor(supabase.from, 'match_rules')).toEqual([
+        'ruleset_code, ruleset_version, ruleset_content_hash',
       ]);
     });
 
@@ -1282,6 +1310,7 @@ describe('MatchesService', () => {
       await service.createMatch(dto('lice-1'));
 
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
+        match_rules_id: rulesOf('t-1'),
         ruleset_code: 'Generic_PointsCap',
         ruleset_version: '1.0.0',
         ruleset_content_hash: 'hash-1',

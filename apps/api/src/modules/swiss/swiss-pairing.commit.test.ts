@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { asSupabase as as, fieldOf, readState } from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
+import { rulesOf, withStampedRules } from '../phases/match-rules.fixtures';
 
 /** The tables a commit writes to, on top of the ones a plan reads. */
 const commitState = (over: Record<string, unknown> = {}) => ({
@@ -32,7 +33,7 @@ const collaborators = () => ({
 
 describe('SwissPairingService — committing a round', () => {
   it('writes the round, its bouts, and hands them to the programme', async () => {
-    const supabase = mockSupabase(commitState());
+    const supabase = mockSupabase(...withStampedRules(commitState()));
     const { programme, notifications } = collaborators();
     const service = new SwissPairingService(
       as(supabase),
@@ -74,19 +75,18 @@ describe('SwissPairingService — committing a round', () => {
     );
   });
 
-  // The round read the points-cap ruleset; the Tournament moved to TF_v1 before its bouts were
-  // in (R3). They take the one in force once they are written.
+  // The round read its stamp; the Tournament's rules may change before its bouts are in (R3).
+  // The database re-stamps the bouts not started, so the round asks for the stamp again once its
+  // bouts are written.
   it('re-stamps its bouts with the ruleset in force once they are in', async () => {
-    const supabase = mockSupabase(
-      commitState({
-        tournaments: {
-          rows: [
-            { id: 't2', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' },
-            { id: 't1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
-          ],
-        },
-      }),
-    );
+    const supabase = mockSupabase(...withStampedRules(commitState()));
+    /** The writes of bouts that had landed each time the stamp was asked. */
+    const boutWritesWhenStamped: string[][] = [];
+    const stamp = supabase.rpc.getMockImplementation()!;
+    supabase.rpc.mockImplementation((name, args) => {
+      boutWritesWhenStamped.push(writesTo(supabase, 'matches').map((write) => write.op));
+      return stamp(name, args);
+    });
     const { programme, notifications } = collaborators();
     const service = new SwissPairingService(
       as(supabase),
@@ -97,31 +97,20 @@ describe('SwissPairingService — committing a round', () => {
 
     await service.commitNextRound('p1');
 
-    const writes = writesTo(supabase, 'matches');
-    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
-    expect(writes[1]?.row).toMatchObject({ ruleset_code: 'TF_v1', ruleset_version: '1.0.0' });
+    expect(boutWritesWhenStamped).toEqual([[], ['insert']]);
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['stamp_match_rules', { p_tournament_id: 't1' }],
+      ['stamp_match_rules', { p_tournament_id: 't1' }],
+    ]);
   });
 
   // Read before the round row: thrown after it, the round stood with no bouts, and the next
   // completion met its row as "already committed", for good.
   it('writes no round when the ruleset of its bouts cannot be read', async () => {
-    const supabase = mockSupabase(commitState());
-    const real = supabase.service.from;
-    supabase.service.from = vi.fn((table: string) => {
-      const chain = real(table);
-      if (table !== 'phases') return chain;
-      const select = chain.select;
-      chain.select = vi.fn((columns: string) =>
-        columns.includes('ruleset_code')
-          ? ({
-              eq: () => ({
-                maybeSingle: async () => ({ data: null, error: { message: 'connection reset' } }),
-              }),
-            } as never)
-          : select(columns),
-      ) as never;
-      return chain;
-    }) as never;
+    const [tables] = withStampedRules(commitState());
+    const supabase = mockSupabase(tables, {
+      stamp_match_rules: () => ({ data: null, error: { message: 'connection reset' } }),
+    });
     const { programme, notifications } = collaborators();
     const service = new SwissPairingService(
       as(supabase),
@@ -139,7 +128,9 @@ describe('SwissPairingService — committing a round', () => {
     // `listByPhase` and the schedule grid both order by `match_number_label` in
     // SQL, and Postgres sorts that column as TEXT — so an unpadded board 10
     // came back between board 1 and board 2.
-    const supabase = mockSupabase(commitState({ swiss_entrants: { rows: fieldOf(20) } }));
+    const supabase = mockSupabase(
+      ...withStampedRules(commitState({ swiss_entrants: { rows: fieldOf(20) } })),
+    );
     const service = new SwissPairingService(as(supabase));
 
     await service.commitNextRound('p1');
@@ -159,7 +150,7 @@ describe('SwissPairingService — committing a round', () => {
     // Generation used to hardcode TF_v1, so a tournament scored by another
     // engine had its bouts stamped with one engine and its standings computed
     // with another.
-    const supabase = mockSupabase(commitState());
+    const supabase = mockSupabase(...withStampedRules(commitState()));
     const service = new SwissPairingService(as(supabase));
 
     await service.commitNextRound('p1');
@@ -167,6 +158,7 @@ describe('SwissPairingService — committing a round', () => {
     const bouts = writesTo(supabase, 'matches')[0]?.row as SupabaseRow[];
     for (const bout of bouts) {
       expect(bout).toMatchObject({
+        match_rules_id: rulesOf('t1'),
         ruleset_code: 'Generic_PointsCap',
         // Canonicalised on the way in — the column holds the shorthand '1'.
         ruleset_version: '1.0.0',
@@ -180,12 +172,14 @@ describe('SwissPairingService — committing a round', () => {
     // "round complete" and both commit. The unique index makes the loser a
     // 23505, and the round exists either way — which is all the caller wanted.
     const supabase = mockSupabase(
-      commitState({
-        swiss_rounds: [
-          { data: [], error: null },
-          { data: null, error: { code: '23505', message: 'duplicate key value violates …' } },
-        ],
-      }),
+      ...withStampedRules(
+        commitState({
+          swiss_rounds: [
+            { data: [], error: null },
+            { data: null, error: { code: '23505', message: 'duplicate key value violates …' } },
+          ],
+        }),
+      ),
     );
     const service = new SwissPairingService(as(supabase));
 
@@ -196,12 +190,14 @@ describe('SwissPairingService — committing a round', () => {
 
   it('surfaces any other insert failure', async () => {
     const supabase = mockSupabase(
-      commitState({
-        swiss_rounds: [
-          { data: [], error: null },
-          { data: null, error: { code: '42501', message: 'permission denied' } },
-        ],
-      }),
+      ...withStampedRules(
+        commitState({
+          swiss_rounds: [
+            { data: [], error: null },
+            { data: null, error: { code: '42501', message: 'permission denied' } },
+          ],
+        }),
+      ),
     );
     const service = new SwissPairingService(as(supabase));
 
@@ -212,7 +208,7 @@ describe('SwissPairingService — committing a round', () => {
     // This runs inside match completion, which must never throw. An unscheduled
     // round can be placed from the schedule grid; an unpaired one cannot be
     // recovered at all.
-    const supabase = mockSupabase(commitState());
+    const supabase = mockSupabase(...withStampedRules(commitState()));
     const { notifications } = collaborators();
     const programme = {
       scheduleGroupUnchecked: vi.fn(async () => {
@@ -236,7 +232,7 @@ describe('SwissPairingService — committing a round', () => {
   });
 
   it('keeps the round when announcing it fails', async () => {
-    const supabase = mockSupabase(commitState());
+    const supabase = mockSupabase(...withStampedRules(commitState()));
     const { programme } = collaborators();
     const notifications = {
       swissRoundPublished: vi.fn(async () => {
@@ -259,7 +255,9 @@ describe('SwissPairingService — committing a round', () => {
 
   it('leaves the round unscheduled when the event has no pistes', async () => {
     const supabase = mockSupabase(
-      commitState({ lices: { rows: [{ id: 'lice-z', event_id: 'e2', sort_order: 1 }] } }),
+      ...withStampedRules(
+        commitState({ lices: { rows: [{ id: 'lice-z', event_id: 'e2', sort_order: 1 }] } }),
+      ),
     );
     const { programme } = collaborators();
     const service = new SwissPairingService(as(supabase), programme as never);

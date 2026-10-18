@@ -28,6 +28,7 @@ import { toSubmissionFighter } from '../exports/hema-ratings-rows';
 import { PhasesService } from '../phases/phases.service';
 import { SwissSeedingService } from '../swiss/swiss-seeding.service';
 import { eventHemaRatingsId } from './event-hema-ratings-id';
+import { withStampedRules } from '../phases/match-rules.fixtures';
 
 const RATINGS = new Map([
   ['hA', 1500],
@@ -56,7 +57,7 @@ beforeEach(() => {
 });
 
 function makeService(seed: Record<string, TableSeed>) {
-  const supabase = mockSupabase(seed);
+  const supabase = mockSupabase(...withStampedRules(seed));
   const service = new PhasesService(
     supabase as never,
     { placeMatches: vi.fn(() => Promise.resolve()) } as never,

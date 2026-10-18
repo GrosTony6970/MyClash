@@ -4,7 +4,8 @@
  *
  * On the running database: the backfill gives every Match a copy with its own engine pair; the stamp
  * points the Matches not started at the Tournament's copy of now, keeps the one each held as
- * earlier (once, never NULL), leaves a started Match on its own; the card pin resolves Tournament,
+ * earlier (once, never NULL), leaves a started Match on its own, writes no Match it does not move
+ * (one that holds the copy, one of another Tournament); the card pin resolves Tournament,
  * Event, built-in; a copy never changes but for its pin set NULL by a delete (a card ruleset's, an
  * organisation's); an Event delete still cascades; a Match takes only a copy of its own Tournament,
  * whoever writes it; and neither public role, nor the service role for the backfill, may call the
@@ -20,6 +21,7 @@ const TOURNAMENT = '77777777-0000-4000-8000-00000000000a';
 const OTHER_TOURNAMENT = '77777777-0000-4000-8000-00000000000c';
 const PHASE = '99999999-0000-4000-8000-00000000000a';
 const BOUT = 'dddddddd-0000-4000-8000-00000000000a';
+const OTHER_BOUT = 'dddddddd-0000-4000-8000-00000000000c';
 const CLUB_CARDS = 'fe000000-0000-4000-8000-00000000000a';
 // A second bout of the published Tournament, and another club with a shared card ruleset.
 const SECOND = 'dddddddd-0000-4000-8000-0000000000a2';
@@ -120,6 +122,27 @@ async function stampFailures(tx, failures) {
       failures.push(
         `a bout back on copies it held holds ${JSON.stringify(back.earlier_rules_ids)}`,
       );
+  });
+}
+
+/**
+ * A stamp writes only the bouts it moves: a bout that holds the copy already is not written again
+ * (each write is a change notice, and a new `updated_at` a league reads as "results changed"), and
+ * another Tournament's bouts are not written at all. A written row has a new `ctid`.
+ */
+async function quietStampFailures(tx, failures) {
+  await isolated(tx, async (sp) => {
+    const placeOf = async (id) =>
+      (await sp`SELECT ctid::text AS at FROM matches WHERE id = ${id}`)[0].at;
+    await stamp(sp, OTHER_TOURNAMENT);
+    await stamp(sp);
+    const [held, elsewhere] = [await placeOf(BOUT), await placeOf(OTHER_BOUT)];
+    await stamp(sp);
+    if ((await placeOf(BOUT)) !== held) failures.push('a stamp rewrote a bout that held its copy');
+    await setCap(sp, 7);
+    await stamp(sp);
+    if ((await placeOf(OTHER_BOUT)) !== elsewhere)
+      failures.push('a stamp wrote a bout of another Tournament');
   });
 }
 
@@ -281,6 +304,7 @@ export async function matchRulesFailures(tx) {
   const failures = [];
   await backfillFailures(tx, failures);
   await stampFailures(tx, failures);
+  await quietStampFailures(tx, failures);
   await scoringKeysFailures(tx, failures);
   await cardPinFailures(tx, failures);
   await immutableFailures(tx, failures);

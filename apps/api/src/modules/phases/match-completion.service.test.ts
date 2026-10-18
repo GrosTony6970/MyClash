@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchCompletionService } from './match-completion.service';
+import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
 /**
  * Behavioural tests for the single owner of "a match just completed".
@@ -32,7 +33,9 @@ const OTHER_MATCH = {
 };
 
 function supabaseFor(phase: { type: string; tournament_id: string }) {
-  return mockSupabase({ matches: { rows: [{ id: 'm1', phases: phase }, OTHER_MATCH] } });
+  return mockSupabase(
+    ...withStampedRules({ matches: { rows: [{ id: 'm1', phases: phase }, OTHER_MATCH] } }),
+  );
 }
 
 /** The freeze is non-optional now, so every construction has to supply it. */
@@ -201,23 +204,28 @@ function uncompleteSupabase(fixture: {
   match_penalties?: Row[];
   match_events?: Row[];
 }) {
-  return mockSupabase({
-    bracket_slots: { rows: fixture.slots },
-    // A bout that is reverted takes the ruleset of its Tournament: the read needs one.
-    matches: {
-      rows: fixture.matches.map((row) => ({
-        phases: { tournaments: { ruleset_code: 'Generic_PointsCap', ruleset_version: '1' } },
-        ...row,
-      })),
-    },
-    vw_tournament_query_matches: { rows: fixture.matches },
-    phases: { rows: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }] },
-    match_forfeits: { rows: fixture.match_forfeits ?? [] },
-    registrations: { rows: fixture.registrations ?? [] },
-    exchanges: { rows: fixture.exchanges ?? [] },
-    match_penalties: { rows: fixture.match_penalties ?? [] },
-    match_events: { rows: fixture.match_events ?? [] },
-  });
+  return mockSupabase(
+    ...withStampedRules({
+      bracket_slots: { rows: fixture.slots },
+      // A bout that is reverted takes the ruleset of its Tournament: the read needs one.
+      matches: {
+        rows: fixture.matches.map((row) => ({
+          phases: {
+            tournament_id: 't1',
+            tournaments: { ruleset_code: 'Generic_PointsCap', ruleset_version: '1' },
+          },
+          ...row,
+        })),
+      },
+      vw_tournament_query_matches: { rows: fixture.matches },
+      phases: { rows: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }] },
+      match_forfeits: { rows: fixture.match_forfeits ?? [] },
+      registrations: { rows: fixture.registrations ?? [] },
+      exchanges: { rows: fixture.exchanges ?? [] },
+      match_penalties: { rows: fixture.match_penalties ?? [] },
+      match_events: { rows: fixture.match_events ?? [] },
+    }),
+  );
 }
 
 const ORGANISER = { userId: 'organiser-1', canDiscardDependentResults: true };
@@ -298,6 +306,15 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
   it('reverts the fought dependent when an organiser accepts the loss', async () => {
     const supabase = uncompleteSupabase(bracketFixture(true));
     const bracketAdvance = { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) };
+    const stamp = supabase.rpc.getMockImplementation()!;
+    const putBackAtStamp: number[] = [];
+    supabase.rpc.mockImplementation((name, args) => {
+      putBackAtStamp.push(
+        writesTo(supabase, 'matches').filter((w) => (w.row as Row)['status'] === 'scheduled')
+          .length,
+      );
+      return stamp(name, args);
+    });
 
     await new MatchCompletionService(
       supabase as never,
@@ -319,7 +336,19 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     expect(
       supabase.writes.find((w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled')
         ?.row,
-    ).toMatchObject({ ruleset_code: 'Generic_PointsCap', ruleset_version: '1.0.0' });
+    ).toMatchObject({
+      match_rules_id: rulesOf('t1'),
+      earlier_rules_ids: [],
+      ruleset_code: 'Generic_PointsCap',
+      ruleset_version: '1.0.0',
+    });
+    // …and asked again once the walk wrote it: a change of the rules between the read and the
+    // write left it on the older copy (R3).
+    expect(putBackAtStamp).toEqual([0, 1]);
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['stamp_match_rules', { p_tournament_id: 't1' }],
+      ['stamp_match_rules', { p_tournament_id: 't1' }],
+    ]);
     // …with the event that returns its clock to idle, without which the pad
     // could not start the replay.
     expect(

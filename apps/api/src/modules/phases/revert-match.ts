@@ -66,7 +66,7 @@ export async function revertMatchToUnplayed(
 
   const { error } = await supabase
     .from('matches')
-    .update({ ...unplayedMatchColumns(), ...ruleset })
+    .update(unplayedMatchColumns(ruleset))
     .eq('id', matchId);
   if (error) throw new BadRequestException(error.message);
 }

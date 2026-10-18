@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { RulesetRegistry } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
 import { archivedEventRefusal } from '../../common/event-readonly/event-readonly.guard';
+import { boutsWithTheirCopies, carriesBoutsWithoutCopies } from './archive-match-rules';
 import { dropRestoredPins } from './archive-pins';
 import { assertRestoredRulesetsUsable } from './archive-rulesets';
 import { readArchivedRows } from './archive-read';
@@ -72,10 +73,13 @@ type DbClient = {
 // crossOrg = the restored copy lands in a different organization than the
 // source. Org-level references (venues, penalty rulesets, compensation plans)
 // aren't copied, so rows/columns that depend on them are dropped or nulled.
+// boutsWithoutCopies = an archive made before 0229: its bouts take copies of
+// their rules before they are written (`archive-match-rules.ts`).
 type RestoreTargets = {
   targetEventId?: string;
   targetTournamentId?: string;
   crossOrg?: boolean;
+  boutsWithoutCopies?: boolean;
 };
 
 /**
@@ -307,7 +311,11 @@ export class ArchiveService {
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
     await this.assertRestoredRulesets(data, targetOrganizationId, userId);
     const droppedPins = await dropRestoredPins(this.supabase, data, targetOrganizationId);
-    await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
+    await this.insertMappedTables(data, maps, {
+      targetEventId: restoredEventId,
+      crossOrg,
+      boutsWithoutCopies: carriesBoutsWithoutCopies(archive.data),
+    });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
     return {
       scope: 'event',
@@ -404,6 +412,7 @@ export class ArchiveService {
       targetEventId: options.targetEventId,
       targetTournamentId: restoredTournamentId,
       crossOrg,
+      boutsWithoutCopies: carriesBoutsWithoutCopies(archive.data),
     });
     await this.auditRestore(
       userId,
@@ -447,6 +456,11 @@ export class ArchiveService {
 
     for (const table of INSERT_ORDER) {
       const key = TABLE_TO_ARCHIVE_KEY[table];
+      if (table === 'matches' && targets.boutsWithoutCopies) {
+        // The restored Tournament of a bout, as `remapRow` maps its phase's.
+        const restored = (id: string) => maps.tournaments.get(id) ?? targets.targetTournamentId;
+        data.matches = await boutsWithTheirCopies(this.supabase.service, data, restored);
+      }
       const rows = data[key];
       if (rows.length === 0) continue;
       const mapped = rows

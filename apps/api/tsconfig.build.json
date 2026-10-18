@@ -72,6 +72,12 @@
     // The resolver's stored-row double, split out when its test reached the 400-line cap (the
     // end decision a formula keeps, migration 0228). It imports vitest.
     "src/modules/matches/ruleset-resolver.fixtures.ts",
+    // The database's stamp of a bout's rules for a test's seeded Tournaments (0229). Imported by
+    // tests and nothing else.
+    "src/modules/phases/match-rules.fixtures.ts",
+    // The archive service over seeded tables, split out of its test when the restore of an older
+    // archive got a test file of its own (0229). It imports vitest.
+    "src/modules/exports/archive.fixtures.ts",
     // createTournament's seeded tables, shared by its two test files, split out
     // when its test reached the 400-line cap. It imports vitest.
     "src/modules/events/create-tournament.fixtures.ts",

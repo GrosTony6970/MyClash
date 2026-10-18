@@ -7,6 +7,7 @@ import {
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
+import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
 /**
  * Pool and bracket generation read the Tournament's ruleset before their first write.
@@ -18,25 +19,12 @@ import { PhasesService } from './phases.service';
 const RULESET_DOWN = 'The ruleset of Tournament tournament-1 was not read: connection reset';
 
 function makeService(seed: Record<string, TableSeed>, rulesetRead: 'fails' | 'works') {
-  const supabase = mockSupabase(seed);
-  if (rulesetRead === 'fails') {
-    const real = supabase.service.from;
-    supabase.service.from = vi.fn((table: string) => {
-      const chain = real(table);
-      if (table !== 'tournaments') return chain;
-      const select = chain.select;
-      chain.select = vi.fn((columns: string) =>
-        columns.includes('ruleset_code')
-          ? ({
-              eq: () => ({
-                maybeSingle: async () => ({ data: null, error: { message: 'connection reset' } }),
-              }),
-            } as never)
-          : select(columns),
-      ) as never;
-      return chain;
-    }) as never;
-  }
+  // The ruleset is read through the stamp of the bouts' rules: a stamp that fails is the read.
+  const [tables, stamp] = withStampedRules(seed);
+  const down = {
+    stamp_match_rules: () => ({ data: null, error: { message: 'connection reset' } }),
+  };
+  const supabase = mockSupabase(tables, rulesetRead === 'fails' ? down : stamp);
   const placement = { placeMatches: vi.fn(() => Promise.resolve()) };
   const orgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
   const service = new PhasesService(
@@ -123,6 +111,49 @@ describe('generatePools — the ruleset is read before the force delete', () => 
       'Cannot create 5 pools with only 3 fighters',
     );
     expect(supabase.writes).toEqual([]);
+  });
+
+  // A bout is scored with the rules its row points at: Pools of a Generic Tournament carry
+  // Generic, through the copy of the Tournament's rules, never a TF_v1 nobody chose.
+  it('Pools generated on a Generic Tournament carry Generic on the row', async () => {
+    const { service, supabase } = makeService(
+      {
+        phases: [
+          { data: null, error: null }, // no pool phase yet
+          { data: { id: 'phase-new' }, error: null }, // the insert's id
+        ],
+        tournaments: {
+          rows: [
+            {
+              id: 'tournament-1',
+              weapon: null,
+              event_id: null,
+              ruleset_code: 'Generic_PointsCap',
+              ruleset_version: '1',
+              ruleset_content_hash: 'hash-1',
+            },
+          ],
+        },
+        registrations: { rows: registrations(4) },
+        pools: { data: { id: 'pool-new' }, error: null },
+        pool_members: { data: null, error: null },
+        matches: { rows: [] },
+      },
+      'works',
+    );
+
+    await service.generatePools('tournament-1', { poolCount: 1 }, false);
+
+    const bouts = writesTo(supabase, 'matches').flatMap((write) => write.row as SupabaseRow[]);
+    expect(bouts).toHaveLength(6);
+    for (const bout of bouts) {
+      expect(bout).toMatchObject({
+        match_rules_id: rulesOf('tournament-1'),
+        ruleset_code: 'Generic_PointsCap',
+        ruleset_version: '1.0.0',
+        ruleset_content_hash: 'hash-1',
+      });
+    }
   });
 });
 
@@ -231,6 +262,7 @@ describe('generateBracket — the ruleset of its bouts', () => {
     expect(bouts).toHaveLength(4);
     for (const bout of bouts) {
       expect(bout).toMatchObject({
+        match_rules_id: rulesOf('tournament-1'),
         ruleset_code: 'Generic_PointsCap',
         ruleset_version: '1.0.0',
         ruleset_content_hash: 'hash-1',

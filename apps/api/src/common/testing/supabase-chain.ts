@@ -143,14 +143,42 @@ export function supabaseFrom(
  * touched rather than only the table. Recorded for canned and seeded tables
  * alike; a fixture is not changed by a write either way.
  */
-export function mockSupabase(byTable: Readonly<Record<string, TableSeed>>): {
-  service: { from: Mock<(table: string) => SupabaseChain> };
+export function mockSupabase(
+  byTable: Readonly<Record<string, TableSeed>>,
+  byFunction: Readonly<Record<string, RpcAnswer>> = {},
+): {
+  service: { from: Mock<(table: string) => SupabaseChain>; rpc: RpcMock };
   from: Mock<(table: string) => SupabaseChain>;
+  rpc: RpcMock;
   writes: RecordedWrite[];
 } {
   const writes: RecordedWrite[] = [];
   const from = supabaseFrom(byTable, writes);
-  return { service: { from }, from, writes };
+  const rpc = supabaseRpc(byFunction);
+  return { service: { from, rpc }, from, rpc, writes };
+}
+
+/** What a database function answers, given the arguments it was called with. */
+export type RpcAnswer = (args: Record<string, unknown>) => ChainResult;
+type RpcMock = Mock<(name: string, args?: Record<string, unknown>) => Promise<ChainResult>>;
+
+/**
+ * An `rpc()` mock that routes by function name. Calling a function the test did not configure
+ * throws, as a query against an unconfigured table does: an answer made up here would read as the
+ * database agreeing. The calls are on `rpc.mock.calls`, name and arguments, for a payload
+ * assertion (the double cannot know the function's argument names; `migration-function.ts` can).
+ */
+export function supabaseRpc(byFunction: Readonly<Record<string, RpcAnswer>> = {}): RpcMock {
+  return vi.fn(async (name: string, args: Record<string, unknown> = {}) => {
+    const answer = byFunction[name];
+    if (!answer) {
+      const configured = Object.keys(byFunction).sort().join(', ') || '(none)';
+      throw new Error(
+        `supabaseRpc: call of unconfigured function "${name}". Configured: ${configured}.`,
+      );
+    }
+    return answer(args);
+  });
 }
 
 /** Tables a `from()` mock was actually asked for, in call order. */

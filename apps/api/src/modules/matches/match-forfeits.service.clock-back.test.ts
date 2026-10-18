@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { phase } from './scoring.service.corrections.fixtures';
+import { withStampedRules } from '../phases/match-rules.fixtures';
 
 /**
  * A forfeit taken back reopens the clock it ended (operator ruling 2026-10-16, "Forfeit back").
@@ -17,39 +18,41 @@ const RESULT = { status: 'completed', red_score: 0, blue_score: 6, end_reason: '
 
 /** The forfeited bout and its record, which found the bout as `previous`. */
 const seeded = (previous: Record<string, unknown>) =>
-  mockSupabase({
-    matches: {
-      rows: [
-        {
-          id: BOUT,
-          red_registration_id: 'red',
-          blue_registration_id: 'blue',
-          locked_at: null,
-          match_number_label: 'P1M1',
-          phases: phase('pool'),
-          winner_registration_id: 'blue',
-          ...RESULT,
-        },
-      ],
-    },
-    match_forfeits: {
-      rows: [
-        {
-          id: 'forfeit-1',
-          match_id: BOUT,
-          parent_forfeit_id: null,
-          forfeiting_registration_id: 'red',
-          downstream_match_ids: [],
-          voided_at: null,
-          previous_match_state: previous,
-          previous_registration_state: {},
-          resulting_match_state: { ...RESULT, winner_registration_id: 'blue' },
-        },
-      ],
-    },
-    exchanges: { rows: [] },
-    match_penalties: { rows: [] },
-  });
+  mockSupabase(
+    ...withStampedRules({
+      matches: {
+        rows: [
+          {
+            id: BOUT,
+            red_registration_id: 'red',
+            blue_registration_id: 'blue',
+            locked_at: null,
+            match_number_label: 'P1M1',
+            phases: { ...phase('pool'), tournament_id: 't-1' },
+            winner_registration_id: 'blue',
+            ...RESULT,
+          },
+        ],
+      },
+      match_forfeits: {
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: BOUT,
+            parent_forfeit_id: null,
+            forfeiting_registration_id: 'red',
+            downstream_match_ids: [],
+            voided_at: null,
+            previous_match_state: previous,
+            previous_registration_state: {},
+            resulting_match_state: { ...RESULT, winner_registration_id: 'blue' },
+          },
+        ],
+      },
+      exchanges: { rows: [] },
+      match_penalties: { rows: [] },
+    }),
+  );
 
 function service(previous: Record<string, unknown>, clockStatus: string) {
   const db = seeded(previous);

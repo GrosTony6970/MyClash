@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { assertSlotMatchRewritable, loadSlotMatch, syncMatchToSlot } from './bracket-match-sync';
+import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
 /**
  * The voided-row precondition `hasBeenFought` is written against.
@@ -23,7 +24,8 @@ import { assertSlotMatchRewritable, loadSlotMatch, syncMatchToSlot } from './bra
  * applies `.eq` and `.not` for real, so the row simply is not there.
  */
 
-const client = (rows: SupabaseRow[]) => mockSupabase({ matches: { rows } }).service as never;
+const client = (rows: SupabaseRow[]) =>
+  mockSupabase(...withStampedRules({ matches: { rows } })).service as never;
 
 /** A bout that ran and was then voided — the exact row the precondition excludes. */
 const VOIDED_BUT_RAN: SupabaseRow = {
@@ -81,16 +83,24 @@ describe('assertSlotMatchRewritable', () => {
 });
 
 describe('syncMatchToSlot — a new bout of the slot', () => {
-  // The slot's bout read TF_v1; the Tournament moved to points-cap before it was in (R3).
+  // A change of the Tournament's rules between the stamp read and the insert misses the new
+  // bout, so the bout is stamped again once it is in (R3).
   it('re-stamps it with the ruleset in force once it is in', async () => {
-    const supabase = mockSupabase({
-      matches: { rows: [] },
-      phases: {
-        rows: [{ id: 'ph-1', tournament_id: 't-1', tournaments: { ruleset_code: 'TF_v1' } }],
-      },
-      tournaments: {
-        rows: [{ id: 't-1', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' }],
-      },
+    const supabase = mockSupabase(
+      ...withStampedRules({
+        matches: { rows: [] },
+        phases: { rows: [{ id: 'ph-1', tournament_id: 't-1' }] },
+        tournaments: {
+          rows: [{ id: 't-1', ruleset_code: 'Generic_PointsCap', ruleset_version: '1' }],
+        },
+      }),
+    );
+    // How many bouts were written when each stamp was asked.
+    const boutsInAtStamp: number[] = [];
+    const stamp = supabase.rpc.getMockImplementation();
+    supabase.rpc.mockImplementation(async (name, args) => {
+      boutsInAtStamp.push(writesTo(supabase, 'matches').length);
+      return stamp!(name, args);
     });
     const slot = {
       id: 'slot-1',
@@ -104,11 +114,18 @@ describe('syncMatchToSlot — a new bout of the slot', () => {
     await syncMatchToSlot(supabase.service as never, slot, { onStarted: 'skip' });
 
     const writes = writesTo(supabase, 'matches');
-    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
-    expect(writes[0]?.row).toMatchObject({ ruleset_code: 'TF_v1' });
-    expect(writes[1]?.row).toMatchObject({
+    // The database moves the bouts not started; the server writes only the insert.
+    expect(writes.map((write) => write.op)).toEqual(['insert']);
+    expect(writes[0]?.row).toMatchObject({
+      match_rules_id: rulesOf('t-1'),
       ruleset_code: 'Generic_PointsCap',
       ruleset_version: '1.0.0',
     });
+    // The stamp for the insert, then the stamp again once the bout is in.
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+    ]);
+    expect(boutsInAtStamp).toEqual([0, 1]);
   });
 });

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
 import { MatchesService } from './matches.service';
+import { withStampedRules } from '../phases/match-rules.fixtures';
 
 /**
  * A reset voids every hit of its bout, so it ends the requests that wait on
@@ -16,23 +17,25 @@ const CLOSED = [{ id: 'request-1' }];
 const RESET = { confirmation: 'RESET MATCH', reason: 'replay the bout' };
 
 function setup(status: string, over: Record<string, TableSeed> = {}) {
-  const supabase = mockSupabase({
-    // The reset reads the ruleset of the bout's Tournament before it writes.
-    matches: {
-      rows: [
-        {
-          id: 'match-1',
-          locked_at: null,
-          status,
-          phases: { tournaments: { ruleset_code: 'TF_v1' } },
-        },
-      ],
-    },
-    exchanges: { rows: [] },
-    match_penalties: { rows: [] },
-    match_events: { rows: [] },
-    ...over,
-  });
+  const supabase = mockSupabase(
+    ...withStampedRules({
+      // The reset reads the ruleset of the bout's Tournament before it writes.
+      matches: {
+        rows: [
+          {
+            id: 'match-1',
+            locked_at: null,
+            status,
+            phases: { tournament_id: 't-1', tournaments: { ruleset_code: 'TF_v1' } },
+          },
+        ],
+      },
+      exchanges: { rows: [] },
+      match_penalties: { rows: [] },
+      match_events: { rows: [] },
+      ...over,
+    }),
+  );
   /** What the reset had written when each step of the guard ran. */
   const seen = { atClose: [] as string[], atTelling: [] as string[] };
   const written = () => supabase.writes.map((write) => write.table);

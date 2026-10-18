@@ -8,6 +8,7 @@ import {
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
+import { withStampedRules } from './match-rules.fixtures';
 
 /**
  * The doors that delete fought bouts (rulings 276, 277, 279, 280, 285).
@@ -66,7 +67,7 @@ function bouts(phaseId: string, fought: boolean): SupabaseRow[] {
 }
 
 function setup(seed: Record<string, TableSeed>) {
-  const supabase = mockSupabase(seed);
+  const supabase = mockSupabase(...withStampedRules(seed));
   /** What had been written to `phases` when each step of the guard ran. */
   const seen = { atClose: -1, atTelling: -1 };
   const frozen = {

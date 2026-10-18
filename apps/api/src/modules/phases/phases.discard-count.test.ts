@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
+import { withStampedRules } from './match-rules.fixtures';
 
 /**
  * The yes carries the count (ruling 288).
@@ -29,31 +30,35 @@ function setup(type: 'pool' | 'single_elim', fought: number) {
     { id: 'bout-elsewhere', phase_id: 'phase-elsewhere', status: 'completed' },
   ];
   const org = { organization_id: 'org-1' };
-  const supabase = mockSupabase({
-    phases: {
-      rows: [
-        {
-          id: 'phase-1',
+  const supabase = mockSupabase(
+    ...withStampedRules({
+      phases: {
+        rows: [
+          {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            type,
+            tournaments: { event_id: 'event-1', events: org, ...TF },
+          },
+        ],
+      },
+      tournaments: {
+        rows: [
+          { id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: org, ...TF },
+        ],
+      },
+      matches: { rows: bouts },
+      audit_log: { rows: [] },
+      // Two fighters: a bracket's delete comes after its own refusals, "at least 2" among them.
+      registrations: {
+        rows: ['reg-1', 'reg-2'].map((id) => ({
+          id,
           tournament_id: 'tournament-1',
-          type,
-          tournaments: { event_id: 'event-1', events: org, ...TF },
-        },
-      ],
-    },
-    tournaments: {
-      rows: [{ id: 'tournament-1', weapon: 'longsword', event_id: 'event-1', events: org, ...TF }],
-    },
-    matches: { rows: bouts },
-    audit_log: { rows: [] },
-    // Two fighters: a bracket's delete comes after its own refusals, "at least 2" among them.
-    registrations: {
-      rows: ['reg-1', 'reg-2'].map((id) => ({
-        id,
-        tournament_id: 'tournament-1',
-        status: 'registered',
-      })),
-    },
-  });
+          status: 'registered',
+        })),
+      },
+    }),
+  );
   const service = new PhasesService(
     supabase as never,
     { placeMatches: vi.fn(() => Promise.resolve()) } as never,

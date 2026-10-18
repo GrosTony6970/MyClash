@@ -10,6 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
+import { rulesOf, withStampedRules } from '../phases/match-rules.fixtures';
 
 const RESULT = {
   status: 'completed',
@@ -28,7 +29,13 @@ const TOURNAMENT_NOW = {
   ruleset_version: '1',
   ruleset_content_hash: 'hash-of-the-new-rules',
 };
-const STAMP_NOW = { ...TOURNAMENT_NOW, ruleset_version: '1.0.0' };
+/** The copy of now, and the earlier copies forgotten: a bout not started was fought under none. */
+const STAMP_NOW = {
+  match_rules_id: rulesOf('t-1'),
+  ...TOURNAMENT_NOW,
+  ruleset_version: '1.0.0',
+  earlier_rules_ids: [],
+};
 
 type Seed = Record<string, unknown>;
 
@@ -40,7 +47,7 @@ const bout = (id: string, over: Seed = {}): Seed => ({
   ruleset_version: '1.0.0',
   ruleset_content_hash: 'hash-of-the-old-rules',
   locked_at: null,
-  phases: { type: 'pool', tournaments: TOURNAMENT_NOW },
+  phases: { type: 'pool', tournament_id: 't-1', tournaments: TOURNAMENT_NOW },
   ...RESULT,
   ...over,
 });
@@ -59,12 +66,14 @@ const record = (id: string, matchId: string, previous: Seed, over: Seed = {}): S
 });
 
 function seeded(bouts: Seed[], records: Seed[]) {
-  return mockSupabase({
-    matches: { rows: bouts },
-    match_forfeits: { rows: records },
-    exchanges: { rows: [] },
-    match_penalties: { rows: [] },
-  });
+  return mockSupabase(
+    ...withStampedRules({
+      matches: { rows: bouts },
+      match_forfeits: { rows: records },
+      exchanges: { rows: [] },
+      match_penalties: { rows: [] },
+    }),
+  );
 }
 
 const clearDownstreamOf = vi.fn();
@@ -168,7 +177,41 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
     await forfeitsOver(db).voidForfeit('forfeit-1');
 
     expect(restoreOf(db, 'm2')?.row).toMatchObject({ status: 'scheduled', ...STAMP_NOW });
-    expect(restoreOf(db, 'm3')?.row).toMatchObject({ status: 'running' });
-    expect(restoreOf(db, 'm3')?.row).not.toHaveProperty('ruleset_code');
+    const started = restoreOf(db, 'm3');
+    expect(started?.row).toMatchObject({ status: 'running' });
+    for (const column of Object.keys(STAMP_NOW)) expect(started?.row).not.toHaveProperty(column);
+  });
+
+  it('stamps the Tournament once before its writes and once after them, whatever the bouts', async () => {
+    // Each stamp is a write. After the writes: a change of the rules between the read and the
+    // write left the bouts put back on the older copy (R3).
+    const child = (id: string, matchId: string) =>
+      record(id, matchId, NOT_STARTED, { parent_forfeit_id: 'forfeit-1' });
+    const db = seeded(
+      [bout('m1'), bout('m2'), bout('m3')],
+      [record('forfeit-1', 'm1', NOT_STARTED), child('forfeit-2', 'm2'), child('forfeit-3', 'm3')],
+    );
+    const stamp = db.rpc.getMockImplementation()!;
+    const boutWritesAtStamp: number[] = [];
+    db.rpc.mockImplementation((name, args) => {
+      boutWritesAtStamp.push(writesTo(db, 'matches').length);
+      return stamp(name, args);
+    });
+
+    await forfeitsOver(db).voidForfeit('forfeit-1');
+
+    expect(boutWritesAtStamp).toEqual([0, 3]);
+    expect(db.rpc.mock.calls.map(([, args]) => args)).toEqual([
+      { p_tournament_id: 't-1' },
+      { p_tournament_id: 't-1' },
+    ]);
+  });
+
+  it('stamps nothing when no bout goes back to not started', async () => {
+    const db = seeded([bout('m1')], [record('forfeit-1', 'm1', RUNNING)]);
+
+    await forfeitsOver(db).voidForfeit('forfeit-1');
+
+    expect(db.rpc).not.toHaveBeenCalled();
   });
 });

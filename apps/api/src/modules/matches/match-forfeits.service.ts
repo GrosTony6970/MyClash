@@ -17,7 +17,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 // silently injects undefined (see di-wiring.regression.test.ts).
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { BracketAdvanceService } from '../phases/bracket-advance.service';
-import { matchRulesetForBout, type MatchRulesetStamp } from '../phases/match-ruleset';
+import {
+  matchRulesetForTournament,
+  restampAfterInsert,
+  tournamentOfBout,
+  type MatchRulesetStamp,
+} from '../phases/match-ruleset';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
@@ -429,6 +434,9 @@ export class MatchForfeitsService {
     const updated = await this.stampVoided(forfeitId, actor);
     await this.reopenClockTakenBack(matchId, previousMatch);
     await this.readSheetAgain(matchId, previousMatch);
+    // The bouts put back read their copy before their write (R3); a withdrawal stays in its Tournament.
+    if (rulesets.size > 0)
+      await restampAfterInsert(this.supabase.service, { matchId }, this.logger);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
   }
 
@@ -592,15 +600,22 @@ export class MatchForfeitsService {
    * in the answer: it keeps its own.
    *
    * Read for every such bout before the take-back writes anything. A child the
-   * cascade then leaves alone (it is in play again) was read for nothing.
+   * cascade then leaves alone (it is in play again) was read for nothing. One
+   * stamp per Tournament: each is a write, and the bouts of a withdrawal share one.
    */
   private async rulesetsOfBoutsPutBack(records: Row[]): Promise<Map<string, MatchRulesetStamp>> {
     const rulesets = new Map<string, MatchRulesetStamp>();
+    const byTournament = new Map<string, MatchRulesetStamp>();
     for (const record of records) {
       const previous = (record['previous_match_state'] as Row | null) ?? {};
       if ((previous['status'] ?? 'scheduled') !== 'scheduled') continue;
       const matchId = record['match_id'] as string;
-      rulesets.set(matchId, await matchRulesetForBout(this.supabase.service, matchId));
+      const tournamentId = await tournamentOfBout(this.supabase.service, matchId);
+      const stamp =
+        byTournament.get(tournamentId) ??
+        (await matchRulesetForTournament(this.supabase.service, tournamentId));
+      byTournament.set(tournamentId, stamp);
+      rulesets.set(matchId, stamp);
     }
     return rulesets;
   }
@@ -725,18 +740,21 @@ export class MatchForfeitsService {
    * — see the note on `matchSnapshot`.
    *
    * `rulesets` holds the bouts that go back to "not started", each with the
-   * ruleset it takes in this same write (`rulesetsOfBoutsPutBack`).
+   * ruleset it takes in this same write (`rulesetsOfBoutsPutBack`). Such a bout
+   * never started, so it also forgets the copies it held before; a bout the
+   * forfeit found started keeps its copy and its earlier ones.
    */
   private async restoreMatchState(
     matchId: string,
     previous: Row,
     rulesets: ReadonlyMap<string, MatchRulesetStamp>,
   ): Promise<void> {
+    const rules = rulesets.get(matchId);
     await this.supabase.service
       .from('matches')
       .update({
         status: previous['status'] ?? 'scheduled',
-        ...(rulesets.get(matchId) ?? {}),
+        ...(rules ? { ...rules, earlier_rules_ids: [] } : {}),
         red_score: previous['red_score'] ?? 0,
         blue_score: previous['blue_score'] ?? 0,
         winner_registration_id: previous['winner_registration_id'] ?? null,

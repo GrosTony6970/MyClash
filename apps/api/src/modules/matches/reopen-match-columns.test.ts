@@ -89,8 +89,24 @@ describe('backInPlayColumns', () => {
 });
 
 describe('unplayedMatchColumns', () => {
+  const RULES = {
+    match_rules_id: 'rules-now',
+    ruleset_code: 'Generic_PointsCap',
+    ruleset_version: '1.0.0',
+    ruleset_content_hash: 'hash-now',
+  };
+
   it('writes the mark empty: a bout put back to unplayed was never put back in play', () => {
-    expect(unplayedMatchColumns()).toMatchObject({ status: 'scheduled', back_in_play_at: null });
+    expect(unplayedMatchColumns(RULES)).toMatchObject({
+      status: 'scheduled',
+      back_in_play_at: null,
+    });
+  });
+
+  it("takes the Tournament's copy of now and forgets the copies the bout held before", () => {
+    // A bout fought again is fought under the new copy only (a bout not started keeps
+    // everything it starts under, from its start: operator, 2026-10-17).
+    expect(unplayedMatchColumns(RULES)).toMatchObject({ ...RULES, earlier_rules_ids: [] });
   });
 });
 

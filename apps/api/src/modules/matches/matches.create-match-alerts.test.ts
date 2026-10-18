@@ -8,6 +8,7 @@ import { BadRequestException, Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
 import { MatchesService } from './matches.service';
+import { withStampedRules } from '../phases/match-rules.fixtures';
 
 const DTO = {
   phaseId: 'phase-1',
@@ -17,21 +18,28 @@ const DTO = {
   scheduledAt: '2026-06-06T08:00:00.000Z',
 };
 
-function makeService(matches: TableSeed, rulesetNow = 'TF_v1') {
-  // The new bout takes the ruleset of its phase's Tournament: the phase is read, and after the
-  // write the Tournament again, for the ruleset in force then (R3).
-  const supabase = mockSupabase({
+function makeService(matches: TableSeed) {
+  // The new bout takes the ruleset of its phase's Tournament: the phase is read and its rules
+  // stamped, and after the write stamped again, for the ruleset in force then (R3).
+  const [seed, { stamp_match_rules: stamp }] = withStampedRules({
     matches,
-    phases: {
-      rows: [{ id: 'phase-1', tournament_id: 't-1', tournaments: { ruleset_code: 'TF_v1' } }],
-    },
-    tournaments: { rows: [{ id: 't-1', ruleset_code: rulesetNow, ruleset_version: '1.0.0' }] },
+    phases: { rows: [{ id: 'phase-1', tournament_id: 't-1' }] },
+    tournaments: { rows: [{ id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' }] },
   });
-  /** The writes of bouts that had landed when the seam was asked. */
-  const boutWritesWhenAsked: string[][] = [];
+  /** The writes of bouts that had landed at each stamp of the Tournament's rules. */
+  const boutWritesAtStamp: string[][] = [];
+  const supabase = mockSupabase(seed, {
+    stamp_match_rules: (args) => {
+      boutWritesAtStamp.push(boutWrites());
+      return stamp!(args);
+    },
+  });
+  const boutWrites = () => writesTo(supabase, 'matches').map((write) => write.op);
+  /** The writes of bouts, and the stamps, that had landed when the seam was asked. */
+  const whenAsked: Array<{ writes: string[]; stamps: number }> = [];
   const matchAlerts = {
     refresh: vi.fn(() => {
-      boutWritesWhenAsked.push(writesTo(supabase, 'matches').map((write) => write.op));
+      whenAsked.push({ writes: boutWrites(), stamps: boutWritesAtStamp.length });
       return Promise.resolve();
     }),
   };
@@ -42,13 +50,13 @@ function makeService(matches: TableSeed, rulesetNow = 'TF_v1') {
     { placeMatches: vi.fn(() => Promise.resolve()) } as never,
     {} as never,
   );
-  return { service, supabase, matchAlerts, boutWritesWhenAsked };
+  return { service, supabase, matchAlerts, whenAsked, boutWritesAtStamp };
 }
 
 describe('createMatch: the alerts of the new bout (ruling 221)', () => {
   it('names the new bout to the alert seam, once it is saved', async () => {
     // A decoy first: the id is the saved row's, not the first row of the table.
-    const { service, matchAlerts, boutWritesWhenAsked } = makeService({
+    const { service, matchAlerts, whenAsked } = makeService({
       returning: { id: 'new-match' },
       rows: [{ id: 'another-bout' }],
     });
@@ -56,22 +64,26 @@ describe('createMatch: the alerts of the new bout (ruling 221)', () => {
     await service.createMatch(DTO as never);
 
     expect(matchAlerts.refresh.mock.calls).toEqual([[['new-match']]]);
-    // Saved, and re-stamped with the ruleset in force (R3).
-    expect(boutWritesWhenAsked).toEqual([['insert', 'update']]);
+    // Saved, and stamped again with the ruleset in force (R3).
+    expect(whenAsked).toEqual([{ writes: ['insert'], stamps: 2 }]);
   });
 
-  // The door read TF_v1; the Tournament moved to points-cap before the bout was in (R3).
+  // The Tournament's rules can change between the door's stamp and the write: the change moves
+  // the bouts not started, and the new one is not in yet. So the door stamps again after (R3).
   it('re-stamps the new bout with the ruleset in force once it is in', async () => {
-    const { service, supabase } = makeService(
-      { returning: { id: 'new-match' }, rows: [] },
-      'Generic_PointsCap',
-    );
+    const { service, supabase, boutWritesAtStamp } = makeService({
+      returning: { id: 'new-match' },
+      rows: [],
+    });
 
     await service.createMatch(DTO as never);
 
-    const writes = writesTo(supabase, 'matches');
-    expect(writes.map((write) => write.op)).toEqual(['insert', 'update']);
-    expect(writes[1]?.row).toMatchObject({ ruleset_code: 'Generic_PointsCap' });
+    // The door's stamp before the bout is written, and the re-stamp after it.
+    expect(boutWritesAtStamp).toEqual([[], ['insert']]);
+    expect(supabase.rpc.mock.calls).toEqual([
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+      ['stamp_match_rules', { p_tournament_id: 't-1' }],
+    ]);
   });
 
   it('still answers the saved bout when the queue is down: a retry would make a second one', async () => {

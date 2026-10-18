@@ -7,17 +7,16 @@
  * with the new ruleset and every bout was scored with the old one, because a
  * bout is scored with the pair stamped on its own row and nothing stamped it
  * again.
+ *
+ * The database writes the bouts now (`stamp_match_rules`, migration 0229): which bouts move, and
+ * that a bout that holds the copy already is not written again, is the RLS probe's to prove
+ * (`scripts/lib/match-rules-probe.mjs`). Here: the server asks for it once, for the right
+ * Tournament, and tells a failure from a Tournament that is gone.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  mockSupabase,
-  selectsFor,
-  supabaseFrom,
-  writesTo,
-  type RecordedWrite,
-  type SupabaseRow,
-  type TableSeed,
-} from '../../common/testing/supabase-chain';
+import { lastFunctionParams } from '../../common/testing/migration-function';
+import { mockSupabase, type ChainResult } from '../../common/testing/supabase-chain';
+import { withStampedRules } from './match-rules.fixtures';
 import { restampUnstartedMatches } from './match-ruleset';
 
 const TOURNAMENT = {
@@ -27,237 +26,74 @@ const TOURNAMENT = {
   ruleset_content_hash: 'hash-of-the-new-rules',
 };
 
-const seed = (over: Record<string, TableSeed> = {}): Record<string, TableSeed> => ({
-  // A decoy first: the pair is this Tournament's, not the first row's.
-  tournaments: { rows: [{ id: 't-other', ruleset_code: 'TF_v1' }, TOURNAMENT] },
-  phases: {
-    rows: [
-      { id: 'phase-other', tournament_id: 't-other' },
-      { id: 'pools', tournament_id: 't1' },
-      { id: 'bracket', tournament_id: 't1' },
-    ],
-  },
-  matches: { rows: [] },
-  ...over,
-});
+// A decoy first: the stamp is this Tournament's, not the first row's.
+const stamped = () =>
+  mockSupabase(
+    ...withStampedRules({
+      tournaments: { rows: [{ id: 't-other', ruleset_code: 'TF_v1' }, TOURNAMENT] },
+      phases: { rows: [{ id: 'pools', tournament_id: 't1' }] },
+      matches: { rows: [] },
+    }),
+  );
 
-const filterOf = (write: RecordedWrite, method: string) =>
-  write.filters.filter((filter) => filter.method === method).map((filter) => filter.args);
-
-const STAMPED = {
-  ruleset_code: 'Generic_PointsCap',
-  ruleset_version: '1.0.0',
-  ruleset_content_hash: 'hash-of-the-new-rules',
-};
-
-/** Seven bouts: what each one holds says whether the save may write it. */
-const BOUTS = [
-  { id: 'same-stamp', phase_id: 'pools', status: 'scheduled', ...STAMPED },
-  { id: 'other-code', phase_id: 'pools', status: 'scheduled', ...STAMPED, ruleset_code: 'TF_v1' },
-  { id: 'other-version', phase_id: 'pools', status: 'scheduled', ...STAMPED, ruleset_version: '1' },
-  {
-    id: 'no-hash',
-    phase_id: 'bracket',
-    status: 'scheduled',
-    ...STAMPED,
-    ruleset_content_hash: null,
-  },
-  {
-    id: 'other-hash',
-    phase_id: 'bracket',
-    status: 'scheduled',
-    ...STAMPED,
-    ruleset_content_hash: 'old',
-  },
-  { id: 'started', phase_id: 'pools', status: 'running', ...STAMPED, ruleset_code: 'TF_v1' },
-  {
-    id: 'elsewhere',
-    phase_id: 'phase-other',
-    status: 'scheduled',
-    ...STAMPED,
-    ruleset_code: 'TF_v1',
-  },
-];
-
-/**
- * The bouts the write hits: its recorded filters, in order, on a seeded table.
- * The double does not carry a write out, so the filters ARE the write's reach.
- */
-async function boutsWritten(
-  write: RecordedWrite,
-  bouts: readonly SupabaseRow[],
-): Promise<string[]> {
-  let query = supabaseFrom({ matches: { rows: bouts } })('matches').select() as unknown as Record<
-    string,
-    (...args: readonly unknown[]) => unknown
-  >;
-  for (const filter of write.filters) {
-    query = query[filter.method]!(...filter.args) as typeof query;
-  }
-  const { data } = (await query) as unknown as { data: Array<{ id: string }> };
-  return data.map((bout) => bout.id);
-}
+/** A stamp that answers `result`, whatever Tournament it is asked for. */
+const stampAnswering = (result: ChainResult) =>
+  mockSupabase({}, { stamp_match_rules: () => result });
 
 describe('restampUnstartedMatches', () => {
-  it("writes the Tournament's pair and hash on its bouts, the version normalized", async () => {
-    const supabase = mockSupabase(seed());
+  it("asks the database once to stamp THIS Tournament's bouts, and writes no row itself", async () => {
+    const supabase = stamped();
 
     await restampUnstartedMatches(supabase.service as never, 't1');
 
-    const writes = writesTo(supabase, 'matches');
-    expect(writes).toHaveLength(1);
-    expect(writes[0]?.op).toBe('update');
-    expect(writes[0]?.row).toEqual({
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: 'hash-of-the-new-rules',
+    expect(supabase.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: 't1' }]]);
+    // The database's own write moves the bouts not started: a second write here would race it.
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(supabase.writes).toEqual([]);
+  });
+
+  // The double cannot see a renamed key: the call would reach a function that does not exist.
+  it('calls the stamp with the argument names the migration defines', async () => {
+    const supabase = stamped();
+
+    await restampUnstartedMatches(supabase.service as never, 't1');
+
+    expect(Object.keys(supabase.rpc.mock.calls[0]![1] ?? {})).toEqual(
+      lastFunctionParams('stamp_match_rules'),
+    );
+  });
+
+  // A Tournament deleted meanwhile has no bouts to move: the door that changed it is not failed.
+  it('returns quietly for a Tournament that is gone', async () => {
+    const supabase = stamped();
+
+    await expect(
+      restampUnstartedMatches(supabase.service as never, 't-gone'),
+    ).resolves.toBeUndefined();
+    expect(supabase.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: 't-gone' }]]);
+    expect(supabase.writes).toEqual([]);
+  });
+
+  it('a stamp that failed is an error: the caller must not answer "saved"', async () => {
+    const supabase = stampAnswering({ data: null, error: { message: 'the write was refused' } });
+
+    await expect(restampUnstartedMatches(supabase.service as never, 't1')).rejects.toThrow(
+      /^The bouts of t1 did not take its ruleset: the write was refused$/,
+    );
+  });
+
+  // The database refuses a Tournament with no pair: no bout goes to TF_v1, and the caller hears it.
+  it('a Tournament with no ruleset pair is an error, not a quiet return', async () => {
+    const supabase = stampAnswering({
+      data: null,
+      error: {
+        code: '23514',
+        message: 'The Tournament has no ruleset pair to stamp on its bouts',
+      },
     });
-    expect(selectsFor(supabase.from, 'tournaments')).toEqual([
-      'ruleset_code, ruleset_version, ruleset_content_hash',
-    ]);
-  });
-
-  it('moves the bouts of THIS Tournament only, and only the ones not started', async () => {
-    const supabase = mockSupabase(seed());
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    const write = writesTo(supabase, 'matches')[0];
-    // Every phase of the Tournament, and no phase of another one.
-    expect(filterOf(write!, 'in')).toEqual([['phase_id', ['pools', 'bracket']]]);
-    // A bout that started, or is finished, keeps the pair it was fought under.
-    // Asked in the write itself: a bout that starts meanwhile is not moved.
-    expect(filterOf(write!, 'eq')).toEqual([['status', 'scheduled']]);
-    expect(selectsFor(supabase.from, 'phases')).toEqual(['id']);
-  });
-
-  /**
-   * A Tournament has 150 bouts not started. The organiser saves a setting of
-   * the scoring pad that changes nothing for the bouts. The server wrote the
-   * 150 bouts again: 150 change notices, and a league that read as out of date
-   * (a trigger moves `matches.updated_at` on every write).
-   */
-  it('asks in the write itself whether a bout holds another stamp', async () => {
-    const supabase = mockSupabase(seed());
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    expect(filterOf(writesTo(supabase, 'matches')[0]!, 'or')).toEqual([
-      [
-        'ruleset_code.neq."Generic_PointsCap",ruleset_version.neq."1.0.0",' +
-          'ruleset_content_hash.is.null,ruleset_content_hash.neq."hash-of-the-new-rules"',
-      ],
-    ]);
-  });
-
-  it('writes the bouts not started that differ, and no other bout', async () => {
-    const supabase = mockSupabase(seed());
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    // A bout with no hash differs too: `<>` never matches a NULL by itself.
-    expect(await boutsWritten(writesTo(supabase, 'matches')[0]!, BOUTS)).toEqual([
-      'other-code',
-      'other-version',
-      'no-hash',
-      'other-hash',
-    ]);
-  });
-
-  it('a Tournament with no hash yet: a bout that holds one differs, a bout with none does not', async () => {
-    const unhashed = { ...TOURNAMENT, ruleset_content_hash: null };
-    const supabase = mockSupabase(seed({ tournaments: { rows: [unhashed] } }));
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    const write = writesTo(supabase, 'matches')[0]!;
-    expect(filterOf(write, 'or')).toEqual([
-      [
-        'ruleset_code.neq."Generic_PointsCap",ruleset_version.neq."1.0.0",' +
-          'ruleset_content_hash.not.is.null',
-      ],
-    ]);
-    // 'no-hash' holds the Tournament's pair and no hash: it is the same stamp now.
-    expect(await boutsWritten(write, BOUTS)).toEqual([
-      'same-stamp',
-      'other-code',
-      'other-version',
-      'other-hash',
-    ]);
-  });
-
-  it('quotes a ruleset code, so a comma or a parenthesis in it is not read as a filter', async () => {
-    const odd = { ...TOURNAMENT, ruleset_code: 'cap(5),"x"\\y', ruleset_content_hash: null };
-    const supabase = mockSupabase(seed({ tournaments: { rows: [odd] } }));
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    const write = writesTo(supabase, 'matches')[0]!;
-    expect(filterOf(write, 'or')).toEqual([
-      [
-        'ruleset_code.neq."cap(5),\\"x\\"\\\\y",ruleset_version.neq."1.0.0",' +
-          'ruleset_content_hash.not.is.null',
-      ],
-    ]);
-    const holdsIt = { id: 'holds-it', phase_id: 'pools', status: 'scheduled', ...STAMPED };
-    expect(
-      await boutsWritten(write, [
-        { ...holdsIt, ruleset_code: odd.ruleset_code, ruleset_content_hash: null },
-        { ...holdsIt, id: 'holds-another', ruleset_content_hash: null },
-      ]),
-    ).toEqual(['holds-another']);
-  });
-
-  it('writes nothing for a Tournament with no phase yet', async () => {
-    const supabase = mockSupabase(
-      seed({ phases: { rows: [{ id: 'phase-other', tournament_id: 't-other' }] } }),
-    );
-
-    await restampUnstartedMatches(supabase.service as never, 't1');
-
-    expect(supabase.writes).toEqual([]);
-  });
-
-  it('writes nothing for a Tournament that is gone, even with a phase left behind', async () => {
-    // With no row there is no pair to stamp, and nothing may be written.
-    const supabase = mockSupabase(
-      seed({ phases: { rows: [{ id: 'left-behind', tournament_id: 't-gone' }] } }),
-    );
-
-    await restampUnstartedMatches(supabase.service as never, 't-gone');
-
-    expect(supabase.writes).toEqual([]);
-  });
-
-  it('a Tournament that could not be read is an error, and no bout goes to TF_v1', async () => {
-    const supabase = mockSupabase(
-      seed({ tournaments: { data: null, error: { message: 'the database is away' } } }),
-    );
 
     await expect(restampUnstartedMatches(supabase.service as never, 't1')).rejects.toThrow(
-      'Tournament t1 was not read: the database is away',
-    );
-    expect(supabase.writes).toEqual([]);
-  });
-
-  it('phases that could not be read are an error', async () => {
-    const supabase = mockSupabase(
-      seed({ phases: { data: null, error: { message: 'the database is away' } } }),
-    );
-
-    await expect(restampUnstartedMatches(supabase.service as never, 't1')).rejects.toThrow(
-      'The phases of t1 were not read: the database is away',
-    );
-    expect(supabase.writes).toEqual([]);
-  });
-
-  it('a write that failed is an error: the caller must not answer "saved"', async () => {
-    const supabase = mockSupabase(
-      seed({ matches: { data: null, error: { message: 'the write was refused' } } }),
-    );
-
-    await expect(restampUnstartedMatches(supabase.service as never, 't1')).rejects.toThrow(
-      'The bouts of t1 did not take its ruleset: the write was refused',
+      'The bouts of t1 did not take its ruleset: The Tournament has no ruleset pair',
     );
   });
 });

@@ -14,6 +14,7 @@ import {
 import { restampAfterInsert } from './match-ruleset';
 import type * as MatchRuleset from './match-ruleset';
 import { PhasesService } from './phases.service';
+import { withStampedRules } from './match-rules.fixtures';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
  * corrected on contact.
  */
 function makeService(seed: Record<string, TableSeed>) {
-  const supabase = mockSupabase(seed);
+  const supabase = mockSupabase(...withStampedRules(seed));
   // Doubled, not exercised: it reads the sheet, the phases and the strip's
   // occupants, none of which this file's fixtures carry. What it does is owned
   // by `match-placement.service.test.ts`; what this file owns is the batch
@@ -2820,11 +2821,13 @@ describe('PhasesService', () => {
      */
     it('re-queues the alerts for every match it re-pisted', async () => {
       const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
-      const supabase = mockSupabase({
-        pools: { rows: POOLS },
-        matches: { rows: MATCHES },
-        lices: { rows: LICES },
-      });
+      const supabase = mockSupabase(
+        ...withStampedRules({
+          pools: { rows: POOLS },
+          matches: { rows: MATCHES },
+          lices: { rows: LICES },
+        }),
+      );
       const svc = new PhasesService(
         supabase as never,
         { placeMatches: vi.fn() } as never,
@@ -2999,13 +3002,15 @@ describe('PhasesService', () => {
       poolStandings?: ReturnType<typeof makePoolStandingsMock>,
       registrations: SupabaseRow[] = [],
     ) {
-      const supabase = mockSupabase({
-        phases: { rows: [BRACKET_ELSEWHERE, ...phases] },
-        bracket_slots: { rows: [] },
-        registrations: { data: registrations, error: null },
-        tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
-        audit_log: { rows: [] },
-      });
+      const supabase = mockSupabase(
+        ...withStampedRules({
+          phases: { rows: [BRACKET_ELSEWHERE, ...phases] },
+          bracket_slots: { rows: [] },
+          registrations: { data: registrations, error: null },
+          tournaments: { rows: [{ id: 'tournament-1', ...TF }] },
+          audit_log: { rows: [] },
+        }),
+      );
       const svc = new PhasesService(
         supabase as never,
         { placeMatches: vi.fn() } as never,
@@ -3151,7 +3156,7 @@ describe('PhasesService', () => {
         registrations: { rows: registrations('registered') },
         pool_members: { rows: [] },
         // The ruleset of the bouts made again, read before the member write.
-        phases: { rows: [{ id: 'phase-1', tournaments: TF }] },
+        phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', tournaments: TF }] },
       });
       stubPoolAuth(svc);
 
@@ -3259,27 +3264,29 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
         ? [{ id: 'pool-phase-1', tournament_id: 'tournament-1', type: 'pool' }]
         : []),
     ];
-    const supabase = mockSupabase({
-      phases: {
-        rows: [
-          ...poolPhase,
-          {
-            id: 'phase-1',
-            tournament_id: 'tournament-1',
-            type: 'single_elim',
-            config_json: { bracketSize: 4, seedingStrategy: input.strategy ?? 'snake' },
-          },
-        ],
-      },
-      bracket_slots: { rows: input.slots },
-      matches: { rows: input.matches ?? [] },
-      // Canned: the Swiss path reaches loadSeedableRegistrations, and an empty
-      // registration list is what this drift check wants. Note the check
-      // swallows a throw from here as `not-applicable`, so a seeded read that
-      // hit an unmodelled call would go quiet rather than red.
-      registrations: { data: [], error: null },
-      tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
-    });
+    const supabase = mockSupabase(
+      ...withStampedRules({
+        phases: {
+          rows: [
+            ...poolPhase,
+            {
+              id: 'phase-1',
+              tournament_id: 'tournament-1',
+              type: 'single_elim',
+              config_json: { bracketSize: 4, seedingStrategy: input.strategy ?? 'snake' },
+            },
+          ],
+        },
+        bracket_slots: { rows: input.slots },
+        matches: { rows: input.matches ?? [] },
+        // Canned: the Swiss path reaches loadSeedableRegistrations, and an empty
+        // registration list is what this drift check wants. Note the check
+        // swallows a throw from here as `not-applicable`, so a seeded read that
+        // hit an unmodelled call would go quiet rather than red.
+        registrations: { data: [], error: null },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null, ...TF }] },
+      }),
+    );
 
     const poolStandings = {
       getPoolStandings: vi

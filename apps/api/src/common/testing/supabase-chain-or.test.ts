@@ -2,8 +2,9 @@
  * A quoted value in an `.or()` string.
  *
  * PostgREST reads `,` `.` `:` `(` `)` as syntax, so a value that may hold one
- * goes in double quotes, with `"` and `\` escaped by a backslash. A ruleset code
- * is free text in its column: `restampUnstartedMatches` quotes it.
+ * goes in double quotes, with `"` and `\` escaped by a backslash. The double reads
+ * such a value as PostgREST does. No server filter quotes one today: the restamp
+ * that did (a ruleset code is free text) moved into the database (0229).
  */
 import { describe, expect, it } from 'vitest';
 import { supabaseFrom } from './supabase-chain';

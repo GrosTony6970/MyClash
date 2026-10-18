@@ -1063,11 +1063,13 @@ export class MatchesService {
       await this.insertMatchEvent(matchId, 'reset_match', reason, context);
       const { data, error } = await this.supabase.service
         .from('matches')
-        .update({ ...unplayedMatchColumns(), ...ruleset })
+        .update(unplayedMatchColumns(ruleset))
         .eq('id', matchId)
         .select('*')
         .single();
       if (error) throw new BadRequestException(error.message);
+      // A change of the rules since the read above left it on the older copy (R3).
+      await restampAfterInsert(this.supabase.service, { matchId }, this.logger);
       return data;
     } finally {
       // Who asked is told after the last write, so the reset waits on no notice;
