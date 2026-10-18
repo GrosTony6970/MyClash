@@ -17,14 +17,14 @@
  *      grant is split per column is still read, so its policy is still evaluated;
  *   2. the seeded rows split exactly: the published Event's published Tournament is visible; the
  *      draft Event's side, a draft Tournament's side (even under the published Event), the private
- *      League, the club's own ruleset, the membership and the platform role are hidden;
+ *      League, the club's own rulesets, the membership and the platform role are hidden;
  *   3. every PRIVATE_COLUMNS entry is granted to neither anon nor authenticated, and an anon read of
  *      it is refused (42501) — a column no policy can hide on a row it shows;
  *   4. every view in `public` runs as its caller (security_invoker) — the runtime twin of
  *      db:review's static rule, which missed 0193;
  *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
  *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
- *      writes it (0209, ruling 144; the League tables, 0216);
+ *      writes it (0209, ruling 144; the League tables, 0216; club scoring rulesets, 0225);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar;

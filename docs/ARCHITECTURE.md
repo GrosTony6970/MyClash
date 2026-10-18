@@ -859,7 +859,9 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 - **Versions are snapshotted.** Publishing captures the payload immutably (`custom_ruleset_versions` for
   scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
   rather than overwriting destructively. `is_frozen` flips `TRUE` the moment a tournament pins the
-  ruleset, after which the edit-guard refuses further edits.
+  ruleset, after which the edit-guard refuses further edits. Only the API writes a scoring ruleset
+  or its snapshots (migration `0225`: SELECT policies only, no write grant for `anon` or
+  `authenticated`), so the guard cannot be gone around through PostgREST.
 - **A penalty pin stays in its club.** An Event or a Tournament pins only the built-in penalty
   ruleset, a shared one, or one its own organisation owns: its members read the pinned ruleset, so
   a pin must not hand over another organisation's private rules. The API applies it at every door

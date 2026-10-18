@@ -6,8 +6,8 @@
  * An organisation admin may write `tournaments` under `tournaments_write`. Signed in, they may name
  * a built-in, their club's own live ruleset or a shared live one; never another club's private
  * ruleset, nor an archived one or a draft, the platform's included, nor a club row marked
- * `is_system`; and no row of their own may take a code another owner holds (a decoy, or a
- * squatter on a built-in's code). An edit that re-sends the pair passes
+ * `is_system`; and no ruleset row, even one the API writes, may take a code another owner holds
+ * (a decoy, or a squatter on a built-in's code). An edit that re-sends the pair passes
  * whatever became of the ruleset since, and so does a move to another Event of the same club; a
  * Tournament or an Event moved to another organisation takes only pairs the new one is offered.
  * The service role is exempt (the API decides at its doors); a role added later is not.
@@ -131,16 +131,18 @@ async function writeFailures(sp, failures) {
 
 /** A row of the Club's own may not take a code another owner holds: no decoy, no squatter. */
 async function codeFailures(sp, failures) {
+  // As the service role: only the API writes a ruleset row (0225), and the index refuses it too.
   for (const code of ['PROBE_PRIVATE', 'TF_v1']) {
-    const error = await asAdmin(
+    const error = await attempt(
       sp,
+      'service_role',
       (inner) => inner`
         INSERT INTO custom_rulesets (code, version, name, status, owner_organization_id)
         VALUES (${code}, '1.0.0', 'Decoy', 'published', ${CLUB})`,
     );
     if (error?.code !== '23505' || error.constraint_name !== 'custom_rulesets_code_unique_idx')
       failures.push(
-        `the Club's admin wrote a row of code ${code}, which another owner holds (${error?.message ?? 'no error'})`,
+        `a row of the Club's own took code ${code}, which another owner holds (${error?.message ?? 'no error'})`,
       );
   }
 }

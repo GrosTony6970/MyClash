@@ -103,3 +103,10 @@ INSERT INTO fighter_manual_medals (id, global_person_id, competition, year, rank
 INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, built_in, public_visibility) VALUES
   ('fe000000-0000-4000-8000-00000000000a', 'rls-probe-club', '1', 'Club', 'aaaaaaaa-0000-4000-8000-000000000001',
    false, false);
+-- The club's own scoring ruleset and its published snapshot: only the API writes them (0225).
+INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization_id) VALUES
+  ('c5000000-0000-4000-8000-00000000000a', 'rls-probe-club-scoring', '1.0.0', 'Club scoring', 'published',
+   'aaaaaaaa-0000-4000-8000-000000000001');
+INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers) VALUES
+  ('c5100000-0000-4000-8000-00000000000a', 'c5000000-0000-4000-8000-00000000000a', '1.0.0', 'Club scoring',
+   '{}', '{}', '[]');
