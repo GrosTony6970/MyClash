@@ -28,6 +28,10 @@ export interface LatePress {
   /** The pad's time of the press, and of this send. Only their difference is read. */
   pressedAt: string;
   sentAt: string;
+  /** Of a Start: the copy of the rules the pad's screen showed (`startCopyOf`). */
+  startedUnder?: { rulesId: string };
+  /** Of a Start: the pad holds evidence it was pressed with no network. */
+  pressedWithoutNetwork?: boolean;
 }
 
 const isPressAction = (action: ClockAction): action is PressAction =>
@@ -45,8 +49,10 @@ export function latePressOf(body: {
   clientUuid?: string;
   pressedAt?: string;
   sentAt?: string;
+  startedUnder?: { rulesId: string };
+  pressedWithoutNetwork?: boolean;
 }): (LatePress & { action: PressAction }) | null {
-  const { action, clientUuid, pressedAt, sentAt } = body;
+  const { action, clientUuid, pressedAt, sentAt, startedUnder, pressedWithoutNetwork } = body;
   if (clientUuid === undefined && pressedAt === undefined && sentAt === undefined) return null;
   if (!clientUuid || !pressedAt || !sentAt || !isPressAction(action)) {
     throw new BadRequestException(
@@ -54,7 +60,14 @@ export function latePressOf(body: {
         'the time of the press and the time of the send',
     );
   }
-  return { action, clientUuid, pressedAt, sentAt };
+  return {
+    action,
+    clientUuid,
+    pressedAt,
+    sentAt,
+    ...(startedUnder ? { startedUnder } : {}),
+    ...(pressedWithoutNetwork !== undefined ? { pressedWithoutNetwork } : {}),
+  };
 }
 
 /**

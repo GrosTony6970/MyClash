@@ -346,6 +346,22 @@ describe('the press a clock body names', () => {
     expect(latePressOf({ action, ...whole })).toEqual({ action, ...whole });
   });
 
+  // `startCopyOf` reads them on a Start; the press carries what the body names, no more.
+  it('carries the copy a Start names and the evidence it was pressed with no network', () => {
+    const startedUnder = { rulesId: 'c0000000-0000-4000-8000-00000000000a' };
+    const keys = { startedUnder, pressedWithoutNetwork: true };
+    expect(latePressOf({ action: 'start', ...whole, ...keys })).toEqual({
+      action: 'start',
+      ...whole,
+      ...keys,
+    });
+    expect(latePressOf({ action: 'start', ...whole, pressedWithoutNetwork: false })).toEqual({
+      action: 'start',
+      ...whole,
+      pressedWithoutNetwork: false,
+    });
+  });
+
   it.each(['clientUuid', 'pressedAt', 'sentAt'] as const)(
     'refuses half a press: no %s',
     (missing) => {

@@ -47,6 +47,7 @@ import { lateRoundPressOf } from './round-advance';
 import { lateLevelPressOf } from './level-step';
 import {
   AdjustClockDto,
+  ClockActionDto,
   LevelPressDto,
   RoundPressDto,
   CreateExchangeDto,
@@ -59,24 +60,6 @@ import {
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
-
-const clockActionSchema = z
-  .object({
-    action: z.enum(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock']),
-    reason: z.string().optional(),
-    /** See `ResetMatchDto` — four of these actions can un-complete a bout. */
-    discardDependentResults: z.boolean().optional(),
-    /**
-     * A press the pad made earlier and sends now: the id the pad gave it, and
-     * the pad's times of the press and of this send. All three or none — see
-     * `latePressOf`.
-     */
-    clientUuid: z.uuid().optional(),
-    pressedAt: z.iso.datetime().optional(),
-    sentAt: z.iso.datetime().optional(),
-  })
-  .strict();
-class ClockActionDto extends createZodDto(clockActionSchema) {}
 
 const refereeRoleAssignmentSchema = z
   .object({

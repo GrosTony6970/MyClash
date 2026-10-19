@@ -134,7 +134,7 @@ function setup(status: string, caller: Caller, piste = LICE) {
     ? { cookies: { [STAFF_COOKIE_NAME]: 'token' }, headers: {} }
     : { cookies: {}, headers: {} }) as unknown as FastifyRequest;
   const send = (body: Record<string, unknown>) => controller.clockAction(MATCH, body as never, req);
-  return { db, before, send };
+  return { db, before, clock, send };
 }
 
 const everyCaller = OVER.flatMap((status) =>
@@ -151,6 +151,30 @@ describe('a clock press from a pad’s queue, sent to an over Event', () => {
       activeMs: 60_000,
     });
     expect(db.writes).toEqual([]);
+  });
+
+  // The body's two keys of a Start reach the clock's door whole (`startCopyOf` reads them there),
+  // through the real scoring service: a hop that rebuilt the press would drop them in silence.
+  it('hands the copy a press names, and its evidence of no network, to the clock', async () => {
+    const { before, clock, send } = setup('completed', 'user');
+    const atClock = vi.spyOn(clock, 'latePress');
+    const startedUnder = { rulesId: 'c0000000-0000-4000-8000-00000000000a' };
+
+    await send({
+      action: 'halt',
+      clientUuid: SAVED,
+      ...TIMES,
+      startedUnder,
+      pressedWithoutNetwork: true,
+    });
+
+    expect(before.latePress).toHaveBeenCalledWith(
+      MATCH,
+      'halt',
+      { action: 'halt', clientUuid: SAVED, ...TIMES, startedUnder, pressedWithoutNetwork: true },
+      expect.anything(),
+    );
+    expect(atClock.mock.calls[0]?.[2]).toMatchObject({ startedUnder, pressedWithoutNetwork: true });
   });
 
   it.each(everyCaller)('a new press is refused to everybody (%s Event, %s)', async (s, c) => {

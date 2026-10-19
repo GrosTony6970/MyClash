@@ -13,6 +13,8 @@ import { scoredMatchFormat } from './scored-match-format';
  * readers: the pad may not import the engine, so the server answers the format it plays.
  */
 export interface BoutAnswerRules {
+  /** The copy these rules are read from (`match_rules_id`): a Start names it (`startCopyOf`). */
+  id: string;
   matchFormat: MatchFormatConfig;
   afterblowMode: TournamentScoringConfig['afterblowMode'];
   buttons: TournamentScoringConfig['buttons'];
@@ -34,8 +36,9 @@ export type BoutAnswer = Record<string, unknown> & {
  *     the pad decides an End, a round and the winner at the cap with no network, and must decide
  *     as the server will. Until the three old columns go (foundation commit 6) the scorer reads
  *     the row's own `ruleset_code` / `ruleset_version` (`rulesetMatch`), and so does this;
- *   - `rules`, the copy's format (with that same pair's doubles rule), its afterblow mode, its
- *     buttons and its card pin. Display stays on the Tournament (`/match-config`).
+ *   - `rules`, the copy's id, its format (with that same pair's doubles rule), its afterblow mode,
+ *     its buttons and its card pin. Display stays on the Tournament (`/match-config`). A Start
+ *     names that id: the copy the screen showed (`startCopyOf`).
  *
  * The one owner for both routes a bout reaches the pad by: `GET /matches/:id` and the read of a
  * whole piste. Whatever fails here — no resolver wired, a pair that does not resolve, a read that
@@ -81,7 +84,11 @@ export async function withBoutRules(
 /** Through the scorer's own readers of a copy (`bout-rules.ts`), so the pad decides as it nets. */
 function rulesOf(row: Record<string, unknown>, ruleset: Ruleset): BoutAnswerRules {
   const rules = boutRulesOf(row);
+  const id = row['match_rules_id'];
+  if (typeof id !== 'string')
+    throw new Error(`Bout ${String(row['id'])} names no copy of its rules`);
   return {
+    id,
     matchFormat: scoredMatchFormat(rules.rulesetConfig, ruleset),
     afterblowMode: afterblowModeOf(rules),
     // The copy holds no display: of what the normalizer adds, only the buttons are sent.

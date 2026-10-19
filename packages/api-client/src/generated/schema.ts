@@ -10343,6 +10343,11 @@ export interface components {
       pressedAt?: string;
       /** Format: date-time */
       sentAt?: string;
+      startedUnder?: {
+        /** Format: uuid */
+        rulesId: string;
+      };
+      pressedWithoutNetwork?: boolean;
     };
     AdjustClockDto: {
       adjustmentMs: number;

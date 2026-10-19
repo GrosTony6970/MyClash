@@ -208,6 +208,31 @@ export const roundPressSchema = z
 export class RoundPressDto extends createZodDto(roundPressSchema) {}
 
 /**
+ * `POST /matches/:id/clock`. The six actions of a clock, pressed with a network. A press the pad
+ * made earlier and sends now also names the id the pad gave it and the pad's times of the press and
+ * of this send: all three or none (`latePressOf`).
+ *
+ * A Start also names the copy of the rules the pad's screen showed (`startedUnder`) and whether it
+ * was pressed with no network (`pressedWithoutNetwork`). Both are allowed on every action and each
+ * without the other: the server reads them on a Start only (`startCopyOf`), and a refused body is
+ * held on the tablet with every row of its bout behind it.
+ */
+export const clockActionSchema = z
+  .object({
+    action: z.enum(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock']),
+    reason: z.string().optional(),
+    /** See `ResetMatchDto` — four of these actions can un-complete a bout. */
+    discardDependentResults: z.boolean().optional(),
+    clientUuid: z.uuid().optional(),
+    pressedAt: z.iso.datetime().optional(),
+    sentAt: z.iso.datetime().optional(),
+    startedUnder: z.object({ rulesId: z.uuid() }).strict().optional(),
+    pressedWithoutNetwork: z.boolean().optional(),
+  })
+  .strict();
+export class ClockActionDto extends createZodDto(clockActionSchema) {}
+
+/**
  * `POST /matches/:id/level-resolution/advance`. `{}` is the step of a level
  * bout pressed with a network: now. The five fields are the same press kept in
  * a pad's queue and sent later: its id, the round it was tapped in, the steps

@@ -44,7 +44,9 @@ interface MatchConfigRow {
  * It is the format of a bout not yet started. The scorer reads the pair stamped
  * on each bout, and a change of the Tournament's ruleset moves only the bouts
  * that have not started (`restampUnstartedMatches`): for a bout started before
- * an audited re-pin, this answer and the scorer can differ.
+ * an audited re-pin, this answer and the scorer can differ. So can it for a bout
+ * started on a tablet with no network, which its Start puts back on the copy the
+ * tablet showed (`startCopyOf`).
  */
 export async function readMatchConfig(
   deps: EventAuthzDeps & { rulesets: RulesetResolver },

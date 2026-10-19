@@ -36,6 +36,7 @@ const bout = (id: string, over: Record<string, unknown> = {}) => ({
   red_score: 0,
   blue_score: 0,
   // Its copy of its rules (0229): no format set, no card rules pinned.
+  match_rules_id: `copy-${id}`,
   match_rules: { ruleset_config: {}, scoring_config_json: {}, penalty_ruleset_id: null },
   ...over,
 });
@@ -139,11 +140,13 @@ describe('StaffService.getAssignedLiceBouts', () => {
     const rulesOf = (id: string) => bouts.find((entry) => entry.match['id'] === id)!.match['rules'];
 
     expect(rulesOf('swiss')).toMatchObject({
+      id: 'copy-swiss',
       matchFormat: { pointCap: 7 },
       afterblowMode: 'deductive',
       cardRulesetId: 'cards-swiss',
     });
     expect(rulesOf('pool')).toMatchObject({
+      id: 'copy-pool',
       matchFormat: { pointCap: 10 },
       afterblowMode: 'full',
       cardRulesetId: null,

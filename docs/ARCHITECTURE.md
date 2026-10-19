@@ -848,7 +848,12 @@ match carries its own copy of the pair and of the hash, and is scored with that 
 written when the match is generated, and again at each change of the Tournament's rules while the
 match has not started (`restampUnstartedMatches`, which writes only a match whose copy differs; a
 match put back to "not started" takes the Tournament's pair of that moment). From its start the copy is frozen, so a scored match
-permanently records which behaviour produced it.
+permanently records which behaviour produced it. A match started on a tablet with no network is
+still "not started" on the server, so a change of the rules meanwhile moves it; its Start, when it
+arrives, names the copy the tablet's screen showed, and when the tablet holds evidence it was
+pressed with no network the server puts the match back on that copy if the match held it
+(`startCopyOf`, `ClockService.startOnCopy`: `running` and the copy in one write). An online Start
+takes the copy of now (rulings of 2026-10-16 and 2026-10-17).
 
 Because a live pointer change rewrites recorded standings, mid-event re-pinning is not a plain update —
 it is an audited ceremony (typed confirmation, mandatory justification, org-owner or super-admin,
@@ -1440,7 +1445,10 @@ bouts is where an official sees that entries still wait.
 > match" is judged on the tablet first by the server's own two refusals of a level bout
 > (`endRefusedOnPad`), and the result screen then shows the tablet's own score and leader, marked
 > "not confirmed", until the server has answered the End. Reopen, Reset and the time adjustment
-> still wait for the server.
+> still wait for the server. A Start also names the copy of the rules the screen showed
+> (`startedUnder`, the `rules.id` of the bout read) and, when the tablet holds the evidence,
+> `pressedWithoutNetwork`: the server keeps that copy for a Start pressed with no network (§7bis.3),
+> and both keys are allowed on every press, so neither can turn a press into a held 400.
 >
 > **A level bout on the tablet (quick-win ruling 13, and the operator's ruling of 2026-10-12).**
 > A bout, or a round of a best-of bout, that is level when its time ends follows its phase's

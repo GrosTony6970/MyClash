@@ -45,28 +45,45 @@ async function stampOf(supabase: SupabaseClient, tournamentId: string): Promise<
       `The ruleset of Tournament ${tournamentId} was not read: ${error?.message ?? 'no copy'}`,
     );
   }
+  const stamp = await stampColumnsOf(
+    supabase,
+    id,
+    (reason) => new Error(`The copy of Tournament ${tournamentId}'s rules was not read: ${reason}`),
+  );
+  if (!stamp) throw new Error('The Tournament has no ruleset pair to stamp on its bouts');
+  return stamp;
+}
+
+/**
+ * The row columns a copy of the rules stamps on a bout: its id, and until the foundation's last
+ * commit its engine pair and hash. The one reader of a copy's engine pair (the scoring reads embed
+ * its settings, `BOUT_RULES`): the stamp of a Tournament's bouts, and a Start that keeps the copy
+ * its pad showed (`startCopyOf`).
+ *
+ * Null when there is no such copy or it names no engine; `readFailed` builds the error of a read
+ * that failed, each caller in its own words.
+ */
+export async function stampColumnsOf(
+  supabase: SupabaseClient,
+  rulesId: string,
+  readFailed: (reason: string) => Error,
+): Promise<MatchRulesetStamp | null> {
   const copy = await supabase
     .from('match_rules')
     .select('ruleset_code, ruleset_version, ruleset_content_hash')
-    .eq('id', id)
+    .eq('id', rulesId)
     .maybeSingle();
-  if (copy.error) {
-    throw new Error(
-      `The copy of Tournament ${tournamentId}'s rules was not read: ${copy.error.message}`,
-    );
-  }
+  if (copy.error) throw readFailed(copy.error.message);
   const row = copy.data as {
     ruleset_code?: unknown;
     ruleset_version?: unknown;
     ruleset_content_hash?: unknown;
   } | null;
-  if (!row || typeof row.ruleset_code !== 'string' || row.ruleset_code.length === 0) {
-    throw new Error('The Tournament has no ruleset pair to stamp on its bouts');
-  }
+  if (!row || typeof row.ruleset_code !== 'string' || row.ruleset_code.length === 0) return null;
   // The version as the copy holds it: its row builder wrote "1" as 1.0.0 (0229), and the column
   // is never empty.
   return {
-    match_rules_id: id,
+    match_rules_id: rulesId,
     ruleset_code: row.ruleset_code,
     ruleset_version: String(row.ruleset_version),
     ruleset_content_hash:
@@ -94,8 +111,9 @@ export async function matchRulesetForTournament(
  *
  * The race is a bout that starts while this runs. "Not started" is asked in the database's own
  * write (`status = 'scheduled'`), so a bout the SERVER has as started is never moved. A bout
- * started on a tablet with no network is still `scheduled` here: it is moved, and its hits are
- * scored with the new rules when they arrive. The server cannot know better. A Tournament gone
+ * started on a tablet with no network is still `scheduled` here: it is moved, and its Start, when
+ * it arrives, puts it back on the copy the tablet showed (`startCopyOf`, ruling "Offline rules").
+ * A Tournament gone
  * meanwhile has no bouts to move; any other failure is an error.
  */
 export async function restampUnstartedMatches(

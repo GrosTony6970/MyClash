@@ -5,7 +5,7 @@
  * Clock state is always recomputed from the match_events timeline,
  * never stored as a separate field. This makes it lossless and replayable.
  * One row is ever taken back: a press whose bout was completed between its
- * read and its write (`writeBoutInPlay`).
+ * read and its write (`writeBoutInPlay`, and `record` after `startOnCopy`).
  *
  * Clock actions: start | halt | resume | end | reopen | reset_clock
  *
@@ -30,6 +30,8 @@ import {
 } from './reopen-match-columns';
 import { timeLimitResult } from './time-limit-result';
 import { BOUT_RULES } from './bout-rules';
+import type { MatchRulesetStamp } from '../phases/match-ruleset';
+import { startCopyOf } from './start-copy';
 import { takeLevelStep, type LateLevelPress } from './level-step';
 import { endRefusal } from './level-at-time-refusal';
 import { isOver } from '../../common/live-status';
@@ -134,6 +136,8 @@ interface ClockStep {
   uncompletes: boolean;
   /** A press sent late: its id. */
   press?: { clientUuid: string };
+  /** Of a Start from a pad's queue: the copy of the rules it puts the bout on (`startCopyOf`). */
+  copy?: MatchRulesetStamp | null;
   /**
    * Where the row is placed in the timeline: a press sent late, or the
    * server's own press after a queued hit or card. None: now.
@@ -147,9 +151,10 @@ interface ClockStep {
 // the winner of a bout that ran out of time — see `timeLimitResult`.
 // `status` is there because a bout already completed is not decided
 // again, and `winner_registration_id` because the decision reads the
-// LADDER, not the scores. The Event's status is for a press sent late.
-const BOUT_COLUMNS =
-  'id, status, locked_at, started_at, rounds_json, current_round, ' +
+// LADDER, not the scores. The Event's status is for a press sent late, and the bout's copies of
+// its rules for a Start that names the copy its pad showed (`startCopyOf`).
+export const BOUT_COLUMNS =
+  'id, status, locked_at, started_at, match_rules_id, earlier_rules_ids, rounds_json, current_round, ' +
   'red_registration_id, blue_registration_id, winner_registration_id, ' +
   'red_score, blue_score, match_number_label, awaiting_round_advance, back_in_play_at, ' +
   'phases(type, tournaments(events(status))), ' +
@@ -401,6 +406,7 @@ export class ClockService {
         ? timeLimitResult(match, current.levelResolutionSteps, elapsedAt(current, at))
         : null;
     if (ending && 'refuse' in ending) throw endRefusal(ending.refuse);
+    const copy = action === 'start' ? await startCopyOf(db, match, press, this.logger) : null;
 
     return this.record(matchId, match, current, {
       action,
@@ -408,6 +414,7 @@ export class ClockService {
       ending,
       uncompletes: false,
       press: { clientUuid: press.clientUuid },
+      copy,
       at,
       sequence,
     });
@@ -450,10 +457,51 @@ export class ClockService {
     } else {
       const status = action === 'halt' ? 'paused' : 'running';
       if (match['status'] === status) return current;
-      const started = action === 'start' ? { started_at: at } : {};
-      await this.writeIfNotCompleted(matchId, { status, ...started });
+      const copy = action === 'start' ? await startCopyOf(db, match, press, this.logger) : null;
+      if (copy) await this.startOnCopy(matchId, match, at, copy);
+      else {
+        const started = action === 'start' ? { started_at: at } : {};
+        await this.writeIfNotCompleted(matchId, { status, ...started });
+      }
     }
     return this.getClockState(matchId);
+  }
+
+  /**
+   * A Start from a pad's queue that puts its bout on the copy of the rules its pad showed
+   * (`startCopyOf`): `running` and the copy in ONE write, so a change of the Tournament's rules
+   * that lands before it is undone, and one after it meets a bout started (the stamp moves only
+   * `scheduled` bouts, 0229). The copy's engine pair and hash go with it while the scorer still
+   * reads them off the row (until the foundation's commit 6, which drops them here).
+   *
+   * A literal, with no spread, so `db-schema-conformance.test.ts` reads every column it names.
+   * Only while the bout is not completed, as `writeIfNotCompleted`; false when the completion won.
+   */
+  private async startOnCopy(
+    matchId: string,
+    match: Record<string, unknown>,
+    now: string,
+    copy: MatchRulesetStamp,
+  ): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update({
+        status: 'running',
+        started_at: now,
+        match_rules_id: copy.match_rules_id,
+        ruleset_code: copy.ruleset_code,
+        ruleset_version: copy.ruleset_version,
+        ruleset_content_hash: copy.ruleset_content_hash,
+      })
+      .eq('id', matchId)
+      .neq('status', 'completed')
+      .select('id')
+      .maybeSingle();
+    if (error) throw new Error(`Clock row saved, bout ${matchId} not updated: ${error.message}`);
+    if (data !== null && copy.match_rules_id !== match['match_rules_id']) {
+      this.logger.warn(`Bout ${matchId}: kept the pad's copy ${copy.match_rules_id}`);
+    }
+    return data !== null;
   }
 
   /**
@@ -557,7 +605,12 @@ export class ClockService {
           ...backInPlayColumns(now, match['back_in_play_at']),
         }
       : {};
-    if (action === 'start' || action === 'resume') {
+    if (action === 'start' && step.copy) {
+      // A Start from a pad's queue never un-completes (`takePress`): `noResult` is empty.
+      if (!(await this.startOnCopy(matchId, match, now, step.copy))) {
+        await takeBackRow(this.supabase.service, matchId, sequence, boutCompleted());
+      }
+    } else if (action === 'start' || action === 'resume') {
       const started = action === 'start' ? { started_at: now } : {};
       await inPlay({ status: 'running', ...started, ...noResult });
     } else if (action === 'halt') {

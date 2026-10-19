@@ -12,10 +12,13 @@ const copy = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const COPY_A = 'c0000000-0000-4000-8000-00000000000a';
+
 const row = (version: string, code = 'TF_v1', rules: unknown = copy()) => ({
   id: 'm1',
   ruleset_code: code,
   ruleset_version: version,
+  match_rules_id: COPY_A,
   match_rules: rules,
 });
 
@@ -24,6 +27,7 @@ const bare = (version: string, code = 'TF_v1') => ({
   id: 'm1',
   ruleset_code: code,
   ruleset_version: version,
+  match_rules_id: COPY_A,
 });
 
 describe('withBoutRules', () => {
@@ -45,6 +49,8 @@ describe('withBoutRules', () => {
     const out = await withBoutRules(row('1.1.0'), builtInResolver(), logger);
 
     expect(out.rules).toEqual({
+      // The copy the rules are read from: the pad's Start names it (`startCopyOf`).
+      id: COPY_A,
       matchFormat: expect.objectContaining({
         pointCap: 5,
         bestOf: expect.objectContaining({ pool: 3 }),
@@ -108,6 +114,19 @@ describe('withBoutRules', () => {
       expect(logger.warn).toHaveBeenLastCalledWith(expect.stringContaining('holds no copy'));
     });
 
+    // Rules with no id would let a Start name no copy while the screen showed one.
+    it('a row that names no copy id: the edition, no rules', async () => {
+      const out = await withBoutRules(
+        { ...row('1.1.0'), match_rules_id: null },
+        builtInResolver(),
+        logger,
+      );
+      expect(out).toEqual({ ...bare('1.1.0'), match_rules_id: null, decision_edition: '2026-10' });
+      expect(logger.warn).toHaveBeenLastCalledWith(
+        expect.stringContaining('Bout m1: no rules sent: Bout m1 names no copy of its rules'),
+      );
+    });
+
     it('a format the schema refuses: the edition, no rules', async () => {
       const refused = copy({ ruleset_config: { matchFormat: { pointCap: 'x' } } });
       const out = await withBoutRules(row('1.1.0', 'TF_v1', refused), builtInResolver(), logger);
@@ -144,7 +163,7 @@ describe('MatchesService.getMatch', () => {
     expect(out).toMatchObject({
       id: 'm1',
       decision_edition: '2026-04',
-      rules: { cardRulesetId: 'cards-a', buttons: { clean: [3, 1], afterblow: [1] } },
+      rules: { id: COPY_A, cardRulesetId: 'cards-a', buttons: { clean: [3, 1], afterblow: [1] } },
     });
     expect(out).not.toHaveProperty('match_rules');
     expect(selectsFor(from, 'matches')[0]).toBe(
