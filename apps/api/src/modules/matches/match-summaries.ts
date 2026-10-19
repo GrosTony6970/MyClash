@@ -240,9 +240,9 @@ function summaryOf(row: ViewRow, context: SummaryContext) {
  * the whole list (a piste's bouts, the referee assignments, the match lists). Its bouts now say
  * "no format", and the log names the bout. A bout with no copy (a fault: every bout holds one)
  * says the same, logged; one deleted since the list was read too, not logged (an ordinary race,
- * the piste read polls). The public bout page draws the default for none.
+ * the piste read polls). The public bout page and the TV draw the default for none.
  */
-function boutMatchFormat(
+export function boutMatchFormat(
   matchId: string,
   bout: Row | undefined,
 ): ReturnType<typeof normalizeMatchFormatConfig> | null {

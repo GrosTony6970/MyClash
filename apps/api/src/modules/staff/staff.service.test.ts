@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { selectsFor, type SupabaseRow } from '../../common/testing/supabase-chain';
 import {
   ANON,
@@ -40,40 +41,51 @@ const POOL = 'pool-1';
 const OTHER_POOL = 'pool-2';
 
 describe('StaffService.getPublicMatchDisplay', () => {
-  const MATCH_FORMAT = { pointCap: 5, doublePenalty: 'none' };
-
-  const CANONICAL_ROWS: SupabaseRow[] = [
-    // Answers a lost `.eq('id', …)`, and carries no ruleset_config, so the
-    // payload assertion below names the bout that was actually asked for.
+  /** A bout whose copy of its rules holds `copy`, its Tournament on rules that moved on. */
+  const boutOnCopy = (copy: unknown): SupabaseRow[] => [
+    // Answers a lost `.eq('id', …)`, so the payload assertion names the bout asked for.
     displayRow('match-elsewhere'),
     displayRow('match-1', {
       status: 'pending',
       pools: { sort_order: 0 },
+      // The Tournament moved on to a best-of-5, cap 15: none of it reaches this bout.
       phases: {
         tournaments: {
           id: 't-1',
           name: 'Open Longsword',
           weapon: 'longsword',
-          scoring_config_json: { foo: 'bar' },
-          ruleset_config: { matchFormat: MATCH_FORMAT },
+          scoring_config_json: null,
+          ruleset_config: {
+            matchFormat: { pointCap: 15, bestOf: { pool: 5, bracket: 5, finals: 5 } },
+          },
         },
       },
+      match_rules: { ruleset_config: copy },
     }),
   ];
+  type Display = { matchFormat: ReturnType<typeof normalizeMatchFormatConfig> | null };
 
-  it('fetches matchFormat from the canonical ruleset_config column and exposes it on the payload', async () => {
-    const { service, from } = serviceOn(CANONICAL_ROWS);
+  it("draws the format of the bout's own copy, its gaps filled as the engine fills them", async () => {
+    // A copy with a cap and a best-of, no time limit: a club seed like it had the scoreboard's
+    // clock read `.pool` of nothing.
+    const { service, from } = serviceOn(
+      boutOnCopy({ matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } }),
+    );
+    const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as Display;
 
-    const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as {
-      matchFormat: unknown;
-    };
+    expect(selectsFor(from, 'matches')[0]).toContain(',match_rules(ruleset_config)');
+    expect(payload.matchFormat).toEqual(
+      normalizeMatchFormatConfig({ pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } }),
+    );
+    expect(payload.matchFormat?.timeLimitsSeconds.pool).toBe(90);
+    expect((payload as unknown as { bestOf: number }).bestOf).toBe(3);
+  });
 
-    // Behaviour 1: the request asked for the real column name.
-    const asked = selectsFor(from, 'matches').join(' ');
-    expect(asked).not.toMatch(/ruleset_config_json/);
-    expect(asked).toMatch(/ruleset_config/);
-    // Behaviour 2: the payload surfaces the matchFormat the caller will read.
-    expect(payload.matchFormat).toEqual(MATCH_FORMAT);
+  it('draws no format for a copy that does not read, and the scoreboard shows its default', async () => {
+    const { service } = serviceOn(boutOnCopy({ matchFormat: { pointCap: 'x' } }));
+    const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as Display;
+    expect(payload.matchFormat).toBeNull();
+    expect((payload as unknown as { bestOf: number }).bestOf).toBe(1);
   });
 
   // External-display redesign: the payload now needs to expose the

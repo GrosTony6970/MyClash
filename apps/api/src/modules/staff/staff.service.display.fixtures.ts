@@ -67,9 +67,10 @@ export function displayRow(id: string, overrides: SupabaseRow = {}): SupabaseRow
         weapon: 'longsword',
         status: 'running',
         scoring_config_json: null,
-        ruleset_config: null,
       },
     },
+    // Every bout holds a copy of its rules (0232); the display reads its format from it.
+    match_rules: { ruleset_config: {} },
     // The flat key a dotted filter reads on a seeded row (`onlyPublicTournaments`).
     'phases.tournaments.status': 'running',
     bracket_slots: null,

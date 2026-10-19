@@ -22,9 +22,15 @@ import {
   type LiceMatchesPayload,
 } from './lice-matches';
 import { liceBouts } from './lice-bouts';
-import { bracketToken, isWeakPin, parseStaffRole } from '@myclash/types';
+import {
+  bracketToken,
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  isWeakPin,
+  parseStaffRole,
+} from '@myclash/types';
 import type { PhaseType, StaffRole } from '@myclash/types';
-import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
+import { getEffectiveBestOf } from '@myclash/rulesets';
+import { boutMatchFormat } from '../matches/match-summaries';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -1396,7 +1402,9 @@ export class StaffService {
         //     0081 simplified the schema so the global_persons club
         //     fallback is no longer needed — persons.club_id is
         //     populated eagerly at insert/link time.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        //   - match_rules: the bout's own copy of its rules, the only source of its match format
+        //     (the Tournament's may be partial, and moves on after the bout starts).
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_persons(photo_url))),phases(type,config_json,tournaments(id,name,weapon,scoring_config_json)),pools(id,name,sort_order),bracket_slots(round),swiss_rounds(round_number),match_rules(ruleset_config)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -1764,7 +1772,6 @@ export class StaffService {
         name?: string;
         weapon?: string;
         scoring_config_json?: unknown;
-        ruleset_config?: { matchFormat?: unknown };
       };
     } | null;
     const pool = match['pools'] as {
@@ -1843,9 +1850,11 @@ export class StaffService {
     // a Swiss bout (which has no pool) as BRACKET. It travels in the payload
     // too, so the scoreboards can count against the right time limit.
     const phaseType = phases?.type ?? null;
-    const displayMatchFormat = normalizeMatchFormatConfig(
-      phases?.tournaments?.ruleset_config?.matchFormat ?? {},
-    );
+    // The bout's own copy, as the public bout page reads it; none that reads draws the
+    // scoreboard's default (`boutMatchFormat` logs why). Named: the pad also strips the doubles
+    // ceiling of a ruleset that has none (`scoredMatchFormat`); this and the bout page do not.
+    const boutFormat = boutMatchFormat(String(match['id'] ?? ''), match);
+    const displayMatchFormat = boutFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
     const effectiveBestOf = getEffectiveBestOf(
       {
         id: String(match['id'] ?? ''),
@@ -1888,7 +1897,7 @@ export class StaffService {
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,
       scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
-      matchFormat: phases?.tournaments?.ruleset_config?.matchFormat ?? null,
+      matchFormat: boutFormat,
       // Best-of-N round state for the TV/projector scoreboard.
       bestOf: effectiveBestOf,
       currentRound: (match['current_round'] as number | null) ?? 1,
