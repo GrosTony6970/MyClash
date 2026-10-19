@@ -2,93 +2,51 @@
  * Check 11 of the RLS probe (`scripts/db-rls-probe.mjs`): a Match carries its own copy of its rules
  * (migration 0229, the foundation slice; rulings "What a bout keeps", "A direct bout write").
  *
- * On the running database: the backfill gives every Match a copy with its own engine pair; the stamp
+ * On the running database: every Match holds a copy and its row no engine columns (0232); the stamp
  * points the Matches not started at the Tournament's copy of now, keeps the one each held as
- * earlier (once, never NULL), leaves a started Match on its own, writes no Match it does not move
+ * earlier (once), leaves a started Match on its own, writes no Match it does not move
  * (one that holds the copy, one of another Tournament); the card pin resolves Tournament,
  * Event, built-in; a card ruleset a bout's copy pins, now or (not started) before, is held (0230), one only a
- * dead copy pins is not; a copy never changes but for its pin set NULL by a delete (a card ruleset's, an
- * organisation's); an Event delete still cascades; a Match takes only a copy of its own Tournament,
- * whoever writes it; and neither public role, nor the service role for the backfill, may call the
- * functions. Every case runs in a savepoint always rolled back.
+ * dead copy pins is not, and so is a club ruleset version a bout's copy names (ruling M, 0232); a copy
+ * never changes but for its pin set NULL by a delete (a card ruleset's, an organisation's); an Event
+ * delete still cascades; a Match takes only a copy of its own Tournament, whoever writes it; and
+ * neither public role may call the functions. Every case runs in a savepoint always rolled back.
  */
 
+import {
+  BOUT,
+  CLUB_CARDS,
+  CLUB_SCORING,
+  OPEN,
+  OTHER_BOUT,
+  OTHER_CARDS,
+  OTHER_CLUB,
+  OTHER_TOURNAMENT,
+  PHASE,
+  SECOND,
+  SEED_COPY,
+  TOURNAMENT,
+  boutOf,
+  copyOf,
+  errorOf,
+  isolated,
+  same,
+  setCap,
+  stamp,
+} from './match-rules-probe-kit.mjs';
+import { heldPairFailures, onlyCopyFailures } from './match-rules-only-copy-probe.mjs';
 import { attempt } from './ruleset-pair-probe.mjs';
-
-// The published Event and Tournament of `rls-probe-seed.sql`, its phase and bout, and the draft
-// Tournament's (same Event) phase; the Club and its own card ruleset.
-const OPEN = 'eeeeeeee-0000-4000-8000-00000000000a';
-const TOURNAMENT = '77777777-0000-4000-8000-00000000000a';
-const OTHER_TOURNAMENT = '77777777-0000-4000-8000-00000000000c';
-const PHASE = '99999999-0000-4000-8000-00000000000a';
-const BOUT = 'dddddddd-0000-4000-8000-00000000000a';
-const OTHER_BOUT = 'dddddddd-0000-4000-8000-00000000000c';
-const CLUB_CARDS = 'fe000000-0000-4000-8000-00000000000a';
-// A second bout of the published Tournament, and another club with a shared card ruleset.
-const SECOND = 'dddddddd-0000-4000-8000-0000000000a2';
-const OTHER_CLUB = 'aaaaaaaa-0000-4000-8000-0000000000c2';
-const OTHER_CARDS = 'fe000000-0000-4000-8000-0000000000c2';
-
-const ROLLBACK = new Error('rollback');
-
-/** `body(sp)` in a savepoint always rolled back: each case starts from the seed. */
-async function isolated(tx, body) {
-  try {
-    await tx.savepoint(async (sp) => {
-      await body(sp);
-      throw ROLLBACK;
-    });
-  } catch (error) {
-    if (error !== ROLLBACK) throw error;
-  }
-}
-
-/** `statement` in its own savepoint; its error, or null. */
-async function errorOf(sp, statement) {
-  let failure = null;
-  await isolated(sp, (inner) =>
-    statement(inner).catch((error) => {
-      failure = error;
-    }),
-  );
-  return failure;
-}
-
-const stamp = async (sp, tournament = TOURNAMENT) =>
-  (await sp`SELECT public.stamp_match_rules(${tournament}) AS id`)[0].id;
-
-const boutOf = async (sp, id) =>
-  (await sp`SELECT match_rules_id, earlier_rules_ids FROM matches WHERE id = ${id}`)[0];
-
-const copyOf = async (sp, id) => (await sp`SELECT * FROM match_rules WHERE id = ${id}`)[0];
-
-const setCap = (sp, cap) =>
-  sp`UPDATE tournaments SET ruleset_config = ${sp.json({ matchFormat: { pointCap: cap } })}
-     WHERE id = ${TOURNAMENT}`;
-
-async function backfillFailures(tx, failures) {
-  await isolated(tx, async (sp) => {
-    const [{ moved }] = await sp`SELECT public.backfill_match_rules() AS moved`;
-    const [{ left }] =
-      await sp`SELECT count(*)::int AS left FROM matches WHERE match_rules_id IS NULL`;
-    if (moved < 1 || left !== 0)
-      failures.push(`the backfill gave ${moved} bouts a copy and left ${left} with none`);
-    const bout = await boutOf(sp, BOUT);
-    const copy = await copyOf(sp, bout.match_rules_id);
-    if (copy?.tournament_id !== TOURNAMENT || copy?.ruleset_version !== '1.0.0')
-      failures.push(`the backfill's copy of the seeded bout is ${JSON.stringify(copy)}`);
-  });
-}
 
 async function stampFailures(tx, failures) {
   await isolated(tx, async (sp) => {
-    await sp`INSERT INTO matches (id, phase_id) VALUES (${SECOND}, ${PHASE})`;
+    // The second bout of the Tournament, on the seed's copy as the first is.
+    await sp`INSERT INTO matches (id, phase_id, match_rules_id) VALUES (${SECOND}, ${PHASE}, ${SEED_COPY})`;
     const first = await stamp(sp);
     if ((await stamp(sp)) !== first)
       failures.push('a second stamp with nothing changed made a new copy');
     const fresh = await boutOf(sp, BOUT);
-    if (fresh.match_rules_id !== first || fresh.earlier_rules_ids.length !== 0)
-      failures.push(`a first stamp held earlier copies: ${JSON.stringify(fresh)}`);
+    if (fresh.match_rules_id !== first || !same(fresh.earlier_rules_ids, [SEED_COPY]))
+      failures.push(`a first stamp kept ${JSON.stringify(fresh)}, not [${SEED_COPY}] as earlier`);
 
     // The second bout starts; the cap moves twice; it comes back to "not started" between.
     await sp`UPDATE matches SET status = 'running' WHERE id = ${SECOND}`;
@@ -102,13 +60,14 @@ async function stampFailures(tx, failures) {
     await stamp(sp);
     const a = await boutOf(sp, BOUT);
     const b = await boutOf(sp, SECOND);
-    const same = (got, want) => JSON.stringify(got) === JSON.stringify(want);
-    if (a.match_rules_id !== third || !same(a.earlier_rules_ids, [first, second]))
+    if (a.match_rules_id !== third || !same(a.earlier_rules_ids, [SEED_COPY, first, second]))
       failures.push(
-        `the first bout holds ${JSON.stringify(a)}, not ${third} after [${first}, ${second}]`,
+        `the first bout holds ${JSON.stringify(a)}, not ${third} after [seed, ${first}, ${second}]`,
       );
-    if (b.match_rules_id !== third || !same(b.earlier_rules_ids, [first]))
-      failures.push(`the second bout holds ${JSON.stringify(b)}, not ${third} after [${first}]`);
+    if (b.match_rules_id !== third || !same(b.earlier_rules_ids, [SEED_COPY, first]))
+      failures.push(
+        `the second bout holds ${JSON.stringify(b)}, not ${third} after [seed, ${first}]`,
+      );
     const copy = await copyOf(sp, third);
     if (copy.ruleset_config?.matchFormat?.pointCap !== 9)
       failures.push(`the copy of now holds ${JSON.stringify(copy.ruleset_config)}`);
@@ -119,7 +78,7 @@ async function stampFailures(tx, failures) {
     await setCap(sp, 9);
     await stamp(sp);
     const back = await boutOf(sp, BOUT);
-    if (!same(back.earlier_rules_ids, [first, second, third]))
+    if (!same(back.earlier_rules_ids, [SEED_COPY, first, second, third]))
       failures.push(
         `a bout back on copies it held holds ${JSON.stringify(back.earlier_rules_ids)}`,
       );
@@ -312,9 +271,13 @@ async function grantFailures(tx, failures) {
       'authenticated',
       (sp) => sp`SELECT public.build_match_rules(${TOURNAMENT}, 'TF_v1', '1.1.0', null)`,
     ],
-    ['service_role', (sp) => sp`SELECT public.backfill_match_rules()`],
     ['anon', (sp) => sp`SELECT public.card_ruleset_held_by_a_bout(${CLUB_CARDS})`],
     ['authenticated', (sp) => sp`SELECT public.card_ruleset_held_by_a_bout(${CLUB_CARDS})`],
+    ['anon', (sp) => sp`SELECT public.ruleset_pair_held_by_a_bout(${CLUB_SCORING}, '1.0.0')`],
+    [
+      'authenticated',
+      (sp) => sp`SELECT public.ruleset_pair_held_by_a_bout(${CLUB_SCORING}, '1.0.0')`,
+    ],
   ];
   for (const [role, call] of calls) {
     const error = await attempt(tx, role, call);
@@ -332,13 +295,14 @@ async function grantFailures(tx, failures) {
 /** What is wrong, as sentences; none when all is right. */
 export async function matchRulesFailures(tx) {
   const failures = [];
-  await backfillFailures(tx, failures);
+  await onlyCopyFailures(tx, failures);
   await stampFailures(tx, failures);
   await quietStampFailures(tx, failures);
   await scoringKeysFailures(tx, failures);
   await cardPinFailures(tx, failures);
   await immutableFailures(tx, failures);
   await heldCardFailures(tx, failures);
+  await heldPairFailures(tx, failures);
   await ownTournamentFailures(tx, failures);
   await grantFailures(tx, failures);
   return failures;

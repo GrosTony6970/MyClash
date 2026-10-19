@@ -33,8 +33,6 @@ function seeded(previous: Seed, others: { bouts: Seed[]; records: Seed[] } = NO_
           id: BOUT,
           red_registration_id: 'red',
           blue_registration_id: 'blue',
-          ruleset_code: 'TF_v1',
-          ruleset_version: '1.0.0',
           locked_at: null,
           match_number_label: 'P1M1',
           current_round: 1,

@@ -8,8 +8,6 @@ const BOUT: MatchInfo = {
   id: 'bout-1',
   matchNumberLabel: 'M3',
   status: 'running',
-  rulesetCode: 'TF',
-  rulesetVersion: '1.0.0',
   redRegistrationId: 'red-1',
   blueRegistrationId: 'blue-1',
   redScore: 3,
@@ -58,7 +56,7 @@ describe('the copy of a bout the tablet keeps', () => {
 
   // The reconnect race, for the copy a reload with no network opens: the bout started on copy A,
   // the server still has it `scheduled` on the stamped copy B, and its Start waits.
-  it('keeps the rules a bout started under while its Start waits, with their edition and pair', async () => {
+  it('keeps the rules a bout started under while its Start waits, with their edition', async () => {
     const onA = {
       ...BOUT,
       rules: { id: 'copy-a', cardRulesetId: 'cards-a' },
@@ -67,8 +65,6 @@ describe('the copy of a bout the tablet keeps', () => {
     const onB = {
       ...BOUT,
       status: 'scheduled',
-      rulesetCode: 'Generic_PointsCap',
-      rulesetVersion: '1.1.0',
       rules: { id: 'copy-b', cardRulesetId: 'cards-b' },
       decisionEdition: '2026-10',
     } as MatchInfo;
@@ -79,7 +75,6 @@ describe('the copy of a bout the tablet keeps', () => {
       status: 'scheduled',
       rules: onA.rules,
       decisionEdition: '2026-04',
-      rulesetCode: 'TF',
     });
 
     await keepBout(onB, Date.now(), undefined);

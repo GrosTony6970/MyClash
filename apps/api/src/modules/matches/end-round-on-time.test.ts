@@ -36,8 +36,10 @@ const format = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** The bout's copy of its rules (0229): what the round's end decides with. */
+/** The bout's copy of its rules (0229): what the round's end decides with, its engine included. */
 const rules = (over: Record<string, unknown> = {}) => ({
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.0.0',
   ruleset_config: { matchFormat: format(over) },
   scoring_config_json: {},
 });
@@ -47,8 +49,6 @@ function matchRow(over: Record<string, unknown> = {}) {
     id: 'm1',
     red_registration_id: 'red',
     blue_registration_id: 'blue',
-    ruleset_code: 'TF_v1',
-    ruleset_version: '1.0.0',
     status: 'running',
     winner_registration_id: null,
     match_number_label: 'QF1',
@@ -272,7 +272,7 @@ describe('ScoringService.endRoundOnTime', () => {
     // The double hands back every column it holds: the read must ASK for the copy.
     const read = fromMock.mock.results[0]?.value as { select: ReturnType<typeof vi.fn> };
     expect(read.select.mock.calls[0]?.[0]).toContain(
-      'match_rules(ruleset_config, scoring_config_json)',
+      'match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     );
   });
 });

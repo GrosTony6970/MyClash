@@ -65,7 +65,7 @@ describe('MatchesService.createExchange — the afterblow rule of a bout', () =>
     expect(inserted['blue_score_delta']).toBe(0);
     // The double answers the whole row: the copy must be asked for by name.
     expect(selectsFor(supabase.from, 'matches')).toContain(
-      'id, match_rules(ruleset_config, scoring_config_json)',
+      'id, match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     );
   });
 

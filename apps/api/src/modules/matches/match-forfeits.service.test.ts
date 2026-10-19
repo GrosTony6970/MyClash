@@ -17,14 +17,7 @@ import type * as MatchRuleset from '../phases/match-ruleset';
 vi.mock('../phases/match-ruleset', async (original) => ({
   ...(await original<typeof MatchRuleset>()),
   tournamentOfBout: vi.fn(() => Promise.resolve('t-1')),
-  matchRulesetForTournament: vi.fn(() =>
-    Promise.resolve({
-      match_rules_id: 'rules-t-1',
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: null,
-    }),
-  ),
+  matchRulesetForTournament: vi.fn(() => Promise.resolve({ match_rules_id: 'rules-t-1' })),
   restampAfterInsert: vi.fn(() => Promise.resolve()),
 }));
 

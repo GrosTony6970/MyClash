@@ -8,7 +8,12 @@
  */
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  writesTo,
+  type SupabaseRow,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
 import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
@@ -180,13 +185,12 @@ describe("a Pool's members change: its referees' alerts follow (ruling 221)", ()
       ['stamp_match_rules', { p_tournament_id: 't-1' }],
       ['stamp_match_rules', { p_tournament_id: 't-1' }],
     ]);
-    expect(writesTo(supabase, 'matches')[1]?.row).toMatchObject([
-      {
-        match_rules_id: rulesOf('t-1'),
-        ruleset_code: 'Generic_PointsCap',
-        ruleset_version: '1.0.0',
-      },
-    ]);
+    const bouts = writesTo(supabase, 'matches')[1]?.row as SupabaseRow[];
+    expect(bouts).toMatchObject([{ match_rules_id: rulesOf('t-1') }]);
+    // The copy holds the pair; the bout's row carries none of its own.
+    expect(bouts[0]).not.toHaveProperty('ruleset_code');
+    expect(bouts[0]).not.toHaveProperty('ruleset_version');
+    expect(bouts[0]).not.toHaveProperty('ruleset_content_hash');
   });
 
   it('never names the bouts to the bout door: the old ones are gone, the new ones have no time', async () => {

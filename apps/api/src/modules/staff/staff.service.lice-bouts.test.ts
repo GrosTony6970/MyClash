@@ -29,17 +29,28 @@ const bout = (id: string, over: Record<string, unknown> = {}) => ({
   status: 'scheduled',
   scheduled_at: at(0),
   match_number_label: 'L1-P1-M3',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
   red_registration_id: `red-${id}`,
   blue_registration_id: `blue-${id}`,
   red_score: 0,
   blue_score: 0,
-  // Its copy of its rules (0229): no format set, no card rules pinned.
+  // Its copy of its rules (0229), the only place its engine lives (0232): TF_v1 1.0.0, no
+  // format set, no card rules pinned.
   match_rules_id: `copy-${id}`,
-  match_rules: { ruleset_config: {}, scoring_config_json: {}, penalty_ruleset_id: null },
+  match_rules: copyOf(),
   ...over,
 });
+
+/** A bout's copy of its rules, as the bout read embeds it. */
+function copyOf(over: Record<string, unknown> = {}) {
+  return {
+    ruleset_code: 'TF_v1',
+    ruleset_version: '1.0.0',
+    ruleset_config: {},
+    scoring_config_json: {},
+    penalty_ruleset_id: null,
+    ...over,
+  };
+}
 
 /** A bout as the pad gets it: its copy is not sent as read (`withBoutRules`). */
 const withoutCopy = ({ match_rules: _copy, ...row }: Record<string, unknown>) => row;
@@ -47,12 +58,12 @@ const withoutCopy = ({ match_rules: _copy, ...row }: Record<string, unknown>) =>
 const BOUTS = [
   bout('swiss', {
     scheduled_at: at(30),
-    ruleset_version: '1.1.0',
-    match_rules: {
+    match_rules: copyOf({
+      ruleset_version: '1.1.0',
       ruleset_config: { matchFormat: { pointCap: 7 } },
       scoring_config_json: { afterblowMode: 'deductive' },
       penalty_ruleset_id: 'cards-swiss',
-    },
+    }),
   }),
   bout('bracket', { scheduled_at: at(20), status: 'completed', red_score: 5, blue_score: 3 }),
   // Same hour as `pool`, and a higher number: text order would put it first.
@@ -157,7 +168,7 @@ describe('StaffService.getAssignedLiceBouts', () => {
   // One bad copy is that bout's fault, logged; the tablet still keeps the rest of its piste.
   it('answers the other bouts when one copy holds a format the schema refuses', async () => {
     const refused = bout('pool', {
-      match_rules: { ruleset_config: { matchFormat: { pointCap: 'x' } } },
+      match_rules: copyOf({ ruleset_config: { matchFormat: { pointCap: 'x' } } }),
     });
     const supabase = mockSupabase({
       ...summarySeed(),
@@ -172,7 +183,7 @@ describe('StaffService.getAssignedLiceBouts', () => {
       ['pool', false],
       ['late', true],
     ]);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Bout pool'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Bout pool: no rules sent'));
   });
 
   it('gives a bout no edition and no rules when no resolver is there to read them', async () => {
@@ -233,7 +244,7 @@ describe('StaffService.getAssignedLiceBouts', () => {
     await svc.getAssignedLiceBouts(staffRequest(), LICE);
 
     expect(selectsFor(from, 'matches')[0]).toBe(
-      '*, match_rules(ruleset_config, scoring_config_json, penalty_ruleset_id)',
+      '*, match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id)',
     );
     expect(selectsFor(from, 'lices')[0]).toBe('id,name');
   });

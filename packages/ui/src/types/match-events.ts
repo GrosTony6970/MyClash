@@ -208,7 +208,6 @@ export interface DisplayMatch {
    *  has no photo or isn't linked to a global person. */
   redFighterPhotoUrl?: string | null;
   blueFighterPhotoUrl?: string | null;
-  rulesetCode: string;
   startedAt: string | null;
   endedAt: string | null;
   /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles'.

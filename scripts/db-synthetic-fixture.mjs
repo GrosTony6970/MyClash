@@ -158,10 +158,15 @@ SELECT
   ('10000000-0000-4000-8000-000000005' || lpad((33 - i)::text, 3, '0'))::uuid
 FROM generate_series(1, 16) AS i;
 
+-- A copy of the Tournament's rules (0229), before the bouts: every bout holds a copy of its own
+-- Tournament's rules (0232). Written as a row: only the service role may call the row builder.
+INSERT INTO match_rules (id, tournament_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, digest)
+VALUES ('10000000-0000-4000-8000-000000000301', '10000000-0000-4000-8000-000000000300', 'TF_v1', '1.0.0', '{}', '{}', 'phase4-synthetic');
+
 INSERT INTO matches (
   id, phase_id, pool_id, bracket_slot_id, lice_id, red_registration_id, blue_registration_id,
   scheduled_at, started_at, ended_at, duration_active_ms, duration_total_ms,
-  red_score, blue_score, winner_registration_id, status, match_number_label
+  red_score, blue_score, winner_registration_id, status, match_number_label, match_rules_id
 )
 SELECT
   ('10000000-0000-4000-8000-000000007' || lpad(i::text, 3, '0'))::uuid,
@@ -180,7 +185,8 @@ SELECT
   CASE WHEN i <= 60 THEN 3 ELSE 0 END,
   CASE WHEN i <= 60 THEN ('10000000-0000-4000-8000-000000005' || lpad((((i - 1) % 80) + 1)::text, 3, '0'))::uuid ELSE NULL END,
   CASE WHEN i <= 60 THEN 'completed' WHEN i <= 64 THEN 'running' ELSE 'scheduled' END,
-  'P4-M' || i
+  'P4-M' || i,
+  '10000000-0000-4000-8000-000000000301'::uuid
 FROM generate_series(1, 96) AS i;
 
 INSERT INTO exchanges (client_uuid, match_id, sequence, type, occurred_at, first_striker_color, first_strike_value, afterblow_value, red_score_delta, blue_score_delta)

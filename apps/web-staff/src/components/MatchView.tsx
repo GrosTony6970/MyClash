@@ -47,8 +47,6 @@ export interface MatchInfo {
   /** Round code computed server-side (e.g. LSW-P1-M3). Empty for older matches. */
   roundCode?: string;
   status: string;
-  rulesetCode: string;
-  rulesetVersion: string;
   redRegistrationId: string;
   blueRegistrationId: string;
   redScore: number;

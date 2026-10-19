@@ -407,6 +407,11 @@ describe('ArchiveService', () => {
         back_in_play_at: '2026-01-01T10:10:00Z',
         match_rules_id: 'mr-now',
         earlier_rules_ids: ['mr-before'],
+        // Its copy's engine pair and hash, on its own row as from 0229 until 0232: an archive
+        // made then carries them.
+        ruleset_code: 'TF_v1',
+        ruleset_version: '1.0.0',
+        ruleset_content_hash: 'hash-now',
       },
     ],
     referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
@@ -676,6 +681,31 @@ describe('ArchiveService', () => {
           earlier_rules_ids: [],
         }),
       ]);
+    });
+
+    it('copies a bout without the engine pair and hash its row carried before 0232', async () => {
+      // The bout has no such columns now: an insert naming one is refused (PGRST204). Its copy
+      // holds them, and travels with it.
+      const { service, inserted } = makeService(scopedRows());
+      const archive = await service.generateEventArchive('event-1', 'user-1', {
+        include: 'scoring',
+      });
+      expect(archive.data.matches?.[0], 'the archive carries them').toMatchObject({
+        ruleset_code: 'TF_v1',
+        ruleset_version: '1.0.0',
+        ruleset_content_hash: 'hash-now',
+      });
+
+      await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetOrganizationId: 'org-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      });
+
+      const bout = inserted.matches?.[0];
+      expect(bout).not.toHaveProperty('ruleset_code');
+      expect(bout).not.toHaveProperty('ruleset_version');
+      expect(bout).not.toHaveProperty('ruleset_content_hash');
+      expect(bout).toMatchObject({ status: 'completed' });
     });
 
     it('copies a bout with no mark of when it was put back in play', async () => {

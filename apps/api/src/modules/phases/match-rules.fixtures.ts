@@ -1,7 +1,7 @@
 /**
  * The database's stamp of a bout's rules (`stamp_match_rules`, migration 0229), for a test's
- * seeded Tournaments: one copy per Tournament, and the function's answer, so a door that stamps
- * its bouts reads the copy of the Tournament it names. Imported by tests and nothing else.
+ * seeded Tournaments: the function's answer, the id of its Tournament's copy, and one copy row
+ * per Tournament for a read that embeds a bout's copy. Imported by tests and nothing else.
  *
  * The copy holds the Tournament row's engine pair and hash, with the column defaults the schema
  * gives a row that names none (`0001_init.sql`: TF_v1, "1"). The stamp's own work, the bouts it

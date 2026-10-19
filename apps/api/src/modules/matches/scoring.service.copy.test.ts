@@ -13,8 +13,10 @@ import { builtInResolver } from './built-in-resolver.fixtures';
  */
 const BOUT = 'm1';
 
-/** A rule set as a Tournament and a copy both hold it. */
+/** A rule set as a Tournament and a copy both hold it: its engine and its settings. */
 const rules = (matchFormat: Record<string, unknown>, scoring: Record<string, unknown> = {}) => ({
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.0.0',
   ruleset_config: { matchFormat },
   scoring_config_json: scoring,
 });
@@ -28,8 +30,6 @@ function bout(copy: ReturnType<typeof rules>, tournament: ReturnType<typeof rule
     id: BOUT,
     red_registration_id: 'red',
     blue_registration_id: 'blue',
-    ruleset_code: 'TF_v1',
-    ruleset_version: '1.0.0',
     status: 'running',
     winner_registration_id: null,
     end_reason: null,

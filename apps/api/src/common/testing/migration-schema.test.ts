@@ -29,6 +29,16 @@ describe('migration replay', () => {
     expect(schema.columns.get('events')).not.toContain('location');
   });
 
+  it('drops every column one ALTER TABLE lists, so a bout keeps its rules only in its copy', () => {
+    // 0232 drops the three in one statement. A replay that dropped only the
+    // first would let a query naming the bout's own ruleset pair read as fine.
+    const matches = schema.columns.get('matches');
+    expect(matches).toContain('match_rules_id');
+    expect(matches).not.toContain('ruleset_code');
+    expect(matches).not.toContain('ruleset_version');
+    expect(matches).not.toContain('ruleset_content_hash');
+  });
+
   /**
    * A column DOCUMENTED by a comment containing commas or braces is still a
    * column. The parser used to split the CREATE TABLE body on commas before

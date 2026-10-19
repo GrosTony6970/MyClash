@@ -66,8 +66,13 @@ export function setup(
       awaiting_round_advance: false,
       back_in_play_at: null,
       phases: { type: 'pool', tournaments: { events: { status: eventStatus } } },
-      // Its copy of its rules (0229): no format set.
-      match_rules: { ruleset_config: {}, scoring_config_json: {} },
+      // Its copy of its rules (0229): TF_v1, no format set.
+      match_rules: {
+        ruleset_code: 'TF_v1',
+        ruleset_version: '1.0.0',
+        ruleset_config: {},
+        scoring_config_json: {},
+      },
       ...bout,
     },
   ];

@@ -1,6 +1,5 @@
 import type { Logger } from '@nestjs/common';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { stampColumnsOf, type MatchRulesetStamp } from '../phases/match-ruleset';
+import type { MatchRulesetStamp } from '../phases/match-ruleset';
 import type { LatePress } from './late-press';
 
 /**
@@ -18,16 +17,14 @@ import type { LatePress } from './late-press';
  * copy: a stamp may land between the door's read and its write, and the write sets the copy with
  * `running` in one update (`ClockService.startOnCopy`).
  *
- * A read that fails throws (the pad sends the Start again; nothing is written yet). A copy that is
- * not there, or names no engine, leaves the bout as it is: a throw would fail every resend, and
- * every row of the bout waits behind its Start.
+ * Nothing is read: a copy a bout held is there as long as the bout is (a copy goes only with its
+ * Tournament, which takes its bouts with it), and it names its engine (0229, NOT NULL).
  */
-export async function startCopyOf(
-  db: SupabaseClient,
+export function startCopyOf(
   match: Record<string, unknown>,
   press: Pick<LatePress, 'startedUnder' | 'pressedWithoutNetwork'>,
   logger: Pick<Logger, 'warn'>,
-): Promise<MatchRulesetStamp | null> {
+): MatchRulesetStamp | null {
   const rulesId = press.startedUnder?.rulesId;
   if (!rulesId) return null;
   const bout = String(match['id']);
@@ -45,15 +42,5 @@ export async function startCopyOf(
     logger.warn(`Bout ${bout}: a Start named copy ${rulesId}, a copy this bout never held`);
     return null;
   }
-  const copy = await stampColumnsOf(
-    db,
-    rulesId,
-    (reason) => new Error(`Bout ${bout}: the copy its Start names was not read: ${reason}`),
-  );
-  if (!copy) {
-    logger.warn(
-      `Bout ${bout}: the copy ${rulesId} its Start names is not there or names no engine`,
-    );
-  }
-  return copy;
+  return { match_rules_id: rulesId };
 }

@@ -102,8 +102,6 @@ interface Match {
   red_fighter_name?: string | null;
   blueFighterName: string | null;
   blue_fighter_name?: string | null;
-  rulesetCode: string;
-  ruleset_code?: string;
   locked_at?: string | null;
 }
 

@@ -32,10 +32,10 @@ const TOURNAMENT_NOW = {
 /** The copy of now, and the earlier copies forgotten: a bout not started was fought under none. */
 const STAMP_NOW = {
   match_rules_id: rulesOf('t-1'),
-  ...TOURNAMENT_NOW,
-  ruleset_version: '1.0.0',
   earlier_rules_ids: [],
 };
+/** The three columns a bout no longer has: its copy holds its engine pair and hash (0232). */
+const PAIR = ['ruleset_code', 'ruleset_version', 'ruleset_content_hash'];
 
 type Seed = Record<string, unknown>;
 
@@ -43,9 +43,6 @@ const bout = (id: string, over: Seed = {}): Seed => ({
   id,
   red_registration_id: 'red',
   blue_registration_id: 'blue',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
-  ruleset_content_hash: 'hash-of-the-old-rules',
   locked_at: null,
   phases: { type: 'pool', tournament_id: 't-1', tournaments: TOURNAMENT_NOW },
   ...RESULT,
@@ -104,7 +101,8 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
     await forfeitsOver(db).voidForfeit('forfeit-1');
 
     // In the SAME write as the status: no moment where the bout is "not
-    // started" under the old ruleset. The version is normalized, as on a new bout.
+    // started" under the old ruleset. The copy's id only: its engine pair stays in the copy.
+    for (const column of PAIR) expect(restoreOf(db, 'm1')?.row).not.toHaveProperty(column);
     expect(restoreOf(db, 'm1')?.row).toMatchObject({ status: 'scheduled', ...STAMP_NOW });
   });
 
@@ -115,7 +113,9 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
 
     const restore = restoreOf(db, 'm1');
     expect(restore?.row).toMatchObject({ status: 'running' });
-    for (const column of Object.keys(STAMP_NOW)) expect(restore?.row).not.toHaveProperty(column);
+    for (const column of [...Object.keys(STAMP_NOW), ...PAIR]) {
+      expect(restore?.row).not.toHaveProperty(column);
+    }
   });
 
   it('a ruleset that cannot be read stops the take-back before the bout is written', async () => {
@@ -176,10 +176,13 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
 
     await forfeitsOver(db).voidForfeit('forfeit-1');
 
+    for (const column of PAIR) expect(restoreOf(db, 'm2')?.row).not.toHaveProperty(column);
     expect(restoreOf(db, 'm2')?.row).toMatchObject({ status: 'scheduled', ...STAMP_NOW });
     const started = restoreOf(db, 'm3');
     expect(started?.row).toMatchObject({ status: 'running' });
-    for (const column of Object.keys(STAMP_NOW)) expect(started?.row).not.toHaveProperty(column);
+    for (const column of [...Object.keys(STAMP_NOW), ...PAIR]) {
+      expect(started?.row).not.toHaveProperty(column);
+    }
   });
 
   it('stamps the Tournament once before its writes and once after them, whatever the bouts', async () => {

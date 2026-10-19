@@ -38,7 +38,10 @@ const COPY_B = 'c0000000-0000-4000-8000-00000000000b';
 const COPY_C = 'c0000000-0000-4000-8000-00000000000c';
 const NEVER = 'c0000000-0000-4000-8000-0000000000ff';
 
-/** The copies of the bout's Tournament, as `match_rules` holds them. */
+/**
+ * The copies of the bout's Tournament, as `match_rules` holds them. The door reads none of them:
+ * the bout takes the copy by its id, and its engine pair stays in the copy (0232).
+ */
 const COPIES: SupabaseRow[] = [
   { id: COPY_A, ruleset_code: 'TF_v1', ruleset_version: '1.0.0', ruleset_content_hash: 'hash-a' },
   {
@@ -58,19 +61,19 @@ const MOVED: SupabaseRow = {
   earlier_rules_ids: [COPY_A],
 };
 
-function start(moreBout: SupabaseRow = MOVED, copies: SupabaseRow[] = COPIES, events = IDLE) {
+function start(moreBout: SupabaseRow = MOVED, events = IDLE) {
   const built = setup(events, moreBout);
   const real = built.db.service.from;
   // `setup` seeds no `match_rules`: the copies are answered beside its tables.
   built.db.service.from = vi.fn((table: string) =>
-    table === 'match_rules' ? copiesTable(copies) : real(table),
+    table === 'match_rules' ? copiesTable() : real(table),
   ) as never;
   const warn = vi.spyOn((built.clock as unknown as { logger: Logger }).logger, 'warn');
   return { ...built, warn };
 }
 
-/** A `match_rules` read: the row with the asked id, or what `copies` says. */
-function copiesTable(copies: SupabaseRow[] | { error: { message: string } }) {
+/** A `match_rules` read: the row with the asked id. */
+function copiesTable() {
   let asked: unknown;
   const chain = {
     select: vi.fn(() => chain),
@@ -78,13 +81,19 @@ function copiesTable(copies: SupabaseRow[] | { error: { message: string } }) {
       asked = value;
       return chain;
     }),
-    maybeSingle: vi.fn(async () =>
-      Array.isArray(copies)
-        ? { data: copies.find((copy) => copy['id'] === asked) ?? null, error: null }
-        : { data: null, error: copies.error },
-    ),
+    maybeSingle: vi.fn(async () => ({
+      data: COPIES.find((copy) => copy['id'] === asked) ?? null,
+      error: null,
+    })),
   };
   return chain;
+}
+
+/** The three columns a bout no longer has: its copy holds its engine pair and hash (0232). */
+function expectNoPairOn(written: unknown) {
+  expect(written).not.toHaveProperty('ruleset_code');
+  expect(written).not.toHaveProperty('ruleset_version');
+  expect(written).not.toHaveProperty('ruleset_content_hash');
 }
 
 const offline = (rulesId: string, clock = '10:00:00'): LatePress => ({
@@ -101,19 +110,17 @@ afterEach(() => {
 });
 
 describe('a Start pressed with no network keeps the copy its tablet showed', () => {
-  it('puts a bout the stamp moved to B back on A, with A’s engine, in the write that starts it', async () => {
+  it('puts a bout the stamp moved to B back on A, in the write that starts it', async () => {
     const { db, clock, warn } = start();
 
     await clock.latePress(BOUT, 'start', offline(COPY_A));
 
+    expectNoPairOn(writesTo(db, 'matches')[0]?.row);
     expect(writesTo(db, 'matches').map((write) => write.row)).toEqual([
       {
         status: 'running',
         started_at: at('10:00:00'),
         match_rules_id: COPY_A,
-        ruleset_code: 'TF_v1',
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-a',
       },
     ]);
     expect(warn).toHaveBeenCalledWith(`Bout ${BOUT}: kept the pad's copy ${COPY_A}`);
@@ -126,11 +133,8 @@ describe('a Start pressed with no network keeps the copy its tablet showed', () 
 
     await clock.latePress(BOUT, 'start', offline(COPY_A));
 
-    expect(writesTo(db, 'matches')[0]?.row).toMatchObject({
-      match_rules_id: COPY_A,
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-    });
+    expectNoPairOn(writesTo(db, 'matches')[0]?.row);
+    expect(writesTo(db, 'matches')[0]?.row).toMatchObject({ match_rules_id: COPY_A });
     // Nothing kept that the bout did not already hold: no trace.
     expect(warn).not.toHaveBeenCalled();
   });
@@ -147,33 +151,14 @@ describe('a Start pressed with no network keeps the copy its tablet showed', () 
     expect(writesTo(db, 'matches')[0]?.row).toMatchObject({ match_rules_id: COPY_A });
   });
 
-  it('reads the copy it names, and nothing else', async () => {
+  // A copy the bout held is there as long as the bout is, and it names its engine: nothing to ask.
+  it('reads no copy: the bout takes the one it names by its id', async () => {
     const { db, clock } = start();
-    const asked: unknown[][] = [];
-    const real = db.service.from;
-    db.service.from = vi.fn((table: string) => {
-      const chain = real(table);
-      if (table === 'match_rules') {
-        const select = chain.select;
-        chain.select = vi.fn((columns: string) => {
-          asked.push(['select', columns]);
-          return select(columns);
-        }) as never;
-        const eq = chain.eq;
-        chain.eq = vi.fn((column: string, value: unknown) => {
-          asked.push(['eq', column, value]);
-          return eq(column, value);
-        }) as never;
-      }
-      return chain;
-    }) as never;
 
     await clock.latePress(BOUT, 'start', offline(COPY_A));
 
-    expect(asked).toEqual([
-      ['select', 'ruleset_code, ruleset_version, ruleset_content_hash'],
-      ['eq', 'id', COPY_A],
-    ]);
+    expect(writesTo(db, 'matches')[0]?.row).toMatchObject({ match_rules_id: COPY_A });
+    expect(queriedTables(db.service.from)).not.toContain('match_rules');
   });
 });
 
@@ -221,22 +206,8 @@ describe('a Start that keeps nothing', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('a copy that is not there, or names no engine: its copy of now, logged, never an error', async () => {
-    for (const copies of [[], [{ ...COPIES[0]!, ruleset_code: '' }]]) {
-      const { db, clock, warn } = start(MOVED, copies);
-
-      await clock.latePress(BOUT, 'start', offline(COPY_A));
-
-      expect(writesTo(db, 'matches')[0]?.row).toEqual({
-        status: 'running',
-        started_at: at('10:00:00'),
-      });
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('is not there or names no engine'));
-    }
-  });
-
   it('a Halt carrying both keys: they are not read', async () => {
-    const { db, clock } = start({ status: 'running' }, COPIES, RUNNING);
+    const { db, clock } = start({ status: 'running' }, RUNNING);
 
     await clock.latePress(BOUT, 'halt', offline(COPY_A, '10:00:30'));
 
@@ -246,22 +217,6 @@ describe('a Start that keeps nothing', () => {
 });
 
 describe('a Start whose copy cannot be written', () => {
-  it('a read of the copy that fails: an error, and no clock row', async () => {
-    const built = setup(IDLE, MOVED);
-    const real = built.db.service.from;
-    built.db.service.from = vi.fn((table: string) =>
-      table === 'match_rules'
-        ? copiesTable({ error: { message: 'connection reset' } })
-        : real(table),
-    ) as never;
-
-    await expect(built.clock.latePress(BOUT, 'start', offline(COPY_A))).rejects.toThrow(
-      `Bout ${BOUT}: the copy its Start names was not read: connection reset`,
-    );
-    expect(writesTo(built.db, 'match_events')).toEqual([]);
-    expect(writesTo(built.db, 'matches')).toEqual([]);
-  });
-
   // The completion won between the door's read and its write: the row is taken back, as for any
   // press put in play (`writeBoutInPlay`), and no copy is said kept.
   it('a bout completed meanwhile: the clock row is taken back, nothing said kept', async () => {
@@ -302,23 +257,21 @@ describe('a Start sent again whose bout write was lost', () => {
   const saved = { client_uuid: PRESS };
 
   it('finishes the bout on the copy the resend names', async () => {
-    const { db, clock } = start(MOVED, COPIES, [row(1, 'start', '10:00:00', saved)]);
+    const { db, clock } = start(MOVED, [row(1, 'start', '10:00:00', saved)]);
 
     await clock.latePress(BOUT, 'start', offline(COPY_A));
 
     expect(writesTo(db, 'match_events')).toEqual([]);
+    expectNoPairOn(writesTo(db, 'matches')[0]?.row);
     expect(writesTo(db, 'matches')[0]?.row).toEqual({
       status: 'running',
       started_at: at('10:00:00'),
       match_rules_id: COPY_A,
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: 'hash-a',
     });
   });
 
   it('spends no read on a bout already started', async () => {
-    const { db, clock } = start({ ...MOVED, status: 'running' }, COPIES, [
+    const { db, clock } = start({ ...MOVED, status: 'running' }, [
       row(1, 'start', '10:00:00', saved),
     ]);
 

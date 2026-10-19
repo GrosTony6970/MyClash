@@ -16,8 +16,6 @@ const bout = (id: string, redScore = 0): MatchInfo => ({
   id,
   matchNumberLabel: 'M3',
   status: 'scheduled',
-  rulesetCode: 'TF',
-  rulesetVersion: '1.0.0',
   redRegistrationId: 'red-1',
   blueRegistrationId: 'blue-1',
   redScore,

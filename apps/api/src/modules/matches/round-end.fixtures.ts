@@ -53,8 +53,6 @@ export const boutRow = (bout: SupabaseRow, eventStatus: string) => ({
   id: BOUT,
   red_registration_id: 'red',
   blue_registration_id: 'blue',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
   status: 'running',
   locked_at: null,
   started_at: at('10:00:00'),
@@ -69,8 +67,10 @@ export const boutRow = (bout: SupabaseRow, eventStatus: string) => ({
   awaiting_round_advance: false,
   back_in_play_at: null,
   phases: { type: 'single_elim', tournaments: { events: { status: eventStatus } } },
-  // Its copy of its rules (0229): what the round's end decides with.
+  // Its copy of its rules (0229): what the round's end decides with, its engine included.
   match_rules: {
+    ruleset_code: 'TF_v1',
+    ruleset_version: '1.0.0',
     ruleset_config: {
       matchFormat: {
         pointCap: 10,

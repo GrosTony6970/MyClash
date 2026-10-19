@@ -26,7 +26,7 @@ import { poolMatchSortKey } from '../phases/pool-match-sort';
  */
 export const LICE_MATCH_SELECT =
   'id,status,scheduled_at,match_number_label,pool_id,red_score,blue_score,' +
-  'ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,' +
+  'red_registration_id,blue_registration_id,side_order,locked_at,' +
   'phases!inner(type,config_json,tournaments!inner(id,name,weapon,status,scoring_config_json)),' +
   'pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
   'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +

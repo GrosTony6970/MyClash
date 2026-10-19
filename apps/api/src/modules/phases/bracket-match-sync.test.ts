@@ -116,11 +116,11 @@ describe('syncMatchToSlot — a new bout of the slot', () => {
     const writes = writesTo(supabase, 'matches');
     // The database moves the bouts not started; the server writes only the insert.
     expect(writes.map((write) => write.op)).toEqual(['insert']);
-    expect(writes[0]?.row).toMatchObject({
-      match_rules_id: rulesOf('t-1'),
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-    });
+    expect(writes[0]?.row).toMatchObject({ match_rules_id: rulesOf('t-1') });
+    // The copy holds the pair; the bout's row carries none of its own.
+    expect(writes[0]?.row).not.toHaveProperty('ruleset_code');
+    expect(writes[0]?.row).not.toHaveProperty('ruleset_version');
+    expect(writes[0]?.row).not.toHaveProperty('ruleset_content_hash');
     // The stamp for the insert, then the stamp again once the bout is in.
     expect(supabase.rpc.mock.calls).toEqual([
       ['stamp_match_rules', { p_tournament_id: 't-1' }],

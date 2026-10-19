@@ -12,14 +12,17 @@
  * with its Tournament's rules of now.
  */
 
+import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
+
 /** A PostgREST embed arrives as an object or a one-element array. */
 export function asRow(value: unknown): Record<string, unknown> | null {
   const row = Array.isArray(value) ? value[0] : value;
   return row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
 }
 
-/** The embed of a `matches` read that carries the bout's copy. */
-export const BOUT_RULES = 'match_rules(ruleset_config, scoring_config_json)';
+/** The embed of a `matches` read that carries the bout's copy: its engine pair and its settings. */
+export const BOUT_RULES =
+  'match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)';
 
 export interface BoutRules {
   /** The Tournament's `ruleset_config` when the copy was made. */
@@ -36,6 +39,23 @@ export function boutRulesOf(match: Record<string, unknown>): BoutRules {
     rulesetConfig: asRow(copy['ruleset_config']) ?? {},
     scoringConfig: asRow(copy['scoring_config_json']) ?? {},
   };
+}
+
+/**
+ * The engine the bout's copy names (0232: the copy is the only place a bout's engine lives): the
+ * pair the scorer decides with and the pad is told to decide with, one reader for both.
+ *
+ * The version as the row builder writes it (0229: "1" and "1.0" are 1.0.0): a copy restored from
+ * an archive is inserted as the archive holds it, and may say "1".
+ */
+export function boutEngineOf(match: Record<string, unknown>): { code: string; version: string } {
+  const copy = asRow(match['match_rules']);
+  if (!copy) throw new Error(`Bout ${String(match['id'])} holds no copy of its rules`);
+  const code = copy['ruleset_code'];
+  if (typeof code !== 'string' || code.length === 0) {
+    throw new Error(`Bout ${String(match['id'])}'s copy names no engine`);
+  }
+  return { code, version: normalizeRulesetVersion(String(copy['ruleset_version'])) };
 }
 
 /** The embed of a `matches` read that carries the card rules the bout's copy pins. */

@@ -5,7 +5,7 @@
  * An organiser generates the Pools under TF_v1, then switches the Tournament to
  * the points-cap ruleset before the first bout. The Pool table was computed
  * with the new ruleset and every bout was scored with the old one, because a
- * bout is scored with the pair stamped on its own row and nothing stamped it
+ * bout was scored with the pair stamped on its own row and nothing stamped it
  * again.
  *
  * The database writes the bouts now (`stamp_match_rules`, migration 0229): which bouts move, and

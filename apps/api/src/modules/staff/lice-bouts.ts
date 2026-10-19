@@ -50,7 +50,9 @@ export async function liceBouts(
 
   const { data, error } = await db
     .from('matches')
-    .select('*, match_rules(ruleset_config, scoring_config_json, penalty_ruleset_id)')
+    .select(
+      '*, match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id)',
+    )
     .eq('lice_id', liceId)
     .in('status', [...LICE_MATCH_STATUSES]);
   if (error) throw new BadRequestException(error.message);

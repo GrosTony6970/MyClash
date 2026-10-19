@@ -77,7 +77,7 @@ describe('a late "End round" of the open round', () => {
     await scoring.endRoundOnTime(BOUT, STAFF, endRound('10:01:30'));
 
     expect(selectsFor(db.from, 'matches')[0]).toContain(
-      'phases(type, tournaments(events(status))), match_rules(ruleset_config, scoring_config_json)',
+      'phases(type, tournaments(events(status))), match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     );
   });
 

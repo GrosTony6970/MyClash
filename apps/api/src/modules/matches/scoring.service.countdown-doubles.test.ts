@@ -17,8 +17,13 @@ import {
  *
  * Countdown from 5, limit 3. Red hits for 2, then three doubles.
  */
-/** The Pool bout's copy of its rules (0229). */
-const pool = (direction: 'normal' | 'reverse_zero_loses', bestOf = 1) => ({
+/**
+ * The Pool bout's copy of its rules (0229), its engine included: the version a
+ * bout made today carries, unless a test names another.
+ */
+const pool = (direction: 'normal' | 'reverse_zero_loses', bestOf = 1, version = '1.1.0') => ({
+  ruleset_code: 'TF_v1',
+  ruleset_version: version,
   ruleset_config: {
     matchFormat: {
       pointCap: 5,
@@ -132,7 +137,7 @@ describe('ScoringService.recomputeMatchScore — a countdown bout at the doubles
  */
 describe('ScoringService.recomputeMatchScore — a countdown bout of TF_v1 1.0.0 at the doubles limit', () => {
   it('ends it "first to points" with nobody ahead, as before', async () => {
-    const bout = inPlay(pool('reverse_zero_loses'), { ruleset_version: '1.0.0' });
+    const bout = inPlay(pool('reverse_zero_loses', 1, '1.0.0'));
     const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
@@ -147,7 +152,7 @@ describe('ScoringService.recomputeMatchScore — a countdown bout of TF_v1 1.0.0
   it('names the fighter a card left ahead on the wiped board, as before', async () => {
     const card = { id: 'card-1', match_id: BOUT, score_delta: -1, registration_id: 'red' };
     const cards = [{ ...card, voided: false, round_number: 1 }];
-    const bout = inPlay(pool('reverse_zero_loses'), { ruleset_version: '1.0.0' });
+    const bout = inPlay(pool('reverse_zero_loses', 1, '1.0.0'));
     const { service, written } = setup(bout, STORY, RUNNING_EVENT, cards);
 
     await service.recomputeMatchScore(BOUT);

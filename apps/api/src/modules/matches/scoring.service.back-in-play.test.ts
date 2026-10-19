@@ -86,8 +86,10 @@ describe('a finished bout of one round that a correction hands back to the refer
 });
 
 describe('a closed round of a best-of series that a correction puts back in play', () => {
-  // The bout's copy of its rules (0229): best of 3, first to 7.
+  // The bout's copy of its rules (0229), its engine included: best of 3, first to 7.
   const bestOfThree = {
+    ruleset_code: 'TF_v1',
+    ruleset_version: '1.1.0',
     ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
     scoring_config_json: {},
   };

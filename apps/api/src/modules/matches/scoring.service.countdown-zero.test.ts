@@ -17,8 +17,13 @@ import {
  * Countdown from 5. Red has 1 point left, blue has 2. Red strikes for 3 and
  * blue answers with an afterblow of 3: red at -2, blue at -1. Blue wins.
  */
-/** The bout's copy of its rules (0229). */
-const countdown = (bestOf = 1) => ({
+/**
+ * The bout's copy of its rules (0229), its engine included: the version a bout
+ * made today carries, unless a test names another.
+ */
+const countdown = (bestOf = 1, version = '1.1.0') => ({
+  ruleset_code: 'TF_v1',
+  ruleset_version: version,
   ruleset_config: {
     matchFormat: {
       pointCap: 5,
@@ -278,7 +283,7 @@ describe('ScoringService.recomputeMatchScore — a round of a best-of bout that 
   });
 
   it('keeps a bracket round of TF_v1 1.0.0 open: its edition reads the board', async () => {
-    const bout = { ...series('single_elim'), ruleset_version: '1.0.0' };
+    const bout = { ...series('single_elim'), match_rules: countdown(3, '1.0.0') };
     const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
@@ -295,7 +300,7 @@ describe('ScoringService.recomputeMatchScore — a round of a best-of bout that 
  */
 describe('ScoringService.recomputeMatchScore — both at zero in a bout of TF_v1 1.0.0', () => {
   it('ends a Pool bout as a draw, as before 2026-10-11', async () => {
-    const bout = inPlay('pool', { ruleset_version: '1.0.0' });
+    const bout = inPlay('pool', { match_rules: countdown(1, '1.0.0') });
     const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
@@ -307,9 +312,10 @@ describe('ScoringService.recomputeMatchScore — both at zero in a bout of TF_v1
     });
   });
 
-  it('reads a bout stored as "1" as 1.0.0 (ruling 3)', async () => {
+  it('reads a bout whose copy holds "1" as 1.0.0 (ruling 3)', async () => {
+    // An archive restore writes a copy as the archive held it, "1" included.
     // Unread as 1.0.0, "1" names no registered version, and the scorer refuses it.
-    const bout = inPlay('pool', { ruleset_version: '1' });
+    const bout = inPlay('pool', { match_rules: countdown(1, '1') });
     const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);
@@ -322,7 +328,7 @@ describe('ScoringService.recomputeMatchScore — both at zero in a bout of TF_v1
   });
 
   it('keeps a bracket bout open, as before 2026-10-11', async () => {
-    const bout = inPlay('single_elim', { ruleset_version: '1.0.0' });
+    const bout = inPlay('single_elim', { match_rules: countdown(1, '1.0.0') });
     const { service, written } = setup(bout, STORY, RUNNING_EVENT);
 
     await service.recomputeMatchScore(BOUT);

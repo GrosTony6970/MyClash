@@ -89,12 +89,7 @@ describe('backInPlayColumns', () => {
 });
 
 describe('unplayedMatchColumns', () => {
-  const RULES = {
-    match_rules_id: 'rules-now',
-    ruleset_code: 'Generic_PointsCap',
-    ruleset_version: '1.0.0',
-    ruleset_content_hash: 'hash-now',
-  };
+  const RULES = { match_rules_id: 'rules-now' };
 
   it('writes the mark empty: a bout put back to unplayed was never put back in play', () => {
     expect(unplayedMatchColumns(RULES)).toMatchObject({

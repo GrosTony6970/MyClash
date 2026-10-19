@@ -333,15 +333,14 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     ).toBe(true);
     // …under its Tournament's ruleset of now: a bout not started takes it
     // (operator, 2026-10-11), and a re-pin may have passed since it was fought.
-    expect(
-      supabase.writes.find((w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled')
-        ?.row,
-    ).toMatchObject({
-      match_rules_id: rulesOf('t1'),
-      earlier_rules_ids: [],
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-    });
+    const putBack = supabase.writes.find(
+      (w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled',
+    )?.row;
+    expect(putBack).toMatchObject({ match_rules_id: rulesOf('t1'), earlier_rules_ids: [] });
+    // The copy holds the pair; the bout's row carries none of its own.
+    expect(putBack).not.toHaveProperty('ruleset_code');
+    expect(putBack).not.toHaveProperty('ruleset_version');
+    expect(putBack).not.toHaveProperty('ruleset_content_hash');
     // …and asked again once the walk wrote it: a change of the rules between the read and the
     // write left it on the older copy (R3).
     expect(putBackAtStamp).toEqual([0, 1]);

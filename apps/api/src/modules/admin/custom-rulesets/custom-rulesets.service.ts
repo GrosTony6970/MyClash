@@ -522,7 +522,7 @@ export class CustomRulesetsService {
   ): Promise<CustomRulesetRow> {
     const existing = await this.getById(id);
 
-    // Frozen version (any tournament already references this code@version):
+    // Frozen version (a Tournament pins this code@version, or a bout holds a copy naming it):
     // reject the edit and prompt the caller to publish a new version instead.
     // Only relevant for non-system rulesets — system rows live in the version
     // snapshot table separately (see Round 6 + Round 7 design notes).
@@ -743,9 +743,10 @@ export class CustomRulesetsService {
 
   /**
    * The row as its version is published: a formula takes the end decision of
-   * the day (ruling "Edition day"), unless a Tournament already scores with that
-   * version, which then keeps the one it is scored under, as the edit guard
-   * keeps its formula. A coded fork holds none: its base engine names it.
+   * the day (ruling "Edition day"), unless a Tournament or a bout already scores
+   * with that version (the edit guard's rule), which then keeps the one it is
+   * scored under, as the edit guard keeps its formula. A coded fork holds none:
+   * its base engine names it.
    */
   private async withTodaysEdition(row: CustomRulesetRow): Promise<CustomRulesetRow> {
     if (row.base_code || row.decision_edition === TODAYS_EDITION) return row;
@@ -790,27 +791,41 @@ export class CustomRulesetsService {
 
   /**
    * True if the current (code, version) pair on the parent row is pinned by a
-   * Tournament or carried by a bout, in which case further edits would silently
-   * change scoring for them. A bout keeps the pair it was stamped with when its
-   * Tournament moves to another ruleset: counting Tournaments alone, the row was
-   * editable again while bouts fought under it still scored with it, and a
-   * correction of one was then decided by the edited formula. A count that fails
-   * is an error: read as 0, the edit went through.
+   * Tournament or held by a bout, in which case further edits would silently
+   * change scoring for them. A bout keeps the copy of its rules it was stamped
+   * with when its Tournament moves to another ruleset: counting Tournaments
+   * alone, the row was editable again while bouts fought under it still scored
+   * with it, and a correction of one was then decided by the edited formula. A
+   * bout not started holds the copies it held before too (ruling M "Draft lock",
+   * 0232): a Start pressed with no network may put it back on one. A count that
+   * fails is an error: read as 0, the edit went through.
    */
   private async isCurrentVersionFrozen(row: CustomRulesetRow): Promise<boolean> {
-    for (const table of ['tournaments', 'matches'] as const) {
-      const { count, error } = await this.supabase.service
-        .from(table)
-        .select('id', { count: 'exact', head: true })
-        .eq('ruleset_code', row.code)
-        .eq('ruleset_version', row.version);
-      if (error)
-        throw new Error(
-          `The ${table} of ruleset ${row.code}@${row.version} were not counted: ${error.message}`,
-        );
-      if ((count ?? 0) > 0) return true;
-    }
-    return false;
+    const pinned = await this.supabase.service
+      .from('tournaments')
+      .select('id', { count: 'exact', head: true })
+      .eq('ruleset_code', row.code)
+      .eq('ruleset_version', row.version);
+    if (pinned.error)
+      throw new Error(
+        `The tournaments of ruleset ${row.code}@${row.version} were not counted: ${pinned.error.message}`,
+      );
+    if ((pinned.count ?? 0) > 0) return true;
+    // A POST call, as the house reads an rpc.
+    const held = await this.supabase.service.rpc('ruleset_pair_held_by_a_bout', {
+      p_code: row.code,
+      p_version: row.version,
+    });
+    if (held.error)
+      throw new Error(
+        `The bouts of ruleset ${row.code}@${row.version} were not counted: ${held.error.message}`,
+      );
+    // An answer that is not a yes or a no is not a no: read as one, the edit went through.
+    if (typeof held.data !== 'boolean')
+      throw new Error(
+        `The bouts of ruleset ${row.code}@${row.version} were not counted: no answer`,
+      );
+    return held.data;
   }
 
   /**
@@ -821,14 +836,14 @@ export class CustomRulesetsService {
    * one. Delete callers use this to soft-archive instead.
    */
   /**
-   * Does a Tournament pin this code, or a bout carry it, or a copy of a bout's rules name it
-   * (0229)? A bout keeps the ruleset it was stamped with when its Tournament moves to another one:
-   * deleted, a correction of a finished bout could not be scored, and an archive carrying the copy
-   * could not be restored (its pair would not resolve). A count that fails is an error: read as 0,
-   * the ruleset was deleted.
+   * Does a Tournament pin this code, or a copy of a bout's rules name it (0229)? Every bout holds a
+   * copy (0232), and a copy is never deleted while its Tournament lives: a bout keeps the ruleset
+   * it was stamped with when its Tournament moves to another one. Deleted, a correction of a
+   * finished bout could not be scored, and an archive carrying the copy could not be restored (its
+   * pair would not resolve). A count that fails is an error: read as 0, the ruleset was deleted.
    */
   private async isReferencedByAnyTournamentOrBout(code: string): Promise<boolean> {
-    for (const table of ['tournaments', 'matches', 'match_rules'] as const) {
+    for (const table of ['tournaments', 'match_rules'] as const) {
       const { count, error } = await this.supabase.service
         .from(table)
         .select('id', { count: 'exact', head: true })
@@ -883,8 +898,8 @@ export class CustomRulesetsService {
     if (existing.is_system) {
       throw new ForbiddenException('System rulesets cannot be rolled back');
     }
-    // Rollback rewrites the parent row and drops it to draft. A tournament pinning
-    // the current version would be scored by other rules — refuse and steer the
+    // Rollback rewrites the parent row and drops it to draft. A Tournament or a bout
+    // on the current version would be scored by other rules — refuse and steer the
     // operator to publish a new version. Mirrors update()'s guard.
     if (await this.isCurrentVersionFrozen(existing)) {
       throw new ConflictException(

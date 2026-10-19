@@ -10,7 +10,6 @@ export const BOUT = {
   blue_score: 3,
   red_registration_id: 'reg-red',
   blue_registration_id: 'reg-blue',
-  ruleset_code: 'TF_v1',
   locked_at: '2026-10-01T10:00:00Z',
 };
 

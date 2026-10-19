@@ -7,8 +7,6 @@ const ROW = {
   id: 'bout-1',
   match_number_label: 'M3',
   status: 'running',
-  ruleset_code: 'TF',
-  ruleset_version: '1.0.0',
   red_registration_id: 'red-1',
   blue_registration_id: 'blue-1',
   red_score: 3,
@@ -82,8 +80,6 @@ describe('readBout', () => {
         matchNumberLabel: 'M3',
         roundCode: 'LSW-P1-M3',
         status: 'running',
-        rulesetCode: 'TF',
-        rulesetVersion: '1.0.0',
         redRegistrationId: 'red-1',
         blueRegistrationId: 'blue-1',
         redScore: 3,
@@ -219,8 +215,6 @@ describe('a Start the server has not taken', () => {
     status: 'running',
     rules: A,
     decisionEdition: '2026-04',
-    rulesetCode: 'TF_v1',
-    rulesetVersion: '1.0.0',
   } as MatchInfo;
   const onB = (status: string) =>
     ({
@@ -228,8 +222,6 @@ describe('a Start the server has not taken', () => {
       status,
       rules: B,
       decisionEdition: '2026-10',
-      rulesetCode: 'Generic_PointsCap',
-      rulesetVersion: '1.1.0',
     }) as MatchInfo;
   const shown = (match: MatchInfo, rulesChanged = false): ShownBout => ({
     match,
@@ -237,13 +229,11 @@ describe('a Start the server has not taken', () => {
     rulesChanged,
   });
 
-  it('a `scheduled` answer while it waits keeps the rules, the edition and the pair', () => {
+  it('a `scheduled` answer while it waits keeps the rules and their edition', () => {
     expect(withHeldRules(onB('scheduled'), onA, 'copy-a')).toMatchObject({
       status: 'scheduled',
       rules: A,
       decisionEdition: '2026-04',
-      rulesetCode: 'TF_v1',
-      rulesetVersion: '1.0.0',
     });
   });
 

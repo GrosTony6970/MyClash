@@ -839,21 +839,24 @@ flowchart TD
   P["penalty_ruleset_version<br/>(immutable snapshot)"] --> EFF
   EFF --> H["sha256 → ruleset_content_hash"]
   H --> TH["tournaments.ruleset_content_hash<br/>current — recomputed on any pin change"]
-  H --> MH["matches.ruleset_content_hash<br/>FROZEN when the match starts"]
+  H --> MH["match_rules: a bout's copy<br/>pair + hash + settings + card pin<br/>FROZEN when the bout starts"]
 ```
 
 `(code, version)` identifies the _definition_; the content hash identifies the _effective behaviour_.
 Two TF_v1 tournaments with different `winBonus` resolve to the same engine but hash differently. A
-match carries its own copy of the pair and of the hash, and is scored with that pair. The copy is
-written when the match is generated, and again at each change of the Tournament's rules while the
-match has not started (`restampUnstartedMatches`, which writes only a match whose copy differs; a
-match put back to "not started" takes the Tournament's pair of that moment). From its start the copy is frozen, so a scored match
-permanently records which behaviour produced it. A match started on a tablet with no network is
-still "not started" on the server, so a change of the rules meanwhile moves it; its Start, when it
-arrives, names the copy the tablet's screen showed, and when the tablet holds evidence it was
-pressed with no network the server puts the match back on that copy if the match held it
-(`startCopyOf`, `ClockService.startOnCopy`: `running` and the copy in one write). An online Start
-takes the copy of now (rulings of 2026-10-16 and 2026-10-17).
+bout points (`matches.match_rules_id`, NOT NULL) at an immutable copy of its Tournament's rules
+(`match_rules`, migrations `0229` and `0232`): the engine pair, the content hash, the settings and
+the card rules pin. The copy is the only place a bout's rules live, and the bout is scored with it.
+A bout takes the copy of now when it is generated. At each change of the Tournament's rules, the
+stamp (`stamp_match_rules`, through `restampUnstartedMatches`) points every bout not started at the
+copy of now and keeps the one it held in `earlier_rules_ids`; a bout put back to "not started"
+takes the copy of that moment. From its start the bout keeps its copy, so a scored bout permanently
+records which behaviour produced it. A bout started on a tablet with no network is still "not
+started" on the server, so a change of the rules meanwhile moves it; its Start, when it arrives,
+names the copy the tablet's screen showed, and when the tablet holds evidence it was pressed with
+no network the server puts the bout back on that copy if the bout held it, an earlier one included
+(§10; `startCopyOf`, `ClockService.startOnCopy`: `running` and the copy in one write). An online
+Start takes the copy of now (rulings of 2026-10-16 and 2026-10-17).
 
 Because a live pointer change rewrites recorded standings, mid-event re-pinning is not a plain update —
 it is an audited ceremony (typed confirmation, mandatory justification, org-owner or super-admin,
@@ -869,9 +872,12 @@ These rules keep a pinned definition from shifting under a tournament, or from l
 - **Versions are snapshotted.** Publishing captures the payload immutably (`custom_ruleset_versions` for
   scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
   rather than overwriting destructively. The edit guard refuses to edit, roll back or unpublish a
-  version while a Tournament pins it or a bout carries it (`isCurrentVersionFrozen`): a bout keeps
-  its pair when its Tournament moves to another ruleset, so a correction of it is still scored by
-  the formula it was fought under. Only the API writes a scoring or a
+  version while a Tournament pins it or a bout holds a copy naming it: its current copy, or, while
+  the bout has not started, one it held before (`isCurrentVersionFrozen`, which asks
+  `ruleset_pair_held_by_a_bout`, migration `0232`; ruling M of 2026-10-19, the rule `0230` set for
+  card rulesets). A bout keeps its copy when its Tournament moves to another ruleset, so a
+  correction of it is still scored by the formula it was fought under, and a Start pressed with no
+  network may bring an earlier copy back. Only the API writes a scoring or a
   penalty ruleset, a penalty ruleset's entries, or their snapshots (migrations `0225`, `0226`:
   SELECT policies only, no INSERT, UPDATE or DELETE for `anon` or `authenticated`), so the guard
   cannot be gone around through PostgREST.

@@ -720,9 +720,7 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
                 ? input.existingMatch
                 : table === 'phases'
                   ? { tournament_id: 't-1' }
-                  : table === 'match_rules'
-                    ? { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' }
-                    : { id: 'ds-1' },
+                  : { id: 'ds-1' },
             error: null,
           }),
         ),
@@ -813,6 +811,10 @@ describe('BracketAdvanceService.advanceFromSlot — one owner for the matches ro
       match_number_label: '3',
       match_rules_id: rulesOf('t-1'),
     });
+    // The copy holds the pair; the bout's row carries none of its own.
+    expect(mock.matchInserts[0]).not.toHaveProperty('ruleset_code');
+    expect(mock.matchInserts[0]).not.toHaveProperty('ruleset_version');
+    expect(mock.matchInserts[0]).not.toHaveProperty('ruleset_content_hash');
   });
 });
 
@@ -855,13 +857,7 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
         maybeSingle: vi.fn(() =>
           Promise.resolve({
             data:
-              table === 'matches'
-                ? existing
-                : table === 'phases'
-                  ? { tournament_id: 't-1' }
-                  : table === 'match_rules'
-                    ? { ruleset_code: 'TF_v1', ruleset_version: '1.1.0' }
-                    : slot,
+              table === 'matches' ? existing : table === 'phases' ? { tournament_id: 't-1' } : slot,
             error: null,
           }),
         ),
@@ -970,6 +966,10 @@ describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches ro
       match_number_label: '3',
       match_rules_id: rulesOf('t-1'),
     });
+    // The copy holds the pair; the bout's row carries none of its own.
+    expect(inserts[0]).not.toHaveProperty('ruleset_code');
+    expect(inserts[0]).not.toHaveProperty('ruleset_version');
+    expect(inserts[0]).not.toHaveProperty('ruleset_content_hash');
   });
 
   it('leaves a bye slot without a match', async () => {

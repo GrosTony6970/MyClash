@@ -29,8 +29,6 @@ const row = (
   id,
   match_number_label: `L1-P1-M${id.slice(-1)}`,
   status: status ?? (id === 'match-1' ? 'running' : 'scheduled'),
-  ruleset_code: 'TF',
-  ruleset_version: '1.0.0',
   decision_edition: '2026-10',
   red_registration_id: `red-${id}`,
   blue_registration_id: `blue-${id}`,

@@ -12,8 +12,6 @@ export const row = (id: string, over: Record<string, unknown> = {}) => ({
   id,
   match_number_label: 'M3',
   status: 'scheduled',
-  ruleset_code: 'TF',
-  ruleset_version: '1.0.0',
   red_registration_id: `red-${id}`,
   blue_registration_id: `blue-${id}`,
   red_score: 0,

@@ -100,7 +100,12 @@ describe('a late "End round" the server does not hold', () => {
 
   it('is a bad request on a bout that is not a best-of', async () => {
     // The bout's copy of its rules names no best-of.
-    const single = { ruleset_config: { matchFormat: {} }, scoring_config_json: {} };
+    const single = {
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_config: { matchFormat: {} },
+      scoring_config_json: {},
+    };
     const { db, scoring } = series(BLUE_LEADS, RUNNING, { match_rules: single });
 
     await expect(scoring.endRoundOnTime(BOUT, STAFF, endRound('10:01:30'))).rejects.toThrow(

@@ -100,21 +100,13 @@ const EXPECTED_FUNCTIONS: Record<string, string> = {
       update public.matches m
         set match_rules_id = v_id,
             earlier_rules_ids = case
-              when m.match_rules_id is null or m.match_rules_id = v_id
-                or m.match_rules_id = any (m.earlier_rules_ids)
-              then m.earlier_rules_ids
+              when m.match_rules_id = any (m.earlier_rules_ids) then m.earlier_rules_ids
               else m.earlier_rules_ids || m.match_rules_id
-            end,
-            ruleset_code = r.ruleset_code,
-            ruleset_version = r.ruleset_version,
-            ruleset_content_hash = r.ruleset_content_hash
-        from public.match_rules r, public.phases p
-        where r.id = v_id and p.id = m.phase_id and p.tournament_id = p_tournament_id
+            end
+        from public.phases p
+        where p.id = m.phase_id and p.tournament_id = p_tournament_id
           and m.status = 'scheduled'
-          and (m.match_rules_id is distinct from v_id
-            or m.ruleset_code is distinct from r.ruleset_code
-            or m.ruleset_version is distinct from r.ruleset_version
-            or m.ruleset_content_hash is distinct from r.ruleset_content_hash);
+          and m.match_rules_id <> v_id;
       return v_id;
     end; $$`,
   match_rules_of_its_tournament: `create or replace function public.match_rules_of_its_tournament()
@@ -129,29 +121,6 @@ const EXPECTED_FUNCTIONS: Record<string, string> = {
           using errcode = 'check_violation';
       end if;
       return new;
-    end; $$`,
-  backfill_match_rules: `create or replace function public.backfill_match_rules()
-    returns integer language plpgsql ${INVOKER}
-    declare g record; v_id uuid; moved integer := 0; n integer;
-    begin
-      for g in
-        select distinct p.tournament_id, m.ruleset_code, m.ruleset_version, m.ruleset_content_hash
-        from public.matches m join public.phases p on p.id = m.phase_id
-        where m.match_rules_id is null
-      loop
-        v_id := public.build_match_rules(
-          g.tournament_id, g.ruleset_code, g.ruleset_version, g.ruleset_content_hash);
-        update public.matches m set match_rules_id = v_id
-          from public.phases p
-          where p.id = m.phase_id and p.tournament_id = g.tournament_id
-            and m.match_rules_id is null
-            and m.ruleset_code is not distinct from g.ruleset_code
-            and m.ruleset_version is not distinct from g.ruleset_version
-            and m.ruleset_content_hash is not distinct from g.ruleset_content_hash;
-        get diagnostics n = row_count;
-        moved := moved + n;
-      end loop;
-      return moved;
     end; $$`,
 };
 
@@ -169,7 +138,6 @@ const GRANTS: Record<string, { revoked: string; granted: string[] }> = {
     revoked: 'public, anon, authenticated',
     granted: ['grant execute on function public.stamp_match_rules(uuid) to service_role;'],
   },
-  backfill_match_rules: { revoked: 'public, anon, authenticated, service_role', granted: [] },
 };
 
 const EXPECTED_TRIGGERS: Record<string, string> = {
@@ -178,7 +146,7 @@ const EXPECTED_TRIGGERS: Record<string, string> = {
     'execute function public.match_rules_never_change();',
   matches_rules_of_its_tournament:
     'create trigger matches_rules_of_its_tournament after insert or update of match_rules_id, ' +
-    'phase_id on public.matches for each row when (new.match_rules_id is not null) ' +
+    'phase_id on public.matches for each row ' +
     'execute function public.match_rules_of_its_tournament();',
 };
 
@@ -269,7 +237,10 @@ describe("a Match's own copy of its rules", () => {
       expect(created).toBeGreaterThan(-1);
       expect(revoke).toBeGreaterThan(created);
       expect(lastIndex(sql, `alter\\s+${routine(name)}`)).toBe(-1);
-      const grants = matches(sql, `grant\\s[^;]*\\bon\\s+${routine(name)}[^;]*;`);
+      // Read after the last create: a function made again (the stamp, 0232) states its grants again.
+      const grants = matches(sql, `grant\\s[^;]*\\bon\\s+${routine(name)}[^;]*;`).filter(
+        (hit) => hit.at > created,
+      );
       expect(grants.map((hit) => hit.text)).toEqual(granted.map(flat));
       expect(grants.every((hit) => hit.at > revoke)).toBe(true);
       expect(

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScoringService } from './scoring.service';
-import { Generic_PointsCap } from '@myclash/rulesets';
 import { builtInResolver } from './built-in-resolver.fixtures';
 import type { RulesetResolver } from './ruleset-resolver.service';
 
@@ -18,10 +17,15 @@ function thenableResult(data: unknown) {
   return chain;
 }
 
-/** A bout of a `type` phase, scored under the match format its copy of its rules holds. */
-const boutOf = (type: string, matchFormat: Record<string, unknown>) => ({
+/** The engine a copy of a bout's rules names, unless a case says another. */
+const TF_V1 = { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' };
+
+/**
+ * A bout of a `type` phase, scored by the engine and the match format its copy of its rules holds.
+ */
+const boutOf = (type: string, matchFormat: Record<string, unknown>, engine = TF_V1) => ({
   phases: { type },
-  match_rules: { ruleset_config: { matchFormat }, scoring_config_json: null },
+  match_rules: { ...engine, ruleset_config: { matchFormat }, scoring_config_json: null },
 });
 
 // A bracket bout whose copy carries a per-phase best-of config (bracket = N).
@@ -36,8 +40,6 @@ function matchRow(overrides: Record<string, unknown> = {}) {
     id: 'm1',
     red_registration_id: 'red',
     blue_registration_id: 'blue',
-    ruleset_code: 'TF_v1',
-    ruleset_version: '1.0.0',
     status: 'running',
     winner_registration_id: null,
     match_number_label: 'QF1',
@@ -340,24 +342,25 @@ describe('ScoringService — best-of rounds', () => {
    * format, and `evaluateRound` is deliberately ruleset-blind. Generic_PointsCap
    * has no ceiling, so the format it plays under must not carry one — otherwise
    * a round of a ruleset with no such rule closes on it anyway.
+   *
+   * The engine is the one the bout's copy names (0232): the bout row names none, and a scorer
+   * that fell back to TF_v1 would close this round on the ceiling.
    */
   it('does not close a Generic_PointsCap round on the doubles ceiling', async () => {
-    rulesets.resolve.mockResolvedValue(Generic_PointsCap);
-    const poolBout = boutOf('pool', {
-      pointCap: 10,
-      maxDoubleHits: 2,
-      bestOf: { pool: 3, bracket: 1, finals: 1 },
-    });
-    const match = matchRow({
-      ...poolBout,
-      match_number_label: 'P1M1',
-      ruleset_code: 'Generic_PointsCap',
-    });
+    const poolBout = boutOf(
+      'pool',
+      { pointCap: 10, maxDoubleHits: 2, bestOf: { pool: 3, bracket: 1, finals: 1 } },
+      { ruleset_code: 'Generic_PointsCap', ruleset_version: '1.0.0' },
+    );
+    const match = matchRow({ ...poolBout, match_number_label: 'P1M1' });
+    expect(match).not.toHaveProperty('ruleset_code');
+    expect(match).not.toHaveProperty('ruleset_version');
     // Three doubles against a ceiling of two: TF_v1 would close the round here.
     wire(match, [ex(1, 'red', 1), dbl(2), dbl(3), dbl(4)]);
 
     await service.recomputeMatchScore('m1');
 
+    expect(rulesets.resolve.mock.calls).toEqual([['Generic_PointsCap', '1.0.0']]);
     expect(lastUpdate?.['rounds_json']).toBeUndefined();
     expect(lastUpdate?.['awaiting_round_advance']).toBe(false);
     // And the hit still counts — the ceiling did not zero the round either.

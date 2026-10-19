@@ -6,14 +6,16 @@
  * copies. Ruling "Old archives" (operator, 2026-10-17): its bouts get copies on restore.
  *
  * - A bout not started takes its restored Tournament's copy of now, as a bout generated there
- *   would (`stamp_match_rules`), with that copy's engine pair and hash on its own columns.
+ *   would (`stamp_match_rules`).
  * - Any other bout takes a copy of its restored Tournament's settings with the bout's OWN engine
  *   pair and hash (`build_match_rules`, the row builder of 0229's backfill), one copy per distinct
  *   pair. A bout keeps the engine it was fought under. Its settings were the Tournament's before
  *   0229, and stay so: the backfill gave the bouts in the database the same.
  *
  * Both functions are the database's: the ids land on the bouts before the bouts are written, so a
- * bout of its own Tournament points at a copy of its own Tournament (0229's trigger).
+ * bout of its own Tournament points at a copy of its own Tournament (0229's trigger). The engine
+ * pair and hash are read from the archive's own bout rows, which carried them until 0232; the
+ * restore then leaves those three keys out of the insert (`archive.tables.ts`).
  */
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';

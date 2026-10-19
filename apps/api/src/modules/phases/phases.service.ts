@@ -350,8 +350,8 @@ export class PhasesService {
       }
     }
 
-    // Scoring resolves the engine from the MATCH row — stamp the tournament's
-    // ruleset (not a hardcoded TF_v1) or non-TF tournaments score wrong. Read
+    // Scoring resolves the engine from the bout's copy of its rules — stamp the
+    // tournament's (not a hardcoded TF_v1) or non-TF tournaments score wrong. Read
     // before the force delete and the phase: a read that fails throws, and
     // thrown after them the old phase was gone, or the new one stood with no
     // Pools and the next try was refused as a second one.

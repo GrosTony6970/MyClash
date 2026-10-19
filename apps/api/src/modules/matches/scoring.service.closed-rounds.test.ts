@@ -22,6 +22,8 @@ import {
  * A best of 3, first to 7. Round 1: Red 7, Blue 6, closed by the cap.
  */
 const bestOfThree = {
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.1.0',
   ruleset_config: { matchFormat: { pointCap: 7, bestOf: { pool: 3, bracket: 3, finals: 3 } } },
   scoring_config_json: null,
 };

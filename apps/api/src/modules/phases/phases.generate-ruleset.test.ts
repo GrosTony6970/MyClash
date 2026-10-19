@@ -113,9 +113,9 @@ describe('generatePools — the ruleset is read before the force delete', () => 
     expect(supabase.writes).toEqual([]);
   });
 
-  // A bout is scored with the rules its row points at: Pools of a Generic Tournament carry
-  // Generic, through the copy of the Tournament's rules, never a TF_v1 nobody chose.
-  it('Pools generated on a Generic Tournament carry Generic on the row', async () => {
+  // A bout is scored with the rules its copy holds: Pools of a Generic Tournament point at the
+  // copy of the Tournament's rules, never a TF_v1 nobody chose. The row carries no pair of its own.
+  it('Pools generated on a Generic Tournament point at the copy of its rules', async () => {
     const { service, supabase } = makeService(
       {
         phases: [
@@ -147,12 +147,10 @@ describe('generatePools — the ruleset is read before the force delete', () => 
     const bouts = writesTo(supabase, 'matches').flatMap((write) => write.row as SupabaseRow[]);
     expect(bouts).toHaveLength(6);
     for (const bout of bouts) {
-      expect(bout).toMatchObject({
-        match_rules_id: rulesOf('tournament-1'),
-        ruleset_code: 'Generic_PointsCap',
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-1',
-      });
+      expect(bout).toMatchObject({ match_rules_id: rulesOf('tournament-1') });
+      expect(bout).not.toHaveProperty('ruleset_code');
+      expect(bout).not.toHaveProperty('ruleset_version');
+      expect(bout).not.toHaveProperty('ruleset_content_hash');
     }
   });
 });
@@ -216,8 +214,9 @@ describe('generateBracket — the ruleset of its bouts', () => {
   });
 
   /**
-   * A bout is scored with the pair stamped on ITS row. A bracket of a Tournament on another
-   * engine than TF_v1 must carry that engine, its version normalized, and its hash.
+   * A bout is scored with the rules of ITS copy. A bracket of a Tournament on another engine than
+   * TF_v1 must point every bout at the copy of that Tournament's rules, and write no pair of its
+   * own on the row.
    */
   it("stamps a non-TF Tournament's ruleset on every bout it makes", async () => {
     const phases: ChainResult[] = [
@@ -261,12 +260,10 @@ describe('generateBracket — the ruleset of its bouts', () => {
     const bouts = writesTo(supabase, 'matches')[0]?.row as SupabaseRow[];
     expect(bouts).toHaveLength(4);
     for (const bout of bouts) {
-      expect(bout).toMatchObject({
-        match_rules_id: rulesOf('tournament-1'),
-        ruleset_code: 'Generic_PointsCap',
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-1',
-      });
+      expect(bout).toMatchObject({ match_rules_id: rulesOf('tournament-1') });
+      expect(bout).not.toHaveProperty('ruleset_code');
+      expect(bout).not.toHaveProperty('ruleset_version');
+      expect(bout).not.toHaveProperty('ruleset_content_hash');
     }
   });
 });

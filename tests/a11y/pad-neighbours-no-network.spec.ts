@@ -17,8 +17,6 @@ const ROW = {
   id: BOUT,
   match_number_label: 'M1',
   status: 'running',
-  ruleset_code: 'TF',
-  ruleset_version: '1.0.0',
   decision_edition: '2026-10',
   red_registration_id: 'red-1',
   blue_registration_id: 'blue-1',

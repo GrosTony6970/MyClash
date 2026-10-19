@@ -136,6 +136,8 @@ describe('ScoringService.assertCorrectionLands', () => {
     const series = storedBout({
       phases: { type: 'single_elim' },
       match_rules: {
+        ruleset_code: 'TF_v1',
+        ruleset_version: '1.1.0',
         ruleset_config: {
           matchFormat: { pointCap: 7, bestOf: { pool: 1, bracket: 3, finals: 3 } },
         },

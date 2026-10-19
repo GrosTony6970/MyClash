@@ -15,12 +15,18 @@ import {
 } from './match-ruleset';
 
 // Generated matches used to hardcode TF_v1/1.0.0 — the scoring engine reads
-// the MATCH row, so non-TF tournaments were scored with the wrong engine.
-// These helpers stamp the tournament's copy of its rules (its row builder writes "1" as 1.0.0).
+// the bout's rules, so non-TF tournaments were scored with the wrong engine.
+// These helpers stamp the tournament's copy of its rules: the bout takes the copy's id, and its
+// engine pair and hash stay in the copy (0232).
 
-const COPY_SELECT = 'ruleset_code, ruleset_version, ruleset_content_hash';
+/** The three columns a bout no longer has: its copy holds its engine pair and hash (0232). */
+function expectNoPairOn(stamp: unknown) {
+  expect(stamp).not.toHaveProperty('ruleset_code');
+  expect(stamp).not.toHaveProperty('ruleset_version');
+  expect(stamp).not.toHaveProperty('ruleset_content_hash');
+}
 
-/** Two Tournaments: the stamp and the copy read must be of the one named. */
+/** Two Tournaments: the stamp must be of the one named. */
 const seed = (t1: Record<string, unknown>): Record<string, TableSeed> => ({
   tournaments: {
     rows: [
@@ -43,18 +49,15 @@ const stampAnswering = (result: ChainResult, tables: Record<string, TableSeed> =
   mockSupabase(tables, { stamp_match_rules: () => result });
 
 describe('matchRulesetForTournament', () => {
-  it('returns the copy the stamp made, its version as the copy holds it', async () => {
+  it('returns the copy the stamp made, and reads nothing of it', async () => {
     const supabase = stamped({ ruleset_code: 'Generic_PointsCap', ruleset_version: '1' });
 
-    await expect(matchRulesetForTournament(supabase.service as never, 't1')).resolves.toEqual({
-      match_rules_id: rulesOf('t1'),
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: null,
-    });
+    const stamp = await matchRulesetForTournament(supabase.service as never, 't1');
+
+    expectNoPairOn(stamp);
+    expect(stamp).toEqual({ match_rules_id: rulesOf('t1') });
     expect(supabase.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: 't1' }]]);
-    expect(selectsFor(supabase.from, 'match_rules')).toEqual([COPY_SELECT]);
-    expect(filtersFor(supabase.from, 'match_rules', 'eq')).toEqual([['id', rulesOf('t1')]]);
+    expect(selectsFor(supabase.from, 'match_rules')).toEqual([]);
   });
 
   // The double cannot see a renamed key: the call would reach a function that does not exist.
@@ -65,50 +68,6 @@ describe('matchRulesetForTournament', () => {
 
     expect(Object.keys(supabase.rpc.mock.calls[0]![1] ?? {})).toEqual(
       lastFunctionParams('stamp_match_rules'),
-    );
-  });
-
-  it("carries the copy's content hash", async () => {
-    const supabase = stamped({
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: 'abc123',
-    });
-
-    await expect(matchRulesetForTournament(supabase.service as never, 't1')).resolves.toEqual({
-      match_rules_id: rulesOf('t1'),
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: 'abc123',
-    });
-  });
-
-  // A bout is stamped with its Tournament's pair, which was checked when it was
-  // set: a copy with no pair is a fault, and a bout stamped TF_v1 anyway would be
-  // scored by an engine nobody chose.
-  it('throws when the copy row is missing, rather than stamping TF_v1', async () => {
-    const supabase = stampAnswering(
-      { data: 'rules-nowhere', error: null },
-      {
-        match_rules: { rows: [] },
-      },
-    );
-
-    await expect(matchRulesetForTournament(supabase.service as never, 't1')).rejects.toThrow(
-      'The Tournament has no ruleset pair to stamp on its bouts',
-    );
-  });
-
-  it('throws when the copy holds no ruleset code, rather than stamping TF_v1', async () => {
-    const supabase = stampAnswering(
-      { data: 'rules-t1', error: null },
-      {
-        match_rules: { rows: [{ id: 'rules-t1', ruleset_code: '', ruleset_version: '1' }] },
-      },
-    );
-
-    await expect(matchRulesetForTournament(supabase.service as never, 't1')).rejects.toThrow(
-      'The Tournament has no ruleset pair to stamp on its bouts',
     );
   });
 
@@ -139,35 +98,20 @@ describe('matchRulesetForTournament', () => {
       'The ruleset of Tournament t-gone was not read: Tournament t-gone was not found',
     );
   });
-
-  it('throws when the copy could not be read', async () => {
-    const supabase = stampAnswering(
-      { data: 'rules-t1', error: null },
-      {
-        match_rules: { data: null, error: { message: 'connection reset' } },
-      },
-    );
-
-    await expect(matchRulesetForTournament(supabase.service as never, 't1')).rejects.toThrow(
-      /^The copy of Tournament t1's rules was not read: connection reset$/,
-    );
-  });
 });
 
 describe('matchRulesetForPhase', () => {
   it("reads the phase's Tournament, then stamps that Tournament", async () => {
     const supabase = stamped({ ruleset_code: 'FormulaRuleset_org', ruleset_version: '2.0.0' });
 
-    await expect(matchRulesetForPhase(supabase.service as never, 'phase-1')).resolves.toEqual({
-      match_rules_id: rulesOf('t1'),
-      ruleset_code: 'FormulaRuleset_org',
-      ruleset_version: '2.0.0',
-      ruleset_content_hash: null,
-    });
+    const stamp = await matchRulesetForPhase(supabase.service as never, 'phase-1');
+
+    expectNoPairOn(stamp);
+    expect(stamp).toEqual({ match_rules_id: rulesOf('t1') });
     expect(selectsFor(supabase.from, 'phases')).toEqual(['tournament_id']);
     expect(filtersFor(supabase.from, 'phases', 'eq')).toEqual([['id', 'phase-1']]);
     expect(supabase.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: 't1' }]]);
-    expect(selectsFor(supabase.from, 'match_rules')).toEqual([COPY_SELECT]);
+    expect(selectsFor(supabase.from, 'match_rules')).toEqual([]);
   });
 
   it('throws when the read failed, rather than stamping TF_v1', async () => {
@@ -209,12 +153,10 @@ describe('matchRulesetForBout', () => {
   it("reads the bout's Tournament through its phase, then stamps it", async () => {
     const supabase = mockSupabase(...withStampedRules(boutSeed({ tournament_id: 't1' })));
 
-    await expect(matchRulesetForBout(supabase.service as never, 'm1')).resolves.toEqual({
-      match_rules_id: rulesOf('t1'),
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: null,
-    });
+    const stamp = await matchRulesetForBout(supabase.service as never, 'm1');
+
+    expectNoPairOn(stamp);
+    expect(stamp).toEqual({ match_rules_id: rulesOf('t1') });
     expect(selectsFor(supabase.from, 'matches')).toEqual(['phases(tournament_id)']);
     expect(filtersFor(supabase.from, 'matches', 'eq')).toEqual([['id', 'm1']]);
     expect(supabase.rpc.mock.calls).toEqual([['stamp_match_rules', { p_tournament_id: 't1' }]]);

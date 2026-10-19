@@ -21,7 +21,6 @@ export const BOUT = {
   blueScore: 3,
   redFighterName: 'Ada Lovelace',
   blueFighterName: 'Mary Somerville',
-  rulesetCode: 'TF_v1',
   startedAt: '2027-03-13T09:00:00.000Z',
   endedAt: null,
   event: { name: 'Open de Lyon' },

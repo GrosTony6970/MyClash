@@ -28,7 +28,9 @@ export async function assertRestoredRulesetsUsable(
     if (!('ruleset_code' in row)) continue;
     const code = row['ruleset_code'];
     const stored = 'ruleset_version' in row ? row['ruleset_version'] : '1.0.0';
-    // Both columns are NOT NULL: anything but a string fails the insert half-way.
+    // Both columns are NOT NULL on a Tournament and a copy: anything but a string fails the insert
+    // half-way. A bout row's pair is not inserted (0232), but an archive made before 0229 builds
+    // its copy from it.
     if (typeof code !== 'string' || typeof stored !== 'string') {
       throw new BadRequestException(
         'This archive names a ruleset that is not a code and a version. Nothing was restored.',

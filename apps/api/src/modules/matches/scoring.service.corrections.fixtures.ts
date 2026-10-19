@@ -51,10 +51,13 @@ export const phase = (type: 'pool' | 'single_elim') => ({
 });
 
 /**
- * The bout's copy of its rules (0229), which scoring decides with: the Tournament's, here. Its
- * own objects: a test that changes a bout's copy changes no other bout's.
+ * The bout's copy of its rules (0229), which scoring decides with: the Tournament's, here, at the
+ * version a bout made today carries. Its own objects: a test that changes a bout's copy changes no
+ * other bout's.
  */
 export const RULES = {
+  ruleset_code: 'TF_v1',
+  ruleset_version: '1.1.0',
   ruleset_config: { matchFormat: structuredClone(FORMAT) },
   scoring_config_json: {},
 };
@@ -65,10 +68,6 @@ export function storedBout(over: Record<string, unknown> = {}) {
     id: BOUT,
     red_registration_id: 'red',
     blue_registration_id: 'blue',
-    ruleset_code: 'TF_v1',
-    // The version a bout made today carries; a test of the earlier end decision
-    // stores 1.0.0 on its bout.
-    ruleset_version: '1.1.0',
     status: 'completed',
     winner_registration_id: 'red',
     end_reason: 'time_limit',

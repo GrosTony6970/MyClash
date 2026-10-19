@@ -81,8 +81,6 @@ const boutRow = (round: number, ofEvent: Record<string, unknown>) => ({
   locked_at: null,
   red_registration_id: 'red',
   blue_registration_id: 'blue',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
   winner_registration_id: null,
   match_number_label: 'QF1',
   rounds_json: [ROUND_1],
@@ -100,8 +98,10 @@ const boutRow = (round: number, ofEvent: Record<string, unknown>) => ({
       events: ofEvent,
     },
   },
-  // Its copy of its rules (0229): a best of 3.
+  // Its copy of its rules (0229): TF_v1, a best of 3.
   match_rules: {
+    ruleset_code: 'TF_v1',
+    ruleset_version: '1.0.0',
     ruleset_config: { matchFormat: { bestOf: { pool: 3, bracket: 3, finals: 3 } } },
     scoring_config_json: {},
   },

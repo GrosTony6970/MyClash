@@ -350,8 +350,20 @@ const TABLES = {
     fk: { match_rules_id: 'matchRules' },
     // When the source bout was last put back in play (0222) says nothing of
     // the copy: no tablet holds a press for it. Nor do the copies of its rules
-    // it held before: the copy starts from the one it holds.
-    set: { back_in_play_at: null, earlier_rules_ids: [] },
+    // it held before: the copy starts from the one it holds. A bout's engine
+    // pair and hash lived on its row until 0232: every archive made before it
+    // carries the three columns, and an insert naming a column the table no
+    // longer has is refused (PGRST204). `undefined` leaves the key out
+    // (`cleanRow`); an archive made before 0229 has its copies built from them
+    // first, from the raw rows (`boutsWithTheirCopies`). Ruling "Older
+    // archives": these three only, no fix for the whole class.
+    set: {
+      back_in_play_at: null,
+      earlier_rules_ids: [],
+      ruleset_code: undefined,
+      ruleset_version: undefined,
+      ruleset_content_hash: undefined,
+    },
   },
   referee_assignments: {
     key: 'refereeAssignments',

@@ -406,7 +406,7 @@ export class ClockService {
         ? timeLimitResult(match, current.levelResolutionSteps, elapsedAt(current, at))
         : null;
     if (ending && 'refuse' in ending) throw endRefusal(ending.refuse);
-    const copy = action === 'start' ? await startCopyOf(db, match, press, this.logger) : null;
+    const copy = action === 'start' ? startCopyOf(match, press, this.logger) : null;
 
     return this.record(matchId, match, current, {
       action,
@@ -457,7 +457,7 @@ export class ClockService {
     } else {
       const status = action === 'halt' ? 'paused' : 'running';
       if (match['status'] === status) return current;
-      const copy = action === 'start' ? await startCopyOf(db, match, press, this.logger) : null;
+      const copy = action === 'start' ? startCopyOf(match, press, this.logger) : null;
       if (copy) await this.startOnCopy(matchId, match, at, copy);
       else {
         const started = action === 'start' ? { started_at: at } : {};
@@ -471,8 +471,7 @@ export class ClockService {
    * A Start from a pad's queue that puts its bout on the copy of the rules its pad showed
    * (`startCopyOf`): `running` and the copy in ONE write, so a change of the Tournament's rules
    * that lands before it is undone, and one after it meets a bout started (the stamp moves only
-   * `scheduled` bouts, 0229). The copy's engine pair and hash go with it while the scorer still
-   * reads them off the row (until the foundation's commit 6, which drops them here).
+   * `scheduled` bouts, 0229).
    *
    * A literal, with no spread, so `db-schema-conformance.test.ts` reads every column it names.
    * Only while the bout is not completed, as `writeIfNotCompleted`; false when the completion won.
@@ -489,9 +488,6 @@ export class ClockService {
         status: 'running',
         started_at: now,
         match_rules_id: copy.match_rules_id,
-        ruleset_code: copy.ruleset_code,
-        ruleset_version: copy.ruleset_version,
-        ruleset_content_hash: copy.ruleset_content_hash,
       })
       .eq('id', matchId)
       .neq('status', 'completed')

@@ -8,6 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService, TODAYS_EDITION } from './custom-rulesets.service';
+import { supabaseRpc } from '../../../common/testing/supabase-chain';
 import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 const CONSTANTS = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
@@ -46,18 +47,25 @@ interface Written {
   updates: Array<{ table: string; row: Record<string, unknown>; filters: Filters }>;
   /** The filters of each Tournament count: the version the freeze is asked about. */
   counts: Filters[];
+  /** The payload of each ask whether a bout holds a copy naming the version. */
+  held: Array<Record<string, unknown>>;
 }
 
-/** Every table answers `row`; a Tournament count answers `pinned`. Writes are kept. */
-function serviceOver(row: Record<string, unknown>, pinned = 0, bouts = 0) {
-  const written: Written = { inserts: [], updates: [], counts: [] };
+/**
+ * Every table answers `row`; a Tournament count answers `pinned`; the ask whether a bout holds a
+ * copy naming the version answers `held`. Writes are kept.
+ */
+function serviceOver(row: Record<string, unknown>, pinned = 0, held = false) {
+  const written: Written = { inserts: [], updates: [], counts: [], held: [] };
+  const rpc = supabaseRpc({
+    ruleset_pair_held_by_a_bout: (args) => {
+      written.held.push(args);
+      return { data: held, error: null };
+    },
+  });
   const from = vi.fn().mockImplementation((table: string) => {
     const answer =
-      table === 'tournaments'
-        ? { count: pinned, error: null }
-        : table === 'matches'
-          ? { count: bouts, error: null }
-          : { data: row, error: null };
+      table === 'tournaments' ? { count: pinned, error: null } : { data: row, error: null };
     const filters: Filters = [];
     if (table === 'tournaments') written.counts.push(filters);
     const chain: Record<string, unknown> = {
@@ -81,7 +89,7 @@ function serviceOver(row: Record<string, unknown>, pinned = 0, bouts = 0) {
     return chain;
   });
   const service = new CustomRulesetsService(
-    { service: { from } } as never,
+    { service: { from, rpc } } as never,
     createRulesetRegistry(),
   );
   return { service, written };
@@ -140,6 +148,7 @@ describe('the end decision a club formula ruleset is written with', () => {
       ['ruleset_code', 'custom_x'],
       ['ruleset_version', '1.0.0'],
     ]);
+    expect(written.held).toEqual([{ p_code: 'custom_x', p_version: '1.0.0' }]);
     expect(inserted(written, 'custom_ruleset_versions')?.decision_edition).toBe('2026-10');
   });
 
@@ -150,8 +159,8 @@ describe('the end decision a club formula ruleset is written with', () => {
     expect(inserted(written, 'custom_ruleset_versions')?.decision_edition).toBe('2026-04');
   });
 
-  it('so does one only bouts still carry, their Tournament moved to another ruleset', async () => {
-    const { service, written } = serviceOver(formulaRow(), 0, 3);
+  it('so does one only a copy held by a bout still names, its Tournament moved to another ruleset', async () => {
+    const { service, written } = serviceOver(formulaRow(), 0, true);
     await service.publish('r1', 'actor-1');
     expect(editionUpdates(written)).toEqual([]);
     expect(inserted(written, 'custom_ruleset_versions')?.decision_edition).toBe('2026-04');

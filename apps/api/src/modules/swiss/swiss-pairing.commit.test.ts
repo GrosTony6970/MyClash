@@ -157,13 +157,11 @@ describe('SwissPairingService — committing a round', () => {
 
     const bouts = writesTo(supabase, 'matches')[0]?.row as SupabaseRow[];
     for (const bout of bouts) {
-      expect(bout).toMatchObject({
-        match_rules_id: rulesOf('t1'),
-        ruleset_code: 'Generic_PointsCap',
-        // Canonicalised on the way in — the column holds the shorthand '1'.
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-1',
-      });
+      expect(bout).toMatchObject({ match_rules_id: rulesOf('t1') });
+      // The copy holds the pair; the bout's row carries none of its own.
+      expect(bout).not.toHaveProperty('ruleset_code');
+      expect(bout).not.toHaveProperty('ruleset_version');
+      expect(bout).not.toHaveProperty('ruleset_content_hash');
     }
   });
 

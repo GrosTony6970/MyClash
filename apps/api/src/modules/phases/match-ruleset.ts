@@ -2,8 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * The rules stamped onto every generated `matches` row: the copy of its Tournament's rules it is
- * scored by (`match_rules_id`, migration 0229), and, until the foundation's last commit drops
- * them, the copy's engine pair and hash on the row's own three columns.
+ * scored by (`match_rules_id`, migration 0229). The copy is the only place a bout's rules live: its
+ * engine pair and content hash, its settings, its card rules (0232).
  *
  * Match generation used to hardcode `TF_v1`/`1.0.0` at every insert site,
  * so non-TF tournaments (Generic_PointsCap, org custom formulas) had their
@@ -13,14 +13,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface MatchRulesetStamp {
   /** The copy of the Tournament's rules of now the bout points at; frozen from its start. */
   match_rules_id: string;
-  ruleset_code: string;
-  ruleset_version: string;
-  /** The tournament's effective (scoring, penalty) content hash in force when
-   *  the bout was stamped: at generation, and again at each change of the
-   *  Tournament's rules while the bout has not started. Frozen from its start,
-   *  so a scored bout records which behaviour produced it. Null until the
-   *  tournament has been stamped. */
-  ruleset_content_hash: string | null;
 }
 
 /** `stamp_match_rules` raises this when the Tournament is gone (0229). */
@@ -29,8 +21,8 @@ const NO_TOURNAMENT = 'P0002';
 /**
  * The copy of a Tournament's rules of now, made or found by the database's one writer of the
  * copies (`stamp_match_rules`, 0229), which also points the Tournament's bouts not started at it.
- * The copy's engine pair is the Tournament's, checked when it was set (`usableRulesetVersion`): a
- * copy with no pair is a fault, never a reason to stamp TF_v1, an engine nobody chose.
+ * The stamp refuses a Tournament with no engine pair (it is checked when it is set,
+ * `usableRulesetVersion`): never a reason to stamp TF_v1, an engine nobody chose.
  *
  * A POST call, never `{ get: true }`: the stamp writes, and a read-only call refuses it.
  */
@@ -45,50 +37,7 @@ async function stampOf(supabase: SupabaseClient, tournamentId: string): Promise<
       `The ruleset of Tournament ${tournamentId} was not read: ${error?.message ?? 'no copy'}`,
     );
   }
-  const stamp = await stampColumnsOf(
-    supabase,
-    id,
-    (reason) => new Error(`The copy of Tournament ${tournamentId}'s rules was not read: ${reason}`),
-  );
-  if (!stamp) throw new Error('The Tournament has no ruleset pair to stamp on its bouts');
-  return stamp;
-}
-
-/**
- * The row columns a copy of the rules stamps on a bout: its id, and until the foundation's last
- * commit its engine pair and hash. The one reader of a copy's engine pair (the scoring reads embed
- * its settings, `BOUT_RULES`): the stamp of a Tournament's bouts, and a Start that keeps the copy
- * its pad showed (`startCopyOf`).
- *
- * Null when there is no such copy or it names no engine; `readFailed` builds the error of a read
- * that failed, each caller in its own words.
- */
-export async function stampColumnsOf(
-  supabase: SupabaseClient,
-  rulesId: string,
-  readFailed: (reason: string) => Error,
-): Promise<MatchRulesetStamp | null> {
-  const copy = await supabase
-    .from('match_rules')
-    .select('ruleset_code, ruleset_version, ruleset_content_hash')
-    .eq('id', rulesId)
-    .maybeSingle();
-  if (copy.error) throw readFailed(copy.error.message);
-  const row = copy.data as {
-    ruleset_code?: unknown;
-    ruleset_version?: unknown;
-    ruleset_content_hash?: unknown;
-  } | null;
-  if (!row || typeof row.ruleset_code !== 'string' || row.ruleset_code.length === 0) return null;
-  // The version as the copy holds it: its row builder wrote "1" as 1.0.0 (0229), and the column
-  // is never empty.
-  return {
-    match_rules_id: rulesId,
-    ruleset_code: row.ruleset_code,
-    ruleset_version: String(row.ruleset_version),
-    ruleset_content_hash:
-      typeof row.ruleset_content_hash === 'string' ? row.ruleset_content_hash : null,
-  };
+  return { match_rules_id: id };
 }
 
 /** The rules a bout generated in this Tournament now is stamped with. */

@@ -10,10 +10,14 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService } from './custom-rulesets.service';
+import { supabaseRpc } from '../../../common/testing/supabase-chain';
 import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock } };
+// No bout holds a copy naming these rules: the bout half of the edit guard is
+// `custom-rulesets.durability.test.ts`'s.
+const rpc = supabaseRpc({ ruleset_pair_held_by_a_bout: () => ({ data: false, error: null }) });
+const mockSupabase = { service: { from: fromMock, rpc } };
 
 function makeChain(result: { data?: unknown; error?: unknown } = {}) {
   const chain: Record<string, unknown> = {

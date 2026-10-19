@@ -1035,7 +1035,6 @@ describe('MatchesService', () => {
             locked_at: null,
             status: 'scheduled',
             // The bout's Tournament was re-pinned since the bout was fought.
-            ruleset_code: 'TF_v1',
             phases: {
               tournament_id: 't-1',
               tournaments: {
@@ -1123,18 +1122,19 @@ describe('MatchesService', () => {
         { p_tournament_id: 't-1' },
       ]);
       // The copy of the Tournament's rules of now, and no earlier copy kept.
-      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
+      const written = writesTo(supabase, 'matches')[0]?.row;
+      expect(written).toMatchObject({
         status: 'scheduled',
         match_rules_id: rulesOf('t-1'),
         earlier_rules_ids: [],
-        ruleset_code: 'Generic_PointsCap',
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-now',
       });
+      // The engine lives in the copy only (0232): the bout row has no column for it.
+      expect(written).not.toHaveProperty('ruleset_code');
+      expect(written).not.toHaveProperty('ruleset_version');
+      expect(written).not.toHaveProperty('ruleset_content_hash');
       expect(selectsFor(supabase.from, 'matches')).toContain('phases(tournament_id)');
-      expect(selectsFor(supabase.from, 'match_rules')).toEqual([
-        'ruleset_code, ruleset_version, ruleset_content_hash',
-      ]);
+      // The id is all the bout takes: the copy itself is not read.
+      expect(selectsFor(supabase.from, 'match_rules')).toEqual([]);
     });
 
     it('resetMatch writes nothing when the ruleset of the bout cannot be read', async () => {
@@ -1298,9 +1298,8 @@ describe('MatchesService', () => {
         // After the insert: the Tournament whose ruleset in force the bout takes (R3).
         'tournament_id',
       ]);
-      expect(selectsFor(supabase.from, 'match_rules')).toEqual([
-        'ruleset_code, ruleset_version, ruleset_content_hash',
-      ]);
+      // The bout takes the copy's id: the copy itself is not read.
+      expect(selectsFor(supabase.from, 'match_rules')).toEqual([]);
     });
 
     it("stamps the new bout with its own Tournament's ruleset, as a generated bout", async () => {
@@ -1311,12 +1310,12 @@ describe('MatchesService', () => {
 
       await service.createMatch(dto('lice-1'));
 
-      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
-        match_rules_id: rulesOf('t-1'),
-        ruleset_code: 'Generic_PointsCap',
-        ruleset_version: '1.0.0',
-        ruleset_content_hash: 'hash-1',
-      });
+      const written = writesTo(supabase, 'matches')[0]?.row;
+      expect(written).toMatchObject({ match_rules_id: rulesOf('t-1') });
+      // The engine lives in the copy only (0232): the bout row has no column for it.
+      expect(written).not.toHaveProperty('ruleset_code');
+      expect(written).not.toHaveProperty('ruleset_version');
+      expect(written).not.toHaveProperty('ruleset_content_hash');
     });
 
     it('inserts nothing when the placement owner refuses', async () => {

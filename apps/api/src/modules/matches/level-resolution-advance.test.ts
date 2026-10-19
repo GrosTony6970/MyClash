@@ -260,7 +260,7 @@ describe('ClockService.advanceLevelResolution', () => {
         'winner_registration_id, red_score, blue_score, match_number_label, ' +
         'awaiting_round_advance, back_in_play_at, ' +
         'phases(type, tournaments(events(status))), ' +
-        'match_rules(ruleset_config, scoring_config_json)',
+        'match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json)',
     );
   });
 });

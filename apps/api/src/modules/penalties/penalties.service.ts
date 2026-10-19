@@ -1833,8 +1833,9 @@ export class PenaltiesService {
    * True if any tournament or event pins this penalty ruleset by id, or a bout holds a copy of
    * its rules that pins it (migration 0230: a card is priced from the live row, and a bout keeps
    * the card rules it started under). Powers the edit/delete immutability guards — the penalty
-   * analogue of scoring's isCurrentVersionFrozen (which queries tournaments by (code, version);
-   * here the pin is a UUID FK on tournaments/events.penalty_ruleset_id). A count that fails is
+   * analogue of scoring's isCurrentVersionFrozen (which counts the tournaments pinning a (code,
+   * version) and asks whether a bout holds a copy naming it, migration 0232; here the pin is a
+   * UUID FK on tournaments/events.penalty_ruleset_id). A count that fails is
    * an error: read as none, it unlocked the edit of a ruleset in use.
    */
   private async isPenaltyRulesetReferenced(id: string): Promise<boolean> {

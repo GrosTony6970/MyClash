@@ -155,7 +155,7 @@ async function insertMatchForSlot(
     status: 'scheduled',
     red_score: 0,
     blue_score: 0,
-    // Tournament's ruleset, not a hardcoded TF_v1 — scoring reads the match row.
+    // Tournament's ruleset, not a hardcoded TF_v1 — scoring reads the bout's copy.
     ...(await matchRulesetForPhase(supabase, slot.phase_id)),
     match_number_label: typeof slot.position === 'number' ? String(slot.position) : null,
   });

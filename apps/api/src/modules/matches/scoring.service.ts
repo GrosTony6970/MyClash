@@ -38,8 +38,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from './scored-match-format';
-import { BOUT_RULES, afterblowModeOf, boutRulesOf } from './bout-rules';
-import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
+import { BOUT_RULES, afterblowModeOf, boutEngineOf, boutRulesOf } from './bout-rules';
 import { ClockService, type ClockState, type SheetEnds } from './clock.service';
 import {
   backInPlayColumns,
@@ -106,18 +105,35 @@ interface SingleFightScore {
   winnerRegistrationId: string | null;
 }
 
-/** Map a `matches` row to the ruleset's own type. */
+/**
+ * The bout the scorer decides, with its copy (`BOUT_RULES`: its engine and settings).
+ * `back_in_play_at`: a recompute that puts the bout back in play keeps a later mark
+ * (`backInPlayColumns`); not asked for, the mark moved back all the same. With `started_at`, the
+ * end of a bout decided late is never before either (`endedAtOf`). Exported: built from a
+ * constant, the schema gate cannot read it, so `bout-columns.schema.test.ts` does.
+ */
+export const MATCH_ROW_SELECT =
+  'id, red_registration_id, blue_registration_id, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
+  BOUT_RULES;
+
+/** The bout a round end or a round advance decides, with its copy. Exported as the one above. */
+export const ROUND_CONTEXT_SELECT =
+  'id, red_registration_id, blue_registration_id, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
+  BOUT_RULES;
+
+/** Map a `matches` row, its copy embedded (`BOUT_RULES`), to the ruleset's own type. */
 function rulesetMatch(
   m: Record<string, unknown>,
   phaseType: RulesetMatch['phaseType'],
 ): RulesetMatch {
+  // The engine of the bout's copy, the pair the pad is told to decide with (`withBoutRules`).
+  const engine = boutEngineOf(m);
   return {
     id: m['id'] as string,
     redRegistrationId: m['red_registration_id'] as string,
     blueRegistrationId: m['blue_registration_id'] as string,
-    rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
-    // "1" on a row is 1.0.0 (ruling 3): the scorer resolves the version it names.
-    rulesetVersion: normalizeRulesetVersion((m['ruleset_version'] as string) ?? '1.0.0'),
+    rulesetCode: engine.code,
+    rulesetVersion: engine.version,
     status: (m['status'] as RulesetMatch['status']) ?? 'running',
     phaseType,
     matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
@@ -438,13 +454,7 @@ export class ScoringService {
   private async loadMatchRow(matchId: string): Promise<Record<string, unknown> | null> {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select(
-        // `back_in_play_at`: a recompute that puts the bout back in play keeps a later mark
-        // (`backInPlayColumns`); not asked for, the mark moved back all the same. With
-        // `started_at`, the end of a bout decided late is never before either (`endedAtOf`).
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, end_reason, red_score, blue_score, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, started_at, phases(type), ' +
-          BOUT_RULES,
-      )
+      .select(MATCH_ROW_SELECT)
       .eq('id', matchId)
       .maybeSingle();
     return error || !data ? null : (data as unknown as Record<string, unknown>);
@@ -1273,10 +1283,7 @@ export class ScoringService {
   } | null> {
     const { data: matchData } = await this.supabase.service
       .from('matches')
-      .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, current_round, rounds_json, red_round_wins, blue_round_wins, awaiting_round_advance, back_in_play_at, phases(type, tournaments(events(status))), ' +
-          BOUT_RULES,
-      )
+      .select(ROUND_CONTEXT_SELECT)
       .eq('id', matchId)
       .maybeSingle();
     if (!matchData) return null;

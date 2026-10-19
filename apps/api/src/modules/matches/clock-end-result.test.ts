@@ -209,7 +209,7 @@ describe('ClockService — what ending the clock records', () => {
       'winner_registration_id',
       'phases(',
       // The format the bout is decided by: its copy of its rules, not its Tournament's of now.
-      'match_rules(ruleset_config',
+      'match_rules(ruleset_code, ruleset_version, ruleset_config',
     ]) {
       expect(matchProjection).toContain(column);
     }

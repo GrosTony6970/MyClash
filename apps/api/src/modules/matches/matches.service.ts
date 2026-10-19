@@ -123,7 +123,9 @@ export class MatchesService {
   async getMatch(matchId: string) {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('*, match_rules(ruleset_config, scoring_config_json, penalty_ruleset_id)')
+      .select(
+        '*, match_rules(ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id)',
+      )
       .eq('id', matchId)
       .maybeSingle();
 
@@ -188,7 +190,7 @@ export class MatchesService {
         red_registration_id: dto.redRegistrationId,
         blue_registration_id: dto.blueRegistrationId,
         scheduled_at: dto.scheduledAt ?? null,
-        // Its own Tournament's pair, as a generated bout (this door stamped TF_v1).
+        // A copy of its own Tournament's rules, as a generated bout (this door stamped TF_v1).
         ...(await matchRulesetForPhase(this.supabase.service, dto.phaseId)),
         match_number_label: dto.matchNumberLabel ?? null,
         status: 'scheduled',

@@ -49,10 +49,23 @@ INSERT INTO phases (id, tournament_id, type) VALUES
   ('99999999-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a', 'pool'),
   ('99999999-0000-4000-8000-00000000000b', '77777777-0000-4000-8000-00000000000b', 'pool'),
   ('99999999-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c', 'pool');
-INSERT INTO matches (id, phase_id) VALUES
-  ('dddddddd-0000-4000-8000-00000000000a', '99999999-0000-4000-8000-00000000000a'),
-  ('dddddddd-0000-4000-8000-00000000000b', '99999999-0000-4000-8000-00000000000b'),
-  ('dddddddd-0000-4000-8000-00000000000c', '99999999-0000-4000-8000-00000000000c');
+-- A copy of the rules of each of three Tournaments (0229): read with its Tournament, so the
+-- published one's is visible, the draft Event's and the draft Tournament's are hidden. Before the
+-- bouts: every bout holds a copy of its own Tournament's rules (0232).
+INSERT INTO match_rules (id, tournament_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, digest) VALUES
+  ('ad000000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-a'),
+  ('ad000000-0000-4000-8000-00000000000b', '77777777-0000-4000-8000-00000000000b', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-b'),
+  ('ad000000-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c', 'TF_v1', '1.1.0', '{}', '{}',
+   'rls-probe-c');
+INSERT INTO matches (id, phase_id, match_rules_id) VALUES
+  ('dddddddd-0000-4000-8000-00000000000a', '99999999-0000-4000-8000-00000000000a',
+   'ad000000-0000-4000-8000-00000000000a'),
+  ('dddddddd-0000-4000-8000-00000000000b', '99999999-0000-4000-8000-00000000000b',
+   'ad000000-0000-4000-8000-00000000000b'),
+  ('dddddddd-0000-4000-8000-00000000000c', '99999999-0000-4000-8000-00000000000c',
+   'ad000000-0000-4000-8000-00000000000c');
 INSERT INTO persons (id, event_id, given_name, family_name) VALUES
   ('bbbbbbbb-0000-4000-8000-00000000000a', 'eeeeeeee-0000-4000-8000-00000000000a', 'Probe', 'Fighter');
 INSERT INTO registrations (id, tournament_id, person_id) VALUES
@@ -125,12 +138,3 @@ INSERT INTO custom_rulesets (id, code, version, name, status, owner_organization
 INSERT INTO custom_ruleset_versions (id, custom_ruleset_id, version, name, score_formula, constants, tiebreakers, decision_edition) VALUES
   ('c5100000-0000-4000-8000-00000000000a', 'c5000000-0000-4000-8000-00000000000a', '1.0.0', 'Club scoring',
    '{}', '{}', '[]', '2026-10');
--- A copy of the rules of each of three Tournaments (0229): read with its Tournament, so the
--- published one's is visible, the draft Event's and the draft Tournament's are hidden.
-INSERT INTO match_rules (id, tournament_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, digest) VALUES
-  ('ad000000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a', 'TF_v1', '1.1.0', '{}', '{}',
-   'rls-probe-a'),
-  ('ad000000-0000-4000-8000-00000000000b', '77777777-0000-4000-8000-00000000000b', 'TF_v1', '1.1.0', '{}', '{}',
-   'rls-probe-b'),
-  ('ad000000-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c', 'TF_v1', '1.1.0', '{}', '{}',
-   'rls-probe-c');

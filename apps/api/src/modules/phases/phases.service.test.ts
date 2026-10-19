@@ -1993,11 +1993,7 @@ describe('PhasesService', () => {
     // the scoreboard fell through to "B{round}" — divergent from the
     // bracket card label.
     /** The stamp `generateBracket` read before it wrote anything, handed in. */
-    const STAMP = {
-      ruleset_code: 'TF_v1',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: null,
-    };
+    const STAMP = { match_rules_id: 'rules-now' };
 
     it('stamps match_number_label = String(slot.position) on every inserted row', async () => {
       const { service, supabase } = makeService({
@@ -2032,16 +2028,23 @@ describe('PhasesService', () => {
         'createInitialBracketMatches'
       ]!(slots, STAMP);
 
-      expect(writesTo(supabase, 'matches')[0]?.row).toEqual([
+      const rows = writesTo(supabase, 'matches')[0]?.row as Record<string, unknown>[];
+      // A bout's engine pair and hash live in its copy only (0232).
+      for (const row of rows) {
+        expect(row).not.toHaveProperty('ruleset_code');
+        expect(row).not.toHaveProperty('ruleset_version');
+        expect(row).not.toHaveProperty('ruleset_content_hash');
+      }
+      expect(rows).toEqual([
         expect.objectContaining({
           bracket_slot_id: 'slot-1',
           match_number_label: '1',
-          ruleset_code: 'TF_v1',
+          match_rules_id: 'rules-now',
         }),
         expect.objectContaining({
           bracket_slot_id: 'slot-2',
           match_number_label: '2',
-          ruleset_code: 'TF_v1',
+          match_rules_id: 'rules-now',
         }),
       ]);
     });

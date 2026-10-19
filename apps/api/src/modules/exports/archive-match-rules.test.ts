@@ -81,6 +81,13 @@ const OLD_BOUTS = [
   },
 ];
 
+/** The three columns a bout no longer has: its copy holds its engine pair and hash (0232). */
+function expectNoPairOn(bout: unknown) {
+  expect(bout).not.toHaveProperty('ruleset_code');
+  expect(bout).not.toHaveProperty('ruleset_version');
+  expect(bout).not.toHaveProperty('ruleset_content_hash');
+}
+
 describe('carriesBoutsWithoutCopies', () => {
   it('is an archive with bouts and no copies', () => {
     expect(carriesBoutsWithoutCopies({ matches: [{ id: 'm-1' }] })).toBe(true);
@@ -139,14 +146,10 @@ describe('restoring an archive made before 0229', () => {
     await restore(service, archiveOf('scoring', { matches: OLD_BOUTS }));
 
     const bout = (inserted.matches ?? []).find((row) => row['status'] === 'scheduled');
-    // Its own columns follow the copy, as the stamp writes them until the foundation's last commit.
-    expect(bout).toMatchObject({
-      match_rules_id: 'copy-now',
-      ruleset_code: 'Generic_PointsCap',
-      ruleset_version: '1.0.0',
-      ruleset_content_hash: 'hash-now',
-      earlier_rules_ids: [],
-    });
+    // It takes the copy's id only: the engine pair and hash the archive's row carries are left
+    // out of the insert, the bout has no such columns (0232).
+    expectNoPairOn(bout);
+    expect(bout).toMatchObject({ match_rules_id: 'copy-now', earlier_rules_ids: [] });
   });
 
   it('gives a bout fought or running a copy with its own engine pair and hash', async () => {
@@ -155,10 +158,12 @@ describe('restoring an archive made before 0229', () => {
     await restore(service, archiveOf('scoring', { matches: OLD_BOUTS }));
 
     const byState = (inserted.matches ?? []).filter((row) => row['status'] !== 'scheduled');
-    expect(byState.map((row) => [row['match_rules_id'], row['ruleset_code']])).toEqual([
-      ['built-TF_v1-hash-fought', 'TF_v1'],
-      ['built-TF_v1-hash-fought', 'TF_v1'],
-      ['built-Generic_PointsCap-null', 'Generic_PointsCap'],
+    // Each holds the copy built from its own pair (the double's id names it), and no pair itself.
+    for (const row of byState) expectNoPairOn(row);
+    expect(byState.map((row) => row['match_rules_id'])).toEqual([
+      'built-TF_v1-hash-fought',
+      'built-TF_v1-hash-fought',
+      'built-Generic_PointsCap-null',
     ]);
   });
 

@@ -54,8 +54,6 @@ export interface BoutRow {
   id: string;
   match_number_label: string | null;
   status: string;
-  ruleset_code: string;
-  ruleset_version: string;
   red_registration_id: string;
   blue_registration_id: string;
   red_score: number | null;
@@ -132,8 +130,6 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
     matchNumberLabel: raw.match_number_label ?? '',
     roundCode: summary?.roundCode ?? '',
     status: raw.status,
-    rulesetCode: raw.ruleset_code,
-    rulesetVersion: raw.ruleset_version,
     redRegistrationId: raw.red_registration_id,
     blueRegistrationId: raw.blue_registration_id,
     redScore: raw.red_score ?? 0,
@@ -180,8 +176,8 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
  * (`unsentStarts`, asked BEFORE the read). An answer that still says `scheduled` is then behind
  * the tablet: a change of the rules moved the bout on the server, and its Start, when it lands,
  * puts it back on that copy (`startCopyOf`). Until that answer the bout keeps the rules it started
- * under, with the edition and the pair they go with, so the pad decides an End, a round and the
- * winner at the cap as the server will; only when they ARE that copy.
+ * under, with the edition they go with, so the pad decides an End, a round and the winner at the
+ * cap as the server will; only when they ARE that copy.
  */
 export function withHeldRules(
   next: MatchInfo,
@@ -190,8 +186,8 @@ export function withHeldRules(
 ): MatchInfo {
   if (!held?.rules || held.id !== next.id) return next;
   if (startedUnder !== undefined && startedUnder === held.rules.id && next.status === 'scheduled') {
-    const { rules, decisionEdition, rulesetCode, rulesetVersion } = held;
-    return { ...next, rules, decisionEdition, rulesetCode, rulesetVersion };
+    const { rules, decisionEdition } = held;
+    return { ...next, rules, decisionEdition };
   }
   return next.rules ? next : { ...next, rules: held.rules };
 }
