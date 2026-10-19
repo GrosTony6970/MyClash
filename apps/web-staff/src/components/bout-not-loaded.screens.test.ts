@@ -26,16 +26,26 @@ const view = read('components', 'MatchView.tsx');
 describe('the page’s read of the bout', () => {
   it('marks a read that met no network, and clears no bout for it', () => {
     expect(page).toMatch(
-      /if \(answer\.kind === 'unreachable'\) \{\s+setUnreachable\(true\);\s+const kept = await keptBout\(matchId\)\.catch\(\(\) => null\);\s+if \(kept && read >= boutReads\.current\.shown\) setShown\(\(now\) => now \?\? kept\);\s+setLoading\(false\);\s+return;\s+\}/,
+      /if \(answer\.kind === 'unreachable'\) \{\s+setUnreachable\(true\);\s+const kept = await keptBout\(matchId\)\.catch\(\(\) => null\);\s+if \(kept && read >= boutReads\.current\.shown\) \{\s+setShown\(\(now\) => now \?\? \{ \.\.\.kept, rulesChanged: false \}\);\s+\}\s+setLoading\(false\);\s+return;\s+\}/,
     );
   });
 
   it('opens the tablet’s copy only while the screen holds no bout', () => {
     // A server answer that landed first is never replaced by the copy: not the
-    // bout on screen, and not the "gone" of a later read.
-    expect(page.match(/keptBout\(/g)).toHaveLength(1);
-    expect(page).toContain(
-      'if (kept && read >= boutReads.current.shown) setShown((now) => now ?? kept);',
+    // bout on screen, and not the "gone" of a later read. Its second read is no
+    // screen: the bout a server answer holds back with while a Start waits.
+    expect(page.match(/keptBout\(/g)).toHaveLength(2);
+    expect(page).toContain('setShown((now) => now ?? { ...kept, rulesChanged: false });');
+    expect(page).toMatch(
+      /const kept = startedUnder\s+\? \(\(await keptBout\(matchId\)\.catch\(\(\) => null\)\)\?\.match \?\? null\)\s+: null;/,
+    );
+  });
+
+  // The Start leaves the queue only once the server took it: asked after the read, a Start that
+  // landed between would read as none, and a `scheduled` answer would take the stamped copy.
+  it('asks the queue for a waiting Start before it reads the bout, and survives a store that fails', () => {
+    expect(page).toMatch(
+      /const waiting = await unsentStarts\(\)\.catch\(\(\) => new Map<string, string>\(\)\);\s+const startedUnder = waiting\.get\(matchId\);\s+const answer = await readBout\(apiUrl, matchId\);/,
     );
   });
 
@@ -55,11 +65,11 @@ describe('the page’s read of the bout', () => {
 
   it('keeps the bout the server gave, and forgets the one it said is gone', () => {
     expect(page).toMatch(
-      /if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);[^}]*if \(answer\.kind === 'gone'\) void forgetBout\(matchId\)\.catch\(\(\) => undefined\);\s+return;\s+\}\s+\/\/[^\n]*\s+setShown\(\(now\) => \(\{ match: withHeldRules\(answer\.match, now\?\.match\), readAt: null \}\)\);/,
+      /if \(answer\.kind !== 'bout'\) \{\s+setShown\(null\);[^}]*if \(answer\.kind === 'gone'\) void forgetBout\(matchId\)\.catch\(\(\) => undefined\);\s+return;\s+\}\s+(\/\/[^\n]*\s+)+setShown\(\(now\) => nextShown\(now, answer\.match, startedUnder, kept\)\);/,
     );
     // A bout with no names is shown, and not kept over a copy that has them.
-    expect(page).toContain(
-      'if (answer.labelled) void keepBout(answer.match, askedAt).catch(() => undefined);',
+    expect(page).toMatch(
+      /if \(answer\.labelled\)\s+void keepBout\(answer\.match, askedAt, startedUnder\)\.catch\(\(\) => undefined\);/,
     );
   });
 

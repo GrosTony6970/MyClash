@@ -1448,7 +1448,17 @@ bouts is where an official sees that entries still wait.
 > still wait for the server. A Start also names the copy of the rules the screen showed
 > (`startedUnder`, the `rules.id` of the bout read) and, when the tablet holds the evidence,
 > `pressedWithoutNetwork`: the server keeps that copy for a Start pressed with no network (§7bis.3),
-> and both keys are allowed on every press, so neither can turn a press into a held 400.
+> and both keys are allowed on every press, so neither can turn a press into a held 400. The
+> evidence is the tablet's, per Start (`startNetwork` on the queued row, `offline/press-queue.ts`):
+> `none` when the page says it is offline at the tap or the drill runs, or when the first send
+> after the tap that learns anything meets no network and no answer (its own send, or a whole pass,
+> as in a hall with wifi and no internet); `seen` at the first real answer of a pass to any row (an
+> edge 503 too), written before that answer is filed. The flag is sent only beside the copy. While a
+> Start of the bout that may keep its copy waits (queued or held, naming a copy, not judged `seen`:
+> `unsentStarts`), a read that still says `scheduled` does not replace the rules the screen and the
+> kept copy hold when they ARE that copy, nor their edition (`withHeldRules`, the queue asked
+> before the read): the answer after the Start decides, and another copy than the screen showed
+> says "the organiser changed the rules of this match" (`nextShown`).
 >
 > **A level bout on the tablet (quick-win ruling 13, and the operator's ruling of 2026-10-12).**
 > A bout, or a round of a best-of bout, that is level when its time ends follows its phase's

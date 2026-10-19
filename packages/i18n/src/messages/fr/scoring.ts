@@ -559,6 +559,7 @@ export const scoring = {
     noQueue: "Plus aucun assaut programmé sur cette lice aujourd'hui",
   },
   pad: {
+    rulesChanged: "L'organisateur a changé les règles de cet assaut.",
     noExchangeReason: "Motif de l'absence d'échange",
     afterblowTitleDeductive: '{attacker} +{attackerPts}, {defender} +0 (déductif)',
     afterblowTitleFull: '{attacker} +{attackerPts}, {defender} +{defenderPts}',

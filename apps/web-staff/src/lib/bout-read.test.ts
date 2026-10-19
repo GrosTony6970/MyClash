@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { offlineResponse } from '../offline/failure-kind';
 import type { MatchInfo } from '../components/MatchView';
-import { readBout, withHeldRules } from './bout-read';
+import { nextShown, readBout, withHeldRules, type ShownBout } from './bout-read';
 
 const ROW = {
   id: 'bout-1',
@@ -181,18 +181,122 @@ describe('withHeldRules', () => {
 
   // A passing fault of the server mid-bout must not switch +3 buttons to the Tournament's +2.
   it('keeps the rules held for the bout when the new answer carries none', () => {
-    expect(withHeldRules(bout({ redScore: 4 }), bout({ rules: RULES }))).toEqual(
+    expect(withHeldRules(bout({ redScore: 4 }), bout({ rules: RULES }), undefined)).toEqual(
       bout({ redScore: 4, rules: RULES }),
     );
   });
 
   it('takes the new answer’s rules: a scheduled bout’s new copy', () => {
     const newer = { ...RULES!, cardRulesetId: 'cards-b' };
-    expect(withHeldRules(bout({ rules: newer }), bout({ rules: RULES })).rules).toBe(newer);
+    expect(withHeldRules(bout({ rules: newer }), bout({ rules: RULES }), undefined).rules).toBe(
+      newer,
+    );
   });
 
   it('never takes the rules of another bout, nor rules held by none', () => {
-    expect(withHeldRules(bout(), bout({ id: 'bout-2', rules: RULES })).rules).toBeUndefined();
-    expect(withHeldRules(bout(), null).rules).toBeUndefined();
+    expect(
+      withHeldRules(bout(), bout({ id: 'bout-2', rules: RULES }), undefined).rules,
+    ).toBeUndefined();
+    expect(withHeldRules(bout(), null, undefined).rules).toBeUndefined();
+  });
+});
+
+/**
+ * The reconnect race (ruling "Offline rules"; the copy plan: a bout keeps the rules it started
+ * under). The tablet started bout 1 on copy A with no network; the desk moved the Tournament, and
+ * the server, which has not taken the Start, has the bout `scheduled` on copy B. The network comes
+ * back and the read lands BEFORE the queued Start.
+ */
+describe('a Start the server has not taken', () => {
+  const A = { ...(ROW.rules as object), id: 'copy-a' } as MatchInfo['rules'];
+  const B = {
+    ...(ROW.rules as object),
+    id: 'copy-b',
+    buttons: { clean: [2] },
+  } as unknown as MatchInfo['rules'];
+  const onA = {
+    id: 'bout-1',
+    status: 'running',
+    rules: A,
+    decisionEdition: '2026-04',
+    rulesetCode: 'TF_v1',
+    rulesetVersion: '1.0.0',
+  } as MatchInfo;
+  const onB = (status: string) =>
+    ({
+      id: 'bout-1',
+      status,
+      rules: B,
+      decisionEdition: '2026-10',
+      rulesetCode: 'Generic_PointsCap',
+      rulesetVersion: '1.1.0',
+    }) as MatchInfo;
+  const shown = (match: MatchInfo, rulesChanged = false): ShownBout => ({
+    match,
+    readAt: null,
+    rulesChanged,
+  });
+
+  it('a `scheduled` answer while it waits keeps the rules, the edition and the pair', () => {
+    expect(withHeldRules(onB('scheduled'), onA, 'copy-a')).toMatchObject({
+      status: 'scheduled',
+      rules: A,
+      decisionEdition: '2026-04',
+      rulesetCode: 'TF_v1',
+      rulesetVersion: '1.0.0',
+    });
+  });
+
+  it('the same answer with no Start waiting takes the new copy, and says so', () => {
+    const next = nextShown(shown(onA), onB('scheduled'), undefined);
+    expect(next.match.rules).toBe(B);
+    expect(next.rulesChanged).toBe(true);
+  });
+
+  it('holds back with no notice, then the answer after the Start decides', () => {
+    const held = nextShown(shown(onA), onB('scheduled'), 'copy-a');
+    expect(held).toMatchObject({ match: { rules: A }, rulesChanged: false });
+
+    // The Start kept A (pressed with no network): no notice.
+    expect(nextShown(held, { ...onA, status: 'running' }, undefined).rulesChanged).toBe(false);
+    // The Start took B (an online Start): the buttons follow, and the referee is told.
+    const moved = nextShown(held, onB('running'), 'copy-a');
+    expect(moved.match.rules).toBe(B);
+    expect(moved.rulesChanged).toBe(true);
+  });
+
+  // A Start that names no copy, or met a network (it is not waiting to keep one), or names
+  // another copy than the one held (a kept copy refreshed meanwhile): it holds nothing back.
+  it('holds back only the copy the waiting Start names', () => {
+    expect(withHeldRules(onB('scheduled'), onA, undefined).rules).toBe(B);
+    expect(withHeldRules(onB('scheduled'), onA, 'copy-z').rules).toBe(B);
+    const noId = { ...onA, rules: { ...A!, id: undefined } } as MatchInfo;
+    expect(withHeldRules(onB('scheduled'), noId, undefined).rules).toBe(B);
+  });
+
+  it('a running answer is never held back', () => {
+    expect(withHeldRules(onB('running'), onA, 'copy-a').rules).toBe(B);
+  });
+
+  it('the notice stays for its bout, and another bout starts without it', () => {
+    const changed = nextShown(shown(onA), onB('running'), undefined);
+    expect(nextShown(changed, onB('running'), undefined).rulesChanged).toBe(true);
+    expect(nextShown(changed, { ...onB('running'), id: 'bout-2' }, undefined).rulesChanged).toBe(
+      false,
+    );
+  });
+
+  it('no notice for the first rules of a bout, nor for rules kept with no id', () => {
+    const noRules = { ...onA, rules: undefined } as MatchInfo;
+    expect(nextShown(shown(noRules), onB('running'), undefined).rulesChanged).toBe(false);
+    const noId = { ...onA, rules: { ...A!, id: undefined } } as MatchInfo;
+    expect(nextShown(shown(noId), onB('running'), undefined).rulesChanged).toBe(false);
+    expect(nextShown(null, onB('running'), undefined).rulesChanged).toBe(false);
+  });
+
+  // A first open online races its own Start: the screen holds nothing yet, the tablet's copy does.
+  it('a screen with no bout yet holds back with the tablet’s copy', () => {
+    const opened = nextShown(null, onB('scheduled'), 'copy-a', onA);
+    expect(opened).toMatchObject({ match: { rules: A }, rulesChanged: false });
   });
 });

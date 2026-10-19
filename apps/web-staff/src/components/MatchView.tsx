@@ -117,6 +117,8 @@ export interface MatchViewProps {
    * (`offline/kept-bout.ts`). Null for the server's own answer.
    */
   readFromTabletAt?: number | null;
+  /** The server's answer brought another copy of the rules than this screen showed (`nextShown`). */
+  rulesChanged: boolean;
 }
 
 export function MatchView({
@@ -129,6 +131,7 @@ export function MatchView({
   backHref,
   buildMatchHref,
   readFromTabletAt = null,
+  rulesChanged,
 }: MatchViewProps) {
   const { t, locale } = useI18n();
   // The tablet does not sleep while a bout is on its screen (quick win P7).
@@ -357,22 +360,36 @@ export function MatchView({
   // the inbox, the clock goes back to what the server says, and the reason is
   // said at the clock (`heldPressNotice`). The page reads the bout again at
   // the end of each send, as it does for a hit.
+  // A Start names the copy of the rules on this screen, and the network as the page knows it.
   const bout = boutNames(match);
+  const rulesId = match.rules?.id;
   const pressClock = useCallback(
     async (action: ClockPress, endScore?: PressedOn) => {
       setClockError(null);
       const written = await writeHit(
         async () => {
-          await queuePress({ matchId: match.id, action, bout, endScore });
+          await queuePress({ matchId: match.id, action, bout, endScore, rulesId, networkStatus });
         },
         syncEngine,
         clockPressed,
       );
       if (written === 'not_saved') setClockError(t('scoring.lice.hitNotSaved'));
     },
-    // `bout` is three strings of the bout's row: its fields are the dependency.
+    // `bout` is three strings of the bout's row: its fields are the dependency. The copy and the
+    // network are read at the tap: a stale closure would name the copy the screen no longer shows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [match.id, bout.label, bout.red, bout.blue, syncEngine, clockPressed, setClockError, t],
+    [
+      match.id,
+      bout.label,
+      bout.red,
+      bout.blue,
+      rulesId,
+      networkStatus,
+      syncEngine,
+      clockPressed,
+      setClockError,
+      t,
+    ],
   );
 
   // Reopen and Reset are a person's, with a network (ruling 13): the server
@@ -774,6 +791,18 @@ export function MatchView({
       {configStale && (
         <div className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning">
           {t('scoring.match.configFromCache')}
+        </div>
+      )}
+
+      {/* The server now has this bout on another copy of its rules than the screen showed: an
+          online Start took the Tournament's, or the desk changed a bout not started. The
+          buttons already follow it; the referee is told why they changed. */}
+      {rulesChanged && (
+        <div
+          role="status"
+          className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning"
+        >
+          {t('scoring.pad.rulesChanged')}
         </div>
       )}
 

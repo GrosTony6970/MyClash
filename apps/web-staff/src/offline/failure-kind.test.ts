@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifySyncFailure } from './failure-kind';
+import { classifySyncFailure, isMadeUpAnswer, offlineResponse } from './failure-kind';
 
 describe('classifySyncFailure', () => {
   it("reads the service worker's own offline marker", () => {
@@ -39,5 +39,35 @@ describe('classifySyncFailure', () => {
   it('believes the marker over the status', () => {
     // A proxy that rewrites the status must not turn an outage into a red bar.
     expect(classifySyncFailure(502, { error: 'offline' })).toBe('offline');
+  });
+});
+
+// Ruling L (2026-10-19): for a Start, only the made-up answer is "no network"; an edge 503 is a
+// network met. Read from a clone, so the answer is still filed from its own body.
+describe('isMadeUpAnswer', () => {
+  const answer = (status: number, body: string) => new Response(body, { status });
+
+  it('is the made-up answer of the service worker and of the drill', async () => {
+    expect(await isMadeUpAnswer(offlineResponse())).toBe(true);
+    expect(await isMadeUpAnswer(answer(503, JSON.stringify({ error: 'offline' })))).toBe(true);
+  });
+
+  it('is not an edge 503, nor read-only mode, nor a body that is no JSON', async () => {
+    expect(await isMadeUpAnswer(answer(503, '{}'))).toBe(false);
+    expect(await isMadeUpAnswer(answer(503, JSON.stringify({ code: 'read_only_mode' })))).toBe(
+      false,
+    );
+    expect(await isMadeUpAnswer(answer(503, '<html>Bad gateway</html>'))).toBe(false);
+  });
+
+  it('reads no body but a 503’s, and leaves the answer’s own body to read', async () => {
+    const taken = answer(200, JSON.stringify({ error: 'offline' }));
+    expect(await isMadeUpAnswer(taken)).toBe(false);
+    expect(taken.bodyUsed).toBe(false);
+
+    const readOnly = answer(503, JSON.stringify({ code: 'read_only_mode' }));
+    await isMadeUpAnswer(readOnly);
+    expect(readOnly.bodyUsed).toBe(false);
+    expect(await readOnly.json()).toEqual({ code: 'read_only_mode' });
   });
 });

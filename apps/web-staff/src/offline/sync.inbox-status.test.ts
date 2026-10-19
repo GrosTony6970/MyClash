@@ -26,13 +26,10 @@ beforeEach(async () => {
 function mockApi(status: number, body: unknown = {}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockImplementation(() =>
-      Promise.resolve({
-        ok: status >= 200 && status < 300,
-        status,
-        json: () => Promise.resolve(body),
-      }),
-    ),
+    // A real Response: the engine reads a 503's body twice (`isMadeUpAnswer`, then the filing).
+    vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(body), { status }))),
   );
 }
 

@@ -35,10 +35,16 @@ export interface KeptBout {
 
 /**
  * Keeps the bout a read of the server gave, asked at `askedAt`. One bout of
- * `keepBoutsAskedAt`, under its rule.
+ * `keepBoutsAskedAt`, under its rule. `startedUnder`: the copy a Start of it
+ * that waited when the read was asked names (`unsentStarts`).
  */
-export async function keepBout(match: MatchInfo, askedAt: number = Date.now()): Promise<void> {
-  await keepBoutsAskedAt([match], askedAt);
+export async function keepBout(
+  match: MatchInfo,
+  askedAt: number,
+  startedUnder: string | undefined,
+): Promise<void> {
+  const waiting = new Map(startedUnder === undefined ? [] : [[match.id, startedUnder]]);
+  await keepBoutsAskedAt([match], askedAt, waiting);
 }
 
 /**
@@ -52,16 +58,24 @@ export async function keepBout(match: MatchInfo, askedAt: number = Date.now()): 
  * in one transaction, or another write could land between the two.
  *
  * The copy takes the time of the ask: that is how old its word is. An answer
- * without the bout's rules keeps the rules the copy holds (`withHeldRules`).
+ * without the bout's rules keeps the rules the copy holds, and so does a
+ * `scheduled` answer for a bout whose Start waits (`withHeldRules`).
+ * `waiting` is read by the caller BEFORE its read (`unsentStarts`):
+ * the Start leaves the queue only once the server took it, and nothing outside
+ * `reads` is opened in this transaction.
  */
-export async function keepBoutsAskedAt(matches: MatchInfo[], askedAt: number): Promise<number> {
+export async function keepBoutsAskedAt(
+  matches: MatchInfo[],
+  askedAt: number,
+  waiting: ReadonlyMap<string, string>,
+): Promise<number> {
   return db.transaction('rw', db.reads, async () => {
     const paths = matches.map((match) => keyOf(match.id));
     const held = await db.reads.bulkGet(paths);
     const rows = matches
       .map((match, i) => ({
         path: paths[i]!,
-        body: withHeldRules(match, held[i]?.body as MatchInfo | undefined),
+        body: withHeldRules(match, held[i]?.body as MatchInfo | undefined, waiting.get(match.id)),
         fetchedAt: askedAt,
       }))
       .filter((_row, i) => !held[i] || held[i].fetchedAt <= askedAt);

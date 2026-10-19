@@ -6,6 +6,8 @@ import { keepBout, keepClock, keptBout } from '../offline/kept-bout';
 import { keptPiste } from '../offline/kept-piste';
 import { readCached } from '../offline/cached-reads';
 import type { ClockState } from '../components/scoreboard-clock';
+import type { MatchInfo } from '../components/MatchView';
+import { queuePress } from '../offline/press-queue';
 import { keepPisteOf } from './keep-piste';
 import { cardCatalogueKey, catalogueKey, readPenaltyCatalogue } from './penalty-catalogue';
 import { readPiste } from './piste-read';
@@ -282,7 +284,7 @@ describe('keepPisteOf and the bout screen’s own read of a bout', () => {
     });
     const keeping = keepPisteOf('', 'lice-1', fetchFn);
 
-    await keepBout({ ...(await boutOne()), redScore: 4 }, at('10:00:02'));
+    await keepBout({ ...(await boutOne()), redScore: 4 }, at('10:00:02'), undefined);
     vi.setSystemTime(at('10:00:05'));
     answer(json(PISTE));
     await keeping;
@@ -300,18 +302,68 @@ describe('keepPisteOf and the bout screen’s own read of a bout', () => {
     await keepPisteOf('', 'lice-1', fetchFn);
 
     vi.setSystemTime(at('10:00:06'));
-    await keepBout({ ...(await boutOne()), redScore: 2 }, at('09:59:58'));
+    await keepBout({ ...(await boutOne()), redScore: 2 }, at('09:59:58'), undefined);
 
     expect(await keptBout('bout-1')).toMatchObject({ readAt: TEN, match: { redScore: 3 } });
   });
 
   it('replaces a copy of an earlier ask', async () => {
     await keepClock('bout-1', CLOCK);
-    await keepBout({ ...(await boutOne()), redScore: 1 }, at('09:00:00'));
+    await keepBout({ ...(await boutOne()), redScore: 1 }, at('09:00:00'), undefined);
     const { fetchFn } = server();
 
     await keepPisteOf('', 'lice-1', fetchFn);
 
     expect(await keptBout('bout-1')).toMatchObject({ readAt: TEN, match: { redScore: 3 } });
+  });
+});
+
+/**
+ * The reconnect race, for the read of a whole piste. Bout 2 was started on this tablet with no
+ * network under copy A; the desk moved the Tournament; the server has bout 2 `scheduled` on its new
+ * copy. A Start leaves the queue only once the server took it, so the queue is asked BEFORE the
+ * piste: a Start the server takes while the piste read is on its way still holds A.
+ */
+describe('keepPisteOf and a Start the server has not taken', () => {
+  const A = { id: 'copy-a', cardRulesetId: 'cards-a' } as NonNullable<MatchInfo['rules']>;
+
+  async function startedOnA() {
+    await db.outbox.clear();
+    const read = await readPiste('', 'lice-1', (() =>
+      Promise.resolve(json(PISTE))) as typeof fetch);
+    if (read.kind !== 'piste') throw new Error('the fixture is no piste');
+    const bout = read.bouts.find((b) => b.id === 'bout-2')!;
+    await keepBout({ ...bout, rules: A }, at('09:00:00'), undefined);
+    await queuePress({
+      matchId: 'bout-2',
+      action: 'start',
+      bout: { label: 'P1', red: 'Red', blue: 'Blue' },
+      rulesId: 'copy-a',
+      networkStatus: 'offline',
+    });
+  }
+
+  it('keeps the rules the bout started under, the Start landing while the piste is read', async () => {
+    await startedOnA();
+    const { fetchFn } = server({
+      piste: async () => {
+        await db.outbox.clear(); // the server took the Start meanwhile
+        return json(PISTE);
+      },
+    });
+
+    await keepPisteOf('', 'lice-1', fetchFn);
+
+    expect((await keptBout('bout-2'))?.match.rules).toEqual(A);
+  });
+
+  it('a queue it cannot read costs that rule, never the keep', async () => {
+    await startedOnA();
+    vi.spyOn(db.outbox, 'toArray').mockRejectedValue(new Error('store refused'));
+    const { fetchFn } = server();
+
+    expect(await keepPisteOf('', 'lice-1', fetchFn)).toBe('piste');
+
+    expect((await keptBout('bout-2'))?.readAt).toBe(TEN);
   });
 });

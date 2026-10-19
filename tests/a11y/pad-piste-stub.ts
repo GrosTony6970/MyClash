@@ -20,10 +20,15 @@ const NAMES: Record<string, [string, string]> = {
   'match-3': ['Eli Third', 'Fay Third'],
 };
 
-const row = (id: string, redScore: number, rules: PisteStub['boutRules']) => ({
+const row = (
+  id: string,
+  redScore: number,
+  rules: PisteStub['boutRules'],
+  status: string | undefined,
+) => ({
   id,
   match_number_label: `L1-P1-M${id.slice(-1)}`,
-  status: id === 'match-1' ? 'running' : 'scheduled',
+  status: status ?? (id === 'match-1' ? 'running' : 'scheduled'),
   ruleset_code: 'TF',
   ruleset_version: '1.0.0',
   decision_edition: '2026-10',
@@ -89,6 +94,17 @@ export interface PisteStub {
   /** Set to hold the answer of the piste read; call it to let the answer go. */
   holdPiste: boolean;
   releasePiste: () => void;
+  /** A bout's status on the server, by bout; none: bout 1 running, the others not started. */
+  statuses: Record<string, string>;
+  /** A bout's clock on the server (its read, and the answer to a press), by bout. */
+  clocks: Record<string, unknown>;
+  /** The body of every request that is not a read, in order. */
+  bodies: Array<{ path: string; body: unknown }>;
+  /** How many times each bout was read by its own route (`GET /matches/:id`). */
+  boutReads: Record<string, number>;
+  /** Set to hold the answer of a clock press; call it to let the answer go. */
+  holdClockPress: boolean;
+  releaseClockPress: () => void;
 }
 
 const OFFLINE = { status: 503, json: { error: 'offline', status: 503 } };
@@ -101,7 +117,7 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
       liceId: LICE,
       liceName: 'Piste 2',
       bouts: ORDER.map((id) => ({
-        match: row(id, stub.pisteRedScore ?? stub.redScore, stub.boutRules),
+        match: row(id, stub.pisteRedScore ?? stub.redScore, stub.boutRules, stub.statuses[id]),
         summary: summary(id),
       })),
     };
@@ -121,12 +137,13 @@ function answerGet(stub: PisteStub, path: string, route: Route) {
     return route.fulfill({ json: { previous: tile(ORDER[at - 1]), next: tile(ORDER[at + 1]) } });
   }
   if (path.endsWith(`/matches/${bout}`)) {
-    return route.fulfill({ json: row(bout, stub.redScore, stub.boutRules) });
+    stub.boutReads[bout] = (stub.boutReads[bout] ?? 0) + 1;
+    return route.fulfill({ json: row(bout, stub.redScore, stub.boutRules, stub.statuses[bout]) });
   }
   if (path.endsWith('/summary')) return route.fulfill({ json: summary(bout) });
   if (path.endsWith('/exchanges') || path.endsWith('/penalties'))
     return route.fulfill({ json: [] });
-  if (path.endsWith('/clock')) return route.fulfill({ json: CLOCK });
+  if (path.endsWith('/clock')) return route.fulfill({ json: stub.clocks[bout] ?? CLOCK });
   if (path.endsWith('/penalty-ruleset'))
     return route.fulfill({ json: stub.catalogues[bout] ?? null });
   return route.fulfill({ status: 404, json: {} });
@@ -145,13 +162,30 @@ export async function stubPiste(page: Page): Promise<PisteStub> {
     pisteReads: 0,
     holdPiste: false,
     releasePiste: () => undefined,
+    statuses: {},
+    clocks: {},
+    bodies: [],
+    boutReads: {},
+    holdClockPress: false,
+    releaseClockPress: () => undefined,
   };
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname;
     if (stub.network === 'down') return route.fulfill(OFFLINE);
     if (route.request().method() === 'GET') return answerGet(stub, path, route);
     // The pad posts a heartbeat on its own: only the bouts' requests are written down.
-    if (path.includes('/matches/')) stub.sent.push(`${route.request().method()} ${path}`);
+    if (path.includes('/matches/')) {
+      stub.sent.push(`${route.request().method()} ${path}`);
+      stub.bodies.push({ path, body: route.request().postDataJSON() as unknown });
+    }
+    // A clock press is answered with the bout's clock; a story may hold that answer.
+    const pressed = ORDER.find((id) => path.endsWith(`/matches/${id}/clock`));
+    if (pressed) {
+      const answer = () => void route.fulfill({ json: stub.clocks[pressed] ?? CLOCK });
+      if (!stub.holdClockPress) return answer();
+      stub.releaseClockPress = answer;
+      return undefined;
+    }
     // A saved hit: the server's score of bout 1 moves.
     if (path.endsWith('/matches/match-1/exchanges')) stub.redScore += 1;
     return route.fulfill({ status: 201, json: { id: 'saved' } });

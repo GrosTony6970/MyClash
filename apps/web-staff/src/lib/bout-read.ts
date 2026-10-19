@@ -27,6 +27,11 @@ import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
  * (side colours, quick penalties) is the Tournament's, read from `/match-config`.
  */
 export interface PadBoutRules {
+  /**
+   * The copy these rules are read from: a Start names it (`queuePress`). None on rules a tablet
+   * kept before the server sent it.
+   */
+  id?: string;
   matchFormat: MatchFormatConfig;
   afterblowMode: TournamentScoringConfig['afterblowMode'];
   buttons: TournamentScoringConfig['buttons'];
@@ -170,8 +175,57 @@ export function boutOf(raw: BoutRow, summary: BoutSummary | null): MatchInfo {
  * an answer without them is a passing server fault: it must not switch a running bout's +3
  * buttons to its Tournament's +2. The rule `labelled` follows for the names, here for the rules;
  * the screen's bout and the kept copy both go through it.
+ *
+ * `startedUnder`: the copy a Start of this bout names that the server has not taken and may keep
+ * (`unsentStarts`, asked BEFORE the read). An answer that still says `scheduled` is then behind
+ * the tablet: a change of the rules moved the bout on the server, and its Start, when it lands,
+ * puts it back on that copy (`startCopyOf`). Until that answer the bout keeps the rules it started
+ * under, with the edition and the pair they go with, so the pad decides an End, a round and the
+ * winner at the cap as the server will; only when they ARE that copy.
  */
-export function withHeldRules(next: MatchInfo, held: MatchInfo | null | undefined): MatchInfo {
-  if (next.rules || !held?.rules || held.id !== next.id) return next;
-  return { ...next, rules: held.rules };
+export function withHeldRules(
+  next: MatchInfo,
+  held: MatchInfo | null | undefined,
+  startedUnder: string | undefined,
+): MatchInfo {
+  if (!held?.rules || held.id !== next.id) return next;
+  if (startedUnder !== undefined && startedUnder === held.rules.id && next.status === 'scheduled') {
+    const { rules, decisionEdition, rulesetCode, rulesetVersion } = held;
+    return { ...next, rules, decisionEdition, rulesetCode, rulesetVersion };
+  }
+  return next.rules ? next : { ...next, rules: held.rules };
+}
+
+/** The bout on the screen, where it came from, and whether its rules changed under it. */
+export interface ShownBout {
+  match: MatchInfo;
+  /** When the tablet read its copy (ms); null for the server's own answer. */
+  readAt: number | null;
+  /** The server's answer brought rules of another copy than the screen showed (sticky). */
+  rulesChanged: boolean;
+}
+
+/**
+ * The bout the screen shows after a server answer. `now` is what it shows (a copy, the server's
+ * last answer, another bout, or nothing); `kept` is the tablet's copy, the held bout when the
+ * screen shows none of this bout and a Start waits (a fresh open races its own Start).
+ *
+ * The notice "the organiser changed the rules" lives here, not in the screen: the screen is
+ * mounted again when the server's bout replaces the tablet's copy, and a remembered id would go
+ * with it. Raised when the rules shown and the rules kept are of two copies, both named; it stays
+ * for that bout, and a bout of another id starts without it.
+ */
+export function nextShown(
+  now: ShownBout | null,
+  answer: MatchInfo,
+  startedUnder: string | undefined,
+  kept: MatchInfo | null = null,
+): ShownBout {
+  const same = now?.match.id === answer.id;
+  const held = same ? now!.match : kept;
+  const match = withHeldRules(answer, held, startedUnder);
+  const before = held?.rules?.id;
+  const after = match.rules?.id;
+  const changed = before !== undefined && after !== undefined && before !== after;
+  return { match, readAt: null, rulesChanged: (same && now!.rulesChanged) || changed };
 }

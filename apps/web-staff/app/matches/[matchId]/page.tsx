@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import {
-  BoutNotLoadedView,
-  MatchView,
-  NoMatchView,
-  type MatchInfo,
-} from '../../../src/components/MatchView';
+import { BoutNotLoadedView, MatchView, NoMatchView } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { RememberedUndos } from '../../../src/components/RememberedUndos';
 import { SyncBar } from '../../../src/components/SyncBar';
@@ -20,8 +15,9 @@ import {
 } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
-import { readBout, withHeldRules } from '../../../src/lib/bout-read';
+import { nextShown, readBout, type ShownBout } from '../../../src/lib/bout-read';
 import { forgetBout, keepBout, keptBout } from '../../../src/offline/kept-bout';
+import { unsentStarts } from '../../../src/offline/press-queue';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { idFromPath, safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 
@@ -50,7 +46,7 @@ export default function MatchScoringPage() {
   // The bout on screen and where it came from, as ONE state: `readAt` is the
   // time of the tablet's copy, and null for the server's own answer. Two states
   // could say "from the tablet" over a bout the server just gave.
-  const [shown, setShown] = useState<{ match: MatchInfo; readAt: number | null } | null>(null);
+  const [shown, setShown] = useState<ShownBout | null>(null);
   const match = shown?.match ?? null;
   const fromTablet = shown !== null && shown.readAt !== null;
   const [loading, setLoading] = useState(true);
@@ -174,6 +170,11 @@ export default function MatchScoringPage() {
       // A copy is as old as its ask: the read of the whole piste keeps this
       // bout too, and the answer of the later ask stays (`keepBoutsAskedAt`).
       const askedAt = Date.now();
+      // Before the read: a Start leaves the queue only once the server took it, so a bout whose
+      // Start waits now is answered `scheduled` and keeps the rules it started under
+      // (`withHeldRules`). A store that fails costs that rule, never the bout.
+      const waiting = await unsentStarts().catch(() => new Map<string, string>());
+      const startedUnder = waiting.get(matchId);
       const answer = await readBout(apiUrl, matchId);
       // UNREACHABLE is marked, not only skipped, and it does not ask
       // `isNewestAnswer`: that would drop an earlier good answer still on its
@@ -185,10 +186,17 @@ export default function MatchScoringPage() {
       if (answer.kind === 'unreachable') {
         setUnreachable(true);
         const kept = await keptBout(matchId).catch(() => null);
-        if (kept && read >= boutReads.current.shown) setShown((now) => now ?? kept);
+        if (kept && read >= boutReads.current.shown) {
+          setShown((now) => now ?? { ...kept, rulesChanged: false });
+        }
         setLoading(false);
         return;
       }
+      // A screen that holds no bout yet (a first open races its own Start) holds back with the
+      // tablet's copy, as one that holds the bout does with its own.
+      const kept = startedUnder
+        ? ((await keptBout(matchId).catch(() => null))?.match ?? null)
+        : null;
       // The server answered: whatever the order of the answers, it is in reach.
       setUnreachable(false);
       setLoading(false);
@@ -200,12 +208,15 @@ export default function MatchScoringPage() {
         if (answer.kind === 'gone') void forgetBout(matchId).catch(() => undefined);
         return;
       }
-      // An answer without the bout's rules keeps the rules on screen (`withHeldRules`).
-      setShown((now) => ({ match: withHeldRules(answer.match, now?.match), readAt: null }));
+      // An answer without the bout's rules keeps the rules on screen, and so does a `scheduled`
+      // one while its Start waits; another copy than the screen showed raises the notice
+      // (`nextShown`).
+      setShown((now) => nextShown(now, answer.match, startedUnder, kept));
       // Kept for the next read that finds no network. A store that refuses the
       // write costs that convenience only. A bout read without its names (the
       // summary did not land) does not replace a copy that has them.
-      if (answer.labelled) void keepBout(answer.match, askedAt).catch(() => undefined);
+      if (answer.labelled)
+        void keepBout(answer.match, askedAt, startedUnder).catch(() => undefined);
     })();
   }, [matchId, apiUrl, refreshKey]);
 
@@ -251,6 +262,7 @@ export default function MatchScoringPage() {
           backHref={backHref}
           buildMatchHref={buildMatchHref}
           readFromTabletAt={shown?.readAt ?? null}
+          rulesChanged={shown?.rulesChanged ?? false}
         />
       ) : unreachable ? (
         <BoutNotLoadedView onRetry={readBoutAgain} />

@@ -67,6 +67,21 @@ export function classifySyncFailure(status: number, body: FailureBody | null): S
 }
 
 /**
+ * Is this the made-up answer of the service worker or of the drill, and not an answer of the
+ * network? Only a 503 can be: any other status is read as an answer with no body read. Unlike
+ * `classifySyncFailure`, an edge 503 is an answer here (ruling L, 2026-10-19: the tablet met a
+ * network). Read from a clone: the caller files the answer from its own body.
+ */
+export async function isMadeUpAnswer(res: Response): Promise<boolean> {
+  if (res.status !== 503) return false;
+  const body = (await res
+    .clone()
+    .json()
+    .catch(() => null)) as FailureBody | null;
+  return body?.error === 'offline';
+}
+
+/**
  * The exact response the service worker gives an API call with no network.
  *
  * Kept beside the classifier that reads it, so the two can only ever be changed

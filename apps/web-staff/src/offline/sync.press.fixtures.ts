@@ -21,15 +21,19 @@ export async function clearStore(): Promise<void> {
   vi.restoreAllMocks();
 }
 
-/** A press of bout `matchId`, made `secondsAfterTen` seconds after 10:00. */
+/**
+ * A press of bout `matchId`, made `secondsAfterTen` seconds after 10:00, on a page that says it is
+ * online; `start` adds what a Start names (`queuePress`).
+ */
 export function addPress(
   action: ClockPress,
   matchId = 'm1',
   secondsAfterTen = 0,
+  start: { rulesId?: string; networkStatus?: 'online' | 'offline' } = {},
 ): Promise<OutboxEntry> {
   const ms = secondsAfterTen * 1000;
   return queuePress(
-    { matchId, action, bout: BOUT },
+    { matchId, action, bout: BOUT, networkStatus: 'online', ...start },
     { wall: AT_TEN.wall + ms, page: AT_TEN.page + ms, origin: AT_TEN.origin },
   );
 }
@@ -149,11 +153,10 @@ export function mockServer(
       calls.push(call);
       bodies.push(body);
       const said = answer(call, calls.length) ?? taken(String(door), String(matchId), calls.length);
-      return Promise.resolve({
-        ok: said.status >= 200 && said.status < 300,
-        status: said.status,
-        json: () => Promise.resolve(said.body ?? {}),
-      });
+      // A real Response: the engine reads a 503's body twice (`isMadeUpAnswer`, then the filing).
+      return Promise.resolve(
+        new Response(JSON.stringify(said.body ?? {}), { status: said.status }),
+      );
     }),
   );
   return { calls, bodies };

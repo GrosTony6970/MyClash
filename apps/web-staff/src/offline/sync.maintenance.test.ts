@@ -46,11 +46,8 @@ function mockApi(post: (sequence: number) => { status: number; body: unknown }) 
       const sequence = (JSON.parse(init?.body ?? '{}') as { sequence: number }).sequence;
       posted.push(sequence);
       const r = post(sequence);
-      return Promise.resolve({
-        ok: r.status >= 200 && r.status < 300,
-        status: r.status,
-        json: () => Promise.resolve(r.body),
-      });
+      // A real Response: the engine reads a 503's body twice (`isMadeUpAnswer`, then the filing).
+      return Promise.resolve(new Response(JSON.stringify(r.body), { status: r.status }));
     }),
   );
   return { posted };

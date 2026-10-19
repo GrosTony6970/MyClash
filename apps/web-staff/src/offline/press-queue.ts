@@ -19,10 +19,20 @@ import {
   type PressedOn,
   type RejectedEntry,
   type RoundPress,
+  type StartNetwork,
 } from './db';
+import { isDrillActive } from './drill';
 import { tabletTime, type TabletTime } from './press-age';
 
-/** Writes one tap on a clock button on the tablet. Returns its row. */
+/**
+ * Writes one tap on a clock button on the tablet. Returns its row.
+ *
+ * A Start keeps the copy of the rules the screen showed (`rulesId`, the bout read's `rules.id`)
+ * and what the tablet knows of its network at the tap: none when the page says it is offline, or
+ * in the drill (ruled: the drill counts as no network). The rest is learned at the send
+ * (`judgeStarts`). Ruling "Offline rules": only a Start pressed with no network keeps the tablet's
+ * rules; the server reads both (`startCopyOf`).
+ */
 export async function queuePress(
   press: {
     matchId: string;
@@ -30,9 +40,13 @@ export async function queuePress(
     bout: BoutNames;
     /** Of an End: the score on the screen at the tap, and the winner it names. */
     endScore?: PressedOn;
+    /** Of a Start: the copy of the rules on the screen. None on rules kept before it was sent. */
+    rulesId?: string;
+    networkStatus: 'online' | 'offline';
   },
   at: TabletTime = tabletTime(),
 ): Promise<OutboxEntry> {
+  const start = press.action === 'start';
   const row: OutboxEntry = {
     kind: 'press',
     clientUuid: crypto.randomUUID(),
@@ -44,10 +58,52 @@ export async function queuePress(
     pressOrigin: at.origin,
     bout: press.bout,
     ...(press.endScore ? { endScore: press.endScore } : {}),
+    ...(start && press.rulesId ? { startedUnder: { rulesId: press.rulesId } } : {}),
+    ...(start && (press.networkStatus === 'offline' || isDrillActive())
+      ? { startNetwork: 'none' as const }
+      : {}),
     createdAt: at.wall,
     attempts: 0,
   };
   return { ...row, id: await db.outbox.add(row) };
+}
+
+/** A Start whose network is not yet known: the only rows `judgeStarts` writes. */
+const unjudgedStart = (row: OutboxEntry) =>
+  row.pressAction === 'start' && row.startNetwork === undefined;
+
+/**
+ * What a send learned of the network for Starts tapped before it: `seen` at the first real answer
+ * of a pass (the listed Starts), `none` when a Start's own send, or a whole pass, met no network
+ * and no answer. Each Start is judged once, by the first send that learns anything after its tap,
+ * and never again: a resend says the same. `ids` undefined: every Start in the queue.
+ */
+export async function judgeStarts(verdict: StartNetwork, ids?: readonly number[]): Promise<void> {
+  if (ids?.length === 0) return;
+  const rows = ids === undefined ? db.outbox.toCollection() : db.outbox.where(':id').anyOf(ids);
+  await rows.filter(unjudgedStart).modify({ startNetwork: verdict });
+}
+
+/** The ids of the Starts a pass lists that are not yet judged. */
+export function unjudgedStartsOf(pending: readonly OutboxEntry[]): number[] {
+  return pending.filter(unjudgedStart).map((row) => row.id!);
+}
+
+/**
+ * The bouts whose Start the server has not taken (queued, or held in the inbox) and may keep on
+ * the copy it names: by bout, that copy. A Start that names none, or that met a network after its
+ * tap, takes the copy of now when it lands (`startCopyOf`), so it holds nothing back. Asked BEFORE
+ * a read of the bout: the Start leaves the queue only once the server took it, so a read sent
+ * after "none waits" sees it taken (`withHeldRules`).
+ */
+export function unsentStarts(): Promise<Map<string, string>> {
+  return db.transaction('r', db.outbox, db.rejected, async () => {
+    const rows = [...(await db.outbox.toArray()), ...(await db.rejected.toArray())];
+    const keeps = rows.filter(
+      (row) => row.pressAction === 'start' && row.startedUnder && row.startNetwork !== 'seen',
+    );
+    return new Map(keeps.map((row) => [row.matchId, row.startedUnder!.rulesId]));
+  });
 }
 
 /**

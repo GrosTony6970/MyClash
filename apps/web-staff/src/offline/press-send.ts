@@ -14,6 +14,26 @@ import { pressTimes, tabletTime, type TabletTime } from './press-age';
 /** The server's word for "another press was saved in the same moment": send it again later. */
 export const CLOCK_ROW_COLLIDED = 'clock_row_collided';
 
+/** The body of the clock door, as the API's own schema types it. */
+export type ClockPressBody = components['schemas']['ClockActionDto'];
+
+/**
+ * What a queued clock press says to the server: its id and its two times, built at EVERY send.
+ * A Start also names the copy of the rules its screen showed, and, beside it only, that it was
+ * pressed with no network (`startCopyOf`): a flag alone changes nothing on the server, and a
+ * server of before refuses either key.
+ */
+export function pressBody(entry: OutboxEntry, now: TabletTime = tabletTime()): ClockPressBody {
+  const startedUnder = entry.pressAction === 'start' ? entry.startedUnder : undefined;
+  return {
+    action: entry.pressAction!,
+    clientUuid: entry.clientUuid,
+    ...pressTimes(entry, now),
+    ...(startedUnder ? { startedUnder } : {}),
+    ...(startedUnder && entry.startNetwork === 'none' ? { pressedWithoutNetwork: true } : {}),
+  };
+}
+
 export function postPress(
   apiUrl: string,
   entry: OutboxEntry,
@@ -23,11 +43,7 @@ export function postPress(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({
-      action: entry.pressAction,
-      clientUuid: entry.clientUuid,
-      ...pressTimes(entry, now),
-    }),
+    body: JSON.stringify(pressBody(entry, now)),
   });
 }
 

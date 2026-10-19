@@ -21,7 +21,13 @@ const rounds = read('hooks', 'usePadRounds.ts');
 describe('a press of the clock', () => {
   it('is written on the tablet and sent behind, as a hit is', () => {
     expect(view).toMatch(
-      /const written = await writeHit\(\s+async \(\) => \{\s+await queuePress\(\{ matchId: match\.id, action, bout, endScore \}\);\s+\},\s+syncEngine,\s+clockPressed,\s+\);/,
+      /const written = await writeHit\(\s+async \(\) => \{\s+await queuePress\(\{ matchId: match\.id, action, bout, endScore, rulesId, networkStatus \}\);\s+\},\s+syncEngine,\s+clockPressed,\s+\);/,
+    );
+    // A Start names the copy on THIS screen and the network of the tap: both are read off the
+    // render, and both are dependencies (the lint is off there, so a dropped one is silent).
+    expect(view).toContain('const rulesId = match.rules?.id;');
+    expect(view).toMatch(
+      /\s+rulesId,\s+networkStatus,\s+syncEngine,\s+clockPressed,\s+setClockError,\s+t,\s+\],/,
     );
     expect(view).toContain(
       "if (written === 'not_saved') setClockError(t('scoring.lice.hitNotSaved'));",

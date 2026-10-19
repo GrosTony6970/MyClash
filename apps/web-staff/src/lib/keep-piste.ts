@@ -30,6 +30,7 @@
 import type { MatchInfo } from '../components/MatchView';
 import { clocksHeld, keepBoutsAskedAt } from '../offline/kept-bout';
 import { keepPiste } from '../offline/kept-piste';
+import { unsentStarts } from '../offline/press-queue';
 import { readMatchConfig } from './match-config-read';
 import { cardCatalogueKey, readPenaltyCatalogue } from './penalty-catalogue';
 import { readPiste, type PisteRead } from './piste-read';
@@ -82,6 +83,10 @@ export async function keepPisteOf(
   // Before the request: a copy of a later ask is newer than this answer
   // (`keepBoutsAskedAt`).
   const askedAt = Date.now();
+  // Before the request too: a Start leaves the queue only once the server took it, so a bout whose
+  // Start waits now is answered `scheduled` and keeps its rules (`withHeldRules`). A store that
+  // fails costs that rule, never the keep.
+  const waiting = await unsentStarts().catch(() => new Map<string, string>());
   const read = await readPiste(apiUrl, liceId, fetchFn);
   if (read.kind !== 'piste') return read.kind;
 
@@ -94,7 +99,7 @@ export async function keepPisteOf(
       configured.has(bout.tournamentId ?? '') &&
       (bout.status === 'scheduled' || opened.has(bout.id)),
   );
-  await keepBoutsAskedAt(whole, askedAt);
+  await keepBoutsAskedAt(whole, askedAt, waiting);
   await keepPiste(
     liceId,
     read.bouts.map((bout) => bout.id),

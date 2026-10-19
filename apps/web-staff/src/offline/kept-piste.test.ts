@@ -54,7 +54,7 @@ describe('the order of a piste the tablet keeps', () => {
   });
 
   it('does not share a key with a bout of the same id', async () => {
-    await keepBout(bout('lice-1'));
+    await keepBout(bout('lice-1'), Date.now(), undefined);
     await keepPiste('lice-1', ['a'], 1_000);
 
     expect((await keptBout('lice-1'))?.match.id).toBe('lice-1');
@@ -120,14 +120,14 @@ describe('the neighbours of a bout, from the piste the tablet keeps', () => {
 
   it('are read from the kept order and the kept bouts', async () => {
     await keepPiste('lice-1', ['a', 'b', 'c'], 1_000);
-    await keepBoutsAskedAt([named('a'), named('c')], 1_000);
+    await keepBoutsAskedAt([named('a'), named('c')], 1_000, new Map());
 
     expect(await keptNeighbours('lice-1', 'b')).toEqual({ previous: tile('a'), next: tile('c') });
     expect((await keptNeighbours('lice-1', 'a'))?.next?.redName).toBe('');
   });
 
   it('are null for a piste the tablet holds nothing of', async () => {
-    await keepBoutsAskedAt([named('a')], 1_000);
+    await keepBoutsAskedAt([named('a')], 1_000, new Map());
 
     expect(await keptNeighbours('lice-9', 'a')).toBeNull();
   });
@@ -167,7 +167,7 @@ describe('the list of the piste page the tablet keeps', () => {
 
 describe('the bouts one read of the piste gave', () => {
   it('are kept with the time of the ask, and counted', async () => {
-    expect(await keepBoutsAskedAt([bout('a'), bout('b', 2)], 5_000)).toBe(2);
+    expect(await keepBoutsAskedAt([bout('a'), bout('b', 2)], 5_000, new Map())).toBe(2);
 
     expect(await keptBout('b')).toEqual({ match: bout('b', 2), readAt: 5_000 });
   });
@@ -182,6 +182,7 @@ describe('the bouts one read of the piste gave', () => {
     const written = await keepBoutsAskedAt(
       [bout('older', 9), bout('same', 9), bout('newer', 9)],
       5_000,
+      new Map(),
     );
 
     expect(written).toBe(2);
@@ -191,7 +192,7 @@ describe('the bouts one read of the piste gave', () => {
   });
 
   it('write nothing for no bout', async () => {
-    expect(await keepBoutsAskedAt([], 5_000)).toBe(0);
+    expect(await keepBoutsAskedAt([], 5_000, new Map())).toBe(0);
     expect(await db.reads.count()).toBe(0);
   });
 });

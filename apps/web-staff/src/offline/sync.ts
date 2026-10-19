@@ -34,7 +34,12 @@ import {
 import { canSendAgain } from './can-send-again';
 import { isTap, kindOf, type OutboxEntry, type RoundPress } from './db';
 import { isDrillActive } from './drill';
-import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
+import {
+  classifySyncFailure,
+  isMadeUpAnswer,
+  offlineResponse,
+  type FailureBody,
+} from './failure-kind';
 import {
   boutsBehindHeldRow,
   discardBoutOf,
@@ -42,6 +47,8 @@ import {
   freeToSend,
   holdsBack,
   holdsPress,
+  judgeStarts,
+  unjudgedStartsOf,
 } from './press-queue';
 import {
   BoutOrder,
@@ -152,6 +159,13 @@ export class SyncEngine {
   private metFault = false;
   /** A row of the pass that runs met a dead network. */
   private metNoNetwork = false;
+  /**
+   * A row of the pass that runs got a real answer: any answer but the made-up one of the service
+   * worker or the drill (an edge 503 too, ruling L). Set before the answer is filed.
+   */
+  private metAnswer = false;
+  /** The Starts the pass that runs listed whose network is not yet known (`judgeStarts`). */
+  private listedStarts: number[] = [];
   /** What the engine last said: what an inbox action says again while a hit still waits. */
   private resting: SyncStatus = 'idle';
   /**
@@ -553,6 +567,11 @@ export class SyncEngine {
       do {
         this.askedAgain = false;
         const pass = await this.sendPass();
+        // A walked pass that met no network and no answer: its listed Starts were pressed with
+        // none. Before the pass asked meanwhile, which may meet the network again.
+        if (pass === 'walked' && this.metNoNetwork && !this.metAnswer) {
+          await judgeStarts('none', this.listedStarts);
+        }
         if (pass !== 'empty') this.tellSendEnded();
         if (pass === 'stopped') return;
         // Not between two passes: "could not be synced" over a hit about to go.
@@ -582,7 +601,9 @@ export class SyncEngine {
   private async sendPass(): Promise<'empty' | 'walked' | 'stopped'> {
     this.metFault = false;
     this.metNoNetwork = false;
+    this.metAnswer = false;
     const pending = await getAllPending();
+    this.listedStarts = unjudgedStartsOf(pending);
     if (pending.length === 0) return 'empty';
 
     await this.emit('syncing');
@@ -611,6 +632,9 @@ export class SyncEngine {
       consecutiveFailures = failed ? consecutiveFailures + 1 : 0;
 
       if (consecutiveFailures >= this.maxConsecutiveFailures) {
+        // Nothing answered this pass: every Start in the queue was tapped while none did, those
+        // tapped during it too (the pass they asked for is dropped with this one).
+        if (outcome === 'offline' && !this.metAnswer) await judgeStarts('none');
         if (outcome === 'offline') await this.emit('offline');
         else await this.emit('error', 'Too many consecutive failures — check connection');
         return 'stopped';
@@ -679,6 +703,7 @@ export class SyncEngine {
   private async sendEntry(entry: OutboxEntry): Promise<Filed> {
     try {
       const res = await this.postExchange(entry, entry.sequence);
+      await this.judgeByAnswer(entry, res);
 
       if (res.ok && isTap(entry)) return await this.filePressSent(entry, res);
       if (res.ok || res.status === 201) {
@@ -702,9 +727,31 @@ export class SyncEngine {
       // A genuine rejection. Only reachable when the service worker is not
       // in play at all — a first load before it installs, or a dev server.
       const error = err instanceof Error ? err.message : 'Network error';
+      // A throw before any answer of this pass is the send meeting no network; after one, it is
+      // the tablet's store, and the Start was already judged.
+      if (!this.metAnswer && entry.pressAction === 'start') await judgeStarts('none', [entry.id!]);
       await markFailed(entry.id!, error);
       return 'offline';
     }
+  }
+
+  /**
+   * What one answer says of the network, for the Starts (ruling "Offline rules": only a Start
+   * pressed with no network keeps the tablet's rules). The made-up answer of the service worker or
+   * of the drill: this Start met none. The first real answer of a pass: every Start it listed
+   * was tapped before a network answered. Written BEFORE the answer is filed: a Start held by that
+   * very answer carries it into the inbox (`quarantine` copies the stored row).
+   */
+  private async judgeByAnswer(entry: OutboxEntry, res: Response): Promise<void> {
+    if (await isMadeUpAnswer(res)) {
+      if (!this.metAnswer && entry.pressAction === 'start') {
+        await judgeStarts('none', [entry.id!]);
+      }
+      return;
+    }
+    if (this.metAnswer) return;
+    this.metAnswer = true;
+    await judgeStarts('seen', this.listedStarts);
   }
 
   /**

@@ -125,6 +125,9 @@ export type LimitReason = Exclude<
   'first_to_points'
 >;
 
+/** `none`: pressed with no network; `seen`: a network answered after the tap (`press-queue.ts`). */
+export type StartNetwork = 'none' | 'seen';
+
 export interface OutboxEntry {
   /** Auto-incremented local PK — determines drain order. */
   id?: number;
@@ -185,6 +188,10 @@ export interface OutboxEntry {
    * posted: the server derives its score from the hits.
    */
   endScore?: PressedOn;
+  /** Of a Start: the copy of the rules the screen showed (`queuePress`). */
+  startedUnder?: { rulesId: string };
+  /** Of a Start: what the tablet learned of its network after the tap (`StartNetwork`). */
+  startNetwork?: StartNetwork;
   // ── Round ──────────────────────────────────────────────────────────────────
   /** Round press only: "Start round N" or "End round". */
   roundAction?: RoundPress;

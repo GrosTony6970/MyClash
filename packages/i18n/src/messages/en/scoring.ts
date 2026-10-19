@@ -600,6 +600,7 @@ export const scoring = {
     noQueue: 'No more matches scheduled on this lice today',
   },
   pad: {
+    rulesChanged: 'The organiser changed the rules of this match.',
     noExchangeReason: 'Reason for no exchange',
     afterblowTitleDeductive: '{attacker} +{attackerPts}, {defender} +0 (deductive)',
     afterblowTitleFull: '{attacker} +{attackerPts}, {defender} +{defenderPts}',

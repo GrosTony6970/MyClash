@@ -137,6 +137,7 @@ describe('a held row', () => {
       action: 'end',
       bout: { label: 'P1', red: 'Ana', blue: 'Bo' },
       endScore: { red: 2, blue: 1 },
+      networkStatus: 'online',
     });
     const start = await addPress('start');
 
@@ -210,7 +211,7 @@ describe('the copy of a bout’s clock', () => {
   });
 
   it('leaves with the bout the server says is gone', async () => {
-    await keepBout({ id: 'm1' } as Parameters<typeof keepBout>[0]);
+    await keepBout({ id: 'm1' } as Parameters<typeof keepBout>[0], Date.now(), undefined);
     await keepClock('m1', CLOCK);
     await keepClock('m2', CLOCK);
 
