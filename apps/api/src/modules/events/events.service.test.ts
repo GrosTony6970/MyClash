@@ -282,6 +282,65 @@ describe('EventsService', () => {
     );
   });
 
+  it('hard delete counts every bout out of the schedule, a voided one included: it still holds its exchanges', async () => {
+    const byTable: Record<string, ReturnType<typeof makeFullChain>> = {
+      events: makeFullChain({
+        data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+        error: null,
+      }),
+      tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
+      phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+      matches: makeFullChain({ count: 1, error: null }), // a bout fought, then voided
+    };
+    fromMock.mockImplementation((table: string) => byTable[table]);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).rejects.toThrow(
+      ForbiddenException,
+    );
+    // Any bout out of the schedule, as the rules lock asks it (`tournamentClockOf`).
+    expect(byTable['matches']!['neq']).toHaveBeenCalledWith('status', 'scheduled');
+    expect(byTable['matches']!['in']).not.toHaveBeenCalledWith('status', expect.anything());
+  });
+
+  it.each([
+    [
+      'its Tournaments',
+      { tournaments: { data: null, error: { message: 'connection reset' } } },
+      'The Tournaments of Event event-1 were not read',
+    ],
+    [
+      'their phases',
+      { phases: { data: null, error: { message: 'connection reset' } } },
+      'The phases were not read before a delete',
+    ],
+    [
+      'their bouts',
+      { matches: { count: null, error: { message: 'connection reset' } } },
+      'The bouts were not counted before a delete',
+    ],
+  ])(
+    'hard delete refuses when %s cannot be read: read as none, the results went with it',
+    async (_what, failing, words) => {
+      const results: Record<string, unknown> = {
+        events: { data: { id: 'event-1', organization_id: 'org-1', status: 'draft' }, error: null },
+        tournaments: { data: [{ id: 't1' }], error: null },
+        phases: { data: [{ id: 'p1' }], error: null },
+        matches: { count: 0, error: null },
+        ...failing,
+      };
+      const byTable = Object.fromEntries(
+        Object.entries(results).map(([table, result]) => [table, makeFullChain(result)]),
+      );
+      fromMock.mockImplementation(
+        (table: string) => byTable[table] ?? makeFullChain({ data: null, error: null }),
+      );
+      assertOrgRole.mockResolvedValue(undefined);
+
+      await expect(service.deleteEvent('event-1', 'hard', 'user-1')).rejects.toThrow(words);
+    },
+  );
+
   it('hard delete tears down forfeits/matches/registrations before deleting the event', async () => {
     const eventsChain = makeFullChain({
       data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },

@@ -87,7 +87,9 @@ export class RulesetHashService {
   async stampTournamentContentHash(tournamentId: string): Promise<void> {
     // Best-effort: a hash-compute failure (e.g. an out-of-domain stored config
     // the canonical normalizer rejects) must never fail the write that triggered
-    // the stamp — the hash is metadata, not the source of truth for scoring.
+    // the stamp — the hash is metadata, not the source of truth for scoring. A
+    // read that fails throws here too, so it is logged and no hash built on a
+    // fallback is written.
     // A write the database refuses is logged the same way: its answer was never
     // read, so the old hash stayed in place and nothing said so. The settings
     // page then shows its drift banner, and "acknowledge" writes the hash again.
@@ -107,11 +109,14 @@ export class RulesetHashService {
    * the caller moves the bouts not started of each one.
    */
   async stampEventInheritingTournaments(eventId: string): Promise<string[]> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('id')
       .eq('event_id', eventId)
       .is('penalty_ruleset_id', null);
+    // A failed read is not "none inherits": read as none, their hashes stayed on the old default.
+    if (error)
+      throw new Error(`The Tournaments of Event ${eventId} were not read: ${error.message}`);
     const ids = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
     for (const id of ids) {
       await this.stampTournamentContentHash(id);
@@ -168,8 +173,8 @@ export class RulesetHashService {
       (scoringConfig['afterblowMode'] as string | undefined) ??
       grammar.defaultAfterblowMode ??
       null;
-    const grammarInput = grammarInputFrom(config, grammar);
     const structure = await this.resolveScoringStructure(code, version);
+    const grammarInput = grammarInputFrom(config, grammar, structure.kind);
     const input: ScoringBehaviourInput =
       structure.kind === 'coded'
         ? {
@@ -208,13 +213,16 @@ export class RulesetHashService {
   private async resolveScoringStructure(code: string, version: string): Promise<ScoringStructure> {
     if (this.registry.has(code, version))
       return { kind: 'coded', engineCode: code, engineVersion: version };
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select(
         'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, decision_edition',
       )
       .eq('code', code)
       .maybeSingle();
+    // A failed read is not "no club ruleset": read as none, a club formula hashed as a coded engine.
+    if (error)
+      throw new Error(`Ruleset ${code}@${version} was not read for its hash: ${error.message}`);
     const parent = data as Row | null;
     if (!parent || parent['is_system']) {
       return { kind: 'coded', engineCode: code, engineVersion: version };
@@ -245,12 +253,14 @@ export class RulesetHashService {
   }
 
   private async loadScoringSnapshot(customRulesetId: string, version: string): Promise<Row | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('custom_ruleset_versions')
       .select('score_formula, constants, tiebreakers, double_penalty_formula, decision_edition')
       .eq('custom_ruleset_id', customRulesetId)
       .eq('version', version)
       .maybeSingle();
+    // Read as "no snapshot", the hash described the parent row: the latest version, not this one.
+    if (error) throw new Error(`Snapshot ${version} was not read for its hash: ${error.message}`);
     return (data as Row | null) ?? null;
   }
 
@@ -272,11 +282,13 @@ export class RulesetHashService {
       return { id: t.penalty_ruleset_id, version: t.penalty_ruleset_version };
     }
     if (t.event_id) {
-      const { data } = await this.supabase.service
+      const { data, error } = await this.supabase.service
         .from('events')
         .select('penalty_ruleset_id, penalty_ruleset_version')
         .eq('id', t.event_id)
         .maybeSingle();
+      if (error)
+        throw new Error(`The card pin of Event ${t.event_id} was not read: ${error.message}`);
       const event = data as Row | null;
       if (event?.['penalty_ruleset_id']) {
         return {
@@ -285,13 +297,14 @@ export class RulesetHashService {
         };
       }
     }
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('id, version')
       .eq('built_in', true)
       .is('owner_organization_id', null)
       .limit(1)
       .maybeSingle();
+    if (error) throw new Error(`The built-in card rules were not read: ${error.message}`);
     const builtin = data as Row | null;
     return builtin
       ? { id: builtin['id'] as string, version: (builtin['version'] as string) ?? null }
@@ -305,7 +318,7 @@ export class RulesetHashService {
     version: string | null,
   ): Promise<PenaltyBehaviourInput | null> {
     if (version) {
-      const { data } = await this.supabase.service
+      const { data, error } = await this.supabase.service
         .from('penalty_ruleset_versions')
         .select(
           'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, entries',
@@ -313,26 +326,35 @@ export class RulesetHashService {
         .eq('penalty_ruleset_id', id)
         .eq('version', version)
         .maybeSingle();
+      if (error) throw new Error(`Card rules ${id}@${version} were not read: ${error.message}`);
       if (data) return projectPenaltyBucketFromSnapshot(data as Row);
     }
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select(
         'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, penalty_ruleset_entries(group_number, ref_number, sanctions)',
       )
       .eq('id', id)
       .maybeSingle();
+    if (error) throw new Error(`Card rules ${id} were not read: ${error.message}`);
     return data ? projectPenaltyBucketFromLive(data as Row) : null;
   }
 }
 
-/** Effective grammar for the hash: prefer the tournament's ruleset_config.targets
- *  (a fork/tf_config edit writes them) over the ruleset's static grammar targets,
- *  since the pressed button's value — set by targets — decides each hit. */
-function grammarInputFrom(config: Row, grammar: ResolvedRulesetGrammar) {
+/** Effective grammar for the hash. A coded engine (TF_v1, a fork) scores the
+ *  tournament's ruleset_config.targets (a fork/tf_config edit writes them) over
+ *  its static grammar; a formula ruleset scores its OWN targets (the resolver's
+ *  grammar), whatever default list the tournament's settings carry (operator
+ *  ruling "Formula targets", 2026-10-19). The pressed button's value — set by
+ *  targets — decides each hit. */
+function grammarInputFrom(
+  config: Row,
+  grammar: ResolvedRulesetGrammar,
+  kind: ScoringStructure['kind'],
+) {
+  const ownTargets = config['targets'] as Array<{ name: string; value: number }> | undefined;
   return {
-    targets:
-      (config['targets'] as Array<{ name: string; value: number }> | undefined) ?? grammar.targets,
+    targets: kind === 'coded' ? (ownTargets ?? grammar.targets) : grammar.targets,
     hasAfterblow: grammar.hasAfterblow,
     afterblowValuation: grammar.hasAfterblow ? grammar.afterblowValuation : null,
     afterblowFixedValue: grammar.hasAfterblow ? grammar.afterblowFixedValue : null,

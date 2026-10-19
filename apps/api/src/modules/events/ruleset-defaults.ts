@@ -76,12 +76,16 @@ export async function resolveRulesetConfigDefaults(
     return staticDefaults;
   }
 
-  // Unknown to the static map — look it up in custom_rulesets.
-  const { data } = await supabase.service
+  // Unknown to the static map — look it up in custom_rulesets. The parent row,
+  // whatever version is asked: only a ruleset's current version is offered.
+  const { data, error } = await supabase.service
     .from('custom_rulesets')
     .select(CUSTOM_RULESET_CONFIG_COLUMNS)
     .eq('code', code)
     .maybeSingle();
+  // A failed read is not "no settings": read as none, the defaults were written as {}.
+  if (error)
+    throw new Error(`The settings of ruleset ${code}@${version} were not read: ${error.message}`);
   if (!data) return {};
   return codedConfigFromRow(data as CustomRulesetConfigRow);
 }
@@ -97,11 +101,12 @@ async function loadSystemRulesetOverrides(
   supabase: SupabaseService,
   code: string,
 ): Promise<Record<string, unknown> | null> {
-  const { data } = await supabase.service
+  const { data, error } = await supabase.service
     .from('custom_rulesets')
     .select('tf_config, is_system')
     .eq('code', code)
     .maybeSingle();
+  if (error) throw new Error(`The overrides of ruleset ${code} were not read: ${error.message}`);
   if (!data) return null;
   const row = data as { tf_config: Record<string, unknown> | null; is_system: boolean };
   if (!row.is_system) return null;
@@ -152,6 +157,12 @@ export async function freezeRulesetVersion(
  * Unlike today's NULL config, a seeded wrong value is materialised, sticky, and
  * never re-derived. (A DRAFT custom ruleset is read here as it is scored: a
  * Tournament pinned to one is scored as its draft, ruling 6.)
+ *
+ * A formula ruleset's version is read as the scorer reads it: the published
+ * snapshot of that version when there is one, else the parent row (a draft, or
+ * a row older than the snapshots). A coded fork has no formula snapshot: its
+ * row is read, as the resolver does. A failed read throws: read as "none", the
+ * fallback grammar was seeded and hashed as the ruleset's.
  */
 export async function resolveRulesetGrammar(
   supabase: SupabaseService,
@@ -162,13 +173,27 @@ export async function resolveRulesetGrammar(
   const coded = registry.has(code, version) ? registry.get(code, version) : null;
   if (coded) return fromMetadata(coded.metadata);
 
-  const { data } = await supabase.service
+  const { data, error } = await supabase.service
     .from('custom_rulesets')
-    .select(CUSTOM_RULESET_GRAMMAR_COLUMNS)
+    .select(`id, base_code, ${CUSTOM_RULESET_GRAMMAR_COLUMNS}`)
     .eq('code', code)
     .maybeSingle();
+  if (error)
+    throw new Error(`The grammar of ruleset ${code}@${version} was not read: ${error.message}`);
   if (!data) return { ...FALLBACK_GRAMMAR, targets: [...DEFAULT_TARGETS] };
-  return grammarFromRow(data as CustomRulesetGrammarRow);
+  const parent = data as CustomRulesetGrammarRow & { id: string; base_code: string | null };
+  if (parent.base_code) return grammarFromRow(parent);
+  const snapshot = await supabase.service
+    .from('custom_ruleset_versions')
+    .select(CUSTOM_RULESET_GRAMMAR_COLUMNS)
+    .eq('custom_ruleset_id', parent.id)
+    .eq('version', version)
+    .maybeSingle();
+  if (snapshot.error)
+    throw new Error(
+      `The grammar of ruleset ${code}@${version} was not read: ${snapshot.error.message}`,
+    );
+  return grammarFromRow((snapshot.data as CustomRulesetGrammarRow | null) ?? parent);
 }
 
 /**

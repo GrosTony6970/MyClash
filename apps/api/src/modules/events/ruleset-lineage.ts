@@ -40,6 +40,9 @@ import {
   type CustomRulesetConfigRow,
   type CustomRulesetGrammarRow,
 } from './ruleset-row-projection';
+import { Logger } from '@nestjs/common';
+
+const lineageLogger = new Logger('RulesetLineage');
 
 /** What a lineage-bearing surface renders: the base's display NAME (never a
  *  code or a UUID) plus the computed per-bucket diff. */
@@ -136,13 +139,7 @@ export async function describeForkLineage(
     supabase,
     [...baseKeys.values()].map((base) => base.code),
   );
-  const bases = new Map<string, RulesetBucketInputs>();
-  await Promise.all(
-    [...baseKeys].map(async ([key, base]) => {
-      if (!names.has(base.code)) return;
-      bases.set(key, await bucketInputsForCode(supabase, registry, base.code, base.version));
-    }),
-  );
+  const bases = await baseBucketsOf(supabase, registry, baseKeys, names);
 
   for (const fork of forks) {
     const code = fork.base_code as string;
@@ -153,6 +150,31 @@ export async function describeForkLineage(
     out.set(fork.id, { base: name, diff: diffRulesetBuckets(base, bucketInputsFromRow(fork)) });
   }
   return out;
+}
+
+/**
+ * Each named base, projected once. A read that fails is logged and its forks go without lamps: the
+ * lamps describe the list, they are not worth failing it (the readers throw rather than hand a
+ * fallback baseline).
+ */
+async function baseBucketsOf(
+  supabase: SupabaseService,
+  registry: RulesetRegistry,
+  baseKeys: ReadonlyMap<string, { code: string; version: string }>,
+  names: ReadonlyMap<string, string>,
+): Promise<Map<string, RulesetBucketInputs>> {
+  const bases = new Map<string, RulesetBucketInputs>();
+  await Promise.all(
+    [...baseKeys].map(async ([key, base]) => {
+      if (!names.has(base.code)) return;
+      try {
+        bases.set(key, await bucketInputsForCode(supabase, registry, base.code, base.version));
+      } catch (err) {
+        lineageLogger.warn(`No lamps against ${base.code}@${base.version}: ${String(err)}`);
+      }
+    }),
+  );
+  return bases;
 }
 
 /**

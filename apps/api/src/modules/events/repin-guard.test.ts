@@ -9,8 +9,8 @@
  * change has to go through the audited re-pin flow (typed confirmation +
  * justification + public disclosure) built in the later commits.
  *
- * The guard reuses assertNoRecordedResults (previously delete-only) and fires
- * ONLY when the ruleset code/version actually changes. Ordinary edits (name,
+ * The guard asks the one clock of a Tournament's rules (`tournamentClockOf`) and
+ * fires ONLY when the ruleset code/version actually changes. Ordinary edits (name,
  * colour, capacity) on a running tournament are unaffected. The score-preserving
  * "Customise this format" fork uses a separate method (repointTournamentToRuleset),
  * so it is deliberately not touched by this guard.
@@ -20,10 +20,8 @@
  */
 import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventsService } from './events.service';
-import { createRulesetRegistry } from '../rulesets/ruleset-registry';
-import { restampUnstartedMatches } from '../phases/match-ruleset';
 import type * as MatchRuleset from '../phases/match-ruleset';
+import { assertOrgRole, harness, RUNNING_TF } from './repin-guard.fixtures';
 
 // The restamp of the bouts not yet started has its own tests
 // (`match-ruleset.restamp.test.ts`). Here: which door calls it, and when.
@@ -31,125 +29,6 @@ vi.mock('../phases/match-ruleset', async (original) => ({
   ...(await original<typeof MatchRuleset>()),
   restampUnstartedMatches: vi.fn(() => Promise.resolve()),
 }));
-/** The Tournaments whose bouts not yet started were stamped again, in order. */
-const restamped = () => vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1]);
-
-const assertOrgRole = vi.fn();
-
-const EVENT_ROW = { id: 'e1', organization_id: 'org-1' };
-
-interface Captured {
-  update: Record<string, unknown> | null;
-  phasesQueried: boolean;
-}
-
-interface HarnessOpts {
-  current: Record<string, unknown>;
-  phases?: Array<{ id: string }>;
-  scoredMatchCount?: number;
-}
-
-function tournamentsChain(current: Record<string, unknown>, cap: Captured) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    update: vi.fn((p: Record<string, unknown>) => {
-      cap.update = p;
-      return chain;
-    }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: current, error: null }),
-    single: vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ data: { ...current, ...(cap.update ?? {}) }, error: null }),
-      ),
-  });
-  return chain;
-}
-
-function eventsChain() {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    maybeSingle: vi.fn().mockResolvedValue({ data: EVENT_ROW, error: null }),
-  });
-  return chain;
-}
-
-function phasesChain(phases: Array<{ id: string }>, cap: Captured) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    in: vi.fn(() => {
-      cap.phasesQueried = true;
-      return Promise.resolve({ data: phases, error: null });
-    }),
-  });
-  return chain;
-}
-
-function matchesChain(scored: number) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    in: vi.fn(() => chain),
-    neq: vi.fn().mockResolvedValue({ count: scored }),
-  });
-  return chain;
-}
-
-/** custom_rulesets read during the reseed (no override row) + safe fallback. */
-function nullRowChain() {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    in: vi.fn(() => chain),
-    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-  });
-  return chain;
-}
-
-function harness(opts: HarnessOpts) {
-  const cap: Captured = { update: null, phasesQueried: false };
-  const phases = opts.phases ?? [];
-  const scored = opts.scoredMatchCount ?? 0;
-  const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'tournaments') return tournamentsChain(opts.current, cap);
-    if (table === 'events') return eventsChain();
-    if (table === 'phases') return phasesChain(phases, cap);
-    if (table === 'matches') return matchesChain(scored);
-    return nullRowChain();
-  });
-  // A club ruleset this file names is offered to nobody; a built-in needs no read.
-  const selectableRulesets = {
-    offeredVersion: vi.fn().mockResolvedValue(null),
-    draftsOfferedTo: vi.fn().mockResolvedValue(false),
-  };
-  const svc = new EventsService(
-    { service: { from } } as never,
-    { assertOrgRole } as never,
-    {} as never,
-    createRulesetRegistry(),
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    selectableRulesets as never,
-  );
-  return { svc, cap, selectableRulesets };
-}
-
-const RUNNING_TF = {
-  id: 't1',
-  event_id: 'e1',
-  status: 'running',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
-  ruleset_config: { winBonus: 3 },
-};
 
 describe('updateTournament — mid-event ruleset re-pin guard', () => {
   beforeEach(() => {
@@ -160,8 +39,7 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
   it('refuses a score-changing ruleset swap once matches are scored', async () => {
     const { svc, cap } = harness({
       current: RUNNING_TF,
-      phases: [{ id: 'p1' }],
-      scoredMatchCount: 1,
+      bouts: [{ status: 'completed' }],
     });
 
     await expect(
@@ -169,29 +47,80 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     // The guard fires before any write: the ruleset is not swapped.
     expect(cap.update).toBeNull();
+    // It asks for THIS Tournament's fought bouts (the clock's one read).
+    expect(cap.boutsRead).toEqual({
+      select: 'id, phases!inner(tournament_id)',
+      filters: [
+        ['eq', 'phases.tournament_id', 't1'],
+        ['neq', 'status', 'scheduled'],
+      ],
+    });
+  });
+
+  it('refuses a card rules change once a bout is fought, on the same clock', async () => {
+    const { svc, cap } = harness({ current: RUNNING_TF, bouts: [{ status: 'running' }] });
+
+    await expect(
+      svc.updateTournament('t1', { penaltyRulesetId: 'pr-2' } as never, 'u1'),
+    ).rejects.toThrow('its penalty ruleset is locked');
+    expect(cap.update).toBeNull();
+    expect(cap.boutsRead?.select).toBe('id, phases!inner(tournament_id)');
+  });
+
+  it('locks on a voided bout too: voiding a bout does not void its cards, which still count', async () => {
+    const { svc, cap } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
+      bouts: [{ status: 'voided' }, { status: 'scheduled' }],
+    });
+
+    await expect(
+      svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(cap.update).toBeNull();
+  });
+
+  it('lets a Tournament whose bouts are all still scheduled swap', async () => {
+    const { svc, cap } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
+      bouts: [{ status: 'scheduled' }, { status: 'scheduled' }],
+    });
+
+    await svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1');
+
+    expect(cap.update?.['ruleset_code']).toBe('Generic_PointsCap');
+  });
+
+  it('refuses the swap when the bouts cannot be read: read as none, it went through mid-event', async () => {
+    const { svc, cap } = harness({
+      current: RUNNING_TF,
+      boutsError: { message: 'connection reset' },
+    });
+
+    await expect(
+      svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
+    ).rejects.toThrow('were not read for its lock: connection reset');
+    expect(cap.update).toBeNull();
   });
 
   it('does NOT block an ordinary (non-ruleset) edit on a tournament with results', async () => {
     const { svc, cap } = harness({
       current: RUNNING_TF,
-      phases: [{ id: 'p1' }],
-      scoredMatchCount: 5,
+      bouts: Array.from({ length: 5 }, () => ({ status: 'completed' })),
     });
 
     const result = await svc.updateTournament('t1', { name: 'Renamed Bracket' } as never, 'u1');
 
     expect((result as Record<string, unknown>)['name']).toBe('Renamed Bracket');
     // The results guard is scoped to ruleset changes: a name edit never even
-    // counts scored matches.
-    expect(cap.phasesQueried).toBe(false);
+    // reads the bouts.
+    expect(cap.boutsRead).toBeNull();
     expect(cap.update).not.toBeNull();
   });
 
   it('allows a ruleset swap while the tournament has no scored matches', async () => {
     const { svc, cap } = harness({
       current: { ...RUNNING_TF, status: 'draft' },
-      phases: [],
-      scoredMatchCount: 0,
+      bouts: [],
     });
 
     const result = await svc.updateTournament(
@@ -266,75 +195,5 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     await svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1');
 
     expect(cap.update?.['ruleset_version']).toBe('1.1.0');
-  });
-});
-
-describe('updateTournament: the bouts not yet started take the new ruleset (operator, 2026-10-11)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    assertOrgRole.mockResolvedValue(undefined);
-  });
-  const DRAFT = { current: { ...RUNNING_TF, status: 'draft' }, phases: [], scoredMatchCount: 0 };
-
-  it('stamps them again after a ruleset swap', async () => {
-    const { svc } = harness(DRAFT);
-
-    await svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1');
-
-    expect(restamped()).toEqual(['t1']);
-  });
-
-  it('stamps them again when the form names the ruleset the Tournament already has: a second send repairs a failed one', async () => {
-    const { svc } = harness(DRAFT);
-
-    await svc.updateTournament('t1', { rulesetCode: 'TF_v1' } as never, 'u1');
-
-    expect(restamped()).toEqual(['t1']);
-  });
-
-  it('stamps them again when the config of the ruleset changes: their hash follows', async () => {
-    const { svc } = harness(DRAFT);
-
-    await svc.updateTournament('t1', { rulesetConfig: { winBonus: 4 } } as never, 'u1');
-
-    expect(restamped()).toEqual(['t1']);
-  });
-
-  it.each([
-    ['the scoring pad alone', { scoringConfig: { afterblowMode: 'deductive' } }],
-    ['the version alone', { rulesetVersion: '1.0.0' }],
-  ])('stamps them again when the form sends %s', async (_what, dto) => {
-    const { svc } = harness(DRAFT);
-
-    await svc.updateTournament('t1', dto as never, 'u1');
-
-    expect(restamped()).toEqual(['t1']);
-  });
-
-  it('stamps nothing for an edit that changes no rule', async () => {
-    const { svc } = harness(DRAFT);
-
-    await svc.updateTournament('t1', { name: 'Renamed Bracket' } as never, 'u1');
-
-    expect(restamped()).toEqual([]);
-  });
-
-  it('stamps nothing when the swap is refused', async () => {
-    const { svc } = harness({ current: RUNNING_TF, phases: [{ id: 'p1' }], scoredMatchCount: 1 });
-
-    await expect(
-      svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-
-    expect(restamped()).toEqual([]);
-  });
-
-  it('does not answer "saved" when the bouts did not take the ruleset', async () => {
-    vi.mocked(restampUnstartedMatches).mockRejectedValueOnce(new Error('the write was refused'));
-    const { svc } = harness(DRAFT);
-
-    await expect(
-      svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
-    ).rejects.toThrow('the write was refused');
   });
 });

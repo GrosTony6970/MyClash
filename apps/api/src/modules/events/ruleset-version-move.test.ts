@@ -58,7 +58,9 @@ function chain(data: unknown, updates?: Updates) {
     select: vi.fn(() => c),
     eq: vi.fn(() => c),
     in: vi.fn(() => c),
-    neq: vi.fn().mockResolvedValue({ count: 0, data: [], error: null }),
+    neq: vi.fn(() => c),
+    // The rules lock's read of the fought bouts (`tournamentClockOf`): none.
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     update: vi.fn((patch: Record<string, unknown>) => {
       updates?.push(patch);
       return c;

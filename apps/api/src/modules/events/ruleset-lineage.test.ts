@@ -260,6 +260,28 @@ describe('describeForkLineage', () => {
     expect(reads.length).toBeLessThanOrEqual(3);
   });
 
+  it('drops the lamps, and keeps the list, when the base cannot be read', async () => {
+    const failingReads = fakeSupabase([TF_V1_DB_ROW]);
+    const from = failingReads.service.from as ReturnType<typeof vi.fn>;
+    from.mockImplementation(() => {
+      const c: Record<string, unknown> = {};
+      Object.assign(c, {
+        select: vi.fn(() => c),
+        eq: vi.fn(() => c),
+        // The names resolve; the base's settings read fails.
+        in: vi.fn(() => Promise.resolve({ data: [TF_V1_DB_ROW], error: null })),
+        maybeSingle: vi.fn(() =>
+          Promise.resolve({ data: null, error: { message: 'connection reset' } }),
+        ),
+      });
+      return c;
+    });
+
+    const lineage = await describeForkLineage(failingReads, createRulesetRegistry(), [forkRow()]);
+
+    expect(lineage.get('fork-1')).toBeNull();
+  });
+
   it('degrades to no lamps rather than throwing when the base is gone', async () => {
     const lineage = await describeForkLineage(fakeSupabase([]), createRulesetRegistry(), [
       forkRow({ base_code: 'Deleted_Base' }),

@@ -37,6 +37,7 @@ import { scoredAtServer } from '../matches/late-press';
 import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
+import { tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
 import {
@@ -866,7 +867,9 @@ export class PenaltiesService {
     // Pin-time freeze: capture the pinned definition immutably (best-effort).
     if (nextId) await freezePenaltyRulesetVersion(this.supabase, nextId, userId);
     // The event default changed, so every tournament that inherits it needs its
-    // content hash restamped (best-effort; @Optional in unit tests). Their
+    // content hash restamped (each stamp best-effort; @Optional in unit tests).
+    // A failed read of the list throws after the write: a resend heals it (the
+    // pin is then unchanged, so the guard lets it through to the stamp). Their
     // bouts not yet started follow, as after a Tournament's own pin: without
     // it a bout kept the hash of the default the Event no longer has.
     const inheriting = (await this.rulesetHash?.stampEventInheritingTournaments(eventId)) ?? [];
@@ -887,8 +890,8 @@ export class PenaltiesService {
     const currentId = await this.getTournamentPenaltyRulesetId(tournamentId);
     // Re-pin guard: once matches are scored, the penalty ruleset is locked to
     // ordinary edits — swapping it mid-event would apply a different sanction
-    // ladder/cost to later cards than the ones already recorded. Mirrors the
-    // scoring assertNoRecordedResults guard (events.updateTournament).
+    // ladder/cost to later cards than the ones already recorded. The one clock
+    // of a Tournament's rules (`tournamentClockOf`), as the settings save asks it.
     if (nextId !== currentId && (await this.tournamentHasStartedMatches(tournamentId))) {
       throw new ForbiddenException(
         'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
@@ -1867,20 +1870,9 @@ export class PenaltiesService {
     return (data as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
   }
 
-  /** True if any match under the tournament has left the 'scheduled' state. */
+  /** True if a bout of the tournament has started: its rules' one clock (`tournamentClockOf`). */
   private async tournamentHasStartedMatches(tournamentId: string): Promise<boolean> {
-    const { data: phases } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId);
-    const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((phase) => phase.id);
-    if (phaseIds.length === 0) return false;
-    const { count } = await this.supabase.service
-      .from('matches')
-      .select('id', { count: 'exact', head: true })
-      .in('phase_id', phaseIds)
-      .neq('status', 'scheduled');
-    return (count ?? 0) > 0;
+    return (await tournamentClockOf(this.supabase.service, tournamentId)).locked;
   }
 
   /** The event's currently-pinned default penalty ruleset id (null if none). */
@@ -1895,30 +1887,23 @@ export class PenaltiesService {
 
   /**
    * True if any tournament under the event that INHERITS the event default (its
-   * own penalty_ruleset_id is NULL) has a match past 'scheduled'. Those
+   * own penalty_ruleset_id is NULL) has a bout started (`tournamentClockOf`). Those
    * tournaments resolve the event ruleset live, so an event-default swap would
    * change their in-force scoring mid-event.
    */
   private async eventHasInheritingStartedMatches(eventId: string): Promise<boolean> {
-    const { data: tournaments } = await this.supabase.service
+    const { data: tournaments, error } = await this.supabase.service
       .from('tournaments')
       .select('id')
       .eq('event_id', eventId)
       .is('penalty_ruleset_id', null);
-    const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map((tour) => tour.id);
-    if (tournamentIds.length === 0) return false;
-    const { data: phases } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .in('tournament_id', tournamentIds);
-    const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((phase) => phase.id);
-    if (phaseIds.length === 0) return false;
-    const { count } = await this.supabase.service
-      .from('matches')
-      .select('id', { count: 'exact', head: true })
-      .in('phase_id', phaseIds)
-      .neq('status', 'scheduled');
-    return (count ?? 0) > 0;
+    // A failed read is not "no Tournament inherits it": read as none, the default changed mid-event.
+    if (error)
+      throw new Error(`The Tournaments of Event ${eventId} were not read: ${error.message}`);
+    for (const { id } of (tournaments ?? []) as Array<{ id: string }>) {
+      if ((await tournamentClockOf(this.supabase.service, id)).locked) return true;
+    }
+    return false;
   }
 
   /** Published version history for a penalty ruleset, most recent first. */

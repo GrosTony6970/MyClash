@@ -20,7 +20,10 @@ beforeEach(() => {
 // Thenable harness: bare `.select().eq()` / `.in().neq()` resolve via `then`
 // (per-table `select` → data, `count` → count); `.single()`/`.maybeSingle()`
 // resolve their own promises. Records inserts + updates.
-type TableState = Record<string, { maybeSingle?: unknown; select?: unknown[]; count?: number }>;
+type TableState = Record<
+  string,
+  { maybeSingle?: unknown; select?: unknown[]; count?: number; error?: { message: string } }
+>;
 
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
@@ -33,6 +36,8 @@ function fakeSupabase(state: TableState) {
       in: vi.fn(() => api),
       is: vi.fn(() => api),
       neq: vi.fn(() => api),
+      // The rules lock's read of the fought bouts (`tournamentClockOf`): the table's rows.
+      limit: vi.fn(() => Promise.resolve({ data: t.select ?? [], error: t.error ?? null })),
       maybeSingle: vi.fn(() => Promise.resolve({ data: t.maybeSingle ?? null, error: null })),
       single: vi.fn(() => Promise.resolve({ data: t.maybeSingle ?? null, error: null })),
       insert: vi.fn((row: unknown) => {
@@ -44,7 +49,7 @@ function fakeSupabase(state: TableState) {
         return api;
       }),
       then: (resolve: (v: unknown) => void) =>
-        resolve({ data: t.select ?? [], count: t.count ?? 0, error: null }),
+        resolve({ data: t.select ?? [], count: t.count ?? 0, error: t.error ?? null }),
     };
     return api;
   }
@@ -124,8 +129,8 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
     const supabase = fakeSupabase({
       tournaments: { maybeSingle: { event_id: 'ev-1', penalty_ruleset_id: 'pr-old' } },
       events: { maybeSingle: { organization_id: 'org-1' } },
-      phases: { select: [{ id: 'ph-1' }] },
-      matches: { count: 1 },
+      // A fought bout of the Tournament.
+      matches: { select: [{ id: 'm-1' }] },
     });
     const service = new PenaltiesService(supabase as never);
 
@@ -139,8 +144,7 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
     const supabase = fakeSupabase({
       tournaments: { maybeSingle: { event_id: 'ev-1', penalty_ruleset_id: null } },
       events: { maybeSingle: { organization_id: 'org-1' } },
-      phases: { select: [] },
-      matches: { count: 0 },
+      matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
     const service = new PenaltiesService(supabase as never);
@@ -164,8 +168,8 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: 'pr-old' } },
       // A tournament under the event that inherits the default (penalty_ruleset_id NULL).
       tournaments: { select: [{ id: 't-1' }] },
-      phases: { select: [{ id: 'ph-1' }] },
-      matches: { count: 1 },
+      // A fought bout of the Tournament.
+      matches: { select: [{ id: 'm-1' }] },
     });
     const service = new PenaltiesService(supabase as never);
 
@@ -175,11 +179,36 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
     expect(supabase.updated.events).toBeUndefined();
   });
 
+  it.each([
+    [
+      'the Tournaments that inherit it',
+      { tournaments: { error: { message: 'connection reset' } } },
+    ],
+    [
+      'their bouts',
+      {
+        tournaments: { select: [{ id: 't-1' }] },
+        matches: { error: { message: 'connection reset' } },
+      },
+    ],
+  ])('refuses an event-default swap when %s cannot be read', async (_what, failing) => {
+    const supabase = fakeSupabase({
+      events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: 'pr-old' } },
+      ...failing,
+    });
+    const service = new PenaltiesService(supabase as never);
+
+    await expect(
+      service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
+    ).rejects.toThrow('connection reset');
+    expect(supabase.updated.events).toBeUndefined();
+  });
+
   it('assigns and freezes the event default when no inheriting tournament is scored', async () => {
     const supabase = fakeSupabase({
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
       tournaments: { select: [] },
-      matches: { count: 0 },
+      matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
     const service = new PenaltiesService(supabase as never);
@@ -202,8 +231,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
     const supabase = fakeSupabase({
       tournaments: { maybeSingle: { event_id: 'ev-1', penalty_ruleset_id: null } },
       events: { maybeSingle: { organization_id: 'org-1' } },
-      phases: { select: [] },
-      matches: { count: 0 },
+      matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
     const stampTournamentContentHash = vi.fn();
@@ -224,7 +252,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
     const supabase = fakeSupabase({
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
       tournaments: { select: [] },
-      matches: { count: 0 },
+      matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
     const stampEventInheritingTournaments = vi.fn(() => Promise.resolve([]));
@@ -251,7 +279,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
     const supabase = fakeSupabase({
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: null } },
       tournaments: { select: [] },
-      matches: { count: 0 },
+      matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
     const order: string[] = [];

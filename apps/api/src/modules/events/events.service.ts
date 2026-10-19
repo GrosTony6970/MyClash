@@ -69,6 +69,7 @@ import {
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
 import { settingsAfterMove } from './ruleset-move-config';
+import { tournamentClockOf } from './tournament-clock';
 import {
   buildCodedForkRow,
   buildSeededScoringConfig,
@@ -1360,10 +1361,15 @@ export class EventsService {
     // RESTRICT FKs registrations.person_id and matches.*_registration_id, which
     // Postgres checks immediately. So tear the result graph down in dependency
     // order first — after refusing any event that holds real (scored) results.
-    const { data: tournamentRows } = await this.supabase.service
+    const { data: tournamentRows, error: tournamentsError } = await this.supabase.service
       .from('tournaments')
       .select('id')
       .eq('event_id', eventId);
+    // A failed read is not "no Tournament": read as none, the guard below checked nothing.
+    if (tournamentsError)
+      throw new Error(
+        `The Tournaments of Event ${eventId} were not read: ${tournamentsError.message}`,
+      );
     const tournamentIds = ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
 
     if (!directDelete) {
@@ -3293,10 +3299,10 @@ export class EventsService {
       // justification + public disclosure). The score-preserving "Customise
       // this format" fork re-points via repointTournamentToRuleset, not here,
       // so it is intentionally unaffected.
-      await this.assertNoRecordedResults(
-        [tournamentId],
-        'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
-      );
+      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
+        throw new ForbiddenException(
+          'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
+        );
       // A built-in's other version keeps the stored settings; another code, or a
       // club ruleset's other version, starts from that pair's. Any rulesetConfig
       // sent beside it goes on top. No version named: the code's latest/current.
@@ -3339,10 +3345,10 @@ export class EventsService {
       dto.penaltyRulesetId !== undefined ? (dto.penaltyRulesetId ?? null) : currentPenaltyRulesetId;
     const penaltyChanged = nextPenaltyRulesetId !== currentPenaltyRulesetId;
     if (penaltyChanged) {
-      await this.assertNoRecordedResults(
-        [tournamentId],
-        'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
-      );
+      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
+        throw new ForbiddenException(
+          'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
+        );
       // Re-pin the penalty version so the content-hash tracks the new snapshot.
       updates['penalty_ruleset_version'] = nextPenaltyRulesetId
         ? await this.pinnablePenaltyVersion(event, nextPenaltyRulesetId)
@@ -3945,21 +3951,27 @@ export class EventsService {
    * Refuse a hard delete when any match in the given tournaments has progressed
    * past `scheduled` (i.e. has a recorded result). Generated-but-unplayed
    * schedules (all `scheduled`) are safe to tear down — that's the common
-   * "delete my test event" case.
+   * "delete my test event" case. A voided bout counts: one fought, then voided, still holds its
+   * exchanges and its cards (the rules lock asks the same question of one Tournament,
+   * `tournamentClockOf`). A failed read throws: read as "no result", the delete took the results
+   * with it.
    */
   private async assertNoRecordedResults(tournamentIds: string[], message: string): Promise<void> {
     if (tournamentIds.length === 0) return;
-    const { data: phases } = await this.supabase.service
+    const { data: phases, error: phasesError } = await this.supabase.service
       .from('phases')
       .select('id')
       .in('tournament_id', tournamentIds);
+    if (phasesError)
+      throw new Error(`The phases were not read before a delete: ${phasesError.message}`);
     const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((p) => p.id);
     if (phaseIds.length === 0) return;
-    const { count } = await this.supabase.service
+    const { count, error } = await this.supabase.service
       .from('matches')
       .select('id', { count: 'exact', head: true })
       .in('phase_id', phaseIds)
       .neq('status', 'scheduled');
+    if (error) throw new Error(`The bouts were not counted before a delete: ${error.message}`);
     if ((count ?? 0) > 0) throw new ForbiddenException(message);
   }
 
