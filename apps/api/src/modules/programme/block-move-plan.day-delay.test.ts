@@ -23,7 +23,7 @@ function bar(id: string, label: string, startMin: number, endMin: number): MoveD
 }
 
 function bout(id: string, scheduledAt: string | null, status = 'scheduled'): MoveCandidateMatch {
-  return { id, phaseId: 'phase-1', scheduledAt, status, label: null };
+  return { id, scheduledAt, status, label: null };
 }
 
 /**

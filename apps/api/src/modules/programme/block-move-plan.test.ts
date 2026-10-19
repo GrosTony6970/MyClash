@@ -24,7 +24,7 @@ function bout(
   status = 'scheduled',
   label: string | null = null,
 ): MoveCandidateMatch {
-  return { id, phaseId: 'phase-1', scheduledAt, status, label };
+  return { id, scheduledAt, status, label };
 }
 
 /** Bar "lunch" 12:00–13:00, dragged to 14:00. Δ = +120. */
@@ -58,8 +58,8 @@ describe('planBlockMove — which bouts move', () => {
 
     expect(plan.refusal).toBeNull();
     expect(plan.matchShifts).toEqual([
-      { id: 'on-the-boundary', phaseId: 'phase-1', scheduledAt: at(2026, 6, 2, 14, 0) },
-      { id: 'after', phaseId: 'phase-1', scheduledAt: at(2026, 6, 2, 17, 0) },
+      { id: 'on-the-boundary', scheduledAt: at(2026, 6, 2, 14, 0) },
+      { id: 'after', scheduledAt: at(2026, 6, 2, 17, 0) },
     ]);
   });
 
@@ -91,28 +91,6 @@ describe('planBlockMove — which bouts move', () => {
     });
 
     expect(plan.matchShifts.map((s) => s.id)).toEqual(['first', 'second', 'third']);
-  });
-
-  /**
-   * `matches.phase_id` is NOT NULL, and the batched write is an UPSERT, so
-   * PostgreSQL validates the candidate INSERT row before it resolves the
-   * conflict. Dropping the phase here crashes a write where every row exists.
-   */
-  it('carries each bout’s phase through to the write', () => {
-    const plan = planBlockMove({
-      movedBlockId: 'lunch',
-      movedBlockLabel: 'Lunch',
-      deltaMin: 30,
-      oldStartMin: 12 * 60,
-      blockDateIso: DAY,
-      dayBlocks: [bar('lunch', 'Lunch', 12 * 60, 13 * 60)],
-      matches: [
-        { ...bout('m1', at(2026, 6, 2, 13, 0)), phaseId: 'phase-pools' },
-        { ...bout('m2', at(2026, 6, 2, 13, 5)), phaseId: 'phase-finals' },
-      ],
-    });
-
-    expect(plan.matchShifts.map((s) => s.phaseId)).toEqual(['phase-pools', 'phase-finals']);
   });
 });
 

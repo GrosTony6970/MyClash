@@ -58,13 +58,6 @@ export interface MoveDayBlock extends CascadeBlock {
 /** A bout the move might retime, as the service reads it. */
 export interface MoveCandidateMatch {
   id: string;
-  /**
-   * `matches.phase_id` is NOT NULL and PostgREST writes a batch as
-   * `INSERT … ON CONFLICT DO UPDATE`, where PostgreSQL validates the candidate
-   * INSERT row before the conflict resolver fires. So a batched retime has to
-   * carry the phase even though it never changes it.
-   */
-  phaseId: string;
   scheduledAt: string | null;
   status: string;
   /** What the operator calls the bout. Never its id — the refusal is read by a human. */
@@ -74,7 +67,6 @@ export interface MoveCandidateMatch {
 /** One bout to retime, ready for the batch write. */
 export interface PlannedMatchShift {
   id: string;
-  phaseId: string;
   scheduledAt: string;
 }
 
@@ -215,7 +207,7 @@ function planMatchShifts(input: {
         },
       };
     }
-    shifts.push({ id: match.id, phaseId: match.phaseId, scheduledAt: shifted.toISOString() });
+    shifts.push({ id: match.id, scheduledAt: shifted.toISOString() });
   }
   return { shifts, crossing: null };
 }

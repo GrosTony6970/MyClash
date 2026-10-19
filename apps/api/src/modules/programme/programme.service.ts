@@ -152,6 +152,15 @@ function lengthInput(row: LengthRow): MatchLengthInput {
   };
 }
 
+/**
+ * How many bouts a programme write moved (0231). Anything but a number is a fault: read as 0, the
+ * organiser is told nothing moved while the bouts did.
+ */
+function movedCount(answer: unknown, fn: string): number {
+  if (typeof answer !== 'number') throw new Error(`${fn} answered no count of the bouts it moved`);
+  return answer;
+}
+
 function computeNeededMin(
   matchCount: number,
   parallelLice: number,
@@ -1162,32 +1171,25 @@ export class ProgrammeService {
           }
         }
 
-        // Bulk UPSERT in one round-trip (was a sequential for-loop of
-        // N UPDATEs). We always carry phase_id because PostgREST emits
-        // `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL validates
-        // the candidate INSERT row's NOT NULL constraints BEFORE the
-        // conflict resolver fires — `matches.phase_id` is NOT NULL, so
-        // omitting it crashes the round-trip even for rows that exist.
-        const phaseByMatchId = new Map(matches.map((m) => [m.id, m.phase_id]));
-        // Generate clears a typed override on every Match it re-places: the
-        // sheet wins when a day is generated again (ADR-018).
+        // One round trip for the whole block, a write that only moves bouts that exist (0231): a
+        // bout deleted since the read is not made again, and the count is what the database moved.
+        // It also clears a typed override on every bout it re-places: the sheet wins when a day is
+        // generated again (ADR-018).
         const matchesPayload = result.scheduledMatches.map((sm) => ({
           id: sm.matchId,
-          phase_id: phaseByMatchId.get(sm.matchId),
           scheduled_at: sm.scheduledAt,
           lice_id: sm.liceId,
-          planned_duration_override_minutes: null,
         }));
-        const { data: upserted, error: matchesErr } = await this.supabase.service
-          .from('matches')
-          .upsert(matchesPayload, { onConflict: 'id' })
-          .select('id');
+        const { data: moved, error: matchesErr } = await this.supabase.service.rpc(
+          'programme_place_bouts',
+          { p_rows: matchesPayload },
+        );
         if (matchesErr) {
           throw new BadRequestException(
             `Failed to schedule matches for block "${block.label}": ${matchesErr.message}`,
           );
         }
-        const persistedCount = (upserted ?? []).length;
+        const persistedCount = movedCount(moved, 'programme_place_bouts');
         matchesScheduled += persistedCount;
         // Regenerating a block retimes every bout in it — several hundred on a
         // large phase. This is the write the bulk scheduler exists for.
@@ -1475,7 +1477,7 @@ export class ProgrammeService {
 
     const { data: matchesData } = await this.supabase.service
       .from('matches')
-      .select('id, phase_id, scheduled_at, status, match_number_label')
+      .select('id, scheduled_at, status, match_number_label')
       .in('phase_id', phaseIds)
       // Explicit limit: PostgREST deployments with a `max-rows` cap silently
       // truncate otherwise, and a truncated read here does not fail — it
@@ -1485,14 +1487,12 @@ export class ProgrammeService {
     return (
       (matchesData ?? []) as Array<{
         id: string;
-        phase_id: string;
         scheduled_at: string | null;
         status: string | null;
         match_number_label: string | null;
       }>
     ).map((m) => ({
       id: m.id,
-      phaseId: m.phase_id,
       scheduledAt: m.scheduled_at,
       status: m.status ?? '',
       label: m.match_number_label,
@@ -1529,35 +1529,27 @@ export class ProgrammeService {
    * Retime every planned bout in ONE round trip, and tell the alerts.
    *
    * It used to be one round trip per bout, and a whole-day cascade is hundreds
-   * of them. The UPSERT carries `phase_id` because PostgREST emits
-   * `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL validates the candidate
-   * row's NOT NULL constraints before the conflict resolver fires, so omitting
-   * it crashes a write in which every row already exists.
+   * of them. The write only moves bouts that exist and still wait to be fought
+   * (0231): a bout deleted since the read is not made again, and one started
+   * since keeps its time.
    *
-   * Returns what PostgREST says it PERSISTED, never what we asked for: that
+   * Returns what the database says it MOVED, never what we asked for: that
    * number is what the operator is told moved, and a partly-applied cascade
    * reported as a complete one is the lie this path used to tell.
    */
   private async writeMatchShifts(shifts: PlannedMatchShift[]): Promise<number> {
     let shiftedMatches = 0;
     if (shifts.length > 0) {
-      const { data: upserted, error: shiftErr } = await this.supabase.service
-        .from('matches')
-        .upsert(
-          shifts.map((s) => ({
-            id: s.id,
-            phase_id: s.phaseId,
-            scheduled_at: s.scheduledAt,
-          })),
-          { onConflict: 'id' },
-        )
-        .select('id');
+      const { data: moved, error: shiftErr } = await this.supabase.service.rpc(
+        'programme_retime_bouts',
+        { p_rows: shifts.map((s) => ({ id: s.id, scheduled_at: s.scheduledAt })) },
+      );
       if (shiftErr) {
         throw new BadRequestException(
           `Failed to shift ${shifts.length} match(es): ${shiftErr.message}`,
         );
       }
-      shiftedMatches = ((upserted ?? []) as Array<{ id: string }>).length;
+      shiftedMatches = movedCount(moved, 'programme_retime_bouts');
     }
     // Every retimed bout owes its queued "starts in N minutes" a new time, in
     // ONE call. Refreshing per bout would put four reads back on every fight in
@@ -2049,7 +2041,6 @@ export class ProgrammeService {
       pool_id: string | null;
       pool_sort_order: number | null;
       match_number_label: string | null;
-      phase_id: string;
       phase_type: string | null;
       bracket_round: number | null;
       bracket_position: number | null;
@@ -2080,9 +2071,7 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select(
-          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id',
-        )
+        .select('id, red_registration_id, blue_registration_id, pool_id, match_number_label')
         .in('pool_id', poolIds)
         .order('pool_id', { ascending: true })
         .order('match_number_label', { ascending: true });
@@ -2092,7 +2081,6 @@ export class ProgrammeService {
         blue_registration_id: string;
         pool_id: string | null;
         match_number_label: string | null;
-        phase_id: string;
       }>;
       return rows.map((r) => ({
         ...r,

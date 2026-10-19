@@ -33,7 +33,25 @@ vi.mock('../schedule/match-lengths', async (importOriginal) => ({
 const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
 
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock } };
+/**
+ * The programme's two bout writes are rpc calls (0231). Every call is recorded; the answer is the
+ * number of rows sent, unless a test queues its own.
+ */
+function answerRowCount(_fn: string, args: { p_rows: unknown[] }) {
+  return Promise.resolve({
+    data: args.p_rows.length as unknown,
+    error: null as { message: string } | null,
+  });
+}
+const rpcMock = vi.fn(answerRowCount);
+const mockSupabase = { service: { from: fromMock, rpc: rpcMock } };
+
+/** The rows the `n`-th call to the programme write `fn` sent. */
+function rowsSentTo(fn: string, n = 0): Array<Record<string, unknown>> {
+  const call = rpcMock.mock.calls.filter(([name]) => name === fn)[n];
+  if (!call) throw new Error(`no call ${n} to ${fn}`);
+  return call[1].p_rows as Array<Record<string, unknown>>;
+}
 
 function makeChain(result: unknown) {
   const promise = Promise.resolve(result);
@@ -255,6 +273,8 @@ describe('ProgrammeService', () => {
     // before consuming all its mocks would otherwise leak fixtures
     // into the next test in file order.
     fromMock.mockReset();
+    rpcMock.mockReset();
+    rpcMock.mockImplementation(answerRowCount);
     service = new ProgrammeService(
       mockSupabase as never,
       mockOrgs as never,
@@ -861,10 +881,8 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       )
-      // matches bulk UPSERT — service derives matchesScheduled from
-      // the row count returned by .select('id'), not from the
-      // scheduler's optimistic intent.
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'match-1' }], error: null }))
+      // (the bout write is the rpc: matchesScheduled is the count it answers,
+      // not the scheduler's optimistic intent)
       // realized-window sync: rewrite the competition block's end_time + lice_count
       .mockReturnValueOnce(makeChain({ data: null, error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
@@ -872,7 +890,7 @@ describe('ProgrammeService', () => {
     const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.matchesScheduled).toBe(1);
-    expect(fromMock).toHaveBeenCalledWith('matches');
+    expect(rowsSentTo('programme_place_bouts').map((r) => r['id'])).toEqual(['match-1']);
   });
 
   it('keeps the final round in a lone bracket block when no finals block exists (legacy programme)', async () => {
@@ -896,10 +914,6 @@ describe('ProgrammeService', () => {
         generated_at: null,
       },
     ];
-    const upsertChain = makeChain({
-      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'm4' }],
-      error: null,
-    });
 
     fromMock
       .mockReturnValueOnce(sheetChain())
@@ -938,14 +952,12 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       ) // bracket_slots coords
-      .mockReturnValueOnce(upsertChain) // matches UPSERT
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
     await service.generate('event-1', {}, CALLER);
 
-    const upsertArg = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
-    const scheduledIds = upsertArg.map((r) => r.id);
+    const scheduledIds = rowsSentTo('programme_place_bouts').map((r) => r['id']);
     expect(scheduledIds).toContain('m3'); // gold final
     expect(scheduledIds).toContain('m4'); // bronze
     expect(scheduledIds).toHaveLength(4);
@@ -992,8 +1004,6 @@ describe('ProgrammeService', () => {
       minRestMinutes: 20,
       tournaments: [{ tournamentId: T, poolMatchDurationMinutes: 7, minRestMinutes: 12 }],
     });
-    const upsertChain = makeChain({ data: bouts.map((b) => ({ id: b.id })), error: null });
-
     fromMock
       .mockReturnValueOnce(sheet)
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
@@ -1003,14 +1013,13 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
       .mockReturnValueOnce(makeChain({ data: bouts, error: null })) // matches
-      .mockReturnValueOnce(upsertChain) // matches UPSERT
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
     await service.generate('event-1', {}, CALLER);
 
     expect(sheet.select).toHaveBeenCalledWith('config_json');
-    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+    const rows = rowsSentTo('programme_place_bouts') as Array<{
       id: string;
       scheduled_at: string;
     }>;
@@ -1022,16 +1031,11 @@ describe('ProgrammeService', () => {
     // break lands: M2 starts at 20 and M3 follows it at 28. Nobody waits on a
     // rest of their own any more — a is free from 7 and c from 27.
     expect([after('M1'), after('M2'), after('M3')]).toEqual([0, 20, 28]);
-    expect(upsertChain.upsert).toHaveBeenCalledWith(
-      bouts.map((b) => ({
-        id: b.id,
-        phase_id: 'phase-1',
-        scheduled_at: expect.any(String),
-        lice_id: 'lice-1',
-        planned_duration_override_minutes: null,
-      })),
-      { onConflict: 'id' },
-    );
+    // The write that only moves bouts that exist (0231): its one parameter, and each row exactly.
+    // The override is cleared by the function itself.
+    expect(rpcMock).toHaveBeenCalledWith('programme_place_bouts', {
+      p_rows: bouts.map((b) => ({ id: b.id, scheduled_at: expect.any(String), lice_id: 'lice-1' })),
+    });
   });
 
   it('spaces a final at the finals length inside a lone bracket bar', async () => {
@@ -1054,11 +1058,6 @@ describe('ProgrammeService', () => {
         generated_at: null,
       },
     ];
-    const upsertChain = makeChain({
-      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'm4' }],
-      error: null,
-    });
-
     fromMock
       .mockReturnValueOnce(
         sheetChain({
@@ -1100,13 +1099,12 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       ) // bracket_slots coords
-      .mockReturnValueOnce(upsertChain) // matches UPSERT
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
     await service.generate('event-1', {}, CALLER);
 
-    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+    const rows = rowsSentTo('programme_place_bouts') as Array<{
       id: string;
       scheduled_at: string;
     }>;
@@ -1145,11 +1143,6 @@ describe('ProgrammeService', () => {
         generated_at: null,
       },
     ];
-    const upsertChain = makeChain({
-      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'p2f' }],
-      error: null,
-    });
-
     fromMock
       .mockReturnValueOnce(
         sheetChain({
@@ -1199,13 +1192,12 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       ) // bracket_slots coords
-      .mockReturnValueOnce(upsertChain) // matches UPSERT
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
     await service.generate('event-1', {}, CALLER);
 
-    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+    const rows = rowsSentTo('programme_place_bouts') as Array<{
       id: string;
       scheduled_at: string;
     }>;
@@ -1224,12 +1216,12 @@ describe('ProgrammeService', () => {
     });
   });
 
-  // Generate's matches UPSERT silently swallowed any DB-side rejection
+  // Generate's bout write silently swallowed any DB-side rejection
   // before this fix, so a stale "Generated N matches" banner could
   // appear even when zero rows actually persisted. The check matches
   // the existing pattern in the same file at the .resetEventProgramme
   // matches-clear UPDATE (programme.service.ts:147-152).
-  it('throws BadRequestException when the matches UPSERT errors', async () => {
+  it('throws BadRequestException when the bout write errors', async () => {
     const blockRows = [
       {
         id: 'block-1',
@@ -1268,12 +1260,13 @@ describe('ProgrammeService', () => {
           ],
           error: null,
         }),
-      )
-      // matches UPSERT — Supabase rejects with an error in the response
-      // body. Service must surface it, not silently ignore.
-      .mockReturnValueOnce(
-        makeChain({ data: null, error: { message: 'mock FK violation on lice_id' } }),
       );
+    // The bout write — Supabase rejects with an error in the response
+    // body. Service must surface it, not silently ignore.
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'mock FK violation on lice_id' },
+    });
 
     await expect(service.generate('event-1', {}, CALLER)).rejects.toThrow(
       /mock FK violation on lice_id/,
@@ -1439,7 +1432,6 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: matches, error: null }))
-      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null }))
       .mockReturnValueOnce(syncChain) // realized-window sync update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
@@ -1525,7 +1517,6 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: matches, error: null }))
-      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null }))
       .mockReturnValueOnce(syncChain)
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
@@ -1581,12 +1572,6 @@ describe('ProgrammeService', () => {
       },
     ];
 
-    let upsertPayload: Array<Record<string, unknown>> | null = null;
-    const upsertChain = makeChain({ data: [{ id: 'match-1' }], error: null });
-    upsertChain.upsert = vi.fn((p: Array<Record<string, unknown>>) => {
-      upsertPayload = p;
-      return upsertChain;
-    });
     let syncPayload: Record<string, unknown> | null = null;
     const syncChain = makeChain({ data: null, error: null });
     syncChain.update = vi.fn((p: Record<string, unknown>) => {
@@ -1616,7 +1601,6 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       ) // matches select
-      .mockReturnValueOnce(upsertChain) // matches upsert
       .mockReturnValueOnce(syncChain) // competition block sync update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
@@ -1628,8 +1612,9 @@ describe('ProgrammeService', () => {
     // setHours formula the scheduler uses, so this holds on any runner TZ).
     const expectedStart = new Date('2026-05-21T00:00:00');
     expectedStart.setHours(10, 0, 0, 0);
-    expect(upsertPayload).not.toBeNull();
-    expect(upsertPayload![0]!['scheduled_at']).toBe(expectedStart.toISOString());
+    expect(rowsSentTo('programme_place_bouts')[0]!['scheduled_at']).toBe(
+      expectedStart.toISOString(),
+    );
   });
 
   it('cascades a later break after a competition run that overflows its slot', async () => {
@@ -1695,7 +1680,6 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
       .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches select
-      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null })) // upsert
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // competition sync update
       .mockReturnValueOnce(breakChain) // break shift update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
@@ -1789,8 +1773,8 @@ describe('ProgrammeService', () => {
      * READ EVERYTHING, DECIDE, THEN WRITE. The day's bars are now read BEFORE
      * the bouts are written, because the plan can refuse the whole move and a
      * refusal after the bouts had landed would be the half-applied shift the
-     * refusal exists to prevent. The bouts then go in ONE upsert, not one round
-     * trip each.
+     * refusal exists to prevent. The bouts then go in ONE write
+     * (`programme_retime_bouts`, 0231), not one round trip each.
      */
     function buildMoveMocks(opts: {
       block: Record<string, unknown>;
@@ -1800,7 +1784,7 @@ describe('ProgrammeService', () => {
       matches?: MoveMatchRow[];
       /** The day's bars. Defaults to the moved one alone, so nothing cascades onto it. */
       dayBlocks?: Array<{ id: string; label: string; start_time: string; end_time: string }>;
-      /** Make the batched shift UPSERT fail, to test the count's honesty. */
+      /** Make the batched shift write fail, to test the count's honesty. */
       updateError?: { message: string };
       /** Answer the batched write with only these ids, as a partial persist would. */
       persistedIds?: string[];
@@ -1826,36 +1810,28 @@ describe('ProgrammeService', () => {
       ];
 
       const updates: Array<{ id: string; scheduled_at: string }> = [];
-      const upserted: Array<Record<string, unknown>> = [];
+      const written: Array<Record<string, unknown>> = [];
       /** Times the batched write ran. One cascade must be one round trip. */
-      const upsertCalls = { count: 0 };
+      const writeCalls = { count: 0 };
 
-      // Built on `makeChain` so it degrades into an ordinary chain when a
-      // fixture never reaches the batched write. A mock that STARVES reports a
-      // falsification as a crash inside the Supabase stub, which reads like a
-      // broken test rather than the deleted guard it actually is.
-      const upsertResult: {
-        data: Array<{ id: string }> | null;
-        error: { message: string } | null;
-      } = { data: opts.updateError ? null : [], error: opts.updateError ?? null };
-      const matchesUpsertChain = makeChain(upsertResult);
-      matchesUpsertChain.upsert = vi.fn((rows: Array<Record<string, unknown>>) => {
-        upsertCalls.count++;
-        upserted.push(...rows);
+      rpcMock.mockImplementation((fn: string, args: { p_rows: unknown[] }) => {
+        const rows = args.p_rows as Array<Record<string, unknown>>;
+        if (fn !== 'programme_retime_bouts') return answerRowCount(fn, args);
+        writeCalls.count++;
+        written.push(...rows);
         for (const row of rows) {
           updates.push({
             id: row['id'] as string,
             scheduled_at: row['scheduled_at'] as string,
           });
         }
-        // PostgREST answers a batch with the rows it persisted; the service
-        // counts those, never the rows it asked for.
-        if (!opts.updateError) {
-          upsertResult.data = (opts.persistedIds ?? rows.map((r) => r['id'] as string)).map(
-            (id) => ({ id }),
-          );
-        }
-        return matchesUpsertChain;
+        // The database answers how many bouts it moved; the service reports
+        // that, never the rows it asked for.
+        return Promise.resolve(
+          opts.updateError
+            ? { data: null, error: opts.updateError }
+            : { data: (opts.persistedIds ?? rows).length, error: null },
+        );
       });
 
       fromMock
@@ -1864,8 +1840,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(makeChain({ data: tournamentIds.map((id) => ({ id })), error: null })) // tournaments fetch
         .mockReturnValueOnce(makeChain({ data: phaseIds.map((id) => ({ id })), error: null })) // phases fetch
         .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches fetch
-        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })) // day-blocks fetch
-        .mockReturnValueOnce(matchesUpsertChain); // the ONE batched shift
+        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })); // day-blocks fetch
 
       // One block UPDATE per cascaded bar.
       for (let i = 0; i < dayBlocks.length; i++) {
@@ -1877,7 +1852,7 @@ describe('ProgrammeService', () => {
         );
       }
 
-      return { updates, upserted, upsertCalls };
+      return { updates, written, writeCalls };
     }
 
     it('shifts matches scheduled at-or-after the block forward by Δ when the block moves forward', async () => {
@@ -2189,7 +2164,7 @@ describe('ProgrammeService', () => {
      * write — the reads and the decision all happen first.
      */
     it('refuses with a 400, and writes nothing, when a bout would cross midnight', async () => {
-      const { upsertCalls } = buildMoveMocks({
+      const { writeCalls } = buildMoveMocks({
         block: movedBar(),
         eventStartDate: '2026-06-02',
         matches: [
@@ -2200,7 +2175,7 @@ describe('ProgrammeService', () => {
       await expect(
         service.moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER),
       ).rejects.toThrow(BadRequestException);
-      expect(upsertCalls.count).toBe(0);
+      expect(writeCalls.count).toBe(0);
     });
 
     it('names the bar that would fall off the end of the day', async () => {
@@ -2253,17 +2228,16 @@ describe('ProgrammeService', () => {
 
     /**
      * The cascade used to await one round trip per bout, and it can cover a
-     * whole day. `phase_id` rides along because PostgREST writes a batch as
-     * `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL checks the candidate
-     * row's NOT NULL columns before resolving the conflict.
+     * whole day. It is one write that only moves bouts that exist (0231): each
+     * row is the bout and its new time, nothing else.
      */
-    it('shifts the whole cascade in one write, carrying each bout’s phase', async () => {
-      const { upserted, upsertCalls } = buildMoveMocks({
+    it('shifts the whole cascade in one write of each bout and its new time', async () => {
+      const { written, writeCalls } = buildMoveMocks({
         block: movedBar(),
         eventStartDate: '2026-06-02',
         matches: [
-          { id: 'm1', scheduled_at: at(2026, 6, 2, 9, 15), phase_id: 'phase-pools' },
-          { id: 'm2', scheduled_at: at(2026, 6, 2, 9, 45), phase_id: 'phase-finals' },
+          { id: 'm1', scheduled_at: at(2026, 6, 2, 9, 15) },
+          { id: 'm2', scheduled_at: at(2026, 6, 2, 9, 45) },
         ],
       });
 
@@ -2274,10 +2248,10 @@ describe('ProgrammeService', () => {
         CALLER,
       );
 
-      expect(upsertCalls.count).toBe(1);
-      expect(upserted).toEqual([
-        { id: 'm1', phase_id: 'phase-pools', scheduled_at: at(2026, 6, 2, 10, 15) },
-        { id: 'm2', phase_id: 'phase-finals', scheduled_at: at(2026, 6, 2, 10, 45) },
+      expect(writeCalls.count).toBe(1);
+      expect(written).toEqual([
+        { id: 'm1', scheduled_at: at(2026, 6, 2, 10, 15) },
+        { id: 'm2', scheduled_at: at(2026, 6, 2, 10, 45) },
       ]);
       expect(result.shiftedMatches).toBe(2);
     });
@@ -2349,20 +2323,14 @@ describe('ProgrammeService', () => {
       const updates: Array<{ id: string; scheduled_at: string }> = [];
       const blockUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
 
-      const upsertResult: { data: Array<{ id: string }> | null; error: null } = {
-        data: [],
-        error: null,
-      };
-      const upsertChain = makeChain(upsertResult);
-      upsertChain.upsert = vi.fn((rows: Array<Record<string, unknown>>) => {
-        for (const row of rows) {
+      rpcMock.mockImplementation((fn: string, args: { p_rows: unknown[] }) => {
+        for (const row of args.p_rows as Array<Record<string, unknown>>) {
           updates.push({
             id: row['id'] as string,
             scheduled_at: row['scheduled_at'] as string,
           });
         }
-        upsertResult.data = rows.map((r) => ({ id: r['id'] as string }));
-        return upsertChain;
+        return answerRowCount(fn, args);
       });
 
       fromMock
@@ -2370,8 +2338,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null })) // tournaments
         .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
         .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches
-        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })) // day blocks
-        .mockReturnValueOnce(upsertChain); // the batched shift
+        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })); // day blocks
 
       for (const b of dayBlocks) {
         const row = { data: { ...b }, error: null };

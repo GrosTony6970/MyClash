@@ -157,10 +157,45 @@ function payloadSetsAlertColumn(payload: ts.Expression, source: ts.SourceFile): 
   return declared;
 }
 
+const MIGRATIONS = join(API_SRC, '..', '..', '..', 'packages', 'db', 'migrations');
+
+/**
+ * The database functions whose LAST definition sets an alert column of `matches` (the programme's
+ * bulk writes, 0231). A call to one is a write of the column the AST walk below cannot see: the
+ * payload is a jsonb the function expands.
+ */
+function alertWritingFunctions(): Set<string> {
+  const last = new Map<string, string>();
+  const create =
+    /create\s+or\s+replace\s+function\s+public\.(\w+)\s*\([\s\S]*?\$\$([\s\S]*?)\$\$/giu;
+  for (const file of readdirSync(MIGRATIONS)
+    .filter((f) => /^\d{4}_.+\.sql$/u.test(f))
+    .sort()) {
+    for (const hit of readFileSync(join(MIGRATIONS, file), 'utf8').matchAll(create)) {
+      last.set(hit[1]!, hit[2]!);
+    }
+  }
+  const setsAlertColumn = new RegExp(
+    String.raw`update\s+public\.matches\b[\s\S]*?\bset\b[\s\S]*?\b(${ALERT_COLUMNS.join('|')})\s*=`,
+    'iu',
+  );
+  return new Set([...last].filter(([, body]) => setsAlertColumn.test(body)).map(([name]) => name));
+}
+
+/** Does this file call one of those functions through `.rpc('<name>', …)`? */
+function callsAlertWritingFunction(text: string, functions: Set<string>): boolean {
+  return [...text.matchAll(/\.rpc\(\s*['"](\w+)['"]/gu)].some((hit) => functions.has(hit[1]!));
+}
+
 function alertWriteFiles(): string[] {
   const files: string[] = [];
+  const functions = alertWritingFunctions();
   for (const file of sourceFiles(API_SRC)) {
     const text = readFileSync(file, 'utf8');
+    if (callsAlertWritingFunction(text, functions)) {
+      files.push(file.replace(/\\/g, '/'));
+      continue;
+    }
     if (!text.includes("from('matches')")) continue;
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     for (const call of matchTableCalls(source)) {
@@ -209,6 +244,22 @@ describe('match alert coverage', () => {
     // asserted ABSENT, and a piste-only move is exactly the write that used to
     // slip through.
     expect(files.some((f) => f.endsWith('venues/venues.service.ts'))).toBe(true);
+  });
+
+  /**
+   * The programme's bulk writes go through database functions (0231). The AST walk cannot see a
+   * column set inside one, so the functions are read from the migrations, and a file whose only
+   * write of the alert columns is a call to one of them is still a file that writes them.
+   */
+  it('reads a call of a database function that sets an alert column as a write', () => {
+    const functions = alertWritingFunctions();
+    expect([...functions].sort()).toEqual(['programme_place_bouts', 'programme_retime_bouts']);
+    expect(
+      callsAlertWritingFunction("db.rpc('programme_retime_bouts', { p_rows })", functions),
+    ).toBe(true);
+    expect(
+      callsAlertWritingFunction("db.rpc('stamp_match_rules', { p_tournament_id })", functions),
+    ).toBe(false);
   });
 
   /**
