@@ -593,7 +593,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/AdvancedTab.tsx:21",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/BasicsTab.tsx:41",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/DisplayTab.tsx:53",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/LocksTab.tsx:27",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/LocksTab.tsx:19",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/MatchFormatTab.tsx:375",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/MatchFormatTab.tsx:438",
     "apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/[tournamentId]/settings/_components/MatchFormatTab.tsx:66",

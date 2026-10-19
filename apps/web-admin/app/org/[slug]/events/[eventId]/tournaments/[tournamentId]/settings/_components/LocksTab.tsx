@@ -4,25 +4,17 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Switch, useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
+import { DEFAULT_TOURNAMENT_LOCK_CONFIG, type TournamentLockConfig } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
-interface LockConfig {
-  autoLockEnabled: boolean;
-  autoLockDelayMinutes: number;
-  autoLockCompletedPools: boolean;
-  autoLockCompletedBrackets: boolean;
-}
+type LockConfig = TournamentLockConfig;
 
-const LOCK_DEFAULTS: LockConfig = {
-  autoLockEnabled: false,
-  autoLockDelayMinutes: 30,
-  autoLockCompletedPools: false,
-  autoLockCompletedBrackets: false,
-};
+// What the auto-lock worker applies to a key the row lacks: the screen shows and saves the same.
+const LOCK_DEFAULTS: LockConfig = DEFAULT_TOURNAMENT_LOCK_CONFIG;
 
 export function LocksTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
@@ -33,12 +25,12 @@ export function LocksTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Silent read: the tab shows the defaults until the row lands, and the save
-    // below reports its own refusal.
+    // Silent read: the tab shows the defaults until the row lands. Named, not fixed here (ruling
+    // 46's commit): a Save before the row lands, or after a failed read, writes those defaults.
     void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
       (r) => {
         if (r.ok) {
-          const lc = (r.data['lock_config'] ?? {}) as Partial<LockConfig>;
+          const lc = (r.data['lock_config_json'] ?? {}) as Partial<LockConfig>;
           const read: LockConfig = {
             autoLockEnabled: lc.autoLockEnabled ?? LOCK_DEFAULTS.autoLockEnabled,
             autoLockDelayMinutes: lc.autoLockDelayMinutes ?? LOCK_DEFAULTS.autoLockDelayMinutes,

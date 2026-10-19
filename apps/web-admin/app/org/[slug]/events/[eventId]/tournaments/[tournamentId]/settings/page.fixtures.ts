@@ -26,7 +26,7 @@ export const TOURNAMENT_ROW = {
   ruleset_grammar: { hasAfterblow: true, hasMaxDoubles: true },
   ruleset_config: {},
   scoring_config_json: {},
-  lock_config: { autoLockEnabled: true },
+  lock_config_json: { autoLockEnabled: true },
   penalty_ruleset_id: 'pr-1',
   max_participants: null,
   max_waitlist: null,
