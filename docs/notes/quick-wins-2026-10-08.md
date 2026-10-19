@@ -3034,6 +3034,7 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Versions   | Import rule         | An admin edits an exported file by hand to name the old end rule, then imports it.                                       | **The import keeps the rule the file names**; an unknown one is refused, none = 2026-10.                                    |
 | Foundation | Last seen (J)       | Rules go A, then B, then A again; the tablet never got bout 9's own copy, and the wifi drops.                            | **The Tournament's rules as the tablet last read them**, with the "not confirmed" notice; not "refuse to open".             |
 | Foundation | Bout read (K)       | The bout read lands; a second read of its copy fails on a weak hall network.                                             | **The bout read carries the bout's own rules**; no separate route.                                                          |
+| Offline    | Edge 503 (L)        | A redeploy: the API restarts, the hall's wifi works, the referee taps Start and the edge answers 503.                    | **The Tournament's rules**: the tablet met a network. Only the made-up answer, or a fetch that fails, is "no network".      |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
@@ -3524,6 +3525,45 @@ Named, not fixed:
 - A catalogue from a fallback tier raises no notice.
 - After a reload mid-bout, a first answer without rules shows the Tournament's rules (with the
   notice), though the kept copy holds the bout's own.
+
+### Built on 2026-10-19: a Start pressed with no network keeps its copy (the foundation, commit 5)
+
+The wifi in the hall is down. On piste 2 the tablet starts bout 2 under copy A (+3). At the desk
+the organiser switches the Tournament: the server, which has not seen the Start, moves bout 2 to
+copy B (+2). When the wifi is back the Start arrives, and before this the bout was scored by rules
+the referee never saw. Rulings "Offline rules", D and L (table above).
+
+| Commit     | What it does                                                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `415b45b2` | 5a: the Start names a copy and may carry `pressedWithoutNetwork`; with it, the server puts the bout back on a copy it held, in one write. |
+| `d3bd224c` | 5b: the pad names the copy on its screen and judges each Start's network; a `scheduled` read does not undo the screen while it waits.     |
+
+What the build chose, not ruled (settled by the two plans, so not asked):
+
+- While a Start that may keep its copy waits, a read that still says `scheduled` does not replace
+  the rules the screen and the kept copy hold when they are that copy, nor their edition: the
+  answer after the Start decides. "A bout keeps the rules it started under."
+- The evidence is judged per Start, by the first send after the tap that learns anything: a real
+  answer to any row says a network was there; a send that met no network and no answer says the
+  Start was pressed with none (its own send, or a whole pass, as in a hall with wifi and no
+  internet).
+- The "organiser changed the rules" notice is the page's, not the screen's: the screen is mounted
+  again when the server's bout replaces the tablet's copy.
+
+What ran: plan review to convergence (3 passes, 4 reviewers each, every serious finding checked by a
+skeptic); cold reviews to no blocker and no major (5a one pass, 5b two); red first (17 API tests;
+3 of the 4 new browser stories on the old pad, the fourth a negative); falsifiers 22 of 22 (5a) and
+35 of 35 (5b), each red with the same number of tests collected.
+
+Named, not fixed:
+
+- A Start tapped during a pass that had a real answer and then stopped offline is judged by the
+  next pass, a few seconds later.
+- A kept copy refreshed to the new copy before a reload, while the Start names the old one: the
+  screen opens on the new copy, and the notice fires when the Start keeps the old one.
+- A kept copy is a server log line, not an audit entry the desk can see.
+- A desk Reset landing between a Start's clock row and its bout write leaves the bout running
+  (today's race), now on the pad's copy.
 
 ### Fixed since they were named
 
