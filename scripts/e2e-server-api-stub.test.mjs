@@ -50,6 +50,7 @@ test("a Tournament's page read answers its row, by the Event's slug and its own"
   const { tournament, pools } = answerFor('GET', path, undefined).json;
   assert.equal(tournament.name, 'Longsword Open');
   assert.equal(tournament.status, 'running');
+  assert.deepEqual(tournament.rulesetRepins, []);
   assert.deepEqual(pools, []);
 });
 

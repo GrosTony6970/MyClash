@@ -68,6 +68,65 @@ export interface RulesChange {
 }
 
 /**
+ * The codes of the refusals around a rules change, one owner for the API that throws them and the
+ * web apps that word them (`rules-change-refusal.ts` in web-admin).
+ */
+export const RULES_CHANGE_CODES = {
+  /** 403: a scoring change the lock refuses without the audit; the body's `details.changes`. */
+  needsAudit: 'rules_change_needs_audit',
+  /** 403: a completed or archived Tournament: no door changes its rules. */
+  closed: 'rules_change_closed',
+  /** 409: the rules moved since the screen read them (`expected`), or since the save's own read. */
+  changedSinceRead: 'rules_changed_since_read',
+  /** 400: the typed name is not the Tournament's (`sameTournamentName`). */
+  confirmMismatch: 'rules_confirm_mismatch',
+  /** 400: an audited change that changes nothing. */
+  unchanged: 'rules_unchanged',
+  /** 400: an audited settings save that also carries a field that is not a rule. */
+  mixed: 'rules_change_mixed',
+  /** 503: the rules could not be read to be compared (operational). */
+  checkUnavailable: 'rules_check_unavailable',
+  /** 403: a card rules change refused on the Tournament's clock. */
+  cardLocked: 'card_change_locked',
+} as const;
+
+export type RulesChangeCode = (typeof RULES_CHANGE_CODES)[keyof typeof RULES_CHANGE_CODES];
+
+/**
+ * What the screen read of a Tournament's rules, sent back with an audited change so the server
+ * can refuse it when the rules moved since (operator ruling "Stale screen"). The RAW stored values,
+ * as the Tournament row holds them: never normalized, never defaulted.
+ */
+export interface RulesExpected {
+  rulesetCode: string | null;
+  rulesetVersion: string | null;
+  rulesetConfig: Record<string, unknown> | null;
+  scoringConfig: Record<string, unknown> | null;
+  penaltyRulesetId: string | null;
+  penaltyRulesetVersion: string | null;
+}
+
+/**
+ * One rules change of a Tournament as the PUBLIC notice shows it, newest first (operator rulings
+ * "Public notice", "Version notice", "Private formula"). `changes` already has a club formula's
+ * own values stripped by the API when `privateFormula` is set; `rulesChangeLines(changes, t,
+ * { privateFormula })` words them.
+ */
+export interface RulesChangeNotice {
+  kind: 'ruleset' | 'settings';
+  changedAt: string;
+  /** Both sides are one ruleset code: two rulesets may share a label, never a code. */
+  sameRuleset: boolean;
+  fromLabel: string;
+  fromVersion: string;
+  toLabel: string;
+  toVersion: string;
+  justification: string;
+  changes: RulesChange[];
+  privateFormula: boolean;
+}
+
+/**
  * The paths whose values are a club formula's own definition. The PUBLIC notice carries them as a
  * path only, worded "the scoring formula changed", whenever either side of the change is a club
  * ruleset (operator ruling "Private formula", 2026-10-19).

@@ -115,13 +115,18 @@ const onFormula = (config: Row = {}) => ({
 describe('the rules fingerprint fails closed', () => {
   it.each([
     ["the club ruleset's grammar", 'custom_rulesets', 'base_code, targets', 'was not read'],
-    ["the club ruleset's formula", 'custom_rulesets', 'is_system', 'not read for its hash'],
+    [
+      "the club ruleset's formula",
+      'custom_rulesets',
+      'is_system',
+      'not read for its scoring structure',
+    ],
     ['the grammar of the pinned version', 'custom_ruleset_versions', 'targets', 'was not read'],
     [
       'the formula of the pinned version',
       'custom_ruleset_versions',
       'score_formula',
-      'not read for its hash',
+      'not read for its scoring structure',
     ],
   ])(
     'throws when %s cannot be read, never hashing a fallback',

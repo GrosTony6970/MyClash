@@ -421,7 +421,7 @@ export const admin = {
     changeRulesetSuccess: 'Règlement changé.',
     repinRulesetTitle: 'Modifier le règlement du tournoi ?',
     repinRulesetWarning:
-      'Ce tournoi a déjà des combats notés. Changer son règlement reclasse ces résultats selon les nouvelles règles. Le changement est enregistré avec votre motif et divulgué publiquement sur la page de l’événement — il n’est jamais silencieux.',
+      'Les assauts déjà disputés gardent les règles sous lesquelles ils ont été disputés. Les assauts pas encore commencés prennent les nouvelles règles. Le classement suit les règles du tournoi : il est recalculé selon les nouvelles. Le changement est enregistré avec votre motif et affiché publiquement sur la page de l’événement — il n’est jamais silencieux.',
     repinRulesetFromTo: 'De {from} vers {to}',
     repinRulesetJustificationLabel: 'Motif du changement',
     repinRulesetJustificationPlaceholder:
@@ -455,6 +455,29 @@ export const admin = {
     advancedWizardHint:
       'Ces valeurs proviennent du jeu de règles et peuvent être surchargées par tournoi. Le verrouillage automatique se configure désormais séparément depuis la page de réglages du tournoi après la création.',
     draftStep: 'Brouillon — étape {step} sur 4',
+  },
+  // A change to a Tournament's scoring rules: the confirmation dialog, and the API's refusals by
+  // their code (rules-change-refusal.ts in web-admin). The changed lines are common.rulesChange.
+  rulesChange: {
+    changesHeading: 'Ce qui change',
+    noScoringChange: 'Aucun réglage de score ne change : seul le règlement change.',
+    previewFailed: 'Impossible de charger ce que fait ce changement.',
+    typeNameLabel: 'Saisissez le nom du tournoi pour confirmer : {name}',
+    refusal: {
+      needsAudit:
+        'Ce tournoi a commencé : ce changement demande un motif et votre confirmation, et il est affiché publiquement.',
+      closed: 'Ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
+      changedSinceRead:
+        'Les règles de ce tournoi ont changé depuis que cette page les a lues. Rechargez la page et vérifiez-les à nouveau.',
+      confirmMismatch: 'Le nom saisi n’est pas celui de ce tournoi.',
+      unchanged: 'Ce changement ne change rien : le tournoi a déjà ces règles.',
+      mixed:
+        'Un changement de règles s’enregistre seul. Enregistrez d’abord vos autres modifications, puis changez à nouveau les règles.',
+      checkUnavailable:
+        'Les règles n’ont pas pu être vérifiées pour le moment. Rien n’a été enregistré. Réessayez dans un instant.',
+      cardLocked:
+        'Ce tournoi a commencé, ou son événement est en cours avec des assauts créés : ses règles de cartons sont verrouillées.',
+    },
   },
   srcComponents: {
     hemaRatingsTitle: 'HEMA Ratings',

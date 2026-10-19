@@ -17,6 +17,7 @@ import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getServerApiUrl } from '@/lib/api-url';
 import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { BackLink } from '@/components/BackLink';
 import { ShareButton } from '@/components/ShareButton';
 import { publicCanOpenTournament } from '@/lib/share-link';
@@ -39,6 +40,7 @@ import {
 } from './tournament-data';
 import { SwissRoundsView } from './SwissRoundsView';
 import { SwissPodiumPanel } from './SwissPodiumPanel';
+import { RulesChangesNotice } from './RulesChangesNotice';
 
 // Re-exported so the sibling tab components keep importing these types from
 // `./page` while the definitions live in the shared `./tournament-data`.
@@ -296,64 +298,12 @@ export default async function TournamentPage({ params }: Props) {
         {shareable && <ShareButton path={`/e/${eventSlug}/t/${tournamentSlug}`} />}
       </div>
 
-      {tournament.rulesetRepin && (
-        <section className="mb-6 rounded-xl border border-warning/30 bg-warning/10 p-5">
-          <h2 className="mb-1 font-display text-lg font-semibold text-warning">
-            {t('publicApp.tournament.rulesetChangedTitle')}
-          </h2>
-          <p className="text-sm text-foreground-secondary">
-            {t('publicApp.tournament.rulesetChangedFromTo', {
-              from: tournament.rulesetRepin.fromLabel,
-              to: tournament.rulesetRepin.toLabel,
-            })}
-          </p>
-          <p className="mt-2 text-sm text-foreground-secondary">
-            <span className="font-medium">{t('publicApp.tournament.rulesetChangedReason')}:</span>{' '}
-            {tournament.rulesetRepin.justification}
-          </p>
-          {tournament.rulesetRepin.bucketDiff && (
-            <ul className="mt-3 space-y-1">
-              {[
-                {
-                  label: t('publicApp.tournament.lineageGrammar'),
-                  status: tournament.rulesetRepin.bucketDiff.grammar,
-                },
-                {
-                  label: t('publicApp.tournament.lineageEndConditions'),
-                  status: tournament.rulesetRepin.bucketDiff.endConditions,
-                },
-                {
-                  label: t('publicApp.tournament.lineageRanking'),
-                  status: tournament.rulesetRepin.bucketDiff.ranking,
-                },
-              ].map(({ label, status }) => (
-                <li key={label} className="flex items-center gap-2 text-sm">
-                  <span
-                    aria-hidden="true"
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      status === 'changed' ? 'bg-warning' : 'bg-success'
-                    }`}
-                  />
-                  <span className="text-foreground-secondary">{label}</span>
-                  <span
-                    className={`text-xs ${status === 'changed' ? 'text-warning' : 'text-muted'}`}
-                  >
-                    ·{' '}
-                    {status === 'changed'
-                      ? t('publicApp.tournament.lineageChanged')
-                      : t('publicApp.tournament.lineageSame')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!tournament.rulesetRepin.rankingCompatible && (
-            <p className="mt-2 text-sm font-medium text-warning">
-              {t('publicApp.tournament.rulesetChangedRankingAffected')}
-            </p>
-          )}
-        </section>
-      )}
+      <RulesChangesNotice
+        notices={tournament.rulesetRepins}
+        t={t}
+        locale={locale}
+        timezone={eventRead.kind === 'found' ? eventRead.event.timezone : DEFAULT_EVENT_TIMEZONE}
+      />
 
       {recap && (
         <section className="mb-6 rounded-xl border border-border bg-surface p-5 shadow-sm">

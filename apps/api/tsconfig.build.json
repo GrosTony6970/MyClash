@@ -84,6 +84,8 @@
     // The settings save's harness for the ruleset lock and its restamp, shared by its two test
     // files when its test reached the 400-line cap. It imports vitest.
     "src/modules/events/repin-guard.fixtures.ts",
+    // The audited re-pin's harness, shared by its two test files for the same reason.
+    "src/modules/events/repin.fixtures.ts",
     "src/modules/penalties/penalties.void-black-card.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",

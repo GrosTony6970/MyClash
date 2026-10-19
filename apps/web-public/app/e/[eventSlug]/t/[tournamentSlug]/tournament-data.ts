@@ -10,7 +10,7 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
-import { resolveMatchWinner } from '@myclash/types';
+import { resolveMatchWinner, type RulesChangeNotice } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
 export interface StandingRow {
@@ -63,28 +63,6 @@ export interface BracketSlot {
   referees?: PoolReferee[];
 }
 
-/** Per-bucket lineage diff, materialised at re-pin time. Mirrors @myclash/rulesets'
- *  BucketDiff (kept local — web-public doesn't depend on the rulesets package). */
-export interface RulesetRepinBucketDiff {
-  grammar: 'unchanged' | 'changed';
-  endConditions: 'unchanged' | 'changed';
-  ranking: 'unchanged' | 'changed';
-  rankingCompatible: boolean;
-}
-
-/** Public disclosure of an audited mid-event ruleset re-pin (the reason is
- *  shown publicly by design — a re-pin is never silent). */
-export interface RulesetRepinDisclosure {
-  changedAt: string;
-  fromLabel: string;
-  toLabel: string;
-  justification: string;
-  rankingCompatible: boolean;
-  /** Materialised per-bucket breakdown (grammar/end-conditions/ranking); absent
-   *  on audit rows written before the diff was disclosed. */
-  bucketDiff?: RulesetRepinBucketDiff | null;
-}
-
 export interface Tournament {
   id: string;
   name: string;
@@ -97,8 +75,9 @@ export interface Tournament {
   /** The organiser's configured fighter-side colour tokens. Distinct from
    *  `color` above, which is the tournament's own identity colour. */
   sideColors?: { red: string; blue: string } | null;
-  /** Present when the tournament's ruleset was re-pinned mid-event. */
-  rulesetRepin?: RulesetRepinDisclosure | null;
+  /** Every audited change of the scoring rules, newest first; empty when there was none. The
+   *  API always sends the list (a failed read of it is logged and sent empty). */
+  rulesetRepins: RulesChangeNotice[];
 }
 
 export interface TournamentData {

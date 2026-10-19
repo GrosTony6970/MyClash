@@ -415,7 +415,7 @@ export const admin = {
     changeRulesetSuccess: 'Ruleset changed.',
     repinRulesetTitle: 'Re-pin the tournament ruleset?',
     repinRulesetWarning:
-      'This tournament already has scored matches. Changing its ruleset re-ranks those results under the new rules. The change is recorded with your reason and disclosed publicly on the event page — it is never silent.',
+      "Bouts already fought keep the rules they were fought under. Bouts not started yet take the new rules. The ranking follows the tournament's rules, so it is recomputed under the new ones. The change is recorded with your reason and shown publicly on the event page — it is never silent.",
     repinRulesetFromTo: 'From {from} to {to}',
     repinRulesetJustificationLabel: 'Reason for the change',
     repinRulesetJustificationPlaceholder:
@@ -448,6 +448,29 @@ export const admin = {
     advancedWizardHint:
       'These values come from the ruleset and can be overridden per tournament. Auto-lock is now configured separately from the tournament settings page after creation.',
     draftStep: 'Draft — step {step} of 4',
+  },
+  // A change to a Tournament's scoring rules: the confirmation dialog, and the API's refusals by
+  // their code (rules-change-refusal.ts in web-admin). The changed lines are common.rulesChange.
+  rulesChange: {
+    changesHeading: 'What changes',
+    noScoringChange: 'No scoring setting changes: only the ruleset changes.',
+    previewFailed: 'Could not load what this change does.',
+    typeNameLabel: 'Type the tournament name to confirm: {name}',
+    refusal: {
+      needsAudit:
+        'This tournament has started: this change needs a reason and your confirmation, and it is shown publicly.',
+      closed: 'This tournament is completed or archived: its rules can no longer change.',
+      changedSinceRead:
+        'The rules of this tournament changed since this page read them. Reload the page and check them again.',
+      confirmMismatch: 'The name you typed is not the name of this tournament.',
+      unchanged: 'This change changes nothing: the tournament already has these rules.',
+      mixed:
+        'A rules change is saved on its own. Save your other changes first, then change the rules again.',
+      checkUnavailable:
+        'The rules could not be checked just now. Nothing was saved. Try again in a moment.',
+      cardLocked:
+        'This tournament has started, or its event is running with bouts made: its card rules are locked.',
+    },
   },
   srcComponents: {
     hemaRatingsTitle: 'HEMA Ratings',

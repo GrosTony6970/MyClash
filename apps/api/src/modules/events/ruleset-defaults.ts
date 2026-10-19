@@ -202,18 +202,23 @@ export async function resolveRulesetGrammar(
  * `normalizeTournamentScoringConfig` (and merges any explicit override) so the
  * stored blob is byte-identical to what a PATCH produces.
  *
- * `rulesetConfig` is the already-resolved config: for TF_v1 it carries
- * super-admin tf_config overrides that the static grammar metadata does not, so
- * its `targets` win when present. A legacy `targetValues` override is
- * deliberately NOT honoured — that field is inert and deprecated, and wiring it
- * in here would make it affect scoring, which belongs to the authoring-UI
- * migration rather than this seed.
+ * The buttons press the targets the engine scores (operator ruling "Formula
+ * targets"): a club FORMULA scores its own (the grammar's), whatever default
+ * list the Tournament's settings carry; a CODED engine (TF_v1, a fork) scores
+ * the settings' `targets` — they carry a fork's tf_config or a super-admin's
+ * overrides, which the static grammar does not — else the grammar's. The ONE
+ * owner of the seed: Tournament create and every move of its pair
+ * (`seededScoringOfMove`). A legacy `targetValues` override is deliberately NOT
+ * honoured — that field is inert and deprecated, and wiring it in here would
+ * make it affect scoring, which belongs to the authoring-UI migration rather
+ * than this seed.
  */
 export function buildSeededScoringConfig(
   grammar: ResolvedRulesetGrammar,
   rulesetConfig: Record<string, unknown>,
+  kind: 'coded' | 'formula',
 ): Record<string, unknown> {
-  const configTargets = rulesetConfig['targets'];
+  const configTargets = kind === 'coded' ? rulesetConfig['targets'] : undefined;
   return {
     afterblowMode: grammar.defaultAfterblowMode,
     buttons: buildScoringButtons({

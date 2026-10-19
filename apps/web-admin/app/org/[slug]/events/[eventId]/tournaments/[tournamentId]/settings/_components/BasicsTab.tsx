@@ -4,10 +4,10 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
-import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
+import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
@@ -58,12 +58,6 @@ export function BasicsTab({
   // Save and the ruleset change each mark the fields they sent: a picked ruleset not applied
   // yet is unsaved too.
   const markSaved = useSavedSnapshot(data, null, onDirtyChange);
-  const markRulesetSaved = (sent: TournamentBasics) =>
-    markSaved((saved) =>
-      saved
-        ? { ...saved, rulesetCode: sent.rulesetCode, rulesetVersion: sent.rulesetVersion }
-        : saved,
-    );
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [saving, setSaving] = useState(false);
@@ -71,15 +65,29 @@ export function BasicsTab({
   // `data.ruleset*`; comparing against this detects a pending ruleset change,
   // which is applied through a dedicated flow (never the plain Save) so it can
   // fall back to the audited re-pin ceremony when results already exist.
-  const [originalRuleset, setOriginalRuleset] = useState<{ code: string; version: string } | null>(
-    null,
-  );
-  const [repinOpen, setRepinOpen] = useState(false);
-  const [repinBusy, setRepinBusy] = useState(false);
-  const [repinError, setRepinError] = useState<string | null>(null);
-  // The computed per-bucket lineage diff for the pending re-pin, loaded from the
-  // read-only preview when the ceremony opens (null while loading / on failure).
-  const [repinDiff, setRepinDiff] = useState<BucketDiff | null>(null);
+  const [originalRuleset, setOriginalRuleset] = useState<RulesetPair | null>(null);
+  // The new pair is pinned, and the picker's choice is saved.
+  const rulesetApplied = (to: RulesetPair) => {
+    setOriginalRuleset(to);
+    markSaved((saved) =>
+      saved ? { ...saved, rulesetCode: to.code, rulesetVersion: to.version } : saved,
+    );
+  };
+  const repin = useRepinDialog({
+    tournamentId,
+    // A coded refusal is worded by the hook. The owner bar's 403 carries no rules code: the
+    // screen's own sentence names the tier the operator would need. Every other refusal carries
+    // the API's reason (the hook's fallback).
+    otherRefusal: (r) =>
+      r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)
+        ? t('admin.orgTournaments.repinRulesetOwnerOnly')
+        : null,
+    onRepinned: (to) => {
+      rulesetApplied(to);
+      toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
+    },
+  });
+  const rememberRules = repin.remember;
 
   useEffect(() => {
     if (!orgSlug) return;
@@ -123,12 +131,13 @@ export function BasicsTab({
             code: row['ruleset_code'] as string,
             version: row['ruleset_version'] as string,
           });
+          rememberRules(storedRulesOf(row));
         }
         setRulesets(r as Ruleset[]);
         setPenaltyRulesets(p);
       });
     });
-  }, [tournamentId, orgSlug, eventId, markSaved]);
+  }, [tournamentId, orgSlug, eventId, markSaved, rememberRules]);
 
   async function save() {
     if (!data) return;
@@ -155,6 +164,9 @@ export function BasicsTab({
         if (message) toast.error(message);
         return;
       }
+      // The written row (the PATCH answers it): its name and card pin are what a re-pin then
+      // confirms and sends back.
+      rememberRules(storedRulesOf(r.data as Record<string, unknown>));
       const sent = data;
       markSaved((saved) =>
         saved
@@ -191,14 +203,14 @@ export function BasicsTab({
    */
   async function changeRuleset() {
     if (!data) return;
-    setRepinError(null);
+    const to = { code: data.rulesetCode, version: data.rulesetVersion };
     const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
       method: 'PATCH',
-      body: { rulesetCode: data.rulesetCode, rulesetVersion: data.rulesetVersion },
+      body: { rulesetCode: to.code, rulesetVersion: to.version },
     });
     if (r.ok) {
-      setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
-      markRulesetSaved(data);
+      rememberRules(storedRulesOf(r.data as Record<string, unknown>));
+      rulesetApplied(to);
       toast.success(t('admin.orgTournaments.changeRulesetSuccess'));
       return;
     }
@@ -207,56 +219,11 @@ export function BasicsTab({
     // audited re-pin ceremony instead of saying anything. An archived Event
     // answers 403 too, and that one is said (ruling 234).
     if (r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)) {
-      setRepinDiff(null);
-      setRepinOpen(true);
-      // Load the computed lineage diff so the ceremony shows which buckets
-      // change before the organiser justifies the re-pin. Advisory — the
-      // ceremony still works if the preview fails.
-      const preview = await apiRequest<{ diff?: BucketDiff }>(
-        apiUrl,
-        `/api/v1/tournaments/${tournamentId}/repin-preview?rulesetCode=${encodeURIComponent(
-          data.rulesetCode,
-        )}&rulesetVersion=${encodeURIComponent(data.rulesetVersion)}`,
-      );
-      setRepinDiff(preview.ok ? (preview.data.diff ?? null) : null);
+      await repin.open(to);
       return;
     }
     const message = failureMessage(r, t, t('admin.common.saveFailed'));
     if (message) toast.error(message);
-  }
-
-  /** Confirm the ceremony: POST the audited re-pin with the justification. */
-  async function repin(justification: string) {
-    if (!data) return;
-    setRepinBusy(true);
-    setRepinError(null);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/repin-ruleset`, {
-        method: 'POST',
-        body: {
-          rulesetCode: data.rulesetCode,
-          rulesetVersion: data.rulesetVersion,
-          justification,
-        },
-      });
-      if (!r.ok) {
-        // The 403 here keeps the screen's own sentence: it names the tier the
-        // operator would need ("the ruleset's owner"), which the guard's own
-        // words do not. Every other refusal now carries the API's reason.
-        const message =
-          r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)
-            ? t('admin.orgTournaments.repinRulesetOwnerOnly')
-            : failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) setRepinError(message);
-        return;
-      }
-      setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
-      markRulesetSaved(data);
-      setRepinOpen(false);
-      toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
-    } finally {
-      setRepinBusy(false);
-    }
   }
 
   if (!data) return <p className="text-sm text-muted">{t('common.loading')}</p>;
@@ -419,20 +386,17 @@ export function BasicsTab({
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
 
-      {originalRuleset && (
+      {originalRuleset && repin.stored && repin.target && (
         <RepinRulesetDialog
-          open={repinOpen}
           fromLabel={rulesetLabel(originalRuleset.code, originalRuleset.version)}
-          toLabel={rulesetLabel(data.rulesetCode, data.rulesetVersion)}
-          diff={repinDiff}
-          busy={repinBusy}
-          error={repinError}
-          onConfirm={(j) => void repin(j)}
-          onClose={() => {
-            setRepinOpen(false);
-            setRepinError(null);
-            setRepinDiff(null);
-          }}
+          toLabel={rulesetLabel(repin.target.code, repin.target.version)}
+          tournamentName={repin.stored.name}
+          preview={repin.preview}
+          previewError={repin.previewError}
+          busy={repin.busy}
+          error={repin.error}
+          onConfirm={(words) => void repin.confirm(words)}
+          onClose={repin.close}
         />
       )}
     </div>

@@ -30,9 +30,9 @@ import {
   SubmitEventClubRequestDto,
   UpsertEventThemeDto,
   UpdateEventDto,
-  RepinTournamentRulesetDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
+import { RepinTournamentRulesetDto } from './dto/repin-ruleset.dto';
 import { EventThemesService } from './event-themes.service';
 import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';

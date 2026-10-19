@@ -32,7 +32,7 @@ interface Overrides {
 }
 
 // A TF_v1 (registry-coded) tournament with a pinned custom penalty version, so
-// resolveRulesetGrammar + resolveScoringStructure both short-circuit to the
+// resolveRulesetGrammar + scoringStructureOf both short-circuit to the
 // registry and only tournaments + penalty_ruleset_versions are read.
 function stateFor(o: Overrides = {}): TableState {
   return {

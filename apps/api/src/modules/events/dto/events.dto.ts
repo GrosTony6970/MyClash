@@ -9,6 +9,12 @@ import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
  */
 const calendarDay = z.iso.date().refine(isCalendarDay, 'Not a calendar day');
 
+/**
+ * A ruleset code a door may name. A club's code is generated, `custom_` + a slug of up to 60 + `-`
+ * + the base-36 time (custom-rulesets.service.ts): up to 76 characters, so the bound is above it.
+ */
+export const rulesetCodeSchema = z.string().max(100);
+
 const createEventSchema = z
   .object({
     name: z.string().min(2).max(200),
@@ -358,7 +364,7 @@ const updateTournamentSchema = z
     penaltyRulesetId: z.uuid().nullish(),
     // Public URL of the tournament logo. Pass null to clear.
     logoUrl: z.string().max(2048).nullish(),
-    rulesetCode: z.string().max(50).optional(),
+    rulesetCode: rulesetCodeSchema.optional(),
     /**
      * Highest creation-wizard step completed. Recorded rather than inferred:
      * every JSONB blob the old heuristic read is written by the server itself
@@ -381,19 +387,3 @@ const updateTournamentSchema = z
   })
   .strict();
 export class UpdateTournamentDto extends createZodDto(updateTournamentSchema) {}
-
-// Mid-event ruleset re-pin: a deliberate, audited swap of the tournament's
-// ruleset AFTER results exist. Distinct from the ordinary PATCH (which is now
-// blocked once matches are scored) — this one requires a justification and
-// records an append-only audit with the before/after placings.
-const repinTournamentRulesetSchema = z
-  .object({
-    rulesetCode: z.string().min(1).max(50),
-    // Optional — normalised server-side; none named is a built-in's latest or a club ruleset's current.
-    rulesetVersion: z.string().max(20).optional(),
-    // Mandatory justification (the ceremony). Kept short-but-meaningful so the
-    // public disclosure and the audit trail always carry a real reason.
-    justification: z.string().trim().min(10).max(1000),
-  })
-  .strict();
-export class RepinTournamentRulesetDto extends createZodDto(repinTournamentRulesetSchema) {}

@@ -11262,6 +11262,19 @@ export interface components {
       rulesetCode: string;
       rulesetVersion?: string;
       justification: string;
+      confirm: string;
+      expected: {
+        rulesetCode: string | null;
+        rulesetVersion: string | null;
+        rulesetConfig: {
+          [key: string]: unknown;
+        } | null;
+        scoringConfig: {
+          [key: string]: unknown;
+        } | null;
+        penaltyRulesetId: string | null;
+        penaltyRulesetVersion: string | null;
+      };
     };
     CreateLiceDto: {
       name: string;

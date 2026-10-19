@@ -12,6 +12,8 @@ import {
   asEventKind,
   countsTowardStats,
   DEFAULT_EVENT_KIND,
+  RULES_CHANGE_CODES,
+  type RulesChange,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -51,11 +53,11 @@ import type {
   CreateTournamentDto,
   EventClubQueryDto,
   EventQueryDto,
-  RepinTournamentRulesetDto,
   SubmitEventClubRequestDto,
   UpdateEventDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
+import type { RepinTournamentRulesetDto } from './dto/repin-ruleset.dto';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
@@ -68,8 +70,20 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
-import { settingsAfterMove } from './ruleset-move-config';
+import { nextOfMove } from './ruleset-move-config';
 import { tournamentClockOf } from './tournament-clock';
+import { scoringKindOf } from '../ruleset-hash/scoring-structure';
+import { loadRulesetRepins } from './rules-change-notice';
+import {
+  appliedRow,
+  assertConfirmedName,
+  assertReadAsExpected,
+  assertRulesOpen,
+  pairOf,
+  scoringChangesOf,
+  writeAuditedRules,
+  type NextRules,
+} from './audited-rules-write';
 import {
   buildCodedForkRow,
   buildSeededScoringConfig,
@@ -122,6 +136,14 @@ export interface EventLogoUpload {
   buffer: Buffer;
   filename: string;
   mimetype: string;
+}
+
+/** A move of a Tournament's ruleset pair: from the stored pair to the target. */
+interface RulesetPairMove {
+  fromCode: string;
+  fromVersion: string;
+  toCode: string;
+  toVersion: string;
 }
 
 /** The columns an Event write sets; leaving draft stamps `first_published_at` with `updated_at`. */
@@ -1447,12 +1469,13 @@ export class EventsService {
     const tournamentStatus = (tournament as { status: string }).status;
     const publicTournamentStatuses = ['published', 'running', 'completed'];
     const tournamentId = (tournament as { id: string }).id;
-    const rulesetRepin = await this.loadLatestRulesetRepin(tournamentId);
+    const deps = { supabase: this.supabase, registry: this.registry, logger: this.logger };
+    const rulesetRepins = await loadRulesetRepins(deps, tournamentId);
     const tournamentHeader: Record<string, unknown> = {
       id: tournament['id'],
-      // Public disclosure of an audited mid-event ruleset re-pin (null when the
-      // tournament was never re-pinned). Never silent — see the re-pin ceremony.
-      rulesetRepin,
+      // Public disclosure of every audited rules change, newest first (none:
+      // an empty list). Never silent — see the re-pin ceremony.
+      rulesetRepins,
       name: tournament['name'],
       weapon: tournament['weapon'],
       // The organiser's configured fighter-side colours, so the public bracket
@@ -3089,12 +3112,14 @@ export class EventsService {
     // and `GET /match-config` substituted DEFAULT_SCORING_CONFIG for NULL — so
     // a ruleset scoring head/torso/limb still got the two federal buttons.
     const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
+    const kind = await scoringKindOf(this.supabase, this.registry, code, version);
     // An explicit caller override still wins, merged the way a PATCH merges —
     // this stops the create DTO's `scoringConfig` being the silently-dropped
     // field it is today. Normalize once, so the stored blob is byte-identical
     // to what every other write path produces.
+    const seed = buildSeededScoringConfig(grammar, rulesetConfig, kind);
     const scoringConfig = normalizeTournamentScoringConfig(
-      deepMergeJson(buildSeededScoringConfig(grammar, rulesetConfig), dto.scoringConfig ?? {}),
+      deepMergeJson(seed, dto.scoringConfig ?? {}),
     );
 
     // Strict catalog-only weapon: a non-empty value must resolve to an active
@@ -3303,20 +3328,26 @@ export class EventsService {
         throw new ForbiddenException(
           'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
         );
-      // A built-in's other version keeps the stored settings; another code, or a
-      // club ruleset's other version, starts from that pair's. Any rulesetConfig
-      // sent beside it goes on top. No version named: the code's latest/current.
+      // A built-in's other version keeps the stored settings and buttons; another
+      // code, or a club ruleset's other version, starts from that pair's (ruling
+      // "Draft switch"; the display stays). What is sent beside it goes on top.
+      // No version named: the code's latest/current.
       const nextCode = dto.rulesetCode ?? currentCode ?? 'TF_v1';
       const nextVersion = await this.usableRulesetVersion(nextCode, dtoVersion, event, userId);
       updates['ruleset_version'] = nextVersion;
-      const settings = await this.settingsOfMove(
-        currentCode ?? 'TF_v1',
-        currentJson['ruleset_config'],
-        nextCode,
-        nextVersion,
-        dto.rulesetConfig,
-      );
-      updates['ruleset_config'] = validateTournamentRulesetConfig(nextCode, settings);
+      const next = await nextOfMove(this.rulesDeps(), {
+        fromCode: currentCode ?? 'TF_v1',
+        toCode: nextCode,
+        toVersion: nextVersion,
+        storedSettings: currentJson['ruleset_config'],
+        storedScoring: currentJson['scoring_config_json'],
+        patch: dto.rulesetConfig,
+      });
+      updates['ruleset_config'] = next.rulesetConfig;
+      if (next.seededScoring) {
+        const seeded = deepMergeJson(next.seededScoring, dto.scoringConfig ?? {});
+        updates['scoring_config_json'] = normalizeTournamentScoringConfig(seeded);
+      }
     } else if (dto.rulesetConfig !== undefined) {
       // Same ruleset — merge caller patch onto the existing stored config.
       // We backfill from resolveRulesetConfigDefaults first so the strict
@@ -3532,123 +3563,164 @@ export class EventsService {
   /**
    * Mid-event ruleset RE-PIN: the audited path for changing a tournament's
    * ruleset after results exist (the ordinary PATCH is blocked once matches are
-   * scored). Org-owner or platform super-admin only; completed/archived
-   * tournaments are hard-blocked. Records an append-only audit — from->to,
-   * per-bucket diff, justification, before/after placings — that the public
-   * event page discloses.
+   * scored). Org-owner or platform super-admin only; a completed or archived
+   * tournament is refused (`rules_change_closed`). The screen sends the rules it
+   * read (`expected`: 409 when they moved since) and the Tournament's name typed
+   * (`confirm`). One write (`writeAuditedRules`) records from->to, the per-bucket
+   * diff, every changed setting, the justification and the placings, which the
+   * public event page discloses.
    */
   async repinTournamentRuleset(
     tournamentId: string,
     dto: RepinTournamentRulesetDto,
     userId: string,
   ) {
-    const { data: current, error: readError } = await this.supabase.service
-      .from('tournaments')
-      .select('*')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (readError) throw new BadRequestException(readError.message);
-    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-
-    const row = current as Record<string, unknown>;
-    const event = await this.getEventById(row['event_id'] as string);
-    const orgId = (event as { organization_id: string }).organization_id;
-    await this.assertOwnerOrSuperAdmin(orgId, userId);
-
-    const status = String(row['status'] ?? '');
-    if (status === 'completed' || status === 'archived') {
-      throw new ForbiddenException(
-        'A completed or archived tournament cannot be re-pinned — its results are final.',
-      );
+    const { row, event } = await this.readForRepin(tournamentId, userId);
+    assertReadAsExpected(row, dto.expected);
+    assertConfirmedName(dto.confirm, row);
+    const move = await this.rulesetMoveOf(row, dto, event, userId);
+    if (move.toCode === move.fromCode && move.toVersion === move.fromVersion) {
+      throw new BadRequestException({
+        code: RULES_CHANGE_CODES.unchanged,
+        message: 'The tournament already uses this ruleset.',
+      });
     }
-
-    const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
-    const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
-    const toCode = dto.rulesetCode;
-    // Reject a target that will NOT resolve for scoring/standings before any
-    // mutation. resolveRulesetConfigDefaults + validateTournamentRulesetConfig
-    // will happily reseed a TF-shaped config for an unknown/typo code, the
-    // re-point would commit, and then every standings read 400s (the
-    // after-snapshot's resolver error is swallowed) — a live tournament silently
-    // bricked behind a 200. The fork path guards its precondition the same way
-    // (isSystemRuleset).
-    const toVersion = await this.usableRulesetVersion(toCode, dto.rulesetVersion, event, userId);
-    if (toCode === fromCode && toVersion === fromVersion) {
-      throw new BadRequestException('The tournament already uses this ruleset.');
-    }
-
-    const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
-    const newConfig = await this.settingsOfMove(fromCode, oldConfig, toCode, toVersion);
-    const diff = await this.computeRulesetBucketDiff(
-      { code: fromCode, version: fromVersion, config: oldConfig },
-      { code: toCode, version: toVersion, config: newConfig },
-    );
-
-    // Order matters: snapshot on the OLD pointer, re-point, snapshot on the NEW
-    // pointer, then record. The audit insert throws — an unaudited re-pin must
-    // not silently happen.
-    const before = await this.snapshotPlacings(tournamentId);
-    const updated = await this.repointWithSettings(tournamentId, toCode, toVersion, newConfig);
-    const after = await this.snapshotPlacings(tournamentId);
-    await this.writeRepinAudit({
-      eventId: row['event_id'] as string,
-      tournamentId,
+    const { next, diff, changes } = await this.planRulesetMove(row, move);
+    const deps = {
+      db: this.supabase.service,
+      rulesHash: this.rulesHash(),
+      snapshotPlacings: (id: string) => this.snapshotPlacings(id),
+      logger: this.logger,
+    };
+    const tournament = await writeAuditedRules(deps, {
+      kind: 'ruleset',
+      read: row,
+      next,
       actorUserId: userId,
-      fromCode,
-      fromVersion,
-      toCode,
-      toVersion,
       justification: dto.justification,
       diff,
-      before,
-      after,
+      changes,
     });
-    // Restamp the tournament's current hash, then the bouts NOT YET STARTED
-    // (operator, 2026-10-11): they are fought under the new ruleset. A bout that
-    // started keeps its pair and its hash, so match.hash != tournament.hash
-    // still marks the bouts fought before the re-pin.
-    await this.stampTournamentContentHash(tournamentId);
-    await restampUnstartedMatches(this.supabase.service, tournamentId);
-    return { tournament: updated, rulesetChange: { fromCode, toCode, diff } };
+    return {
+      tournament,
+      rulesetChange: { fromCode: move.fromCode, toCode: move.toCode, diff, changes },
+    };
   }
 
   /**
-   * Read-only preview of the per-bucket lineage diff a re-pin to
-   * (rulesetCode, rulesetVersion) WOULD produce — the same computation as
-   * {@link repinTournamentRuleset} minus every mutation, so the ceremony can show
-   * the lamps BEFORE the organiser confirms. Same owner/super-admin gate, and the
-   * same reject-unresolvable-target guard, so a bogus diff is never previewed.
+   * Read-only preview of what a re-pin to (rulesetCode, rulesetVersion) WOULD
+   * change — the lamps and every changed setting, planned by the SAME move as
+   * {@link repinTournamentRuleset} minus every mutation, so the ceremony shows
+   * what the record will hold BEFORE the organiser confirms. Same
+   * owner/super-admin gate, the same refusal of a completed or archived
+   * tournament, and the same reject-unresolvable-target guard, so a bogus diff
+   * or a change that cannot happen is never previewed.
    */
   async previewRepinBucketDiff(
     tournamentId: string,
     dto: { rulesetCode: string; rulesetVersion?: string },
     userId: string,
-  ): Promise<{ fromCode: string; toCode: string; diff: BucketDiff }> {
-    const { data: current, error: readError } = await this.supabase.service
+  ): Promise<{ fromCode: string; toCode: string; diff: BucketDiff; changes: RulesChange[] }> {
+    const { row, event } = await this.readForRepin(tournamentId, userId);
+    const move = await this.rulesetMoveOf(row, dto, event, userId);
+    const { diff, changes } = await this.planRulesetMove(row, move);
+    return { fromCode: move.fromCode, toCode: move.toCode, diff, changes };
+  }
+
+  /**
+   * The Tournament a re-pin or its preview reads, every column, once the caller may re-pin it and
+   * its rules are still open (`rules_change_closed` after the owner check, before anything else).
+   */
+  private async readForRepin(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ row: Record<string, unknown>; event: unknown }> {
+    const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('ruleset_code, ruleset_version, ruleset_config, event_id')
+      .select('*')
       .eq('id', tournamentId)
       .maybeSingle();
-    if (readError) throw new BadRequestException(readError.message);
-    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-
-    const row = current as Record<string, unknown>;
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const row = data as Record<string, unknown>;
     const event = await this.getEventById(row['event_id'] as string);
-    const orgId = (event as { organization_id: string }).organization_id;
-    await this.assertOwnerOrSuperAdmin(orgId, userId);
-
-    const fromCode = (row['ruleset_code'] as string | null) ?? 'TF_v1';
-    const fromVersion = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
-    const toCode = dto.rulesetCode;
-    const toVersion = await this.usableRulesetVersion(toCode, dto.rulesetVersion, event, userId);
-
-    const oldConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
-    const newConfig = await this.settingsOfMove(fromCode, oldConfig, toCode, toVersion);
-    const diff = await this.computeRulesetBucketDiff(
-      { code: fromCode, version: fromVersion, config: oldConfig },
-      { code: toCode, version: toVersion, config: newConfig },
+    await this.assertOwnerOrSuperAdmin(
+      (event as { organization_id: string }).organization_id,
+      userId,
     );
-    return { fromCode, toCode, diff };
+    assertRulesOpen(row);
+    return { row, event };
+  }
+
+  /**
+   * The pair a re-pin moves from and to. A target that will NOT resolve for
+   * scoring is refused here, before any mutation (`usableRulesetVersion`): a
+   * re-pin onto a typo code would commit, and every standings read would 400 —
+   * a live tournament bricked behind a 200.
+   */
+  private async rulesetMoveOf(
+    row: Record<string, unknown>,
+    dto: { rulesetCode: string; rulesetVersion?: string },
+    event: unknown,
+    userId: string,
+  ): Promise<RulesetPairMove> {
+    const toVersion = await this.usableRulesetVersion(
+      dto.rulesetCode,
+      dto.rulesetVersion,
+      event,
+      userId,
+    );
+    const from = pairOf(row);
+    return {
+      fromCode: from.code,
+      fromVersion: from.version,
+      toCode: dto.rulesetCode,
+      toVersion,
+    };
+  }
+
+  /**
+   * What a re-pin writes, its lamps and every changed setting: the re-pin and
+   * its preview plan the SAME move (`nextOfMove`), so the preview lists what the
+   * record holds. Every change is `locked`: a re-pin is always audited.
+   */
+  private async planRulesetMove(
+    row: Record<string, unknown>,
+    move: RulesetPairMove,
+  ): Promise<{ next: NextRules; diff: BucketDiff; changes: RulesChange[] }> {
+    const after = await nextOfMove(this.rulesDeps(), {
+      ...move,
+      storedSettings: row['ruleset_config'],
+      storedScoring: row['scoring_config_json'],
+    });
+    const next: NextRules = {
+      rulesetCode: move.toCode,
+      rulesetVersion: move.toVersion,
+      rulesetConfig: after.rulesetConfig,
+      scoringConfig: after.seededScoring ?? row['scoring_config_json'],
+    };
+    const fromConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
+    const diff = await this.computeRulesetBucketDiff(
+      { code: move.fromCode, version: move.fromVersion, config: fromConfig },
+      { code: move.toCode, version: move.toVersion, config: after.rulesetConfig },
+    );
+    const changes = await scoringChangesOf(this.rulesHash(), row, appliedRow(row, next));
+    return { next, diff, changes: changes.map((change) => ({ ...change, locked: true })) };
+  }
+
+  /** What the move of a pair reads: the database and the built-in rulesets. */
+  private rulesDeps() {
+    return { supabase: this.supabase, registry: this.registry };
+  }
+
+  /**
+   * The rules fingerprint, which a rules comparison cannot go without: its
+   * absence is the server's wiring fault, never the caller's.
+   */
+  private rulesHash(): RulesetHashService {
+    if (!this.rulesetHash)
+      throw new Error('Rules fingerprint unavailable; cannot compare the rules.');
+    return this.rulesetHash;
   }
 
   /**
@@ -3771,140 +3843,6 @@ export class EventsService {
     } catch {
       return [];
     }
-  }
-
-  /** The settings the PATCH's swap, the re-pin and its preview give the new pair. */
-  private async settingsOfMove(
-    fromCode: string,
-    stored: unknown,
-    toCode: string,
-    toVersion: string,
-    patch?: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const defaults = await resolveRulesetConfigDefaults(this.supabase, toCode, toVersion);
-    const builtIn = isSystemRuleset(this.registry, toCode, toVersion);
-    return settingsAfterMove({ fromCode, toCode, builtIn, stored, defaults, patch });
-  }
-
-  /** Re-point + store the settings of the move (the score-changing swap,
-   *  mirroring updateTournament's ruleset-change branch). */
-  private async repointWithSettings(
-    tournamentId: string,
-    toCode: string,
-    toVersion: string,
-    settings: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    const rulesetConfig = validateTournamentRulesetConfig(toCode, settings);
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .update({
-        ruleset_code: toCode,
-        ruleset_version: toVersion,
-        ruleset_config: rulesetConfig,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', tournamentId)
-      .select('*')
-      .single();
-    if (error || !data) throw new BadRequestException(error?.message ?? 'Re-pin failed');
-    return data as Record<string, unknown>;
-  }
-
-  /** Append the re-pin to its audit table (throws — the audit IS the ceremony)
-   *  and mirror a generic audit_log row for the super-admin trail (best-effort). */
-  private async writeRepinAudit(a: {
-    eventId: string;
-    tournamentId: string;
-    actorUserId: string;
-    fromCode: string;
-    fromVersion: string;
-    toCode: string;
-    toVersion: string;
-    justification: string;
-    diff: BucketDiff;
-    before: Array<Record<string, unknown>>;
-    after: Array<Record<string, unknown>>;
-  }): Promise<void> {
-    const actor = a.actorUserId === 'unknown' ? null : a.actorUserId;
-    const { error } = await this.supabase.service.from('tournament_ruleset_repins').insert({
-      event_id: a.eventId,
-      tournament_id: a.tournamentId,
-      actor_user_id: actor,
-      from_code: a.fromCode,
-      from_version: a.fromVersion,
-      to_code: a.toCode,
-      to_version: a.toVersion,
-      justification: a.justification,
-      bucket_diff: a.diff,
-      ranking_compatible: a.diff.rankingCompatible,
-      placings_before: a.before,
-      placings_after: a.after,
-    });
-    if (error) throw new BadRequestException(`Re-pin audit failed: ${error.message}`);
-    try {
-      await insertAuditLog(this.supabase.service, {
-        actorUserId: actor,
-        action: 'tournament.ruleset.repin',
-        entityType: 'tournament',
-        entityId: a.tournamentId,
-        payload: {
-          eventId: a.eventId,
-          fromCode: a.fromCode,
-          fromVersion: a.fromVersion,
-          toCode: a.toCode,
-          toVersion: a.toVersion,
-          rankingCompatible: a.diff.rankingCompatible,
-        },
-      });
-    } catch {
-      // swallow — tournament_ruleset_repins is the source of truth
-    }
-  }
-
-  /**
-   * The latest audited ruleset re-pin for a tournament, projected for PUBLIC
-   * disclosure on the event page: what changed (human labels), the organiser's
-   * reason, and whether rankings were affected. Null when never re-pinned.
-   * Read server-side (service_role) — the audit table is not anon-readable, so
-   * the API is the disclosure surface.
-   */
-  private async loadLatestRulesetRepin(
-    tournamentId: string,
-  ): Promise<Record<string, unknown> | null> {
-    const { data } = await this.supabase.service
-      .from('tournament_ruleset_repins')
-      .select(
-        'from_code, from_version, to_code, to_version, justification, ranking_compatible, bucket_diff, created_at',
-      )
-      .eq('tournament_id', tournamentId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (!data) return null;
-    const row = data as {
-      from_code: string;
-      from_version: string;
-      to_code: string;
-      to_version: string;
-      justification: string;
-      ranking_compatible: boolean;
-      bucket_diff: BucketDiff | null;
-      created_at: string;
-    };
-    const [fromLabel, toLabel] = await Promise.all([
-      resolveRulesetLabel(this.supabase, this.registry, row.from_code, row.from_version),
-      resolveRulesetLabel(this.supabase, this.registry, row.to_code, row.to_version),
-    ]);
-    return {
-      changedAt: row.created_at,
-      fromLabel,
-      toLabel,
-      justification: row.justification,
-      rankingCompatible: row.ranking_compatible,
-      // The materialised per-bucket diff (grammar/end-conditions/ranking) so the
-      // public page can show WHICH buckets changed, not just the boolean.
-      bucketDiff: row.bucket_diff ?? null,
-    };
   }
 
   async deleteTournament(tournamentId: string, userId: string) {

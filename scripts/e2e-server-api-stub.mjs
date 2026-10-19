@@ -110,6 +110,8 @@ function tournamentPage(eventSlug, tournamentSlug) {
       weapon: 'longsword',
       rulesetCode: 'TF_v1',
       status,
+      // The API always sends the list of rules changes; the page reads it without a guard.
+      rulesetRepins: [],
     },
     pools: pools ? [REFEREED_POOL] : [],
     bracketSlots: [],

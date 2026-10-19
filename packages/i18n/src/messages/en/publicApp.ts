@@ -1145,15 +1145,6 @@ export const publicApp = {
     },
     backToEventHome: 'Back to event home',
     recapTitle: 'Recap',
-    rulesetChangedTitle: 'Ruleset changed during this tournament',
-    rulesetChangedFromTo: 'Changed from {from} to {to}',
-    rulesetChangedReason: 'Reason',
-    rulesetChangedRankingAffected: 'This change affected how fighters are ranked.',
-    lineageGrammar: 'Grammar (targets, afterblow)',
-    lineageEndConditions: 'End conditions (cap, timing)',
-    lineageRanking: 'Ranking (scoring)',
-    lineageChanged: 'changed',
-    lineageSame: 'unchanged',
     poolMatchesSearch: 'Search matches (fighter, round, club…)',
     poolMatchesNoResults: 'No matches found.',
     participants: {
@@ -1210,6 +1201,19 @@ export const publicApp = {
       unseeded: 'Unseeded',
       referees: 'Referees',
     },
+  },
+  // The public notice of a Tournament's rules changes (`RulesChangesNotice`), one entry per change,
+  // newest first. Its lines (what changed) are worded by rulesChangeLines, shared with web-admin.
+  rulesChange: {
+    heading: 'Rules changed during this tournament',
+    rulesetChanged: 'Ruleset changed',
+    settingsChanged: 'Settings changed',
+    // A move to another ruleset; a move inside one ruleset; a settings change (same rules).
+    otherRuleset: '{fromLabel} {fromVersion} → {toLabel} {toVersion}',
+    otherVersion: '{label} {from} → {to}',
+    samePair: '{label} {version}',
+    changedOn: 'Changed on {date}',
+    reason: 'Reason: {reason}',
   },
   leagues: {
     backToHome: 'Back to home',

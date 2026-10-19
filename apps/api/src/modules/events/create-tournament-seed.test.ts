@@ -200,6 +200,41 @@ describe('createTournament — seeds scoring_config_json', () => {
     expect(config.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);
   });
 
+  it("seeds a formula club ruleset's own buttons when the create carries settings", async () => {
+    // The override is validated, and a validated config always carries a target list (the
+    // federal +2/+1): the seed read it and gave a head/limb formula the federal pad.
+    const { svc, seeded } = seedHarness({
+      customRow: {
+        tf_config: null,
+        is_system: false,
+        base_code: null,
+        targets: [
+          { name: 'Head', value: 3 },
+          { name: 'Limb', value: 1 },
+        ],
+        has_afterblow: false,
+        afterblow_mode: null,
+        afterblow_valuation: null,
+        afterblow_fixed_value: null,
+        match_format_defaults: null,
+        double_penalty_formula: null,
+      },
+    });
+    await svc.createTournament(
+      'e1',
+      {
+        slug: 's',
+        name: 'T',
+        rulesetCode: 'custom_head',
+        rulesetVersion: '1.0.0',
+        rulesetConfig: { matchFormat: { pointCap: 7 } },
+      } as never,
+      'u1',
+    );
+
+    expect(seeded().buttons.clean.map((b) => b.label)).toEqual(['+3', '+1']);
+  });
+
   it('records wizard_step 1, so the seed is not read as a completed wizard', async () => {
     let payload: Record<string, unknown> | null = null;
     const from = vi.fn().mockImplementation((table: string) => {
@@ -248,9 +283,15 @@ describe('buildSeededScoringConfig (pure)', () => {
     defaultAfterblowMode: 'deductive' as const,
     hasMaxDoubles: true,
   };
+  const RETARGETED = {
+    targets: [
+      { name: 'Deep', value: 4 },
+      { name: 'Shallow', value: 2 },
+    ],
+  };
 
   it('produces the federal pad from the grammar alone', () => {
-    const seed = buildSeededScoringConfig(tfGrammar, {}) as {
+    const seed = buildSeededScoringConfig(tfGrammar, {}, 'coded') as {
       buttons: { clean: Array<{ label: string }>; afterblow: Array<{ label: string }> };
       afterblowMode: string;
     };
@@ -262,17 +303,22 @@ describe('buildSeededScoringConfig (pure)', () => {
   it("prefers the resolved config's targets (super-admin tf_config override) over grammar metadata", () => {
     // For TF_v1 the static grammar is the federal 2/1, but a super-admin may
     // have retargeted it; the merged rulesetConfig carries the override.
-    const seed = buildSeededScoringConfig(tfGrammar, {
-      targets: [
-        { name: 'Deep', value: 4 },
-        { name: 'Shallow', value: 2 },
-      ],
-    }) as { buttons: { clean: Array<{ label: string }> } };
+    const seed = buildSeededScoringConfig(tfGrammar, RETARGETED, 'coded') as {
+      buttons: { clean: Array<{ label: string }> };
+    };
     expect(seed.buttons.clean.map((b) => b.label)).toEqual(['+4', '+2']);
   });
 
+  it('seeds a formula\'s own targets, whatever targets its settings carry (ruling "Formula targets")', () => {
+    // A formula scores its OWN targets; every validated Tournament config carries a target list.
+    const seed = buildSeededScoringConfig(tfGrammar, RETARGETED, 'formula') as {
+      buttons: { clean: Array<{ label: string }> };
+    };
+    expect(seed.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);
+  });
+
   it('ignores an empty config targets array and falls back to the grammar', () => {
-    const seed = buildSeededScoringConfig(tfGrammar, { targets: [] }) as {
+    const seed = buildSeededScoringConfig(tfGrammar, { targets: [] }, 'coded') as {
       buttons: { clean: Array<{ label: string }> };
     };
     expect(seed.buttons.clean.map((b) => b.label)).toEqual(['+2', '+1']);

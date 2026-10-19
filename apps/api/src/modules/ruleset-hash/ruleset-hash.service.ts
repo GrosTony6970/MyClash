@@ -16,10 +16,12 @@ import {
   resolveRulesetGrammar,
   type ResolvedRulesetGrammar,
 } from '../events/ruleset-defaults';
+import { scoringStructureOf, type ScoringStructure } from './scoring-structure';
 
 type Row = Record<string, unknown>;
 
-interface TournamentHashRow {
+/** The columns of a Tournament its fingerprint reads: its scoring rules and its card pin. */
+export interface TournamentHashRow {
   id: string;
   event_id: string | null;
   ruleset_code: string | null;
@@ -30,16 +32,11 @@ interface TournamentHashRow {
   penalty_ruleset_version: string | null;
 }
 
-type ScoringStructure =
-  | { kind: 'coded'; engineCode: string; engineVersion: string }
-  | {
-      kind: 'formula';
-      scoreFormula: unknown;
-      constants: Record<string, number>;
-      tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
-      doublePenaltyFormula: unknown;
-      decisionEdition: string | null;
-    };
+/** The columns `scoringCanonicalOf` reads: the scoring rules alone. */
+export type TournamentScoringRow = Pick<
+  TournamentHashRow,
+  'ruleset_code' | 'ruleset_version' | 'ruleset_config' | 'scoring_config_json'
+>;
 
 /**
  * Computes a tournament's content-hash identity — a sha256 over the canonical
@@ -60,8 +57,15 @@ export class RulesetHashService {
   /** The (scoring, penalty) pair-hash for a tournament, or null if it is gone. */
   async computeTournamentContentHash(tournamentId: string): Promise<string | null> {
     const tournament = await this.loadTournament(tournamentId);
-    if (!tournament) return null;
-    const scoring = await this.buildScoringCanonical(tournament);
+    return tournament ? this.contentHashOf(tournament) : null;
+  }
+
+  /**
+   * The (scoring, penalty) pair-hash of a Tournament row as given, read from nowhere else: the
+   * audited rules write hashes the row it is about to write (`p_next` over the read row).
+   */
+  async contentHashOf(tournament: TournamentHashRow): Promise<string> {
+    const scoring = await this.scoringCanonicalOf(tournament);
     const penalty = await this.buildPenaltyCanonical(tournament);
     return createHash('sha256').update(stableStringify({ scoring, penalty })).digest('hex');
   }
@@ -161,7 +165,11 @@ export class RulesetHashService {
     return (data as TournamentHashRow | null) ?? null;
   }
 
-  private async buildScoringCanonical(t: TournamentHashRow): Promise<Record<string, unknown>> {
+  /**
+   * The scoring canonical of a Tournament row as given: what its fingerprint hashes, and what
+   * `scoringDiff` compares on each side of a rules change.
+   */
+  async scoringCanonicalOf(t: TournamentScoringRow): Promise<Record<string, unknown>> {
     const code = t.ruleset_code ?? 'TF_v1';
     const version = normalizeRulesetVersion(t.ruleset_version ?? '1');
     const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
@@ -173,7 +181,7 @@ export class RulesetHashService {
       (scoringConfig['afterblowMode'] as string | undefined) ??
       grammar.defaultAfterblowMode ??
       null;
-    const structure = await this.resolveScoringStructure(code, version);
+    const structure = await scoringStructureOf(this.supabase, this.registry, code, version);
     const grammarInput = grammarInputFrom(config, grammar, structure.kind);
     const input: ScoringBehaviourInput =
       structure.kind === 'coded'
@@ -203,66 +211,6 @@ export class RulesetHashService {
             forfeitPolicy: config['forfeitPolicy'] ?? null,
           };
     return canonicalizeScoringBehaviour(input);
-  }
-
-  /**
-   * Determine the scoring definition's kind + engine/formula, mirroring
-   * RulesetResolver's tiers: registry/system → coded engine token; a base_code
-   * fork → its base engine; a formula ruleset → its AST (from the pinned version
-   * snapshot, else the parent row).
-   */
-  private async resolveScoringStructure(code: string, version: string): Promise<ScoringStructure> {
-    if (this.registry.has(code, version))
-      return { kind: 'coded', engineCode: code, engineVersion: version };
-    const { data, error } = await this.supabase.service
-      .from('custom_rulesets')
-      .select(
-        'id, is_system, base_code, base_version, score_formula, constants, tiebreakers, double_penalty_formula, decision_edition',
-      )
-      .eq('code', code)
-      .maybeSingle();
-    // A failed read is not "no club ruleset": read as none, a club formula hashed as a coded engine.
-    if (error)
-      throw new Error(`Ruleset ${code}@${version} was not read for its hash: ${error.message}`);
-    const parent = data as Row | null;
-    if (!parent || parent['is_system']) {
-      return { kind: 'coded', engineCode: code, engineVersion: version };
-    }
-    if (parent['base_code']) {
-      return {
-        kind: 'coded',
-        engineCode: parent['base_code'] as string,
-        engineVersion: (parent['base_version'] as string | null) ?? '1.0.0',
-      };
-    }
-    const snapshot = await this.loadScoringSnapshot(parent['id'] as string, version);
-    // No published snapshot: the row itself, a draft included. The resolver
-    // scores a Tournament pinned to a draft as its draft (ruling 6), so the
-    // fingerprint describes that formula too.
-    const def = snapshot ?? parent;
-    return {
-      kind: 'formula',
-      scoreFormula: def['score_formula'],
-      constants: (def['constants'] as Record<string, number>) ?? {},
-      tiebreakers:
-        (def['tiebreakers'] as ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>) ??
-        [],
-      doublePenaltyFormula: def['double_penalty_formula'] ?? null,
-      // The edition a published version keeps (0228): the formula alone is not its behaviour.
-      decisionEdition: (def['decision_edition'] as string | null | undefined) ?? null,
-    };
-  }
-
-  private async loadScoringSnapshot(customRulesetId: string, version: string): Promise<Row | null> {
-    const { data, error } = await this.supabase.service
-      .from('custom_ruleset_versions')
-      .select('score_formula, constants, tiebreakers, double_penalty_formula, decision_edition')
-      .eq('custom_ruleset_id', customRulesetId)
-      .eq('version', version)
-      .maybeSingle();
-    // Read as "no snapshot", the hash described the parent row: the latest version, not this one.
-    if (error) throw new Error(`Snapshot ${version} was not read for its hash: ${error.message}`);
-    return (data as Row | null) ?? null;
   }
 
   private async buildPenaltyCanonical(

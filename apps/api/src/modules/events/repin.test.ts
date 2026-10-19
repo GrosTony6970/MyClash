@@ -1,236 +1,162 @@
 /**
- * Commit 3b of the re-pin audit slice: the audited mid-event ruleset re-pin.
+ * The audited mid-event ruleset re-pin (the audited settings change, revision 12 of its plan).
  *
- * repinTournamentRuleset is the ONLY sanctioned way to change a tournament's
- * ruleset after results exist (the ordinary PATCH is blocked by the commit-1
- * guard). It is org-owner/super-admin only, hard-blocks completed/archived, and
- * records an append-only tournament_ruleset_repins row (from->to, per-bucket
- * diff, mandatory justification, materialised before/after placings) plus a
- * best-effort audit_log mirror.
- *
- * The mock dispatches by TABLE NAME (the matches-mock lesson). PoolStandings is
- * injected as a stub so the before/after snapshot is deterministic.
+ * repinTournamentRuleset is the ONLY sanctioned way to change a tournament's ruleset after results
+ * exist. It hands the whole change to ONE database call (`repin_tournament_rules`, 0234), whose
+ * payload keys are pinned here against the migration that defines it; its refusals are in
+ * `repin.refusals.test.ts`, the harness in `repin.fixtures.ts`.
  */
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventsService } from './events.service';
-import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
 import type * as MatchRuleset from '../phases/match-ruleset';
+import { writesTo } from '../../common/testing/supabase-chain';
+import { lastFunctionBody, lastFunctionParams } from '../../common/testing/migration-function';
+import { REASON, RPC, assertOrgRole, dto, harness, type Row } from './repin.fixtures';
 
-// The restamp of the bouts not yet started has its own tests
-// (`match-ruleset.restamp.test.ts`). Here: which door calls it, and when.
 vi.mock('../phases/match-ruleset', async (original) => ({
   ...(await original<typeof MatchRuleset>()),
   restampUnstartedMatches: vi.fn(() => Promise.resolve()),
 }));
-/** The Tournaments whose bouts not yet started were stamped again, in order. */
-const restamped = () => vi.mocked(restampUnstartedMatches).mock.calls.map((call) => call[1]);
 
-const assertOrgRole = vi.fn();
-const EVENT_ROW = { id: 'e1', organization_id: 'org-1' };
+/** The keys the function body reads off one of its jsonb parameters. */
+const keysRead = (param: string) =>
+  [...lastFunctionBody(RPC).matchAll(new RegExp(`${param}->>?'(\\w+)'`, 'g'))]
+    .map((hit) => hit[1])
+    .sort();
 
-interface Captured {
-  repinInsert: Record<string, unknown> | null;
-  auditLogInsert: Record<string, unknown> | null;
-  tournamentUpdate: Record<string, unknown> | null;
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+  assertOrgRole.mockResolvedValue(undefined);
+});
 
-interface HarnessOpts {
-  current: Record<string, unknown>;
-  isSuperAdmin?: boolean;
-  /** false => the target ruleset does not resolve (unknown/draft/wrong version). */
-  resolverResolves?: boolean;
-  standingsRows?: Array<{
-    rank: number;
-    registrationId: string;
-    displayName: string;
-    stats: Record<string, unknown>;
-  }>;
-}
+describe('repinTournamentRuleset: one audited write', () => {
+  it('calls the database function with exactly the keys it reads', async () => {
+    const { svc, calls } = harness();
+    await svc.repinTournamentRuleset('t1', dto(), 'u1');
 
-function tournamentsChain(current: Record<string, unknown>, cap: Captured) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    update: vi.fn((p: Record<string, unknown>) => {
-      cap.tournamentUpdate = p;
-      return chain;
-    }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: current, error: null }),
-    single: vi
-      .fn()
-      .mockImplementation(() =>
-        Promise.resolve({ data: { ...current, ...(cap.tournamentUpdate ?? {}) }, error: null }),
-      ),
-  });
-  return chain;
-}
-
-function readChain(data: unknown) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
-  });
-  return chain;
-}
-
-function insertChain(onInsert: (p: Record<string, unknown>) => void) {
-  return {
-    insert: vi.fn((p: Record<string, unknown>) => {
-      onInsert(p);
-      return Promise.resolve({ error: null });
-    }),
-  };
-}
-
-function harness(opts: HarnessOpts) {
-  const cap: Captured = { repinInsert: null, auditLogInsert: null, tournamentUpdate: null };
-  const from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'tournaments') return tournamentsChain(opts.current, cap);
-    if (table === 'events') return readChain(EVENT_ROW);
-    // The row must carry `role`: resolvePlatformRole no longer filters on it in
-    // the query, it reads and parses it. A row without one holds no tier.
-    if (table === 'platform_roles') {
-      return readChain(opts.isSuperAdmin ? { user_id: 'u1', role: 'super_admin' } : null);
-    }
-    if (table === 'custom_rulesets') return readChain(null);
-    if (table === 'tournament_ruleset_repins') return insertChain((p) => (cap.repinInsert = p));
-    if (table === 'audit_log') return insertChain((p) => (cap.auditLogInsert = p));
-    return readChain(null);
-  });
-  const poolStandings = {
-    getPoolStandings: vi.fn().mockResolvedValue({ rows: opts.standingsRows ?? [] }),
-  };
-  // The picker's scope, which also resolves the pair: false for a target that does not resolve.
-  const selectableRulesets = {
-    offeredVersion: vi.fn().mockResolvedValue(opts.resolverResolves === false ? null : '1.0.0'),
-    draftsOfferedTo: vi.fn().mockResolvedValue(opts.isSuperAdmin ?? false),
-  };
-  const registry = createRulesetRegistry();
-  const svc = new EventsService(
-    { service: { from } } as never,
-    { assertOrgRole } as never,
-    {} as never,
-    registry,
-    undefined,
-    undefined,
-    undefined,
-    poolStandings as never,
-    selectableRulesets as never,
-  );
-  return { svc, cap, poolStandings, selectableRulesets, registry };
-}
-
-const RUNNING_TF = {
-  id: 't1',
-  event_id: 'e1',
-  status: 'running',
-  ruleset_code: 'TF_v1',
-  ruleset_version: '1.0.0',
-  ruleset_config: { winBonus: 3 },
-};
-
-const REPIN_JUSTIFICATION = 'Wrong ruleset selected during setup; correcting to points cap.';
-const DTO = {
-  rulesetCode: 'Generic_PointsCap',
-  justification: REPIN_JUSTIFICATION,
-} as never;
-
-describe('repinTournamentRuleset', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    assertOrgRole.mockResolvedValue(undefined);
+    const [args] = calls();
+    expect(Object.keys(args!)).toEqual(lastFunctionParams(RPC));
+    const keysOf = (key: string) => Object.keys(args![key] as Row).sort();
+    expect(keysOf('p_expected')).toEqual(keysRead('p_expected'));
+    expect(keysOf('p_next')).toEqual(keysRead('p_next'));
+    expect(keysOf('p_audit')).toEqual(keysRead('p_audit'));
   });
 
-  it('re-points the tournament and records the audit with before/after placings', async () => {
-    const { svc, cap, poolStandings } = harness({
-      current: RUNNING_TF,
-      standingsRows: [{ rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } }],
+  it('sends the row as read, the rules to write and the record', async () => {
+    const { svc, calls } = harness();
+    await svc.repinTournamentRuleset('t1', dto(), 'u1');
+
+    const [args] = calls();
+    expect(args!['p_tournament_id']).toBe('t1');
+    expect(args!['p_expected']).toEqual({
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      ruleset_config: { winBonus: 3 },
+      scoring_config_json: null,
+      penalty_ruleset_id: null,
+      penalty_ruleset_version: null,
     });
-
-    await svc.repinTournamentRuleset('t1', DTO, 'u1');
-
-    // Owner gate on the OWNER role (higher than the fork's admin bar).
-    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'u1', 'owner');
-    // Re-pointed to the new ruleset with a reseeded config.
-    expect(cap.tournamentUpdate?.['ruleset_code']).toBe('Generic_PointsCap');
-    expect(cap.tournamentUpdate?.['ruleset_config']).toBeDefined();
-    // Before + after both snapshotted (two calls) from the standings service.
-    expect(poolStandings.getPoolStandings).toHaveBeenCalledTimes(2);
-
-    const audit = cap.repinInsert!;
-    expect(audit['from_code']).toBe('TF_v1');
-    expect(audit['to_code']).toBe('Generic_PointsCap');
-    expect(audit['justification']).toBe(REPIN_JUSTIFICATION);
-    expect(typeof audit['ranking_compatible']).toBe('boolean');
-    expect(audit['bucket_diff']).toMatchObject({
-      grammar: expect.any(String),
-      endConditions: expect.any(String),
-      ranking: expect.any(String),
+    const next = args!['p_next'] as Row;
+    expect(next).toMatchObject({ ruleset_code: 'Generic_PointsCap', ruleset_version: '1.1.0' });
+    expect(next['ruleset_content_hash']).toMatch(/^[0-9a-f]{64}$/);
+    const audit = args!['p_audit'] as Row;
+    // The record's Event is the locked row's, never one the caller names.
+    expect(audit).not.toHaveProperty('event_id');
+    expect(audit).toMatchObject({
+      actor_user_id: 'u1',
+      kind: 'ruleset',
+      from_code: 'TF_v1',
+      from_version: '1.0.0',
+      to_code: 'Generic_PointsCap',
+      to_version: '1.1.0',
+      justification: REASON,
+      ranking_compatible: false,
+      placings_before: [
+        { rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } },
+      ],
+      config_before: { rulesetConfig: { winBonus: 3 }, scoringConfig: null },
+      config_after: {
+        rulesetConfig: next['ruleset_config'],
+        scoringConfig: next['scoring_config_json'],
+      },
     });
-    expect(audit['placings_before']).toEqual([
-      { rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } },
+    const changes = audit['changes'] as Array<{ path: string; locked: boolean }>;
+    expect(changes.map((change) => change.path)).toContain('engine');
+    expect(changes.every((change) => change.locked)).toBe(true);
+  });
+
+  it('writes nothing else itself, fills the placings after by the record id, and mirrors it', async () => {
+    const { svc, db, row } = harness();
+    const { tournament } = await svc.repinTournamentRuleset('t1', dto(), 'u1');
+
+    expect(writesTo(db, 'tournaments')).toEqual([]);
+    const fills = writesTo(db, 'tournament_ruleset_repins');
+    expect(fills.map((write) => [write.op, write.row, write.filters[0]?.args])).toEqual([
+      ['update', { placings_after: expect.any(Array) }, ['id', 'repin-1']],
     ]);
-    expect(audit['placings_after']).toBeInstanceOf(Array);
-    // Generic vs TF changes the ranking bucket → not compatible.
-    expect(audit['ranking_compatible']).toBe(false);
-
-    // Best-effort mirror in the generic audit log.
-    expect(cap.auditLogInsert?.['action']).toBe('tournament.ruleset.repin');
-    expect(cap.auditLogInsert?.['entity_id']).toBe('t1');
+    const [mirror] = writesTo(db, 'audit_log');
+    expect(mirror?.row).toMatchObject({
+      action: 'tournament.ruleset.repin',
+      entity_id: 't1',
+      payload_json: {
+        repinId: 'repin-1',
+        kind: 'ruleset',
+        eventId: 'e1',
+        fromCode: 'TF_v1',
+        fromVersion: '1.0.0',
+        toCode: 'Generic_PointsCap',
+      },
+    });
+    // The row as written, read back (never the row read before); the database stamped the bouts.
+    expect(tournament).toMatchObject({ ruleset_code: 'Generic_PointsCap' });
+    expect(tournament).not.toBe(row);
+    expect(row['ruleset_content_hash']).toBe('stale');
+    expect(tournament['ruleset_content_hash']).not.toBe('stale');
+    expect(vi.mocked(restampUnstartedMatches)).not.toHaveBeenCalled();
   });
 
-  it('hard-blocks a completed tournament and writes nothing', async () => {
-    const { svc, cap } = harness({ current: { ...RUNNING_TF, status: 'completed' } });
-    await expect(svc.repinTournamentRuleset('t1', DTO, 'u1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    expect(cap.tournamentUpdate).toBeNull();
-    expect(cap.repinInsert).toBeNull();
-  });
-
-  it('rejects a no-op re-pin to the same ruleset', async () => {
-    const { svc } = harness({ current: RUNNING_TF });
-    await expect(
-      svc.repinTournamentRuleset(
-        't1',
-        { rulesetCode: 'TF_v1', rulesetVersion: '1.0.0', justification: 'x'.repeat(12) } as never,
-        'u1',
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+  it('leaves no drift: the hash written is the fingerprint of the row written', async () => {
+    const { svc, rulesHash } = harness();
+    await svc.repinTournamentRuleset('t1', dto(), 'u1');
+    expect((await rulesHash.describeTournamentDrift('t1')).drifted).toBe(false);
   });
 
   it('re-pins to the latest version of a built-in when none is named', async () => {
-    const { svc, cap } = harness({ current: RUNNING_TF });
-    const dto = { rulesetCode: 'TF_v1', justification: REPIN_JUSTIFICATION } as never;
-
-    await svc.repinTournamentRuleset('t1', dto, 'u1');
-
-    expect(cap.tournamentUpdate?.['ruleset_version']).toBe('1.1.0');
-    expect(cap.repinInsert?.['to_version']).toBe('1.1.0');
+    const { svc, calls } = harness();
+    await svc.repinTournamentRuleset('t1', dto({ rulesetCode: 'TF_v1' }), 'u1');
+    expect(calls()[0]!['p_next']).toMatchObject({ ruleset_version: '1.1.0' });
+    expect(calls()[0]!['p_audit']).toMatchObject({ to_version: '1.1.0' });
   });
 
-  it('rejects a re-pin to a target ruleset that does not resolve, before any mutation', async () => {
-    // e.g. a typo code or a wrong version — the resolver returns null, so the
-    // live tournament must not be bricked.
-    const { svc, cap } = harness({ current: RUNNING_TF, resolverResolves: false });
-    const unknown = { rulesetCode: 'custom_gone', justification: REPIN_JUSTIFICATION } as never;
-    await expect(svc.repinTournamentRuleset('t1', unknown, 'u1')).rejects.toBeInstanceOf(
-      BadRequestException,
+  it('re-pins a club ruleset named with no version at its current one', async () => {
+    const { svc, calls } = harness({ offered: '1.0.1' });
+    await svc.repinTournamentRuleset('t1', dto({ rulesetCode: 'custom_house' }), 'u1');
+    expect(calls()[0]!['p_audit']).toMatchObject({ to_code: 'custom_house', to_version: '1.0.1' });
+  });
+});
+
+describe('previewRepinBucketDiff', () => {
+  it('answers the lamps and the same changes the re-pin records, writing nothing', async () => {
+    const { svc, db, calls } = harness();
+    const preview = await svc.previewRepinBucketDiff(
+      't1',
+      { rulesetCode: 'Generic_PointsCap' },
+      'u1',
     );
-    expect(cap.tournamentUpdate).toBeNull();
-    expect(cap.repinInsert).toBeNull();
+    expect(calls()).toEqual([]);
+    expect(db.writes).toEqual([]);
+    expect(preview).toMatchObject({ fromCode: 'TF_v1', toCode: 'Generic_PointsCap' });
+    expect(preview.diff.rankingCompatible).toBe(false);
+
+    const { rulesetChange } = await svc.repinTournamentRuleset('t1', dto(), 'u1');
+    expect(preview.changes).toEqual(rulesetChange.changes);
+    expect(calls()[0]!['p_audit']).toMatchObject({ changes: preview.changes });
   });
 
-  it("re-pins only to a club pair the picker offers the Tournament's organisation", async () => {
-    // The super-admin re-pins a Tournament of org-1: org-1's scope, drafts included.
-    const { svc, selectableRulesets } = harness({ current: RUNNING_TF, isSuperAdmin: true });
-    const target = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
-    await svc.repinTournamentRuleset('t1', target, 'u1').catch(() => undefined);
+  it('asks the picker for the same club pair as the re-pin', async () => {
+    const { svc, selectableRulesets } = harness({ isSuperAdmin: true });
+    await svc.repinTournamentRuleset('t1', dto({ rulesetCode: 'custom_house' }), 'u1');
     await svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_house' }, 'u1');
     expect(selectableRulesets.offeredVersion.mock.calls).toEqual([
       ['org-1', 'custom_house', undefined, { withDrafts: true }],
@@ -238,141 +164,15 @@ describe('repinTournamentRuleset', () => {
     ]);
   });
 
-  it('re-pins a club ruleset named with no version at its current one, and audits that version', async () => {
-    // Club A published again: 1.0.0 became 1.0.1 (ruling "No version named").
-    const { svc, cap, selectableRulesets } = harness({ current: RUNNING_TF });
-    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
-    const target = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
-
-    await svc.repinTournamentRuleset('t1', target, 'u1');
-
-    expect(cap.tournamentUpdate?.['ruleset_code']).toBe('custom_house');
-    expect(cap.tournamentUpdate?.['ruleset_version']).toBe('1.0.1');
-    expect(cap.repinInsert?.['to_version']).toBe('1.0.1');
-  });
-
-  it('previews that same version', async () => {
-    const { svc, selectableRulesets } = harness({ current: RUNNING_TF });
-    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
-    const diffed = vi.spyOn(
-      svc as unknown as { computeRulesetBucketDiff: (...a: unknown[]) => Promise<unknown> },
-      'computeRulesetBucketDiff',
-    );
-
-    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_house' }, 'u1');
-
-    expect(diffed.mock.calls[0]?.[1]).toMatchObject({ code: 'custom_house', version: '1.0.1' });
-  });
-
-  it('refuses a re-pin with no version named to the current version the Tournament already has', async () => {
-    const current = { ...RUNNING_TF, ruleset_code: 'custom_house', ruleset_version: '1.0.1' };
-    const { svc, selectableRulesets } = harness({ current });
-    selectableRulesets.offeredVersion.mockResolvedValue('1.0.1');
-    const same = { rulesetCode: 'custom_house', justification: REPIN_JUSTIFICATION } as never;
-
-    await expect(svc.repinTournamentRuleset('t1', same, 'u1')).rejects.toThrow(
-      'The tournament already uses this ruleset.',
-    );
-  });
-
-  it('allows a super-admin who is not the org owner', async () => {
-    // assertOrgRole would reject, proving the super-admin path bypasses it.
+  it('keeps the owner gate and the unresolvable-target refusal', async () => {
+    const unknown = harness({ offered: null });
+    await expect(
+      unknown.svc.previewRepinBucketDiff('t1', { rulesetCode: 'custom_gone' }, 'u1'),
+    ).rejects.toThrow('does not exist');
     assertOrgRole.mockRejectedValue(new ForbiddenException('not owner'));
-    const { svc, cap } = harness({ current: RUNNING_TF, isSuperAdmin: true });
-
-    await svc.repinTournamentRuleset('t1', DTO, 'u1');
-
-    expect(assertOrgRole).not.toHaveBeenCalled();
-    expect(cap.repinInsert?.['to_code']).toBe('Generic_PointsCap');
-  });
-});
-
-describe('repinTournamentRuleset: the bouts not yet started take the new ruleset (operator, 2026-10-11)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    assertOrgRole.mockResolvedValue(undefined);
-  });
-
-  it('stamps them again after the re-pin, once the audit is written', async () => {
-    const { svc, cap } = harness({ current: RUNNING_TF });
-    vi.mocked(restampUnstartedMatches).mockImplementationOnce(() => {
-      // An unaudited re-pin must not move a bout.
-      expect(cap.repinInsert).not.toBeNull();
-      return Promise.resolve();
-    });
-
-    await svc.repinTournamentRuleset('t1', DTO, 'u1');
-
-    expect(restamped()).toEqual(['t1']);
-  });
-
-  it('stamps nothing when the re-pin is refused', async () => {
-    const { svc } = harness({ current: { ...RUNNING_TF, status: 'completed' } });
-
-    await expect(svc.repinTournamentRuleset('t1', DTO, 'u1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-
-    expect(restamped()).toEqual([]);
-  });
-
-  it('a preview stamps nothing', async () => {
-    const { svc } = harness({ current: RUNNING_TF });
-
-    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'Generic_PointsCap' }, 'u1');
-
-    expect(restamped()).toEqual([]);
-  });
-});
-
-describe('previewRepinBucketDiff', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    assertOrgRole.mockResolvedValue(undefined);
-  });
-
-  it('returns the from/to + bucket diff WITHOUT mutating or auditing', async () => {
-    const { svc, cap } = harness({ current: RUNNING_TF });
-
-    const result = await svc.previewRepinBucketDiff('t1', DTO, 'u1');
-
-    expect(result.fromCode).toBe('TF_v1');
-    expect(result.toCode).toBe('Generic_PointsCap');
-    expect(result.diff).toMatchObject({
-      grammar: expect.any(String),
-      endConditions: expect.any(String),
-      ranking: expect.any(String),
-    });
-    // Generic vs TF changes the ranking bucket → not compatible.
-    expect(result.diff.rankingCompatible).toBe(false);
-    // Read-only: nothing written.
-    expect(cap.tournamentUpdate).toBeNull();
-    expect(cap.repinInsert).toBeNull();
-  });
-
-  it('previews the latest version of a built-in when none is named, as the re-pin does', async () => {
-    const { svc, registry } = harness({ current: RUNNING_TF });
-    const asked = vi.spyOn(registry, 'has');
-
-    await svc.previewRepinBucketDiff('t1', { rulesetCode: 'TF_v1' }, 'u1');
-
-    // The from-side (1.0.0) is read too; the target is the latest.
-    expect(asked).toHaveBeenCalledWith('TF_v1', '1.1.0');
-  });
-
-  it('enforces the same owner/super-admin gate as the re-pin', async () => {
-    assertOrgRole.mockRejectedValue(new ForbiddenException('not owner'));
-    const { svc } = harness({ current: RUNNING_TF });
-    await expect(svc.previewRepinBucketDiff('t1', DTO, 'u1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-  });
-
-  it('rejects a target that does not resolve, so no bogus preview is shown', async () => {
-    const { svc } = harness({ current: RUNNING_TF, resolverResolves: false });
-    const unknown = { rulesetCode: 'custom_gone' };
-    await expect(svc.previewRepinBucketDiff('t1', unknown, 'u1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const { svc } = harness();
+    await expect(
+      svc.previewRepinBucketDiff('t1', { rulesetCode: 'Generic_PointsCap' }, 'u1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

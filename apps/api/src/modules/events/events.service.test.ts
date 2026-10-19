@@ -136,7 +136,7 @@ function makeFullChain(result: unknown) {
 }
 
 // The public read-paths now resolve a ruleset label (resolveRulesetLabel →
-// custom_rulesets) and disclose any mid-event re-pin (loadLatestRulesetRepin →
+// custom_rulesets) and disclose any mid-event re-pin (loadRulesetRepins →
 // tournament_ruleset_repins) as order-independent SIDE lookups. Threading them
 // through each test's carefully-sequenced mockReturnValueOnce queue is brittle:
 // a single misaligned/overflowing query throws mid-test, and vi.clearAllMocks()

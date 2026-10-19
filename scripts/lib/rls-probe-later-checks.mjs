@@ -8,6 +8,7 @@ import { matchRulesFailures } from './match-rules-probe.mjs';
 import { programmeWritesFailures } from './programme-writes-probe.mjs';
 import { pushAddressFailures } from './push-address-probe.mjs';
 import { rosterHolderFailures } from './roster-holder-probe.mjs';
+import { rulesWriteFailures } from './rules-write-probe.mjs';
 import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
 
 /** What is wrong, as sentences; none when all is right. Each check leaves no row behind. */
@@ -19,5 +20,6 @@ export async function laterCheckFailures(tx) {
     ...(await rulesetPairFailures(tx)),
     ...(await matchRulesFailures(tx)),
     ...(await programmeWritesFailures(tx)),
+    ...(await rulesWriteFailures(tx)),
   ];
 }
