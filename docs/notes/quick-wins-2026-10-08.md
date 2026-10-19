@@ -3035,6 +3035,7 @@ Asked with a story in session 17f390f8, once each plan had converged in review (
 | Foundation | Last seen (J)       | Rules go A, then B, then A again; the tablet never got bout 9's own copy, and the wifi drops.                            | **The Tournament's rules as the tablet last read them**, with the "not confirmed" notice; not "refuse to open".             |
 | Foundation | Bout read (K)       | The bout read lands; a second read of its copy fails on a weak hall network.                                             | **The bout read carries the bout's own rules**; no separate route.                                                          |
 | Offline    | Edge 503 (L)        | A redeploy: the API restarts, the hall's wifi works, the referee taps Start and the edge answers 503.                    | **The Tournament's rules**: the tablet met a network. Only the made-up answer, or a fetch that fails, is "no network".      |
+| Foundation | Draft lock (M)      | Lyon edits its draft after its Tournament moved off it; a tablet that showed the draft starts bout 7 offline.            | **Lock it, like cards**: locked while a bout holds a copy naming it (earlier copies: while not started).                    |
 
 Rows `Black card on "ask"` to "Go" were asked in session 100141ce (14:35-15:40), after the foundation's
 review passes 4-6. "Unconfirmed sign-in" was asked in session 37e6b638 (18:14), after the cold review
@@ -3054,7 +3055,9 @@ same way; "Flake evidence" (14:50) after CI lost a share-button test on two atte
 session 9db6c7e9 (16:40), after the cold review of migration `0228`. "Last seen" (22:40) and "Bout
 read" (22:55) were asked in session 9f57c49e, before the foundation's commit 4: the first
 after its recon found that a copy found by digest keeps its older date, the second after the plan
-review's cold reviewer found the simpler shape.
+review's cold reviewer found the simpler shape. "Draft lock" (2026-10-19 11:30) was asked in session
+15569969 during the plan of the foundation's commit 6, once its review found that a bout's earlier
+copy could name a draft no one else held.
 
 ### Built on 2026-10-16: the server pass, first batch
 
@@ -3564,6 +3567,48 @@ Named, not fixed:
 - A kept copy is a server log line, not an audit entry the desk can see.
 - A desk Reset landing between a Start's clock row and its bout write leaves the bout running
   (today's race), now on the pad's copy.
+
+### Built on 2026-10-19: a bout's rules live only in its copy (the foundation, commit 6)
+
+A bout said which scoring engine it is scored by in two places: on its own row and in its copy of
+its rules. The scorer and the pad's "how does this engine end a bout" read the row; everything else
+read the copy, and the stamp kept the two in step by writing both. Now the copy is the only place:
+the three columns are gone, and the database refuses a bout without a copy. Ruling M (table above).
+
+| Commit     | What it does                                                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a2210bd4` | 6a: Generate and a shift move bouts with update-only SQL functions (0231): a bout deleted a moment before can no longer come back as a ghost.   |
+| `9cc90f0f` | 6b: 0232 drops the three columns, makes the copy NOT NULL, and locks a club ruleset version a bout holds (ruling M); the scorer reads the copy. |
+
+What the build chose, not ruled (settled by the plan, so not asked):
+
+- The programme's writes became update-only SQL functions; carrying the copy's id in the old
+  upsert would race the stamp.
+- The pad's and the staff answers' engine name and version are deleted, not moved: nothing read
+  them.
+- A copy's version is normalised in one place (a restored archive may hold "1").
+- The lock refuses an edit when the database answers neither yes nor no, as when a count fails.
+
+What ran: plan review to convergence (3 passes); red first (every writer test fails on "the three
+keys are absent", the scorer on "TF_v1, not Generic"); live on both database images (a bout stored
+with no copy gets one with its own engine; the perf fixture's 96 bouts hold their own Tournament's
+copy; live breaks 7 of 8 for 6a and 9 of 9 for 6b); falsifiers 18 of 18 (6a) and 28 of 28 (6b),
+each red with the same number of tests collected; cold reviews to no blocker and no major.
+
+The redeploy: the migrations run while the old API still serves. Until it is replaced, a hit is
+saved but not scored, and bout making, the programme, resets, offline Starts, the piste board and
+the club-ruleset doors fail. Nobody scores during the redeploy.
+
+Named, not fixed:
+
+- Generate's alert refresh has no test (before this slice too).
+- The programme functions take no Event scope (the API builds the ids from Event-scoped reads).
+- An organiser scorekeeper can still point a started bout at another copy of its Tournament
+  through the database's web door.
+- The club-ruleset lock is check-then-act, as the Tournament count and the card rule.
+- An archive made between 0229 and 0230 whose bouts hold no copy fails on restore (ruling I).
+- The time-limit result reads the copy's format without the engine's doubles rule (before this
+  slice).
 
 ### Fixed since they were named
 
