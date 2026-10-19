@@ -1,47 +1,48 @@
 /**
- * Check 10 of the RLS probe (`scripts/db-rls-probe.mjs`): a Tournament written through PostgREST
- * names only a ruleset its organisation is offered, and a ruleset code has one row (migration 0224,
- * operator rulings "Pair through the DB", "One tag", "Platform draft", "Exempt list").
+ * Check 10 of the RLS probe (`scripts/db-rls-probe.mjs`): an Event moved through PostgREST takes no
+ * Tournament to a club that may not use its ruleset, and a ruleset code has one row (migration
+ * 0224, operator rulings "Pair through the DB", "One tag", "Platform draft", "Exempt list").
  *
- * An organisation admin may write `tournaments` under `tournaments_write`. Signed in, they may name
- * a built-in, their club's own live ruleset or a shared live one; never another club's private
- * ruleset, nor an archived one or a draft, the platform's included, nor a club row marked
- * `is_system`; and no ruleset row, even one the API writes, may take a code another owner holds
- * (a decoy, or a squatter on a built-in's code). An edit that re-sends the pair passes
- * whatever became of the ruleset since, and so does a move to another Event of the same club; a
- * Tournament or an Event moved to another organisation takes only pairs the new one is offered.
- * The service role is exempt (the API decides at its doors); a role added later is not.
+ * Only the API writes a Tournament since 0233 (check 5 refuses the web door on privilege), so
+ * 0224's two Tournament triggers and their function are gone (ruling "0224 triggers"): this
+ * checks they stay gone. Events stay writable by an organisation admin: an Event moved to another
+ * organisation may keep only Tournaments whose rulesets the new one is offered (a built-in, a live
+ * ruleset shared platform-wide or its own live one); never an archived one or a draft, the
+ * platform's included, nor a row marked `is_system` by a club. No ruleset row, even one the API
+ * writes, may take a code another owner holds (a decoy, or a squatter on a built-in's code). The
+ * service role is exempt (the API decides at its doors); a role added later is not.
  */
 
 import { ORG_ADMIN } from './rls-probe-tables.mjs';
 
-// The Club, its admin and its two Events, and the published Tournament of `rls-probe-seed.sql`.
+// The Club of `rls-probe-seed.sql`, and the club and Events this check makes.
 const CLUB = 'aaaaaaaa-0000-4000-8000-000000000001';
-const OPEN = 'eeeeeeee-0000-4000-8000-00000000000a';
-const DRAFT = 'eeeeeeee-0000-4000-8000-00000000000b';
-const SEEDED = '77777777-0000-4000-8000-00000000000a';
 const OTHER = 'aaaaaaaa-0000-4000-8000-0000000000b2';
 const MOVED = 'eeeeeeee-0000-4000-8000-0000000000b2';
 const MOVABLE = 'eeeeeeee-0000-4000-8000-0000000000b3';
-const ELSEWHERE = 'eeeeeeee-0000-4000-8000-0000000000b4';
-// A signed-in account that is no member of the Club.
-const STRANGER = '66666666-6666-4666-8666-666666666666';
 
-const NOT_OFFERED = 'This ruleset is not available to this organisation';
 const MOVE_REFUSED = 'A Tournament of this Event names a ruleset the new organisation may not use';
 
 const RULESETS = [
   // [code, owner, shared, status, is_system]
   ['PROBE_OWN', CLUB, false, 'published', false],
-  ['PROBE_OWN_DRAFT', CLUB, false, 'draft', false],
-  ['PROBE_OWN_ARCHIVED', CLUB, false, 'archived', false],
-  // A club may set `is_system` on a row of its own: that does not make it a built-in.
-  ['PROBE_OWN_MARKED_SYSTEM', CLUB, false, 'published', true],
   ['PROBE_CLUB_SHARED', CLUB, true, 'published', false],
-  ['PROBE_SHARED', OTHER, true, 'published', false],
-  ['PROBE_SHARED_DRAFT', OTHER, true, 'draft', false],
-  ['PROBE_PLATFORM_DRAFT', null, true, 'draft', false],
+  // The other club's own live ruleset: offered to it by ownership.
   ['PROBE_PRIVATE', OTHER, false, 'published', false],
+  // Its own, but not live; the platform's draft; a row of its own marked `is_system`, which does
+  // not make it a built-in. Each is refused to it whatever its owner.
+  ['PROBE_OTHER_ARCHIVED', OTHER, false, 'archived', false],
+  ['PROBE_OTHER_DRAFT', OTHER, false, 'draft', false],
+  ['PROBE_PLATFORM_DRAFT', null, true, 'draft', false],
+  ['PROBE_OTHER_MARKED_SYSTEM', OTHER, false, 'published', true],
+];
+
+/** One Event of the Club per ruleset the other club is not offered, each with one Tournament. */
+const NOT_OFFERED = [
+  ['eeeeeeee-0000-4000-8000-0000000000c1', 'PROBE_OTHER_ARCHIVED'],
+  ['eeeeeeee-0000-4000-8000-0000000000c2', 'PROBE_OTHER_DRAFT'],
+  ['eeeeeeee-0000-4000-8000-0000000000c3', 'PROBE_PLATFORM_DRAFT'],
+  ['eeeeeeee-0000-4000-8000-0000000000c4', 'PROBE_OTHER_MARKED_SYSTEM'],
 ];
 
 // Thrown to end a savepoint on purpose: the rows inside it end with it.
@@ -71,18 +72,14 @@ export async function attempt(tx, role, statement, sub = ORG_ADMIN) {
 
 const asAdmin = (tx, statement) => attempt(tx, 'authenticated', statement);
 
-const insertWith = (code) => (sp) => sp`
-  INSERT INTO tournaments (event_id, slug, name, ruleset_code, ruleset_version, status)
-  VALUES (${OPEN}, ${`probe-${code.toLowerCase()}`}, 'Probe', ${code}, '1.0.0', 'draft')`;
-
 /** Refused by 0224 itself: its error code AND its words, not a CHECK or a trigger of another rule. */
 const refusedBy = (error, message) => error?.code === '23514' && error.message === message;
 
 /**
- * A signed-in write of `tournaments` loops through the RLS helpers of its policy checks today
- * ("stack depth limit exceeded", ruling 111a leaves it latent), so the write never lands. The day
- * the loop is fixed is the day the trigger matters: the helpers run as SECURITY DEFINER here,
- * inside the savepoint, which the probe always rolls back.
+ * A signed-in write of `events` loops through the RLS helpers of its policy checks today ("stack
+ * depth limit exceeded", ruling 111a leaves it latent), so the write never lands. The day the loop
+ * is fixed is the day the trigger matters: the helpers run as SECURITY DEFINER here, inside the
+ * savepoint, which the probe always rolls back.
  */
 const LOOPING_HELPERS = [
   'is_super_admin()',
@@ -91,43 +88,37 @@ const LOOPING_HELPERS = [
   'has_org_role(uuid, text)',
 ];
 
+/** As the owner: the rulesets, the other club with the Club's admin in it, and two Events. */
 async function seedInside(sp) {
   for (const helper of LOOPING_HELPERS)
     await sp.unsafe(`ALTER FUNCTION public.${helper} SECURITY DEFINER`);
   await sp`INSERT INTO organizations (id, slug, name) VALUES (${OTHER}, 'rls-probe-other', 'Other')`;
+  await sp`INSERT INTO organization_members (organization_id, user_id, role) VALUES (${OTHER}, ${ORG_ADMIN}, 'admin')`;
   for (const [code, owner, shared, status, system] of RULESETS)
     await sp`
       INSERT INTO custom_rulesets
         (code, version, name, status, owner_organization_id, public_visibility, is_system,
          decision_edition)
       VALUES (${code}, '1.0.0', ${code}, ${status}, ${owner}, ${shared}, ${system}, '2026-10')`;
-}
-
-async function writeFailures(sp, failures) {
-  for (const code of ['TF_v1', 'PROBE_OWN', 'PROBE_SHARED']) {
-    const error = await asAdmin(sp, insertWith(code));
-    if (error) failures.push(`the Club's admin could not name ${code} (${error.message})`);
-  }
-  for (const code of [
-    'PROBE_OWN_DRAFT',
-    'PROBE_OWN_ARCHIVED',
-    'PROBE_OWN_MARKED_SYSTEM',
-    'PROBE_SHARED_DRAFT',
-    'PROBE_PLATFORM_DRAFT',
-    'PROBE_PRIVATE',
-  ]) {
-    const error = await asAdmin(sp, insertWith(code));
-    if (!refusedBy(error, NOT_OFFERED))
-      failures.push(
-        `the Club's admin named ${code} (${error?.message ?? 'no error'}): 0224 did not refuse it`,
-      );
-  }
-  const repin = await asAdmin(
-    sp,
-    (inner) => inner`UPDATE tournaments SET ruleset_code = 'PROBE_PRIVATE' WHERE id = ${SEEDED}`,
-  );
-  if (!refusedBy(repin, NOT_OFFERED))
-    failures.push(`the Club's admin re-pinned to PROBE_PRIVATE (${repin?.message ?? 'no error'})`);
+  for (const [id, slug] of [
+    [MOVED, 'rls-probe-moved'],
+    [MOVABLE, 'rls-probe-movable'],
+    ...NOT_OFFERED.map(([event, code]) => [event, `rls-probe-${code.toLowerCase()}`]),
+  ])
+    await sp`
+      INSERT INTO events (id, organization_id, slug, name, start_date, end_date, status, event_kind)
+      VALUES (${id}, ${CLUB}, ${slug}, ${slug}, '2026-10-01', '2026-10-01', 'draft', 'standard')`;
+  await sp`
+    INSERT INTO tournaments (event_id, slug, name, ruleset_code, ruleset_version)
+    VALUES
+      (${MOVED}, 'own', 'Own', 'PROBE_OWN', '1.0.0'),
+      (${MOVABLE}, 'built-in', 'Built-in', 'TF_v1', '1.1.0'),
+      (${MOVABLE}, 'shared', 'Shared', 'PROBE_CLUB_SHARED', '1.0.0'),
+      (${MOVABLE}, 'its-own', 'Its own', 'PROBE_PRIVATE', '1.0.0')`;
+  for (const [event, code] of NOT_OFFERED)
+    await sp`
+      INSERT INTO tournaments (event_id, slug, name, ruleset_code, ruleset_version)
+      VALUES (${event}, 'held', 'Held', ${code}, '1.0.0')`;
 }
 
 /** A row of the Club's own may not take a code another owner holds: no decoy, no squatter. */
@@ -149,119 +140,51 @@ async function codeFailures(sp, failures) {
   }
 }
 
-/** Only the app and a connection with no role skip the rule; a role added later is checked. */
-async function exemptFailures(sp, failures) {
-  const service = await attempt(sp, 'service_role', insertWith('PROBE_PRIVATE'));
-  if (service) failures.push(`the service role was refused PROBE_PRIVATE (${service.message})`);
-  await sp`CREATE ROLE rls_probe_new_role NOLOGIN`;
-  // A new role for the web door, with the signed-in user's grants.
-  await sp`GRANT authenticated TO rls_probe_new_role`;
-  const added = await attempt(sp, 'rls_probe_new_role', insertWith('PROBE_PRIVATE'));
-  if (!refusedBy(added, NOT_OFFERED))
-    failures.push(
-      `a role added later named PROBE_PRIVATE (${added?.message ?? 'no error'}): only the service role is exempt`,
-    );
-  // A writer RLS refuses never reaches the trigger, so it learns nothing of the rulesets it reads.
-  const stranger = await attempt(sp, 'authenticated', insertWith('PROBE_PRIVATE'), STRANGER);
-  if (stranger?.code !== '42501')
-    failures.push(
-      `a stranger to the Club got past RLS or heard the trigger (${stranger?.message ?? 'no error'})`,
-    );
-}
-
-/** A pair stored before its ruleset went out of reach: what may still be written around it. */
-async function storedPairFailures(sp, failures) {
-  await sp`UPDATE tournaments SET ruleset_code = 'PROBE_PRIVATE' WHERE id = ${SEEDED}`;
-  const rename = await asAdmin(
-    sp,
-    (inner) =>
-      inner`UPDATE tournaments SET name = 'Renamed', ruleset_code = 'PROBE_PRIVATE' WHERE id = ${SEEDED}`,
-  );
-  if (rename)
-    failures.push(`an edit that re-sends the stored pair was refused (${rename.message})`);
-  const version = await asAdmin(
-    sp,
-    (inner) => inner`UPDATE tournaments SET ruleset_version = '1.0.1' WHERE id = ${SEEDED}`,
-  );
-  if (!refusedBy(version, NOT_OFFERED))
-    failures.push(
-      `a version move kept another club's private ruleset (${version?.message ?? 'no error'})`,
-    );
-  const [{ id: archived }] = await sp`
-    INSERT INTO tournaments (event_id, slug, name, ruleset_code, ruleset_version)
-    VALUES (${OPEN}, 'probe-archived-move', 'Archived', 'PROBE_OWN_ARCHIVED', '1.0.0')
-    RETURNING id`;
-  const sameClub = await asAdmin(
-    sp,
-    (inner) => inner`UPDATE tournaments SET event_id = ${DRAFT} WHERE id = ${archived}`,
-  );
-  if (sameClub)
-    failures.push(
-      `a Tournament moved to another Event of its club, its own archived ruleset kept, was refused (${sameClub.message})`,
-    );
-}
-
-/** The admin of both clubs moves an Event, or a Tournament, to the other club. */
+/** The admin of both clubs moves an Event to the other club. */
 async function moveFailures(sp, failures) {
-  await sp`INSERT INTO organization_members (organization_id, user_id, role) VALUES (${OTHER}, ${ORG_ADMIN}, 'admin')`;
-  await sp`
-    INSERT INTO events (id, organization_id, slug, name, start_date, end_date, status, event_kind)
-    VALUES
-      (${MOVED}, ${CLUB}, 'rls-probe-moved', 'Moved', '2026-10-01', '2026-10-01', 'draft', 'standard'),
-      (${MOVABLE}, ${CLUB}, 'rls-probe-movable', 'Movable', '2026-10-01', '2026-10-01', 'draft', 'standard'),
-      (${ELSEWHERE}, ${OTHER}, 'rls-probe-elsewhere', 'Elsewhere', '2026-10-01', '2026-10-01', 'draft', 'standard')`;
-  const [{ id: own }] = await sp`
-    INSERT INTO tournaments (event_id, slug, name, ruleset_code, ruleset_version)
-    VALUES
-      (${MOVED}, 'own', 'Own', 'PROBE_OWN', '1.0.0'),
-      (${MOVABLE}, 'built-in', 'Built-in', 'TF_v1', '1.1.0'),
-      (${MOVABLE}, 'shared', 'Shared', 'PROBE_CLUB_SHARED', '1.0.0')
-    RETURNING id`;
-  const across = await asAdmin(
-    sp,
-    (inner) => inner`UPDATE tournaments SET event_id = ${ELSEWHERE} WHERE id = ${own}`,
-  );
-  if (!refusedBy(across, NOT_OFFERED))
+  const move = (inner) => inner`UPDATE events SET organization_id = ${OTHER} WHERE id = ${MOVED}`;
+  const refused = await asAdmin(sp, move);
+  if (!refusedBy(refused, MOVE_REFUSED))
     failures.push(
-      `a Tournament moved to another club's Event kept its club's private ruleset (${across?.message ?? 'no error'})`,
+      `an Event moved to a club its Tournament's ruleset is private from (${refused?.message ?? 'no error'})`,
     );
-  const move = await asAdmin(
-    sp,
-    (inner) => inner`UPDATE events SET organization_id = ${OTHER} WHERE id = ${MOVED}`,
-  );
-  if (!refusedBy(move, MOVE_REFUSED))
-    failures.push(
-      `an Event moved to a club its Tournament's ruleset is private from (${move?.message ?? 'no error'})`,
+  for (const [event, code] of NOT_OFFERED) {
+    const held = await asAdmin(
+      sp,
+      (inner) => inner`UPDATE events SET organization_id = ${OTHER} WHERE id = ${event}`,
     );
+    if (!refusedBy(held, MOVE_REFUSED))
+      failures.push(
+        `an Event moved to a club that is not offered ${code} (${held?.message ?? 'no error'})`,
+      );
+  }
   const allowed = await asAdmin(
     sp,
     (inner) => inner`UPDATE events SET organization_id = ${OTHER} WHERE id = ${MOVABLE}`,
   );
   if (allowed)
     failures.push(
-      `an Event whose Tournaments name a built-in and a ruleset its club shares could not move (${allowed.message})`,
+      `an Event whose Tournaments name a built-in, a ruleset its club shares and the new club's own could not move (${allowed.message})`,
     );
-  const app = await attempt(
-    sp,
-    'service_role',
-    (inner) => inner`UPDATE events SET organization_id = ${OTHER} WHERE id = ${MOVED}`,
-  );
+  const app = await attempt(sp, 'service_role', move);
   if (app) failures.push(`the service role could not move an Event (${app.message})`);
+  await sp`CREATE ROLE rls_probe_new_role NOLOGIN`;
+  // A new role for the web door, with the signed-in user's grants.
+  await sp`GRANT authenticated TO rls_probe_new_role`;
+  const added = await attempt(sp, 'rls_probe_new_role', move);
+  if (!refusedBy(added, MOVE_REFUSED))
+    failures.push(
+      `a role added later moved the Event (${added?.message ?? 'no error'}): only the service role is exempt`,
+    );
 }
 
-const FUNCTIONS = [
-  'ruleset_code_offered_to(text, uuid)',
-  'ruleset_pair_in_its_club()',
-  'ruleset_pairs_follow_event_move()',
-];
-// Each trigger and its table: a trigger's name is unique per table only.
-const TRIGGERS = {
-  tournaments_ruleset_pair_insert: 'tournaments',
-  tournaments_ruleset_pair_update: 'tournaments',
-  events_ruleset_pairs_follow_move: 'events',
-};
+const FUNCTIONS = ['ruleset_code_offered_to(text, uuid)', 'ruleset_pairs_follow_event_move()'];
+const DROPPED_TRIGGERS = ['tournaments_ruleset_pair_insert', 'tournaments_ruleset_pair_update'];
 
-/** The running database, whatever spelling a later migration used: definer, grants, triggers on. */
+/**
+ * The running database, whatever spelling a later migration used: definer, grants, the Event-move
+ * trigger on; the Tournament triggers and their function gone (0233).
+ */
 async function catalogueFailures(sp, failures) {
   for (const fn of FUNCTIONS) {
     const [row] = await sp`
@@ -272,13 +195,21 @@ async function catalogueFailures(sp, failures) {
     if (!row.definer) failures.push(`${fn} is not SECURITY DEFINER`);
     if (row.anon || row.authenticated) failures.push(`${fn} may be called over the web door`);
   }
-  for (const [name, table] of Object.entries(TRIGGERS)) {
-    const [row] = await sp`
-      SELECT tgenabled, (tgtype::int & 2) = 0 AS after
-      FROM pg_trigger WHERE tgname = ${name} AND tgrelid = ${`public.${table}`}::regclass`;
-    if (!row || row.tgenabled !== 'O' || !row.after)
-      failures.push(`trigger ${name} is missing, switched or not AFTER (${JSON.stringify(row)})`);
-  }
+  const [trigger] = await sp`
+    SELECT tgenabled, (tgtype::int & 2) = 0 AS after
+    FROM pg_trigger
+    WHERE tgname = 'events_ruleset_pairs_follow_move' AND tgrelid = 'public.events'::regclass`;
+  if (!trigger || trigger.tgenabled !== 'O' || !trigger.after)
+    failures.push(
+      `trigger events_ruleset_pairs_follow_move is missing, switched or not AFTER (${JSON.stringify(trigger)})`,
+    );
+  const back = await sp`
+    SELECT tgname FROM pg_trigger
+    WHERE tgname = ANY (${DROPPED_TRIGGERS}) AND tgrelid = 'public.tournaments'::regclass`;
+  for (const { tgname } of back) failures.push(`the 0224 trigger ${tgname} is back on tournaments`);
+  const [{ fn }] =
+    await sp`SELECT to_regprocedure('public.ruleset_pair_in_its_club()')::text AS fn`;
+  if (fn !== null) failures.push('the 0224 function ruleset_pair_in_its_club() is back');
 }
 
 /** What is wrong, as sentences; none when all is right. Leaves no row behind. */
@@ -288,10 +219,7 @@ export async function rulesetPairFailures(tx) {
     await tx.savepoint(async (sp) => {
       await catalogueFailures(sp, failures);
       await seedInside(sp);
-      await writeFailures(sp, failures);
       await codeFailures(sp, failures);
-      await exemptFailures(sp, failures);
-      await storedPairFailures(sp, failures);
       await moveFailures(sp, failures);
       throw ROLLBACK;
     });

@@ -895,15 +895,17 @@ These rules keep a pinned definition from shifting under a tournament, or from l
   applies it at its four pair doors (`usableRulesetVersion`, `apps/api/src/modules/events/events.service.ts`,
   scoped by `SelectableRulesetsService.offeredVersion`), which also check the version; an archive
   restore has its own wider scope (the club's own ruleset at any status, `assertRestoredRulesetsUsable`,
-  `apps/api/src/modules/exports/archive-rulesets.ts`). Underneath, triggers on `tournaments` and
-  `events` (migration `0224`, `ruleset_code_offered_to`) refuse any other code to a writer signed in
-  through PostgREST, a platform draft included. A ruleset code has one row across every owner (the
-  same migration's unique index), so a club's own row cannot borrow another club's code, nor a
-  built-in's, and the resolver never finds two. The triggers run after the row is written (RLS refuses a
-  writer without authority first), check the code, not the version, and exempt only the service role
-  (the API, its workers and the restore) and direct logins, which set no role (migrations, seed
-  scripts, the probes, an operator's session). An unchanged
-  pair re-sent by an edit, or kept on a move to another Event of the same club, is let through.
+  `apps/api/src/modules/exports/archive-rulesets.ts`). Underneath, only the API writes a Tournament
+  (migration `0233`: no write policy, no write grant for anon or authenticated), and a trigger on
+  `events` (migration `0224`, `ruleset_code_offered_to`) refuses to a writer signed in through
+  PostgREST an Event move to an organisation a Tournament's ruleset code is not offered to, a
+  platform draft included. A ruleset code has one row across every owner (the same migration's
+  unique index), so a club's own row cannot borrow another club's code, nor a built-in's, and the
+  resolver never finds two. The trigger runs after the row is written (RLS refuses a writer without
+  authority first), checks the code, not the version, and exempts only the service role (the API,
+  its workers and the restore) and direct logins, which set no role (migrations, seed scripts, the
+  probes, an operator's session). 0224's two Tournament triggers went with the write policy (0233):
+  with no web writer left they could never fire.
 - **Delist ≠ delete.** Deleting a ruleset that any tournament pins would 400 that tournament's
   standings, so the service **soft-archives** it instead: the row leaves every picker and list but stays
   resolvable forever. Only an unreferenced ruleset is truly deleted. System and default rulesets cannot

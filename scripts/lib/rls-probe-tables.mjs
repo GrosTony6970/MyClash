@@ -135,6 +135,8 @@ export const API_ONLY_WRITES = [
   { table: 'tournament_ruleset_repins', key: 'id', row: '7e900000-0000-4000-8000-00000000000a' },
   // A bout's copy of its rules: written by the API's stamp only, and never changed (0229).
   { table: 'match_rules', key: 'id', row: 'ad000000-0000-4000-8000-00000000000a' },
+  // A Tournament, past the audited re-pin, the lock on its rules and the edit guards (0233).
+  { table: 'tournaments', key: 'id', row: '77777777-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';
