@@ -130,6 +130,30 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
       ).toBe(true);
   });
 
+  it('describes a club formula by its forfeit policy too (ruling "Forfeit")', async () => {
+    const clubFormula = {
+      maybeSingle: {
+        id: 'cr-1',
+        is_system: false,
+        base_code: null,
+        base_version: null,
+        score_formula: { type: 'var', name: 'victories' },
+        constants: {},
+        tiebreakers: [],
+        double_penalty_formula: null,
+        decision_edition: '2026-10',
+      },
+    };
+    // Two club-formula Tournaments that differ ONLY in their forfeit policy.
+    const onPolicy = (forfeitPolicy: unknown) => {
+      const state = stateFor({ rulesetConfig: { forfeitPolicy } });
+      (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_code = 'custom_club';
+      return { ...state, custom_rulesets: clubFormula };
+    };
+    const matchOnly = { reasons: { black_card_1: { tournamentState: 'match_only' } } };
+    expect(await hashOf(onPolicy(matchOnly))).not.toBe(await hashOf(onPolicy(null)));
+  });
+
   it('produces a deterministic 64-char sha256 hex', async () => {
     const a = await hashOf(stateFor());
     const b = await hashOf(stateFor());

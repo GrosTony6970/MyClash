@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   DEFAULT_SCORING_CONFIG,
   DEFAULT_TOURNAMENT_LOCK_CONFIG,
+  scoringButtonsOf,
   TOURNAMENT_SIDE_COLORS,
   type TournamentLockConfig,
   type TournamentScoringConfig,
@@ -24,16 +25,8 @@ function parseSideColor(value: unknown, fallback: TournamentSideColor): Tourname
   throw new BadRequestException(`Unsupported fighter side color: ${String(value)}`);
 }
 
-function ensureButtonArray<T>(value: unknown, fallback: T[]): T[] {
-  return Array.isArray(value) ? (value as T[]) : fallback;
-}
-
 export function normalizeTournamentScoringConfig(input: unknown): TournamentScoringConfig {
   const raw = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-  const buttons =
-    raw['buttons'] && typeof raw['buttons'] === 'object'
-      ? (raw['buttons'] as Record<string, unknown>)
-      : {};
   const display =
     raw['display'] && typeof raw['display'] === 'object'
       ? (raw['display'] as Record<string, unknown>)
@@ -50,10 +43,7 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
 
   return {
     afterblowMode: raw['afterblowMode'] === 'deductive' ? 'deductive' : 'full',
-    buttons: {
-      clean: ensureButtonArray(buttons['clean'], DEFAULT_SCORING_CONFIG.buttons.clean),
-      afterblow: ensureButtonArray(buttons['afterblow'], DEFAULT_SCORING_CONFIG.buttons.afterblow),
-    },
+    buttons: scoringButtonsOf(raw['buttons']),
     display: {
       sideColors: {
         red: parseSideColor(sideColors['red'], DEFAULT_SCORING_CONFIG.display.sideColors.red),

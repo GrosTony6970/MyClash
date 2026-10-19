@@ -167,6 +167,23 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
   },
 };
 
+/**
+ * A stored `buttons` object as the buttons that score: each list as stored when it is a list, else
+ * the default list. The ONE owner of that rule, for the API's normalizer and the rules diff
+ * (`buttonValuesOf`, `@myclash/rulesets`), which must read a stored config as the pad scores it.
+ */
+export function scoringButtonsOf(buttons: unknown): ScoringButtonConfig {
+  const stored = buttons && typeof buttons === 'object' ? (buttons as Record<string, unknown>) : {};
+  return {
+    clean: Array.isArray(stored['clean'])
+      ? (stored['clean'] as CleanButton[])
+      : DEFAULT_SCORING_CONFIG.buttons.clean,
+    afterblow: Array.isArray(stored['afterblow'])
+      ? (stored['afterblow'] as AfterblowButton[])
+      : DEFAULT_SCORING_CONFIG.buttons.afterblow,
+  };
+}
+
 export { computeAfterblowDeltas } from '@myclash/rules/pad';
 
 /**

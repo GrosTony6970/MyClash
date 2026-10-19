@@ -200,6 +200,7 @@ export class RulesetHashService {
             tiebreakers: structure.tiebreakers,
             doublePenaltyFormula: structure.doublePenaltyFormula,
             decisionEdition: structure.decisionEdition,
+            forfeitPolicy: config['forfeitPolicy'] ?? null,
           };
     return canonicalizeScoringBehaviour(input);
   }

@@ -81,23 +81,43 @@ export interface ByPhase<T> {
   finals: T;
 }
 
+/** The four format phases a per-phase key names (a Pool, a Swiss round, a bracket, the finals). */
+export type FormatPhase = 'pool' | 'swiss' | 'bracket' | 'finals';
+
+/**
+ * The format phase of a bout: which of the four per-phase keys it counts
+ * against. A medal match is identified by its LABEL rather than its bracket
+ * round, which is the part a second copy would most easily get wrong.
+ *
+ * Public because the rules lock asks it too: a finals key locks once a bout of
+ * the finals has started, so the lock and the engine must name a bout's format
+ * phase by one rule.
+ */
+export function formatPhaseOf(
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): FormatPhase {
+  if (phaseType === 'pool') return 'pool';
+  if (phaseType === 'swiss') return 'swiss';
+  if (isMedalMatchLabel(matchNumberLabel)) return 'finals';
+  return 'bracket';
+}
+
 /**
  * Which of the four per-phase values this match counts against.
  *
  * The dispatch had three hand-written copies — the time limit, best-of, and
- * whatever was added next — differing only in which record they read. A medal
- * match is identified by its LABEL rather than its bracket round, which is the
- * part a fourth copy would most easily get wrong.
+ * whatever was added next — differing only in which record they read. A Swiss
+ * round without its own value reads the pool's (see {@link ByPhase}).
  */
 function forPhase<T>(
   byPhase: ByPhase<T>,
   phaseType: PhaseType | undefined,
   matchNumberLabel: string | null | undefined,
 ): T {
-  if (phaseType === 'pool') return byPhase.pool;
-  if (phaseType === 'swiss') return byPhase.swiss ?? byPhase.pool;
-  if (isMedalMatchLabel(matchNumberLabel)) return byPhase.finals;
-  return byPhase.bracket;
+  const phase = formatPhaseOf(phaseType, matchNumberLabel);
+  if (phase === 'swiss') return byPhase.swiss ?? byPhase.pool;
+  return byPhase[phase];
 }
 
 /**

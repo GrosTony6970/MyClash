@@ -53,6 +53,7 @@ const formulaBase: FormulaScoringBehaviour = {
   ],
   doublePenaltyFormula: null,
   decisionEdition: '2026-10',
+  forfeitPolicy: null,
 };
 
 const hashOf = (input: CodedScoringBehaviour | FormulaScoringBehaviour) =>
@@ -147,6 +148,11 @@ describe('canonicalizeScoringBehaviour — formula', () => {
 
   it('changes when the end decision it was published with changes', () => {
     expect(hashOf({ ...formulaBase, decisionEdition: '2026-04' })).not.toBe(hashOf(formulaBase));
+  });
+
+  it('changes when the forfeit policy changes (ruling "Forfeit")', () => {
+    const forfeitPolicy = { reasons: { black_card_1: { tournamentState: 'match_only' } } };
+    expect(hashOf({ ...formulaBase, forfeitPolicy })).not.toBe(hashOf(formulaBase));
   });
 });
 
@@ -252,6 +258,7 @@ describe('coded vs formula never collide', () => {
       tiebreakers: [],
       doublePenaltyFormula: null,
       decisionEdition: null,
+      forfeitPolicy: null,
     });
     expect(coded).not.toBe(formula);
   });

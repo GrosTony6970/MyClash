@@ -54,6 +54,10 @@ export interface FormulaScoringBehaviour {
   /** The end decision it was published with (`decision_edition`, 0228). A coded
    *  engine's is named by its version, which `engine` already carries. */
   decisionEdition: string | null;
+  /** What a forfeit does to the standings: it scores a formula Tournament as it
+   *  scores a coded one, so it is part of its behaviour too (operator ruling
+   *  "Forfeit", 2026-10-19). Required, so every producer has to say it. */
+  forfeitPolicy: unknown;
 }
 
 export type ScoringBehaviourInput = CodedScoringBehaviour | FormulaScoringBehaviour;
@@ -113,6 +117,7 @@ export function canonicalizeScoringBehaviour(
     })),
     doublePenaltyFormula: input.doublePenaltyFormula ?? null,
     decisionEdition: input.decisionEdition ?? null,
+    forfeitPolicy: input.forfeitPolicy ?? null,
   };
 }
 

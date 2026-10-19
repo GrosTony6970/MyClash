@@ -30,6 +30,7 @@ export * from './platform-role';
 export * from './referee-availability';
 export * from './referee-capacity';
 export * from './round-code';
+export * from './rules-change';
 export * from './scoring-config';
 export * from './staff-role';
 export * from './venue';
