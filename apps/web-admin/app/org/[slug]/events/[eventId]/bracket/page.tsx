@@ -29,6 +29,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
+import { parseSideColors } from '../pools/_tabs/parse-side-colors';
 import { diffRoleAssignments } from './diff-role-assignments';
 import { seedingDriftBanner, type SeedingDrift } from './seeding-drift-banner';
 import { countPlayedMatches } from './regenerate-impact';
@@ -405,19 +406,18 @@ export default function BracketPage() {
     const controller = new AbortController();
     // Silent: the board falls back to the default side colours and no weapon
     // label, which is also what a tournament that carries neither renders.
-    void apiRequest<{
-      weapon?: string | null;
-      scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-    }>(apiUrl, `/api/v1/tournaments/${selectedTournament}`, {
-      signal: controller.signal,
-    }).then((r) => {
+    void apiRequest<{ weapon?: string | null }>(
+      apiUrl,
+      `/api/v1/tournaments/${selectedTournament}`,
+      { signal: controller.signal },
+    ).then((r) => {
       if (!r.ok) return;
       setTournamentWeapon(r.data.weapon ?? null);
-      const sc = r.data.scoring_config?.display?.sideColors;
-      if (sc) {
-        setRedColor((sc.red as ColorToken) ?? 'red');
-        setBlueColor((sc.blue as ColorToken) ?? 'blue');
-      }
+      // The row's own colours, through their one reader (it read `scoring_config`, a key the
+      // row does not hold, so the board always drew red and blue).
+      const sides = parseSideColors(r.data);
+      setRedColor(sides.red as ColorToken);
+      setBlueColor(sides.blue as ColorToken);
     });
     return () => controller.abort();
   }, [selectedTournament, apiUrl]);
