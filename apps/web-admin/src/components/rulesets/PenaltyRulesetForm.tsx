@@ -5,6 +5,8 @@ import { HelpTooltip } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { rulesetHelp } from './rulesetHelp';
 import { PenaltyEntriesEditor, type PenaltyEntryDraft } from './PenaltyEntriesEditor';
+import { BlackCardScoreField, ForfeitRulesFields } from './ForfeitRulesFields';
+import { CLUB_START_FORFEIT_RULES, type ForfeitRules } from '@myclash/types/forfeit-rules';
 
 export type AccumulationScope = 'match' | 'phase' | 'tournament';
 export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
@@ -24,6 +26,8 @@ export interface PenaltyRulesetFormValue {
   /** Scope of the forfeit triggered by 1st / 2nd+ black card. */
   firstBlackCardForfeit: BlackCardForfeitScope;
   secondBlackCardForfeit: BlackCardForfeitScope;
+  /** What a forfeit does (rulings 63-76). A copy keeps its source's (ruling 75). */
+  forfeitRules: ForfeitRules;
 }
 
 export const DEFAULT_PENALTY_RULESET_FORM_VALUES = {
@@ -32,6 +36,8 @@ export const DEFAULT_PENALTY_RULESET_FORM_VALUES = {
   blackCardPoints: 0,
   firstBlackCardForfeit: 'match' as BlackCardForfeitScope,
   secondBlackCardForfeit: 'tournament' as BlackCardForfeitScope,
+  // A brand-new club ruleset's: "disqualify after" is off (ruling 67).
+  forfeitRules: CLUB_START_FORFEIT_RULES,
 } as const;
 
 interface Props {
@@ -81,6 +87,7 @@ export function PenaltyRulesetForm({
   const [secondBlackCardForfeit, setSecondBlackCardForfeit] = useState<BlackCardForfeitScope>(
     initial.secondBlackCardForfeit,
   );
+  const [forfeitRules, setForfeitRules] = useState<ForfeitRules>(initial.forfeitRules);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -108,6 +115,7 @@ export function PenaltyRulesetForm({
       blackCardPoints,
       firstBlackCardForfeit,
       secondBlackCardForfeit,
+      forfeitRules,
     });
   }
 
@@ -234,7 +242,7 @@ export function PenaltyRulesetForm({
             />
           </label>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <label className="block text-xs font-semibold text-foreground-secondary">
             {t('admin.penaltyRulesets.firstBlackCardForfeit')}
             <select
@@ -265,8 +273,15 @@ export function PenaltyRulesetForm({
               ))}
             </select>
           </label>
+          <BlackCardScoreField
+            value={forfeitRules}
+            onChange={setForfeitRules}
+            disabled={disabled}
+          />
         </div>
       </div>
+
+      <ForfeitRulesFields value={forfeitRules} onChange={setForfeitRules} disabled={disabled} />
 
       <div>
         <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">

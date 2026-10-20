@@ -14,6 +14,7 @@ import {
 } from '../../../../../../../src/components/rulesets/PenaltyRulesetForm';
 import { PenaltyVersionHistory } from '../../../../../../../src/components/rulesets/PenaltyVersionHistory';
 import { PenaltyLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
+import type { ForfeitRules } from '@myclash/types/forfeit-rules';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -33,6 +34,7 @@ interface PenaltyRulesetDetail {
   black_card_points?: number | null;
   first_black_card_forfeit?: BlackCardForfeitScope | null;
   second_black_card_forfeit?: BlackCardForfeitScope | null;
+  forfeit_rules: ForfeitRules;
   penalty_ruleset_entries: Array<{
     id: string;
     group_number: number;
@@ -101,6 +103,7 @@ export default function OrgEditPenaltyRulesetPage() {
           secondBlackCardForfeit:
             data.second_black_card_forfeit ??
             DEFAULT_PENALTY_RULESET_FORM_VALUES.secondBlackCardForfeit,
+          forfeitRules: data.forfeit_rules,
           builtIn: data.built_in,
         });
       })
@@ -183,6 +186,7 @@ export default function OrgEditPenaltyRulesetPage() {
                     blackCardPoints: data.blackCardPoints,
                     firstBlackCardForfeit: data.firstBlackCardForfeit,
                     secondBlackCardForfeit: data.secondBlackCardForfeit,
+                    forfeitRules: data.forfeitRules,
                   },
                 });
                 if (!r.ok) {
