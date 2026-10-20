@@ -76,19 +76,39 @@ export async function resolveRulesetConfigDefaults(
     return staticDefaults;
   }
 
-  // Unknown to the static map — look it up in custom_rulesets. The parent row,
-  // whatever version is asked: only a ruleset's current version is offered.
+  // Unknown to the static map — look it up in custom_rulesets.
   const { data, error } = await supabase.service
     .from('custom_rulesets')
-    .select(CUSTOM_RULESET_CONFIG_COLUMNS)
+    .select(`id, ${CUSTOM_RULESET_CONFIG_COLUMNS}`)
     .eq('code', code)
     .maybeSingle();
   // A failed read is not "no settings": read as none, the defaults were written as {}.
   if (error)
     throw new Error(`The settings of ruleset ${code}@${version} were not read: ${error.message}`);
   if (!data) return {};
-  return codedConfigFromRow(data as CustomRulesetConfigRow);
+  const parent = data as CustomRulesetConfigRow & { id: string };
+  // A coded fork has no settings snapshot: its row is read, as the grammar is.
+  if (parent.base_code) return codedConfigFromRow(parent);
+  // A club formula's version is read as the scorer reads it (`resolveRulesetGrammar`): that
+  // version's snapshot when there is one, else the parent row (a draft, or a row older than the
+  // snapshots). The parent alone would seed an edited current version onto an older pin.
+  const snapshot = await supabase.service
+    .from('custom_ruleset_versions')
+    .select(CUSTOM_RULESET_VERSION_CONFIG_COLUMNS)
+    .eq('custom_ruleset_id', parent.id)
+    .eq('version', version)
+    .maybeSingle();
+  if (snapshot.error)
+    throw new Error(
+      `The settings of ruleset ${code}@${version} were not read: ${snapshot.error.message}`,
+    );
+  const own = snapshot.data as Pick<CustomRulesetConfigRow, VersionConfigColumn> | null;
+  return codedConfigFromRow(own ? { ...parent, ...own } : parent);
 }
+
+/** The settings a club formula's version snapshot holds (`custom_ruleset_versions`). */
+type VersionConfigColumn = 'match_format_defaults' | 'double_penalty_formula';
+const CUSTOM_RULESET_VERSION_CONFIG_COLUMNS = 'match_format_defaults, double_penalty_formula';
 
 /**
  * Read `tf_config` (Round 7) for a system ruleset from the custom_rulesets

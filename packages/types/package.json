@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./effective-rules": {
+      "types": "./dist/effective-rules.d.ts",
+      "default": "./dist/effective-rules.js"
     }
   },
   "scripts": {

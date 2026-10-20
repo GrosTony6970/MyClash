@@ -11171,7 +11171,7 @@ export interface components {
         tournamentPolicy?: {
           forfeitDrawsCount?: boolean;
           forfeitFighterBefore1stMatch?: boolean;
-          disqualifyAfter?: number;
+          disqualifyAfter?: number | null;
         };
         matchFormat?: {
           pointCap?: number;

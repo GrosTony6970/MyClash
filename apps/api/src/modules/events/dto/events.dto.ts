@@ -348,6 +348,16 @@ const createTournamentSchema = z
   .strict();
 export class CreateTournamentDto extends createZodDto(createTournamentSchema) {}
 
+/**
+ * A settings save may turn the forfeit rule off: `disqualifyAfter: null` removes the setting, and
+ * a missing one is off (operator rulings 48, 52). Update only: a create has no setting to remove.
+ */
+const updateTournamentRulesetConfigSchema = tournamentRulesetConfigSchema.extend({
+  tournamentPolicy: tournamentPolicySchema
+    .extend({ disqualifyAfter: z.number().int().min(1).max(10).nullable().optional() })
+    .optional(),
+});
+
 const updateTournamentSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
@@ -358,7 +368,7 @@ const updateTournamentSchema = z
     // Tournament scoring configuration (afterblow mode + button config)
     scoringConfig: z.record(z.string(), z.unknown()).optional(),
     // Tournament ruleset configuration, including shared match format settings
-    rulesetConfig: tournamentRulesetConfigSchema.optional(),
+    rulesetConfig: updateTournamentRulesetConfigSchema.optional(),
     // Tournament match lock and auto-lock configuration
     lockConfig: tournamentLockConfigSchema.optional(),
     penaltyRulesetId: z.uuid().nullish(),

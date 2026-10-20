@@ -14,6 +14,7 @@
  * queue, which desyncs the moment a query is added — the matches mock lesson.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { normalizeMatchFormatConfig } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { buildSeededScoringConfig } from './ruleset-defaults';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
@@ -233,6 +234,35 @@ describe('createTournament — seeds scoring_config_json', () => {
     );
 
     expect(seeded().buttons.clean.map((b) => b.label)).toEqual(['+3', '+1']);
+  });
+
+  it('stores only the settings sent on a formula club ruleset, none of TF_v1 (ruling 53)', async () => {
+    const { svc, rulesetConfig } = seedHarness({
+      customRow: {
+        tf_config: null,
+        is_system: false,
+        base_code: null,
+        match_format_defaults: { softClockLimitSeconds: 30 },
+        double_penalty_formula: null,
+      },
+    });
+    await svc.createTournament(
+      'e1',
+      {
+        slug: 's',
+        name: 'T',
+        rulesetCode: 'custom_head',
+        rulesetVersion: '1.0.0',
+        rulesetConfig: { matchFormat: { pointCap: 7 } },
+      } as never,
+      'u1',
+    );
+
+    // Its own seed (soft clock 30) with the cap sent on top; no winBonus, no forfeit rule: a
+    // formula has neither, and the parse would fill both.
+    expect(rulesetConfig()).toEqual({
+      matchFormat: normalizeMatchFormatConfig({ softClockLimitSeconds: 30, pointCap: 7 }),
+    });
   });
 
   it('records wizard_step 1, so the seed is not read as a completed wizard', async () => {

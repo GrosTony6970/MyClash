@@ -11,6 +11,9 @@ export * from './email-change-link';
 export * from './compensation';
 export * from './csv';
 export * from './date';
+// Types only: the root barrel ships to every page of every app, and the two readers beside these
+// types are for the API and the ruleset screens (`@myclash/types/effective-rules`).
+export type { EffectiveRules, EffectiveTfRules, RulesStart } from './effective-rules';
 export * from './event-kind';
 export * from './final-ranking';
 export * from './html';

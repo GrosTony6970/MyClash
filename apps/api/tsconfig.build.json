@@ -86,6 +86,9 @@
     "src/modules/events/repin-guard.fixtures.ts",
     // The audited re-pin's harness, shared by its two test files for the same reason.
     "src/modules/events/repin.fixtures.ts",
+    // The harness of a Tournament's rules as the doors write and read them, shared by its three
+    // test files. It imports vitest.
+    "src/modules/events/rules-write.fixtures.ts",
     "src/modules/penalties/penalties.void-black-card.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",

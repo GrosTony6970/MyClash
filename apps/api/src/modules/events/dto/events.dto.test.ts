@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UpdateTournamentDto } from './events.dto';
+import { CreateTournamentDto, UpdateTournamentDto } from './events.dto';
 
 /**
  * Regression guard for the tournament creation wizard. Step 2 PATCHes
@@ -118,5 +118,25 @@ describe('UpdateTournamentDto — logoUrl', () => {
 
   it('rejects a non-string logoUrl', () => {
     expect(schema.safeParse({ logoUrl: 12345 }).success).toBe(false);
+  });
+});
+
+describe("the forfeit rule's Off (ruling 52): a null removes it, on a save only", () => {
+  const off = { rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } } };
+
+  it('a save accepts it', () => {
+    expect(schema.safeParse(off).success).toBe(true);
+  });
+
+  it('a create refuses it: there is no setting to remove', () => {
+    const create = { name: 'Sabre', slug: 'sabre', ...off };
+    expect(CreateTournamentDto.schema.safeParse(create).success).toBe(false);
+  });
+
+  it('a save still refuses a key the policy does not have, and a count out of bounds', () => {
+    const policy = (p: Record<string, unknown>) => ({ rulesetConfig: { tournamentPolicy: p } });
+    expect(schema.safeParse(policy({ disqualifyAfter: 2, bogus: true })).success).toBe(false);
+    expect(schema.safeParse(policy({ disqualifyAfter: 11 })).success).toBe(false);
+    expect(schema.safeParse({ rulesetConfig: { bogus: 1 } }).success).toBe(false);
   });
 });

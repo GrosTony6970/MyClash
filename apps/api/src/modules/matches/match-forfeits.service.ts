@@ -12,6 +12,7 @@ import {
   resolveForfeitPolicy,
   type ForfeitReason,
 } from '@myclash/rulesets';
+import { disqualifyAfterOf } from '@myclash/types/effective-rules';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
@@ -1207,8 +1208,8 @@ export class MatchForfeitsService {
       if ((count ?? 0) === 0) return 'disqualified';
     }
 
-    const threshold = policy['disqualifyAfter'];
-    if (typeof threshold === 'number' && threshold > 0) {
+    const threshold = disqualifyAfterOf(rulesetConfig);
+    if (threshold !== null) {
       const { count } = await this.supabase.service
         .from('match_forfeits')
         .select('id', { count: 'exact', head: true })

@@ -425,6 +425,33 @@ describe('MatchForfeitsService', () => {
 
     expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
+
+  it('disqualifies nobody on a second forfeit when the rule is not stored: missing is off (ruling 48)', async () => {
+    // The history of the case above that disqualifies at two, with a policy that holds every
+    // switch but the rule. The schema's default of 2 must not be read in.
+    const supabase = mockSupabase({
+      matches: {
+        rows: [
+          matchRow({
+            phaseType: 'pool',
+            status: 'running',
+            tournamentPolicy: { forfeitDrawsCount: true },
+          }),
+        ],
+      },
+      match_forfeits: forfeitHistory([]),
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
+  });
 });
 
 describe('MatchForfeitsService — result overrides', () => {

@@ -41,7 +41,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
-import { readMatchConfig } from './match-config';
+import { readMatchConfig, withEffectiveRules } from './match-config';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -421,7 +421,8 @@ export class EventsController {
    * Returns the full tournament row. The tournament-creation wizard fetches
    * this on step 2 to hydrate the match-format form against the row just
    * created — without it the wizard 404s and shows the "Draft — step 2 of 4"
-   * resume banner instead of letting the operator continue.
+   * resume banner instead of letting the operator continue. Beside it, the
+   * rules in force (`effectiveRules`), which every settings screen shows.
    */
   @Get('tournaments/:id')
   @ApiBearerAuth()
@@ -429,7 +430,8 @@ export class EventsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getTournament(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    return this.events.getTournamentById(id, userId);
+    const row = await this.events.getTournamentById(id, userId);
+    return withEffectiveRules({ rulesets: this.rulesets }, row, () => this.events.rulesSeedOf(row));
   }
 
   /** POST /api/v1/tournaments/:id/logo — per-tournament logo upload. */

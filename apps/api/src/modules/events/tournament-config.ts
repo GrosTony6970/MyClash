@@ -84,11 +84,21 @@ export function validateTournamentRulesetConfig(
   rulesetCode: string,
   input: unknown,
 ): TournamentRulesetConfig {
+  return inEngineWords(() =>
+    rulesetCode === 'Generic_PointsCap'
+      ? GenericPointsCapConfigSchema.parse(input ?? {})
+      : TFv1ConfigSchema.parse(input ?? {}),
+  );
+}
+
+/**
+ * `read`, with a refusal of the engine's schemas answered as a 400 in the engine's own words. The
+ * ONE translation, for the settings parse and every engine function a settings write calls (the
+ * match format normalizer throws a raw ZodError, which would be a 500).
+ */
+export function inEngineWords<T>(read: () => T): T {
   try {
-    if (rulesetCode === 'Generic_PointsCap') {
-      return GenericPointsCapConfigSchema.parse(input ?? {});
-    }
-    return TFv1ConfigSchema.parse(input ?? {});
+    return read();
   } catch (error) {
     if (
       error &&

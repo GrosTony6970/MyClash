@@ -67,10 +67,15 @@ import type { BucketDiff, RulesetBucketInputs } from '@myclash/rulesets';
 import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
-  validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
-import { nextOfMove } from './ruleset-move-config';
+import {
+  nextOfMove,
+  rulesSeedOf,
+  settingsOfSave,
+  settingsOfSeed,
+  type RulesSeed,
+} from './ruleset-move-config';
 import { tournamentClockOf } from './tournament-clock';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
@@ -3092,18 +3097,19 @@ export class EventsService {
     const code = dto.rulesetCode ?? 'TF_v1';
     const version = await this.usableRulesetVersion(code, dto.rulesetVersion, event, userId);
     const rulesetDefaults = await resolveRulesetConfigDefaults(this.supabase, code, version);
+    const kind = await scoringKindOf(this.supabase, this.registry, code, version);
     // An explicit caller override wins, merged onto the defaults exactly the
-    // way updateTournament's ruleset-switch branch merges one. `rulesetConfig`
-    // was accepted by the create DTO and then silently discarded, so a caller
-    // pinning e.g. matchFormat.pointCap at creation watched it vanish — the
-    // same bug its sibling `scoringConfig` was fixed for on the line below.
+    // way a move to the pair merges one (`settingsOfSeed`: a club formula keeps
+    // only its own seed and the override, ruling "Club move", 2026-10-20).
+    // `rulesetConfig` was accepted by the create DTO and then silently
+    // discarded, so a caller pinning e.g. matchFormat.pointCap at creation
+    // watched it vanish — the same bug its sibling `scoringConfig` was fixed for.
     //
     // Validated ONLY when an override is present. The defaults alone are stored
-    // unvalidated today, and a custom ruleset can seed a partial config that the
-    // strict schema rejects (see the backfill note in updateTournament), so
-    // parsing them here would newly 400 creates that work today.
+    // unvalidated today (a club ruleset's seed is any shape), so parsing them
+    // here would newly 400 creates that work today.
     const rulesetConfig = dto.rulesetConfig
-      ? validateTournamentRulesetConfig(code, deepMergeJson(rulesetDefaults, dto.rulesetConfig))
+      ? settingsOfSeed({ code, kind, seed: rulesetDefaults, patch: dto.rulesetConfig })
       : rulesetDefaults;
 
     // Seed scoring_config_json from the ruleset's grammar, so the referee's pad
@@ -3112,7 +3118,6 @@ export class EventsService {
     // and `GET /match-config` substituted DEFAULT_SCORING_CONFIG for NULL — so
     // a ruleset scoring head/torso/limb still got the two federal buttons.
     const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
-    const kind = await scoringKindOf(this.supabase, this.registry, code, version);
     // An explicit caller override still wins, merged the way a PATCH merges —
     // this stops the create DTO's `scoringConfig` being the silently-dropped
     // field it is today. Normalize once, so the stored blob is byte-identical
@@ -3238,6 +3243,16 @@ export class EventsService {
     };
   }
 
+  /**
+   * What a Tournament on its pair starts from, at the PINNED version: the "Modified" badge and
+   * Reset compare with it (operator ruling 51). Read by `GET /tournaments/:id` beside
+   * `getTournamentById`, after its role check.
+   */
+  async rulesSeedOf(row: Record<string, unknown>): Promise<RulesSeed> {
+    const { code, version } = pairOf(row);
+    return rulesSeedOf(this.rulesDeps(), code, version);
+  }
+
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {
     // Read the full current row so we can deep-merge any nested JSONB fields the
     // caller included in the patch. Without this, a wizard step saving only one
@@ -3349,21 +3364,14 @@ export class EventsService {
         updates['scoring_config_json'] = normalizeTournamentScoringConfig(seeded);
       }
     } else if (dto.rulesetConfig !== undefined) {
-      // Same ruleset — merge caller patch onto the existing stored config.
-      // We backfill from resolveRulesetConfigDefaults first so the strict
-      // TFv1ConfigSchema.parse() in validateTournamentRulesetConfig doesn't
-      // reject the merged result when the stored row is incomplete (legacy
-      // data, or custom-ruleset tournaments whose seed produced only
-      // matchFormat + doublePenaltyFormula). Precedence:
-      //   defaults < stored < callerPatch
-      const defaults = await resolveRulesetConfigDefaults(
-        this.supabase,
-        currentCode ?? 'TF_v1',
-        currentVersion ?? '1.0.0',
-      );
-      const completedStored = deepMergeJson(defaults, currentJson['ruleset_config'] ?? {});
-      const merged = deepMergeJson(completedStored, dto.rulesetConfig);
-      updates['ruleset_config'] = validateTournamentRulesetConfig(currentCode ?? 'TF_v1', merged);
+      // Same ruleset: what it stored with what was sent on top, nothing filled
+      // in (rulings 48, 49). It used to back-fill the ruleset's defaults, so an
+      // untouched field of a sparse club row was saved as a value nobody chose.
+      updates['ruleset_config'] = settingsOfSave({
+        code: currentCode ?? 'TF_v1',
+        stored: currentJson['ruleset_config'],
+        patch: dto.rulesetConfig,
+      });
     }
 
     // Penalty re-pin guard: the same posture as the scoring swap above. Recorded
