@@ -20,17 +20,16 @@ export function sameForm(a: unknown, b: unknown): boolean {
 }
 
 /**
- * The tab's form as last read or saved, against what it shows now. `initialSaved` is what the
- * form shows before its read lands (its defaults), or null when it shows no form until then.
- * The tab calls the returned setter with what it read, and with what a saved write sent (an
- * updater when one save covers only some fields).
+ * The tab's form as last read or saved, against what it shows now: null until the tab's read
+ * lands, so nothing reads as unsaved before it. The tab calls the returned setter with what it
+ * read, and with what a saved write sent (an updater when one save covers only some fields). The
+ * rules tabs keep theirs in `useEffectiveRules`.
  */
 export function useSavedSnapshot<T>(
   current: T | null,
-  initialSaved: T | null,
   onDirtyChange?: (dirty: boolean) => void,
 ): Dispatch<SetStateAction<T | null>> {
-  const [saved, setSaved] = useState<T | null>(initialSaved);
+  const [saved, setSaved] = useState<T | null>(null);
   useDirtyReport(current !== null && saved !== null && !sameForm(current, saved), onDirtyChange);
   return setSaved;
 }

@@ -7,7 +7,7 @@
  */
 import { sideStyle, type SideColorStyle } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
-import type { AfterblowButton, CleanButton } from './buildDisplayConfigFromRow';
+import type { AfterblowButton, CleanButton } from '../../_shared/display-form';
 
 export interface DisplayPreviewInput {
   sideColors: { red: string; blue: string };

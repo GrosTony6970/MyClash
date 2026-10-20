@@ -1,27 +1,29 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useToast, statusLabel } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
-import {
-  buildDisplayConfigFromRow,
-  DISPLAY_DEFAULTS,
-  type DisplayState,
-} from './buildDisplayConfigFromRow';
+import { DISPLAY_FORM } from '../../_shared/display-form';
+import { RulesFormState } from '../../_shared/RulesFormState';
+import { useEffectiveRules } from '../../_shared/useEffectiveRules';
 import { DisplayPreview } from './DisplayPreview';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
-const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
 
 // Derived, not retyped: this list used to hardcode 8 of the 11 tokens the API
 // accepts, so grey, brown and pink were fully styled and validated server-side
 // but unreachable from the UI.
 const COLORS = TOURNAMENT_SIDE_COLORS;
 
+/**
+ * The scoring buttons and side colours in force (`effectiveRules.scoring`), and a Next that sends
+ * only what the organiser changed, with the step (operator rulings 43, 46): an untouched Next
+ * sends `{ wizardStep: 3 }`. The logo saves at once.
+ */
 export function Step3Display({
   tournamentId,
   onNext,
@@ -37,41 +39,35 @@ export function Step3Display({
   const { t } = useI18n();
 
   const toast = useToast();
-  const [data, setData] = useState<DisplayState>(DEFAULTS);
-  const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
-  // The RULESET's own answer, not a guess from its code. `false` until the row
-  // loads, so the fieldset appears rather than flickering away.
-  const [hasAfterblow, setHasAfterblow] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const rules = useEffectiveRules(tournamentId, DISPLAY_FORM);
+  const { form: data, setForm: setData, saving } = rules;
+  // Set by an upload or a removal; until then, the row's own.
+  const [newLogo, setNewLogo] = useState<string | null | undefined>(undefined);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [saving, setSaving] = useState(false);
   const logoInput = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    // Silent read: the step shows its defaults until the row lands, and every
-    // save below reports its own refusal.
-    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-      (r) => {
-        if (!r.ok) return;
-        const row = r.data;
-        setRulesetCode(row['ruleset_code'] as string);
-        setHasAfterblow(
-          Boolean((row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow),
-        );
-        setLogoUrl((row['logo_url'] as string | null) ?? null);
-        // Pluck-not-spread, same as Step 2 / Step 4. The column is
-        // `scoring_config_json` (the `_json` suffix matters — Step 3
-        // previously read `row.scoring_config` and silently fell back
-        // to defaults, hiding every saved button on reload).
-        setData(
-          buildDisplayConfigFromRow(
-            (row['scoring_config_json'] ?? {}) as Record<string, unknown>,
-            DEFAULTS,
-          ),
-        );
-      },
+  const heading = (
+    <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+      {t('organizer.tournaments.wizard.display')}
+    </h2>
+  );
+  if (!data) {
+    // The step indicator above stays the way out (Back, or another step).
+    return (
+      <div className="space-y-6">
+        {heading}
+        <RulesFormState status={rules.status} onRetry={rules.reload} />
+      </div>
     );
-  }, [tournamentId]);
+  }
+
+  const rulesetCode = String(rules.row?.['ruleset_code'] ?? '');
+  // The RULESET's own answer, not a guess from its code.
+  const hasAfterblow = Boolean(
+    (rules.row?.['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
+  );
+  const logoUrl =
+    newLogo === undefined ? ((rules.row?.['logo_url'] as string | null) ?? null) : newLogo;
 
   async function uploadLogo(file: File) {
     const check = validateLogoFile(file);
@@ -93,7 +89,7 @@ export function Step3Display({
         if (message) toast.error(message);
         return;
       }
-      setLogoUrl(r.data.url);
+      setNewLogo(r.data.url);
       toast.success(t('organizer.events.logoUploadSuccess'));
     } finally {
       setUploadingLogo(false);
@@ -113,51 +109,23 @@ export function Step3Display({
         if (message) toast.error(message);
         return;
       }
-      setLogoUrl(null);
+      setNewLogo(null);
     } finally {
       setUploadingLogo(false);
     }
   }
 
   async function saveAndAdvance() {
-    setSaving(true);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body: {
-          // Tournament identity color (`color`) is now set in
-          // Step 1 Basics; this PATCH no longer overwrites it.
-          scoringConfig: {
-            display: { sideColors: data.sideColors },
-            buttons: data.buttons,
-          },
-          wizardStep: 3,
-        },
-      });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
-      toast.success(t('organizer.tournaments.settings.saved'));
-      window.history.replaceState(
-        null,
-        '',
-        `${window.location.pathname}?id=${tournamentId}&step=4`,
-      );
-      onNext();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
-    } finally {
-      setSaving(false);
-    }
+    // Recorded, not inferred: the step is sent with whatever changed, alone when nothing did.
+    if ((await rules.save({ wizardStep: 3 })) !== 'saved') return;
+    toast.success(t('organizer.tournaments.settings.saved'));
+    window.history.replaceState(null, '', `${window.location.pathname}?id=${tournamentId}&step=4`);
+    onNext();
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-        {t('organizer.tournaments.wizard.display')}
-      </h2>
+      {heading}
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-6">
         <div className="space-y-6">

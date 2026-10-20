@@ -1,15 +1,15 @@
 import { act, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as ApiClient from '@myclash/api-client';
-import { openEventPage, type OpenedPage } from '../../../archived-page.fixtures';
-import { button, TOURNAMENT_ID, TOURNAMENT_READS, TOURNAMENT_ROW } from './page.fixtures';
-import TournamentSettingsPage from './page';
+import type * as ApiClient from '@myclash/api-client';
+import { type } from '../../../archived-page.fixtures';
+import { button } from './page.fixtures';
+import { openTab, switchTo, type OpenedTab } from './page.rules.fixtures';
 
 /**
- * The Locks tab shows the auto-lock a Tournament has: the row's `lock_config_json`, and for a key
- * the row lacks, what the auto-lock worker applies (`DEFAULT_TOURNAMENT_LOCK_CONFIG`). It read a
- * key the API never sends, so it showed "off, 30 min" for every Tournament, and an untouched Save
- * turned auto-lock off.
+ * The Locks tab shows the auto-lock in force, as the API answers it (`effectiveRules.lock`: what
+ * the auto-lock worker applies), and a Save sends only what the organiser changed (operator
+ * rulings 43, 46). It read a key the API never sends and showed "off, 30 min" for every
+ * Tournament, and its untouched Save turned auto-lock off.
  */
 vi.mock('next/navigation', () => ({
   useParams: () => ({ slug: 'org', eventId: 'ev1', tournamentId: 't-1' }),
@@ -28,52 +28,64 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const TOURNAMENT = `/api/v1/tournaments/${TOURNAMENT_ID}`;
-
-let page: OpenedPage;
-let saved: unknown[];
-afterEach(() => page.unmount());
-
-async function openLocks(lockConfig: unknown) {
-  window.history.replaceState(null, '', '/#locks');
-  const reads = {
-    ...TOURNAMENT_READS,
-    [TOURNAMENT]: { ...TOURNAMENT_ROW, lock_config_json: lockConfig },
-  };
-  page = await openEventPage(<TournamentSettingsPage />, reads);
-  saved = [];
-  const read = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
-  vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) => {
-    if (!init?.method || init.method === 'GET') return read(base, path, init);
-    saved.push(init.body);
-    return { ok: true, data: {} } as Awaited<ReturnType<typeof ApiClient.apiRequest>>;
-  });
-}
+let opened: OpenedTab;
+afterEach(() => opened.page.unmount());
 
 const switches = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="switch"]')];
+const delayField = () => document.body.querySelector<HTMLInputElement>('input[type="number"]');
 const shown = () => ({
   on: switches().map((s) => s.getAttribute('aria-checked')),
-  delay: document.body.querySelector<HTMLInputElement>('input[type="number"]')!.value,
+  delay: delayField()?.value,
 });
 
+/** The auto-lock in force: 45 minutes, which the raw column (NULL) does not hold. */
+const IN_FORCE = {
+  autoLockEnabled: false,
+  autoLockDelayMinutes: 45,
+  autoLockCompletedPools: true,
+  autoLockCompletedBrackets: false,
+};
+
+async function save() {
+  await act(async () => button('Save changes').click());
+  await opened.page.settle();
+}
+
 describe('the Locks tab', () => {
-  it("shows the Tournament's own auto-lock, and an untouched Save sends it back", async () => {
-    const stored = {
-      autoLockEnabled: false,
-      autoLockDelayMinutes: 45,
-      autoLockCompletedPools: true,
-      autoLockCompletedBrackets: false,
-    };
-    await openLocks(stored);
+  it('shows the auto-lock in force, not the raw column, and an untouched Save sends nothing', async () => {
+    opened = await openTab('locks', {
+      row: { lock_config_json: null },
+      effectiveRules: { lock: IN_FORCE },
+    });
     expect(shown()).toEqual({ on: ['false', 'true', 'false'], delay: '45' });
 
-    await act(async () => button('Save changes').click());
-    await page.settle();
-    expect(saved).toEqual([{ lockConfig: stored }]);
+    await save();
+    expect(opened.saved).toEqual([]);
+    expect(document.body.textContent).toContain('No changes to save');
   });
 
-  it('shows what the auto-lock worker applies for a key the row lacks', async () => {
-    await openLocks(null);
-    expect(shown()).toEqual({ on: ['true', 'true', 'true'], delay: '15' });
+  it('sends exactly the setting changed, and a change undone after a save', async () => {
+    // Auto-lock on: the delay is a field the organiser can use.
+    opened = await openTab('locks', {
+      effectiveRules: { lock: { ...IN_FORCE, autoLockEnabled: true } },
+    });
+    await act(async () => type(delayField()!, '60'));
+    await save();
+    await act(async () => type(delayField()!, '45'));
+    await save();
+    expect(opened.saved).toEqual([
+      { lockConfig: { autoLockDelayMinutes: 60 } },
+      { lockConfig: { autoLockDelayMinutes: 45 } },
+    ]);
+  });
+
+  it('shows the auto-lock in force once its rules are read, none before', async () => {
+    opened = await openTab('basics');
+    const read = opened.hold();
+    await switchTo(opened.page, 'locks');
+    expect(switches()).toEqual([]);
+
+    await read.release();
+    expect(shown().delay).toBe('15');
   });
 });

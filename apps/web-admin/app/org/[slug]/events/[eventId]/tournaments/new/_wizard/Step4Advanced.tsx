@@ -1,18 +1,19 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useCallback, useEffect, useState } from 'react';
-import { useToast } from '@myclash/ui';
-import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFromRow';
+import { useState } from 'react';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
+import { TF_FORM, tfForm } from '../../_shared/tf-form';
 import { TfRulesetControls } from '../../_shared/TfRulesetControls';
+import { RulesFormState } from '../../_shared/RulesFormState';
 import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
-import { isCodedRuleset } from '../../../../../../../../src/components/rulesets/ruleset-kind';
-import { apiRequest, failureMessage } from '@myclash/api-client';
-import { getPublicApiUrl } from '@/lib/api-url';
+import { useEffectiveRules } from '../../_shared/useEffectiveRules';
 
-const apiUrl = getPublicApiUrl();
-
+/**
+ * TF_v1's own settings in force (`effectiveRules.tf`), for TF_v1 and a fork of it, and a Finish
+ * that sends only what the organiser changed, with the step (operator rulings 43, 46, 48, 52). When
+ * the rules cannot be read, "finish with defaults" stays the way out.
+ */
 export function Step4Advanced({
   tournamentId,
   eventId,
@@ -30,67 +31,22 @@ export function Step4Advanced({
 }) {
   const { t } = useI18n();
 
-  const toast = useToast();
-  const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
-  const [isSystem, setIsSystem] = useState(true);
-  const [baseCode, setBaseCode] = useState<string | null>(null);
-  const [tf, setTf] = useState<RulesetConfigTF>(TF_DEFAULTS);
-  const [saving, setSaving] = useState(false);
+  const rules = useEffectiveRules(tournamentId, TF_FORM);
+  const [finishing, setFinishing] = useState(false);
   const [publishOnFinish, setPublishOnFinish] = useState(false);
-
-  const load = useCallback(() => {
-    // Silent read: the step shows the coded defaults until the row lands, and
-    // the save below reports its own refusal.
-    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-      (r) => {
-        if (!r.ok) return;
-        const row = r.data;
-        setRulesetCode(row['ruleset_code'] as string);
-        setIsSystem((row['ruleset_is_system'] as boolean | undefined) ?? true);
-        setBaseCode((row['ruleset_base_code'] as string | null | undefined) ?? null);
-        // Pluck-not-spread: see buildTfFromRow.ts for the rationale.
-        setTf(
-          buildTfFromRow(
-            (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
-            TF_DEFAULTS,
-          ),
-        );
-      },
-    );
-  }, [tournamentId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, load);
-  // The built-in TF_v1 or a fork of it — one shared predicate so the literal
-  // does not drift across the wizard and the ruleset authoring surfaces.
-  const tfLike = isCodedRuleset(rulesetCode, baseCode);
+  const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, rules.reload);
+  const tf = rules.form?.tf ?? null;
+  const start = rules.rules?.start?.tf ? tfForm(rules.rules.start.tf) : null;
+  const busy = finishing || rules.saving;
 
   async function saveAndFinish() {
-    setSaving(true);
+    // Always carries the step, so finishing the wizard is recorded even when nothing changed.
+    if ((await rules.save({ wizardStep: 4 })) !== 'saved') return;
+    setFinishing(true);
     try {
-      // Always carries the step, so finishing the wizard is recorded even for
-      // a ruleset with no TF-shaped config to send.
-      const body: Record<string, unknown> = { wizardStep: 4 };
-      if (tfLike) body['rulesetConfig'] = tf;
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body,
-      });
-      if (!r.ok) {
-        // This built `Save failed (400): {"statusCode":400,"code":...` by hand
-        // — the status code AND 200 raw bytes of the problem+json envelope,
-        // pasted into a toast, in English only. Both of those strings were
-        // hardcoded, which hard rule 6 forbids.
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
       await onFinish(publishOnFinish);
     } finally {
-      setSaving(false);
+      setFinishing(false);
     }
   }
 
@@ -99,11 +55,11 @@ export function Step4Advanced({
    * archived Event it is the way out of the wizard (ruling 377): it publishes nothing.
    */
   async function finishWithDefaults() {
-    setSaving(true);
+    setFinishing(true);
     try {
       await onFinish(publishOnFinish && !readOnly);
     } finally {
-      setSaving(false);
+      setFinishing(false);
     }
   }
 
@@ -113,7 +69,7 @@ export function Step4Advanced({
         <button
           type="button"
           onClick={() => void finishWithDefaults()}
-          disabled={saving}
+          disabled={busy}
           className="font-medium text-warning hover:underline"
         >
           {t('organizer.tournaments.wizard.useDefaultsAndFinish')} →
@@ -129,11 +85,13 @@ export function Step4Advanced({
         <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} readOnly={readOnly} />
       </div>
 
-      {tfLike && (
+      {!rules.form && <RulesFormState status={rules.status} onRetry={rules.reload} />}
+      {tf && (
         <TfRulesetControls
           tf={tf}
-          onChange={setTf}
-          locked={isSystem}
+          start={start}
+          onChange={(next) => rules.setForm({ tf: next })}
+          locked={rules.row?.['ruleset_is_system'] !== false}
           onCustomise={() => void customise()}
           customising={customising}
           readOnly={readOnly}
@@ -159,11 +117,11 @@ export function Step4Advanced({
         <button
           type="button"
           onClick={() => void saveAndFinish()}
-          disabled={saving || readOnly}
+          disabled={busy || readOnly || !rules.form}
           title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
-          {saving ? t('common.saving') : t('organizer.tournaments.wizard.finish')}
+          {busy ? t('common.saving') : t('organizer.tournaments.wizard.finish')}
         </button>
       </div>
       {confirmDialog}

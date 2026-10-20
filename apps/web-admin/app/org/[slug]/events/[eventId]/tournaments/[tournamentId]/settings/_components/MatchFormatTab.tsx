@@ -1,57 +1,24 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useEffect, useMemo, useState } from 'react';
+import { useId, useMemo } from 'react';
 
 import { useToast } from '@myclash/ui';
-import { apiRequest, failureMessage } from '@myclash/api-client';
-import { getPublicApiUrl } from '@/lib/api-url';
 // One owner for the option list, so the two surfaces cannot offer different
 // wording — or different values — for the same setting.
 import {
-  levelChainsFrom,
+  MATCH_FORMAT_FORM,
+  matchFormatForm,
   MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
-} from '../../../new/_wizard/buildMatchFormatFromRow';
-import {
-  LevelAtTimeEditor,
-  levelChainsAreValid,
-  type LevelAtTimeChains,
-} from '../../../new/_wizard/LevelAtTimeEditor';
-import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
+  type WizardMatchFormat,
+} from '../../../_shared/match-format-form';
+import { LevelAtTimeEditor, levelChainsAreValid } from '../../../new/_wizard/LevelAtTimeEditor';
+import { RulesFormState } from '../../../_shared/RulesFormState';
+import { startAffordance } from '../../../_shared/start-affordance';
+import { useEffectiveRules } from '../../../_shared/useEffectiveRules';
 import type { TabProps } from './tab-props';
 
-const apiUrl = getPublicApiUrl();
-
-interface MatchFormat {
-  pointCap: number;
-  timerMode: 'countdown' | 'countup';
-  timeLimitsSeconds: { pool: number | null; bracket: number | null; finals: number | null };
-  softClockLimitSeconds: number;
-  maxDoubleHits: number | null;
-  /** What reaching the ceiling DOES. Only the first value is a loss for both. */
-  maxDoubleHitOutcome: 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
-  afterblowMode: 'full' | 'deductive';
-  scoringDirection: 'normal' | 'reverse_zero_loses';
-  bestOf: { pool: number; bracket: number; finals: number };
-  levelAtTime: LevelAtTimeChains;
-}
-
-const DEFAULTS: MatchFormat = {
-  pointCap: 5,
-  timerMode: 'countdown',
-  timeLimitsSeconds: { pool: 180, bracket: 240, finals: 300 },
-  softClockLimitSeconds: 60,
-  maxDoubleHits: 3,
-  maxDoubleHitOutcome: 'double_loss_zero_scores',
-  afterblowMode: 'full',
-  scoringDirection: 'normal',
-  bestOf: { pool: 1, bracket: 1, finals: 1 },
-  levelAtTime: {
-    pool: [{ kind: 'draw' }],
-    bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
-    finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
-  },
-};
+type MatchFormat = WizardMatchFormat;
 
 // Best-of selector options — odd values only (the engine rejects even N).
 // Keys, not strings: resolved at module init these bound to the EN-only
@@ -63,6 +30,11 @@ const BEST_OF_OPTIONS = [
   { value: '7', labelKey: 'organizer.tournaments.settings.bestOf7' },
 ] as const;
 
+/**
+ * The match format in force (`effectiveRules`), and a Save of only what the organiser changed
+ * (operator rulings 43, 46). The "modified" badge and Reset compare with what the ruleset starts a
+ * Tournament from at its pinned version (`start`, ruling 51); with no `start`, neither shows.
+ */
 export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
@@ -71,105 +43,55 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
     () => BEST_OF_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
     [t],
   );
-  const [data, setData] = useState<MatchFormat>(DEFAULTS);
-  const markSaved = useSavedSnapshot(data, DEFAULTS, onDirtyChange);
+  const rules = useEffectiveRules(tournamentId, MATCH_FORMAT_FORM, onDirtyChange);
+  const { form: data, setForm: setData } = rules;
+
+  const heading = (
+    <>
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+        {t('organizer.tournaments.settings.matchFormat')}
+      </h2>
+      <p className="text-xs text-muted">{t('admin.orgTournaments.matchFormatHint')}</p>
+    </>
+  );
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        {heading}
+        <RulesFormState status={rules.status} onRetry={rules.reload} />
+      </div>
+    );
+  }
+
   // Whether the ruleset HAS afterblow, driven from its grammar rather than a
   // `rulesetCode === 'TF_v1'` literal — so the afterblow-mode control survives
   // a "Customise this format" fork (code becomes custom_*, grammar unchanged).
-  const [hasAfterblow, setHasAfterblow] = useState(false);
-  // Defaults TRUE: every ruleset carried a doubles ceiling before the
-  // capability existed, and only `Generic_PointsCap` says otherwise.
-  const [hasMaxDoubles, setHasMaxDoubles] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    // Silent read: the tab shows the coded defaults until the row lands, and
-    // the save below reports its own refusal.
-    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-      (r) => {
-        if (r.ok) {
-          const row = r.data;
-          const grammar = row['ruleset_grammar'] as
-            { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
-          setHasAfterblow(Boolean(grammar?.hasAfterblow));
-          setHasMaxDoubles(grammar?.hasMaxDoubles !== false);
-          const rc = (row['ruleset_config'] ?? {}) as { matchFormat?: Partial<MatchFormat> };
-          const mf = rc.matchFormat ?? {};
-          const sc = (row['scoring_config_json'] ?? {}) as Partial<MatchFormat>;
-          const read: MatchFormat = {
-            pointCap: mf.pointCap ?? DEFAULTS.pointCap,
-            timerMode: mf.timerMode ?? DEFAULTS.timerMode,
-            timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
-            softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
-            maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
-            maxDoubleHitOutcome: mf.maxDoubleHitOutcome ?? DEFAULTS.maxDoubleHitOutcome,
-            // Plucked, not spread: the API's match-format schema is `.strict()`
-            // and refines the last step, so an unrecognised stored shape must
-            // not round-trip back into it.
-            levelAtTime: levelChainsFrom(mf.levelAtTime, DEFAULTS.levelAtTime),
-            scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
-            afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
-            bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
-          };
-          setData(read);
-          markSaved(read);
-        }
-      },
-    );
-  }, [tournamentId, markSaved]);
+  // Only `Generic_PointsCap` says it has no doubles ceiling.
+  const grammar = rules.row?.['ruleset_grammar'] as
+    { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+  const hasAfterblow = Boolean(grammar?.hasAfterblow);
+  const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
+  const start = rules.rules?.start ? matchFormatForm(rules.rules.start) : null;
+  const set = (next: Partial<MatchFormat>) => setData({ ...data, ...next });
+  const setTime = (phase: 'pool' | 'bracket' | 'finals', v: number | null) =>
+    set({ timeLimitsSeconds: { ...data.timeLimitsSeconds, [phase]: v } });
+  const setBestOf = (phase: 'pool' | 'bracket' | 'finals', v: string) =>
+    set({ bestOf: { ...data.bestOf, [phase]: Number(v) } });
 
   async function save() {
-    setSaving(true);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body: {
-          rulesetConfig: {
-            matchFormat: {
-              pointCap: data.pointCap,
-              scoringDirection: data.scoringDirection,
-              timerMode: data.timerMode,
-              timeLimitsSeconds: data.timeLimitsSeconds,
-              softClockLimitSeconds: data.softClockLimitSeconds,
-              maxDoubleHits: data.maxDoubleHits,
-              maxDoubleHitOutcome: data.maxDoubleHitOutcome,
-              levelAtTime: data.levelAtTime,
-              bestOf: data.bestOf,
-            },
-          },
-          scoringConfig: { afterblowMode: data.afterblowMode },
-        },
-      });
-      if (!r.ok) {
-        // A match format refused by class-validator names every bad field, not
-        // just the first — a point cap and a time limit both out of range are
-        // fixed in one pass now.
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
-      markSaved(data);
-      toast.success(t('organizer.tournaments.settings.saved'));
-    } finally {
-      setSaving(false);
-    }
+    if ((await rules.save()) === 'saved') toast.success(t('organizer.tournaments.settings.saved'));
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-        {t('organizer.tournaments.settings.matchFormat')}
-      </h2>
-
-      <p className="text-xs text-muted">{t('admin.orgTournaments.matchFormatHint')}</p>
+      {heading}
 
       <NumberField
         label={t('organizer.tournaments.settings.pointCap')}
         hint={t('organizer.tournaments.settings.pointCapHelp')}
         value={data.pointCap}
-        defaultValue={DEFAULTS.pointCap}
-        onChange={(v) => setData({ ...data, pointCap: v })}
-        onReset={() => setData({ ...data, pointCap: DEFAULTS.pointCap })}
+        defaultValue={start?.pointCap}
+        onChange={(v) => set({ pointCap: v })}
         min={1}
         max={50}
       />
@@ -178,9 +100,8 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         label={t('organizer.tournaments.settings.timerMode')}
         hint={t('organizer.tournaments.settings.timerModeHelp')}
         value={data.timerMode}
-        defaultValue={DEFAULTS.timerMode}
-        onChange={(v) => setData({ ...data, timerMode: v as 'countdown' | 'countup' })}
-        onReset={() => setData({ ...data, timerMode: DEFAULTS.timerMode })}
+        defaultValue={start?.timerMode}
+        onChange={(v) => set({ timerMode: v as MatchFormat['timerMode'] })}
         options={[
           { value: 'countdown', label: t('organizer.tournaments.settings.timerCountdown') },
           { value: 'countup', label: t('organizer.tournaments.settings.timerCountup') },
@@ -190,17 +111,9 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
       <NumberField
         label={t('organizer.tournaments.settings.timePool')}
         hint={t('organizer.tournaments.settings.timePoolHelp')}
-        value={data.timeLimitsSeconds.pool ?? 0}
-        defaultValue={DEFAULTS.timeLimitsSeconds.pool ?? 0}
-        onChange={(v) =>
-          setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, pool: v } })
-        }
-        onReset={() =>
-          setData({
-            ...data,
-            timeLimitsSeconds: { ...data.timeLimitsSeconds, pool: DEFAULTS.timeLimitsSeconds.pool },
-          })
-        }
+        value={data.timeLimitsSeconds.pool}
+        defaultValue={start?.timeLimitsSeconds.pool}
+        onChange={(v) => setTime('pool', v)}
         min={0}
         max={3600}
         suffix="s"
@@ -208,20 +121,9 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
       <NumberField
         label={t('organizer.tournaments.settings.timeBracket')}
         hint={t('organizer.tournaments.settings.timeBracketHelp')}
-        value={data.timeLimitsSeconds.bracket ?? 0}
-        defaultValue={DEFAULTS.timeLimitsSeconds.bracket ?? 0}
-        onChange={(v) =>
-          setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, bracket: v } })
-        }
-        onReset={() =>
-          setData({
-            ...data,
-            timeLimitsSeconds: {
-              ...data.timeLimitsSeconds,
-              bracket: DEFAULTS.timeLimitsSeconds.bracket,
-            },
-          })
-        }
+        value={data.timeLimitsSeconds.bracket}
+        defaultValue={start?.timeLimitsSeconds.bracket}
+        onChange={(v) => setTime('bracket', v)}
         min={0}
         max={3600}
         suffix="s"
@@ -229,20 +131,9 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
       <NumberField
         label={t('organizer.tournaments.settings.timeFinals')}
         hint={t('organizer.tournaments.settings.timeFinalsHelp')}
-        value={data.timeLimitsSeconds.finals ?? 0}
-        defaultValue={DEFAULTS.timeLimitsSeconds.finals ?? 0}
-        onChange={(v) =>
-          setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, finals: v } })
-        }
-        onReset={() =>
-          setData({
-            ...data,
-            timeLimitsSeconds: {
-              ...data.timeLimitsSeconds,
-              finals: DEFAULTS.timeLimitsSeconds.finals,
-            },
-          })
-        }
+        value={data.timeLimitsSeconds.finals}
+        defaultValue={start?.timeLimitsSeconds.finals}
+        onChange={(v) => setTime('finals', v)}
         min={0}
         max={3600}
         suffix="s"
@@ -252,29 +143,22 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         label={t('organizer.tournaments.settings.bestOfPool')}
         hint={t('organizer.tournaments.settings.bestOfHelp')}
         value={String(data.bestOf.pool)}
-        defaultValue={String(DEFAULTS.bestOf.pool)}
-        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
-        onReset={() => setData({ ...data, bestOf: { ...data.bestOf, pool: DEFAULTS.bestOf.pool } })}
+        defaultValue={start ? String(start.bestOf.pool) : undefined}
+        onChange={(v) => setBestOf('pool', v)}
         options={bestOfOptions}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
         value={String(data.bestOf.bracket)}
-        defaultValue={String(DEFAULTS.bestOf.bracket)}
-        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, bracket: Number(v) } })}
-        onReset={() =>
-          setData({ ...data, bestOf: { ...data.bestOf, bracket: DEFAULTS.bestOf.bracket } })
-        }
+        defaultValue={start ? String(start.bestOf.bracket) : undefined}
+        onChange={(v) => setBestOf('bracket', v)}
         options={bestOfOptions}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
         value={String(data.bestOf.finals)}
-        defaultValue={String(DEFAULTS.bestOf.finals)}
-        onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, finals: Number(v) } })}
-        onReset={() =>
-          setData({ ...data, bestOf: { ...data.bestOf, finals: DEFAULTS.bestOf.finals } })
-        }
+        defaultValue={start ? String(start.bestOf.finals) : undefined}
+        onChange={(v) => setBestOf('finals', v)}
         options={bestOfOptions}
       />
 
@@ -282,9 +166,8 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         label={t('organizer.tournaments.settings.softClock')}
         hint={t('organizer.tournaments.settings.softClockHelp')}
         value={data.softClockLimitSeconds}
-        defaultValue={DEFAULTS.softClockLimitSeconds}
-        onChange={(v) => setData({ ...data, softClockLimitSeconds: v })}
-        onReset={() => setData({ ...data, softClockLimitSeconds: DEFAULTS.softClockLimitSeconds })}
+        defaultValue={start?.softClockLimitSeconds}
+        onChange={(v) => set({ softClockLimitSeconds: v })}
         min={0}
         max={600}
         suffix="s"
@@ -294,10 +177,9 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         <NumberField
           label={t('organizer.tournaments.settings.maxDoubleHits')}
           hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
-          value={data.maxDoubleHits ?? 0}
-          defaultValue={DEFAULTS.maxDoubleHits ?? 0}
-          onChange={(v) => setData({ ...data, maxDoubleHits: v })}
-          onReset={() => setData({ ...data, maxDoubleHits: DEFAULTS.maxDoubleHits })}
+          value={data.maxDoubleHits}
+          defaultValue={start?.maxDoubleHits}
+          onChange={(v) => set({ maxDoubleHits: v })}
           min={0}
           max={20}
         />
@@ -308,11 +190,8 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
           label={t('organizer.tournaments.settings.maxDoubleHitOutcome')}
           hint={t('organizer.tournaments.settings.maxDoubleHitOutcomeHelp')}
           value={data.maxDoubleHitOutcome}
-          defaultValue={DEFAULTS.maxDoubleHitOutcome}
-          onChange={(v) =>
-            setData({ ...data, maxDoubleHitOutcome: v as MatchFormat['maxDoubleHitOutcome'] })
-          }
-          onReset={() => setData({ ...data, maxDoubleHitOutcome: DEFAULTS.maxDoubleHitOutcome })}
+          defaultValue={start?.maxDoubleHitOutcome}
+          onChange={(v) => set({ maxDoubleHitOutcome: v as MatchFormat['maxDoubleHitOutcome'] })}
           options={MAX_DOUBLE_HIT_OUTCOME_OPTIONS.map((o) => ({
             value: o.value,
             label: t(o.labelKey),
@@ -322,7 +201,7 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
 
       <LevelAtTimeEditor
         value={data.levelAtTime}
-        onChange={(levelAtTime) => setData({ ...data, levelAtTime })}
+        onChange={(levelAtTime) => set({ levelAtTime })}
         t={t}
       />
 
@@ -331,9 +210,8 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
           label={t('organizer.tournaments.settings.afterblowMode')}
           hint={t('organizer.tournaments.settings.afterblowModeHelp')}
           value={data.afterblowMode}
-          defaultValue={DEFAULTS.afterblowMode}
-          onChange={(v) => setData({ ...data, afterblowMode: v as 'full' | 'deductive' })}
-          onReset={() => setData({ ...data, afterblowMode: DEFAULTS.afterblowMode })}
+          defaultValue={start?.afterblowMode}
+          onChange={(v) => set({ afterblowMode: v as MatchFormat['afterblowMode'] })}
           options={[
             { value: 'full', label: t('organizer.tournaments.settings.afterblowFull') },
             { value: 'deductive', label: t('organizer.tournaments.settings.afterblowDeductive') },
@@ -345,11 +223,8 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         label={t('organizer.tournaments.settings.scoringDirection')}
         hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
         value={data.scoringDirection}
-        defaultValue={DEFAULTS.scoringDirection}
-        onChange={(v) =>
-          setData({ ...data, scoringDirection: v as MatchFormat['scoringDirection'] })
-        }
-        onReset={() => setData({ ...data, scoringDirection: DEFAULTS.scoringDirection })}
+        defaultValue={start?.scoringDirection}
+        onChange={(v) => set({ scoringDirection: v as MatchFormat['scoringDirection'] })}
         options={[
           { value: 'normal', label: t('organizer.tournaments.settings.scoringNormal') },
           {
@@ -362,76 +237,83 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
+        disabled={rules.saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
         title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
-        {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
+        {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
     </div>
   );
 }
 
-function NumberField({
+/**
+ * A field's name, linked to its control by id, with the "modified" badge and Reset beside it
+ * (`startAffordance`, outside the `<label>`). A null start value (no limit) reads as the 0 the
+ * field shows for it, and Reset puts the null back.
+ */
+function FieldHead<T>({
+  id,
+  label,
+  value,
+  start,
+  onReset,
+}: {
+  id: string;
+  label: string;
+  value: T;
+  start: T | undefined;
+  onReset: (v: T) => void;
+}) {
+  const shown = startAffordance(value, start, (s) => String(s ?? 0), onReset);
+  return (
+    <div className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
+      <label htmlFor={id}>{label}</label>
+      {shown.badge}
+      <span className="ml-auto">{shown.reset}</span>
+    </div>
+  );
+}
+
+/** A number; a nullable one (a time limit, the doubles ceiling) shows its null as 0. */
+function NumberField<T extends number | null>({
   label,
   value,
   defaultValue,
   onChange,
-  onReset,
   min,
   max,
   suffix,
   hint,
 }: {
   label: string;
-  value: number;
-  defaultValue?: number;
-  onChange: (v: number) => void;
-  onReset?: () => void;
+  value: T;
+  /** What the ruleset starts from; Reset puts it back. None: no badge, no Reset. */
+  defaultValue?: T;
+  onChange: (v: T) => void;
   min: number;
   max: number;
   suffix?: string;
   hint?: string;
 }) {
-  const { t } = useI18n();
-
-  const modified = defaultValue !== undefined && value !== defaultValue;
+  const id = useId();
   return (
-    <label className="block">
-      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
-        {label}
-        {modified && (
-          <span
-            title={t('admin.orgTournaments.defaultValue', { value: String(defaultValue) })}
-            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
-          >
-            {t('admin.orgTournaments.modifiedBadge')}
-          </span>
-        )}
-        {modified && onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="ml-auto text-xs text-muted underline hover:text-foreground"
-            title={t('admin.orgTournaments.resetTo', { value: String(defaultValue) })}
-          >
-            {t('admin.orgTournaments.reset')}
-          </button>
-        )}
-      </span>
+    <div>
+      <FieldHead id={id} label={label} value={value} start={defaultValue} onReset={onChange} />
       <div className="flex items-center gap-2">
         <input
+          id={id}
           type="number"
-          value={value}
+          value={value ?? 0}
           min={min}
           max={max}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => onChange(Number(e.target.value) as T)}
           className="w-32 rounded-md border border-border px-3 py-2 text-sm"
         />
         {suffix && <span className="text-xs text-muted">{suffix}</span>}
       </div>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </label>
+    </div>
   );
 }
 
@@ -440,45 +322,23 @@ function SelectField({
   value,
   defaultValue,
   onChange,
-  onReset,
   options,
   hint,
 }: {
   label: string;
   value: string;
+  /** What the ruleset starts from; Reset puts it back. None: no badge, no Reset. */
   defaultValue?: string;
   onChange: (v: string) => void;
-  onReset?: () => void;
   options: Array<{ value: string; label: string }>;
   hint?: string;
 }) {
-  const { t } = useI18n();
-
-  const modified = defaultValue !== undefined && value !== defaultValue;
+  const id = useId();
   return (
-    <label className="block">
-      <span className="mb-1 flex items-center gap-2 text-xs font-medium text-foreground-secondary">
-        {label}
-        {modified && (
-          <span
-            title={t('admin.orgTournaments.defaultValue', { value: String(defaultValue) })}
-            className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
-          >
-            {t('admin.orgTournaments.modifiedBadge')}
-          </span>
-        )}
-        {modified && onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="ml-auto text-xs text-muted underline hover:text-foreground"
-            title={t('admin.orgTournaments.resetTo', { value: String(defaultValue) })}
-          >
-            {t('admin.orgTournaments.reset')}
-          </button>
-        )}
-      </span>
+    <div>
+      <FieldHead id={id} label={label} value={value} start={defaultValue} onReset={onChange} />
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-border px-3 py-2 text-sm"
@@ -490,6 +350,6 @@ function SelectField({
         ))}
       </select>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </label>
+    </div>
   );
 }

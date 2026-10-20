@@ -1,6 +1,52 @@
 import { act } from 'react';
 import { expect } from 'vitest';
+import { normalizeMatchFormatConfig } from '@myclash/rulesets';
+import {
+  DEFAULT_SCORING_CONFIG,
+  DEFAULT_TOURNAMENT_LOCK_CONFIG,
+  type EffectiveRules,
+  type TournamentScoringConfig,
+} from '@myclash/types';
 import type { OpenedPage } from '../../../archived-page.fixtures';
+
+/** A scoring config with nothing stored, as the API's normalizer answers it. */
+const SCORING_IN_FORCE: TournamentScoringConfig = {
+  ...DEFAULT_SCORING_CONFIG,
+  display: { sideColors: { red: 'red', blue: 'blue' }, quickPenalties: [] },
+};
+
+/**
+ * What `GET /tournaments/:id` answers beside TOURNAMENT_ROW (a TF_v1 Tournament that stores no
+ * settings): the engine's values, built through the owners the API calls, no forfeit rule (none is
+ * stored), and TF_v1's seed as `start` (its forfeit rule on, at 2; the deductive afterblow).
+ */
+export const EFFECTIVE_RULES = {
+  matchFormat: normalizeMatchFormatConfig({}),
+  tf: {
+    winBonus: 3,
+    targetValues: { deepTarget: 2, shallowTarget: 1 },
+    tournamentPolicy: {
+      forfeitDrawsCount: false,
+      forfeitFighterBefore1stMatch: false,
+      disqualifyAfter: null,
+    },
+  },
+  scoring: SCORING_IN_FORCE,
+  lock: { ...DEFAULT_TOURNAMENT_LOCK_CONFIG, autoLockEnabled: true },
+  start: {
+    matchFormat: normalizeMatchFormatConfig({}),
+    tf: {
+      winBonus: 3,
+      targetValues: { deepTarget: 2, shallowTarget: 1 },
+      tournamentPolicy: {
+        forfeitDrawsCount: false,
+        forfeitFighterBefore1stMatch: false,
+        disqualifyAfter: 2,
+      },
+    },
+    scoring: { ...SCORING_IN_FORCE, afterblowMode: 'deductive' },
+  },
+} satisfies EffectiveRules;
 
 /**
  * A Tournament whose settings page DRAWS every control that saves: it has
@@ -31,6 +77,7 @@ export const TOURNAMENT_ROW = {
   max_participants: null,
   max_waitlist: null,
   logo_url: 'http://img.test/logo.png',
+  effectiveRules: EFFECTIVE_RULES as EffectiveRules | null,
 };
 
 /** What every tab and every step reads, by path. */

@@ -7,22 +7,13 @@ import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
+import { DISPLAY_FORM } from '../../../_shared/display-form';
+import { RulesFormState } from '../../../_shared/RulesFormState';
+import { useEffectiveRules } from '../../../_shared/useEffectiveRules';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
 
-interface CleanButton {
-  label: string;
-  value: number;
-  visible: boolean;
-}
-interface AfterblowButton {
-  label: string;
-  attackerPts: number;
-  defenderPts: number;
-  visible: boolean;
-}
 interface PenaltyEntry {
   id: string;
   ref_number: number;
@@ -30,76 +21,28 @@ interface PenaltyEntry {
   group_number: number;
   sanctions: string[];
 }
-interface DisplayState {
-  sideColors: { red: string; blue: string };
-  buttons: { clean: CleanButton[]; afterblow: AfterblowButton[] };
-  /** Ruleset-entry ref_numbers pinned as scoreboard quick-pick chips. */
-  quickPenalties: number[];
-}
-
-const DEFAULTS: DisplayState = {
-  sideColors: { red: 'red', blue: 'blue' },
-  buttons: {
-    clean: [{ label: 'Point', value: 1, visible: true }],
-    afterblow: [{ label: 'Afterblow', attackerPts: 1, defenderPts: 1, visible: true }],
-  },
-  quickPenalties: [],
-};
 
 // Derived, not retyped — see Step3Display: the old literal list reached only 8
 // of the 11 tokens the API accepts.
 const COLORS = TOURNAMENT_SIDE_COLORS;
 
+/**
+ * The scoring buttons, side colours and pinned penalties in force (`effectiveRules.scoring`), and
+ * a Save of only what the organiser changed (operator rulings 43, 46). The logo saves at once.
+ */
 export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
-  const [data, setData] = useState<DisplayState>(DEFAULTS);
-  // The logo is not in it: an upload or a removal saves at once.
-  const markSaved = useSavedSnapshot(data, DEFAULTS, onDirtyChange);
+  const rules = useEffectiveRules(tournamentId, DISPLAY_FORM, onDirtyChange);
+  const { form: data, setForm: setData, saving } = rules;
   const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
-  // The ruleset's own answer — see the fieldset comment below.
-  const [hasAfterblow, setHasAfterblow] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  // Set by an upload or a removal; until then, the row's own.
+  const [newLogo, setNewLogo] = useState<string | null | undefined>(undefined);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [saving, setSaving] = useState(false);
   const logoInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    // Silent reads: the tab shows its defaults until the row lands, and every
-    // save below reports its own refusal.
-    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-      (r) => {
-        if (r.ok) {
-          const row = r.data;
-          setHasAfterblow(
-            Boolean(
-              (row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
-            ),
-          );
-          setLogoUrl((row['logo_url'] as string | null) ?? null);
-          // The column is `scoring_config_json` (the `_json` suffix
-          // matters — DisplayTab previously read `row.scoring_config`
-          // and silently fell back to defaults, mirroring the Step 3
-          // wizard bug).
-          const sc = (row['scoring_config_json'] ?? {}) as {
-            display?: { sideColors?: { red: string; blue: string }; quickPenalties?: number[] };
-            buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
-          };
-          const read: DisplayState = {
-            sideColors: sc.display?.sideColors ?? DEFAULTS.sideColors,
-            buttons: {
-              clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
-              afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
-            },
-            quickPenalties: sc.display?.quickPenalties ?? [],
-          };
-          setData(read);
-          markSaved(read);
-        }
-      },
-    );
-
     // Effective penalty ruleset entries → the quick-pick pin picker below.
     void apiRequest<{ penalty_ruleset_entries?: PenaltyEntry[] }>(
       apiUrl,
@@ -109,7 +52,28 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
       entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
       setPenaltyEntries(entries);
     });
-  }, [tournamentId, markSaved]);
+  }, [tournamentId]);
+
+  const heading = (
+    <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+      {t('organizer.tournaments.settings.display')}
+    </h2>
+  );
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        {heading}
+        <RulesFormState status={rules.status} onRetry={rules.reload} />
+      </div>
+    );
+  }
+
+  // The ruleset's own answer — see the fieldset comment below.
+  const hasAfterblow = Boolean(
+    (rules.row?.['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
+  );
+  const logoUrl =
+    newLogo === undefined ? ((rules.row?.['logo_url'] as string | null) ?? null) : newLogo;
 
   async function uploadLogo(file: File) {
     const check = validateLogoFile(file);
@@ -131,7 +95,7 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
         if (message) toast.error(message);
         return;
       }
-      setLogoUrl(r.data.url);
+      setNewLogo(r.data.url);
       toast.success(t('organizer.events.logoUploadSuccess'));
     } finally {
       setUploadingLogo(false);
@@ -151,50 +115,27 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
         if (message) toast.error(message);
         return;
       }
-      setLogoUrl(null);
+      setNewLogo(null);
     } finally {
       setUploadingLogo(false);
     }
   }
 
   async function save() {
-    setSaving(true);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body: {
-          scoringConfig: {
-            display: { sideColors: data.sideColors, quickPenalties: data.quickPenalties },
-            buttons: data.buttons,
-          },
-        },
-      });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
-      markSaved(data);
-      toast.success(t('organizer.tournaments.settings.saved'));
-    } finally {
-      setSaving(false);
-    }
+    if ((await rules.save()) === 'saved') toast.success(t('organizer.tournaments.settings.saved'));
   }
 
-  function toggleQuick(ref: number) {
-    setData((d) => ({
-      ...d,
-      quickPenalties: d.quickPenalties.includes(ref)
-        ? d.quickPenalties.filter((r) => r !== ref)
-        : [...d.quickPenalties, ref],
-    }));
-  }
+  const toggleQuick = (ref: number) => {
+    const pinned = data.quickPenalties;
+    setData({
+      ...data,
+      quickPenalties: pinned.includes(ref) ? pinned.filter((r) => r !== ref) : [...pinned, ref],
+    });
+  };
 
   return (
     <div className="space-y-6">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-        {t('organizer.tournaments.settings.display')}
-      </h2>
+      {heading}
 
       {/* Closed whole on an archived Event: a picked file is an upload at once. */}
       <fieldset disabled={readOnly} className="space-y-2">

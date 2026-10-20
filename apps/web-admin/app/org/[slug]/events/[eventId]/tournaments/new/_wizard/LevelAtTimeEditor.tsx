@@ -6,7 +6,7 @@
  *
  * ONE component, used by both organiser surfaces (the creation wizard's Step 2
  * and the per-tournament settings tab), the way `MAX_DOUBLE_HIT_OUTCOME_OPTIONS`
- * is shared from `buildMatchFormatFromRow`. A second copy would let the two
+ * is shared from `_shared/match-format-form`. A second copy would let the two
  * offer different steps for the same setting, and the wizard is where an
  * organiser meets it first while the settings tab is where they fix it.
  *

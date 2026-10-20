@@ -1,23 +1,22 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import {
-  buildMatchFormatFromRow,
-  MATCH_FORMAT_DEFAULTS,
+  MATCH_FORMAT_FORM,
   MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
   type WizardMatchFormat,
-} from './buildMatchFormatFromRow';
+} from '../../_shared/match-format-form';
+import { RulesFormState } from '../../_shared/RulesFormState';
+import { useEffectiveRules } from '../../_shared/useEffectiveRules';
 import { LevelAtTimeEditor, levelChainsAreValid } from './LevelAtTimeEditor';
-import { apiRequest, failureMessage } from '@myclash/api-client';
-import { getPublicApiUrl } from '@/lib/api-url';
-
-const apiUrl = getPublicApiUrl();
 
 type MatchFormat = WizardMatchFormat;
-const DEFAULTS: MatchFormat = MATCH_FORMAT_DEFAULTS;
 
+/**
+ * The match format in force (`effectiveRules`), and a Next that sends only what the organiser
+ * changed, with the step (operator rulings 43, 46): an untouched Next sends `{ wizardStep: 2 }`.
+ */
 export function Step2MatchFormat({
   tournamentId,
   onNext,
@@ -33,91 +32,41 @@ export function Step2MatchFormat({
   const { t } = useI18n();
 
   const toast = useToast();
-  const [data, setData] = useState<MatchFormat>(DEFAULTS);
-  const [hasAfterblow, setHasAfterblow] = useState(false);
-  // Defaults TRUE: every ruleset had a doubles ceiling before the capability
-  // existed, and the step shows coded defaults until the row lands.
-  const [hasMaxDoubles, setHasMaxDoubles] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    // Silent read: the step shows the coded defaults until the row lands, and
-    // the save below reports its own refusal.
-    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-      (r) => {
-        if (!r.ok) return;
-        const row = r.data;
-        const grammar = row['ruleset_grammar'] as
-          { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
-        setHasAfterblow(Boolean(grammar?.hasAfterblow));
-        setHasMaxDoubles(grammar?.hasMaxDoubles !== false);
-        // Pluck-not-spread to keep stray engine/legacy keys out of the
-        // PATCH body — same discipline as Step 4. See buildMatchFormatFromRow.
-        setData(
-          buildMatchFormatFromRow(
-            (row['ruleset_config'] ?? {}) as Record<string, unknown>,
-            (row['scoring_config_json'] ?? {}) as Record<string, unknown>,
-            DEFAULTS,
-          ),
-        );
-      },
+  const rules = useEffectiveRules(tournamentId, MATCH_FORMAT_FORM);
+  const { form: data, setForm: setData, saving } = rules;
+  const heading = (
+    <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+      {t('organizer.tournaments.wizard.matchFormat')}
+    </h2>
+  );
+  if (!data) {
+    // The step indicator above stays the way out (Back, or another step).
+    return (
+      <div className="space-y-4">
+        {heading}
+        <RulesFormState status={rules.status} onRetry={rules.reload} />
+      </div>
     );
-  }, [tournamentId]);
+  }
+
+  // The ruleset's own answer: afterblow only where it has one, the doubles ceiling unless it says
+  // it has none. A control not shown is never changed, so never sent.
+  const grammar = rules.row?.['ruleset_grammar'] as
+    { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+  const hasAfterblow = Boolean(grammar?.hasAfterblow);
+  const hasMaxDoubles = grammar?.hasMaxDoubles !== false;
 
   async function saveAndAdvance() {
-    setSaving(true);
-    try {
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body: {
-          rulesetConfig: {
-            matchFormat: {
-              pointCap: data.pointCap,
-              scoringDirection: data.scoringDirection,
-              timerMode: data.timerMode,
-              timeLimitsSeconds: data.timeLimitsSeconds,
-              softClockLimitSeconds: data.softClockLimitSeconds,
-              maxDoubleHits: data.maxDoubleHits,
-              maxDoubleHitOutcome: data.maxDoubleHitOutcome,
-              bestOf: data.bestOf,
-              levelAtTime: data.levelAtTime,
-            },
-          },
-          // Only written when the ruleset HAS afterblow. This used to send
-          // unconditionally while the control itself was hidden for non-TF_v1
-          // rulesets, so it wrote the untouched default `full` over whatever
-          // the tournament was seeded with — silently overriding a ruleset that
-          // declared `deductive`, from a field the operator never saw.
-          ...(hasAfterblow ? { scoringConfig: { afterblowMode: data.afterblowMode } } : {}),
-          // Recorded, not inferred: this PATCH's own scoringConfig makes the
-          // server backfill buttons, which used to read as "Step 3 done".
-          wizardStep: 2,
-        },
-      });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
-      toast.success(t('organizer.tournaments.settings.saved'));
-      window.history.replaceState(
-        null,
-        '',
-        `${window.location.pathname}?id=${tournamentId}&step=3`,
-      );
-      onNext();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
-    } finally {
-      setSaving(false);
-    }
+    // Recorded, not inferred: the step is sent with whatever changed, alone when nothing did.
+    if ((await rules.save({ wizardStep: 2 })) !== 'saved') return;
+    toast.success(t('organizer.tournaments.settings.saved'));
+    window.history.replaceState(null, '', `${window.location.pathname}?id=${tournamentId}&step=3`);
+    onNext();
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-        {t('organizer.tournaments.wizard.matchFormat')}
-      </h2>
+      {heading}
 
       <NumberField
         label={t('organizer.tournaments.settings.pointCap')}

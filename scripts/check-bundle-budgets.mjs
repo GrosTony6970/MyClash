@@ -76,12 +76,16 @@ export const budgets = [
     app: 'web-staff',
     budgetBytes: 330 * 1024,
   },
+  // Raised on 2026-10-20 (operator, ruling 55 "Admin budget"): 471,031 measured against 460 KiB
+  // (9 bytes free), and every admin page carries the whole admin dictionary, so the three
+  // sentences of the rules screens' read and save states went 55 bytes over. 470 KiB guards
+  // against real growth (a library on every page), not against one word.
   {
     name: 'web-admin every page load',
     type: 'page-load',
     root: join('apps', 'web-admin'),
     app: 'web-admin',
-    budgetBytes: 460 * 1024,
+    budgetBytes: 470 * 1024,
   },
 ];
 

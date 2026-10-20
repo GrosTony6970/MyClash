@@ -1,9 +1,10 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Button } from '@myclash/ui';
-import { TF_DEFAULTS, type RulesetConfigTF } from '../new/_wizard/buildTfFromRow';
+import { startAffordance } from './start-affordance';
+import type { RulesetConfigTF } from './tf-form';
 
 /**
  * The TF-family ruleset controls, shared by the create wizard (Step 4) and the
@@ -15,9 +16,13 @@ import { TF_DEFAULTS, type RulesetConfigTF } from '../new/_wizard/buildTfFromRow
  *     to fork into an editable org copy. On a fork they edit freely.
  *   - the tournamentPolicy switches are NOT ruleset constants (they are per-
  *     tournament organiser policy), so they stay editable regardless of `locked`.
+ *
+ * The "modified" badge and Reset compare with what the ruleset starts a Tournament from at its
+ * pinned version (`start`, operator ruling 51); with no `start`, neither shows.
  */
 export function TfRulesetControls({
   tf,
+  start,
   onChange,
   locked,
   onCustomise,
@@ -25,6 +30,7 @@ export function TfRulesetControls({
   readOnly,
 }: {
   tf: RulesetConfigTF;
+  start: RulesetConfigTF | null;
   onChange: (next: RulesetConfigTF) => void;
   /** True when the tournament still points at the locked built-in format. */
   locked: boolean;
@@ -59,22 +65,20 @@ export function TfRulesetControls({
         <p className="px-2 pb-1 text-xs text-muted">{t('admin.orgTournaments.tfRulesetHint')}</p>
       )}
 
-      <TfConstantFields tf={tf} onChange={onChange} disabled={locked} />
-      <TfPolicyFields tf={tf} onChange={onChange} />
+      <TfConstantFields tf={tf} start={start} onChange={onChange} disabled={locked} />
+      <TfPolicyFields tf={tf} start={start} onChange={onChange} />
     </fieldset>
   );
 }
 
-/** winBonus / deep / shallow — the ruleset constants, greyed while `disabled`. */
-function TfConstantFields({
-  tf,
-  onChange,
-  disabled,
-}: {
+interface FieldsProps {
   tf: RulesetConfigTF;
+  start: RulesetConfigTF | null;
   onChange: (next: RulesetConfigTF) => void;
-  disabled: boolean;
-}) {
+}
+
+/** winBonus / deep / shallow — the ruleset constants, greyed while `disabled`. */
+function TfConstantFields({ tf, start, onChange, disabled }: FieldsProps & { disabled: boolean }) {
   const { t } = useI18n();
 
   const setTarget = (key: 'deepTarget' | 'shallowTarget', v: number) =>
@@ -84,7 +88,7 @@ function TfConstantFields({
       <NumField
         label={t('admin.orgTournaments.winBonus')}
         value={tf.winBonus}
-        defaultValue={TF_DEFAULTS.winBonus}
+        start={start?.winBonus}
         onChange={(v) => onChange({ ...tf, winBonus: v })}
         min={0}
         max={20}
@@ -93,7 +97,7 @@ function TfConstantFields({
       <NumField
         label={t('admin.orgTournaments.deepTarget')}
         value={tf.targetValues.deepTarget}
-        defaultValue={TF_DEFAULTS.targetValues.deepTarget}
+        start={start?.targetValues.deepTarget}
         onChange={(v) => setTarget('deepTarget', v)}
         min={1}
         max={10}
@@ -102,7 +106,7 @@ function TfConstantFields({
       <NumField
         label={t('admin.orgTournaments.shallowTarget')}
         value={tf.targetValues.shallowTarget}
-        defaultValue={TF_DEFAULTS.targetValues.shallowTarget}
+        start={start?.targetValues.shallowTarget}
         onChange={(v) => setTarget('shallowTarget', v)}
         min={1}
         max={10}
@@ -113,106 +117,66 @@ function TfConstantFields({
 }
 
 /** Per-tournament organiser policy — always editable, even on the built-in. */
-function TfPolicyFields({
-  tf,
-  onChange,
-}: {
-  tf: RulesetConfigTF;
-  onChange: (next: RulesetConfigTF) => void;
-}) {
+function TfPolicyFields({ tf, start, onChange }: FieldsProps) {
   const { t } = useI18n();
 
   const setPolicy = (patch: Partial<RulesetConfigTF['tournamentPolicy']>) =>
     onChange({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, ...patch } });
+  const startPolicy = start?.tournamentPolicy;
   return (
     <>
       <BoolField
         label={t('admin.orgTournaments.forfeitDrawsCount')}
         value={tf.tournamentPolicy.forfeitDrawsCount}
-        defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitDrawsCount}
+        start={startPolicy?.forfeitDrawsCount}
         onChange={(v) => setPolicy({ forfeitDrawsCount: v })}
       />
       <BoolField
         label={t('admin.orgTournaments.forfeitBeforeFirstMatchDq')}
         value={tf.tournamentPolicy.forfeitFighterBefore1stMatch}
-        defaultValue={TF_DEFAULTS.tournamentPolicy.forfeitFighterBefore1stMatch}
+        start={startPolicy?.forfeitFighterBefore1stMatch}
         onChange={(v) => setPolicy({ forfeitFighterBefore1stMatch: v })}
       />
-      <NumField
-        label={t('admin.orgTournaments.disqualifyAfter')}
+      <DisqualifyField
         value={tf.tournamentPolicy.disqualifyAfter}
-        defaultValue={TF_DEFAULTS.tournamentPolicy.disqualifyAfter}
+        start={startPolicy?.disqualifyAfter}
         onChange={(v) => setPolicy({ disqualifyAfter: v })}
-        min={1}
-        max={10}
       />
     </>
   );
 }
 
+/**
+ * A field's row: its name, linked to the control by id, with the badge; the Reset and the control.
+ * Not one `<label>` around all of it: a Reset button inside would become what clicking the name
+ * presses.
+ */
 function FieldRow({
+  id,
   label,
   badge,
   control,
 }: {
+  id: string;
   label: string;
   badge: ReactNode;
   control: ReactNode;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       <span className="flex items-center gap-2 text-sm text-foreground-secondary">
-        {label}
+        <label htmlFor={id}>{label}</label>
         {badge}
       </span>
       <span className="flex items-center gap-2">{control}</span>
-    </label>
-  );
-}
-
-/** A "modified" chip + a reset-to-default link, shown only when value ≠ default. */
-function DefaultAffordance({
-  modified,
-  defaultLabel,
-  onReset,
-}: {
-  modified: boolean;
-  defaultLabel: string;
-  onReset: () => void;
-}) {
-  const { t } = useI18n();
-
-  if (!modified) return null;
-  return (
-    <button
-      type="button"
-      onClick={onReset}
-      className="text-xs text-muted underline hover:text-foreground"
-      title={t('admin.orgTournaments.resetTo', { value: defaultLabel })}
-    >
-      {t('admin.orgTournaments.reset')}
-    </button>
-  );
-}
-
-function ModifiedBadge({ show, defaultLabel }: { show: boolean; defaultLabel: string }) {
-  const { t } = useI18n();
-
-  if (!show) return null;
-  return (
-    <span
-      title={t('admin.orgTournaments.defaultValue', { value: defaultLabel })}
-      className="rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning"
-    >
-      {t('admin.orgTournaments.modifiedBadge')}
-    </span>
+    </div>
   );
 }
 
 function NumField({
   label,
   value,
-  defaultValue,
+  start,
   onChange,
   min,
   max,
@@ -220,25 +184,24 @@ function NumField({
 }: {
   label: string;
   value: number;
-  defaultValue: number;
+  start: number | undefined;
   onChange: (v: number) => void;
   min: number;
   max: number;
   disabled?: boolean;
 }) {
-  const modified = !disabled && value !== defaultValue;
+  const id = useId();
+  const shown = startAffordance(value, disabled ? undefined : start, String, onChange);
   return (
     <FieldRow
+      id={id}
       label={label}
-      badge={<ModifiedBadge show={modified} defaultLabel={String(defaultValue)} />}
+      badge={shown.badge}
       control={
         <>
-          <DefaultAffordance
-            modified={modified}
-            defaultLabel={String(defaultValue)}
-            onReset={() => onChange(defaultValue)}
-          />
+          {shown.reset}
           <input
+            id={id}
             type="number"
             value={value}
             min={min}
@@ -256,27 +219,73 @@ function NumField({
 function BoolField({
   label,
   value,
-  defaultValue,
+  start,
   onChange,
 }: {
   label: string;
   value: boolean;
-  defaultValue: boolean;
+  start: boolean | undefined;
   onChange: (v: boolean) => void;
 }) {
-  const modified = value !== defaultValue;
+  const id = useId();
+  const shown = startAffordance(value, start, String, onChange);
   return (
     <FieldRow
+      id={id}
       label={label}
-      badge={<ModifiedBadge show={modified} defaultLabel={String(defaultValue)} />}
+      badge={shown.badge}
       control={
         <>
-          <DefaultAffordance
-            modified={modified}
-            defaultLabel={String(defaultValue)}
-            onReset={() => onChange(defaultValue)}
+          {shown.reset}
+          <input
+            id={id}
+            type="checkbox"
+            checked={value}
+            onChange={(e) => onChange(e.target.checked)}
           />
-          <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+        </>
+      }
+    />
+  );
+}
+
+/** The forfeits that disqualify: Off, or 1 to 10 (operator ruling 52: Off removes the rule). */
+const DISQUALIFY_COUNTS = Array.from({ length: 10 }, (_, i) => i + 1);
+
+function DisqualifyField({
+  value,
+  start,
+  onChange,
+}: {
+  value: number | null;
+  start: number | null | undefined;
+  onChange: (v: number | null) => void;
+}) {
+  const { t } = useI18n();
+  const off = t('admin.orgTournaments.disqualifyOff');
+  const id = useId();
+  const shown = startAffordance(value, start, (s) => (s === null ? off : String(s)), onChange);
+  return (
+    <FieldRow
+      id={id}
+      label={t('admin.orgTournaments.disqualifyAfter')}
+      badge={shown.badge}
+      control={
+        <>
+          {shown.reset}
+          <select
+            id={id}
+            value={value === null ? 'off' : String(value)}
+            onChange={(e) => onChange(e.target.value === 'off' ? null : Number(e.target.value))}
+            className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
+          >
+            <option value="off">{off}</option>
+            {DISQUALIFY_COUNTS.map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </select>
         </>
       }
     />

@@ -10,7 +10,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import type { SideColorStyle } from '@myclash/ui';
 import { displayPreviewModel } from './display-preview-model';
-import type { DisplayState } from './buildDisplayConfigFromRow';
+import type { DisplayState } from '../../_shared/display-form';
 
 function FighterPanel({
   style,

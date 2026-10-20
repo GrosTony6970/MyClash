@@ -1,85 +1,30 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
-import {
-  buildTfFromRow,
-  TF_DEFAULTS,
-  type RulesetConfigTF,
-} from '../../../new/_wizard/buildTfFromRow';
+import { TF_FORM, tfForm } from '../../../_shared/tf-form';
 import { TfRulesetControls } from '../../../_shared/TfRulesetControls';
+import { RulesFormState } from '../../../_shared/RulesFormState';
 import { useCustomiseFormat } from '../../../_shared/useCustomiseFormat';
-import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
-import { isCodedRuleset } from '../../../../../../../../../src/components/rulesets/ruleset-kind';
-import { apiRequest, failureMessage } from '@myclash/api-client';
-import { getPublicApiUrl } from '@/lib/api-url';
+import { useEffectiveRules } from '../../../_shared/useEffectiveRules';
 import type { TabProps } from './tab-props';
 
-const apiUrl = getPublicApiUrl();
-
+/**
+ * TF_v1's own settings in force (`effectiveRules.tf`), for TF_v1 and a fork of it, and a Save of
+ * only what the organiser changed (operator rulings 43, 46, 48, 52). A ruleset whose engine is
+ * not TF_v1's has none: the API answers `tf: null`, and the tab shows no controls.
+ */
 export function AdvancedTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
-  const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
-  const [isSystem, setIsSystem] = useState(true);
-  const [baseCode, setBaseCode] = useState<string | null>(null);
-  const [tf, setTf] = useState<RulesetConfigTF>(TF_DEFAULTS);
-  const markSaved = useSavedSnapshot(tf, TF_DEFAULTS, onDirtyChange);
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(() => {
-    // Silent read: the tab renders the coded defaults until the row lands, and
-    // the save below reports its own refusal.
-    void apiRequest<Record<string, unknown> & { ruleset_code: string }>(
-      apiUrl,
-      `/api/v1/tournaments/${tournamentId}`,
-    ).then((r) => {
-      if (r.ok) {
-        const row = r.data;
-        setRulesetCode(row.ruleset_code);
-        setIsSystem((row['ruleset_is_system'] as boolean | undefined) ?? true);
-        setBaseCode((row['ruleset_base_code'] as string | null | undefined) ?? null);
-        const read = buildTfFromRow(
-          (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
-          TF_DEFAULTS,
-        );
-        setTf(read);
-        markSaved(read);
-      }
-    });
-  }, [tournamentId, markSaved]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, load);
-
-  // Show the TF controls for the built-in TF_v1 AND for a fork of it (whose
-  // code is no longer 'TF_v1' but whose base_code still is).
-  const tfLike = isCodedRuleset(rulesetCode, baseCode);
+  const rules = useEffectiveRules(tournamentId, TF_FORM, onDirtyChange);
+  const { customise, customising, confirmDialog } = useCustomiseFormat(tournamentId, rules.reload);
+  const tf = rules.form?.tf ?? null;
+  const start = rules.rules?.start?.tf ? tfForm(rules.rules.start.tf) : null;
 
   async function save() {
-    setSaving(true);
-    try {
-      const body: Record<string, unknown> = {};
-      if (tfLike) body['rulesetConfig'] = tf;
-      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
-        method: 'PATCH',
-        body,
-      });
-      if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
-        return;
-      }
-      markSaved(tf);
-      toast.success(t('organizer.tournaments.settings.saved'));
-    } finally {
-      setSaving(false);
-    }
+    if ((await rules.save()) === 'saved') toast.success(t('organizer.tournaments.settings.saved'));
   }
 
   return (
@@ -88,26 +33,33 @@ export function AdvancedTab({ tournamentId, readOnly, onDirtyChange }: TabProps)
         {t('organizer.tournaments.settings.advanced')}
       </h2>
 
-      {tfLike && (
-        <TfRulesetControls
-          tf={tf}
-          onChange={setTf}
-          locked={isSystem}
-          onCustomise={() => void customise()}
-          customising={customising}
-          readOnly={readOnly}
-        />
-      )}
+      {rules.form ? (
+        <>
+          {tf && (
+            <TfRulesetControls
+              tf={tf}
+              start={start}
+              onChange={(next) => rules.setForm({ tf: next })}
+              locked={rules.row?.['ruleset_is_system'] !== false}
+              onCustomise={() => void customise()}
+              customising={customising}
+              readOnly={readOnly}
+            />
+          )}
 
-      <button
-        type="button"
-        onClick={() => void save()}
-        disabled={saving || readOnly}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
-      >
-        {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
-      </button>
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={rules.saving || readOnly}
+            title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
+          >
+            {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
+          </button>
+        </>
+      ) : (
+        <RulesFormState status={rules.status} onRetry={rules.reload} />
+      )}
       {confirmDialog}
     </div>
   );

@@ -57,7 +57,7 @@ export function BasicsTab({
   const [data, setData] = useState<TournamentBasics | null>(null);
   // Save and the ruleset change each mark the fields they sent: a picked ruleset not applied
   // yet is unsaved too.
-  const markSaved = useSavedSnapshot(data, null, onDirtyChange);
+  const markSaved = useSavedSnapshot(data, onDirtyChange);
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [saving, setSaving] = useState(false);
