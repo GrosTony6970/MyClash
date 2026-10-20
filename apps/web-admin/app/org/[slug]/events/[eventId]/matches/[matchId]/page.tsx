@@ -439,7 +439,7 @@ export default function MatchDetailPage() {
         // The DTO refuses canContinue on an override and requires the scores;
         // an override never withdraws anyone, so there is nothing to ask.
         canContinue:
-          !isOverride && ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason)
+          !isOverride && ['injury', 'voluntary'].includes(forfeitReason)
             ? forfeitCanContinue
             : undefined,
         explicitScores: isOverride
@@ -736,7 +736,7 @@ export default function MatchDetailPage() {
                 </label>
               </>
             ) : (
-              ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
+              ['injury', 'voluntary'].includes(forfeitReason) && (
                 <label className="flex items-center gap-2 text-sm text-danger">
                   <input
                     type="checkbox"

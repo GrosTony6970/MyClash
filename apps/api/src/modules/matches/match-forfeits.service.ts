@@ -8,11 +8,17 @@ import {
 } from '@nestjs/common';
 import {
   FORFEIT_REASONS,
+  isBlackCardReason,
   isOverrideReason,
   resolveForfeitPolicy,
   type ForfeitReason,
 } from '@myclash/rulesets';
 import { disqualifyAfterOf } from '@myclash/types/effective-rules';
+import {
+  blackCardEffectOf,
+  tournamentCardRules,
+  type BlackCardEffect,
+} from '../penalties/card-rules-pin';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
@@ -41,6 +47,12 @@ import { ScoringService } from './scoring.service';
  */
 type Actor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
 type Row = Record<string, unknown>;
+
+/**
+ * The forfeits "disqualify after N forfeits" counts: the ones the Fighter chose. Not an override
+ * (nobody forfeited), not a black card (the referee's, ruling 56).
+ */
+const COUNTED_FORFEIT_REASONS = FORFEIT_REASONS.filter((reason) => !isBlackCardReason(reason));
 
 /**
  * Where one live record sits in the cascade, computed on the READ.
@@ -83,12 +95,16 @@ export class MatchForfeitsService {
    * `causedAt`: of a black card a tablet kept in its queue, the server's time
    * of that card (`scoredAtServer`). The clock is ended there, not at the time
    * the queue arrives. A forfeit a person records has none: now.
+   *
+   * `cardEffect`: what the black card that caused it does, as the card path
+   * read it. A black card forfeit recorded by hand reads it itself.
    */
   async createForfeit(
     matchId: string,
     dto: CreateMatchForfeitDto,
     actor: Actor = {},
     causedAt?: string,
+    cardEffect?: BlackCardEffect,
   ) {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
@@ -113,14 +129,25 @@ export class MatchForfeitsService {
     // tournamentPolicy can escalate the per-reason state to a disqualification.
     // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
     // continue (which in pools also auto-forfeits their remaining matches).
-    const tournamentState = await this.escalateTournamentState(
-      dto.forfeitingRegistrationId,
-      matchId,
+    // A forfeit recorded under a live withdrawal belongs to it, and is no new
+    // forfeit of the Fighter: it escalates nothing (ruling 89).
+    const inheritedParentId = await this.resolveInheritedParentId(matchId, match, dto, phase);
+    const reasonState = await this.reasonState(
+      dto.reason,
       phase.tournament_id,
       policy.tournamentState,
-      tournament.ruleset_config,
-      dto.reason as ForfeitReason,
+      cardEffect,
     );
+    const tournamentState = inheritedParentId
+      ? reasonState
+      : await this.escalateTournamentState(
+          dto.forfeitingRegistrationId,
+          matchId,
+          phase.tournament_id,
+          reasonState,
+          tournament.ruleset_config,
+          dto.reason as ForfeitReason,
+        );
 
     const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue);
     const scores = this.resolveScores(
@@ -131,7 +158,6 @@ export class MatchForfeitsService {
     );
     const now = new Date().toISOString();
     const priorRegistration = await this.loadRegistration(dto.forfeitingRegistrationId);
-    const inheritedParentId = await this.resolveInheritedParentId(matchId, match, dto, phase);
 
     const forfeit = await this.insertForfeit({
       match_id: matchId,
@@ -1168,17 +1194,34 @@ export class MatchForfeitsService {
   }
 
   /**
+   * What the forfeit's reason does to the Fighter. A black card's is its card
+   * rule's, never the scoring rules' (rulings 54, 58 and 82): 'tournament'
+   * disqualifies, 'match' and 'none' end the bout only.
+   */
+  private async reasonState(
+    reason: string,
+    tournamentId: string,
+    policyState: string,
+    cardEffect: BlackCardEffect | undefined,
+  ): Promise<string> {
+    if (!isBlackCardReason(reason)) return policyState;
+    const effect =
+      cardEffect ??
+      blackCardEffectOf(await tournamentCardRules(this.supabase.service, tournamentId), reason);
+    return effect === 'tournament' ? 'disqualified' : 'match_only';
+  }
+
+  /**
    * Apply the two tournament-policy escalations to a forfeit's resulting state.
-   * Both were stored and editable but read by nothing.
    *
    * - `forfeitFighterBefore1stMatch` — "Forfeit before 1st match → auto-DQ".
    *   A registration id is tournament-scoped, so counting that fighter's
    *   completed matches needs no tournament filter.
-   * - `disqualifyAfter` — "Disqualify after N forfeits". Counts FORFEITS, not
-   *   black cards; the per-reason `tournamentState` and the penalty ruleset's
-   *   black-card scope both key off other things, so nothing counted these.
+   * - `disqualifyAfter` — "Disqualify after N forfeits". Counts the forfeits the
+   *   Fighter chose: no black card, and no bout under a withdrawal.
    *
-   * Counted before the new forfeit row is inserted, hence the `+ 1`.
+   * A black card escalates neither (ruling 56). Counted before the new forfeit
+   * row is inserted, hence the `+ 1`.
    */
   private async escalateTournamentState(
     registrationId: string,
@@ -1191,8 +1234,9 @@ export class MatchForfeitsService {
     if (state === 'disqualified') return state;
     // Nobody forfeited, so neither escalation applies. Correcting a fighter's
     // first result must not disqualify them for "forfeiting before their 1st
-    // match", and a correction must not count toward `disqualifyAfter`.
-    if (isOverrideReason(reason)) return state;
+    // match", and a correction must not count toward `disqualifyAfter`. Nor did
+    // the Fighter choose a black card: its own rule says what it does.
+    if (isOverrideReason(reason) || isBlackCardReason(reason)) return state;
 
     const policy =
       ((rulesetConfig as { tournamentPolicy?: Record<string, unknown> } | null) ?? {})
@@ -1215,8 +1259,10 @@ export class MatchForfeitsService {
         .select('id', { count: 'exact', head: true })
         .eq('tournament_id', tournamentId)
         .eq('forfeiting_registration_id', registrationId)
-        // Overrides share this table but are not forfeits — see FORFEIT_REASONS.
-        .in('reason', FORFEIT_REASONS)
+        .in('reason', COUNTED_FORFEIT_REASONS)
+        // The bouts under a withdrawal, forfeited with it or recorded again since, are its
+        // effects, not forfeits (rulings 56 and 89).
+        .is('parent_forfeit_id', null)
         .is('voided_at', null);
       if ((count ?? 0) + 1 >= threshold) return 'disqualified';
     }

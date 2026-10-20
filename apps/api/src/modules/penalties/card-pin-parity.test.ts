@@ -1,6 +1,7 @@
 /**
  * Two owners resolve a Tournament's card rules, and they must agree. The server's
- * `getEffectiveRulesetForTournament` reads them Tournament → Event → built-in. The database's row
+ * `tournamentCardRulesetId` (`card-rules-pin.ts`) reads them Tournament → Event → built-in, for
+ * the admin picker and for how far a black card reaches. The database's row
  * builder of a bout's copy of its rules (`build_match_rules`, migration 0229) pins them the same
  * way, and the copy decides the bout's cards once the readers switch to it. A predicate changed on
  * one side only gives a bout card rules the Tournament's page does not show.
@@ -11,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { lastFunctionBody } from '../../common/testing/migration-function';
 import { filtersFor, mockSupabase } from '../../common/testing/supabase-chain';
-import { PenaltiesService } from './penalties.service';
+import { tournamentCardRulesetId } from './card-rules-pin';
 
 type Pins = { tournament: string | null; event: string | null };
 
@@ -29,10 +30,8 @@ async function resolvedBy(pins: Pins) {
     events: { rows: [{ id: 'ev-1', penalty_ruleset_id: pins.event }] },
     penalty_rulesets: { rows: RULESETS },
   });
-  const ruleset = (await new PenaltiesService(supabase as never).getEffectiveRulesetForTournament(
-    't-1',
-  )) as { id?: unknown } | null;
-  return { id: ruleset?.id, from: supabase.from };
+  const id = await tournamentCardRulesetId(supabase.service as never, 't-1');
+  return { id, from: supabase.from };
 }
 
 /** `build_match_rules`' built-in read, as [column, test, value] and its limit. */

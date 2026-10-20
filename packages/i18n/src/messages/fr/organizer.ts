@@ -296,9 +296,9 @@ export const organizer = {
     namesLoadError:
       'Impossible de lire les noms des combattants : ils s’affichent comme « Combattant inconnu ».',
     subtitle:
-      'Un deuxième carton noir dans le même tournoi signale le combattant pour révision de disqualification. Confirmez pour disqualifier son inscription, ou rejetez.',
+      'Un deuxième carton noir dans le même tournoi signale le combattant pour révision de disqualification, sauf si les règles de cartons le disqualifient déjà. Confirmez pour disqualifier son inscription, ou rejetez.',
     pendingTitle: 'Révisions en attente ({count})',
-    emptyPending: "Aucune révision en attente — aucun combattant n'a un deuxième carton noir.",
+    emptyPending: 'Aucune révision en attente.',
     blackCards: '{count} carton(s) noir(s)',
     confirmDq: 'Confirmer la disqualification',
     dismiss: 'Rejeter',

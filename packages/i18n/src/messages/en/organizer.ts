@@ -301,9 +301,9 @@ export const organizer = {
       'Could not read the reviews of {tournament}: a review of it may be missing below.',
     namesLoadError: 'Could not read the fighters\' names: they show as "Unknown fighter".',
     subtitle:
-      'A second black card in the same tournament flags the fighter for disqualification review. Confirm to disqualify their registration, or dismiss.',
+      'A second black card in the same tournament flags the fighter for disqualification review, unless the card rules already disqualify on a second black card. Confirm to disqualify their registration, or dismiss.',
     pendingTitle: 'Pending reviews ({count})',
-    emptyPending: 'No pending reviews — no fighter has a second black card.',
+    emptyPending: 'No pending reviews.',
     blackCards: '{count} black card(s)',
     confirmDq: 'Confirm disqualification',
     dismiss: 'Dismiss',

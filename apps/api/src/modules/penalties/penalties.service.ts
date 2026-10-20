@@ -41,6 +41,15 @@ import { tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
 import {
+  blackCardEffectOf,
+  builtInPenaltyRulesetQuery,
+  loadBuiltInPenaltyRulesetId,
+  loadPenaltyRulesetRow,
+  tournamentCardRules,
+  tournamentCardRulesetId,
+  type BlackCardEffect,
+} from './card-rules-pin';
+import {
   answeredPayload,
   reviewChanged,
   syncSecondBlackCardReview,
@@ -72,12 +81,9 @@ interface PenaltyActor {
   correctsOverEvent?: boolean;
 }
 
-export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
-
-/** The Tournament's forfeit policy and card rules of now, which say how far a black card reaches. */
+/** The Tournament's card rules of now, which say how far a black card reaches (ruling 54). */
 interface BlackCardReach {
-  policy: Record<string, unknown> | null;
-  cardRules: Record<string, unknown> | null;
+  cardRules: Record<string, unknown>;
 }
 
 /**
@@ -277,27 +283,12 @@ export class PenaltiesService {
    * conclusion for the lineage lamp; this is the same rule for the same row.
    */
   private async loadBuiltInPenaltyRuleset(): Promise<Row | null> {
-    const { data, error } = await this.builtInPenaltyRulesetQuery('*, penalty_ruleset_entries(*)');
+    const { data, error } = await builtInPenaltyRulesetQuery(
+      this.supabase.service,
+      '*, penalty_ruleset_entries(*)',
+    );
     if (error) throw new BadRequestException(error.message);
     return (data as Row | null) ?? null;
-  }
-
-  /**
-   * The one predicate that identifies the built-in row, shared by every caller
-   * so they cannot drift apart — which is the fault this replaced: the picker
-   * and the recorder each decided for themselves what the default was.
-   *
-   * `.limit(1)` before `.maybeSingle()`: a second built-in row would otherwise
-   * null the whole result and silently empty the picker again.
-   */
-  private builtInPenaltyRulesetQuery(columns: string) {
-    return this.supabase.service
-      .from('penalty_rulesets')
-      .select(columns)
-      .eq('built_in', true)
-      .is('owner_organization_id', null)
-      .limit(1)
-      .maybeSingle();
   }
 
   /**
@@ -307,41 +298,8 @@ export class PenaltiesService {
    * picker so organizers can pin common entries to the scoreboard.
    */
   async getEffectiveRulesetForTournament(tournamentId: string) {
-    const id = await this.tournamentCardRulesetId(tournamentId);
+    const id = await tournamentCardRulesetId(this.supabase.service, tournamentId);
     return id ? this.getRuleset(id) : null;
-  }
-
-  /**
-   * The id of a Tournament's card rules of now: its pin, else its Event's, else the built-in.
-   * One resolver for the admin picker and for how far a black card reaches (ruling G); the copy
-   * of a bout's rules pins the same way (`build_match_rules`, `card-pin-parity.test.ts`). A read
-   * that fails is an error, never the built-in: a black card reaches as far as the rules say.
-   */
-  private async tournamentCardRulesetId(tournamentId: string): Promise<string | null> {
-    const { data: t, error } = await this.supabase.service
-      .from('tournaments')
-      .select('penalty_ruleset_id, event_id')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (error) {
-      throw new Error(`The card rules of ${tournamentId} were not read: ${error.message}`);
-    }
-    const tour = t as { penalty_ruleset_id?: string | null; event_id?: string | null } | null;
-    if (tour?.penalty_ruleset_id) return tour.penalty_ruleset_id;
-    if (tour?.event_id) {
-      const { data: ev, error: eventError } = await this.supabase.service
-        .from('events')
-        .select('penalty_ruleset_id')
-        .eq('id', tour.event_id)
-        .maybeSingle();
-      if (eventError) {
-        throw new Error(`The card rules of ${tour.event_id} were not read: ${eventError.message}`);
-      }
-      const evRulesetId =
-        (ev as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
-      if (evRulesetId) return evRulesetId;
-    }
-    return this.loadBuiltInPenaltyRulesetId();
   }
 
   async createRuleset(dto: CreatePenaltyRulesetDto, userId?: string) {
@@ -981,7 +939,7 @@ export class PenaltiesService {
     // built-in row exists at all, which is a broken install. Do not "fix" it
     // into a second lookup; there is a test below pinning the behaviour.
     const activePenaltyRuleset = match.penaltyRulesetId
-      ? await this.loadPenaltyRulesetRow(match.penaltyRulesetId)
+      ? await loadPenaltyRulesetRow(this.supabase.service, match.penaltyRulesetId)
       : null;
     const scoreDelta = activePenaltyRuleset
       ? this.cardScoreDelta(activePenaltyRuleset, sanction.card)
@@ -1067,6 +1025,7 @@ export class PenaltiesService {
             },
             context,
             causedAt,
+            scope,
           );
         } else {
           await this.supabase.service
@@ -1082,15 +1041,14 @@ export class PenaltiesService {
         }
       }
 
-      // Tournament-wide scope short-circuits the manual review path: mark
-      // the registration disqualified immediately. The standard 2nd-black
-      // review still gets created for audit/visibility.
+      // A card that reaches the Tournament disqualifies at once. A 2nd card that does opens no
+      // "second black card" review: there is nothing left to ask (ruling 86).
       if (scope === 'tournament') await this.disqualify(dto.registrationId);
-      await syncSecondBlackCardReview(
-        this.supabase.service,
+      await this.syncReviewUnlessDisqualifying(
         match.tournamentId,
         dto.registrationId,
         String((data as Row)['id']),
+        reach,
       );
     }
 
@@ -1116,34 +1074,6 @@ export class PenaltiesService {
           : 'black_card_points';
     const value = rulesetRow[key];
     return typeof value === 'number' ? value : 0;
-  }
-
-  /** A read that fails is an error: read as none, a card was priced and reached by defaults. */
-  private async loadPenaltyRulesetRow(rulesetId: string): Promise<Row | null> {
-    const { data, error } = await this.supabase.service
-      .from('penalty_rulesets')
-      .select(
-        'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit',
-      )
-      .eq('id', rulesetId)
-      .maybeSingle();
-    if (error) throw new Error(`Card rules ${rulesetId} were not read: ${error.message}`);
-    return (data as Row | null) ?? null;
-  }
-
-  /** A read that fails is an error: read as none, a "withdrawn" policy read as "ask". */
-  private async loadTournamentRulesetConfig(
-    tournamentId: string,
-  ): Promise<Record<string, unknown> | null> {
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .select('ruleset_config')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (error) {
-      throw new Error(`The forfeit rules of ${tournamentId} were not read: ${error.message}`);
-    }
-    return (data as { ruleset_config?: Record<string, unknown> } | null)?.ruleset_config ?? null;
   }
 
   private async countBlackCardsForRegistration(
@@ -1296,37 +1226,46 @@ export class PenaltiesService {
    * How far a black card reaches: the bout, the whole Tournament, or nothing. The ordinal counts
    * this Registration's non-voided black cards in the Tournament, the card just written included.
    *
-   * The Tournament's of now decides, its forfeit policy and its card rules alike (rulings A and G,
-   * 2026-10-17): the bout's copy prices the card, and how far a forfeit reaches is the
+   * The Tournament's card rules of now decide, its 1st or its 2nd black card setting (rulings A and
+   * G, 2026-10-17, and 54): the bout's copy prices the card, and how far a forfeit reaches is the
    * Tournament's, so the scope and the forfeit record it creates answer alike.
    */
   private async blackCardScope(
     match: MatchContext,
     registrationId: string,
     reach: BlackCardReach,
-  ): Promise<{ blackCount: number; scope: BlackCardForfeitScope }> {
+  ): Promise<{ blackCount: number; scope: BlackCardEffect }> {
     const blackCount = await this.countBlackCardsForRegistration(
       match.tournamentId,
       registrationId,
     );
-    const scope: BlackCardForfeitScope = reach.cardRules
-      ? this.resolveBlackCardForfeitScope(reach.cardRules, reach.policy, blackCount)
-      : blackCount >= 2
-        ? 'tournament'
-        : 'match';
-    return { blackCount, scope };
+    const reason = blackCount >= 2 ? 'black_card_2' : 'black_card_1';
+    return { blackCount, scope: blackCardEffectOf(reach.cardRules, reason) };
   }
 
   /**
-   * What decides how far a black card reaches, but its count: the Tournament's forfeit policy and
-   * card rules of now. Read before the card is written: a read that fails then leaves no card
-   * saved with no forfeit, which the tablet's resend would not repair.
+   * What decides how far a black card reaches, but its count: the Tournament's card rules of now.
+   * Read before the card is written: a read that fails then leaves no card saved with no forfeit,
+   * which the tablet's resend would not repair.
    */
   private async blackCardReach(match: MatchContext): Promise<BlackCardReach> {
-    const policy = await this.loadTournamentRulesetConfig(match.tournamentId);
-    const cardRulesId = await this.tournamentCardRulesetId(match.tournamentId);
-    const cardRules = cardRulesId ? await this.loadPenaltyRulesetRow(cardRulesId) : null;
-    return { policy, cardRules };
+    return { cardRules: await tournamentCardRules(this.supabase.service, match.tournamentId) };
+  }
+
+  /**
+   * The "second black card" review asks "two black cards: disqualify?". A 2nd card whose rule
+   * already disqualifies leaves nothing to ask, so it opens none, and a review already pending
+   * stays as it is (ruling 86). Both callers pass here: the first send and the answer to a card
+   * sent again, which the tablet's resend and the insert race both reach.
+   */
+  private async syncReviewUnlessDisqualifying(
+    tournamentId: string,
+    registrationId: string,
+    cardId: string,
+    reach: BlackCardReach,
+  ): Promise<void> {
+    if (blackCardEffectOf(reach.cardRules, 'black_card_2') === 'tournament') return;
+    await syncSecondBlackCardReview(this.supabase.service, tournamentId, registrationId, cardId);
   }
 
   /** Mark a Registration disqualified. A failed write is thrown, as a server error. */
@@ -1493,19 +1432,12 @@ export class PenaltiesService {
       // `ruleset_id` lost the provenance of a card that plainly came from one.
       // Meanwhile the pad's picker DID fall back, so it offered 28 entries that
       // could not be recorded. Read and write now resolve the same way.
-      penaltyRulesetId: cardPinOf(match) ?? (await this.loadBuiltInPenaltyRulesetId()),
+      penaltyRulesetId:
+        cardPinOf(match) ?? (await loadBuiltInPenaltyRulesetId(this.supabase.service)),
       status: (match['status'] as string | null) ?? null,
       currentRound: (match['current_round'] as number | null) ?? 1,
       awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
     };
-  }
-
-  /** Id of the built-in default, without dragging its entries along. */
-  private async loadBuiltInPenaltyRulesetId(): Promise<string | null> {
-    const { data, error } = await this.builtInPenaltyRulesetQuery('id');
-    // Read as "no built-in", a failed read refused every card of a bout that pins none.
-    if (error) throw new Error('The built-in card rules were not read');
-    return ((data as Row | null)?.['id'] as string | undefined) ?? null;
   }
 
   private assertMatchNotLocked(
@@ -1603,17 +1535,17 @@ export class PenaltiesService {
   private async replayAnswer(stored: Row): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
       const registrationId = String(stored['registration_id']);
+      const match = await this.getMatchContext(String(stored['match_id']));
+      const reach = await this.blackCardReach(match);
       if (stored['causes_match_forfeit'] === true) {
-        const match = await this.getMatchContext(String(stored['match_id']));
-        const reach = await this.blackCardReach(match);
         const { scope } = await this.blackCardScope(match, registrationId, reach);
         if (scope === 'tournament') await this.disqualify(registrationId);
       }
-      await syncSecondBlackCardReview(
-        this.supabase.service,
+      await this.syncReviewUnlessDisqualifying(
         String(stored['tournament_id']),
         registrationId,
         String(stored['id']),
+        reach,
       );
     }
     return stored;
@@ -1647,43 +1579,6 @@ export class PenaltiesService {
     }));
     const { error } = await this.supabase.service.from('penalty_ruleset_entries').insert(rows);
     if (error) throw new BadRequestException(error.message);
-  }
-
-  /**
-   * Resolve where a black-card forfeit should land:
-   * - 'match'      → end this match (current default behaviour).
-   * - 'tournament' → end the match AND mark the registration as disqualified
-   *                  for the rest of the tournament.
-   * - 'none'       → record the card but don't end the match.
-   *
-   * Source-of-truth precedence:
-   *   1. Tournament's scoring ruleset (TF v1 forfeitPolicy.black_card_{1,2}.
-   *      tournamentState) — if it's a concrete value ('match_only',
-   *      'withdrawn', 'disqualified'), it wins.
-   *   2. Else fall back to penalty ruleset's first_/second_black_card_forfeit
-   *      columns (defaults: 'match', 'tournament').
-   *
-   * `ordinal` is 1 for the registration's first non-voided black card in
-   * the tournament, 2 for the second, etc.
-   */
-  private resolveBlackCardForfeitScope(
-    penaltyRuleset: Row,
-    scoringRulesetConfig: Record<string, unknown> | null,
-    ordinal: number,
-  ): BlackCardForfeitScope {
-    const policyKey = ordinal >= 2 ? 'black_card_2' : 'black_card_1';
-    const policy = (
-      (scoringRulesetConfig?.['forfeitPolicy'] as Record<string, unknown> | undefined)?.[
-        'reasons'
-      ] as Record<string, { tournamentState?: string } | undefined> | undefined
-    )?.[policyKey];
-    const overrideState = policy?.tournamentState;
-    if (overrideState === 'match_only') return 'match';
-    if (overrideState === 'withdrawn' || overrideState === 'disqualified') return 'tournament';
-    // 'ask' or undefined → penalty ruleset default wins.
-    const column = ordinal >= 2 ? 'second_black_card_forfeit' : 'first_black_card_forfeit';
-    const value = penaltyRuleset[column] as BlackCardForfeitScope | undefined;
-    return value ?? (ordinal >= 2 ? 'tournament' : 'match');
   }
 
   // ── Versioning: publish / snapshot / validate ────────────────────────────

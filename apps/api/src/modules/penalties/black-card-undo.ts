@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { BLACK_CARD_REASONS } from '@myclash/rulesets';
 import type { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import type { MatchForfeitsService } from '../matches/match-forfeits.service';
 import type { SupabaseService } from '../supabase/supabase.service';
@@ -78,7 +79,7 @@ async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
     .select('id, replacement_registration_id, created_at')
     .eq('match_id', card['match_id'] as string)
     .eq('forfeiting_registration_id', card['registration_id'] as string)
-    .in('reason', ['black_card_1', 'black_card_2'])
+    .in('reason', BLACK_CARD_REASONS)
     .is('voided_at', null);
   return rowsOf('The forfeit of the black card', forfeits)[0] ?? null;
 }

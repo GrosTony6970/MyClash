@@ -204,18 +204,23 @@ describe('a black card given with no network while the clock runs', () => {
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       match_events: timeline,
+      // The card rules a black card recorded by hand reads: the card path hands its rule over.
+      tournaments: { rows: [{ id: 'tournament-1', penalty_ruleset_id: 'cards-1' }] },
+      penalty_rulesets: { rows: [{ id: 'cards-1', first_black_card_forfeit: 'match' }] },
     });
     const forfeits = new MatchForfeitsService(
       db as never,
       undefined as never,
       new ClockService(db as never),
     );
+    /** The card's forfeit, from the card path (`causedAt`) or recorded at the table. */
     const blackCard = (causedAt?: string) =>
       forfeits.createForfeit(
         BOUT,
         { forfeitingRegistrationId: 'reg-red', reason: 'black_card_1', canContinue: true },
         { staffAccountId: 'pad-1' },
         causedAt,
+        causedAt ? 'match' : undefined,
       );
     return { db, blackCard };
   }

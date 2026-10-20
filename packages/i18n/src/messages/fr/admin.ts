@@ -1544,7 +1544,7 @@ export const admin = {
     sanctionsEmpty: 'aucune sanction',
     cardCostsTitle: 'Coûts des cartons & portée du forfait',
     cardCostsHelp:
-      "Points retirés par couleur de carton, et ce que chaque carton noir déclenche. Le ruleset de score d'un tournoi (politique de forfait) peut surcharger ces valeurs par tournoi.",
+      "Points retirés par couleur de carton, et ce que chaque carton noir fait au combattant : il met fin au combat, l'exclut du tournoi, ou ne fait rien de plus.",
     yellowCardPoints: 'Points carton jaune',
     redCardPoints: 'Points carton rouge',
     blackCardPoints: 'Points carton noir',

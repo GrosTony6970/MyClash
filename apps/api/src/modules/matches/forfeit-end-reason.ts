@@ -1,4 +1,4 @@
-import { isOverrideReason } from '@myclash/rulesets';
+import { isBlackCardReason, isOverrideReason } from '@myclash/rulesets';
 
 /**
  * Map a forfeit reason to the persisted `matches.end_reason` value so the
@@ -18,7 +18,7 @@ import { isOverrideReason } from '@myclash/rulesets';
  */
 export function forfeitEndReason(reason: string): 'black_card' | 'forfeit' | 'override' {
   if (isOverrideReason(reason)) return 'override';
-  return reason === 'black_card_1' || reason === 'black_card_2' ? 'black_card' : 'forfeit';
+  return isBlackCardReason(reason) ? 'black_card' : 'forfeit';
 }
 
 /** Named one by one: a value added above fails the typecheck until it is placed here. */

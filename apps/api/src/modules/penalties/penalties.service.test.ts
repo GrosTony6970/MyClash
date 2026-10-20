@@ -2,6 +2,19 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PenaltiesService } from './penalties.service';
 
+/**
+ * A Tournament's card rules, which every black card reads (none is an error): a black card ends
+ * the bout, and a 2nd one asks the "second black card" review (ruling 86).
+ */
+const HOUSE_CARD_RULES = {
+  maybeSingle: {
+    id: 'pr-house',
+    black_card_points: 0,
+    first_black_card_forfeit: 'match',
+    second_black_card_forfeit: 'match',
+  },
+};
+
 describe('PenaltiesService', () => {
   it('returns an existing penalty when clientUuid was already recorded', async () => {
     const existing = { id: 'penalty-1', client_uuid: 'client-1', match_id: 'match-1' };
@@ -78,6 +91,7 @@ describe('PenaltiesService', () => {
       tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
       events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       match_events: { maybeSingle: null },
+      penalty_rulesets: HOUSE_CARD_RULES,
     });
     const recomputeMatchScore = vi.fn();
     const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
@@ -366,6 +380,7 @@ describe('PenaltiesService', () => {
       events: {
         maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
       },
+      penalty_rulesets: HOUSE_CARD_RULES,
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -415,6 +430,7 @@ describe('PenaltiesService', () => {
         maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
       },
       tournament_penalty_reviews: { maybeSingle: null },
+      penalty_rulesets: HOUSE_CARD_RULES,
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -475,6 +491,7 @@ describe('PenaltiesService', () => {
       tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
       events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
       tournament_penalty_reviews: { maybeSingle: null },
+      penalty_rulesets: HOUSE_CARD_RULES,
     });
     const service = new PenaltiesService(
       supabase as never,
@@ -616,9 +633,9 @@ describe('PenaltiesService', () => {
     expect(supabase.updated.registrations).toBeUndefined();
   });
 
-  // A scoring-config forfeit override (tournamentState=disqualified) escalates a
-  // first black card to tournament scope → the registration is disqualified.
-  it('a scoring-config override disqualifies the fighter on a first black card', async () => {
+  // The scoring rules say nothing of a black card any more (rulings 54 and 68): a forfeit policy
+  // still stored there, which once made a first black card disqualify, is not read.
+  it('a scoring-config forfeit policy does not disqualify on a first black card', async () => {
     const supabase = fakeSupabase({
       match_penalties: {
         maybeSingle: null,
@@ -678,10 +695,10 @@ describe('PenaltiesService', () => {
       { userId: 'scorekeeper-1' },
     );
 
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+    expect(supabase.updated.registrations).toBeUndefined();
   });
 
-  /** A bout whose Tournament makes a first black card disqualify (a scoring-config override). */
+  /** A bout whose Tournament's card rules make a first black card disqualify. */
   const DISQUALIFYING_TOURNAMENT: TableState = {
     matches: {
       maybeSingle: {
@@ -694,14 +711,7 @@ describe('PenaltiesService', () => {
     },
     phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
     tournaments: {
-      maybeSingle: {
-        id: 'tournament-1',
-        event_id: 'event-1',
-        penalty_ruleset_id: 'pr-1',
-        ruleset_config: {
-          forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'disqualified' } } },
-        },
-      },
+      maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' },
     },
     events: {
       maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
@@ -713,7 +723,7 @@ describe('PenaltiesService', () => {
         yellow_card_points: 0,
         red_card_points: -1,
         black_card_points: 0,
-        first_black_card_forfeit: 'match',
+        first_black_card_forfeit: 'tournament',
         second_black_card_forfeit: 'tournament',
       },
     },

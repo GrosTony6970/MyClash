@@ -45,6 +45,19 @@ export function isOverrideReason(reason: string): boolean {
   return (OVERRIDE_REASONS as readonly string[]).includes(reason);
 }
 
+/**
+ * A black card ended the bout. What it does to the Fighter is the card rule's of the penalty
+ * ruleset, and it counts toward no "disqualify after N forfeits" (rulings 54 and 56): the referee
+ * gave it, the Fighter did not choose it.
+ */
+export const BLACK_CARD_REASONS = ['black_card_1', 'black_card_2'] as const;
+
+export type BlackCardReason = (typeof BLACK_CARD_REASONS)[number];
+
+export function isBlackCardReason(reason: string): reason is BlackCardReason {
+  return (BLACK_CARD_REASONS as readonly string[]).includes(reason);
+}
+
 export const ForfeitReasonPolicySchema = z.object({
   // 'explicit' takes the two scores from the caller instead of the config —
   // the only policy an override can use, since a correction states the real

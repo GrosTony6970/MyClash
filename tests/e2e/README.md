@@ -555,7 +555,11 @@ Two things it checks that no unit test can:
   while confirming or dismissing the copy's review reasoned about another
   event's black cards. Found by the schema-scan gate rather than by review, and
   this is where it is exercised end to end — on its own disposable event, so it
-  perturbs none of the exact counts the main test asserts.
+  perturbs none of the exact counts the main test asserts. The built-in card
+  rules disqualify on a 2nd black card, which opens no review, so the test
+  makes its own club card rules ("E2E TEST (auto) cards — …", private, whose
+  2nd card ends the bout only) and pins them to its Tournament. Under
+  `E2E_CLEANUP` they are deleted after the events.
 
 Notes worth having before touching it:
 

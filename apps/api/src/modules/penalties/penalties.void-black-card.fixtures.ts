@@ -1,7 +1,8 @@
 import { vi } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, type TableSeed } from '../../common/testing/supabase-chain';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
+import type { BlackCardEffect } from './card-rules-pin';
 import { PenaltiesService } from './penalties.service';
 
 /** The seeded bout of `penalties.void-black-card*.test.ts`: a black card, its forfeit, its Fighter. */
@@ -39,7 +40,26 @@ export interface Seed {
   /** Every call on the reviews table answers an error. */
   reviewsFault?: boolean;
   eventStatus?: string;
+  /** Opt-in: a card sent through the real forfeit path (`penalties.card-effect.test.ts`). */
+  cardPath?: CardPath;
 }
+
+/**
+ * The card path: the bout is a Pool bout still running, the Tournament pins card rules
+ * `CARD_RULES`, and the Fighter's later Pool bout waits. The void tests seed the bout after its
+ * card, so this is opt-in.
+ */
+export interface CardPath {
+  /** What a 1st and a 2nd black card do under the Tournament's card rules of now. */
+  first: BlackCardEffect;
+  second: BlackCardEffect;
+  /** The Tournament's `ruleset_config` of now. */
+  rulesetConfig?: Record<string, unknown>;
+  /** The Tournament's pin, `CARD_RULES` unless a story names a pin no row holds. */
+  pin?: string;
+}
+
+export const CARD_RULES = 'cards-now';
 
 export const blackCard = (over: Record<string, unknown> = {}) => ({
   id: 'card-black',
@@ -87,27 +107,76 @@ export const BOUT = {
 };
 export const LATER_BOUT = { id: 'm2', status: 'scheduled', started_at: null };
 
+/** The embed "who may score" and the forfeit read the bout through: a Pool phase, on the card path. */
+function phaseOf(path: CardPath | undefined, event: Record<string, unknown>) {
+  const tournaments = {
+    id: 'tournament-1',
+    event_id: 'event-1',
+    lock_config_json: null,
+    events: event,
+  };
+  if (!path) return { tournaments };
+  const ruleset_config = path.rulesetConfig ?? {};
+  return {
+    id: 'phase-1',
+    type: 'pool',
+    tournament_id: 'tournament-1',
+    tournaments: { ...tournaments, ruleset_config },
+  };
+}
+
+/** The bout and the Fighter's later bout, both of one Pool on the card path. */
+function boutRows(seed: Seed, phases: object) {
+  const pool = seed.cardPath ? { ...BEFORE_THE_CARD, pool_id: 'pool-1' } : {};
+  const later = seed.cardPath
+    ? { pool_id: 'pool-1', red_registration_id: 'reg-green', blue_registration_id: 'reg-blue' }
+    : {};
+  return [
+    { ...BOUT, phases, ...pool, ...seed.bout },
+    { ...LATER_BOUT, ...later, ...seed.laterBout },
+  ];
+}
+
+/** What the card path reads beyond the void's, and the read-backs of its writes (none applied). */
+function cardPathTables(path: CardPath | undefined): Record<string, TableSeed> {
+  if (!path) return {};
+  const cardRules = {
+    id: CARD_RULES,
+    yellow_card_points: 0,
+    red_card_points: -1,
+    black_card_points: 0,
+    first_black_card_forfeit: path.first,
+    second_black_card_forfeit: path.second,
+  };
+  return {
+    penalty_rulesets: { rows: [cardRules] },
+    match_events: { rows: [] },
+    tournaments: {
+      rows: [
+        { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: path.pin ?? CARD_RULES },
+      ],
+    },
+  };
+}
+
+/** A written row read back with the id a database gives it. */
+const stamped = (path: CardPath | undefined, id: (row: Record<string, unknown>) => string) =>
+  path ? { returning: (row: Record<string, unknown>) => ({ id: id(row) }) } : {};
+
 export function setup(seed: Seed = {}) {
   const event = { organization_id: 'org-1', status: seed.eventStatus ?? 'running' };
-  // The embed "who may score" reads the bout through, beside the flat tables below.
-  const phases = {
-    tournaments: { id: 'tournament-1', event_id: 'event-1', lock_config_json: null, events: event },
-  };
+  const path = seed.cardPath;
   const db = mockSupabase({
-    match_penalties: { rows: seed.cards ?? [blackCard()] },
+    match_penalties: { rows: seed.cards ?? [blackCard()], ...stamped(path, () => 'card-new') },
     match_forfeits: {
       rows: [
         ...(seed.forfeit === null ? [] : [{ ...FORFEIT, ...seed.forfeit }]),
         ...(seed.otherForfeits ?? []),
       ],
+      ...stamped(path, (row) => `forfeit-${String(row['match_id'])}`),
     },
-    matches: {
-      rows: [
-        { ...BOUT, phases, ...seed.bout },
-        { ...LATER_BOUT, ...seed.laterBout },
-      ],
-    },
-    registrations: { rows: [{ id: 'reg-blue', status: 'disqualified' }] },
+    matches: { rows: boutRows(seed, phaseOf(path, event)) },
+    registrations: { rows: [{ id: 'reg-blue', status: path ? 'checked_in' : 'disqualified' }] },
     tournament_penalty_reviews: seed.reviewsFault
       ? { data: null, error: { message: 'connection lost' } }
       : { rows: seed.reviews ?? [] },
@@ -115,21 +184,23 @@ export function setup(seed: Seed = {}) {
     tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1' }] },
     events: { rows: [{ id: 'event-1', ...event }] },
     platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
+    ...cardPathTables(path),
   });
   const scoring = {
     recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 2, blueScore: 1 }),
     assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
   };
+  const forfeits = new MatchForfeitsService(db as never);
   const service = new PenaltiesService(
     db as never,
     scoring as never,
     new FrozenResultsGuard(db as never, {} as never),
     undefined,
-    new MatchForfeitsService(db as never),
+    forfeits,
   );
   const undo = (cardId = 'card-black', actor: object = { userId: SCORER }) =>
     service.voidPenalty(cardId, { reason: 'wrong fighter' }, actor);
-  return { db, scoring, service, undo };
+  return { db, scoring, service, forfeits, undo };
 }
 
 /** The tables written, in order. */

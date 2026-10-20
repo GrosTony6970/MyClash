@@ -120,6 +120,8 @@ let fixture: Fixture;
 let restoredEventId: string | null = null;
 /** Every other event these tests create, disposed of by the same afterAll. */
 const disposableEventIds: string[] = [];
+/** The club card rules these tests create, deleted after the events that pin them. */
+const disposableCardRulesIds: string[] = [];
 
 test.describe('archive restore', () => {
   test.describe.configure({ mode: 'serial' });
@@ -499,6 +501,30 @@ test.describe('archive restore', () => {
       poolCount: 1,
     });
 
+    // The built-in's 2nd black card disqualifies, so it opens no review (ruling 86). These card
+    // rules end the bout only, and the review asks "disqualify?".
+    const cardRules = await api.json<{ id: string }>(
+      await api.post('penalty-rulesets', {
+        data: {
+          ownerOrganizationId: orgId,
+          code: `e2e-cards-${token}`,
+          version: '1.0.0',
+          name: `E2E TEST (auto) cards — ${token}`,
+          accumulationScope: 'tournament',
+          publicVisibility: false,
+          entries: [],
+          firstBlackCardForfeit: 'match',
+          secondBlackCardForfeit: 'match',
+        },
+      }),
+    );
+    disposableCardRulesIds.push(cardRules.id);
+    await api.ok(
+      await api.patch(`tournaments/${tournament.id}/penalty-ruleset`, {
+        data: { penaltyRulesetId: cardRules.id },
+      }),
+    );
+
     // Two black cards on ONE fighter, in two different bouts — the review is
     // created on the second, and only then.
     const offender = tournament.registrationIdByPersonId.get(fighters[0]!.id) as string;
@@ -612,6 +638,17 @@ test.describe('archive restore', () => {
       if (!res.ok()) {
         console.warn(`[e2e] could not delete archive event ${id}: ${res.status()}`);
       }
+    }
+    // After the events: a ruleset an event still pins is archived, not deleted.
+    for (const id of disposableCardRulesIds) {
+      if (!cleanup) {
+        console.log(
+          `[e2e] card rules PRESERVED: ${baseURL}/org/${orgSlug}/rulesets/penalty/${id}/edit`,
+        );
+        continue;
+      }
+      const res = await ctx.delete(`/api/v1/penalty-rulesets/${id}`);
+      if (!res.ok()) console.warn(`[e2e] could not delete card rules ${id}: ${res.status()}`);
     }
     await ctx.dispose();
   });

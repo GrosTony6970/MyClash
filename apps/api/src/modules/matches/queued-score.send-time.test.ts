@@ -62,7 +62,18 @@ function setup() {
     phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1' }] },
     tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null }] },
     events: { rows: [{ id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null }] },
-    penalty_rulesets: { rows: [] },
+    // The built-in, whose 1st black card ends the bout: a Tournament's card rules are never none.
+    penalty_rulesets: {
+      rows: [
+        {
+          id: 'built-in',
+          built_in: true,
+          owner_organization_id: null,
+          first_black_card_forfeit: 'match',
+          second_black_card_forfeit: 'tournament',
+        },
+      ],
+    },
   });
   const scoring = { recomputeMatchScore: vi.fn() };
   const forfeits = { createForfeit: vi.fn() };
@@ -133,6 +144,7 @@ describe('a card from a tablet’s queue', () => {
         expect.objectContaining({ forfeitingRegistrationId: 'reg-red', reason: 'black_card_1' }),
         { staffAccountId: 'pad-1' },
         SCORED_AT,
+        'match',
       ],
     ]);
   });

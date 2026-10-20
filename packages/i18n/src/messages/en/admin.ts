@@ -1542,7 +1542,7 @@ export const admin = {
     sanctionsEmpty: 'no sanctions',
     cardCostsTitle: 'Card costs & forfeit scope',
     cardCostsHelp:
-      'Point deductions applied per card colour, and what each black card triggers. A tournament’s scoring ruleset (forfeit policy) can override these per tournament.',
+      'Point deductions applied per card colour, and what each black card does to the fighter: it ends the bout, puts them out of the tournament, or does nothing more.',
     yellowCardPoints: 'Yellow card points',
     redCardPoints: 'Red card points',
     blackCardPoints: 'Black card points',

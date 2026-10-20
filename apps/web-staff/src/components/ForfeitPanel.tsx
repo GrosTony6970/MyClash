@@ -28,7 +28,8 @@ const REASONS: ForfeitReason[] = [
   'conduct_violation',
 ];
 
-const ASK_CONTINUE = new Set<ForfeitReason>(['injury', 'voluntary', 'black_card_1']);
+// A black card's own rule says whether the Fighter continues (rulings 54 and 58): nothing to ask.
+const ASK_CONTINUE = new Set<ForfeitReason>(['injury', 'voluntary']);
 
 export function ForfeitPanel({
   matchId,

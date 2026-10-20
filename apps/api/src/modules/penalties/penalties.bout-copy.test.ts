@@ -13,9 +13,9 @@ import { PenaltiesService } from './penalties.service';
 /**
  * A bout keeps the card rules it started under (migration 0229): its copy of its rules pins them,
  * and a card is priced and laddered from that pin. How far a black card reaches is the
- * Tournament's of now (rulings A and G, 2026-10-17): its forfeit policy and, on `'ask'`, its
- * current card rules. So each story below seeds two answers: the bout's copy says one thing, and
- * its Tournament now says another.
+ * Tournament's of now (rulings A and G, 2026-10-17): its current card rules (ruling 54). So each
+ * story below seeds two answers: the bout's copy says one thing, and its Tournament now says
+ * another.
  */
 
 /** The card rules the bout started under, in most stories. */
@@ -48,10 +48,6 @@ const BUILT_IN = {
   red_card_points: -6,
 };
 
-const policy = (tournamentState: string) => ({
-  forfeitPolicy: { reasons: { black_card_1: { tournamentState } } },
-});
-
 interface Story {
   /** The card rules the bout's copy pins. Null reads as the built-in. */
   copyPin: string | null;
@@ -59,8 +55,6 @@ interface Story {
   tournamentPin: string | null;
   /** The Tournament's `ruleset_config` now. */
   rulesetConfig?: Record<string, unknown>;
-  /** What the bout's copy says of the forfeits: nothing reads it. */
-  copyConfig?: Record<string, unknown>;
   /** Cards the server already holds. */
   cards?: Record<string, unknown>[];
 }
@@ -75,7 +69,7 @@ const boutRow = (story: Story) => ({
   locked_at: null,
   current_round: 1,
   awaiting_round_advance: false,
-  match_rules: { penalty_ruleset_id: story.copyPin, ruleset_config: story.copyConfig ?? {} },
+  match_rules: { penalty_ruleset_id: story.copyPin },
 });
 
 function bout(story: Story) {
@@ -208,7 +202,6 @@ describe('a card whose rules cannot be read is an error, never a default', () =>
   // Before the card is written: written first, a black card would stand with no forfeit, and the
   // tablet's resend answers the saved card and creates none.
   it.each<[string, string, string, Partial<Story>, string]>([
-    ['the forfeit policy', 'tournaments', 'ruleset_config', {}, 'forfeit rules of tournament-1'],
     [
       'the Tournament pin',
       'tournaments',
@@ -262,13 +255,9 @@ describe('a card whose rules cannot be read is an error, never a default', () =>
 });
 
 describe('how far a black card reaches is the Tournament’s of now', () => {
-  it('a Tournament that now withdraws on a first black card puts the Fighter out, as its forfeit does', async () => {
-    const { db, forfeits, send } = bout({
-      copyPin: 'cards-b',
-      tournamentPin: 'cards-b',
-      copyConfig: policy('match_only'),
-      rulesetConfig: policy('withdrawn'),
-    });
+  it('card rules the Tournament moved to since put the Fighter out, as its forfeit does', async () => {
+    // The copy's rules B say the bout only; the Tournament's rules A say out.
+    const { db, forfeits, send } = bout({ copyPin: 'cards-b', tournamentPin: 'cards-a' });
 
     await send(BLACK_CARD);
 
@@ -278,16 +267,13 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
       expect.objectContaining({ forfeitingRegistrationId: 'reg-blue', reason: 'black_card_1' }),
       { staffAccountId: 'staff-1' },
       undefined,
+      'tournament',
     );
   });
 
-  it('on "ask", the Tournament’s card rules of now keep a first black card to the bout', async () => {
+  it('the Tournament’s card rules of now keep a first black card to the bout', async () => {
     // The copy's rules A would put the Fighter out; the Tournament's rules B say the bout only.
-    const { db, forfeits, send } = bout({
-      copyPin: 'cards-a',
-      tournamentPin: 'cards-b',
-      rulesetConfig: policy('ask'),
-    });
+    const { db, forfeits, send } = bout({ copyPin: 'cards-a', tournamentPin: 'cards-b' });
 
     await send(BLACK_CARD);
 
@@ -295,9 +281,20 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
     expect(writesTo(db, 'registrations')).toEqual([]);
   });
 
-  it('on "ask", the same black card sent again puts the Fighter out again, as its first send did', async () => {
-    // Now the other way round: the copy's rules B say the bout only, the Tournament's A say out.
-    const story = { copyPin: 'cards-b', tournamentPin: 'cards-a', rulesetConfig: policy('ask') };
+  it('a forfeit policy the scoring rules still hold does not reach a black card', async () => {
+    // Before ruling 54 a stored "withdrawn" beat the card rules B, which say the bout only.
+    const reasons = { black_card_1: { tournamentState: 'withdrawn' } };
+    const rulesetConfig = { forfeitPolicy: { reasons } };
+    const { db, send } = bout({ copyPin: 'cards-b', tournamentPin: 'cards-b', rulesetConfig });
+
+    await send(BLACK_CARD);
+
+    expect(writesTo(db, 'registrations')).toEqual([]);
+  });
+
+  it('the same black card sent again puts the Fighter out again, as its first send did', async () => {
+    // The copy's rules B say the bout only, the Tournament's A say out.
+    const story = { copyPin: 'cards-b', tournamentPin: 'cards-a' };
     const first = bout(story);
     await first.send(BLACK_CARD);
     const saved = {

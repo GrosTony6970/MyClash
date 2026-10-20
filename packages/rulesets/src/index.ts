@@ -74,17 +74,24 @@ export type {
 
 // Forfeit policies
 export {
+  BLACK_CARD_REASONS,
   DEFAULT_FORFEIT_POLICY,
   FORFEIT_REASONS,
   ForfeitPolicySchema,
   ForfeitReasonPolicySchema,
   ForfeitReasonSchema,
+  isBlackCardReason,
   isOverrideReason,
   normalizeForfeitPolicy,
   OVERRIDE_REASONS,
   resolveForfeitPolicy,
 } from './forfeits';
-export type { ForfeitPolicy, ForfeitReason, ForfeitReasonPolicy } from './forfeits';
+export type {
+  BlackCardReason,
+  ForfeitPolicy,
+  ForfeitReason,
+  ForfeitReasonPolicy,
+} from './forfeits';
 
 // Every built-in engine, each version of it
 export { BUILT_IN_RULESETS } from './built-ins';
