@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Whether a Tournament's rules are locked to ordinary edits: the ONE owner of "has a bout of this
- * Tournament started", asked by the four doors that change its engine or its card rules — the
- * ruleset switch and the card pin of the settings save, the Tournament's own card pin and the
- * Event's default one (the audited settings change, revision 7 of its plan).
+ * Tournament started", asked by the five doors that change its engine, its card rules or its
+ * forfeit rules — the ruleset switch, the card pin and the forfeit changes of the settings save
+ * (ruling 73), the Tournament's own card pin and the Event's default one (the audited settings
+ * change, revision 7 of its plan). Each reads the clock, then writes: a bout that starts between
+ * the two is not seen, a race each door accepts.
  *
  * A bout has started once it has left `scheduled`, a voided one included: voiding a bout does not
  * void its cards (`MatchesService.voidMatch`), and a card it holds still counts toward a fighter's

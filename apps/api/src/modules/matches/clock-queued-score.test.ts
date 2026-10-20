@@ -209,7 +209,12 @@ describe('a black card given with no network while the clock runs', () => {
       tournaments: { rows: [{ id: 'tournament-1', penalty_ruleset_id: 'cards-1' }] },
       penalty_rulesets: {
         rows: [
-          { id: 'cards-1', first_black_card_forfeit: 'match', forfeit_rules: FFAMHE_FORFEIT_RULES },
+          {
+            id: 'cards-1',
+            first_black_card_forfeit: 'match',
+            second_black_card_forfeit: 'tournament',
+            forfeit_rules: FFAMHE_FORFEIT_RULES,
+          },
         ],
       },
     });

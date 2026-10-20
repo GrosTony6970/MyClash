@@ -58,6 +58,8 @@ export interface CardPath {
   forfeitRules?: Partial<ForfeitRules>;
   /** The Tournament's pin, `CARD_RULES` unless a story names a pin no row holds. */
   pin?: string;
+  /** The Tournament's own changes of those rules (`tournaments.forfeit_rules`, ruling 65). */
+  changes?: Record<string, unknown>;
 }
 
 export const CARD_RULES = 'cards-now';
@@ -149,7 +151,12 @@ function cardPathTables(path: CardPath | undefined): Record<string, TableSeed> {
     match_events: { rows: [] },
     tournaments: {
       rows: [
-        { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: path.pin ?? CARD_RULES },
+        {
+          id: 'tournament-1',
+          event_id: 'event-1',
+          penalty_ruleset_id: path.pin ?? CARD_RULES,
+          forfeit_rules: path.changes ?? null,
+        },
       ],
     },
   };

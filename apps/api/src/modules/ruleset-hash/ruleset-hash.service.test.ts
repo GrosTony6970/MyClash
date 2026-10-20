@@ -30,6 +30,8 @@ interface Overrides {
   rulesetConfig?: Record<string, unknown>;
   scoringConfig?: Record<string, unknown>;
   penalty?: Record<string, unknown>;
+  /** The Tournament's own changes of its forfeit rules (`tournaments.forfeit_rules`). */
+  forfeitChanges?: Record<string, unknown> | null;
 }
 
 /** The LIVE penalty row a pin reads: what the engine scores cards and forfeits by. */
@@ -63,6 +65,7 @@ function stateFor(o: Overrides = {}): TableState {
         scoring_config_json: { afterblowMode: 'deductive', ...o.scoringConfig },
         penalty_ruleset_id: 'pr-1',
         penalty_ruleset_version: '1.0.0',
+        forfeit_rules: o.forfeitChanges ?? null,
       },
     },
     penalty_rulesets: { maybeSingle: { ...LIVE_PENALTY, ...o.penalty } },
@@ -201,6 +204,24 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
       stateFor({ penalty: { forfeit_rules: { ...FFAMHE_FORFEIT_RULES, disqualifyAfter: 'off' } } }),
     );
     expect(changed).not.toBe(base);
+  });
+
+  // A Tournament may change its forfeit rules (ruling 65): the hash describes the rules it plays,
+  // its changes over its ruleset's. The doubles answer whatever is asked: the read must ask.
+  it('describes a Tournament by its own changes of the forfeit rules, laid over the ruleset', async () => {
+    selects.length = 0;
+    const base = await hashOf(stateFor());
+    expect(
+      selects.some((s) => s.table === 'tournaments' && /\bforfeit_rules\b/.test(s.columns)),
+    ).toBe(true);
+    const after4 = await hashOf(stateFor({ forfeitChanges: { disqualifyAfter: 4 } }));
+    const cardBout = await hashOf(stateFor({ forfeitChanges: { secondBlackCard: 'match' } }));
+    expect(new Set([base, after4, cardBout]).size).toBe(3);
+    // A change the ruleset already holds plays the same rules: the same hash.
+    expect(await hashOf(stateFor({ forfeitChanges: { disqualifyAfter: 2 } }))).toBe(base);
+    expect(await hashOf(stateFor({ penalty: { second_black_card_forfeit: 'match' } }))).toBe(
+      cardBout,
+    );
   });
 
   // The engine scores by the LIVE row. After a pin, an unpin, an edit and a re-pin, the snapshot of

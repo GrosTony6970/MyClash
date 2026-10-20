@@ -7419,6 +7419,40 @@ export interface paths {
     patch: operations['PenaltiesController_reviewTournamentPenalty'];
     trace?: never;
   };
+  '/api/v1/tournaments/{id}/forfeit-rules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The forfeit rules of a Tournament: its penalty ruleset's (or the picked one's), its own changes, and the rules in force (scorekeeper; a pick is an admin's) */
+    get: operations['ForfeitRulesController_forTournament'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/forfeit-rules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The forfeit rules a new Tournament of an Event starts with: the Event's penalty ruleset's, else the built-in's, or the picked one's (scorekeeper; a pick is an admin's) */
+    get: operations['ForfeitRulesController_forEvent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/notifications/vapid-public-key': {
     parameters: {
       query?: never;
@@ -11141,6 +11175,38 @@ export interface components {
       };
       /** Format: uuid */
       penaltyRulesetId?: string;
+      forfeitRules?: {
+        reasons?: {
+          injury?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+          voluntary?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+          conduct_violation?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+        };
+        disqualifyAfter?: (number | 'off') | null;
+        disqualifyBeforeFirstBout?: boolean | null;
+        blackCardOpponentScore?: number | null;
+        /** @enum {string|null} */
+        firstBlackCard?: 'match' | 'tournament' | 'none' | null;
+        /** @enum {string|null} */
+        secondBlackCard?: 'match' | 'tournament' | 'none' | null;
+      };
       color?: string;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
@@ -11240,6 +11306,38 @@ export interface components {
       };
       /** Format: uuid */
       penaltyRulesetId?: string | null;
+      forfeitRules?: {
+        reasons?: {
+          injury?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+          voluntary?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+          conduct_violation?: {
+            /** @enum {string|null} */
+            outcome?: 'keep_current' | 'fixed_loss' | null;
+            opponentScore?: number | null;
+            /** @enum {string|null} */
+            fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
+          };
+        };
+        disqualifyAfter?: (number | 'off') | null;
+        disqualifyBeforeFirstBout?: boolean | null;
+        blackCardOpponentScore?: number | null;
+        /** @enum {string|null} */
+        firstBlackCard?: 'match' | 'tournament' | 'none' | null;
+        /** @enum {string|null} */
+        secondBlackCard?: 'match' | 'tournament' | 'none' | null;
+      };
       logoUrl?: string | null;
       rulesetCode?: string;
       wizardStep?: number;
@@ -22953,6 +23051,50 @@ export interface operations {
         'application/json': components['schemas']['ReviewPenaltyDto'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ForfeitRulesController_forTournament: {
+    parameters: {
+      query?: {
+        /** @description A penalty ruleset the organisation may pin: its rules, in place of the pin */
+        penaltyRulesetId?: string;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ForfeitRulesController_forEvent: {
+    parameters: {
+      query?: {
+        /** @description A penalty ruleset the organisation may pin: its rules, in place of the pin */
+        penaltyRulesetId?: string;
+      };
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

@@ -134,9 +134,17 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
     });
     const service = new PenaltiesService(supabase as never);
 
-    await expect(
-      service.assignTournamentRuleset('t-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
-    ).rejects.toThrow(/locked/i);
+    const assigned = service.assignTournamentRuleset(
+      't-1',
+      { penaltyRulesetId: 'pr-new' } as never,
+      'user-1',
+    );
+    await expect(assigned).rejects.toThrow(/locked/i);
+    // The code the Basics tab words it by, as the settings save's twin lock answers.
+    await expect(assigned).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'card_change_locked' },
+    });
     expect(supabase.updated.tournaments).toBeUndefined();
   });
 

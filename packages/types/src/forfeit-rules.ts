@@ -56,6 +56,110 @@ export const CLUB_START_FORFEIT_RULES: ForfeitRules = {
   disqualifyAfter: 'off',
 };
 
+/** What a black card does to its Fighter: ends the bout, the whole Tournament, or nothing. */
+export type BlackCardEffectName = 'match' | 'tournament' | 'none';
+
+/**
+ * The rules a Tournament plays under: its penalty ruleset's forfeit rules and black card
+ * settings, with the Tournament's own changes laid over them (ruling 65).
+ */
+export interface ForfeitRulesInForce extends ForfeitRules {
+  firstBlackCard: BlackCardEffectName;
+  secondBlackCard: BlackCardEffectName;
+}
+
+/**
+ * A Tournament's changes as stored (`tournaments.forfeit_rules`): only the keys it changed, at
+ * any depth. A key it does not hold is the ruleset's.
+ */
+export interface ForfeitChanges {
+  reasons?: Partial<Record<ForfeitRuleReason, Partial<ForfeitReasonRule>>>;
+  disqualifyAfter?: number | 'off';
+  disqualifyBeforeFirstBout?: boolean;
+  blackCardOpponentScore?: number;
+  firstBlackCard?: BlackCardEffectName;
+  secondBlackCard?: BlackCardEffectName;
+}
+
+type Resettable<T> = { [K in keyof T]?: T[K] | null };
+
+/**
+ * A save of a Tournament's changes: a key sent is set, a LEAF sent as `null` is a Reset (the key
+ * is deleted), a key not sent is kept. `null` stands only at a leaf.
+ */
+export interface ForfeitPatch {
+  reasons?: Partial<Record<ForfeitRuleReason, Resettable<ForfeitReasonRule>>>;
+  disqualifyAfter?: number | 'off' | null;
+  disqualifyBeforeFirstBout?: boolean | null;
+  blackCardOpponentScore?: number | null;
+  firstBlackCard?: BlackCardEffectName | null;
+  secondBlackCard?: BlackCardEffectName | null;
+}
+
+type Tree = Record<string, unknown>;
+const isTree = (value: unknown): value is Tree =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function patchTree(stored: Tree, patch: Tree): Tree {
+  const next: Tree = { ...stored };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) {
+      delete next[key];
+    } else if (isTree(value)) {
+      const child = patchTree(isTree(next[key]) ? next[key] : {}, value);
+      // A parent a Reset emptied goes too: an empty object would read as a change.
+      if (Object.keys(child).length > 0) next[key] = child;
+      else delete next[key];
+    } else {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+/** The stored changes after `patch`; nothing left is `null` (the Tournament changes nothing). */
+export function applyForfeitPatch(
+  stored: ForfeitChanges | null,
+  patch: ForfeitPatch,
+): ForfeitChanges | null {
+  const next = patchTree((stored ?? {}) as Tree, patch as Tree);
+  return Object.keys(next).length > 0 ? (next as ForfeitChanges) : null;
+}
+
+/**
+ * The rules in force: `changes` over `ruleset`. A key the changes lack, or hold as `null` (a
+ * Reset not yet saved, in a screen's form), is the ruleset's. The one merge of the server and
+ * the screens.
+ */
+export function mergeForfeitRules(
+  ruleset: ForfeitRulesInForce,
+  changes: ForfeitChanges | ForfeitPatch | null,
+): ForfeitRulesInForce {
+  const reasonOf = (reason: ForfeitRuleReason): ForfeitReasonRule => {
+    const base = ruleset.reasons[reason];
+    const changed = changes?.reasons?.[reason];
+    return {
+      outcome: changed?.outcome ?? base.outcome,
+      opponentScore: changed?.opponentScore ?? base.opponentScore,
+      fighter: changed?.fighter ?? base.fighter,
+    };
+  };
+  return {
+    reasons: {
+      injury: reasonOf('injury'),
+      voluntary: reasonOf('voluntary'),
+      conduct_violation: reasonOf('conduct_violation'),
+    },
+    disqualifyAfter: changes?.disqualifyAfter ?? ruleset.disqualifyAfter,
+    disqualifyBeforeFirstBout:
+      changes?.disqualifyBeforeFirstBout ?? ruleset.disqualifyBeforeFirstBout,
+    blackCardOpponentScore: changes?.blackCardOpponentScore ?? ruleset.blackCardOpponentScore,
+    firstBlackCard: changes?.firstBlackCard ?? ruleset.firstBlackCard,
+    secondBlackCard: changes?.secondBlackCard ?? ruleset.secondBlackCard,
+  };
+}
+
 /** Per reason, whether its rule asks "can the Fighter continue?" (`GET .../match-config`). */
 export type ForfeitAsks = Record<ForfeitRuleReason, boolean>;
 

@@ -172,6 +172,8 @@ const JSON_COLUMNS_WITHOUT_IDS = new Set<string>([
   'tournaments.ruleset_config',
   'tournaments.scoring_config_json',
   'tournaments.lock_config_json',
+  // The organiser's changes of the forfeit rules (0236): numbers, booleans and words, no id.
+  'tournaments.forfeit_rules',
   'referee_assignments.conflicts_jsonb',
 ]);
 

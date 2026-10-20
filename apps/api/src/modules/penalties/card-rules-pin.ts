@@ -1,4 +1,5 @@
 import type { BlackCardEffect, BlackCardReason } from '@myclash/rulesets';
+import type { ForfeitChanges, ForfeitRulesInForce } from '@myclash/types/forfeit-rules';
 import type { SupabaseService } from '../supabase/supabase.service';
 
 /**
@@ -53,57 +54,95 @@ export async function loadPenaltyRulesetRow(db: Client, rulesetId: string): Prom
 }
 
 /**
- * The id of a Tournament's card rules of now: its pin, else its Event's, else the built-in. One
- * resolver for the admin picker and for how far a black card reaches (ruling G); the copy of a
- * bout's rules pins the same way (`build_match_rules`, `card-pin-parity.test.ts`).
+ * A Tournament's card pin of now (its pin, else its Event's, else the built-in) and its own
+ * changes of the forfeit rules (ruling 65), in ONE read of the Tournament: the pick and the
+ * changes come from the same moment.
  */
-export async function tournamentCardRulesetId(
+async function tournamentPin(
   db: Client,
   tournamentId: string,
-): Promise<string | null> {
+): Promise<{ rulesetId: string | null; changes: ForfeitChanges | null }> {
   const { data: t, error } = await db
     .from('tournaments')
-    .select('penalty_ruleset_id, event_id')
+    .select('penalty_ruleset_id, event_id, forfeit_rules')
     .eq('id', tournamentId)
     .maybeSingle();
   if (error) {
     throw new Error(`The card rules of ${tournamentId} were not read: ${error.message}`);
   }
-  const tour = t as { penalty_ruleset_id?: string | null; event_id?: string | null } | null;
-  if (tour?.penalty_ruleset_id) return tour.penalty_ruleset_id;
-  if (tour?.event_id) {
-    const { data: ev, error: eventError } = await db
-      .from('events')
-      .select('penalty_ruleset_id')
-      .eq('id', tour.event_id)
-      .maybeSingle();
-    if (eventError) {
-      throw new Error(`The card rules of ${tour.event_id} were not read: ${eventError.message}`);
-    }
-    const evRulesetId =
-      (ev as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
-    if (evRulesetId) return evRulesetId;
-  }
-  return loadBuiltInPenaltyRulesetId(db);
+  const tour = t as {
+    penalty_ruleset_id?: string | null;
+    event_id?: string | null;
+    forfeit_rules?: ForfeitChanges | null;
+  } | null;
+  const changes = tour?.forfeit_rules ?? null;
+  if (tour?.penalty_ruleset_id) return { rulesetId: tour.penalty_ruleset_id, changes };
+  return {
+    rulesetId: tour?.event_id
+      ? await eventPin(db, tour.event_id)
+      : await loadBuiltInPenaltyRulesetId(db),
+    changes,
+  };
 }
 
-/**
- * A Tournament's card rules of now, as a row. None is an error: the pin chain ends on the
- * built-in, so a missing row is a broken install, and read as defaults it would decide a card.
- */
-export async function tournamentCardRules(db: Client, tournamentId: string): Promise<Row> {
-  const id = await tournamentCardRulesetId(db, tournamentId);
-  const row = id ? await loadPenaltyRulesetRow(db, id) : null;
-  if (!row) throw new Error(`Tournament ${tournamentId} has no card rules`);
+/** An Event's card pin of now: its own, else the built-in. */
+async function eventPin(db: Client, eventId: string): Promise<string | null> {
+  const { data: ev, error } = await db
+    .from('events')
+    .select('penalty_ruleset_id')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error) throw new Error(`The card rules of ${eventId} were not read: ${error.message}`);
+  const evRulesetId =
+    (ev as { penalty_ruleset_id?: string | null } | null)?.penalty_ruleset_id ?? null;
+  return evRulesetId ?? (await loadBuiltInPenaltyRulesetId(db));
+}
+
+/** A row of card rules, or an error: the pin chain ends on the built-in, so none is a broken install. */
+async function cardRulesRow(db: Client, rulesetId: string | null, whose: string): Promise<Row> {
+  const row = rulesetId ? await loadPenaltyRulesetRow(db, rulesetId) : null;
+  if (!row) throw new Error(`${whose} has no card rules`);
   return row;
 }
 
+/** The card rules a Tournament of an Event plays when it pins none: the Event's, else the built-in. */
+export async function eventCardRules(db: Client, eventId: string): Promise<Row> {
+  return cardRulesRow(db, await eventPin(db, eventId), `Event ${eventId}`);
+}
+
 /**
- * What the black card of `reason` does under `cardRules`: the 1st card's column, or the 2nd's.
- * Both columns are NOT NULL and CHECKed to the three values (migration 0054).
+ * The id of a Tournament's card rules of now. One resolver for the admin picker and for how far
+ * a black card reaches (ruling G); the copy of a bout's rules pins the same way
+ * (`build_match_rules`, `card-pin-parity.test.ts`).
  */
-export function blackCardEffectOf(cardRules: Row, reason: BlackCardReason): BlackCardEffect {
-  const column =
-    reason === 'black_card_2' ? 'second_black_card_forfeit' : 'first_black_card_forfeit';
-  return cardRules[column] as BlackCardEffect;
+export async function tournamentCardRulesetId(
+  db: Client,
+  tournamentId: string,
+): Promise<string | null> {
+  return (await tournamentPin(db, tournamentId)).rulesetId;
+}
+
+/**
+ * A Tournament's card rules of now, as a row, and its own changes of them. No row is an error:
+ * the pin chain ends on the built-in, so a missing row is a broken install, and read as defaults
+ * it would decide a card.
+ */
+export async function tournamentCardRules(
+  db: Client,
+  tournamentId: string,
+): Promise<{ cardRules: Row; changes: ForfeitChanges | null }> {
+  const { rulesetId, changes } = await tournamentPin(db, tournamentId);
+  return { cardRules: await cardRulesRow(db, rulesetId, `Tournament ${tournamentId}`), changes };
+}
+
+/**
+ * What the black card of `reason` does under the rules in force (`forfeitRulesOf`): the 1st
+ * card's setting, or the 2nd's. Those are parsed, the Tournament's change of a card over its
+ * ruleset's column, so a card reads one of the three values or nothing is decided.
+ */
+export function blackCardEffectOf(
+  rules: ForfeitRulesInForce,
+  reason: BlackCardReason,
+): BlackCardEffect {
+  return reason === 'black_card_2' ? rules.secondBlackCard : rules.firstBlackCard;
 }

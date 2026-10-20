@@ -80,6 +80,8 @@ export {
   forfeitOutcomeOf,
   ForfeitReasonRuleSchema,
   ForfeitReasonSchema,
+  ForfeitRulesInForceSchema,
+  ForfeitRulesPatchSchema,
   ForfeitRulesSchema,
   isBlackCardReason,
   isOverrideReason,

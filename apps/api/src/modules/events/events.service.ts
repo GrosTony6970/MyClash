@@ -77,6 +77,8 @@ import {
   type RulesSeed,
 } from './ruleset-move-config';
 import { tournamentClockOf } from './tournament-clock';
+import { forfeitChangesOfSave } from './forfeit-changes-save';
+import { applyForfeitPatch } from '@myclash/types/forfeit-rules';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
 import {
@@ -3154,6 +3156,8 @@ export class EventsService {
         ruleset_version: version,
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
         penalty_ruleset_version: penaltyRulesetVersion,
+        // Before the stamp below, which reads it: the organiser's changes (ruling 65).
+        forfeit_rules: dto.forfeitRules ? applyForfeitPatch(null, dto.forfeitRules) : null,
         color: dto.color ?? null,
         // Capacity caps from the wizard's Step 1 Basics. Null
         // (or omitted) = no cap, same semantics as the settings
@@ -3385,13 +3389,28 @@ export class EventsService {
     const penaltyChanged = nextPenaltyRulesetId !== currentPenaltyRulesetId;
     if (penaltyChanged) {
       if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
-        throw new ForbiddenException(
-          'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
-        );
+        throw new ForbiddenException({
+          code: RULES_CHANGE_CODES.cardLocked,
+          message:
+            'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
+        });
       // Re-pin the penalty version so the content-hash tracks the new snapshot.
       updates['penalty_ruleset_version'] = nextPenaltyRulesetId
         ? await this.pinnablePenaltyVersion(event, nextPenaltyRulesetId)
         : null;
+    }
+    // The Tournament's changes of its forfeit rules lock on the same clock (ruling 73), with the
+    // same race (`tournament-clock.ts`). Two saves at once: each patches the changes it read, and
+    // the later write wins whole, as `scoring_config_json` does; accepted.
+    const forfeit = forfeitChangesOfSave(currentJson['forfeit_rules'], dto.forfeitRules);
+    if (forfeit.changed) {
+      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
+        throw new ForbiddenException({
+          code: RULES_CHANGE_CODES.forfeitLocked,
+          message:
+            'This tournament has scored matches, so its forfeit rules are locked. Change them before scoring starts.',
+        });
+      updates['forfeit_rules'] = forfeit.next;
     }
 
     const { data, error } = await this.supabase.service
@@ -3411,6 +3430,7 @@ export class EventsService {
       codeChanged ||
       versionChanged ||
       penaltyChanged ||
+      forfeit.changed ||
       dto.rulesetConfig !== undefined ||
       dto.scoringConfig !== undefined;
     if (scoringChanged) await this.stampTournamentContentHash(tournamentId);

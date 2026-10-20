@@ -25,10 +25,18 @@ const MARKER: ForfeitRules = {
 };
 
 /** The pad's read of a Tournament that pins no penalty ruleset: the built-in's rules answer. */
-async function readWith(penaltyRulesets: Record<string, unknown>) {
+async function readWith(penaltyRulesets: Record<string, unknown>, changes: unknown = null) {
   const db = mockSupabase({
     tournaments: {
-      rows: [{ ...ON_TF_1_0_0, penalty_ruleset_id: null, event_id: 'e1', events: EVENT }],
+      rows: [
+        {
+          ...ON_TF_1_0_0,
+          penalty_ruleset_id: null,
+          event_id: 'e1',
+          events: EVENT,
+          forfeit_rules: changes,
+        },
+      ],
     },
     events: { rows: [{ id: 'e1', penalty_ruleset_id: null }] },
     penalty_rulesets: penaltyRulesets,
@@ -70,6 +78,19 @@ describe('the pad’s rules say which forfeit reasons ask whether the Fighter co
       conduct_violation: false,
     });
     expect(JSON.stringify(answer)).not.toContain('disqualifyAfter');
+  });
+
+  it('answer the rules the Tournament plays: its own changes over the ruleset’s (ruling 65)', async () => {
+    const changes = {
+      reasons: { voluntary: { fighter: 'asks' }, injury: { fighter: 'withdrawn' } },
+    };
+    const { answer } = await readWith(builtIn(MARKER), changes);
+
+    expect(answer.forfeitAsks).toEqual({
+      injury: false,
+      voluntary: true,
+      conduct_violation: false,
+    });
   });
 
   it('cost the card rules’ pin chain after the Tournament’s row, read once', async () => {

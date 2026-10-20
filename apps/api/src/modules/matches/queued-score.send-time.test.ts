@@ -146,7 +146,14 @@ describe('a card from a tablet’s queue', () => {
         expect.objectContaining({ forfeitingRegistrationId: 'reg-red', reason: 'black_card_1' }),
         { staffAccountId: 'pad-1' },
         SCORED_AT,
-        { rules: FFAMHE_FORFEIT_RULES, cardEffect: 'match' },
+        {
+          rules: {
+            ...FFAMHE_FORFEIT_RULES,
+            firstBlackCard: 'match',
+            secondBlackCard: 'tournament',
+          },
+          cardEffect: 'match',
+        },
       ],
     ]);
   });

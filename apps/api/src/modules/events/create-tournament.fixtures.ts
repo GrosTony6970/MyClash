@@ -102,5 +102,7 @@ export function seedHarness(opts?: { customRow?: Record<string, unknown> | null 
     version: () => ref.current?.['ruleset_version'],
     seeded: () => ref.current?.['scoring_config_json'] as SeededScoringConfig,
     rulesetConfig: () => ref.current?.['ruleset_config'] as Record<string, unknown> | undefined,
+    /** The row the create inserted, every column. */
+    inserted: () => ref.current,
   };
 }

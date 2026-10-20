@@ -1,12 +1,17 @@
 import { ConflictException, Logger } from '@nestjs/common';
-import { ForfeitRulesSchema } from '@myclash/rulesets';
-import type { ForfeitRules } from '@myclash/types/forfeit-rules';
+import { ForfeitRulesInForceSchema } from '@myclash/rulesets';
+import {
+  mergeForfeitRules,
+  type ForfeitChanges,
+  type ForfeitRulesInForce,
+} from '@myclash/types/forfeit-rules';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { tournamentCardRules } from './card-rules-pin';
 
 /**
  * What a forfeit does in a Tournament: the forfeit rules of its penalty ruleset of now (rulings 63
- * and A/G), read off the same live row as its black card settings.
+ * and A/G), read off the same live row as its black card settings, with the Tournament's own
+ * changes laid over both (ruling 65).
  */
 
 type Client = SupabaseService['service'];
@@ -24,25 +29,93 @@ export class ForfeitRulesInvalidError extends Error {
   }
 }
 
-/**
- * The forfeit rules a card-rules row holds. The API stores only parsed rules; a value that does not
- * parse came in another way (a hand-edited archive), and is an error, never a default.
- */
-export function forfeitRulesOf(cardRules: Row): ForfeitRules {
-  const parsed = ForfeitRulesSchema.safeParse(cardRules['forfeit_rules']);
-  if (parsed.success) return parsed.data;
-  const rulesetId = String(cardRules['id']);
-  logger.error(`Forfeit rules of ${rulesetId} refused: ${parsed.error.message}`);
+function parsed(value: unknown, whose: string, rulesetId: string): ForfeitRulesInForce {
+  const result = ForfeitRulesInForceSchema.safeParse(value);
+  if (result.success) return result.data;
+  logger.error(`Forfeit rules of ${whose} refused: ${result.error.message}`);
   throw new ForfeitRulesInvalidError(rulesetId);
 }
 
-/** The Tournament's card rules of now and the forfeit rules they hold, in one read. */
+/**
+ * The rules in force under a card-rules row and a Tournament's changes. The API stores only parsed
+ * values; one that does not parse came in another way (a hand-edited archive), and is an error,
+ * never a default. The ruleset's own rules are parsed before the merge, which reads only the keys
+ * it knows; the merged rules after it, so a changed black card reads one of its three values.
+ */
+export function forfeitRulesOf(
+  cardRules: Row,
+  changes: ForfeitChanges | null,
+): ForfeitRulesInForce {
+  return withChanges(rulesetForfeitRules(cardRules), changes, String(cardRules['id']));
+}
+
+/** A card-rules row's own forfeit rules and black card settings, parsed. */
+function rulesetForfeitRules(cardRules: Row): ForfeitRulesInForce {
+  const rulesetId = String(cardRules['id']);
+  return parsed(
+    {
+      ...(cardRules['forfeit_rules'] as object),
+      firstBlackCard: cardRules['first_black_card_forfeit'],
+      secondBlackCard: cardRules['second_black_card_forfeit'],
+    },
+    `penalty ruleset ${rulesetId}`,
+    rulesetId,
+  );
+}
+
+function withChanges(
+  ruleset: ForfeitRulesInForce,
+  changes: ForfeitChanges | null,
+  rulesetId: string,
+): ForfeitRulesInForce {
+  return changes
+    ? parsed(mergeForfeitRules(ruleset, changes), `a Tournament on ${rulesetId}`, rulesetId)
+    : ruleset;
+}
+
+/**
+ * What the forfeit-rules reads answer: the ruleset's rules (what a Reset returns to), the
+ * Tournament's stored changes, and the rules in force. Rules that do not parse answer `null` and
+ * `invalid`, never an error: the screen that shows them is the one place a bad change is Reset.
+ */
+export interface ForfeitRulesAnswer {
+  ruleset: ForfeitRulesInForce | null;
+  changes: ForfeitChanges | null;
+  inForce: ForfeitRulesInForce | null;
+  invalid?: typeof FORFEIT_RULES_INVALID;
+}
+
+function readable<T>(read: () => T): T | null {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof ForfeitRulesInvalidError) return null;
+    throw error;
+  }
+}
+
+export function forfeitRulesAnswer(
+  cardRules: Row,
+  changes: ForfeitChanges | null,
+): ForfeitRulesAnswer {
+  const rulesetId = String(cardRules['id']);
+  const ruleset = readable(() => rulesetForfeitRules(cardRules));
+  const inForce = ruleset && readable(() => withChanges(ruleset, changes, rulesetId));
+  return inForce
+    ? { ruleset, changes, inForce }
+    : { ruleset, changes, inForce: null, invalid: FORFEIT_RULES_INVALID };
+}
+
+/**
+ * The rules in force of a Tournament, its forfeit rules and black card settings, in one read of
+ * its card rules of now and its changes. Every scorer reads them here.
+ */
 export async function cardAndForfeitRules(
   db: Client,
   tournamentId: string,
-): Promise<{ cardRules: Row; forfeitRules: ForfeitRules }> {
-  const cardRules = await tournamentCardRules(db, tournamentId);
-  return { cardRules, forfeitRules: forfeitRulesOf(cardRules) };
+): Promise<{ forfeitRules: ForfeitRulesInForce }> {
+  const { cardRules, changes } = await tournamentCardRules(db, tournamentId);
+  return { forfeitRules: forfeitRulesOf(cardRules, changes) };
 }
 
 /** A hand forfeit's refusal of rules that do not parse: worded on the three forfeit screens. */

@@ -476,6 +476,8 @@ export const admin = {
         'Les règles n’ont pas pu être vérifiées pour le moment. Rien n’a été enregistré. Réessayez dans un instant.',
       cardLocked:
         'Ce tournoi a commencé, ou son événement est en cours avec des assauts créés : ses règles de cartons sont verrouillées.',
+      forfeitLocked:
+        'Un assaut de ce tournoi a commencé : ses règles de forfait sont verrouillées.',
     },
   },
   srcComponents: {

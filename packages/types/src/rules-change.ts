@@ -86,6 +86,8 @@ export const RULES_CHANGE_CODES = {
   checkUnavailable: 'rules_check_unavailable',
   /** 403: a card rules change refused on the Tournament's clock. */
   cardLocked: 'card_change_locked',
+  /** 403: a change of the Tournament's forfeit rules refused on its clock (ruling 73). */
+  forfeitLocked: 'forfeit_rules_locked',
 } as const;
 
 export type RulesChangeCode = (typeof RULES_CHANGE_CODES)[keyof typeof RULES_CHANGE_CODES];

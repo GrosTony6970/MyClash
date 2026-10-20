@@ -469,6 +469,7 @@ export const admin = {
         'The rules could not be checked just now. Nothing was saved. Try again in a moment.',
       cardLocked:
         'This tournament has started, or its event is running with bouts made: its card rules are locked.',
+      forfeitLocked: 'A bout of this tournament has started: its forfeit rules are locked.',
     },
   },
   srcComponents: {

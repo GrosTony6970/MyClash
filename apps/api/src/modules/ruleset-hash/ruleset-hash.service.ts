@@ -10,6 +10,12 @@ import {
   type ScoringBehaviourInput,
 } from '@myclash/rulesets';
 import { afterblowModeInForce } from '@myclash/types';
+import {
+  mergeForfeitRules,
+  type BlackCardEffectName,
+  type ForfeitChanges,
+  type ForfeitRules,
+} from '@myclash/types/forfeit-rules';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   normalizeRulesetVersion,
@@ -29,6 +35,8 @@ export interface TournamentHashRow {
   ruleset_config: Row | null;
   scoring_config_json: Row | null;
   penalty_ruleset_id: string | null;
+  /** The Tournament's own changes of its forfeit rules (ruling 65): they change results. */
+  forfeit_rules: ForfeitChanges | null;
 }
 
 /** The columns `scoringCanonicalOf` reads: the scoring rules alone. */
@@ -154,7 +162,7 @@ export class RulesetHashService {
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select(
-        'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id',
+        'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id, forfeit_rules',
       )
       .eq('id', id)
       .maybeSingle();
@@ -212,7 +220,9 @@ export class RulesetHashService {
     const id = await this.resolveEffectivePenalty(t);
     if (!id) return null;
     const definition = await this.loadPenaltyDefinition(id);
-    return definition ? canonicalizePenaltyDefinition(definition) : null;
+    return definition
+      ? canonicalizePenaltyDefinition(withForfeitChanges(definition, t.forfeit_rules))
+      : null;
   }
 
   /** tournament pin → event default → platform built-in (by built_in flag, not
@@ -257,6 +267,32 @@ export class RulesetHashService {
     if (error) throw new Error(`Card rules ${id} were not read: ${error.message}`);
     return data ? projectPenaltyBucketFromLive(data as Row) : null;
   }
+}
+
+/**
+ * The card and forfeit rules a Tournament plays: its changes laid over its ruleset's, by the one
+ * merge of the scorer and the screens. No changes leaves the definition as read, so the stamp of a
+ * Tournament that changes nothing stays what it was.
+ */
+function withForfeitChanges(
+  definition: PenaltyBehaviourInput,
+  changes: ForfeitChanges | null,
+): PenaltyBehaviourInput {
+  if (!changes) return definition;
+  const { firstBlackCard, secondBlackCard, ...forfeitRules } = mergeForfeitRules(
+    {
+      ...(definition.forfeitRules as ForfeitRules),
+      firstBlackCard: definition.firstBlackCardForfeit as BlackCardEffectName,
+      secondBlackCard: definition.secondBlackCardForfeit as BlackCardEffectName,
+    },
+    changes,
+  );
+  return {
+    ...definition,
+    firstBlackCardForfeit: firstBlackCard,
+    secondBlackCardForfeit: secondBlackCard,
+    forfeitRules,
+  };
 }
 
 /** Effective grammar for the hash. A coded engine (TF_v1, a fork) scores the

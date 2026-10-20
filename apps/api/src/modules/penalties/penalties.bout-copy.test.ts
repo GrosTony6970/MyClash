@@ -204,7 +204,7 @@ describe('a card whose rules cannot be read is an error, never a default', () =>
     [
       'the Tournament pin',
       'tournaments',
-      'penalty_ruleset_id, event_id',
+      'penalty_ruleset_id, event_id, forfeit_rules',
       {},
       'card rules of tournament-1',
     ],
@@ -266,7 +266,14 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
       expect.objectContaining({ forfeitingRegistrationId: 'reg-blue', reason: 'black_card_1' }),
       { staffAccountId: 'staff-1' },
       undefined,
-      { rules: FFAMHE_FORFEIT_RULES, cardEffect: 'tournament' },
+      {
+        rules: {
+          ...FFAMHE_FORFEIT_RULES,
+          firstBlackCard: 'tournament',
+          secondBlackCard: 'tournament',
+        },
+        cardEffect: 'tournament',
+      },
     );
   });
 

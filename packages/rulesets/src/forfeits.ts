@@ -1,4 +1,9 @@
-import type { ForfeitRuleReason, ForfeitRules } from '@myclash/types/forfeit-rules';
+import type {
+  ForfeitPatch,
+  ForfeitRuleReason,
+  ForfeitRules,
+  ForfeitRulesInForce,
+} from '@myclash/types/forfeit-rules';
 import { z } from 'zod';
 
 /**
@@ -94,12 +99,56 @@ export const ForfeitRulesSchema = z
   })
   .strict();
 
+/** The rules in force: the forfeit rules and what each black card does (ruling 65). */
+export const ForfeitRulesInForceSchema = ForfeitRulesSchema.extend({
+  firstBlackCard: BlackCardEffectSchema,
+  secondBlackCard: BlackCardEffectSchema,
+}).strict();
+
+const resettable = <T extends z.ZodType>(schema: T) => schema.nullable().optional();
+const reasonRule = ForfeitReasonRuleSchema.shape;
+const ReasonRulePatchSchema = z
+  .object({
+    outcome: resettable(reasonRule.outcome),
+    opponentScore: resettable(reasonRule.opponentScore),
+    fighter: resettable(reasonRule.fighter),
+  })
+  .strict();
+
+/**
+ * A save of a Tournament's changes (`ForfeitPatch`): strict at every level, each value bounded by
+ * `ForfeitRulesSchema`'s own, `null` (a Reset) at a leaf only.
+ */
+export const ForfeitRulesPatchSchema = z
+  .object({
+    reasons: z
+      .object({
+        injury: ReasonRulePatchSchema.optional(),
+        voluntary: ReasonRulePatchSchema.optional(),
+        conduct_violation: ReasonRulePatchSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    disqualifyAfter: resettable(ForfeitRulesSchema.shape.disqualifyAfter),
+    disqualifyBeforeFirstBout: resettable(ForfeitRulesSchema.shape.disqualifyBeforeFirstBout),
+    blackCardOpponentScore: resettable(ForfeitRulesSchema.shape.blackCardOpponentScore),
+    firstBlackCard: resettable(BlackCardEffectSchema),
+    secondBlackCard: resettable(BlackCardEffectSchema),
+  })
+  .strict();
+
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type AssertTrue<T extends true> = T;
 
-/** The schema and `@myclash/types/forfeit-rules` describe one shape: a drift stops the compile. */
+/** The schemas and `@myclash/types/forfeit-rules` describe one shape: a drift stops the compile. */
 export type ForfeitRulesSchemaIsTheContract = AssertTrue<
   Exact<z.infer<typeof ForfeitRulesSchema>, ForfeitRules>
+>;
+export type ForfeitRulesInForceSchemaIsTheContract = AssertTrue<
+  Exact<z.infer<typeof ForfeitRulesInForceSchema>, ForfeitRulesInForce>
+>;
+export type ForfeitRulesPatchSchemaIsTheContract = AssertTrue<
+  Exact<z.infer<typeof ForfeitRulesPatchSchema>, ForfeitPatch>
 >;
 
 /** How the engine records one forfeit: its score, and what it does to the Fighter. */

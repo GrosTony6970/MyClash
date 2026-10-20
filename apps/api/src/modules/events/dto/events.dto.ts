@@ -1,6 +1,10 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { AuthoredTargetsSchema, MAX_AUTHORED_TARGET_VALUE } from '@myclash/rulesets';
+import {
+  AuthoredTargetsSchema,
+  ForfeitRulesPatchSchema,
+  MAX_AUTHORED_TARGET_VALUE,
+} from '@myclash/rulesets';
 import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
 
 /**
@@ -315,6 +319,8 @@ const createTournamentSchema = z
     lockConfig: tournamentLockConfigSchema.optional(),
     scoringConfig: z.record(z.string(), z.unknown()).optional(),
     penaltyRulesetId: z.uuid().optional(),
+    /** The organiser's changes of the penalty ruleset's forfeit rules (ruling 65). */
+    forfeitRules: ForfeitRulesPatchSchema.optional(),
     // Tournament identity color token (e.g. "red", "amber"). Rendered as a
     // small bubble next to the tournament name across the admin UI.
     color: z.string().max(32).optional(),
@@ -343,6 +349,8 @@ const updateTournamentSchema = z
     // Tournament match lock and auto-lock configuration
     lockConfig: tournamentLockConfigSchema.optional(),
     penaltyRulesetId: z.uuid().nullish(),
+    /** The changes of the forfeit rules: a leaf sent as null is a Reset (ruling 65). */
+    forfeitRules: ForfeitRulesPatchSchema.optional(),
     // Public URL of the tournament logo. Pass null to clear.
     logoUrl: z.string().max(2048).nullish(),
     rulesetCode: rulesetCodeSchema.optional(),

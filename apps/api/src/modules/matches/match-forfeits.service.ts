@@ -1214,11 +1214,8 @@ export class MatchForfeitsService {
    */
   private async handForfeitRules(tournamentId: string, reason: string): Promise<ForfeitInForce> {
     try {
-      const { cardRules, forfeitRules } = await cardAndForfeitRules(
-        this.supabase.service,
-        tournamentId,
-      );
-      const cardEffect = isBlackCardReason(reason) ? blackCardEffectOf(cardRules, reason) : null;
+      const { forfeitRules } = await cardAndForfeitRules(this.supabase.service, tournamentId);
+      const cardEffect = isBlackCardReason(reason) ? blackCardEffectOf(forfeitRules, reason) : null;
       return { rules: forfeitRules, cardEffect };
     } catch (error) {
       throw forfeitRulesRefusal(error);

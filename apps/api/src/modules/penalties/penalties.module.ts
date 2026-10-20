@@ -5,6 +5,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { RulesetHashModule } from '../ruleset-hash/ruleset-hash.module';
 import { StaffModule } from '../staff/staff.module';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { ForfeitRulesController } from './forfeit-rules.controller';
 import { PenaltiesController } from './penalties.controller';
 import { PenaltiesService } from './penalties.service';
 
@@ -19,7 +20,7 @@ import { PenaltiesService } from './penalties.service';
     StaffModule,
     RulesetHashModule,
   ],
-  controllers: [PenaltiesController],
+  controllers: [PenaltiesController, ForfeitRulesController],
   providers: [PenaltiesService],
   exports: [PenaltiesService],
 })

@@ -20,7 +20,8 @@ import {
   type PenaltyCard,
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
-import type { ForfeitRules } from '@myclash/types/forfeit-rules';
+import type { ForfeitRulesInForce } from '@myclash/types/forfeit-rules';
+import { RULES_CHANGE_CODES } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
 import { assertPlatformTier, hasPlatformTier } from '../../common/auth/platform-role';
@@ -83,11 +84,13 @@ interface PenaltyActor {
   correctsOverEvent?: boolean;
 }
 
-/** The Tournament's card rules of now, which say how far a black card reaches (ruling 54). */
+/** What says how far a black card reaches (ruling 54): the Tournament's rules in force of now. */
 interface BlackCardReach {
-  cardRules: Record<string, unknown>;
-  /** What its forfeit then scores (ruling 69) and how it escalates. */
-  forfeitRules: ForfeitRules;
+  /**
+   * Its rules in force, the Tournament's changes laid over its ruleset's (ruling 65): what each
+   * black card does, what its forfeit then scores (ruling 69) and how it escalates.
+   */
+  forfeitRules: ForfeitRulesInForce;
 }
 
 /**
@@ -860,9 +863,11 @@ export class PenaltiesService {
     // ladder/cost to later cards than the ones already recorded. The one clock
     // of a Tournament's rules (`tournamentClockOf`), as the settings save asks it.
     if (nextId !== currentId && (await this.tournamentHasStartedMatches(tournamentId))) {
-      throw new ForbiddenException(
-        'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
-      );
+      throw new ForbiddenException({
+        code: RULES_CHANGE_CODES.cardLocked,
+        message:
+          'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
+      });
     }
     const nextVersion = nextId
       ? await loadPinnablePenaltyRulesetVersion(this.supabase, nextId, orgId)
@@ -1249,7 +1254,7 @@ export class PenaltiesService {
       registrationId,
     );
     const reason = blackCount >= 2 ? 'black_card_2' : 'black_card_1';
-    return { blackCount, scope: blackCardEffectOf(reach.cardRules, reason) };
+    return { blackCount, scope: blackCardEffectOf(reach.forfeitRules, reason) };
   }
 
   /**
@@ -1274,7 +1279,7 @@ export class PenaltiesService {
     cardId: string,
     reach: BlackCardReach,
   ): Promise<void> {
-    if (blackCardEffectOf(reach.cardRules, 'black_card_2') === 'tournament') return;
+    if (blackCardEffectOf(reach.forfeitRules, 'black_card_2') === 'tournament') return;
     await syncSecondBlackCardReview(this.supabase.service, tournamentId, registrationId, cardId);
   }
 

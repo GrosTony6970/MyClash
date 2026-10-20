@@ -29,6 +29,7 @@ const STATUS: Record<string, number> = {
   rules_change_mixed: 400,
   rules_check_unavailable: 503,
   card_change_locked: 403,
+  forfeit_rules_locked: 403,
 };
 
 describe('rulesChangeRefusal', () => {

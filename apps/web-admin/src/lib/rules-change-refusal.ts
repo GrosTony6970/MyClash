@@ -18,6 +18,7 @@ const REFUSAL_KEY: Record<RulesChangeCode, string> = {
   [RULES_CHANGE_CODES.mixed]: 'admin.rulesChange.refusal.mixed',
   [RULES_CHANGE_CODES.checkUnavailable]: 'admin.rulesChange.refusal.checkUnavailable',
   [RULES_CHANGE_CODES.cardLocked]: 'admin.rulesChange.refusal.cardLocked',
+  [RULES_CHANGE_CODES.forfeitLocked]: 'admin.rulesChange.refusal.forfeitLocked',
 };
 
 /** The words of a rules-change refusal, or null when the failure carries no such code. */
