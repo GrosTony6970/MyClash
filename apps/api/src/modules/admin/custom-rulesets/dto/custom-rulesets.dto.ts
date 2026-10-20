@@ -83,7 +83,7 @@ const updateCustomRulesetSchema = z
     matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
     doublePenaltyFormula: DoublePenaltySpecSchema.nullish(),
     // Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
-    // (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
+    // (winBonus, targetValues, matchFormat, doublePenaltyFormula).
     // Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.
     tfConfig: z.record(z.string(), z.unknown()).optional(),
     ...rulesetGrammarShape,

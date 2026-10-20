@@ -593,6 +593,8 @@ export const scoring = {
     record: 'Enregistrer le forfait',
     recording: 'Enregistrement...',
     recordError: "Impossible d'enregistrer le forfait.",
+    rulesInvalid:
+      'Les règles de forfait de ce tournoi sont illisibles. Demandez à un organisateur de corriger son ruleset de pénalités.',
     confirmTitle: 'Enregistrer le forfait ?',
     confirmBody: "{fighter} abandonne ce match. Cela met fin à l'assaut.",
     reasons: {

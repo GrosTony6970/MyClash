@@ -87,7 +87,7 @@ const FEDERAL = [
 function state(over: Record<string, TableState> = {}): Record<string, TableState> {
   return {
     tournaments: { row: TOURNAMENT },
-    events: { row: { penalty_ruleset_id: null, penalty_ruleset_version: null } },
+    events: { row: { penalty_ruleset_id: null } },
     penalty_rulesets: { row: { id: 'pr-built-in', version: '1.0.0' } },
     ...over,
   };
@@ -158,14 +158,16 @@ describe('the rules fingerprint fails closed', () => {
     await expect(hashOf(s)).rejects.toThrow('Card rules pr-1 were not read');
   });
 
-  it('throws when the pinned card rules cannot be read', async () => {
+  // The hash reads the live row whatever version the pin names: a snapshot is no fallback for it.
+  it('a failed read of the live row throws, even when the pin names a version', async () => {
     const s = state({
       tournaments: {
         row: { ...TOURNAMENT, penalty_ruleset_id: 'pr-1', penalty_ruleset_version: '1.0.0' },
       },
-      penalty_ruleset_versions: { error: { message: 'connection reset' } },
+      penalty_rulesets: { error: { message: 'connection reset' }, errorWhen: 'forfeit_rules' },
+      penalty_ruleset_versions: { row: { accumulation_scope: 'match', entries: [] } },
     });
-    await expect(hashOf(s)).rejects.toThrow('connection reset');
+    await expect(hashOf(s)).rejects.toThrow('Card rules pr-1 were not read');
   });
 
   it('stamps nothing when a read fails: the best-effort stamp logs, and no hash built on a fallback is written', async () => {

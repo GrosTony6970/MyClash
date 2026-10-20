@@ -72,6 +72,7 @@ export const SOURCE_SUFFIXES = [
   '.css',
   '.js',
   '.cjs',
+  '.mts',
   '.csv',
   '.txt',
   '.py',

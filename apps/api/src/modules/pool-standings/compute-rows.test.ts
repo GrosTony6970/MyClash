@@ -111,7 +111,6 @@ function input(over: Partial<ComputeRowsInput> = {}): ComputeRowsInput {
     status: 'completed',
     exchangesByMatch: new Map(),
     forfeitCountByReg: new Map(),
-    drawnForfeitMatchIds: new Set(),
     ruleset: stubRuleset().ruleset,
     runtimeConfig: {},
     afterblowMode: 'full',
@@ -182,32 +181,6 @@ describe('computeStandingsRows — win, loss and draw', () => {
     );
     expect(statsOf(stands, A)).toMatchObject({ W: 1, L: 0, D: 0 });
     expect(statsOf(stands, B)).toMatchObject({ W: 0, L: 1, D: 0 });
-  });
-
-  it('lets an explicit forfeit draw outrank the ceiling', () => {
-    // Ordering, made visible: `drawnForfeitMatchIds` is an operator act and is
-    // checked first. Nothing produces this pair today; the test pins the rule
-    // rather than leaving it to whoever reads the if-chain next.
-    const rows = computeStandingsRows(
-      input({
-        completedMatches: [bout('m-both', A, 0, B, 0, null, 'max_doubles')],
-        drawnForfeitMatchIds: new Set(['m-both']),
-      }),
-    );
-
-    expect(statsOf(rows, A)).toMatchObject({ W: 0, L: 0, D: 1 });
-  });
-
-  it('forces a draw for a bout named in drawnForfeitMatchIds, whatever the scores say', () => {
-    const rows = computeStandingsRows(
-      input({
-        completedMatches: [bout('m-ff', A, 5, B, 0, A)],
-        drawnForfeitMatchIds: new Set(['m-ff']),
-      }),
-    );
-
-    expect(statsOf(rows, A)).toMatchObject({ W: 0, L: 0, D: 1 });
-    expect(statsOf(rows, B)).toMatchObject({ W: 0, L: 0, D: 1 });
   });
 });
 

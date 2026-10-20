@@ -27,6 +27,9 @@ export function correctionRefusal(failure: ApiFailure, t: (key: string) => strin
     case 'exchange_from_before_reset':
       // A restore, or the approval of one: the hit is from before the bout's last reset (ruling 275).
       return t('admin.common.exchangeFromBeforeReset');
+    case 'forfeit_rules_invalid':
+      // A forfeit, on rules a hand-edited archive left that do not parse (rulings 63-76).
+      return t('admin.common.forfeitRulesInvalid');
     default:
       return null;
   }

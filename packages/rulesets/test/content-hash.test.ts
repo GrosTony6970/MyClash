@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import {
   canonicalizeScoringBehaviour,
   canonicalizePenaltyDefinition,
@@ -23,10 +24,8 @@ const codedBase: CodedScoringBehaviour = {
   },
   matchFormat: { pointCap: 10 },
   afterblowMode: 'deductive',
-  tournamentPolicy: null,
   winBonus: 3,
   doublePenaltyFormula: 'n_times_n_minus_1_over_3',
-  forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'match_only' } } },
 };
 
 const formulaBase: FormulaScoringBehaviour = {
@@ -39,7 +38,6 @@ const formulaBase: FormulaScoringBehaviour = {
   },
   matchFormat: { pointCap: 5 },
   afterblowMode: null,
-  tournamentPolicy: null,
   scoreFormula: {
     type: 'binop',
     op: '+',
@@ -53,7 +51,6 @@ const formulaBase: FormulaScoringBehaviour = {
   ],
   doublePenaltyFormula: null,
   decisionEdition: '2026-10',
-  forfeitPolicy: null,
 };
 
 const hashOf = (input: CodedScoringBehaviour | FormulaScoringBehaviour) =>
@@ -109,12 +106,6 @@ describe('canonicalizeScoringBehaviour — coded', () => {
     expect(a).toBe(b);
   });
 
-  it('changes when tournamentPolicy changes (forfeit-draws affects placings)', () => {
-    expect(hashOf({ ...codedBase, tournamentPolicy: { forfeitDrawsCount: true } })).not.toBe(
-      hashOf(codedBase),
-    );
-  });
-
   it('folds the engine code+version into the fingerprint', () => {
     expect(hashOf({ ...codedBase, engineVersion: '2.0.0' })).not.toBe(hashOf(codedBase));
   });
@@ -149,11 +140,6 @@ describe('canonicalizeScoringBehaviour — formula', () => {
   it('changes when the end decision it was published with changes', () => {
     expect(hashOf({ ...formulaBase, decisionEdition: '2026-04' })).not.toBe(hashOf(formulaBase));
   });
-
-  it('changes when the forfeit policy changes (ruling "Forfeit")', () => {
-    const forfeitPolicy = { reasons: { black_card_1: { tournamentState: 'match_only' } } };
-    expect(hashOf({ ...formulaBase, forfeitPolicy })).not.toBe(hashOf(formulaBase));
-  });
 });
 
 const penaltyBase: PenaltyBehaviourInput = {
@@ -163,6 +149,7 @@ const penaltyBase: PenaltyBehaviourInput = {
   blackCardPoints: 0,
   firstBlackCardForfeit: 'match',
   secondBlackCardForfeit: 'tournament',
+  forfeitRules: FFAMHE_FORFEIT_RULES,
   entries: [
     { groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] },
     { groupNumber: 2, refNumber: 'R2', sanctions: ['red', 'black'] },
@@ -205,6 +192,11 @@ describe('canonicalizePenaltyDefinition', () => {
     );
   });
 
+  it('changes when a forfeit rule changes (rulings 63-76)', () => {
+    const forfeitRules = { ...FFAMHE_FORFEIT_RULES, blackCardOpponentScore: 5 };
+    expect(penaltyHash({ ...penaltyBase, forfeitRules })).not.toBe(penaltyHash(penaltyBase));
+  });
+
   it('ignores display churn (identity is behaviour-only)', () => {
     // Same behaviour fields, entries supplied in a different order → identical hash.
     const same: PenaltyBehaviourInput = {
@@ -214,6 +206,7 @@ describe('canonicalizePenaltyDefinition', () => {
       blackCardPoints: 0,
       firstBlackCardForfeit: 'match',
       secondBlackCardForfeit: 'tournament',
+      forfeitRules: FFAMHE_FORFEIT_RULES,
       entries: [
         { groupNumber: 2, refNumber: 'R2', sanctions: ['red', 'black'] },
         { groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] },
@@ -237,10 +230,8 @@ describe('coded vs formula never collide', () => {
       },
       matchFormat: null,
       afterblowMode: null,
-      tournamentPolicy: null,
       winBonus: null,
       doublePenaltyFormula: null,
-      forfeitPolicy: null,
     });
     const formula = hashOf({
       kind: 'formula',
@@ -252,13 +243,11 @@ describe('coded vs formula never collide', () => {
       },
       matchFormat: null,
       afterblowMode: null,
-      tournamentPolicy: null,
       scoreFormula: null,
       constants: { pointsPerVictory: 0, pointsPerTie: 0, pointsPerLoss: 0, doublePenalty: 0 },
       tiebreakers: [],
       doublePenaltyFormula: null,
       decisionEdition: null,
-      forfeitPolicy: null,
     });
     expect(coded).not.toBe(formula);
   });

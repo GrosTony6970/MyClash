@@ -170,24 +170,6 @@ const targetValuesSchema = z
   .strict();
 
 /**
- * Tournament-level policy switches set by the wizard's Step 4.
- *
- * Renamed from `forfeitPolicy` because that name collided with the
- * rulesets-engine `forfeitPolicy.reasons.*` blob (per-reason scoring data) —
- * same JSON key, totally different shape. The collision tripped a 400 on the
- * wizard's final PATCH whenever the persisted row carried the engine shape.
- * Migration 0062 moves any legacy wizard-shape rows from `forfeitPolicy` to
- * `tournamentPolicy`.
- */
-const tournamentPolicySchema = z
-  .object({
-    forfeitDrawsCount: z.boolean().optional(),
-    forfeitFighterBefore1stMatch: z.boolean().optional(),
-    disqualifyAfter: z.number().int().min(1).max(10).optional(),
-  })
-  .strict();
-
-/**
  * One phase's time limit, where ZERO MEANS NO LIMIT — the same trap as
  * {@link targetValuesSchema} above, one field over.
  *
@@ -291,8 +273,8 @@ const matchFormatSchema = z
 
 /**
  * `.strict()`, so every key an organizer surface sends must be listed here or
- * the whole PATCH 400s — the failure mode the Advanced tab hit for months by
- * writing `forfeitPolicy` instead of `tournamentPolicy`.
+ * the whole PATCH 400s. No forfeit rule is one: the penalty ruleset owns them
+ * (operator rulings 63 and 68, 2026-10-20).
  */
 const tournamentRulesetConfigSchema = z
   .object({
@@ -303,7 +285,6 @@ const tournamentRulesetConfigSchema = z
     // while the editors migrate, and the engine derives one from the other.
     targets: AuthoredTargetsSchema.optional(),
     targetValues: targetValuesSchema.optional(),
-    tournamentPolicy: tournamentPolicySchema.optional(),
     matchFormat: matchFormatSchema.optional(),
   })
   .strict();
@@ -348,16 +329,6 @@ const createTournamentSchema = z
   .strict();
 export class CreateTournamentDto extends createZodDto(createTournamentSchema) {}
 
-/**
- * A settings save may turn the forfeit rule off: `disqualifyAfter: null` removes the setting, and
- * a missing one is off (operator rulings 48, 52). Update only: a create has no setting to remove.
- */
-const updateTournamentRulesetConfigSchema = tournamentRulesetConfigSchema.extend({
-  tournamentPolicy: tournamentPolicySchema
-    .extend({ disqualifyAfter: z.number().int().min(1).max(10).nullable().optional() })
-    .optional(),
-});
-
 const updateTournamentSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
@@ -368,7 +339,7 @@ const updateTournamentSchema = z
     // Tournament scoring configuration (afterblow mode + button config)
     scoringConfig: z.record(z.string(), z.unknown()).optional(),
     // Tournament ruleset configuration, including shared match format settings
-    rulesetConfig: updateTournamentRulesetConfigSchema.optional(),
+    rulesetConfig: tournamentRulesetConfigSchema.optional(),
     // Tournament match lock and auto-lock configuration
     lockConfig: tournamentLockConfigSchema.optional(),
     penaltyRulesetId: z.uuid().nullish(),

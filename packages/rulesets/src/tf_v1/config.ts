@@ -13,25 +13,14 @@ import {
   MatchFormatConfigSchema,
   normalizeMatchFormatConfig,
 } from '../match-format';
-import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
 import { DEFAULT_DOUBLE_PENALTY_FORMULA, DoublePenaltySpecSchema } from './double-penalty';
 import { DEFAULT_TARGETS, TargetsSchema, withDerivedTargets } from './targets';
 
 /**
- * Wizard-set tournament policy switches. Lives next to (not inside)
- * `forfeitPolicy` — that engine-owned key carries per-reason scoring
- * data and is structurally unrelated. Earlier code overloaded
- * `forfeitPolicy` for both concepts and tripped a 400 on the wizard
- * PATCH; see `Step4Advanced.tsx` and migration 0062.
+ * No forfeit or disqualification rule lives here: the penalty ruleset owns them all (operator
+ * rulings 63 and 68, 2026-10-20). A stored `forfeitPolicy` or `tournamentPolicy` key is stripped
+ * by the parse, like every key this object does not name.
  */
-export const TournamentPolicySchema = z.object({
-  forfeitDrawsCount: z.boolean().default(false),
-  forfeitFighterBefore1stMatch: z.boolean().default(false),
-  disqualifyAfter: z.number().int().min(1).max(10).default(2),
-});
-
-export const DEFAULT_TOURNAMENT_POLICY = TournamentPolicySchema.parse({});
-
 const TFv1ConfigObjectSchema = z.object({
   /**
    * Points added to the numerator per pool win.
@@ -76,8 +65,6 @@ const TFv1ConfigObjectSchema = z.object({
    * off it — unchanged.
    */
   doublePenaltyFormula: DoublePenaltySpecSchema.default(DEFAULT_DOUBLE_PENALTY_FORMULA),
-  forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
-  tournamentPolicy: TournamentPolicySchema.default(DEFAULT_TOURNAMENT_POLICY),
 });
 
 /**

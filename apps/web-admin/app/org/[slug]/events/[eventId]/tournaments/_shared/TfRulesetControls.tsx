@@ -10,12 +10,9 @@ import type { RulesetConfigTF } from './tf-form';
  * The TF-family ruleset controls, shared by the create wizard (Step 4) and the
  * tournament settings Advanced tab.
  *
- * Two kinds of field live here and are governed differently:
- *   - the RULESET CONSTANTS (winBonus / deep / shallow) ARE the format. On the
- *     locked built-in they are read-only + greyed, with "Customise this format"
- *     to fork into an editable org copy. On a fork they edit freely.
- *   - the tournamentPolicy switches are NOT ruleset constants (they are per-
- *     tournament organiser policy), so they stay editable regardless of `locked`.
+ * The RULESET CONSTANTS (winBonus / deep / shallow) ARE the format. On the locked built-in they
+ * are read-only + greyed, with "Customise this format" to fork into an editable org copy. On a
+ * fork they edit freely. No forfeit rule is here: the penalty ruleset owns them (rulings 63, 68).
  *
  * The "modified" badge and Reset compare with what the ruleset starts a Tournament from at its
  * pinned version (`start`, operator ruling 51); with no `start`, neither shows.
@@ -66,7 +63,6 @@ export function TfRulesetControls({
       )}
 
       <TfConstantFields tf={tf} start={start} onChange={onChange} disabled={locked} />
-      <TfPolicyFields tf={tf} start={start} onChange={onChange} />
     </fieldset>
   );
 }
@@ -111,36 +107,6 @@ function TfConstantFields({ tf, start, onChange, disabled }: FieldsProps & { dis
         min={1}
         max={10}
         disabled={disabled}
-      />
-    </>
-  );
-}
-
-/** Per-tournament organiser policy — always editable, even on the built-in. */
-function TfPolicyFields({ tf, start, onChange }: FieldsProps) {
-  const { t } = useI18n();
-
-  const setPolicy = (patch: Partial<RulesetConfigTF['tournamentPolicy']>) =>
-    onChange({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, ...patch } });
-  const startPolicy = start?.tournamentPolicy;
-  return (
-    <>
-      <BoolField
-        label={t('admin.orgTournaments.forfeitDrawsCount')}
-        value={tf.tournamentPolicy.forfeitDrawsCount}
-        start={startPolicy?.forfeitDrawsCount}
-        onChange={(v) => setPolicy({ forfeitDrawsCount: v })}
-      />
-      <BoolField
-        label={t('admin.orgTournaments.forfeitBeforeFirstMatchDq')}
-        value={tf.tournamentPolicy.forfeitFighterBefore1stMatch}
-        start={startPolicy?.forfeitFighterBefore1stMatch}
-        onChange={(v) => setPolicy({ forfeitFighterBefore1stMatch: v })}
-      />
-      <DisqualifyField
-        value={tf.tournamentPolicy.disqualifyAfter}
-        start={startPolicy?.disqualifyAfter}
-        onChange={(v) => setPolicy({ disqualifyAfter: v })}
       />
     </>
   );
@@ -210,82 +176,6 @@ function NumField({
             onChange={(e) => onChange(Number(e.target.value))}
             className="w-24 rounded-md border border-border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
           />
-        </>
-      }
-    />
-  );
-}
-
-function BoolField({
-  label,
-  value,
-  start,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  start: boolean | undefined;
-  onChange: (v: boolean) => void;
-}) {
-  const id = useId();
-  const shown = startAffordance(value, start, String, onChange);
-  return (
-    <FieldRow
-      id={id}
-      label={label}
-      badge={shown.badge}
-      control={
-        <>
-          {shown.reset}
-          <input
-            id={id}
-            type="checkbox"
-            checked={value}
-            onChange={(e) => onChange(e.target.checked)}
-          />
-        </>
-      }
-    />
-  );
-}
-
-/** The forfeits that disqualify: Off, or 1 to 10 (operator ruling 52: Off removes the rule). */
-const DISQUALIFY_COUNTS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-function DisqualifyField({
-  value,
-  start,
-  onChange,
-}: {
-  value: number | null;
-  start: number | null | undefined;
-  onChange: (v: number | null) => void;
-}) {
-  const { t } = useI18n();
-  const off = t('admin.orgTournaments.disqualifyOff');
-  const id = useId();
-  const shown = startAffordance(value, start, (s) => (s === null ? off : String(s)), onChange);
-  return (
-    <FieldRow
-      id={id}
-      label={t('admin.orgTournaments.disqualifyAfter')}
-      badge={shown.badge}
-      control={
-        <>
-          {shown.reset}
-          <select
-            id={id}
-            value={value === null ? 'off' : String(value)}
-            onChange={(e) => onChange(e.target.value === 'off' ? null : Number(e.target.value))}
-            className="w-24 rounded-md border border-border px-3 py-1.5 text-sm"
-          >
-            <option value="off">{off}</option>
-            {DISQUALIFY_COUNTS.map((n) => (
-              <option key={n} value={String(n)}>
-                {n}
-              </option>
-            ))}
-          </select>
         </>
       }
     />

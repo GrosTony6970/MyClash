@@ -6,6 +6,7 @@
  * said nothing, not even in the log.
  */
 import { Logger } from '@nestjs/common';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   mockSupabase,
@@ -28,20 +29,21 @@ const TOURNAMENT = {
   ruleset_content_hash: 'the-hash-before',
 };
 
-const PENALTY_VERSION = {
-  penalty_ruleset_id: 'pr-1',
-  version: '1.0.0',
+/** The live card rules the pin names: the hash reads this row, never a version snapshot. */
+const PENALTY_RULESET = {
+  id: 'pr-1',
   accumulation_scope: 'match',
   yellow_card_points: 0,
   red_card_points: -1,
   black_card_points: 0,
   first_black_card_forfeit: 'match',
   second_black_card_forfeit: 'tournament',
-  entries: [{ groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] }],
+  forfeit_rules: FFAMHE_FORFEIT_RULES,
+  penalty_ruleset_entries: [{ group_number: 1, ref_number: 'R1', sanctions: ['yellow', 'red'] }],
 };
 
 const seeded = (tournaments: TableSeed) =>
-  mockSupabase({ tournaments, penalty_ruleset_versions: { rows: [PENALTY_VERSION] } });
+  mockSupabase({ tournaments, penalty_rulesets: { rows: [PENALTY_RULESET] } });
 
 const serviceOver = (supabase: ReturnType<typeof mockSupabase>) =>
   new RulesetHashService(supabase as never, createRulesetRegistry());
@@ -145,10 +147,8 @@ describe('RulesetHashService.stampEventInheritingTournaments', () => {
           { ...inherits, id: 't-elsewhere', event_id: 'e2' },
         ],
       },
-      events: {
-        rows: [{ id: 'e1', penalty_ruleset_id: 'pr-1', penalty_ruleset_version: '1.0.0' }],
-      },
-      penalty_ruleset_versions: { rows: [PENALTY_VERSION] },
+      events: { rows: [{ id: 'e1', penalty_ruleset_id: 'pr-1' }] },
+      penalty_rulesets: { rows: [PENALTY_RULESET] },
     });
 
     const stamped = await serviceOver(supabase).stampEventInheritingTournaments('e1');

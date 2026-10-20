@@ -14,11 +14,13 @@ import {
   diffPenaltyBucket,
   parsePenaltyRulesetCsv,
   projectPenaltyBucketFromLive,
+  type BlackCardEffect,
   type BucketStatus,
   type ExistingPenaltyForSanction,
   type PenaltyCard,
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
+import type { ForfeitRules } from '@myclash/types/forfeit-rules';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
 import { assertPlatformTier, hasPlatformTier } from '../../common/auth/platform-role';
@@ -45,10 +47,9 @@ import {
   builtInPenaltyRulesetQuery,
   loadBuiltInPenaltyRulesetId,
   loadPenaltyRulesetRow,
-  tournamentCardRules,
   tournamentCardRulesetId,
-  type BlackCardEffect,
 } from './card-rules-pin';
+import { cardAndForfeitRules } from './forfeit-rules-in-force';
 import {
   answeredPayload,
   reviewChanged,
@@ -67,6 +68,7 @@ import {
   buildPenaltyVersionRow,
   freezePenaltyRulesetVersion,
   loadPinnablePenaltyRulesetVersion,
+  penaltyRowOfVersion,
   type PenaltyVersionEntry,
 } from './penalty-version.util';
 
@@ -84,6 +86,8 @@ interface PenaltyActor {
 /** The Tournament's card rules of now, which say how far a black card reaches (ruling 54). */
 interface BlackCardReach {
   cardRules: Record<string, unknown>;
+  /** What its forfeit then scores (ruling 69) and how it escalates. */
+  forfeitRules: ForfeitRules;
 }
 
 /**
@@ -101,7 +105,7 @@ export interface PenaltyLineage {
  *  column here reads as a DEFAULT, i.e. a silently wrong lamp. */
 const PENALTY_LINEAGE_COLUMNS =
   'name, accumulation_scope, yellow_card_points, red_card_points, black_card_points, ' +
-  'first_black_card_forfeit, second_black_card_forfeit, ' +
+  'first_black_card_forfeit, second_black_card_forfeit, forfeit_rules, ' +
   'penalty_ruleset_entries(group_number, ref_number, sanctions)';
 
 /**
@@ -315,9 +319,10 @@ export class PenaltiesService {
       built_in: false,
       created_by_user_id: userId ?? null,
     };
-    // Card costs + forfeit scopes: only forward when the caller provided
-    // them so the column defaults (yellow=0, red=-1, black=0; first=match,
-    // second=tournament) apply for callers that don't care.
+    // Card costs, forfeit scopes and forfeit rules: only forward when the caller
+    // provided them so the column defaults (yellow=0, red=-1, black=0; first=match,
+    // second=tournament; a new club ruleset's forfeit rules) apply for callers
+    // that don't care.
     if (dto.yellowCardPoints !== undefined) insertRow['yellow_card_points'] = dto.yellowCardPoints;
     if (dto.redCardPoints !== undefined) insertRow['red_card_points'] = dto.redCardPoints;
     if (dto.blackCardPoints !== undefined) insertRow['black_card_points'] = dto.blackCardPoints;
@@ -325,6 +330,7 @@ export class PenaltiesService {
       insertRow['first_black_card_forfeit'] = dto.firstBlackCardForfeit;
     if (dto.secondBlackCardForfeit !== undefined)
       insertRow['second_black_card_forfeit'] = dto.secondBlackCardForfeit;
+    if (dto.forfeitRules !== undefined) insertRow['forfeit_rules'] = dto.forfeitRules;
 
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
@@ -402,6 +408,7 @@ export class PenaltiesService {
       blackCardPoints: row['black_card_points'],
       firstBlackCardForfeit: row['first_black_card_forfeit'],
       secondBlackCardForfeit: row['second_black_card_forfeit'],
+      forfeitRules: row['forfeit_rules'],
       entries,
     });
   }
@@ -450,6 +457,7 @@ export class PenaltiesService {
         blackCardPoints: def.blackCardPoints,
         firstBlackCardForfeit: def.firstBlackCardForfeit,
         secondBlackCardForfeit: def.secondBlackCardForfeit,
+        forfeitRules: def.forfeitRules,
       },
       userId,
     );
@@ -513,6 +521,7 @@ export class PenaltiesService {
       updates['first_black_card_forfeit'] = dto.firstBlackCardForfeit;
     if (dto.secondBlackCardForfeit !== undefined)
       updates['second_black_card_forfeit'] = dto.secondBlackCardForfeit;
+    if (dto.forfeitRules !== undefined) updates['forfeit_rules'] = dto.forfeitRules;
 
     const { error: updateErr } = await this.supabase.service
       .from('penalty_rulesets')
@@ -1025,7 +1034,7 @@ export class PenaltiesService {
             },
             context,
             causedAt,
-            scope,
+            { rules: reach.forfeitRules, cardEffect: scope },
           );
         } else {
           await this.supabase.service
@@ -1244,12 +1253,13 @@ export class PenaltiesService {
   }
 
   /**
-   * What decides how far a black card reaches, but its count: the Tournament's card rules of now.
-   * Read before the card is written: a read that fails then leaves no card saved with no forfeit,
-   * which the tablet's resend would not repair.
+   * What decides how far a black card reaches, but its count: the Tournament's card rules of now,
+   * and the forfeit rules they hold. Read before the card is written: a read that fails, or rules
+   * that do not parse, then leave no card saved with no forfeit, which the tablet's resend would
+   * not repair (it sends the card again on a server error).
    */
   private async blackCardReach(match: MatchContext): Promise<BlackCardReach> {
-    return { cardRules: await tournamentCardRules(this.supabase.service, match.tournamentId) };
+    return cardAndForfeitRules(this.supabase.service, match.tournamentId);
   }
 
   /**
@@ -1836,17 +1846,7 @@ export class PenaltiesService {
     const snapshot = await this.loadPenaltyVersion(id, versionId);
     const { error: updErr } = await this.supabase.service
       .from('penalty_rulesets')
-      .update({
-        name: snapshot.name,
-        description: snapshot.description,
-        accumulation_scope: snapshot.accumulation_scope,
-        yellow_card_points: snapshot.yellow_card_points,
-        red_card_points: snapshot.red_card_points,
-        black_card_points: snapshot.black_card_points,
-        first_black_card_forfeit: snapshot.first_black_card_forfeit,
-        second_black_card_forfeit: snapshot.second_black_card_forfeit,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...penaltyRowOfVersion(snapshot), updated_at: new Date().toISOString() })
       .eq('id', id);
     if (updErr) throw new BadRequestException(updErr.message);
 
@@ -1920,6 +1920,7 @@ export interface PenaltyRulesetVersionRow {
   black_card_points: number;
   first_black_card_forfeit: string;
   second_black_card_forfeit: string;
+  forfeit_rules: unknown;
   entries: PenaltyVersionEntry[];
   published_at: string;
   published_by_user_id: string | null;

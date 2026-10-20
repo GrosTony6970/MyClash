@@ -6,8 +6,8 @@
  *
  * `saved` is the body of the form as last read or last saved, `edited` the body of the form now.
  * A leaf of `edited` that differs from `saved` is sent; a list is sent whole when it differs (the
- * server replaces a list whole); a key absent from `edited` is never a change. A null is a value:
- * the forfeit rule's Off is sent as one. Answers null when nothing differs.
+ * server replaces a list whole); a key absent from `edited` is never a change. A null is a value,
+ * sent as one. Answers null when nothing differs.
  */
 type Body = Record<string, unknown>;
 

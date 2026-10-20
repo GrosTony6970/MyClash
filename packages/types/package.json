@@ -13,6 +13,10 @@
     "./effective-rules": {
       "types": "./dist/effective-rules.d.ts",
       "default": "./dist/effective-rules.js"
+    },
+    "./forfeit-rules": {
+      "types": "./dist/forfeit-rules.d.ts",
+      "default": "./dist/forfeit-rules.js"
     }
   },
   "scripts": {

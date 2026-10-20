@@ -175,9 +175,6 @@ export class SwissStandingsService {
       status: this.phaseStatus(context.rounds, context.config),
       exchangesByMatch: scoring.exchangesByMatch,
       forfeitCountByReg: scoring.forfeitCountByReg,
-      // Swiss has no forfeit-draws policy of its own; the bout's own result
-      // stands, exactly as the pool path treats it when the policy is off.
-      drawnForfeitMatchIds: new Set<string>(),
       ruleset: ruleset.ruleset,
       runtimeConfig: ruleset.runtimeConfig,
       afterblowMode: ruleset.afterblowMode,

@@ -2,7 +2,8 @@ import { vi } from 'vitest';
 import { mockSupabase, type TableSeed } from '../../common/testing/supabase-chain';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
-import type { BlackCardEffect } from './card-rules-pin';
+import type { BlackCardEffect } from '@myclash/rulesets';
+import { CLUB_START_FORFEIT_RULES, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { PenaltiesService } from './penalties.service';
 
 /** The seeded bout of `penalties.void-black-card*.test.ts`: a black card, its forfeit, its Fighter. */
@@ -53,8 +54,8 @@ export interface CardPath {
   /** What a 1st and a 2nd black card do under the Tournament's card rules of now. */
   first: BlackCardEffect;
   second: BlackCardEffect;
-  /** The Tournament's `ruleset_config` of now. */
-  rulesetConfig?: Record<string, unknown>;
+  /** What its penalty ruleset's forfeit rules change over a new club ruleset's. */
+  forfeitRules?: Partial<ForfeitRules>;
   /** The Tournament's pin, `CARD_RULES` unless a story names a pin no row holds. */
   pin?: string;
 }
@@ -116,13 +117,7 @@ function phaseOf(path: CardPath | undefined, event: Record<string, unknown>) {
     events: event,
   };
   if (!path) return { tournaments };
-  const ruleset_config = path.rulesetConfig ?? {};
-  return {
-    id: 'phase-1',
-    type: 'pool',
-    tournament_id: 'tournament-1',
-    tournaments: { ...tournaments, ruleset_config },
-  };
+  return { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1', tournaments };
 }
 
 /** The bout and the Fighter's later bout, both of one Pool on the card path. */
@@ -147,6 +142,7 @@ function cardPathTables(path: CardPath | undefined): Record<string, TableSeed> {
     black_card_points: 0,
     first_black_card_forfeit: path.first,
     second_black_card_forfeit: path.second,
+    forfeit_rules: { ...CLUB_START_FORFEIT_RULES, ...path.forfeitRules },
   };
   return {
     penalty_rulesets: { rows: [cardRules] },

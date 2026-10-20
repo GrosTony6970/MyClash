@@ -1,6 +1,6 @@
 /**
  * A save of a Tournament's own settings writes what it stored with what was sent on top, nothing
- * else (operator rulings 48, 49, 52; `settingsOfSave`). It used to back-fill the ruleset's
+ * else (operator rulings 48, 49; `settingsOfSave`). It used to back-fill the ruleset's
  * defaults: a sparse club row saved with one field changed was written with the ruleset's time
  * limit and soft clock, which nobody chose and the engine did not play, and a TF_v1 forfeit rule.
  *
@@ -102,37 +102,22 @@ describe('a save of the match format', () => {
   });
 });
 
-describe('a save of the forfeit rule (rulings 48, 52)', () => {
-  const withRule = {
-    ...ON_TF_1_0_0,
-    ruleset_config: { winBonus: 5, tournamentPolicy: { disqualifyAfter: 2 } },
-  };
-
-  it('Off removes a stored rule, and is no 400', async () => {
-    const { settings } = await save(withRule, {
-      rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } },
-    });
-    expect(settings()).toEqual({ winBonus: 5, tournamentPolicy: {} });
+// Every forfeit rule lives in the penalty ruleset (rulings 63-76). The DTO refuses one sent; the
+// write's own parse drops one an old row stores or one that reaches it all the same.
+describe('a save writes no forfeit rule (rulings 63-76)', () => {
+  it('drops a forfeit rule a TF_v1 row still stores, and keeps the rest', async () => {
+    const withRule = {
+      ...ON_TF_1_0_0,
+      ruleset_config: { winBonus: 5, tournamentPolicy: { disqualifyAfter: 2 } },
+    };
+    const { settings } = await save(withRule, { rulesetConfig: { winBonus: 6 } });
+    expect(settings()).toEqual({ winBonus: 6 });
   });
 
-  it('a policy save that does not send the rule never writes one', async () => {
+  it('never writes a forfeit rule that reaches a club formula save', async () => {
     const { settings } = await save(
       SPARSE_CLUB,
-      {
-        rulesetConfig: { tournamentPolicy: { forfeitDrawsCount: true } },
-      },
-      CLUB,
-    );
-    expect(settings()).toEqual({
-      matchFormat: { pointCap: 7 },
-      tournamentPolicy: { forfeitDrawsCount: true },
-    });
-  });
-
-  it('Off on a Tournament that stores no rule writes nothing, not an empty policy', async () => {
-    const { settings } = await save(
-      SPARSE_CLUB,
-      { rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } } },
+      { rulesetConfig: { tournamentPolicy: { forfeitDrawsCount: true, disqualifyAfter: 2 } } },
       CLUB,
     );
     expect(settings()).toEqual({ matchFormat: { pointCap: 7 } });

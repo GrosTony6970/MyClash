@@ -22,7 +22,6 @@
  */
 import { normalizeMatchFormatConfig, type RulesetRegistry } from '@myclash/rulesets';
 import type { TournamentScoringConfig } from '@myclash/types';
-import { disqualifyAfterOf } from '@myclash/types/effective-rules';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
 import { scoringKindOf, type ScoringStructure } from '../ruleset-hash/scoring-structure';
@@ -50,32 +49,6 @@ function without(settings: Settings, key: string): Settings {
   return copy;
 }
 
-/** `settings` with no disqualify setting, which is the rule off (operator ruling 48). */
-function forfeitRuleOff(settings: Settings): Settings {
-  const policy = settings['tournamentPolicy'];
-  if (!policy || typeof policy !== 'object') return settings;
-  return { ...settings, tournamentPolicy: without(policy as Settings, 'disqualifyAfter') };
-}
-
-/**
- * A patch's `tournamentPolicy.disqualifyAfter: null` is the organiser choosing Off (operator
- * ruling 52): the patch without it, and whether it was there. The ONE place the null is read, for
- * the settings save and a move alike: merged as sent, `deepMergeJson` would write the null through
- * and the schema's `.default(2)` refuses a null.
- */
-function forfeitOffOf(patch: Settings | undefined): { patch: Settings | undefined; off: boolean } {
-  const policy = patch?.['tournamentPolicy'];
-  if (!patch || !policy || typeof policy !== 'object') return { patch, off: false };
-  if ((policy as Settings)['disqualifyAfter'] !== null) return { patch, off: false };
-  const rest = without(policy as Settings, 'disqualifyAfter');
-  return {
-    patch: Object.keys(rest).length
-      ? { ...patch, tournamentPolicy: rest }
-      : without(patch, 'tournamentPolicy'),
-    off: true,
-  };
-}
-
 /**
  * A stored match format as the engine reads it, its legacy keys folded into the modern ones. One
  * the engine refuses (a club seed is stored unchecked) is answered as stored: the sent keys then go
@@ -94,12 +67,12 @@ function engineFormatOr(stored: unknown): unknown {
  * `base` with the caller's `patch` on top: the ONE merge of a settings write (a save, a create, a
  * move). The base's match format is normalized BEFORE the sent one goes on top, so a stored legacy
  * key (`firstToPoints`, which the normalizer prefers to `pointCap`) cannot beat the organiser's
- * new value; it is written normalized, as the engine reads it. Off for the forfeit rule removes
- * it. Throws the engine's ZodError on a refused format: run it under `inEngineWords`.
+ * new value; it is written normalized, as the engine reads it. Throws the engine's ZodError on a
+ * refused format: run it under `inEngineWords`.
  */
 function mergedSettings(base: unknown, patch: Settings | undefined): Settings {
   const stored = objectOr(base);
-  const { patch: sent = {}, off } = forfeitOffOf(patch);
+  const sent = patch ?? {};
   let settings = deepMergeJson(stored, without(sent, 'matchFormat')) as Settings;
   if (sent['matchFormat'] !== undefined) {
     const own = engineFormatOr(stored['matchFormat'] ?? {});
@@ -108,16 +81,15 @@ function mergedSettings(base: unknown, patch: Settings | undefined): Settings {
       matchFormat: normalizeMatchFormatConfig(deepMergeJson(own, sent['matchFormat'])),
     };
   }
-  return off ? forfeitRuleOff(settings) : settings;
+  return settings;
 }
 
 /**
  * The settings a Tournament stores after a save of its own ruleset's settings: what it stored with
  * what was sent on top, and nothing else (operator rulings 48, 49). No ruleset default is filled
  * in and no schema default written: a setting the Tournament lacks keeps playing the engine's
- * value, and a save that does not touch the forfeit rule never turns it on. The parse runs over
- * exactly what is written, so a refusal is a 400 in the engine's words, and the write keeps only
- * the keys the parse holds (a Generic ruleset has no Tournament policy).
+ * value. The parse runs over exactly what is written, so a refusal is a 400 in the engine's
+ * words, and the write keeps only the keys the parse holds (a Generic ruleset has no win bonus).
  */
 export function settingsOfSave(save: {
   code: string;
@@ -136,11 +108,9 @@ export function settingsOfSave(save: {
 /**
  * The settings a Tournament stores when it starts on a pair or moves to one: `seed` (the pair's
  * settings, with what a move keeps) and the caller's patch on top. A coded engine (TF_v1, a fork,
- * a built-in) stores the full parse, as it always did, but never a forfeit rule the settings did
- * not hold: the parse fills a missing one with 2, and a missing rule is off (ruling 48). A club
- * formula stores only what its seed holds and the patch sends (operator ruling 53): the parse
- * would fill TF_v1's own keys, the forfeit rule among them, into a ruleset that never had them.
- * Create and every move ask it.
+ * a built-in) stores the full parse, as it always did. A club formula stores only what its seed
+ * holds and the patch sends (operator ruling 53): the parse would fill TF_v1's own keys into a
+ * ruleset that never had them. Create and every move ask it.
  */
 export function settingsOfSeed(seeded: {
   code: string;
@@ -153,8 +123,7 @@ export function settingsOfSeed(seeded: {
   }
   return inEngineWords(() => {
     const settings = mergedSettings(seeded.seed, seeded.patch);
-    const parsed = validateTournamentRulesetConfig(seeded.code, settings);
-    return disqualifyAfterOf(settings) === null ? forfeitRuleOff(parsed) : parsed;
+    return validateTournamentRulesetConfig(seeded.code, settings);
   });
 }
 
@@ -174,14 +143,10 @@ function keepsStored(move: Pick<RulesetMove, 'fromCode' | 'toCode' | 'builtIn'>)
   return move.builtIn && move.fromCode === move.toCode;
 }
 
-/**
- * The settings a move starts from, before the caller's patch (`settingsOfSeed` puts it on). A kept
- * row keeps its forfeit rule as it stood: the defaults do not fill one it lacks (ruling 48).
- */
+/** The settings a move starts from, before the caller's patch (`settingsOfSeed` puts it on). */
 export function settingsAfterMove(move: RulesetMove): Record<string, unknown> {
   if (!keepsStored(move)) return move.defaults;
-  const kept = deepMergeJson(move.defaults, move.stored) as Record<string, unknown>;
-  return disqualifyAfterOf(move.stored) === null ? forfeitRuleOff(kept) : kept;
+  return deepMergeJson(move.defaults, move.stored) as Record<string, unknown>;
 }
 
 /**

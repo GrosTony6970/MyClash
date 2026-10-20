@@ -71,15 +71,12 @@ describe('tournament rulesetConfig — DTO/engine agreement', () => {
     expect(parseConfig({ targets: [{ name: '   ', value: 2 }] }).success).toBe(false);
   });
 
-  it('rejects a fractional disqualifyAfter, which counts forfeits', () => {
-    expect(parseConfig({ tournamentPolicy: { disqualifyAfter: 2.5 } }).success).toBe(false);
-    expect(parseConfig({ tournamentPolicy: { disqualifyAfter: 2 } }).success).toBe(true);
-  });
-
   it('still rejects an unknown key — the schema is strict', () => {
     // The Advanced tab 400'd on every save for months by writing `forfeitPolicy`
-    // instead of `tournamentPolicy`; strictness is what surfaced it.
+    // instead of `tournamentPolicy`; strictness is what surfaced it. Both are
+    // unknown now: every forfeit rule lives in the penalty ruleset (rulings 63-76).
     expect(parseConfig({ forfeitPolicy: { forfeitDrawsCount: true } }).success).toBe(false);
+    expect(parseConfig({ tournamentPolicy: { disqualifyAfter: 2 } }).success).toBe(false);
   });
 
   it('round-trips everything it accepts through the engine schema', () => {
@@ -90,7 +87,6 @@ describe('tournament rulesetConfig — DTO/engine agreement', () => {
         { name: 'Body', value: 1 },
       ],
       targetValues: { deepTarget: 3, shallowTarget: 1 },
-      tournamentPolicy: { disqualifyAfter: 3 },
     };
     expect(parseConfig(config).success).toBe(true);
     const parsed = TFv1ConfigSchema.parse(config);

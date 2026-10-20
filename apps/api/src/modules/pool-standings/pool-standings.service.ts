@@ -88,11 +88,6 @@ export class PoolStandingsService {
     const rulesetConfig =
       (tournament as { ruleset_config?: Record<string, unknown> | null }).ruleset_config ?? {};
     const runtimeConfig = { ...rulesetConfig, afterblowMode };
-    // "Forfeit counts as draw" — tournament policy, not a ruleset constant, so
-    // it stays organizer-editable even though TF_v1 itself is locked.
-    const forfeitDrawsCount =
-      (rulesetConfig['tournamentPolicy'] as { forfeitDrawsCount?: unknown } | undefined)
-        ?.forfeitDrawsCount === true;
 
     // Resolve through RulesetResolver rather than the in-memory registry. The
     // registry only ever holds the built-ins (TF_v1, Generic_PointsCap), so an
@@ -181,10 +176,6 @@ export class PoolStandingsService {
     const completedMatchIds = matchRows.filter((m) => m.status === 'completed').map((m) => m.id);
     const exchangesByMatch = new Map<string, Exchange[]>();
     const forfeitCountByReg = new Map<string, number>();
-    // Which matches ended in a forfeit — needed for tournamentPolicy
-    // .forfeitDrawsCount ("Forfeit counts as draw"), which overrides the
-    // score-derived W/L.
-    const forfeitedMatchIds = new Set<string>();
     if (completedMatchIds.length > 0) {
       const { data: exRows, error: exErr } = await this.supabase.service
         .from('exchanges')
@@ -216,23 +207,19 @@ export class PoolStandingsService {
 
       const { data: ffRows, error: ffErr } = await this.supabase.service
         .from('match_forfeits')
-        .select('forfeiting_registration_id, match_id')
+        .select('forfeiting_registration_id')
         .in('match_id', completedMatchIds)
         // match_forfeits also holds result OVERRIDES, which are not forfeits:
         // counting one would deduct an F from a fighter whose result was
-        // merely corrected, and make forfeitDrawsCount treat it as a draw.
+        // merely corrected.
         .in('reason', FORFEIT_REASONS)
         .is('voided_at', null);
       if (ffErr) throw new BadRequestException(ffErr.message);
-      for (const r of (ffRows ?? []) as Array<{
-        forfeiting_registration_id: string;
-        match_id: string;
-      }>) {
+      for (const r of (ffRows ?? []) as Array<{ forfeiting_registration_id: string }>) {
         forfeitCountByReg.set(
           r.forfeiting_registration_id,
           (forfeitCountByReg.get(r.forfeiting_registration_id) ?? 0) + 1,
         );
-        forfeitedMatchIds.add(r.match_id);
       }
     }
 
@@ -252,7 +239,6 @@ export class PoolStandingsService {
         poolStatus,
         exchangesByMatch,
         forfeitCountByReg,
-        forfeitDrawsCount ? forfeitedMatchIds : new Set<string>(),
         ruleset,
         runtimeConfig,
         afterblowMode,
@@ -286,8 +272,6 @@ export class PoolStandingsService {
     poolStatus: 'in_progress' | 'completed',
     exchangesByMatch: Map<string, Exchange[]>,
     forfeitCountByReg: Map<string, number>,
-    /** Matches to score as a draw regardless of points (empty unless the policy is on). */
-    drawnForfeitMatchIds: Set<string>,
     ruleset: Ruleset,
     runtimeConfig: unknown,
     afterblowMode: 'full' | 'deductive' = 'full',
@@ -304,7 +288,6 @@ export class PoolStandingsService {
       status: poolStatus,
       exchangesByMatch,
       forfeitCountByReg,
-      drawnForfeitMatchIds,
       ruleset,
       runtimeConfig,
       afterblowMode,

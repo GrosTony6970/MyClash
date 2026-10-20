@@ -121,22 +121,22 @@ describe('UpdateTournamentDto — logoUrl', () => {
   });
 });
 
-describe("the forfeit rule's Off (ruling 52): a null removes it, on a save only", () => {
-  const off = { rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } } };
+// Every forfeit rule moved to the penalty ruleset (rulings 63-76). A Tournament that still sends
+// one sends a key its settings no longer have: the strict schema refuses it, never drops it quietly.
+describe('the forfeit rules are no Tournament setting any more (rulings 63-76)', () => {
+  const policy = (p: unknown) => ({ rulesetConfig: { tournamentPolicy: p } });
 
-  it('a save accepts it', () => {
-    expect(schema.safeParse(off).success).toBe(true);
+  it('a save refuses a tournamentPolicy, its old Off among them', () => {
+    expect(schema.safeParse(policy({ disqualifyAfter: null })).success).toBe(false);
+    expect(schema.safeParse(policy({ disqualifyAfter: 2 })).success).toBe(false);
+    expect(schema.safeParse(policy({ forfeitDrawsCount: true })).success).toBe(false);
   });
 
-  it('a create refuses it: there is no setting to remove', () => {
-    const create = { name: 'Sabre', slug: 'sabre', ...off };
-    expect(CreateTournamentDto.schema.safeParse(create).success).toBe(false);
-  });
-
-  it('a save still refuses a key the policy does not have, and a count out of bounds', () => {
-    const policy = (p: Record<string, unknown>) => ({ rulesetConfig: { tournamentPolicy: p } });
-    expect(schema.safeParse(policy({ disqualifyAfter: 2, bogus: true })).success).toBe(false);
-    expect(schema.safeParse(policy({ disqualifyAfter: 11 })).success).toBe(false);
-    expect(schema.safeParse({ rulesetConfig: { bogus: 1 } }).success).toBe(false);
+  it('a create refuses a tournamentPolicy too', () => {
+    const create = { name: 'Sabre', slug: 'sabre' };
+    // The mirror: the same create without the key passes, so the refusal is the key's.
+    expect(CreateTournamentDto.schema.safeParse(create).success).toBe(true);
+    const withPolicy = { ...create, ...policy({ disqualifyAfter: 2 }) };
+    expect(CreateTournamentDto.schema.safeParse(withPolicy).success).toBe(false);
   });
 });

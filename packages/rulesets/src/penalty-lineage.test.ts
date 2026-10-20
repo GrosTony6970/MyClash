@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  diffPenaltyBucket,
-  projectPenaltyBucketFromLive,
-  projectPenaltyBucketFromSnapshot,
-} from './penalty-lineage';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
+import { diffPenaltyBucket, projectPenaltyBucketFromLive } from './penalty-lineage';
 import type { PenaltyBehaviourInput } from './content-hash';
 
 const BASE: PenaltyBehaviourInput = {
@@ -13,6 +10,7 @@ const BASE: PenaltyBehaviourInput = {
   blackCardPoints: 3,
   firstBlackCardForfeit: 'match',
   secondBlackCardForfeit: 'tournament',
+  forfeitRules: FFAMHE_FORFEIT_RULES,
   entries: [
     { groupNumber: 1, refNumber: '1', sanctions: ['yellow', 'red', 'black'] },
     { groupNumber: 2, refNumber: '2', sanctions: ['red', 'black'] },
@@ -41,6 +39,12 @@ describe('diffPenaltyBucket', () => {
   it('changes when a black-card forfeit scope changes', () => {
     const fork = clone(BASE);
     fork.firstBlackCardForfeit = 'tournament';
+    expect(diffPenaltyBucket(BASE, fork)).toBe('changed');
+  });
+
+  it('changes when a forfeit rule changes (rulings 63-76)', () => {
+    const fork = clone(BASE);
+    fork.forfeitRules = { ...FFAMHE_FORFEIT_RULES, disqualifyAfter: 'off' };
     expect(diffPenaltyBucket(BASE, fork)).toBe('changed');
   });
 
@@ -78,6 +82,7 @@ describe('projectPenaltyBucketFromLive', () => {
       black_card_points: 3,
       first_black_card_forfeit: 'match',
       second_black_card_forfeit: 'tournament',
+      forfeit_rules: FFAMHE_FORFEIT_RULES,
       penalty_ruleset_entries: [{ group_number: 1, ref_number: 1, sanctions: ['yellow', 'red'] }],
     };
     expect(projectPenaltyBucketFromLive(row)).toEqual({
@@ -87,6 +92,7 @@ describe('projectPenaltyBucketFromLive', () => {
       blackCardPoints: 3,
       firstBlackCardForfeit: 'match',
       secondBlackCardForfeit: 'tournament',
+      forfeitRules: FFAMHE_FORFEIT_RULES,
       entries: [{ groupNumber: 1, refNumber: '1', sanctions: ['yellow', 'red'] }],
     });
   });
@@ -98,49 +104,5 @@ describe('projectPenaltyBucketFromLive', () => {
     expect(out.firstBlackCardForfeit).toBe('match');
     expect(out.secondBlackCardForfeit).toBe('tournament');
     expect(out.entries).toEqual([]);
-  });
-});
-
-describe('projectPenaltyBucketFromSnapshot', () => {
-  it('maps camelCase snapshot entries, coercing refNumber to string', () => {
-    const row = {
-      accumulation_scope: 'match',
-      yellow_card_points: 0,
-      red_card_points: 1,
-      black_card_points: 3,
-      first_black_card_forfeit: 'match',
-      second_black_card_forfeit: 'tournament',
-      entries: [{ groupNumber: 2, refNumber: 2, sanctions: ['red', 'black'] }],
-    };
-    expect(projectPenaltyBucketFromSnapshot(row).entries).toEqual([
-      { groupNumber: 2, refNumber: '2', sanctions: ['red', 'black'] },
-    ]);
-  });
-
-  it('a live row and the snapshot of the same definition diff as unchanged', () => {
-    const live = {
-      accumulation_scope: 'match',
-      yellow_card_points: 0,
-      red_card_points: 1,
-      black_card_points: 3,
-      first_black_card_forfeit: 'match',
-      second_black_card_forfeit: 'tournament',
-      penalty_ruleset_entries: [{ group_number: 1, ref_number: 1, sanctions: ['yellow', 'red'] }],
-    };
-    const snapshot = {
-      accumulation_scope: 'match',
-      yellow_card_points: 0,
-      red_card_points: 1,
-      black_card_points: 3,
-      first_black_card_forfeit: 'match',
-      second_black_card_forfeit: 'tournament',
-      entries: [{ groupNumber: 1, refNumber: '1', sanctions: ['yellow', 'red'] }],
-    };
-    expect(
-      diffPenaltyBucket(
-        projectPenaltyBucketFromLive(live),
-        projectPenaltyBucketFromSnapshot(snapshot),
-      ),
-    ).toBe('unchanged');
   });
 });

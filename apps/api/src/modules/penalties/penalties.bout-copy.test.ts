@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { lastFunctionParams } from '../../common/testing/migration-function';
 import {
   mockSupabase,
@@ -29,6 +30,7 @@ const CARDS_A = {
   black_card_points: 0,
   first_black_card_forfeit: 'tournament',
   second_black_card_forfeit: 'tournament',
+  forfeit_rules: FFAMHE_FORFEIT_RULES,
 };
 /** The card rules the Tournament moved to since. */
 const CARDS_B = {
@@ -53,8 +55,6 @@ interface Story {
   copyPin: string | null;
   /** The card rules the Tournament pins now. */
   tournamentPin: string | null;
-  /** The Tournament's `ruleset_config` now. */
-  rulesetConfig?: Record<string, unknown>;
   /** Cards the server already holds. */
   cards?: Record<string, unknown>[];
 }
@@ -82,7 +82,6 @@ function bout(story: Story) {
           id: 'tournament-1',
           event_id: 'event-1',
           penalty_ruleset_id: story.tournamentPin,
-          ruleset_config: story.rulesetConfig ?? {},
         },
       ],
     },
@@ -196,7 +195,7 @@ function failRead(db: ReturnType<typeof bout>['db'], table: string, columns: str
 }
 
 const PRICE_COLUMNS =
-  'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit';
+  'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules';
 
 describe('a card whose rules cannot be read is an error, never a default', () => {
   // Before the card is written: written first, a black card would stand with no forfeit, and the
@@ -267,7 +266,7 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
       expect.objectContaining({ forfeitingRegistrationId: 'reg-blue', reason: 'black_card_1' }),
       { staffAccountId: 'staff-1' },
       undefined,
-      'tournament',
+      { rules: FFAMHE_FORFEIT_RULES, cardEffect: 'tournament' },
     );
   });
 
@@ -278,17 +277,6 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
     await send(BLACK_CARD);
 
     expect(forfeits.createForfeit).toHaveBeenCalledTimes(1);
-    expect(writesTo(db, 'registrations')).toEqual([]);
-  });
-
-  it('a forfeit policy the scoring rules still hold does not reach a black card', async () => {
-    // Before ruling 54 a stored "withdrawn" beat the card rules B, which say the bout only.
-    const reasons = { black_card_1: { tournamentState: 'withdrawn' } };
-    const rulesetConfig = { forfeitPolicy: { reasons } };
-    const { db, send } = bout({ copyPin: 'cards-b', tournamentPin: 'cards-b', rulesetConfig });
-
-    await send(BLACK_CARD);
-
     expect(writesTo(db, 'registrations')).toEqual([]);
   });
 

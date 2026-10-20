@@ -1,3 +1,4 @@
+import type { ForfeitRuleReason, ForfeitRules } from '@myclash/types/forfeit-rules';
 import { z } from 'zod';
 
 /**
@@ -58,93 +59,98 @@ export function isBlackCardReason(reason: string): reason is BlackCardReason {
   return (BLACK_CARD_REASONS as readonly string[]).includes(reason);
 }
 
-export const ForfeitReasonPolicySchema = z.object({
-  // 'explicit' takes the two scores from the caller instead of the config —
-  // the only policy an override can use, since a correction states the real
-  // result rather than deriving one.
-  scorePolicy: z.enum(['keep_current', 'fixed_loss', 'explicit']),
-  lossScore: z.number().int().min(0).default(0),
-  opponentScore: z.number().int().min(0).default(6),
-  tournamentState: z.enum(['ask', 'match_only', 'withdrawn', 'disqualified']),
-});
+/** What a black card does to its Fighter: ends the bout, the whole Tournament, or nothing. */
+export const BlackCardEffectSchema = z.enum(['match', 'tournament', 'none']);
 
-export type ForfeitReasonPolicy = z.infer<typeof ForfeitReasonPolicySchema>;
+export type BlackCardEffect = z.infer<typeof BlackCardEffectSchema>;
 
-export const ForfeitPolicySchema = z.object({
-  reasons: z.record(ForfeitReasonSchema, ForfeitReasonPolicySchema),
-});
+/** The opponent's score on a forfeit loss. The loser scores 0. */
+const LossScoreSchema = z.number().int().min(1).max(99);
 
-export type ForfeitPolicy = z.infer<typeof ForfeitPolicySchema>;
+export const ForfeitReasonRuleSchema = z
+  .object({
+    outcome: z.enum(['keep_current', 'fixed_loss']),
+    opponentScore: LossScoreSchema,
+    fighter: z.enum(['continues', 'asks', 'withdrawn', 'disqualified']),
+  })
+  .strict();
 
-export const DEFAULT_FORFEIT_POLICY: ForfeitPolicy = {
-  reasons: {
-    injury: {
-      scorePolicy: 'keep_current',
-      lossScore: 0,
-      opponentScore: 6,
-      tournamentState: 'ask',
-    },
-    voluntary: {
-      scorePolicy: 'fixed_loss',
-      lossScore: 0,
-      opponentScore: 6,
-      tournamentState: 'ask',
-    },
-    black_card_1: {
-      scorePolicy: 'fixed_loss',
-      lossScore: 0,
-      opponentScore: 6,
-      tournamentState: 'ask',
-    },
-    black_card_2: {
-      scorePolicy: 'fixed_loss',
-      lossScore: 0,
-      opponentScore: 6,
-      tournamentState: 'disqualified',
-    },
-    conduct_violation: {
-      scorePolicy: 'fixed_loss',
-      lossScore: 0,
-      opponentScore: 6,
-      tournamentState: 'disqualified',
-    },
-    // The three overrides below all read the same way ON PURPOSE: an override
-    // states the result and nothing else. `match_only` is load-bearing —
-    // it makes resolveCanContinue return true and applyTournamentState a
-    // no-op, so correcting a result can never withdraw or disqualify anyone.
-    referee_decision: {
-      scorePolicy: 'explicit',
-      lossScore: 0,
-      opponentScore: 0,
-      tournamentState: 'match_only',
-    },
-    admin_correction: {
-      scorePolicy: 'explicit',
-      lossScore: 0,
-      opponentScore: 0,
-      tournamentState: 'match_only',
-    },
-    technical_failure: {
-      scorePolicy: 'explicit',
-      lossScore: 0,
-      opponentScore: 0,
-      tournamentState: 'match_only',
-    },
-  },
-};
+/**
+ * What a forfeit does, as a penalty ruleset stores it (`penalty_rulesets.forfeit_rules`, rulings
+ * 63-76). Strict at every level: a stored value is either the whole shape or refused.
+ */
+export const ForfeitRulesSchema = z
+  .object({
+    reasons: z
+      .object({
+        injury: ForfeitReasonRuleSchema,
+        voluntary: ForfeitReasonRuleSchema,
+        conduct_violation: ForfeitReasonRuleSchema,
+      })
+      .strict(),
+    disqualifyAfter: z.union([z.number().int().min(1).max(10), z.literal('off')]),
+    disqualifyBeforeFirstBout: z.boolean(),
+    blackCardOpponentScore: LossScoreSchema,
+  })
+  .strict();
 
-export function normalizeForfeitPolicy(config: unknown): ForfeitPolicy {
-  const input = (config as { forfeitPolicy?: unknown; reasons?: unknown } | null) ?? {};
-  const rawPolicy = input.forfeitPolicy ?? (input.reasons ? input : {});
-  const partial = rawPolicy as Partial<ForfeitPolicy>;
-  return ForfeitPolicySchema.parse({
-    reasons: {
-      ...DEFAULT_FORFEIT_POLICY.reasons,
-      ...(partial.reasons ?? {}),
-    },
-  });
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type AssertTrue<T extends true> = T;
+
+/** The schema and `@myclash/types/forfeit-rules` describe one shape: a drift stops the compile. */
+export type ForfeitRulesSchemaIsTheContract = AssertTrue<
+  Exact<z.infer<typeof ForfeitRulesSchema>, ForfeitRules>
+>;
+
+/** How the engine records one forfeit: its score, and what it does to the Fighter. */
+export interface ForfeitOutcome {
+  scorePolicy: 'keep_current' | 'fixed_loss' | 'explicit';
+  /** The forfeiting Fighter's score on a loss. */
+  lossScore: number;
+  opponentScore: number;
+  tournamentState: 'ask' | 'match_only' | 'withdrawn' | 'disqualified';
 }
 
-export function resolveForfeitPolicy(config: unknown, reason: ForfeitReason): ForfeitReasonPolicy {
-  return normalizeForfeitPolicy(config).reasons[reason];
+/** An override's: it reads no forfeit rule, so a caller with none to read uses this. */
+export const OVERRIDE_OUTCOME: ForfeitOutcome = {
+  scorePolicy: 'explicit',
+  lossScore: 0,
+  opponentScore: 0,
+  tournamentState: 'match_only',
+};
+
+const FIGHTER_STATE = {
+  continues: 'match_only',
+  asks: 'ask',
+  withdrawn: 'withdrawn',
+  disqualified: 'disqualified',
+} as const;
+
+/**
+ * The forfeit of `reason` under `rules`.
+ *
+ * - An override states the result and nothing else: its scores are the caller's, and
+ *   `match_only` makes the Fighter continue with no status written, so correcting a result can
+ *   never withdraw or disqualify anyone.
+ * - A black card is a loss of 0 to `blackCardOpponentScore` (ruling 69). What it does to the
+ *   Fighter is its card rule's, which the caller lays over this `tournamentState`.
+ */
+export function forfeitOutcomeOf(rules: ForfeitRules, reason: ForfeitReason): ForfeitOutcome {
+  if (isOverrideReason(reason)) return OVERRIDE_OUTCOME;
+  if (isBlackCardReason(reason)) {
+    const opponentScore = rules.blackCardOpponentScore;
+    return {
+      scorePolicy: 'fixed_loss',
+      lossScore: 0,
+      opponentScore,
+      tournamentState: 'match_only',
+    };
+  }
+  const rule = rules.reasons[reason as ForfeitRuleReason];
+  return {
+    scorePolicy: rule.outcome,
+    lossScore: 0,
+    opponentScore: rule.opponentScore,
+    tournamentState: FIGHTER_STATE[rule.fighter],
+  };
 }

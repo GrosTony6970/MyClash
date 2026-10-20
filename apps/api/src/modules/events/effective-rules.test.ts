@@ -101,36 +101,24 @@ describe('the rules in force of a sparse club Tournament', () => {
 describe('the TF_v1 settings in force', () => {
   const SPARSE_TF = { ...ON_TF_1_0_0, ruleset_config: { winBonus: 5 } };
 
-  it('answer no forfeit rule where none is stored: off, as the forfeit reader applies it', async () => {
+  it('answer the win bonus and the targets, and no forfeit rule (rulings 63, 68)', async () => {
     const { effectiveRules } = await rulesOf(SPARSE_TF);
     expect(effectiveRules?.tf).toEqual({
       winBonus: 5,
       targetValues: { deepTarget: 2, shallowTarget: 1 },
-      tournamentPolicy: {
-        forfeitDrawsCount: false,
-        forfeitFighterBefore1stMatch: false,
-        disqualifyAfter: null,
-      },
     });
-    // TF_v1 seeds its rule: a new Tournament starts with it on, at 2.
-    expect(effectiveRules?.start?.tf?.tournamentPolicy.disqualifyAfter).toBe(2);
   });
 
   it("are a coded fork's own, which it owns as TF_v1 does", async () => {
     const fork = { ...ON_TF_1_0_0, ruleset_code: 'custom_fork', ruleset_config: { winBonus: 5 } };
     const { effectiveRules } = await rulesOf(fork, FORK);
-    expect(effectiveRules?.tf).toMatchObject({
-      winBonus: 5,
-      tournamentPolicy: { disqualifyAfter: null },
-    });
-    // The fork's own seed: its tf_config's forfeit rule.
-    expect(effectiveRules?.start?.tf?.tournamentPolicy.disqualifyAfter).toBe(4);
+    expect(effectiveRules?.tf).toMatchObject({ winBonus: 5 });
   });
 
-  it('answer a stored forfeit rule', async () => {
+  it('answer no forfeit rule a scoring config still stores', async () => {
     const stored = { ...ON_TF_1_0_0, ruleset_config: { tournamentPolicy: { disqualifyAfter: 3 } } };
     const { effectiveRules } = await rulesOf(stored);
-    expect(effectiveRules?.tf?.tournamentPolicy.disqualifyAfter).toBe(3);
+    expect(effectiveRules?.tf).not.toHaveProperty('tournamentPolicy');
   });
 });
 
@@ -179,25 +167,17 @@ describe('a Tournament whose rules cannot be answered', () => {
   });
 });
 
-describe("the pad's rules (`GET tournaments/:id/match-config`) answer the forfeit rule the same way", () => {
-  async function disqualifyAfter(rulesetConfig: Row) {
+describe("the pad's rules (`GET tournaments/:id/match-config`) carry no forfeit rule", () => {
+  it('drop one a scoring config still stores: the penalty ruleset owns them', async () => {
     const event = { id: 'e1', status: 'published', organization_id: 'org-1', event_kind: null };
+    const rulesetConfig = { tournamentPolicy: { disqualifyAfter: 3 }, forfeitPolicy: {} };
     const db = mockSupabase({
       tournaments: { rows: [{ ...ON_TF_1_0_0, ruleset_config: rulesetConfig, events: event }] },
     });
     const rulesets = new RulesetResolver(db as never, createRulesetRegistry());
     const deps = { supabase: db, orgs: {}, rulesets } as never;
     const answer = await readMatchConfig(deps, 't1', { userId: 'anonymous', staff: null });
-    return (answer.rulesetConfig as { tournamentPolicy?: { disqualifyAfter?: unknown } })
-      .tournamentPolicy?.disqualifyAfter;
-  }
-
-  it("answers none stored as off, never the schema's 2 (ruling 48)", async () => {
-    expect(await disqualifyAfter({})).toBeNull();
-    expect(await disqualifyAfter({ tournamentPolicy: { forfeitDrawsCount: true } })).toBeNull();
-  });
-
-  it('answers a stored rule', async () => {
-    expect(await disqualifyAfter({ tournamentPolicy: { disqualifyAfter: 3 } })).toBe(3);
+    expect(answer.rulesetConfig).not.toHaveProperty('tournamentPolicy');
+    expect(answer.rulesetConfig).not.toHaveProperty('forfeitPolicy');
   });
 });

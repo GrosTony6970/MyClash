@@ -39,9 +39,7 @@ const shared = {
   grammar,
   matchFormat,
   afterblowMode: 'deductive',
-  tournamentPolicy: { forfeitDrawsCount: true },
   doublePenaltyFormula: 'n_times_n_minus_1_over_3',
-  forfeitPolicy: { reasons: { black_card_1: { tournamentState: 'match_only' } } },
 };
 const coded = canonicalizeScoringBehaviour({
   kind: 'coded',

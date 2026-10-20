@@ -18,8 +18,6 @@ const BASE: RulesetBucketInputs = {
   matchFormat: { pointCap: 5, timeLimitsSeconds: { pool: 180, bracket: 180 } },
   winBonus: 3,
   doublePenaltyFormula: 'n*(n-1)/3',
-  forfeitPolicy: null,
-  tournamentPolicy: null,
 };
 
 const clone = (o: RulesetBucketInputs): RulesetBucketInputs => JSON.parse(JSON.stringify(o));
@@ -98,24 +96,6 @@ describe('diffRulesetBuckets', () => {
     expect(d.ranking).toBe('changed');
     expect(d.rankingCompatible).toBe(false);
   });
-
-  it('flags ranking + incompatible when forfeitPolicy changes (placing-affecting)', () => {
-    // The high-stakes fidelity fix: forfeitPolicy re-ranks (it is in the coded
-    // content-hash canonical), so a fork that changes it must NOT read compatible.
-    const fork = clone(BASE);
-    fork.forfeitPolicy = { reasons: { black_card_1: { tournamentState: 'disqualified' } } };
-    const d = diffRulesetBuckets(BASE, fork);
-    expect(d.ranking).toBe('changed');
-    expect(d.rankingCompatible).toBe(false);
-  });
-
-  it('flags ranking + incompatible when tournamentPolicy changes (W/L/D tally)', () => {
-    const fork = clone(BASE);
-    fork.tournamentPolicy = { forfeitDrawsCount: true };
-    const d = diffRulesetBuckets(BASE, fork);
-    expect(d.ranking).toBe('changed');
-    expect(d.rankingCompatible).toBe(false);
-  });
 });
 
 describe('projectRulesetBuckets', () => {
@@ -157,12 +137,10 @@ describe('projectRulesetBuckets', () => {
       matchFormat: normalizeMatchFormatConfig({}),
       winBonus: null,
       doublePenaltyFormula: null,
-      forfeitPolicy: null,
-      tournamentPolicy: null,
     });
   });
 
-  it('projects forfeitPolicy + tournamentPolicy from tf_config into the ranking bucket', () => {
+  it('lights no lamp for a forfeit rule a fork still stores: the penalty ruleset owns them', () => {
     const row: RulesetBucketRow = {
       ...CODED_ROW,
       tf_config: {
@@ -171,11 +149,8 @@ describe('projectRulesetBuckets', () => {
         tournamentPolicy: { forfeitDrawsCount: true },
       },
     };
-    const inputs = projectRulesetBuckets(row);
-    expect(inputs.forfeitPolicy).toEqual({
-      reasons: { black_card_1: { tournamentState: 'disqualified' } },
-    });
-    expect(inputs.tournamentPolicy).toEqual({ forfeitDrawsCount: true });
+    const d = diffRulesetBuckets(projectRulesetBuckets(CODED_ROW), projectRulesetBuckets(row));
+    expect(d.rankingCompatible).toBe(true);
   });
 
   it('reads end conditions through the real normalizer: a legacy alias equals its modern key', () => {

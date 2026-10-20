@@ -4,7 +4,6 @@ import {
   canonicalizePenaltyDefinition,
   canonicalizeScoringBehaviour,
   projectPenaltyBucketFromLive,
-  projectPenaltyBucketFromSnapshot,
   RulesetRegistry,
   stableStringify,
   type PenaltyBehaviourInput,
@@ -30,7 +29,6 @@ export interface TournamentHashRow {
   ruleset_config: Row | null;
   scoring_config_json: Row | null;
   penalty_ruleset_id: string | null;
-  penalty_ruleset_version: string | null;
 }
 
 /** The columns `scoringCanonicalOf` reads: the scoring rules alone. */
@@ -156,7 +154,7 @@ export class RulesetHashService {
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select(
-        'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id, penalty_ruleset_version',
+        'id, event_id, ruleset_code, ruleset_version, ruleset_config, scoring_config_json, penalty_ruleset_id',
       )
       .eq('id', id)
       .maybeSingle();
@@ -177,7 +175,6 @@ export class RulesetHashService {
     const config = t.ruleset_config ?? {};
     const scoringConfig = t.scoring_config_json ?? {};
     const matchFormat = (config['matchFormat'] as Row | undefined) ?? null;
-    const tournamentPolicy = config['tournamentPolicy'] ?? null;
     // What the scorer plays (operator ruling 47): a missing mode is `full`, never the grammar's
     // seed (a ruleset only SEEDS a Tournament; `packages/rules/src/afterblow.ts`).
     const afterblowMode = afterblowModeInForce(scoringConfig);
@@ -190,25 +187,21 @@ export class RulesetHashService {
             engineCode: structure.engineCode,
             engineVersion: structure.engineVersion,
             grammar: grammarInput,
-            tournamentPolicy,
             matchFormat,
             afterblowMode,
             winBonus: (config['winBonus'] as number | undefined) ?? null,
             doublePenaltyFormula: config['doublePenaltyFormula'] ?? null,
-            forfeitPolicy: config['forfeitPolicy'] ?? null,
           }
         : {
             kind: 'formula',
             grammar: grammarInput,
             matchFormat,
             afterblowMode,
-            tournamentPolicy,
             scoreFormula: structure.scoreFormula,
             constants: structure.constants,
             tiebreakers: structure.tiebreakers,
             doublePenaltyFormula: structure.doublePenaltyFormula,
             decisionEdition: structure.decisionEdition,
-            forfeitPolicy: config['forfeitPolicy'] ?? null,
           };
     return canonicalizeScoringBehaviour(input);
   }
@@ -216,72 +209,48 @@ export class RulesetHashService {
   private async buildPenaltyCanonical(
     t: TournamentHashRow,
   ): Promise<Record<string, unknown> | null> {
-    const pin = await this.resolveEffectivePenalty(t);
-    if (!pin) return null;
-    const definition = await this.loadPenaltyDefinition(pin.id, pin.version);
+    const id = await this.resolveEffectivePenalty(t);
+    if (!id) return null;
+    const definition = await this.loadPenaltyDefinition(id);
     return definition ? canonicalizePenaltyDefinition(definition) : null;
   }
 
   /** tournament pin → event default → platform built-in (by built_in flag, not
-   *  the stale version constant). */
-  private async resolveEffectivePenalty(
-    t: TournamentHashRow,
-  ): Promise<{ id: string; version: string | null } | null> {
-    if (t.penalty_ruleset_id) {
-      return { id: t.penalty_ruleset_id, version: t.penalty_ruleset_version };
-    }
+   *  the stale version constant). `card-rules-pin.ts` holds the same chain. */
+  private async resolveEffectivePenalty(t: TournamentHashRow): Promise<string | null> {
+    if (t.penalty_ruleset_id) return t.penalty_ruleset_id;
     if (t.event_id) {
       const { data, error } = await this.supabase.service
         .from('events')
-        .select('penalty_ruleset_id, penalty_ruleset_version')
+        .select('penalty_ruleset_id')
         .eq('id', t.event_id)
         .maybeSingle();
       if (error)
         throw new Error(`The card pin of Event ${t.event_id} was not read: ${error.message}`);
-      const event = data as Row | null;
-      if (event?.['penalty_ruleset_id']) {
-        return {
-          id: event['penalty_ruleset_id'] as string,
-          version: (event['penalty_ruleset_version'] as string | null) ?? null,
-        };
-      }
+      const eventPin = (data as Row | null)?.['penalty_ruleset_id'];
+      if (typeof eventPin === 'string' && eventPin) return eventPin;
     }
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
-      .select('id, version')
+      .select('id')
       .eq('built_in', true)
       .is('owner_organization_id', null)
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(`The built-in card rules were not read: ${error.message}`);
-    const builtin = data as Row | null;
-    return builtin
-      ? { id: builtin['id'] as string, version: (builtin['version'] as string) ?? null }
-      : null;
+    return ((data as Row | null)?.['id'] as string | undefined) ?? null;
   }
 
-  /** Prefer the immutable frozen snapshot for the pinned version; fall back to
-   *  the live parent + entries (built-in / never-published). */
-  private async loadPenaltyDefinition(
-    id: string,
-    version: string | null,
-  ): Promise<PenaltyBehaviourInput | null> {
-    if (version) {
-      const { data, error } = await this.supabase.service
-        .from('penalty_ruleset_versions')
-        .select(
-          'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, entries',
-        )
-        .eq('penalty_ruleset_id', id)
-        .eq('version', version)
-        .maybeSingle();
-      if (error) throw new Error(`Card rules ${id}@${version} were not read: ${error.message}`);
-      if (data) return projectPenaltyBucketFromSnapshot(data as Row);
-    }
+  /**
+   * The LIVE row and its entries: what the engine scores cards and forfeits by (every scorer
+   * reads the live row, rulings A and G). A snapshot of the pinned version is not read: after a
+   * pin, an unpin, an edit and a re-pin it no longer says what the engine does.
+   */
+  private async loadPenaltyDefinition(id: string): Promise<PenaltyBehaviourInput | null> {
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select(
-        'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, penalty_ruleset_entries(group_number, ref_number, sanctions)',
+        'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules, penalty_ruleset_entries(group_number, ref_number, sanctions)',
       )
       .eq('id', id)
       .maybeSingle();

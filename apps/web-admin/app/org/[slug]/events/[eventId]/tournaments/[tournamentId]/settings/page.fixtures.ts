@@ -17,19 +17,14 @@ const SCORING_IN_FORCE: TournamentScoringConfig = {
 
 /**
  * What `GET /tournaments/:id` answers beside TOURNAMENT_ROW (a TF_v1 Tournament that stores no
- * settings): the engine's values, built through the owners the API calls, no forfeit rule (none is
- * stored), and TF_v1's seed as `start` (its forfeit rule on, at 2; the deductive afterblow).
+ * settings): the engine's values, built through the owners the API calls, and TF_v1's seed as
+ * `start` (the deductive afterblow).
  */
 export const EFFECTIVE_RULES = {
   matchFormat: normalizeMatchFormatConfig({}),
   tf: {
     winBonus: 3,
     targetValues: { deepTarget: 2, shallowTarget: 1 },
-    tournamentPolicy: {
-      forfeitDrawsCount: false,
-      forfeitFighterBefore1stMatch: false,
-      disqualifyAfter: null,
-    },
   },
   scoring: SCORING_IN_FORCE,
   lock: { ...DEFAULT_TOURNAMENT_LOCK_CONFIG, autoLockEnabled: true },
@@ -38,11 +33,6 @@ export const EFFECTIVE_RULES = {
     tf: {
       winBonus: 3,
       targetValues: { deepTarget: 2, shallowTarget: 1 },
-      tournamentPolicy: {
-        forfeitDrawsCount: false,
-        forfeitFighterBefore1stMatch: false,
-        disqualifyAfter: 2,
-      },
     },
     scoring: { ...SCORING_IN_FORCE, afterblowMode: 'deductive' },
   },

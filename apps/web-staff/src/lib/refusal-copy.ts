@@ -133,6 +133,8 @@ const REFUSED_WHOLE = new Map([
   ['bout_completed', COMPLETED_MEANWHILE],
   // "Reset clock" once extra time or sudden death is under way (operator, 2026-10-16).
   ['reset_after_level_step', RESET_AFTER_LEVEL_STEP],
+  // A forfeit recorded on rules that do not parse (a hand-edited archive, rulings 63-76).
+  ['forfeit_rules_invalid', 'scoring.forfeits.rulesInvalid'],
 ]);
 
 /**

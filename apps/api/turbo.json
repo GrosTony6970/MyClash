@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/db/migrations/**",
+        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs"
+      ]
+    },
+    "coverage": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/db/migrations/**",
+        "$TURBO_ROOT$/scripts/lib/migration-literal.mjs"
+      ]
+    }
+  }
+}

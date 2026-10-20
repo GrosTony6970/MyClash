@@ -5,7 +5,7 @@ import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 const registry = createRulesetRegistry();
 
 /**
- * tournamentPolicy behaviour in standings — split from the resolution suite so
+ * A forfeit in standings — split from the resolution suite so
  * neither file trips the 400-line cap in scripts/check-complexity.mjs.
  */
 const fromMock = vi.fn();
@@ -42,11 +42,11 @@ function makeAwaitableChain(result: { data: unknown; error: unknown } = { data: 
   return chain;
 }
 
-describe('standings — tournamentPolicy', () => {
-  it('counts a forfeited match as a draw when tournamentPolicy.forfeitDrawsCount is on', async () => {
-    // "Forfeit counts as draw". W/L/D derive from red_score vs blue_score, and a
-    // forfeit sets those via scorePolicy (0 vs 6 here), so without the policy
-    // reg-1 takes the win. Nothing read this switch before.
+describe('standings — a forfeited bout', () => {
+  it('stands as its result, whatever a scoring config still stores (ruling 64)', async () => {
+    // "Forfeit counts as draw" was a read-time overlay on these columns only: points, the win
+    // bonus, Swiss and every other reader saw the 0-6 win. It is gone: ruling 64 replaces it with
+    // a real draw, stored as one (0-0, no winner), which every reader counts alike.
     fromMock
       .mockReturnValueOnce(
         makeChain({
@@ -126,9 +126,9 @@ describe('standings — tournamentPolicy', () => {
     const r1 = result.rows.find((r) => r.registrationId === 'reg-1')!;
     const r2 = result.rows.find((r) => r.registrationId === 'reg-2')!;
 
-    expect(r1.stats['D']).toBe(1);
-    expect(r2.stats['D']).toBe(1);
-    expect(r1.stats['W']).toBe(0);
-    expect(r2.stats['L']).toBe(0);
+    expect(r1.stats['W']).toBe(1);
+    expect(r2.stats['L']).toBe(1);
+    expect(r1.stats['D']).toBe(0);
+    expect(r2.stats['D']).toBe(0);
   });
 });

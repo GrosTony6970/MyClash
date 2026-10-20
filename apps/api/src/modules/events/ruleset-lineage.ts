@@ -10,8 +10,7 @@
  * That means BOTH sides have to be projected from their EFFECTIVE behaviour —
  * a ruleset's resolved grammar plus its resolved config — never from the raw
  * columns. The raw columns are not comparable: a built-in's `tf_config` holds
- * only the super-admin OVERRIDES (migration 0053 seeds TF_v1's without
- * `tournamentPolicy`; Generic_PointsCap has no seed at all), while a fork's
+ * only the super-admin OVERRIDES (Generic_PointsCap has no seed at all), while a fork's
  * `tf_config` is a tournament's fully-parsed `ruleset_config` and therefore
  * always carries every schema default. Diffing those two directly reports a
  * ranking change — and fires the "placings no longer match {base}" guardrail —

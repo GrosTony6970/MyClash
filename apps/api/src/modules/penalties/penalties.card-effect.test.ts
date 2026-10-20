@@ -105,7 +105,7 @@ describe('a black card does what the Tournament’s penalty ruleset says', () =>
     // reads ask for them: the price, by the bout's copy ('ruleset-1'), and the reach, by the
     // Tournament's pin.
     const columns =
-      'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit';
+      'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules';
     const reads = selectsFor(opened.db.from, 'penalty_rulesets');
     expect(reads.filter((read) => read === columns)).toHaveLength(2);
     expect(filtersFor(opened.db.from, 'penalty_rulesets', 'eq')).toEqual([
@@ -120,14 +120,22 @@ describe('a black card does what the Tournament’s penalty ruleset says', () =>
     await expect(sendCard(opened)).rejects.toThrow('Tournament tournament-1 has no card rules');
     expect(writesTo(opened.db, 'match_penalties')).toEqual([]);
   });
+
+  it('forfeit rules that do not parse are a server error, before the card is written', async () => {
+    // The tablet sends a card again on a server error: it is not refused for good.
+    const opened = cardPath({ ...HOUSE_CARDS, forfeitRules: { disqualifyAfter: 0 } });
+
+    await expect(sendCard(opened)).rejects.toThrow('The forfeit rules of penalty ruleset');
+    expect(writesTo(opened.db, 'match_penalties')).toEqual([]);
+  });
 });
 
 describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
-  const twoForfeits = { tournamentPolicy: { disqualifyAfter: 2 } };
+  const twoForfeits = { disqualifyAfter: 2 };
 
   it('an injury after a black card forfeit is not the 2nd of "disqualify after 2"', async () => {
     const opened = cardPath(
-      { ...HOUSE_CARDS, rulesetConfig: twoForfeits },
+      { ...HOUSE_CARDS, forfeitRules: twoForfeits },
       { otherForfeits: [earlier({ reason: 'black_card_1' })] },
     );
 
@@ -141,7 +149,7 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
 
   it('a black card after an injury is not the 2nd of "disqualify after 2"', async () => {
     const opened = cardPath(
-      { ...HOUSE_CARDS, rulesetConfig: twoForfeits },
+      { ...HOUSE_CARDS, forfeitRules: twoForfeits },
       { otherForfeits: [earlier({ reason: 'injury' })] },
     );
 
@@ -153,10 +161,10 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
     expect(fighterStates(opened.db)).toEqual([]);
   });
 
-  const beforeFirstBout = { tournamentPolicy: { forfeitFighterBefore1stMatch: true } };
+  const beforeFirstBout = { disqualifyBeforeFirstBout: true };
 
   it('a black card in the 1st bout is not "a forfeit before the 1st bout"', async () => {
-    const opened = cardPath({ ...HOUSE_CARDS, rulesetConfig: beforeFirstBout });
+    const opened = cardPath({ ...HOUSE_CARDS, forfeitRules: beforeFirstBout });
 
     await sendCard(opened);
 
@@ -167,7 +175,7 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
   });
 
   it('a black card forfeit recorded by hand before the 1st bout disqualifies nobody', async () => {
-    const opened = cardPath({ ...HOUSE_CARDS, rulesetConfig: beforeFirstBout });
+    const opened = cardPath({ ...HOUSE_CARDS, forfeitRules: beforeFirstBout });
 
     await recordForfeit(opened, 'black_card_1');
 
@@ -193,7 +201,7 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
         parent_forfeit_id: 'forfeit-2',
       });
       const opened = cardPath(
-        { ...HOUSE_CARDS, rulesetConfig: { tournamentPolicy: { disqualifyAfter: 3 } } },
+        { ...HOUSE_CARDS, forfeitRules: { disqualifyAfter: 3 } },
         { otherForfeits: [root, child] },
       );
 
@@ -211,7 +219,7 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
     // forfeited and records it again by hand. It hangs under the withdrawal, and adds nothing.
     const root = earlier({ reason: 'injury', can_continue: false, 'matches.pool_id': 'pool-1' });
     const opened = cardPath(
-      { ...HOUSE_CARDS, rulesetConfig: { tournamentPolicy: { disqualifyAfter: 2 } } },
+      { ...HOUSE_CARDS, forfeitRules: { disqualifyAfter: 2 } },
       { otherForfeits: [root] },
     );
 
@@ -232,7 +240,7 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
 
   it('a forfeit recorded again under a live withdrawal is no "forfeit before the 1st bout"', async () => {
     const opened = cardPath(
-      { ...HOUSE_CARDS, rulesetConfig: beforeFirstBout },
+      { ...HOUSE_CARDS, forfeitRules: beforeFirstBout },
       { otherForfeits: [liveWithdrawal] },
     );
 

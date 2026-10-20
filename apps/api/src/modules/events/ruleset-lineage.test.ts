@@ -88,7 +88,6 @@ const TF_V1_DB_ROW = {
       maxDoubleHitOutcome: 'double_loss_zero_scores',
     },
     doublePenaltyFormula: 'n*(n-1)/3',
-    forfeitPolicy: TFv1DefaultConfig.forfeitPolicy,
   },
   ...TF_GRAMMAR,
 };

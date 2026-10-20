@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { DECISION_EDITIONS } from '@myclash/rules';
-import { stableStringify } from '@myclash/rulesets';
+import { BlackCardEffectSchema, ForfeitRulesSchema, stableStringify } from '@myclash/rulesets';
 
 /**
  * Portable, self-contained ruleset export/import.
@@ -56,8 +56,10 @@ export const penaltyRulesetExportDefinitionSchema = z
     yellowCardPoints: z.number().optional(),
     redCardPoints: z.number().optional(),
     blackCardPoints: z.number().optional(),
-    firstBlackCardForfeit: z.enum(['match', 'tournament', 'none']).optional(),
-    secondBlackCardForfeit: z.enum(['match', 'tournament', 'none']).optional(),
+    firstBlackCardForfeit: BlackCardEffectSchema.optional(),
+    secondBlackCardForfeit: BlackCardEffectSchema.optional(),
+    /** A file made before the forfeit rules moved has none: the column's DEFAULT applies. */
+    forfeitRules: ForfeitRulesSchema.optional(),
     entries: z.array(
       z.object({
         groupNumber: z.number(),

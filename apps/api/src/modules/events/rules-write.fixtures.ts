@@ -121,10 +121,7 @@ export const ON_CLUB_1_0_0: Row = {
   ruleset_version: '1.0.0',
 };
 
-/**
- * A coded fork of TF_v1 whose tf_config targets (+4/+2) are not its targets column (+2/+1), and
- * whose own forfeit rule disqualifies after 4 forfeits.
- */
+/** A coded fork of TF_v1 whose tf_config targets (+4/+2) are not its targets column (+2/+1). */
 export const FORK = {
   rulesets: [
     {
@@ -138,7 +135,6 @@ export const FORK = {
           { name: 'Deep', value: 4 },
           { name: 'Shallow', value: 2 },
         ],
-        tournamentPolicy: { disqualifyAfter: 4 },
       },
       match_format_defaults: null,
       double_penalty_formula: null,

@@ -113,8 +113,8 @@ const CUSTOM_RULESET_VERSION_CONFIG_COLUMNS = 'match_format_defaults, double_pen
 /**
  * Read `tf_config` (Round 7) for a system ruleset from the custom_rulesets
  * mirror row. The DB row is shaped like a TFv1ConfigSchema patch (any subset
- * of winBonus / targetValues / matchFormat / doublePenaltyFormula /
- * forfeitPolicy). Returns null when the row or column is missing — the
+ * of winBonus / targetValues / matchFormat / doublePenaltyFormula). Returns
+ * null when the row or column is missing — the
  * resolver then keeps the static defaults unchanged.
  */
 async function loadSystemRulesetOverrides(

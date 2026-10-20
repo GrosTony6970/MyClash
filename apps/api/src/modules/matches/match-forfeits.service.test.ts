@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { CLUB_START_FORFEIT_RULES, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { MatchForfeitsService } from './match-forfeits.service';
 import {
   mockSupabase,
@@ -109,6 +110,24 @@ const forfeitHistory = (mine: Record<string, unknown>[]) => ({
   returning: { id: 'forfeit-new' },
 });
 
+/**
+ * The Tournament's penalty ruleset of now, which every forfeit reads its rules from (rulings
+ * 63-76): a new club ruleset's, with `over` on top. An override reads none.
+ */
+const forfeitRules = (over: Partial<ForfeitRules> = {}) => ({
+  tournaments: { rows: [{ id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: 'pr-1' }] },
+  penalty_rulesets: {
+    rows: [
+      {
+        id: 'pr-1',
+        first_black_card_forfeit: 'match',
+        second_black_card_forfeit: 'tournament',
+        forfeit_rules: { ...CLUB_START_FORFEIT_RULES, ...over },
+      },
+    ],
+  },
+});
+
 describe('MatchForfeitsService', () => {
   it('records a voluntary forfeit as a 0-6 match loss and asks continuation through canContinue', async () => {
     // `registrations` is declared because `createForfeit` reads it on EVERY
@@ -119,6 +138,7 @@ describe('MatchForfeitsService', () => {
       matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -206,6 +226,7 @@ describe('MatchForfeitsService', () => {
       // Declared because the withdrawal lands here. The local double answered
       // an undeclared table with an empty fixture, so this write had no table.
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -269,11 +290,7 @@ describe('MatchForfeitsService', () => {
    * The history below is the same in both tests. Only whether the fighter is in
    * it changes, which is the whole question the policy asks.
    */
-  const DQ_MATCH = matchRow({
-    phaseType: 'pool',
-    status: 'running',
-    tournamentPolicy: { forfeitFighterBefore1stMatch: true },
-  });
+  const DQ_MATCH = matchRow({ phaseType: 'pool', status: 'running' });
 
   const otherBouts = (mine: Record<string, unknown>[]) => ({
     matches: {
@@ -298,9 +315,10 @@ describe('MatchForfeitsService', () => {
     },
     match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
     registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+    ...forfeitRules({ disqualifyBeforeFirstBout: true }),
   });
 
-  it("auto-disqualifies a forfeit before the fighter's first match when the policy is on", async () => {
+  it("auto-disqualifies a forfeit before the fighter's first match when the rule is on", async () => {
     // Nothing conditioned on match count before this; the per-reason
     // tournamentState ('voluntary' -> 'ask') cannot express it.
     const supabase = mockSupabase(otherBouts([]));
@@ -343,23 +361,16 @@ describe('MatchForfeitsService', () => {
     expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
-  it('disqualifies on the Nth forfeit per tournamentPolicy.disqualifyAfter', async () => {
+  it('disqualifies on the Nth forfeit per the forfeit rules', async () => {
     // "Disqualify after N forfeits" counts FORFEITS, not black cards. The
     // per-reason state and the penalty ruleset's black-card ordinal both key off
     // something else, so nothing in the codebase counted these.
     const supabase = mockSupabase({
-      matches: {
-        rows: [
-          matchRow({
-            phaseType: 'pool',
-            status: 'running',
-            tournamentPolicy: { disqualifyAfter: 2 },
-          }),
-        ],
-      },
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       // One live forfeit of their own already; this one makes two.
       match_forfeits: forfeitHistory([]),
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules({ disqualifyAfter: 2 }),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -380,20 +391,13 @@ describe('MatchForfeitsService', () => {
     // a threshold of 2 is not reached and nobody is disqualified.
     const history = forfeitHistory([]);
     const supabase = mockSupabase({
-      matches: {
-        rows: [
-          matchRow({
-            phaseType: 'pool',
-            status: 'running',
-            tournamentPolicy: { disqualifyAfter: 2 },
-          }),
-        ],
-      },
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       match_forfeits: {
         ...history,
         rows: history.rows.filter((row) => row['id'] !== 'ff-mine'),
       },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules({ disqualifyAfter: 2 }),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -406,14 +410,15 @@ describe('MatchForfeitsService', () => {
     expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
-  it('leaves the per-reason state alone when no tournament policy is set', async () => {
+  it('leaves the per-reason state alone when neither escalation is on', async () => {
     // Both counts are facts about the rows now: the fighter has fought nothing
-    // (this bout is the only match) and has no prior forfeit. With no policy
-    // set neither number can reach a threshold anyway, which is the point.
+    // (this bout is the only match) and has no prior forfeit. With both rules
+    // off neither number can reach a threshold anyway, which is the point.
     const supabase = mockSupabase({
       matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -426,21 +431,14 @@ describe('MatchForfeitsService', () => {
     expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
-  it('disqualifies nobody on a second forfeit when the rule is not stored: missing is off (ruling 48)', async () => {
-    // The history of the case above that disqualifies at two, with a policy that holds every
-    // switch but the rule. The schema's default of 2 must not be read in.
+  it('disqualifies nobody on a second forfeit when "disqualify after" is off', async () => {
+    // The history of the case above that disqualifies at two, under rules where it is off: a
+    // new club ruleset's start (ruling 67).
     const supabase = mockSupabase({
-      matches: {
-        rows: [
-          matchRow({
-            phaseType: 'pool',
-            status: 'running',
-            tournamentPolicy: { forfeitDrawsCount: true },
-          }),
-        ],
-      },
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       match_forfeits: forfeitHistory([]),
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules({ disqualifyAfter: 'off' }),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -503,24 +501,17 @@ describe('MatchForfeitsService — result overrides', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('does not count an override toward tournamentPolicy.disqualifyAfter', async () => {
+  it('does not count an override toward "disqualify after N forfeits"', async () => {
     // Exactly the shape that disqualifies on a forfeit, and BOTH counts are now
     // facts about rows rather than numbers the fixture asserted into being: one
     // live prior forfeit against a threshold of 1, and no other completed bout
-    // against `forfeitFighterBefore1stMatch`. Either rule fires on a forfeit. A
+    // against `disqualifyBeforeFirstBout`. Either rule fires on a forfeit. A
     // correction is not one, so nothing escalates.
     const supabase = mockSupabase({
-      matches: {
-        rows: [
-          matchRow({
-            phaseType: 'pool',
-            status: 'completed',
-            tournamentPolicy: { disqualifyAfter: 1, forfeitFighterBefore1stMatch: true },
-          }),
-        ],
-      },
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
       match_forfeits: forfeitHistory([]),
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules({ disqualifyAfter: 1, disqualifyBeforeFirstBout: true }),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -610,15 +601,10 @@ describe('MatchForfeitsService — result overrides', () => {
 /**
  * A match row as `loadMatch` reads it back.
  *
- * The phase and the tournament ride along on the row, through the embed the
- * select asks for — this service never queries either table. A fixture entry
- * for `phases` or `tournaments` answers nothing, so there is none.
+ * The phase rides along on the row, through the embed the select asks for. The
+ * forfeit rules are the Tournament's penalty ruleset's (`forfeitRules`).
  */
-function matchRow(input: {
-  phaseType: string;
-  status: string;
-  tournamentPolicy?: Record<string, unknown>;
-}) {
+function matchRow(input: { phaseType: string; status: string }) {
   return {
     id: 'match-1',
     phase_id: 'phase-1',
@@ -634,10 +620,6 @@ function matchRow(input: {
       type: input.phaseType,
       tournament_id: 'tournament-1',
       config_json: {},
-      tournaments: {
-        id: 'tournament-1',
-        ruleset_config: input.tournamentPolicy ? { tournamentPolicy: input.tournamentPolicy } : {},
-      },
     },
   };
 }
@@ -795,6 +777,7 @@ describe('MatchForfeitsService — override regressions', () => {
       // the reserve replaces.
       bracket_slots: { rows: BRACKET_SLOTS },
       registrations: { rows: ENTRANTS },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1423,6 +1406,7 @@ describe('MatchForfeitsService — pool cascade void', () => {
       },
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1697,6 +1681,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
         returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
       registrations: { rows: [{ id: 'reg-red', status: 'withdrawn' }] },
+      ...forfeitRules(),
     };
   }
 
@@ -1800,6 +1785,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       },
       bracket_slots: { rows: [] },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
+      ...forfeitRules(),
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 

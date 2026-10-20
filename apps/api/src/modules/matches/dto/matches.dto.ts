@@ -171,7 +171,7 @@ const createMatchForfeitSchema = z
       });
     }
     // An override never withdraws anyone — accepting the flag would imply it
-    // could. See DEFAULT_FORFEIT_POLICY: every override is 'match_only'.
+    // could. See OVERRIDE_OUTCOME: every override is 'match_only'.
     if (override && value.canContinue !== undefined) {
       ctx.addIssue({
         code: 'custom',

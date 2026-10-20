@@ -70,7 +70,7 @@ export interface CustomRulesetRow {
   double_penalty_formula: DoublePenaltySpec | null;
   /**
    * Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
-   * (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
+   * (winBonus, targetValues, matchFormat, doublePenaltyFormula).
    * Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.
    * Null for non-system rulesets.
    */
@@ -250,10 +250,11 @@ export function bumpPatchVersion(version: string): string {
 /**
  * Validate a super-admin `tf_config` patch. We accept any subset of the
  * TFv1ConfigSchema-shaped object (winBonus, targetValues, matchFormat,
- * doublePenaltyFormula, forfeitPolicy). The schema's defaults fill in any
- * missing fields at parse time, but we strip those back out so the stored
- * row reflects only the operator's explicit overrides — keeping the merge
- * inside resolveRulesetConfigDefaults predictable.
+ * doublePenaltyFormula). The schema's defaults fill in any missing fields at
+ * parse time, but we strip those back out so the stored row reflects only the
+ * operator's explicit overrides — keeping the merge inside
+ * resolveRulesetConfigDefaults predictable. A key the schema does not know is
+ * dropped too: no forfeit rule is stored here (rulings 63 and 68).
  */
 export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
   if (raw === null || raw === undefined) return {};
@@ -264,8 +265,9 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
   // Use the full schema's parse so each branch is validated in context, then
   // pick only the keys the caller actually provided. This catches type errors
   // (e.g. winBonus as a string) without smuggling defaults into the patch.
+  let parsed: Record<string, unknown>;
   try {
-    TFv1ConfigSchema.parse({ ...patch });
+    parsed = TFv1ConfigSchema.parse({ ...patch });
   } catch (err) {
     const issues = (err as { issues?: Array<{ path: Array<string | number>; message: string }> })
       .issues;
@@ -276,7 +278,7 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
   }
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(patch)) {
-    out[key] = patch[key];
+    if (key in parsed) out[key] = patch[key];
   }
   return out;
 }

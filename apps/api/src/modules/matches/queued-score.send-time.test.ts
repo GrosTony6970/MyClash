@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { createPenaltySchema } from '../penalties/dto/penalties.dto';
 import { PenaltiesService } from '../penalties/penalties.service';
@@ -71,6 +72,7 @@ function setup() {
           owner_organization_id: null,
           first_black_card_forfeit: 'match',
           second_black_card_forfeit: 'tournament',
+          forfeit_rules: FFAMHE_FORFEIT_RULES,
         },
       ],
     },
@@ -144,7 +146,7 @@ describe('a card from a tablet’s queue', () => {
         expect.objectContaining({ forfeitingRegistrationId: 'reg-red', reason: 'black_card_1' }),
         { staffAccountId: 'pad-1' },
         SCORED_AT,
-        'match',
+        { rules: FFAMHE_FORFEIT_RULES, cardEffect: 'match' },
       ],
     ]);
   });

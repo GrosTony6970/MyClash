@@ -8,17 +8,17 @@ import {
 } from '@nestjs/common';
 import {
   FORFEIT_REASONS,
+  forfeitOutcomeOf,
   isBlackCardReason,
   isOverrideReason,
-  resolveForfeitPolicy,
+  OVERRIDE_OUTCOME,
+  type BlackCardEffect,
+  type ForfeitOutcome,
   type ForfeitReason,
 } from '@myclash/rulesets';
-import { disqualifyAfterOf } from '@myclash/types/effective-rules';
-import {
-  blackCardEffectOf,
-  tournamentCardRules,
-  type BlackCardEffect,
-} from '../penalties/card-rules-pin';
+import type { ForfeitRules } from '@myclash/types/forfeit-rules';
+import { blackCardEffectOf } from '../penalties/card-rules-pin';
+import { cardAndForfeitRules, forfeitRulesRefusal } from '../penalties/forfeit-rules-in-force';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
@@ -53,6 +53,15 @@ type Row = Record<string, unknown>;
  * (nobody forfeited), not a black card (the referee's, ruling 56).
  */
 const COUNTED_FORFEIT_REASONS = FORFEIT_REASONS.filter((reason) => !isBlackCardReason(reason));
+
+/**
+ * The rules a forfeit is recorded by: the Tournament's forfeit rules of now and, for a black card,
+ * what that card does. The card path reads both before it writes the card and hands them over.
+ */
+export interface ForfeitInForce {
+  rules: ForfeitRules;
+  cardEffect: BlackCardEffect | null;
+}
 
 /**
  * Where one live record sits in the cascade, computed on the READ.
@@ -96,15 +105,16 @@ export class MatchForfeitsService {
    * of that card (`scoredAtServer`). The clock is ended there, not at the time
    * the queue arrives. A forfeit a person records has none: now.
    *
-   * `cardEffect`: what the black card that caused it does, as the card path
-   * read it. A black card forfeit recorded by hand reads it itself.
+   * `inForce`: the rules the card path read before it wrote its card. A forfeit
+   * recorded by hand reads them itself; an override reads none, as it states
+   * the result.
    */
   async createForfeit(
     matchId: string,
     dto: CreateMatchForfeitDto,
     actor: Actor = {},
     causedAt?: string,
-    cardEffect?: BlackCardEffect,
+    inForce?: ForfeitInForce,
   ) {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
@@ -116,38 +126,40 @@ export class MatchForfeitsService {
     if (active) return active;
 
     const phase = this.phase(match);
-    const tournament = this.tournament(match);
-    const policy = resolveForfeitPolicy(
-      tournament.ruleset_config ?? {},
-      dto.reason as ForfeitReason,
-    );
+    const rules = isOverrideReason(dto.reason)
+      ? null
+      : (inForce ?? (await this.handForfeitRules(phase.tournament_id, dto.reason)));
+    const policy: ForfeitOutcome = rules
+      ? forfeitOutcomeOf(rules.rules, dto.reason as ForfeitReason)
+      : OVERRIDE_OUTCOME;
     const winnerRegistrationId =
       dto.forfeitingRegistrationId === match.red_registration_id
         ? match.blue_registration_id
         : match.red_registration_id;
 
-    // tournamentPolicy can escalate the per-reason state to a disqualification.
+    // The forfeit rules can escalate the per-reason state to a disqualification.
     // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
     // continue (which in pools also auto-forfeits their remaining matches).
     // A forfeit recorded under a live withdrawal belongs to it, and is no new
-    // forfeit of the Fighter: it escalates nothing (ruling 89).
+    // forfeit of the Fighter: it escalates nothing (ruling 89). Nor does an
+    // override: nobody forfeited.
     const inheritedParentId = await this.resolveInheritedParentId(matchId, match, dto, phase);
-    const reasonState = await this.reasonState(
+    const reasonState = this.reasonState(
       dto.reason,
-      phase.tournament_id,
       policy.tournamentState,
-      cardEffect,
+      rules?.cardEffect ?? null,
     );
-    const tournamentState = inheritedParentId
-      ? reasonState
-      : await this.escalateTournamentState(
-          dto.forfeitingRegistrationId,
-          matchId,
-          phase.tournament_id,
-          reasonState,
-          tournament.ruleset_config,
-          dto.reason as ForfeitReason,
-        );
+    const tournamentState =
+      inheritedParentId || !rules
+        ? reasonState
+        : await this.escalateTournamentState(
+            dto.forfeitingRegistrationId,
+            matchId,
+            phase.tournament_id,
+            reasonState,
+            rules.rules,
+            dto.reason as ForfeitReason,
+          );
 
     const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue);
     const scores = this.resolveScores(
@@ -220,7 +232,8 @@ export class MatchForfeitsService {
     // at all. The children are EFFECTS of this forfeit, not dependents of it;
     // they are reached through `parent_forfeit_id` — see `cascadeVoidChildren`.
     const downstreamIds: string[] = [];
-    if (phase.type === 'pool' && canContinue === false) {
+    // `rules`: an override always continues (`match_only`), so a cascade has its rules.
+    if (phase.type === 'pool' && canContinue === false && rules) {
       await this.autoForfeitFuturePoolMatches(
         match,
         dto.forfeitingRegistrationId,
@@ -231,7 +244,7 @@ export class MatchForfeitsService {
         // when the root is voided — the exact class 0178 exists to kill.
         inheritedParentId ?? (forfeit.id as string),
         phase.tournament_id,
-        tournament.ruleset_config ?? {},
+        rules.rules,
         actor,
       );
     }
@@ -865,7 +878,7 @@ export class MatchForfeitsService {
     reason: ForfeitReason,
     parentForfeitId: string,
     tournamentId: string,
-    rulesetConfig: unknown,
+    rules: ForfeitRules,
     actor: Actor,
   ): Promise<void> {
     const { data } = await this.supabase.service
@@ -893,22 +906,23 @@ export class MatchForfeitsService {
         reason,
         parentForfeitId,
         tournamentId,
-        rulesetConfig,
+        rules,
         actor,
       );
     }
   }
 
+  /** A bout the withdrawal forfeits with it, scored as the root's reason scores (ruling 69). */
   private async createAutoForfeit(
     match: Row,
     registrationId: string,
     reason: ForfeitReason,
     parentForfeitId: string,
     tournamentId: string,
-    rulesetConfig: unknown,
+    rules: ForfeitRules,
     actor: Actor,
   ): Promise<void> {
-    const policy = resolveForfeitPolicy(rulesetConfig, reason);
+    const policy = forfeitOutcomeOf(rules, reason);
     const winnerRegistrationId =
       registrationId === match['red_registration_id']
         ? (match['blue_registration_id'] as string)
@@ -1194,29 +1208,43 @@ export class MatchForfeitsService {
   }
 
   /**
+   * The rules a forfeit recorded by hand is recorded by, in one read of the
+   * Tournament's card rules: its forfeit rules and, for a black card, what that
+   * card does (rulings 58, 82). Stored rules that do not parse refuse it, worded.
+   */
+  private async handForfeitRules(tournamentId: string, reason: string): Promise<ForfeitInForce> {
+    try {
+      const { cardRules, forfeitRules } = await cardAndForfeitRules(
+        this.supabase.service,
+        tournamentId,
+      );
+      const cardEffect = isBlackCardReason(reason) ? blackCardEffectOf(cardRules, reason) : null;
+      return { rules: forfeitRules, cardEffect };
+    } catch (error) {
+      throw forfeitRulesRefusal(error);
+    }
+  }
+
+  /**
    * What the forfeit's reason does to the Fighter. A black card's is its card
    * rule's, never the scoring rules' (rulings 54, 58 and 82): 'tournament'
    * disqualifies, 'match' and 'none' end the bout only.
    */
-  private async reasonState(
+  private reasonState(
     reason: string,
-    tournamentId: string,
     policyState: string,
-    cardEffect: BlackCardEffect | undefined,
-  ): Promise<string> {
+    cardEffect: BlackCardEffect | null,
+  ): string {
     if (!isBlackCardReason(reason)) return policyState;
-    const effect =
-      cardEffect ??
-      blackCardEffectOf(await tournamentCardRules(this.supabase.service, tournamentId), reason);
-    return effect === 'tournament' ? 'disqualified' : 'match_only';
+    return cardEffect === 'tournament' ? 'disqualified' : 'match_only';
   }
 
   /**
-   * Apply the two tournament-policy escalations to a forfeit's resulting state.
+   * Apply the forfeit rules' two escalations to a forfeit's resulting state.
    *
-   * - `forfeitFighterBefore1stMatch` — "Forfeit before 1st match → auto-DQ".
-   *   A registration id is tournament-scoped, so counting that fighter's
-   *   completed matches needs no tournament filter.
+   * - `disqualifyBeforeFirstBout` — "a forfeit before the 1st bout
+   *   disqualifies". A registration id is tournament-scoped, so counting that
+   *   fighter's completed matches needs no tournament filter.
    * - `disqualifyAfter` — "Disqualify after N forfeits". Counts the forfeits the
    *   Fighter chose: no black card, and no bout under a withdrawal.
    *
@@ -1228,21 +1256,14 @@ export class MatchForfeitsService {
     matchId: string,
     tournamentId: string,
     state: string,
-    rulesetConfig: unknown,
+    rules: ForfeitRules,
     reason: ForfeitReason,
   ): Promise<string> {
     if (state === 'disqualified') return state;
-    // Nobody forfeited, so neither escalation applies. Correcting a fighter's
-    // first result must not disqualify them for "forfeiting before their 1st
-    // match", and a correction must not count toward `disqualifyAfter`. Nor did
-    // the Fighter choose a black card: its own rule says what it does.
-    if (isOverrideReason(reason) || isBlackCardReason(reason)) return state;
+    // The Fighter did not choose a black card: its own rule says what it does.
+    if (isBlackCardReason(reason)) return state;
 
-    const policy =
-      ((rulesetConfig as { tournamentPolicy?: Record<string, unknown> } | null) ?? {})
-        .tournamentPolicy ?? {};
-
-    if (policy['forfeitFighterBefore1stMatch'] === true) {
+    if (rules.disqualifyBeforeFirstBout) {
       const { count } = await this.supabase.service
         .from('matches')
         .select('id', { count: 'exact', head: true })
@@ -1252,8 +1273,8 @@ export class MatchForfeitsService {
       if ((count ?? 0) === 0) return 'disqualified';
     }
 
-    const threshold = disqualifyAfterOf(rulesetConfig);
-    if (threshold !== null) {
+    const threshold = rules.disqualifyAfter;
+    if (threshold !== 'off') {
       const { count } = await this.supabase.service
         .from('match_forfeits')
         .select('id', { count: 'exact', head: true })
@@ -1299,7 +1320,7 @@ export class MatchForfeitsService {
   private async loadMatch(matchId: string): Promise<Row | null> {
     const { data } = await this.supabase.service
       .from('matches')
-      .select('*, phases(id, type, tournament_id, config_json, tournaments(id, ruleset_config))')
+      .select('*, phases(id, type, tournament_id, config_json)')
       .eq('id', matchId)
       .maybeSingle();
     return (data as Row | null) ?? null;
@@ -1316,13 +1337,7 @@ export class MatchForfeitsService {
 
   private phase(match: Row) {
     const phase = Array.isArray(match['phases']) ? match['phases'][0] : match['phases'];
-    return phase as { id: string; type: string; tournament_id: string; tournaments?: unknown };
-  }
-
-  private tournament(match: Row) {
-    const phase = this.phase(match);
-    const tournament = Array.isArray(phase.tournaments) ? phase.tournaments[0] : phase.tournaments;
-    return (tournament ?? {}) as { id?: string; ruleset_config?: unknown };
+    return phase as { id: string; type: string; tournament_id: string };
   }
 
   private matchSnapshot(match: Row) {

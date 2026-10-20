@@ -15,8 +15,8 @@
  *   - endConditions normalizes through the SAME scorer normalizer the hash uses
  *     (defaults + legacy aliases resolved), so absent ≡ default and firstToPoints
  *     ≡ pointCap;
- *   - ranking folds in forfeitPolicy + tournamentPolicy (both re-rank results and
- *     both sit in the coded canonical), not just winBonus + doublePenaltyFormula.
+ *   - ranking is winBonus + doublePenaltyFormula. What a forfeit does is the
+ *     penalty ruleset's (rulings 63 and 68), whose own lamp compares it.
  * `afterblowMode` is deliberately NOT a bucket: it lives on the tournament
  * (scoring_config_json), not on a ruleset row, so it is not part of a ruleset's
  * lineage. The ruleset-level afterblow shape (has/valuation/fixed) IS in grammar.
@@ -38,11 +38,9 @@ export interface RulesetBucketInputs {
   afterblowFixedValue: number | null;
   // end conditions — when/how a bout ends
   matchFormat: Record<string, unknown> | null;
-  // ranking — what a result is worth (all four re-rank placings)
+  // ranking — what a result is worth (both re-rank placings)
   winBonus: number | null;
   doublePenaltyFormula: unknown;
-  forfeitPolicy: unknown;
-  tournamentPolicy: unknown;
 }
 
 export interface BucketDiff {
@@ -104,9 +102,7 @@ export function diffRulesetBuckets(
   const endConditions = statusOf(deepEqual(base.matchFormat, fork.matchFormat));
   const ranking = statusOf(
     base.winBonus === fork.winBonus &&
-      deepEqual(base.doublePenaltyFormula, fork.doublePenaltyFormula) &&
-      deepEqual(base.forfeitPolicy, fork.forfeitPolicy) &&
-      deepEqual(base.tournamentPolicy, fork.tournamentPolicy),
+      deepEqual(base.doublePenaltyFormula, fork.doublePenaltyFormula),
   );
   return { grammar, endConditions, ranking, rankingCompatible: ranking === 'unchanged' };
 }
@@ -155,8 +151,6 @@ export function projectRulesetBuckets(row: RulesetBucketRow): RulesetBucketInput
     winBonus?: number;
     matchFormat?: Record<string, unknown>;
     doublePenaltyFormula?: unknown;
-    forfeitPolicy?: unknown;
-    tournamentPolicy?: unknown;
   };
   return {
     targets: row.targets ?? null,
@@ -166,7 +160,5 @@ export function projectRulesetBuckets(row: RulesetBucketRow): RulesetBucketInput
     matchFormat: normalizeEndConditions(tf.matchFormat),
     winBonus: tf.winBonus ?? null,
     doublePenaltyFormula: tf.doublePenaltyFormula ?? null,
-    forfeitPolicy: tf.forfeitPolicy ?? null,
-    tournamentPolicy: tf.tournamentPolicy ?? null,
   };
 }

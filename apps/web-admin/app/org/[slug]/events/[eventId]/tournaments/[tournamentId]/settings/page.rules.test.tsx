@@ -150,32 +150,17 @@ describe('the Display tab', () => {
 describe('the Advanced tab', () => {
   const ruleRow = { ruleset_is_system: false };
 
-  it('shows Off where no forfeit rule is stored, and sends a count chosen', async () => {
+  it('shows no forfeit rule: the penalty ruleset owns them (rulings 63, 68)', async () => {
     opened = await openTab('advanced', { row: ruleRow });
-    expect(valueOf('Disqualify after N forfeits')).toBe('off');
-    await set('Disqualify after N forfeits', '3');
-    await save();
-    expect(opened.saved).toEqual([{ rulesetConfig: { tournamentPolicy: { disqualifyAfter: 3 } } }]);
-  });
-
-  it('sends Off as a null, which removes the rule (ruling 52)', async () => {
-    const tf = {
-      ...EFFECTIVE_RULES.tf,
-      tournamentPolicy: { ...EFFECTIVE_RULES.tf.tournamentPolicy, disqualifyAfter: 2 },
-    };
-    opened = await openTab('advanced', { row: ruleRow, effectiveRules: { tf } });
-    await set('Disqualify after N forfeits', 'off');
-    await save();
-    expect(opened.saved).toEqual([
-      { rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } } },
-    ]);
+    expect(document.body.textContent).toContain('Win bonus');
+    expect(document.body.textContent).not.toContain('Disqualify after');
+    expect(document.body.textContent).not.toContain('Forfeit counts as draw');
   });
 
   it('badges against what the ruleset starts from, and Reset writes it (ruling 51)', async () => {
     const start = { ...EFFECTIVE_RULES.start, tf: { ...EFFECTIVE_RULES.start.tf, winBonus: 5 } };
     opened = await openTab('advanced', { row: ruleRow, effectiveRules: { start } });
     expect(rowOf('Win bonus').textContent).toContain('modified');
-    expect(rowOf('Disqualify after N forfeits').textContent).toContain('modified');
 
     await reset('Win bonus');
     await save();
@@ -186,7 +171,6 @@ describe('the Advanced tab', () => {
     opened = await openTab('advanced', { row: ruleRow, effectiveRules: { start: null } });
     await set('Win bonus', '6');
     expect(rowOf('Win bonus').textContent).not.toContain('modified');
-    expect(rowOf('Disqualify after N forfeits').textContent).not.toContain('modified');
   });
 
   it('a field name is a label of its control, never of its Reset', async () => {

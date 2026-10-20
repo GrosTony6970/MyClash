@@ -1,12 +1,10 @@
+import { BlackCardEffectSchema, ForfeitRulesSchema } from '@myclash/rulesets';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 // Shared enums
 const cardSchema = z.enum(['yellow', 'red', 'black']);
 const accumulationScopeSchema = z.enum(['match', 'phase', 'tournament']);
-const forfeitScopeSchema = z.enum(['match', 'tournament', 'none']);
-
-export type BlackCardForfeitScopeDto = z.infer<typeof forfeitScopeSchema>;
 
 const penaltyRulesetEntrySchema = z.object({
   groupNumber: z.number(),
@@ -80,8 +78,10 @@ const createPenaltyRulesetSchema = z
     yellowCardPoints: z.number().optional(),
     redCardPoints: z.number().optional(),
     blackCardPoints: z.number().optional(),
-    firstBlackCardForfeit: forfeitScopeSchema.optional(),
-    secondBlackCardForfeit: forfeitScopeSchema.optional(),
+    firstBlackCardForfeit: BlackCardEffectSchema.optional(),
+    secondBlackCardForfeit: BlackCardEffectSchema.optional(),
+    /** Absent: the column's DEFAULT, a new club ruleset's start (ruling 67). */
+    forfeitRules: ForfeitRulesSchema.optional(),
   })
   .strict();
 export class CreatePenaltyRulesetDto extends createZodDto(createPenaltyRulesetSchema) {}
@@ -114,8 +114,9 @@ const updatePenaltyRulesetSchema = z
     yellowCardPoints: z.number().optional(),
     redCardPoints: z.number().optional(),
     blackCardPoints: z.number().optional(),
-    firstBlackCardForfeit: forfeitScopeSchema.optional(),
-    secondBlackCardForfeit: forfeitScopeSchema.optional(),
+    firstBlackCardForfeit: BlackCardEffectSchema.optional(),
+    secondBlackCardForfeit: BlackCardEffectSchema.optional(),
+    forfeitRules: ForfeitRulesSchema.optional(),
   })
   .strict();
 export class UpdatePenaltyRulesetDto extends createZodDto(updatePenaltyRulesetSchema) {}

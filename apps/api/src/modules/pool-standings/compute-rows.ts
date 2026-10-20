@@ -48,8 +48,6 @@ export interface ComputeRowsInput {
   status: 'in_progress' | 'completed';
   exchangesByMatch: Map<string, Exchange[]>;
   forfeitCountByReg: Map<string, number>;
-  /** Matches to score as a draw regardless of points (empty unless the policy is on). */
-  drawnForfeitMatchIds: Set<string>;
   ruleset: Ruleset;
   runtimeConfig: unknown;
   /**
@@ -80,7 +78,6 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     status,
     exchangesByMatch,
     forfeitCountByReg,
-    drawnForfeitMatchIds,
     ruleset,
     runtimeConfig,
     afterblowMode,
@@ -113,29 +110,21 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     blue['ptsScored'] = (blue['ptsScored'] ?? 0) + bs;
     blue['ptsConceded'] = (blue['ptsConceded'] ?? 0) + rs;
 
-    if (drawnForfeitMatchIds.has(m.id)) {
-      // tournamentPolicy.forfeitDrawsCount: the bout was forfeited, so record
-      // a draw for both instead of the result the bout itself carries. FIRST,
-      // because a forfeit is an explicit operator act and outranks the rest.
-      red['D'] = (red['D'] ?? 0) + 1;
-      blue['D'] = (blue['D'] ?? 0) + 1;
-    } else {
-      // These columns used to be derived from the SCORES alone, so they
-      // contradicted the bout's own `winner_registration_id` wherever the two
-      // can differ — and a forfeit with `scorePolicy: 'keep_current'` keeps the
-      // live score while naming the OPPONENT as winner, so the fighter who
-      // forfeited was credited with the W in the table they are ranked on.
-      const outcome = boutOutcomes({
-        winnerRegistrationId: m.winner_registration_id,
-        redRegistrationId: m.red_registration_id,
-        blueRegistrationId: m.blue_registration_id,
-        redScore: rs,
-        blueScore: bs,
-        endReason: m.end_reason,
-      });
-      red[COLUMN_FOR[outcome.red]] = (red[COLUMN_FOR[outcome.red]] ?? 0) + 1;
-      blue[COLUMN_FOR[outcome.blue]] = (blue[COLUMN_FOR[outcome.blue]] ?? 0) + 1;
-    }
+    // These columns used to be derived from the SCORES alone, so they
+    // contradicted the bout's own `winner_registration_id` wherever the two
+    // can differ — and a forfeit with `scorePolicy: 'keep_current'` keeps the
+    // live score while naming the OPPONENT as winner, so the fighter who
+    // forfeited was credited with the W in the table they are ranked on.
+    const outcome = boutOutcomes({
+      winnerRegistrationId: m.winner_registration_id,
+      redRegistrationId: m.red_registration_id,
+      blueRegistrationId: m.blue_registration_id,
+      redScore: rs,
+      blueScore: bs,
+      endReason: m.end_reason,
+    });
+    red[COLUMN_FOR[outcome.red]] = (red[COLUMN_FOR[outcome.red]] ?? 0) + 1;
+    blue[COLUMN_FOR[outcome.blue]] = (blue[COLUMN_FOR[outcome.blue]] ?? 0) + 1;
 
     // Accumulate the canonical per-fighter aggregates from this match's
     // exchanges (hits given/received, doubles) + the win count the score

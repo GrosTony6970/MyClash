@@ -5,23 +5,17 @@ import { TF_FORM, tfForm } from './tf-form';
 const TF: EffectiveTfRules = {
   winBonus: 5,
   targetValues: { deepTarget: 2, shallowTarget: 1 },
-  tournamentPolicy: {
-    forfeitDrawsCount: true,
-    forfeitFighterBefore1stMatch: false,
-    disqualifyAfter: null,
-  },
 };
 const rulesWith = (tf: EffectiveTfRules | null) => ({ tf }) as EffectiveRules;
 
 describe('tfForm', () => {
-  it("shows TF_v1's settings in force, the forfeit rule off when none is stored", () => {
+  it("shows TF_v1's settings in force, and no forfeit rule (rulings 63, 68)", () => {
     expect(tfForm(TF)).toEqual(TF);
-    expect(tfForm(TF).tournamentPolicy.disqualifyAfter).toBeNull();
   });
 });
 
 describe('TF_FORM', () => {
-  it('sends the settings under rulesetConfig, Off as a null', () => {
+  it('sends the settings under rulesetConfig', () => {
     const form = TF_FORM.formOf(rulesWith(TF));
     expect(TF_FORM.bodyOf(form)).toEqual({ rulesetConfig: TF });
   });

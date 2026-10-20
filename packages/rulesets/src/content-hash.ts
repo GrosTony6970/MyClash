@@ -32,12 +32,8 @@ export interface CodedScoringBehaviour {
   grammar: ScoringGrammarInput;
   matchFormat: Record<string, unknown> | null;
   afterblowMode: string | null;
-  /** Tournament-level placing policy (e.g. forfeitDrawsCount) — not a ruleset
-   *  constant but it changes the W/L/D tally and thus placings. */
-  tournamentPolicy: unknown;
   winBonus: number | null;
   doublePenaltyFormula: unknown;
-  forfeitPolicy: unknown;
 }
 
 /** Formula ruleset: the maths IS data (an AST + constants + tiebreakers). */
@@ -46,7 +42,6 @@ export interface FormulaScoringBehaviour {
   grammar: ScoringGrammarInput;
   matchFormat: Record<string, unknown> | null;
   afterblowMode: string | null;
-  tournamentPolicy: unknown;
   scoreFormula: unknown;
   constants: Record<string, number>;
   tiebreakers: ReadonlyArray<{ variable: string; direction: 'asc' | 'desc' }>;
@@ -54,10 +49,6 @@ export interface FormulaScoringBehaviour {
   /** The end decision it was published with (`decision_edition`, 0228). A coded
    *  engine's is named by its version, which `engine` already carries. */
   decisionEdition: string | null;
-  /** What a forfeit does to the standings: it scores a formula Tournament as it
-   *  scores a coded one, so it is part of its behaviour too (operator ruling
-   *  "Forfeit", 2026-10-19). Required, so every producer has to say it. */
-  forfeitPolicy: unknown;
 }
 
 export type ScoringBehaviourInput = CodedScoringBehaviour | FormulaScoringBehaviour;
@@ -94,7 +85,6 @@ export function canonicalizeScoringBehaviour(
     // identically — also hash identically.
     matchFormat: normalizeMatchFormatConfig(input.matchFormat ?? {}),
     afterblowMode: input.afterblowMode ?? null,
-    tournamentPolicy: input.tournamentPolicy ?? null,
   };
   if (input.kind === 'coded') {
     return {
@@ -103,7 +93,6 @@ export function canonicalizeScoringBehaviour(
       ...shared,
       winBonus: input.winBonus ?? null,
       doublePenaltyFormula: input.doublePenaltyFormula ?? null,
-      forfeitPolicy: input.forfeitPolicy ?? null,
     };
   }
   return {
@@ -117,7 +106,6 @@ export function canonicalizeScoringBehaviour(
     })),
     doublePenaltyFormula: input.doublePenaltyFormula ?? null,
     decisionEdition: input.decisionEdition ?? null,
-    forfeitPolicy: input.forfeitPolicy ?? null,
   };
 }
 
@@ -131,6 +119,8 @@ export interface PenaltyBehaviourInput {
   blackCardPoints: number;
   firstBlackCardForfeit: string;
   secondBlackCardForfeit: string;
+  /** What a forfeit does (`penalty_rulesets.forfeit_rules`, rulings 63-76): it changes results. */
+  forfeitRules: unknown;
   entries: ReadonlyArray<{
     groupNumber: number;
     refNumber: string;
@@ -168,6 +158,7 @@ export function canonicalizePenaltyDefinition(
       black: input.blackCardPoints,
     },
     blackCardForfeit: { first: input.firstBlackCardForfeit, second: input.secondBlackCardForfeit },
+    forfeitRules: input.forfeitRules ?? null,
     entries,
   };
 }

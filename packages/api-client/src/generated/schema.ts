@@ -11061,11 +11061,6 @@ export interface components {
           deepTarget?: number;
           shallowTarget?: number;
         };
-        tournamentPolicy?: {
-          forfeitDrawsCount?: boolean;
-          forfeitFighterBefore1stMatch?: boolean;
-          disqualifyAfter?: number;
-        };
         matchFormat?: {
           pointCap?: number;
           /** @enum {string} */
@@ -11167,11 +11162,6 @@ export interface components {
         targetValues?: {
           deepTarget?: number;
           shallowTarget?: number;
-        };
-        tournamentPolicy?: {
-          forfeitDrawsCount?: boolean;
-          forfeitFighterBefore1stMatch?: boolean;
-          disqualifyAfter?: number | null;
         };
         matchFormat?: {
           pointCap?: number;
@@ -11357,6 +11347,34 @@ export interface components {
       firstBlackCardForfeit?: 'match' | 'tournament' | 'none';
       /** @enum {string} */
       secondBlackCardForfeit?: 'match' | 'tournament' | 'none';
+      forfeitRules?: {
+        reasons: {
+          injury: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+          voluntary: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+          conduct_violation: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+        };
+        disqualifyAfter: number | 'off';
+        disqualifyBeforeFirstBout: boolean;
+        blackCardOpponentScore: number;
+      };
     };
     ImportPenaltyRulesetCsvDto: {
       /** Format: uuid */
@@ -11390,6 +11408,34 @@ export interface components {
       firstBlackCardForfeit?: 'match' | 'tournament' | 'none';
       /** @enum {string} */
       secondBlackCardForfeit?: 'match' | 'tournament' | 'none';
+      forfeitRules?: {
+        reasons: {
+          injury: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+          voluntary: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+          conduct_violation: {
+            /** @enum {string} */
+            outcome: 'keep_current' | 'fixed_loss';
+            opponentScore: number;
+            /** @enum {string} */
+            fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
+          };
+        };
+        disqualifyAfter: number | 'off';
+        disqualifyBeforeFirstBout: boolean;
+        blackCardOpponentScore: number;
+      };
     };
     PublishPenaltyRulesetDto: {
       version?: string;

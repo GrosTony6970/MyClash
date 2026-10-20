@@ -75,23 +75,18 @@ export type {
 // Forfeit policies
 export {
   BLACK_CARD_REASONS,
-  DEFAULT_FORFEIT_POLICY,
+  BlackCardEffectSchema,
   FORFEIT_REASONS,
-  ForfeitPolicySchema,
-  ForfeitReasonPolicySchema,
+  forfeitOutcomeOf,
+  ForfeitReasonRuleSchema,
   ForfeitReasonSchema,
+  ForfeitRulesSchema,
   isBlackCardReason,
   isOverrideReason,
-  normalizeForfeitPolicy,
+  OVERRIDE_OUTCOME,
   OVERRIDE_REASONS,
-  resolveForfeitPolicy,
 } from './forfeits';
-export type {
-  BlackCardReason,
-  ForfeitPolicy,
-  ForfeitReason,
-  ForfeitReasonPolicy,
-} from './forfeits';
+export type { BlackCardEffect, BlackCardReason, ForfeitOutcome, ForfeitReason } from './forfeits';
 
 // Every built-in engine, each version of it
 export { BUILT_IN_RULESETS } from './built-ins';
@@ -175,11 +170,7 @@ export type {
 // Ruleset lineage (fork-vs-parent bucket diff)
 export { diffRulesetBuckets, projectRulesetBuckets } from './lineage';
 export type { BucketStatus, BucketDiff, RulesetBucketInputs, RulesetBucketRow } from './lineage';
-export {
-  diffPenaltyBucket,
-  projectPenaltyBucketFromLive,
-  projectPenaltyBucketFromSnapshot,
-} from './penalty-lineage';
+export { diffPenaltyBucket, projectPenaltyBucketFromLive } from './penalty-lineage';
 
 // Content-hash identity (canonical serialization; sha256 lives in the API)
 export {

@@ -8,7 +8,8 @@
  * (ruling "Club version", 2026-10-18). The buttons follow the same rule, the display stays (ruling
  * "Draft switch", 2026-10-19), and the seed reads the targets of the pair's kind (ruling "Formula
  * targets"). A move to a club formula writes only its own seed and the patch (ruling 53,
- * 2026-10-20), and Off for the forfeit rule removes it on a move too (ruling 52).
+ * 2026-10-20). A move writes no forfeit rule: every one lives in the penalty ruleset (rulings
+ * 63-76), so a rule an old row still stores is dropped.
  *
  * The harness: `rules-write.fixtures.ts`.
  */
@@ -51,12 +52,12 @@ const expectedOf = (row: Row) => ({
 const repin = (over: Row, row: Row = ON_TF_1_0_0) =>
   ({ ...REPIN, expected: expectedOf(row), ...over }) as never;
 const TO_1_1_0 = { rulesetCode: 'TF_v1', rulesetVersion: '1.1.0' };
-/** A TF_v1 Tournament whose organiser chose Off for the forfeit rule: no `disqualifyAfter`. */
-const OFF_RULE: Row = {
+/** A TF_v1 Tournament whose row still stores a forfeit rule from before rulings 63-76. */
+const OLD_POLICY: Row = {
   ...ON_TF_1_0_0,
   ruleset_config: {
     ...OWN,
-    tournamentPolicy: { forfeitDrawsCount: true, forfeitFighterBefore1stMatch: false },
+    tournamentPolicy: { forfeitDrawsCount: true, disqualifyAfter: 2 },
   },
 };
 const labels = (buttons: Array<{ label: string }> | undefined) => buttons?.map((b) => b.label);
@@ -112,13 +113,11 @@ describe('a move by the PATCH before any result', () => {
     expect(written()).not.toHaveProperty('scoring_config_json');
   });
 
-  it('TF_v1 1.0.0 to 1.1.0 keeps an Off forfeit rule off: the defaults do not fill it (ruling 48)', async () => {
-    const { svc, settings } = harness(OFF_RULE);
+  it('TF_v1 1.0.0 to 1.1.0 drops a forfeit rule the row still stores, and keeps the rest', async () => {
+    const { svc, settings } = harness(OLD_POLICY);
     await svc.updateTournament('t1', { rulesetVersion: '1.1.0' } as never, 'u1');
-    expect(settings()?.['tournamentPolicy']).toEqual({
-      forfeitDrawsCount: true,
-      forfeitFighterBefore1stMatch: false,
-    });
+    expect(settings()).not.toHaveProperty('tournamentPolicy');
+    expect(settings()).toMatchObject({ winBonus: 5, matchFormat: { pointCap: 7 } });
   });
 
   it('a setting sent beside that move goes on top', async () => {
@@ -194,27 +193,11 @@ describe('a move by the PATCH before any result', () => {
     expect(labels(scoring()?.buttons.clean)).toEqual(['+4', '+2']);
   });
 
-  it('to a coded fork still writes the full settings, its own forfeit rule among them', async () => {
+  it('to a coded fork still writes the full settings, and no forfeit rule', async () => {
     const { svc, settings } = harness(ON_TF_1_0_0, FORK);
     await svc.updateTournament('t1', { rulesetCode: 'custom_fork' } as never, 'u1');
-    expect(settings()).toMatchObject({ winBonus: 3, tournamentPolicy: { disqualifyAfter: 4 } });
-  });
-
-  it('Off for the forfeit rule, sent beside a move, removes the setting and is no 400', async () => {
-    const { svc, settings } = harness();
-    await svc.updateTournament(
-      't1',
-      {
-        rulesetVersion: '1.1.0',
-        rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } },
-      } as never,
-      'u1',
-    );
-    expect(settings()?.['tournamentPolicy']).not.toHaveProperty('disqualifyAfter');
-    expect(settings()).toMatchObject({
-      winBonus: 5,
-      tournamentPolicy: { forfeitDrawsCount: false },
-    });
+    expect(settings()).toMatchObject({ winBonus: 3, matchFormat: { pointCap: 10 } });
+    expect(settings()).not.toHaveProperty('tournamentPolicy');
   });
 });
 
@@ -234,14 +217,14 @@ describe('a move by the audited re-pin, and its preview', () => {
     expect(rulesetChange.changes.map((change) => change.path)).toEqual(['engine']);
   });
 
-  it('TF_v1 1.0.0 to 1.1.0 keeps an Off forfeit rule off, and lists no policy change', async () => {
-    const { svc, settings } = harness(OFF_RULE);
+  it('TF_v1 1.0.0 to 1.1.0 drops a forfeit rule the row still stores, and lists no change for it', async () => {
+    const { svc, settings } = harness(OLD_POLICY);
     const { rulesetChange } = await svc.repinTournamentRuleset(
       't1',
-      repin(TO_1_1_0, OFF_RULE),
+      repin(TO_1_1_0, OLD_POLICY),
       'u1',
     );
-    expect(settings()?.['tournamentPolicy']).not.toHaveProperty('disqualifyAfter');
+    expect(settings()).not.toHaveProperty('tournamentPolicy');
     expect(rulesetChange.changes.map((change) => change.path)).toEqual(['engine']);
   });
 

@@ -31,11 +31,11 @@ describe('patchOf', () => {
     });
   });
 
-  it('sends a null as a value: Off for the forfeit rule', () => {
-    const before = { rulesetConfig: { tournamentPolicy: { disqualifyAfter: 2 } } };
-    const off = { rulesetConfig: { tournamentPolicy: { disqualifyAfter: null } } };
-    expect(patchOf(before, off)).toEqual(off);
-    expect(patchOf(off, structuredClone(off))).toBeNull();
+  it('sends a null as a value', () => {
+    const before = { rulesetConfig: { matchFormat: { maxDoubleHits: 2 } } };
+    const cleared = { rulesetConfig: { matchFormat: { maxDoubleHits: null } } };
+    expect(patchOf(before, cleared)).toEqual(cleared);
+    expect(patchOf(cleared, structuredClone(cleared))).toBeNull();
   });
 
   it('never reads a key the form does not hold as a change', () => {

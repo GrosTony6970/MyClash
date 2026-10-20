@@ -52,6 +52,7 @@ export function buildPenaltyVersionRow(
     black_card_points: ruleset['black_card_points'],
     first_black_card_forfeit: ruleset['first_black_card_forfeit'],
     second_black_card_forfeit: ruleset['second_black_card_forfeit'],
+    forfeit_rules: ruleset['forfeit_rules'],
     entries: serializePenaltyEntries(
       (ruleset['penalty_ruleset_entries'] as Row[] | undefined) ?? [],
     ),
@@ -59,11 +60,39 @@ export function buildPenaltyVersionRow(
   };
 }
 
+/** The definition columns a snapshot holds, beside its own (`penalty_ruleset_versions`). */
+export interface PenaltyVersionDefinition {
+  name: string;
+  description: string | null;
+  accumulation_scope: string;
+  yellow_card_points: number;
+  red_card_points: number;
+  black_card_points: number;
+  first_black_card_forfeit: string;
+  second_black_card_forfeit: string;
+  forfeit_rules: unknown;
+}
+
+/** The penalty ruleset columns a rollback writes back: the definition `snapshot` froze. */
+export function penaltyRowOfVersion(snapshot: PenaltyVersionDefinition): Record<string, unknown> {
+  return {
+    name: snapshot.name,
+    description: snapshot.description,
+    accumulation_scope: snapshot.accumulation_scope,
+    yellow_card_points: snapshot.yellow_card_points,
+    red_card_points: snapshot.red_card_points,
+    black_card_points: snapshot.black_card_points,
+    first_black_card_forfeit: snapshot.first_black_card_forfeit,
+    second_black_card_forfeit: snapshot.second_black_card_forfeit,
+    forfeit_rules: snapshot.forfeit_rules,
+  };
+}
+
 /**
  * Snapshot the current version of a penalty ruleset (if not already) and mark it
  * frozen. Called when a tournament/event pins the ruleset, so the exact pinned
- * definition is captured immutably (the content-hash slice fingerprints it, and
- * the in-service edit-guard already refuses edits once referenced).
+ * definition is kept as the version history shows it (the in-service edit-guard
+ * already refuses edits once referenced; the content hash reads the live row).
  *
  * No-op for the built-in (super-admin-managed) and best-effort: a snapshot
  * hiccup must never fail tournament creation, because immutability is enforced
@@ -100,8 +129,8 @@ export async function freezePenaltyRulesetVersion(
 /**
  * The current version string of a penalty ruleset an Event of `organizationId`
  * may pin — recorded as the penalty_ruleset_version pin on a tournament/event at
- * assign time, so the content-hash reads the frozen snapshot for the version
- * that was pinned rather than whatever the live parent later becomes.
+ * assign time, so the record says which version was pinned. The engine and the
+ * content hash read the live row (rulings A and G).
  *
  * The one owner of the four pin doors' check (operator rulings 64 and 66): the
  * built-in, a shared ruleset, or one that organisation owns. A Tournament's

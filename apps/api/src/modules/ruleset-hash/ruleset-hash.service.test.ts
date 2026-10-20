@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RulesetHashService } from './ruleset-hash.service';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 type TableState = Record<string, { maybeSingle?: unknown }>;
@@ -31,9 +32,25 @@ interface Overrides {
   penalty?: Record<string, unknown>;
 }
 
-// A TF_v1 (registry-coded) tournament with a pinned custom penalty version, so
+/** The LIVE penalty row a pin reads: what the engine scores cards and forfeits by. */
+const LIVE_PENALTY = {
+  accumulation_scope: 'match',
+  yellow_card_points: 0,
+  red_card_points: -1,
+  black_card_points: 0,
+  first_black_card_forfeit: 'match',
+  second_black_card_forfeit: 'tournament',
+  forfeit_rules: FFAMHE_FORFEIT_RULES,
+  penalty_ruleset_entries: [{ group_number: 1, ref_number: 'R1', sanctions: ['yellow', 'red'] }],
+};
+
+/** The columns the live read must ask for: the doubles answer whatever is asked. */
+const LIVE_PENALTY_COLUMNS =
+  'accumulation_scope, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules, penalty_ruleset_entries(group_number, ref_number, sanctions)';
+
+// A TF_v1 (registry-coded) tournament with a pinned custom penalty ruleset, so
 // resolveRulesetGrammar + scoringStructureOf both short-circuit to the
-// registry and only tournaments + penalty_ruleset_versions are read.
+// registry and only tournaments + the live penalty_rulesets row are read.
 function stateFor(o: Overrides = {}): TableState {
   return {
     tournaments: {
@@ -48,18 +65,7 @@ function stateFor(o: Overrides = {}): TableState {
         penalty_ruleset_version: '1.0.0',
       },
     },
-    penalty_ruleset_versions: {
-      maybeSingle: {
-        accumulation_scope: 'match',
-        yellow_card_points: 0,
-        red_card_points: -1,
-        black_card_points: 0,
-        first_black_card_forfeit: 'match',
-        second_black_card_forfeit: 'tournament',
-        entries: [{ groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] }],
-        ...o.penalty,
-      },
-    },
+    penalty_rulesets: { maybeSingle: { ...LIVE_PENALTY, ...o.penalty } },
   };
 }
 
@@ -130,7 +136,9 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
       ).toBe(true);
   });
 
-  it('describes a club formula by its forfeit policy too (ruling "Forfeit")', async () => {
+  // Every forfeit rule moved to the penalty ruleset (rulings 63-76): a club formula's old stored
+  // forfeit policy is dead data, and the fingerprint no longer reads it.
+  it('a club formula is not described by a forfeit policy its settings still store', async () => {
     const clubFormula = {
       maybeSingle: {
         id: 'cr-1',
@@ -144,14 +152,14 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
         decision_edition: '2026-10',
       },
     };
-    // Two club-formula Tournaments that differ ONLY in their forfeit policy.
+    // Two club-formula Tournaments that differ ONLY in their old forfeit policy.
     const onPolicy = (forfeitPolicy: unknown) => {
       const state = stateFor({ rulesetConfig: { forfeitPolicy } });
       (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_code = 'custom_club';
       return { ...state, custom_rulesets: clubFormula };
     };
     const matchOnly = { reasons: { black_card_1: { tournamentState: 'match_only' } } };
-    expect(await hashOf(onPolicy(matchOnly))).not.toBe(await hashOf(onPolicy(null)));
+    expect(await hashOf(onPolicy(matchOnly))).toBe(await hashOf(onPolicy(null)));
   });
 
   it('produces a deterministic 64-char sha256 hex', async () => {
@@ -187,6 +195,39 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     expect(changed).not.toBe(base);
   });
 
+  it('a forfeit rule change moves the hash (rulings 63-76: a forfeit changes results)', async () => {
+    const base = await hashOf(stateFor());
+    const changed = await hashOf(
+      stateFor({ penalty: { forfeit_rules: { ...FFAMHE_FORFEIT_RULES, disqualifyAfter: 'off' } } }),
+    );
+    expect(changed).not.toBe(base);
+  });
+
+  // The engine scores by the LIVE row. After a pin, an unpin, an edit and a re-pin, the snapshot of
+  // the pinned version no longer says what the engine does, so the fingerprint never reads it.
+  it('the hash follows the live row, not the pinned snapshot', async () => {
+    const live = (second: string) => stateFor({ penalty: { second_black_card_forfeit: second } });
+    const withSnapshot: TableState = {
+      ...live('match'),
+      penalty_ruleset_versions: {
+        maybeSingle: {
+          ...LIVE_PENALTY,
+          second_black_card_forfeit: 'tournament',
+          forfeit_rules: { ...FFAMHE_FORFEIT_RULES, disqualifyAfter: 'off' },
+          entries: [{ groupNumber: 1, refNumber: 'R1', sanctions: ['yellow', 'red'] }],
+        },
+      },
+    };
+    selects.length = 0;
+    const hash = await hashOf(withSnapshot);
+    expect(selects.filter((s) => s.table === 'penalty_rulesets').map((s) => s.columns)).toEqual([
+      LIVE_PENALTY_COLUMNS,
+    ]);
+    expect(selects.some((s) => s.table === 'penalty_ruleset_versions')).toBe(false);
+    expect(hash).toBe(await hashOf(live('match')));
+    expect(hash).not.toBe(await hashOf(live('tournament')));
+  });
+
   it('changes when the tournament overrides effective target values', async () => {
     const base = await hashOf(stateFor());
     const changed = await hashOf(
@@ -195,12 +236,16 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     expect(changed).not.toBe(base);
   });
 
-  it('changes when tournamentPolicy.forfeitDrawsCount changes (a placing determinant)', async () => {
+  // The forfeit and disqualification rules left the scoring ruleset (rulings 63-76): an old stored
+  // tournamentPolicy is dead data, and two Tournaments that differ only by it score the same.
+  it('a stored tournamentPolicy does not move the hash', async () => {
     const base = await hashOf(stateFor());
-    const changed = await hashOf(
-      stateFor({ rulesetConfig: { tournamentPolicy: { forfeitDrawsCount: true } } }),
+    const withPolicy = await hashOf(
+      stateFor({
+        rulesetConfig: { tournamentPolicy: { forfeitDrawsCount: true, disqualifyAfter: 3 } },
+      }),
     );
-    expect(changed).not.toBe(base);
+    expect(withPolicy).toBe(base);
   });
 
   it('returns null when the tournament is gone', async () => {

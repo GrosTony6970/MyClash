@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
@@ -204,9 +205,13 @@ describe('a black card given with no network while the clock runs', () => {
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       match_events: timeline,
-      // The card rules a black card recorded by hand reads: the card path hands its rule over.
+      // The card rules a black card recorded by hand reads: the card path hands its rules over.
       tournaments: { rows: [{ id: 'tournament-1', penalty_ruleset_id: 'cards-1' }] },
-      penalty_rulesets: { rows: [{ id: 'cards-1', first_black_card_forfeit: 'match' }] },
+      penalty_rulesets: {
+        rows: [
+          { id: 'cards-1', first_black_card_forfeit: 'match', forfeit_rules: FFAMHE_FORFEIT_RULES },
+        ],
+      },
     });
     const forfeits = new MatchForfeitsService(
       db as never,
@@ -220,7 +225,7 @@ describe('a black card given with no network while the clock runs', () => {
         { forfeitingRegistrationId: 'reg-red', reason: 'black_card_1', canContinue: true },
         { staffAccountId: 'pad-1' },
         causedAt,
-        causedAt ? 'match' : undefined,
+        causedAt ? { rules: FFAMHE_FORFEIT_RULES, cardEffect: 'match' } : undefined,
       );
     return { db, blackCard };
   }

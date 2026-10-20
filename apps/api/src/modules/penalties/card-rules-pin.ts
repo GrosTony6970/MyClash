@@ -1,4 +1,4 @@
-import type { BlackCardReason } from '@myclash/rulesets';
+import type { BlackCardEffect, BlackCardReason } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 
 /**
@@ -12,12 +12,9 @@ import type { SupabaseService } from '../supabase/supabase.service';
 type Client = SupabaseService['service'];
 type Row = Record<string, unknown>;
 
-/** What a black card does to its Fighter: ends the bout, the whole Tournament, or nothing. */
-export type BlackCardEffect = 'match' | 'tournament' | 'none';
-
-/** The columns of a card ruleset a card is priced and reached by. */
+/** The columns of a card ruleset a card is priced and reached by, and its forfeit rules. */
 const CARD_RULE_COLUMNS =
-  'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit';
+  'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules';
 
 /**
  * The predicate that identifies the built-in row. `RulesetHashService.resolveEffectivePenalty`

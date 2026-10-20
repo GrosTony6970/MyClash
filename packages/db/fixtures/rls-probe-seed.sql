@@ -122,9 +122,10 @@ INSERT INTO penalty_ruleset_entries (id, ruleset_id, group_number, ref_number, s
    '["warning"]');
 INSERT INTO penalty_ruleset_versions
   (id, penalty_ruleset_id, version, name, accumulation_scope, yellow_card_points, red_card_points,
-   black_card_points, first_black_card_forfeit, second_black_card_forfeit) VALUES
+   black_card_points, first_black_card_forfeit, second_black_card_forfeit, forfeit_rules) VALUES
   ('fe200000-0000-4000-8000-00000000000a', 'fe000000-0000-4000-8000-00000000000a', '1', 'Club', 'match', 0, 1, 0,
-   'match', 'tournament');
+   'match', 'tournament',
+   (SELECT forfeit_rules FROM penalty_rulesets WHERE id = 'fe000000-0000-4000-8000-00000000000a'));
 -- The record of a re-pin of the published Tournament: only the API writes it (0227).
 INSERT INTO tournament_ruleset_repins
   (id, event_id, tournament_id, from_code, from_version, to_code, to_version, justification, ranking_compatible) VALUES

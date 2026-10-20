@@ -1,7 +1,7 @@
 import { HttpException, Logger, NotFoundException } from '@nestjs/common';
 import type { Ruleset, TFv1Config } from '@myclash/rulesets';
 import type { EffectiveRules, EffectiveTfRules, RulesStart } from '@myclash/types';
-import { disqualifyAfterOf, isCodedRuleset } from '@myclash/types/effective-rules';
+import { isCodedRuleset } from '@myclash/types/effective-rules';
 import {
   hiddenFromReader,
   type CompetitionEvent,
@@ -17,7 +17,6 @@ import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
   validateTournamentRulesetConfig,
-  type TournamentRulesetConfig,
 } from './tournament-config';
 
 const logger = new Logger('EffectiveRules');
@@ -33,27 +32,6 @@ interface MatchConfigRow {
   lock_config_json: unknown;
   status: string;
   events: CompetitionEvent;
-}
-
-/** TF_v1's settings with the disqualify setting as the forfeit rule applies it: null is off. */
-type TfInForce = Omit<TFv1Config, 'tournamentPolicy'> & {
-  tournamentPolicy: EffectiveTfRules['tournamentPolicy'];
-};
-
-/**
- * The parsed settings with the Tournament policy the forfeit rule applies: its disqualify setting
- * read on the STORED settings (`disqualifyAfterOf`), never the parse's filled-in 2 (ruling 48).
- */
-function inForce(
-  parsed: TournamentRulesetConfig,
-  stored: unknown,
-): TfInForce | Exclude<TournamentRulesetConfig, TFv1Config> {
-  if (!('tournamentPolicy' in parsed)) return parsed;
-  const tournamentPolicy = {
-    ...parsed.tournamentPolicy,
-    disqualifyAfter: disqualifyAfterOf(stored),
-  };
-  return { ...parsed, tournamentPolicy };
 }
 
 /**
@@ -103,7 +81,7 @@ export async function readMatchConfig(
     normalizeRulesetVersion(row.ruleset_version || '1'),
   );
   const matchFormat = scoredMatchFormat(row.ruleset_config, ruleset);
-  const rulesetConfig = { ...inForce(stored, row.ruleset_config), matchFormat };
+  const rulesetConfig = { ...stored, matchFormat };
   // A NULL column reads as every missing value does (the normalizer's own fill).
   const scoringConfig = normalizeTournamentScoringConfig(row.scoring_config_json);
   return {
@@ -126,27 +104,21 @@ function rulesOf(
   ruleset: Ruleset,
 ): RulesStart {
   const { code } = pairOf(row);
-  const parsed = inForce(validateTournamentRulesetConfig(code, settings ?? {}), settings);
+  const parsed = validateTournamentRulesetConfig(code, settings ?? {});
   // The base code a fork reuses, as `getTournamentById` answers it (null for any other ruleset).
   const baseCode = row['ruleset_base_code'];
   const coded = isCodedRuleset(code, typeof baseCode === 'string' ? baseCode : null);
   return {
     matchFormat: scoredMatchFormat(settings, ruleset),
     // A coded ruleset is parsed by TF_v1's schema (`validateTournamentRulesetConfig`).
-    tf: coded ? tfRulesOf(parsed as TfInForce) : null,
+    tf: coded ? tfRulesOf(parsed as TFv1Config) : null,
     scoring: normalizeTournamentScoringConfig(scoring),
   };
 }
 
 /** Exactly what the screens show of TF_v1's own settings, nothing a reader does not apply. */
-function tfRulesOf(parsed: TfInForce): EffectiveTfRules {
-  const { forfeitDrawsCount, forfeitFighterBefore1stMatch, disqualifyAfter } =
-    parsed.tournamentPolicy;
-  return {
-    winBonus: parsed.winBonus,
-    targetValues: { ...parsed.targetValues },
-    tournamentPolicy: { forfeitDrawsCount, forfeitFighterBefore1stMatch, disqualifyAfter },
-  };
+function tfRulesOf(parsed: TFv1Config): EffectiveTfRules {
+  return { winBonus: parsed.winBonus, targetValues: { ...parsed.targetValues } };
 }
 
 /**
