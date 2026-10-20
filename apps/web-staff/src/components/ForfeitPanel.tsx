@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { padRequest } from '../offline/drill-request';
 import { refusalMessage } from '../lib/refusal-copy';
+import { forfeitQuestion, type ForfeitAsks } from '@myclash/types/forfeit-rules';
 
 type ForfeitReason = 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
 type FighterColor = 'red' | 'blue';
@@ -18,6 +19,9 @@ export interface ForfeitPanelProps {
   apiUrl?: string;
   disabled?: boolean;
   onForfeitRecorded?: () => void;
+  /** Which reasons ask; `undefined` while read, `null` when the pad holds no answer. */
+  forfeitAsks?: ForfeitAsks | null;
+  phaseType?: string | null;
 }
 
 const REASONS: ForfeitReason[] = [
@@ -28,9 +32,6 @@ const REASONS: ForfeitReason[] = [
   'conduct_violation',
 ];
 
-// A black card's own rule says whether the Fighter continues (rulings 54 and 58): nothing to ask.
-const ASK_CONTINUE = new Set<ForfeitReason>(['injury', 'voluntary']);
-
 export function ForfeitPanel({
   matchId,
   redRegistrationId,
@@ -40,6 +41,8 @@ export function ForfeitPanel({
   apiUrl = 'http://localhost:4000',
   disabled = false,
   onForfeitRecorded,
+  forfeitAsks,
+  phaseType,
 }: ForfeitPanelProps) {
   const { t } = useI18n();
   const [fighter, setFighter] = useState<FighterColor>('red');
@@ -53,6 +56,7 @@ export function ForfeitPanel({
   const reasonId = `forfeit-reason-${matchId}`;
   const noteId = `forfeit-note-${matchId}`;
   const canContinueId = `forfeit-can-continue-${matchId}`;
+  const question = forfeitQuestion(reason, forfeitAsks, phaseType);
 
   async function submit() {
     setSubmitting(true);
@@ -62,7 +66,7 @@ export function ForfeitPanel({
       body: {
         forfeitingRegistrationId: fighter === 'red' ? redRegistrationId : blueRegistrationId,
         reason,
-        canContinue: ASK_CONTINUE.has(reason) ? canContinue : undefined,
+        canContinue: question.ask ? canContinue : undefined,
         note: note.trim() || undefined,
       },
     });
@@ -124,7 +128,7 @@ export function ForfeitPanel({
           </select>
         </label>
       </div>
-      {ASK_CONTINUE.has(reason) && (
+      {question.ask && (
         <label
           htmlFor={canContinueId}
           className="mt-3 flex items-center gap-2 text-sm text-foreground-secondary"
@@ -138,6 +142,11 @@ export function ForfeitPanel({
           />
           {t('scoring.forfeits.canContinue')}
         </label>
+      )}
+      {question.unconfirmed && (
+        <p data-testid="forfeit-rules-unconfirmed" className="mt-1 text-xs text-muted">
+          {t('scoring.forfeits.rulesUnconfirmed')}
+        </p>
       )}
       <input
         id={noteId}

@@ -640,6 +640,8 @@ export const scoring = {
     recordError: 'Could not record forfeit.',
     rulesInvalid:
       'The forfeit rules of this tournament cannot be read. Ask an organiser to fix its penalty ruleset.',
+    rulesUnconfirmed:
+      'The pad could not read the forfeit rules of this tournament: answer as they say.',
     confirmTitle: 'Record forfeit?',
     confirmBody: '{fighter} will forfeit this match. This ends the bout.',
     reasons: {

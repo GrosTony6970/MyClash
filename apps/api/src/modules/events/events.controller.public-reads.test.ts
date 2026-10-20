@@ -215,12 +215,13 @@ describe('GET tournaments/:id/match-config (rulings 81-83, 95)', () => {
     }
   });
 
-  it("reads everything from one Tournament row, and a projector's read costs nothing more", async () => {
+  // The forfeit questions' reads that follow are counted in `match-config.forfeit-asks.test.ts`.
+  it('reads its rules from one Tournament row, first', async () => {
     await config(RUNNING);
-    expect(queriedTables(db.from)).toEqual(['tournaments']);
-    expect(selectsFor(db.from, 'tournaments')).toEqual([
+    expect(queriedTables(db.from)[0]).toBe('tournaments');
+    expect(selectsFor(db.from, 'tournaments')[0]).toBe(
       'ruleset_code, ruleset_version, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)',
-    ]);
+    );
   });
 
   it('fails a failed read loudly: never a 404, never the defaults', async () => {
@@ -304,7 +305,9 @@ describe('GET tournaments/:id/match-config: the doubles limit the server scores 
 
   it("answers no limit for a club's copy of the points-cap ruleset", async () => {
     expect(await limitsOf(COPY.code, '1.0.0', [COPY])).toEqual([null, null]);
-    expect(queriedTables(db.from)).toEqual(['tournaments', 'custom_rulesets']);
+    const customReads = queriedTables(db.from).filter((table) => table.startsWith('custom_'));
+    expect(queriedTables(db.from)[0]).toBe('tournaments');
+    expect(customReads).toEqual(['custom_rulesets']);
   });
 
   it('reads no ruleset for a Tournament hidden from the caller', async () => {

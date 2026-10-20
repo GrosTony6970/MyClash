@@ -32,6 +32,8 @@ import { useEventStatus } from '../../_hooks/useEventStatus';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
 import { phaseCrumb, type PhaseType } from './phase-crumb';
+import { useForfeitAsks } from './useForfeitAsks';
+import { forfeitQuestion } from '@myclash/types/forfeit-rules';
 
 /**
  * One i18n key per reason. The engine owns which reasons exist; this owns
@@ -267,6 +269,8 @@ export default function MatchDetailPage() {
   const [activeForfeit, setActiveForfeit] = useState<ActiveForfeit | null>(null);
   const [voidingForfeit, setVoidingForfeit] = useState(false);
   const isOverride = isOverrideReason(forfeitReason);
+  const forfeitAsks = useForfeitAsks(apiUrl, summary?.tournamentId);
+  const asksCanContinue = forfeitQuestion(forfeitReason, forfeitAsks, summary?.phaseType).ask;
   // Derived in render, not in an effect: what a void does is a pure function of
   // the record the API just returned.
   const voidCopy = voidConfirmCopy(activeForfeit?.cascade);
@@ -438,10 +442,7 @@ export default function MatchDetailPage() {
         reason: forfeitReason,
         // The DTO refuses canContinue on an override and requires the scores;
         // an override never withdraws anyone, so there is nothing to ask.
-        canContinue:
-          !isOverride && ['injury', 'voluntary'].includes(forfeitReason)
-            ? forfeitCanContinue
-            : undefined,
+        canContinue: asksCanContinue ? forfeitCanContinue : undefined,
         explicitScores: isOverride
           ? {
               forfeitingScore: Number(overrideLosingScore) || 0,
@@ -736,7 +737,7 @@ export default function MatchDetailPage() {
                 </label>
               </>
             ) : (
-              ['injury', 'voluntary'].includes(forfeitReason) && (
+              asksCanContinue && (
                 <label className="flex items-center gap-2 text-sm text-danger">
                   <input
                     type="checkbox"

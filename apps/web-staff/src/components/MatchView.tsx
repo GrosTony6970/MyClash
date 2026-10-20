@@ -29,9 +29,15 @@ import { usePadNeighbours } from '../hooks/usePadNeighbours';
 import type { ClockState } from './MatchClock';
 import type { ClockPress, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { pointCapWinnerColor } from '@myclash/types';
+import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import { editionOf } from '../lib/bout-edition';
 import type { PadBoutRules } from '../lib/bout-read';
-import { rulesOnPad, settledConfig, type HeldMatchConfig } from '../lib/bout-rules';
+import {
+  forfeitAsksOnPad,
+  rulesOnPad,
+  settledConfig,
+  type HeldMatchConfig,
+} from '../lib/bout-rules';
 import { cardCatalogueKey } from '../lib/penalty-catalogue';
 import { sideStyle, useWakeLock } from '@myclash/ui';
 import { effectiveTimeLimitSeconds, elapsedActiveMs, levelChainApplies } from './scoreboard-clock';
@@ -223,6 +229,7 @@ export function MatchView({
     void readMatchConfig<{
       scoringConfig: TournamentScoringConfig;
       matchFormat: MatchFormatConfig;
+      forfeitAsks?: ForfeitAsks | null;
     }>(apiUrl, match.tournamentId, controller.signal).then((result) => {
       if (cancelled) return;
       setConfig(result && { ...result.body, fresh: result.fresh });
@@ -911,6 +918,8 @@ export function MatchView({
         bout={submit.bout}
         round={submit.round}
         onCardQueued={moveSequenceOn}
+        forfeitAsks={forfeitAsksOnPad(heldConfig)}
+        phaseType={match.phaseType}
         config={scoringConfig}
         scoring={scoring}
         forfeitDisabled={

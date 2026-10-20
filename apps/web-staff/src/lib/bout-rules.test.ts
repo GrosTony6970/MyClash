@@ -6,7 +6,7 @@ import {
   type TournamentScoringConfig,
 } from '@myclash/types';
 import type { PadBoutRules } from './bout-read';
-import { rulesOnPad, settledConfig, type HeldMatchConfig } from './bout-rules';
+import { forfeitAsksOnPad, rulesOnPad, settledConfig, type HeldMatchConfig } from './bout-rules';
 
 const button = (value: number) => ({ label: `+${value}`, value, visible: true });
 
@@ -96,5 +96,23 @@ describe('settledConfig', () => {
   it('keeps a config already held when the bout loses its Tournament’s id', () => {
     expect(settledConfig(undefined, config(true))).toEqual(config(true));
     expect(settledConfig('tournament-1', null)).toBeNull();
+  });
+});
+
+describe('forfeitAsksOnPad (ruling 76)', () => {
+  const asks = { injury: true, voluntary: false, conduct_violation: false };
+
+  it('goes by the questions read from the server just now', () => {
+    expect(forfeitAsksOnPad({ ...config(true), forfeitAsks: asks })).toEqual(asks);
+  });
+
+  it('holds no answer off a tablet copy, an older copy lacking them, or no config', () => {
+    expect(forfeitAsksOnPad({ ...config(false), forfeitAsks: asks })).toBeNull();
+    expect(forfeitAsksOnPad(config(true))).toBeNull();
+    expect(forfeitAsksOnPad(null)).toBeNull();
+  });
+
+  it('is still asked while the config is read', () => {
+    expect(forfeitAsksOnPad(undefined)).toBeUndefined();
   });
 });

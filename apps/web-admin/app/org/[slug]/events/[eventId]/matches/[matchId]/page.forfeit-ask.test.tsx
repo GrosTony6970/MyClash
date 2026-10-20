@@ -3,7 +3,7 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { openEventPage, type OpenedPage } from '../../archived-page.fixtures';
-import { BOUT, boutReads } from './page.fixtures';
+import { BOUT, boutReads, SUMMARY } from './page.fixtures';
 import MatchDetailPage from './page';
 
 /**
@@ -57,5 +57,40 @@ describe('the forfeit form of the bout page', () => {
 
     await pickReason('black_card_1');
     expect(asksCanContinue()).toBe(false);
+  });
+
+  // Ruling 76: asked only when the reason's rule in the penalty ruleset asks, on a Pool or Swiss
+  // bout. On a bracket bout the Fighter continues in the Tournament.
+  const open = (summary: object, matchConfig: object) =>
+    openEventPage(<MatchDetailPage />, {
+      ...RUNNING_EVENT,
+      ...boutReads(RUNNING_BOUT, null),
+      '/api/v1/matches/m1/summary': summary,
+      '/api/v1/tournaments/t-1/match-config': matchConfig,
+    });
+
+  it('asks on a Pool bout only for a reason whose rule asks', async () => {
+    const forfeitAsks = { injury: false, voluntary: true, conduct_violation: false };
+    page = await open(SUMMARY, { forfeitAsks });
+
+    await pickReason('injury');
+    expect(asksCanContinue()).toBe(false);
+    await pickReason('voluntary');
+    expect(asksCanContinue()).toBe(true);
+  });
+
+  it('never asks on a bracket bout', async () => {
+    const forfeitAsks = { injury: true, voluntary: true, conduct_violation: true };
+    page = await open({ ...SUMMARY, phaseType: 'single_elim' }, { forfeitAsks });
+
+    await pickReason('injury');
+    expect(asksCanContinue()).toBe(false);
+  });
+
+  it('asks when the server holds no answer of the rules', async () => {
+    page = await open(SUMMARY, { forfeitAsks: null });
+
+    await pickReason('conduct_violation');
+    expect(asksCanContinue()).toBe(true);
   });
 });

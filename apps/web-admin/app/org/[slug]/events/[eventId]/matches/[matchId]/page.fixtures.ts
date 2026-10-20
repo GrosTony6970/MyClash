@@ -13,7 +13,7 @@ export const BOUT = {
   locked_at: '2026-10-01T10:00:00Z',
 };
 
-const SUMMARY = {
+export const SUMMARY = {
   matchLabel: 'L1-P1-M01',
   roundCode: 'LSW-P1-M01',
   status: 'completed',
@@ -64,10 +64,14 @@ export const FORFEIT_RECORD = {
   auto_created: false,
 };
 
+/** The Tournament's forfeit questions (`/match-config`): a penalty ruleset's club start. */
+export const CLUB_START_ASKS = { injury: true, voluntary: true, conduct_violation: false };
+
 export function boutReads(bout: object, forfeit: object | null): Record<string, unknown> {
   return {
     '/api/v1/matches/m1': bout,
     '/api/v1/matches/m1/summary': SUMMARY,
+    '/api/v1/tournaments/t-1/match-config': { forfeitAsks: CLUB_START_ASKS },
     '/api/v1/matches/m1/exchanges': [exchange('ex-1', 1, false), exchange('ex-2', 2, true)],
     '/api/v1/matches/m1/audit-log?limit=50': [],
     '/api/v1/matches/m1/forfeit': forfeit,

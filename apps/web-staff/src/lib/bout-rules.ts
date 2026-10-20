@@ -20,12 +20,16 @@ import {
   type MatchFormatConfig,
   type TournamentScoringConfig,
 } from '@myclash/types';
+import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import type { PadBoutRules } from './bout-read';
 
 /** The Tournament's `/match-config` as the screen holds it. */
 export interface HeldMatchConfig {
   scoringConfig: TournamentScoringConfig;
   matchFormat: MatchFormatConfig;
+  /** Which forfeit reasons ask "can the Fighter continue?" (ruling 76). Absent off an older
+   *  tablet copy; null when the server could not read the rules. */
+  forfeitAsks?: ForfeitAsks | null;
   /** Read from the server just now, not off the tablet. */
   fresh: boolean;
 }
@@ -47,6 +51,19 @@ export function settledConfig(
   config: HeldMatchConfig | null | undefined,
 ): HeldMatchConfig | null | undefined {
   return !tournamentId && config === undefined ? null : config;
+}
+
+/**
+ * The forfeit questions the pad goes by (ruling 76): `undefined` while asked. Null when it holds
+ * no answer read from the server just now: none was given, an older tablet copy lacks it, or the
+ * copy came off the tablet, where a rule changed since would go unseen. The forfeit then asks,
+ * and says the rules are not confirmed.
+ */
+export function forfeitAsksOnPad(
+  config: HeldMatchConfig | null | undefined,
+): ForfeitAsks | null | undefined {
+  if (config === undefined) return undefined;
+  return config?.fresh ? (config.forfeitAsks ?? null) : null;
 }
 
 /**

@@ -16,7 +16,7 @@ import {
   type ForfeitOutcome,
   type ForfeitReason,
 } from '@myclash/rulesets';
-import type { ForfeitRules } from '@myclash/types/forfeit-rules';
+import { asksInPhase, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { blackCardEffectOf } from '../penalties/card-rules-pin';
 import { cardAndForfeitRules, forfeitRulesRefusal } from '../penalties/forfeit-rules-in-force';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -161,7 +161,7 @@ export class MatchForfeitsService {
             dto.reason as ForfeitReason,
           );
 
-    const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue);
+    const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue, phase.type);
     const scores = this.resolveScores(
       match,
       dto.forfeitingRegistrationId,
@@ -1291,8 +1291,16 @@ export class MatchForfeitsService {
     return state;
   }
 
-  private resolveCanContinue(state: string, input: boolean | undefined): boolean | null {
-    if (state === 'ask') return input ?? true;
+  /**
+   * A rule that asks takes the answer on a Pool or Swiss bout only (ruling 76). On a bracket bout
+   * the Fighter continues in the Tournament, and no status is written.
+   */
+  private resolveCanContinue(
+    state: string,
+    input: boolean | undefined,
+    phaseType: string,
+  ): boolean | null {
+    if (state === 'ask') return asksInPhase(phaseType) ? (input ?? true) : true;
     if (state === 'match_only') return true;
     return false;
   }

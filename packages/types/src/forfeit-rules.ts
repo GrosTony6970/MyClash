@@ -55,3 +55,50 @@ export const CLUB_START_FORFEIT_RULES: ForfeitRules = {
   ...FFAMHE_FORFEIT_RULES,
   disqualifyAfter: 'off',
 };
+
+/** Per reason, whether its rule asks "can the Fighter continue?" (`GET .../match-config`). */
+export type ForfeitAsks = Record<ForfeitRuleReason, boolean>;
+
+export function forfeitAsksOf(rules: ForfeitRules): ForfeitAsks {
+  const asks = (reason: ForfeitRuleReason) => rules.reasons[reason].fighter === 'asks';
+  return {
+    injury: asks('injury'),
+    voluntary: asks('voluntary'),
+    conduct_violation: asks('conduct_violation'),
+  };
+}
+
+/**
+ * "Can the Fighter continue?" is a question of a Pool or Swiss bout only (ruling 76); on a bracket
+ * bout the Fighter continues in the Tournament. A screen that does not know the bout's phase asks,
+ * and the server decides by the phase it reads.
+ */
+export function asksInPhase(phaseType: string | null | undefined): boolean {
+  return phaseType == null || phaseType === 'pool' || phaseType === 'swiss';
+}
+
+export interface ForfeitQuestion {
+  ask: boolean;
+  /** The screen holds no answer of the rules, so it asks: the pad says so. */
+  unconfirmed: boolean;
+}
+
+/**
+ * Whether a forfeit screen asks "can the Fighter continue?" for `reason` (ruling 76): when its
+ * rule asks, on a Pool or Swiss bout. A black card or an override is never asked: its own rule
+ * says what it does. The server reads the answer by the same rule and the same phases.
+ *
+ * @param asks `undefined` while the rules are being read (asked); `null` when the screen holds no
+ *   answer of them (asked, and `unconfirmed`).
+ */
+export function forfeitQuestion(
+  reason: string,
+  asks: ForfeitAsks | null | undefined,
+  phaseType: string | null | undefined,
+): ForfeitQuestion {
+  const ruled = (FORFEIT_RULE_REASONS as readonly string[]).includes(reason);
+  if (!ruled || !asksInPhase(phaseType)) return { ask: false, unconfirmed: false };
+  if (asks === undefined) return { ask: true, unconfirmed: false };
+  if (asks === null) return { ask: true, unconfirmed: true };
+  return { ask: asks[reason as ForfeitRuleReason], unconfirmed: false };
+}

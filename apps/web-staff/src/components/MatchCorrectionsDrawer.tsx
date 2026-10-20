@@ -30,6 +30,7 @@ import type { SyncEngine } from '../offline/sync';
 import { AskFirstDialog } from './AskFirstDialog';
 import { DirectCardPanel, NO_DIRECT_CARD_DRAFT } from './DirectCardPanel';
 import { ForfeitPanel } from './ForfeitPanel';
+import type { ForfeitAsks } from '@myclash/types/forfeit-rules';
 import { padRequest } from '../offline/drill-request';
 import { RESET_PHRASE } from '../lib/reset-phrase';
 import { ResetMatchZone } from './ResetMatchZone';
@@ -76,6 +77,9 @@ interface MatchCorrectionsDrawerProps {
   /** The round open on the pad: a direct card is queued with it. */
   round: number;
   onCardQueued: () => void;
+  /** Whether a forfeit asks "can the Fighter continue?" (ruling 76): `ForfeitPanel`'s. */
+  forfeitAsks: ForfeitAsks | null | undefined;
+  phaseType: string | null | undefined;
 }
 
 export function MatchCorrectionsDrawer({
@@ -102,6 +106,8 @@ export function MatchCorrectionsDrawer({
   bout,
   round,
   onCardQueued,
+  forfeitAsks,
+  phaseType,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
@@ -375,6 +381,8 @@ export function MatchCorrectionsDrawer({
               blueName={blueName}
               disabled={forfeitDisabled}
               onForfeitRecorded={onDone}
+              forfeitAsks={forfeitAsks}
+              phaseType={phaseType}
             />
           </div>
 

@@ -2,6 +2,7 @@ import { HttpException, Logger, NotFoundException } from '@nestjs/common';
 import type { Ruleset, TFv1Config } from '@myclash/rulesets';
 import type { EffectiveRules, EffectiveTfRules, RulesStart } from '@myclash/types';
 import { isCodedRuleset } from '@myclash/types/effective-rules';
+import { forfeitAsksOf } from '@myclash/types/forfeit-rules';
 import {
   hiddenFromReader,
   type CompetitionEvent,
@@ -10,6 +11,7 @@ import {
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
 import type { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { scoredMatchFormat, scoredRuleset } from '../matches/scored-match-format';
+import { cardAndForfeitRules } from '../penalties/forfeit-rules-in-force';
 import { pairOf } from './audited-rules-write';
 import { normalizeRulesetVersion } from './ruleset-defaults';
 import type { RulesSeed } from './ruleset-move-config';
@@ -90,7 +92,20 @@ export async function readMatchConfig(
     scoringConfig,
     display: scoringConfig.display,
     lockConfig: normalizeTournamentLockConfig(row.lock_config_json),
+    forfeitAsks: await forfeitAsksFor(deps, tournamentId),
   };
+}
+
+/**
+ * Which forfeit reasons ask "can the Fighter continue?" (ruling 76), and none of the rules
+ * themselves. Contained: rules that cannot be read or do not parse answer null and a log line,
+ * and the pad asks, with a note that the rules are not confirmed.
+ */
+function forfeitAsksFor(deps: EventAuthzDeps, tournamentId: string) {
+  return contained({ id: tournamentId }, 'the forfeit questions', async () => {
+    const { forfeitRules } = await cardAndForfeitRules(deps.supabase.service, tournamentId);
+    return forfeitAsksOf(forfeitRules);
+  });
 }
 
 /** A Tournament row as `GET /tournaments/:id` answers it (`getTournamentById`). */
