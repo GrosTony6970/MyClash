@@ -745,7 +745,6 @@ export const organizer = {
       weapon: 'Weapon',
       ruleset: 'Ruleset',
       rulesetEarlierEndRules: '{code} ({version}, earlier end rules)',
-      penaltyRuleset: 'Penalty ruleset',
       pointCap: 'Point cap',
       timerMode: 'Timer mode',
       timerCountdown: 'Countdown',

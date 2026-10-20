@@ -437,6 +437,16 @@ export const admin = {
     shallowTarget: 'Points cible superficielle',
     modifiedBadge: 'modifié',
     reset: 'Réinitialiser',
+    forfeitRulesHelp:
+      'Ce que fait un forfait dans ce tournoi : les règles de son règlement de pénalités, avec les changements faits ici.',
+    forfeitRulesInvalid:
+      'Les règles de forfait de ce tournoi ne peuvent pas être lues. Réinitialisez chaque changement ci-dessous, puis enregistrez.',
+    forfeitRulesetInvalid:
+      'Les règles de forfait du règlement de pénalités de ce tournoi ne peuvent pas être lues. Corrigez le règlement de pénalités.',
+    forfeitRulesetValue: 'la valeur du règlement de pénalités',
+    forfeitRulesPinnedOnly:
+      'Seul un administrateur peut lire les règles d’un autre règlement de pénalités : voici celles du règlement épinglé.',
+    forfeitReasonField: '{reason} — {field}',
     rulesReadFailed: 'Impossible de charger les règles.',
     noChangesToSave: 'Aucune modification à enregistrer',
     maxParticipants: 'Participants max.',

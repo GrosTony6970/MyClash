@@ -431,6 +431,16 @@ export const admin = {
     shallowTarget: 'Shallow target points',
     modifiedBadge: 'modified',
     reset: 'Reset',
+    forfeitRulesHelp:
+      'What a forfeit does in this tournament: its penalty ruleset’s rules, with the changes made here.',
+    forfeitRulesInvalid:
+      'The forfeit rules of this tournament cannot be read. Reset each change below, then save.',
+    forfeitRulesetInvalid:
+      'The forfeit rules of this tournament’s penalty ruleset cannot be read. Fix the penalty ruleset.',
+    forfeitRulesetValue: 'the penalty ruleset’s value',
+    forfeitRulesPinnedOnly:
+      'Only an admin can read another penalty ruleset’s rules: these are the pinned ruleset’s.',
+    forfeitReasonField: '{reason} — {field}',
     rulesReadFailed: 'Could not load the rules.',
     noChangesToSave: 'No changes to save',
     maxParticipants: 'Max participants',

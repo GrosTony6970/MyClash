@@ -6,6 +6,7 @@ import { apiRequest } from '@myclash/api-client';
 import type * as ApiClient from '@myclash/api-client';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import type * as SelectableRulesets from '@/lib/selectable-rulesets';
+import { FORFEIT_RULES_READ } from '../../[tournamentId]/settings/page.fixtures';
 import { Step1Basics } from './Step1Basics';
 
 /**
@@ -39,11 +40,14 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
 
 const ORG_LIST = '/api/v1/organizations/org-a/penalty-rulesets';
 const CREATE = '/api/v1/events/ev1/tournaments';
+const FORFEIT_READ = '/api/v1/events/ev1/forfeit-rules';
 
 /** Answers the step's reads. A request nobody expected throws. */
 function serve() {
   vi.mocked(apiRequest).mockImplementation(async (_base: string, path: string) => {
     if (path === CREATE) return { ok: true, data: { id: 't1' } };
+    // The forfeit block's read of the pick on screen (ruling 70).
+    if (path.startsWith(FORFEIT_READ)) return { ok: true, data: FORFEIT_RULES_READ };
     if (path === ORG_LIST) {
       return {
         ok: true,
@@ -57,7 +61,9 @@ function serve() {
   });
 }
 
-const requested = () => vi.mocked(apiRequest).mock.calls.map(([, path]) => path);
+const allRequested = () => vi.mocked(apiRequest).mock.calls.map(([, path]) => path);
+/** The requests but the forfeit block's, which follows the pick. */
+const requested = () => allRequested().filter((path) => !path.startsWith(FORFEIT_READ));
 
 /** Lets every pending fetch and state update land. */
 async function settle() {
@@ -115,6 +121,8 @@ describe('new-tournament wizard penalty rulesets', () => {
     );
     expect(penaltySelect?.value).toBe('p-builtin');
     expect(penaltySelect?.textContent).toContain('Club A house rules');
+    // The forfeit block shows the rules of the pick it pre-selected.
+    expect(allRequested()).toContain(`${FORFEIT_READ}?penaltyRulesetId=p-builtin`);
   });
 
   it('asks for no penalty list until the organisation is known, then asks once', async () => {

@@ -37,6 +37,8 @@ export async function openTab(
     row?: Record<string, unknown>;
     effectiveRules?: Partial<EffectiveRules> | null;
     read?: 'failed';
+    /** The other reads' answers, by path, over TOURNAMENT_READS. */
+    reads?: Record<string, unknown>;
   } = {},
 ): Promise<OpenedTab> {
   window.history.replaceState(null, '', `/#${tab}`);
@@ -44,7 +46,11 @@ export async function openTab(
     options.effectiveRules === null ? null : { ...EFFECTIVE_RULES, ...options.effectiveRules };
   const row = { ...TOURNAMENT_ROW, ...options.row, effectiveRules: rules };
   let failing = options.read === 'failed';
-  const reads = { ...TOURNAMENT_READS, [TOURNAMENT]: failing ? FAILED_READ : row };
+  const reads = {
+    ...TOURNAMENT_READS,
+    ...options.reads,
+    [TOURNAMENT]: failing ? FAILED_READ : row,
+  };
   const page = await openEventPage(<TournamentSettingsPage />, reads);
   const saved: unknown[] = [];
   const read = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;

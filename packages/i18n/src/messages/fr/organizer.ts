@@ -738,7 +738,6 @@ export const organizer = {
       weapon: 'Arme',
       ruleset: 'Règlement',
       rulesetEarlierEndRules: '{code} ({version}, anciennes règles de fin de combat)',
-      penaltyRuleset: 'Règlement de pénalités',
       pointCap: 'Plafond de points',
       timerMode: 'Mode chronomètre',
       timerCountdown: 'Décompte',

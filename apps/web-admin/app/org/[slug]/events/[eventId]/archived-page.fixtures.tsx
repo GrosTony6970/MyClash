@@ -55,6 +55,15 @@ const FAILED = Symbol('a read the server fails');
 export const FAILED_READ = { [FAILED]: true } as const;
 const isFailedRead = (answer: unknown) =>
   typeof answer === 'object' && answer !== null && FAILED in answer;
+
+const FORBIDDEN = Symbol('a read the caller may not make');
+/**
+ * A read the server refuses to this caller, a 403 with no code (an org role too low): give it as
+ * the answer of a path in `reads`. Through `apiRequest` only.
+ */
+export const FORBIDDEN_READ = { [FORBIDDEN]: true } as const;
+const isForbiddenRead = (answer: unknown) =>
+  typeof answer === 'object' && answer !== null && FORBIDDEN in answer;
 const SERVER_FAULT = {
   ok: false as const,
   kind: 'http' as const,
@@ -203,6 +212,7 @@ function standInServer(
       return save in taken ? { ok: true, data: taken[save] } : REFUSAL;
     }
     if (path in answers) {
+      if (isForbiddenRead(answers[path])) return { ...REFUSAL, detail: 'Forbidden', code: null };
       return isFailedRead(answers[path]) ? SERVER_FAULT : { ok: true, data: answers[path] };
     }
     throw new Error(`unexpected request ${path}`);

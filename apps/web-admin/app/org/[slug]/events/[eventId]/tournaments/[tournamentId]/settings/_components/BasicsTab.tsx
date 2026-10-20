@@ -9,9 +9,15 @@ import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
+import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
+import { rulesChangeRefusal } from '@/lib/rules-change-refusal';
+import { PenaltyPickField } from '../../../_shared/PenaltyPickField';
+import { TournamentForfeitRules } from '../../../_shared/TournamentForfeitRules';
+import { useForfeitRules, type StoredForfeit } from '../../../_shared/useForfeitRules';
+import { sameForm, useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
+import { saveBody, savedAfter, type TournamentBasics } from './basics-save';
 
 interface Ruleset {
   code: string;
@@ -21,19 +27,6 @@ interface Ruleset {
 interface PenaltyRuleset {
   id: string;
   name: string;
-}
-
-interface TournamentBasics {
-  name: string;
-  slug: string;
-  weapon: string | null;
-  rulesetCode: string;
-  rulesetVersion: string;
-  penaltyRulesetId: string | null;
-  /** Slice 4: cap on registered + checked_in. Null = unlimited. */
-  maxParticipants: number | null;
-  /** Slice 4: cap on waitlist size. Null = unlimited. */
-  maxWaitlist: number | null;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -66,6 +59,10 @@ export function BasicsTab({
   // which is applied through a dedicated flow (never the plain Save) so it can
   // fall back to the audited re-pin ceremony when results already exist.
   const [originalRuleset, setOriginalRuleset] = useState<RulesetPair | null>(null);
+  // Set from the Tournament's own read and from each Save, never from the None read: its rules
+  // have no changes, and the Tournament's stay stored.
+  const [stored, setStored] = useState<StoredForfeit | null>(null);
+  const forfeitRead = useForfeitRules(eventId, tournamentId, data?.penaltyRulesetId ?? '', stored);
   // The new pair is pinned, and the picker's choice is saved.
   const rulesetApplied = (to: RulesetPair) => {
     setOriginalRuleset(to);
@@ -115,6 +112,11 @@ export function BasicsTab({
           : [],
       ]).then(([row, r, p]) => {
         if (row) {
+          // As stored: a restored archive's `{}` is no change, as the server reads it.
+          const forfeit = applyForfeitPatch(
+            (row['forfeit_rules'] as ForfeitChanges | null) ?? null,
+            {},
+          );
           const read: TournamentBasics = {
             name: row['name'] as string,
             slug: row['slug'] as string,
@@ -124,9 +126,11 @@ export function BasicsTab({
             penaltyRulesetId: (row['penalty_ruleset_id'] as string | null) ?? null,
             maxParticipants: (row['max_participants'] as number | null) ?? null,
             maxWaitlist: (row['max_waitlist'] as number | null) ?? null,
+            forfeitRules: forfeit,
           };
           setData(read);
           markSaved(read);
+          setStored({ pin: read.penaltyRulesetId, forfeit });
           setOriginalRuleset({
             code: row['ruleset_code'] as string,
             version: row['ruleset_version'] as string,
@@ -143,43 +147,30 @@ export function BasicsTab({
     if (!data) return;
     setSaving(true);
     try {
+      const sent = data;
+      const { body, stored: after } = saveBody(sent, stored);
       const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        body: {
-          // Send null (not undefined) so selecting "None" actually clears the
-          // weapon — the DTO is nullish and the service maps null to a clear.
-          name: data.name,
-          weapon: data.weapon,
-          // Ruleset is deliberately NOT saved here — a ruleset change is applied
-          // through `changeRuleset` so it can fall back to the audited re-pin
-          // ceremony, and so an unrelated Save never 403s (and loses these
-          // edits) when the tournament already has results.
-          penaltyRulesetId: data.penaltyRulesetId,
-          maxParticipants: data.maxParticipants,
-          maxWaitlist: data.maxWaitlist,
-        },
+        body,
       });
       if (!r.ok) {
-        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        const message =
+          rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.saveFailed'));
         if (message) toast.error(message);
         return;
       }
       // The written row (the PATCH answers it): its name and card pin are what a re-pin then
       // confirms and sends back.
       rememberRules(storedRulesOf(r.data as Record<string, unknown>));
-      const sent = data;
-      markSaved((saved) =>
-        saved
-          ? {
-              ...saved,
-              name: sent.name,
-              weapon: sent.weapon,
-              penaltyRulesetId: sent.penaltyRulesetId,
-              maxParticipants: sent.maxParticipants,
-              maxWaitlist: sent.maxWaitlist,
-            }
-          : saved,
+      // The form and its snapshot take the changes as now stored, a Reset sent gone: an edit made
+      // while the Save was out stays in the form, unsaved.
+      markSaved((saved) => savedAfter(saved, sent, after.forfeit));
+      setData((now) =>
+        now && sameForm(now.forfeitRules, sent.forfeitRules)
+          ? { ...now, forfeitRules: after.forfeit }
+          : now,
       );
+      setStored(after);
       onNameSaved?.(sent.name);
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
@@ -309,31 +300,18 @@ export function BasicsTab({
         )}
       </Field>
 
-      <label className="block">
-        <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-foreground-secondary">
-          {t('organizer.tournaments.settings.penaltyRuleset')}
-          <span className="rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">
-            {t('organizer.tournaments.wizard.recommended')}
-          </span>
-        </span>
-        <select
-          value={data.penaltyRulesetId ?? ''}
-          onChange={(e) => setData({ ...data, penaltyRulesetId: e.target.value || null })}
-          className="w-full rounded-md border border-border px-3 py-2 text-sm"
-        >
-          <option value="">{t('common.none')}</option>
-          {penaltyRulesets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        {!data.penaltyRulesetId && (
-          <p className="mt-1 text-xs text-warning">
-            {t('organizer.tournaments.wizard.penaltyRulesetBlankHint')}
-          </p>
-        )}
-      </label>
+      <PenaltyPickField
+        value={data.penaltyRulesetId ?? ''}
+        options={penaltyRulesets}
+        onChange={(id) => setData({ ...data, penaltyRulesetId: id || null })}
+      />
+      <TournamentForfeitRules
+        shown={forfeitRead}
+        saved={stored?.forfeit ?? null}
+        value={data.forfeitRules}
+        onChange={(forfeitRules) => setData({ ...data, forfeitRules })}
+        disabled={readOnly}
+      />
 
       {/* Slice 4: capacity caps. Leaving either field blank means "no cap".
        *  When the participant cap is reached, the registrations create

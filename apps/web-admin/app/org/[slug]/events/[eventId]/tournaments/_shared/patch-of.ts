@@ -7,17 +7,18 @@
  * `saved` is the body of the form as last read or last saved, `edited` the body of the form now.
  * A leaf of `edited` that differs from `saved` is sent; a list is sent whole when it differs (the
  * server replaces a list whole); a key absent from `edited` is never a change. A null is a value,
- * sent as one. Answers null when nothing differs.
+ * sent as one: where the server merges a body, a null leaf clears its key (a Reset of a forfeit
+ * change, `applyForfeitPatch`). Answers null when nothing differs.
  */
 type Body = Record<string, unknown>;
 
 const isObject = (value: unknown): value is Body =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-export function patchOf(saved: Body, edited: Body): Body | null {
+export function patchOf(saved: object, edited: object): Body | null {
   const patch: Body = {};
   for (const [key, value] of Object.entries(edited)) {
-    const before = saved[key];
+    const before = (saved as Body)[key];
     if (isObject(value) && isObject(before)) {
       const inner = patchOf(before, value);
       if (inner) patch[key] = inner;

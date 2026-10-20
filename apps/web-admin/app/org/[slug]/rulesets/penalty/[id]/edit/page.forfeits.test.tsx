@@ -88,6 +88,20 @@ describe.each(EDITORS)('the Forfeits section of %s', (_editor, editor) => {
     expect(page.saves).toEqual([]);
   });
 
+  // The Forfeits section draws the two black card settings only in a Tournament's block, where
+  // they are its changes; here the editor's own selects write the card columns, one each.
+  it('holds one select per black card setting, the card columns’', async () => {
+    page = await openPenaltyPage(editor, editReads(FFAMHE_FORFEIT_RULES));
+
+    const cardSelects = [...document.body.querySelectorAll('select')].filter((select) =>
+      ['match', 'tournament', 'none'].every((v) => select.querySelector(`option[value="${v}"]`)),
+    );
+    expect(cardSelects).toHaveLength(2);
+    expect(
+      document.body.querySelector('[data-testid^="forfeit-"][data-testid$="BlackCard"]'),
+    ).toBeNull();
+  });
+
   it('saves Off as "off"', async () => {
     page = await openPenaltyPage(editor, editReads(FFAMHE_FORFEIT_RULES));
 

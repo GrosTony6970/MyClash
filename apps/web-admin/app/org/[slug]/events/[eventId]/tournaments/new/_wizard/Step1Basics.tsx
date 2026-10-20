@@ -11,6 +11,10 @@ import { pickWizardDefaults } from './wizard-defaults';
 import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { rulesChangeRefusal } from '@/lib/rules-change-refusal';
+import { PenaltyPickField } from '../../_shared/PenaltyPickField';
+import { TournamentForfeitRules } from '../../_shared/TournamentForfeitRules';
+import { useForfeitForm } from '../../_shared/useForfeitForm';
 
 const apiUrl = getPublicApiUrl();
 
@@ -85,6 +89,8 @@ export function Step1Basics({
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const forfeit = useForfeitForm(eventId, initialTournamentId, penaltyRulesetId);
+  const adoptForfeit = forfeit.adopt;
 
   useEffect(() => {
     if (!orgId) return;
@@ -106,14 +112,15 @@ export function Step1Basics({
 
   useEffect(() => {
     if (initialTournamentId) {
-      // Silent read: an unresumed draft shows the blank form, and the save
-      // below reports its own refusal.
+      // Silent read: an unresumed draft shows the blank form (its forfeit block, the None
+      // rules), and the save below reports its own refusal.
       void apiRequest<Record<string, unknown>>(
         apiUrl,
         `/api/v1/tournaments/${initialTournamentId}`,
       ).then((r) => {
+        const row = r.ok ? r.data : {};
+        adoptForfeit(row);
         if (!r.ok) return;
-        const row = r.data;
         setName(row['name'] as string);
         setSlug(row['slug'] as string);
         setWeapon((row['weapon'] as string | null) ?? '');
@@ -128,7 +135,7 @@ export function Step1Basics({
         setMaxWaitlist(maxW != null ? String(maxW) : '');
       });
     }
-  }, [initialTournamentId]);
+  }, [initialTournamentId, adoptForfeit]);
 
   async function submit() {
     if (!name.trim()) {
@@ -150,6 +157,7 @@ export function Step1Basics({
             rulesetCode,
             rulesetVersion,
             penaltyRulesetId: penaltyRulesetId || null,
+            forfeitRules: forfeit.patch(),
             color: color || null,
             maxParticipants: parsedMaxParticipants,
             maxWaitlist: parsedMaxWaitlist,
@@ -158,7 +166,8 @@ export function Step1Basics({
         // Guard the response so a failed save surfaces a toast instead of
         // silently advancing the wizard and discarding the edits.
         if (!r.ok) {
-          const message = failureMessage(r, t, t('admin.common.updateFailed'));
+          const message =
+            rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.updateFailed'));
           if (message) toast.error(message);
           return;
         }
@@ -177,6 +186,7 @@ export function Step1Basics({
               rulesetCode,
               rulesetVersion,
               penaltyRulesetId: penaltyRulesetId || undefined,
+              forfeitRules: forfeit.patch(),
               color: color || undefined,
               maxParticipants: parsedMaxParticipants ?? undefined,
               maxWaitlist: parsedMaxWaitlist ?? undefined,
@@ -296,31 +306,12 @@ export function Step1Basics({
         </select>
       </label>
 
-      <label className="block">
-        <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-foreground-secondary">
-          {t('organizer.tournaments.wizard.penaltyRuleset')}
-          <span className="rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">
-            {t('organizer.tournaments.wizard.recommended')}
-          </span>
-        </span>
-        <select
-          value={penaltyRulesetId}
-          onChange={(e) => setPenaltyRulesetId(e.target.value)}
-          className="w-full rounded-md border border-border px-3 py-2 text-sm"
-        >
-          <option value="">{t('common.none')}</option>
-          {penaltyRulesets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        {!penaltyRulesetId && (
-          <p className="mt-1 text-xs text-warning">
-            {t('organizer.tournaments.wizard.penaltyRulesetBlankHint')}
-          </p>
-        )}
-      </label>
+      <PenaltyPickField
+        value={penaltyRulesetId}
+        options={penaltyRulesets}
+        onChange={setPenaltyRulesetId}
+      />
+      <TournamentForfeitRules {...forfeit.block} disabled={readOnly} />
 
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-foreground-secondary">

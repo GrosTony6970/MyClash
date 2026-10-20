@@ -7,6 +7,7 @@ import {
   type EffectiveRules,
   type TournamentScoringConfig,
 } from '@myclash/types';
+import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import type { OpenedPage } from '../../../archived-page.fixtures';
 
 /** A scoring config with nothing stored, as the API's normalizer answers it. */
@@ -70,9 +71,21 @@ export const TOURNAMENT_ROW = {
   effectiveRules: EFFECTIVE_RULES as EffectiveRules | null,
 };
 
+/** `GET …/forfeit-rules` for the built-in's rules: no changes, so they are the rules in force. */
+export const FORFEIT_RULES_READ = {
+  ruleset: { ...FFAMHE_FORFEIT_RULES, firstBlackCard: 'match', secondBlackCard: 'tournament' },
+  changes: null,
+  inForce: { ...FFAMHE_FORFEIT_RULES, firstBlackCard: 'match', secondBlackCard: 'tournament' },
+};
+
 /** What every tab and every step reads, by path. */
 export const TOURNAMENT_READS: Record<string, unknown> = {
   [TOURNAMENT]: TOURNAMENT_ROW,
+  // The forfeit block of Basics and Step 1 (ruling 70): the Tournament's own pin, None (the
+  // Event's, else the built-in) and the wizard's default pick.
+  [`${TOURNAMENT}/forfeit-rules`]: FORFEIT_RULES_READ,
+  '/api/v1/events/ev1/forfeit-rules': FORFEIT_RULES_READ,
+  '/api/v1/events/ev1/forfeit-rules?penaltyRulesetId=pr-1': FORFEIT_RULES_READ,
   [`${TOURNAMENT}/ruleset-drift`]: { drifted: true },
   [`${TOURNAMENT}/penalty-ruleset`]: {
     penalty_ruleset_entries: [
