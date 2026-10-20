@@ -10,6 +10,7 @@ import {
   type PenaltyBehaviourInput,
   type ScoringBehaviourInput,
 } from '@myclash/rulesets';
+import { afterblowModeInForce } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   normalizeRulesetVersion,
@@ -177,10 +178,9 @@ export class RulesetHashService {
     const scoringConfig = t.scoring_config_json ?? {};
     const matchFormat = (config['matchFormat'] as Row | undefined) ?? null;
     const tournamentPolicy = config['tournamentPolicy'] ?? null;
-    const afterblowMode =
-      (scoringConfig['afterblowMode'] as string | undefined) ??
-      grammar.defaultAfterblowMode ??
-      null;
+    // What the scorer plays (operator ruling 47): a missing mode is `full`, never the grammar's
+    // seed (a ruleset only SEEDS a Tournament; `packages/rules/src/afterblow.ts`).
+    const afterblowMode = afterblowModeInForce(scoringConfig);
     const structure = await scoringStructureOf(this.supabase, this.registry, code, version);
     const grammarInput = grammarInputFrom(config, grammar, structure.kind);
     const input: ScoringBehaviourInput =

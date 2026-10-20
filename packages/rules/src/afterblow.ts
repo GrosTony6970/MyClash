@@ -19,10 +19,11 @@
  * derivation path ever preferred the ruleset's `defaultAfterblowMode`, changing
  * a ruleset would retroactively rewrite every score ever derived under it.
  *
- * `mode` is therefore required here and has no default. Every mode parameter in
- * the engine defaults to `full` while the product default is `deductive`, so a
- * caller that loses the mode does not throw — it silently scores a deductive
- * tournament in full mode.
+ * `mode` is therefore required here and has no default. A Tournament that stores
+ * no mode plays `full` (`afterblowModeInForce` in @myclash/types, operator ruling
+ * 47), but a ruleset such as TF_v1 seeds `deductive` into every Tournament it
+ * starts, so a caller that loses the mode does not throw — it silently scores a
+ * deductive tournament in full mode.
  */
 
 /**

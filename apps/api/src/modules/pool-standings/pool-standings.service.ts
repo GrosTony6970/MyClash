@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule, Exchange, Ruleset } from '@myclash/rulesets';
+import { afterblowModeInForce } from '@myclash/types';
 import { computeStandingsRows } from './compute-rows';
 import { applyRanking, type StandingsRow } from '@myclash/rules/results';
 import type { PoolWithMembers } from './pool-rows';
@@ -78,11 +79,9 @@ export class PoolStandingsService {
     const rulesetVersion = (tournament as { ruleset_version: string }).ruleset_version;
     // afterblow netting for the score formula (deductive subtracts the
     // afterblow from the attacker). Lives in scoring_config_json, defaults full.
-    const afterblowMode: 'full' | 'deductive' =
-      (tournament as { scoring_config_json?: { afterblowMode?: unknown } | null })
-        ?.scoring_config_json?.afterblowMode === 'deductive'
-        ? 'deductive'
-        : 'full';
+    const afterblowMode = afterblowModeInForce(
+      (tournament as { scoring_config_json?: unknown }).scoring_config_json,
+    );
     // The engine reads afterblowMode off the raw config object even though it
     // is stored in scoring_config_json rather than ruleset_config, so splice it
     // on — the same shape ScoringService hands the engine.

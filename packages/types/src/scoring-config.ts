@@ -144,11 +144,26 @@ export const DEFAULT_TOURNAMENT_LOCK_CONFIG: TournamentLockConfig = {
   autoLockCompletedBrackets: true,
 };
 
-/** Default config — matches TF_v1 standard */
+/**
+ * How a stored scoring config scores an afterblow: `deductive` only when it says so, else `full` —
+ * the scorer's rule, for a missing key, a NULL column and an unknown value alike (operator ruling
+ * 47, 2026-10-20). The ONE owner: the scorer, the API's normalizer, the fingerprint and the
+ * standings read it.
+ */
+export function afterblowModeInForce(scoringConfig: unknown): 'full' | 'deductive' {
+  const mode =
+    scoringConfig && typeof scoringConfig === 'object'
+      ? (scoringConfig as { afterblowMode?: unknown }).afterblowMode
+      : undefined;
+  return mode === 'deductive' ? 'deductive' : 'full';
+}
+
+/** Default config — the fallback for a Tournament that holds none. */
 export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
-  // Deductive: FFAMHE nets the retaliation against the attacker. This is the
-  // federal fallback for a null config; TF_v1's seed default matches it.
-  afterblowMode: 'deductive',
+  // Full, as a missing afterblow mode scores (`afterblowModeInForce`). A ruleset that nets the
+  // retaliation (TF_v1: deductive) SEEDS it into every Tournament it starts; this is only what
+  // a Tournament with no scoring config at all plays.
+  afterblowMode: 'full',
   buttons: {
     clean: [
       { label: '+2', value: 2, visible: true },

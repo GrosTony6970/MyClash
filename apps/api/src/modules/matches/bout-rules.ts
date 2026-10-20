@@ -12,6 +12,7 @@
  * with its Tournament's rules of now.
  */
 
+import { afterblowModeInForce } from '@myclash/types';
 import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
 
 /** A PostgREST embed arrives as an object or a one-element array. */
@@ -73,7 +74,7 @@ export function cardPinOf(match: Record<string, unknown>): string | null {
   return typeof pin === 'string' ? pin : null;
 }
 
-/** How the copy scores an afterblow: `full` unless it says `deductive`. */
+/** How the copy scores an afterblow: `full` unless it says `deductive` (`afterblowModeInForce`). */
 export function afterblowModeOf(rules: BoutRules): 'full' | 'deductive' {
-  return rules.scoringConfig['afterblowMode'] === 'deductive' ? 'deductive' : 'full';
+  return afterblowModeInForce(rules.scoringConfig);
 }

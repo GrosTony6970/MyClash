@@ -108,8 +108,10 @@ describe('pendingRowsForMatch', () => {
    * provisional row agrees with what will land.
    */
   it('nets an afterblow the way the tournament’s mode will', () => {
-    const deductive = map([queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 })])
-      .exchanges[0]!;
+    const deductive = map([queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 })], {
+      ...DEFAULT_SCORING_CONFIG,
+      afterblowMode: 'deductive',
+    }).exchanges[0]!;
     expect(deductive.scoreDelta).toBe(1);
     expect(deductive.defenderDelta).toBe(0);
 
@@ -119,6 +121,15 @@ describe('pendingRowsForMatch', () => {
     }).exchanges[0]!;
     expect(full.scoreDelta).toBe(2);
     expect(full.defenderDelta).toBe(1);
+  });
+
+  // A Tournament with no scoring config scores an afterblow full (operator ruling 47): the pad's
+  // own fallback says the same, never a net the server will not apply.
+  it('nets an afterblow full under the default config', () => {
+    const row = map([queued({ type: 'afterblow', firstStrikeValue: 2, afterblowValue: 1 })])
+      .exchanges[0]!;
+    expect(row.scoreDelta).toBe(2);
+    expect(row.defenderDelta).toBe(1);
   });
 
   it('claims no points for a double or a no-exchange', () => {

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  afterblowModeInForce,
   DEFAULT_SCORING_CONFIG,
   DEFAULT_TOURNAMENT_LOCK_CONFIG,
   scoringButtonsOf,
@@ -42,7 +43,7 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
     : [];
 
   return {
-    afterblowMode: raw['afterblowMode'] === 'deductive' ? 'deductive' : 'full',
+    afterblowMode: afterblowModeInForce(raw),
     buttons: scoringButtonsOf(raw['buttons']),
     display: {
       sideColors: {

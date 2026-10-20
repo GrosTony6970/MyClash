@@ -1,5 +1,4 @@
 import { NotFoundException } from '@nestjs/common';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import {
   hiddenFromReader,
   type CompetitionEvent,
@@ -76,9 +75,8 @@ export async function readMatchConfig(
   );
   const matchFormat = scoredMatchFormat(row.ruleset_config, ruleset);
   const rulesetConfig = { ...stored, matchFormat };
-  const scoringConfig = normalizeTournamentScoringConfig(
-    row.scoring_config_json ?? DEFAULT_SCORING_CONFIG,
-  );
+  // A NULL column reads as every missing value does (the normalizer's own fill).
+  const scoringConfig = normalizeTournamentScoringConfig(row.scoring_config_json);
   return {
     rulesetConfig,
     matchFormat,

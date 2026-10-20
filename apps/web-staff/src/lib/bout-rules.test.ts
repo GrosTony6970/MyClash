@@ -72,6 +72,8 @@ describe('rulesOnPad', () => {
       matchFormat: DEFAULT_MATCH_FORMAT_CONFIG,
       stale: true,
     });
+    // What a Tournament with no scoring config plays (operator ruling 47), as a literal.
+    expect(rulesOnPad(undefined, null).scoringConfig.afterblowMode).toBe('full');
   });
 
   // No notice that flashes on every open while `/match-config` is asked.

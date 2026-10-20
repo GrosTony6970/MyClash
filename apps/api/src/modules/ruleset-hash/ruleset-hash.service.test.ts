@@ -173,6 +173,14 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     expect(changed).not.toBe(base);
   });
 
+  // TF_v1's grammar SEEDS deductive; a row that stores no mode plays full (operator ruling 47), and
+  // the fingerprint describes what plays, never the seed.
+  it('describes a TF_v1 row that stores no afterblow mode as full, as the scorer plays it', async () => {
+    const missing = await hashOf(stateFor({ scoringConfig: { afterblowMode: undefined } }));
+    const full = await hashOf(stateFor({ scoringConfig: { afterblowMode: 'full' } }));
+    expect(missing).toBe(full);
+  });
+
   it('changes when the pinned penalty definition changes (cards change scores)', async () => {
     const base = await hashOf(stateFor());
     const changed = await hashOf(stateFor({ penalty: { red_card_points: -3 } }));

@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { Exchange, Ruleset, StandingsColumn } from '@myclash/rulesets';
+import { afterblowModeInForce } from '@myclash/types';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { RulesetResolver } from '../matches/ruleset-resolver.service';
 import type { StandingsMember } from '../pool-standings/compute-rows';
@@ -192,8 +193,7 @@ export async function resolveTournamentRuleset(
     ruleset_config?: Record<string, unknown> | null;
     scoring_config_json?: { afterblowMode?: unknown } | null;
   };
-  const afterblowMode: 'full' | 'deductive' =
-    row.scoring_config_json?.afterblowMode === 'deductive' ? 'deductive' : 'full';
+  const afterblowMode = afterblowModeInForce(row.scoring_config_json);
   const ruleset = await rulesets.resolve(
     row.ruleset_code,
     normalizeRulesetVersion(row.ruleset_version),
