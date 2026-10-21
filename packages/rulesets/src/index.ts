@@ -76,6 +76,7 @@ export type {
 export {
   BLACK_CARD_REASONS,
   BlackCardEffectSchema,
+  COUNTED_FORFEIT_REASONS,
   FORFEIT_REASONS,
   forfeitOutcomeOf,
   ForfeitReasonRuleSchema,

@@ -144,7 +144,7 @@ export class RegistrationsController {
 
   /**
    * PATCH /api/v1/registrations/:id/status
-   * Enforces status transitions: registered → checked_in → done.
+   * The organiser's hand, by the transitions table: check-in, a withdrawal and its undo.
    */
   @Patch('registrations/:id/status')
   @ApiOperation({ summary: 'Update registration status (enforces valid transitions)' })
@@ -154,12 +154,9 @@ export class RegistrationsController {
     @Body() dto: UpdateRegistrationStatusDto,
     @Req() req: FastifyRequest,
   ) {
-    await assertCanManageRegistration(
-      this.authz,
-      id,
-      await requireRequestUserId(req, this.supabase),
-    );
-    return this.registrations.updateStatus(id, dto.status);
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanManageRegistration(this.authz, id, userId);
+    return this.registrations.updateStatus(id, dto.status, userId);
   }
 
   /**
@@ -177,13 +174,10 @@ export class RegistrationsController {
     @Req() req: FastifyRequest,
     @Query('force') forceParam?: string,
   ) {
-    await assertCanManageRegistration(
-      this.authz,
-      id,
-      await requireRequestUserId(req, this.supabase),
-    );
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanManageRegistration(this.authz, id, userId);
     const force = forceParam === 'true';
-    await this.registrations.promoteFromWaitlist(id, force);
+    await this.registrations.promoteFromWaitlist(id, force, userId);
     return { promoted: true };
   }
 

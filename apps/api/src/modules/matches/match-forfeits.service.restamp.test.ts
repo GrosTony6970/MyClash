@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { rulesOf, withStampedRules } from '../phases/match-rules.fixtures';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 const RESULT = {
   status: 'completed',
@@ -86,6 +87,7 @@ function forfeitsOver(db: ReturnType<typeof seeded>) {
     { clearDownstreamOf } as never,
     none,
     scoring as never,
+    fighterStatusDouble(),
   );
 }
 

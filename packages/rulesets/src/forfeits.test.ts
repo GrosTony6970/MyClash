@@ -6,6 +6,7 @@ import {
 } from '@myclash/types/forfeit-rules';
 import {
   BLACK_CARD_REASONS,
+  COUNTED_FORFEIT_REASONS,
   FORFEIT_REASONS,
   forfeitOutcomeOf,
   ForfeitReasonSchema,
@@ -124,6 +125,12 @@ describe('the stored forfeit rules', () => {
     const { injury: _gone, ...twoReasons } = FFAMHE_FORFEIT_RULES.reasons;
     const missing = { ...FFAMHE_FORFEIT_RULES, reasons: twoReasons };
     expect(ForfeitRulesSchema.safeParse(missing).success).toBe(false);
+  });
+});
+
+describe('the forfeits "disqualify after N" counts (rulings 56, 80)', () => {
+  it('are the ones the Fighter chose: no black card, no override', () => {
+    expect(COUNTED_FORFEIT_REASONS).toEqual(['injury', 'voluntary', 'conduct_violation']);
   });
 });
 

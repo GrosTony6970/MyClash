@@ -1,20 +1,16 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-// Valid status transitions: registered → checked_in → done.
-// Slice 3 of the capacity overhaul: also allow registered → withdrawn
-// (operators may pull a no-show before check-in), and waitlist →
-// registered (the promote path uses this transition). The 'waitlist'
-// status itself is never set via PATCH /:id/status — it lands only via
-// addToWaitlist or stays unchanged via the auto/manual promote paths —
-// so it isn't a valid destination here.
+// The organiser's hand (`registrations.entry_status`, migration 0240): what PATCH /:id/status
+// may change it to. The status itself is the settle's (a forfeit, a card or a review can hold
+// the Fighter out whatever the hand says), so the table is keyed on the hand. A withdrawal by
+// hand can be undone (ruling 110). A waitlisted entry is seated by the promote, which checks the
+// capacity and closes the queue behind it, never here. There is no 'done' (0078).
 export const REGISTRATION_STATUS_TRANSITIONS: Record<string, string[]> = {
   registered: ['checked_in', 'withdrawn'],
-  checked_in: ['done', 'withdrawn'],
-  done: [],
-  withdrawn: [],
-  disqualified: [],
-  waitlist: ['registered'],
+  checked_in: ['withdrawn'],
+  withdrawn: ['registered'],
+  waitlist: [],
 };
 
 const createRegistrationSchema = z

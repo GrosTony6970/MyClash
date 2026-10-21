@@ -11,6 +11,7 @@ import { ClockService } from './clock.service';
 import { BOUT, HALTED, NOW, RUNNING, at, row, setup } from './clock-late-press.fixtures';
 import { scoredAtServer } from './late-press';
 import { MatchForfeitsService } from './match-forfeits.service';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * The server's own End or Halt, after a hit or a card a tablet kept in its
@@ -222,6 +223,10 @@ describe('a black card given with no network while the clock runs', () => {
       db as never,
       undefined as never,
       new ClockService(db as never),
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
     /** The card's forfeit, from the card path (`causedAt`) or recorded at the table. */
     const blackCard = (causedAt?: string) =>

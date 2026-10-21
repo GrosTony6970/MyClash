@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { supabaseRpc } from '../../common/testing/supabase-chain';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 // Harness whose chains are awaitable (thenable) so a bare `.select().eq()` count
 // query — and a bare `.update().eq()` / `.delete().eq()` — resolves. Per-table
@@ -50,7 +51,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 1 },
       events: { count: 0 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.updateRuleset('pr-1', { name: 'Renamed' } as never, 'user-1'),
@@ -64,7 +73,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 0 },
       events: { count: 1 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.updateRuleset('pr-1', { name: 'Renamed' } as never, 'user-1'),
@@ -77,7 +94,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 0 },
       events: { count: 0 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.updateRuleset('pr-1', { name: 'Renamed' } as never, 'user-1');
     expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({ name: 'Renamed' });
@@ -90,7 +115,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 5 },
       events: { count: 0 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.updateRuleset('pr-1', { name: 'Fixed built-in' } as never, 'super-1');
     expect(supabase.updated.penalty_rulesets?.[0]).toMatchObject({ name: 'Fixed built-in' });
@@ -111,7 +144,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
         tournaments: { count: 0 },
         events: { count: 0 },
       });
-      const service = new PenaltiesService(supabase as never);
+      const service = new PenaltiesService(
+        supabase as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        fighterStatusDouble(),
+      );
 
       await expect(
         service.updateRuleset('pr-1', { name: 'Sneaky edit' } as never, 'staff-1'),
@@ -126,7 +167,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 1 },
       events: { count: 0 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.deleteRuleset('pr-1', 'user-1');
 
@@ -144,7 +193,15 @@ describe('PenaltiesService — edit/delete immutability guard', () => {
       tournaments: { count: 0 },
       events: { count: 0 },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.deleteRuleset('pr-1', 'user-1');
 
@@ -175,7 +232,15 @@ describe('PenaltiesService — sharing review tier', () => {
       penalty_rulesets: { maybeSingle: sharingRow() },
       platform_roles: { maybeSingle: { role: 'platform_admin' } },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.approveRulesetSharing('pr-1', 'admin-1');
 
@@ -190,7 +255,15 @@ describe('PenaltiesService — sharing review tier', () => {
       penalty_rulesets: { maybeSingle: sharingRow() },
       platform_roles: { maybeSingle: { role: 'platform_viewer' } },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(service.approveRulesetSharing('pr-1', 'viewer-1')).rejects.toThrow(
       /platform admin/i,
@@ -203,7 +276,15 @@ describe('PenaltiesService — sharing review tier', () => {
       penalty_rulesets: { maybeSingle: sharingRow() },
       platform_roles: { maybeSingle: null },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(service.rejectRulesetSharing('pr-1', 'not good', 'nobody-1')).rejects.toThrow(
       /platform admin/i,

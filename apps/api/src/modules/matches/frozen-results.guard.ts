@@ -90,6 +90,18 @@ export class FrozenResultsGuard {
   }
 
   /**
+   * The same refusal, for a door that names a Tournament rather than a bout: one that can change
+   * a Fighter's status, and so their bouts and the standings (a hand withdrawal and its undo, the
+   * waitlist promotes, a review's answer).
+   */
+  async assertTournamentResultsOpen(tournamentId: string, userId?: string): Promise<void> {
+    const state = await this.getEventStateForTournament(tournamentId);
+    if (!isOver(state.status)) return;
+    if (await this.isSuperAdmin(userId)) return;
+    throw eventResultsFrozen();
+  }
+
+  /**
    * Is the Event of this bout over? A fact, not a permission: no super-admin
    * bypass. The recompute asks it to know whether anybody is still there to end
    * a bout again (rulings 225 to 230).
@@ -265,7 +277,10 @@ export class FrozenResultsGuard {
       .maybeSingle();
     if (phaseError || !phase) throw new BadRequestException(`Phase ${phaseId} not found`);
 
-    const tournamentId = (phase as { tournament_id: string }).tournament_id;
+    return this.getEventStateForTournament((phase as { tournament_id: string }).tournament_id);
+  }
+
+  private async getEventStateForTournament(tournamentId: string): Promise<EventFreezeState> {
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
       .select('id, event_id')

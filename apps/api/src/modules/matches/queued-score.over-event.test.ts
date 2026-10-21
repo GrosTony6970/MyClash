@@ -5,11 +5,11 @@ import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { PenaltiesController } from '../penalties/penalties.controller';
-import { PenaltiesService } from '../penalties/penalties.service';
 import { STAFF_COOKIE_NAME, StaffService } from '../staff/staff.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
+import { penaltiesOver } from './fighter-status.fixtures';
 
 /**
  * A pad's queue reaches the handler on an over Event (rulings 233, 240, 240a).
@@ -154,7 +154,7 @@ function setup(status: string, caller: Caller, odd: Odd = {}) {
     {} as never,
   );
   const penalties = new PenaltiesController(
-    new PenaltiesService(db as never, scoring as never, frozen),
+    penaltiesOver(db, { scoring, frozen }),
     {} as never,
     staff,
     {} as never,

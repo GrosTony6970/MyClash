@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
-  FORFEIT_REASONS,
+  COUNTED_FORFEIT_REASONS,
   forfeitOutcomeOf,
   isBlackCardReason,
   isOverrideReason,
@@ -32,6 +32,7 @@ import {
 } from '../phases/match-ruleset';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
+import { FighterStatusService } from './fighter-status.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { hasBeenFought } from './fought-match';
@@ -48,11 +49,28 @@ import { ScoringService } from './scoring.service';
 type Actor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
 type Row = Record<string, unknown>;
 
+/** What a forfeit did to its Fighter at its time (`match_forfeits.fighter_outcome`, 0240). */
+type FighterOutcome = 'withdrawn' | 'disqualified' | null;
+
 /**
- * The forfeits "disqualify after N forfeits" counts: the ones the Fighter chose. Not an override
- * (nobody forfeited), not a black card (the referee's, ruling 56).
+ * A forfeit's own effect on its Fighter, stored once at its insert and read by the status settle.
+ * None for an override (nobody forfeited), nor for a black card's forfeit its card sent (the card
+ * is the cause, ruling 56, and the settle counts the cards). A black card forfeit recorded by hand
+ * has no card: it stores what its card rule does (rulings 58, 82). A forfeit recorded under a live
+ * withdrawal is one of its effects, so it withdraws nobody (ruling 89: voiding the withdrawal frees
+ * the Fighter, 105), but one whose reason disqualifies still does (ruling 112). "Disqualify after
+ * N" is never stored: the settle counts (ruling 80).
  */
-const COUNTED_FORFEIT_REASONS = FORFEIT_REASONS.filter((reason) => !isBlackCardReason(reason));
+function fighterOutcomeOf(
+  reason: string,
+  stored: string,
+  canContinue: boolean | null,
+  opts: { inherited: boolean; sentByItsCard: boolean },
+): FighterOutcome {
+  if (isOverrideReason(reason) || (isBlackCardReason(reason) && opts.sentByItsCard)) return null;
+  if (stored === 'disqualified') return 'disqualified';
+  return !opts.inherited && canContinue === false ? 'withdrawn' : null;
+}
 
 /**
  * An override's scores: it states the result; there is nothing to derive. The DTO guarantees the
@@ -122,6 +140,7 @@ export interface ForfeitCascadeContext {
 @Injectable()
 export class MatchForfeitsService {
   private readonly logger = new Logger(MatchForfeitsService.name);
+  private readonly fighterStatus: FighterStatusService;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -132,7 +151,15 @@ export class MatchForfeitsService {
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly scoring?: ScoringService,
-  ) {}
+    // REQUIRED, and last only because a required parameter cannot follow optional ones. The
+    // `?:` shape keeps the class in `design:paramtypes` (a `T | undefined` type emits `Object`,
+    // and Nest would then inject undefined into every `@Optional()` one above); Nest injects it
+    // as it does every required dependency, and a hand construction without it throws here.
+    fighterStatus?: FighterStatusService,
+  ) {
+    if (!fighterStatus) throw new Error('MatchForfeitsService needs the FighterStatusService');
+    this.fighterStatus = fighterStatus;
+  }
 
   /**
    * `causedAt`: of a black card a tablet kept in its queue, the server's time
@@ -157,7 +184,11 @@ export class MatchForfeitsService {
     await this.assertWritable(matchId, match, dto, actor);
 
     const active = await this.existingRecord(matchId, dto);
-    if (active) return active;
+    if (active) {
+      // A retry: its first send may have stopped after the record, before the settle.
+      await this.settleIfTheirs(active, dto.forfeitingRegistrationId);
+      return active;
+    }
 
     const phase = this.phase(match);
     const rules = isOverrideReason(dto.reason)
@@ -180,9 +211,9 @@ export class MatchForfeitsService {
       policy.tournamentState,
       rules?.cardEffect ?? null,
     );
-    const tournamentState =
+    const escalated =
       inheritedParentId || !rules
-        ? reasonState
+        ? { state: reasonState, stored: reasonState }
         : await this.escalateTournamentState(
             dto.forfeitingRegistrationId,
             matchId,
@@ -191,8 +222,17 @@ export class MatchForfeitsService {
             rules.rules,
             dto.reason as ForfeitReason,
           );
+    const tournamentState = escalated.state;
 
+    // `tournamentState` still drives today's Pool cascade, "after N" included.
     const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue, phase.type);
+    const fighterOutcome = fighterOutcomeOf(
+      dto.reason,
+      escalated.stored,
+      this.resolveCanContinue(escalated.stored, dto.canContinue, phase.type),
+      // `inForce` is handed over by the card path alone, which writes its card first.
+      { inherited: inheritedParentId !== null, sentByItsCard: inForce !== undefined },
+    );
     const scores = this.resolveScores(
       match,
       dto.forfeitingRegistrationId,
@@ -213,6 +253,7 @@ export class MatchForfeitsService {
       forfeiting_score: scores.forfeitingScore,
       opponent_score: scores.opponentScore,
       can_continue: canContinue,
+      fighter_outcome: fighterOutcome,
       auto_created: false,
       previous_match_state: this.matchSnapshot(match),
       previous_registration_state: priorRegistration ?? {},
@@ -252,7 +293,6 @@ export class MatchForfeitsService {
         causedAt,
       );
     }
-    await this.applyTournamentState(dto.forfeitingRegistrationId, tournamentState, canContinue);
 
     // A pool match feeds no bracket slot, so a pool forfeit has no dependents
     // and this list stays empty. It used to hold the auto-forfeited CHILD match
@@ -300,6 +340,12 @@ export class MatchForfeitsService {
     // Last, once every branch above has had its say about the matches row.
     await this.stampResultingState(forfeit.id as string, matchId);
 
+    // After every write of the door: a settle that fails leaves the forfeit whole, and the
+    // retry ("Match is already closed") settles.
+    await this.fighterStatus.settle({
+      registrationId: dto.forfeitingRegistrationId,
+      tournamentId: phase.tournament_id,
+    });
     return { ...forfeit, downstream_match_ids: downstreamIds };
   }
 
@@ -494,8 +540,6 @@ export class MatchForfeitsService {
     await this.restoreMatchState(matchId, previousMatch, rulesets);
     await this.readvanceIfDecided(matchId, previousMatch);
 
-    await this.restoreRegistrationStatus(forfeit);
-
     // Children second-to-last, the parent LAST. A crash between them leaves the
     // parent record active, so a re-run converges: the children already voided
     // drop out of `activeChildren`'s query. Stamping the parent first would
@@ -508,6 +552,9 @@ export class MatchForfeitsService {
     // The bouts put back read their copy before their write (R3); a withdrawal stays in its Tournament.
     if (rulesets.size > 0)
       await restampAfterInsert(this.supabase.service, { matchId }, this.logger);
+    // The status follows what is still live: no status this record found is written back. Last,
+    // so a settle that fails leaves the take-back whole; its retry settles.
+    await this.settleFighterOf(forfeit);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
   }
 
@@ -520,18 +567,27 @@ export class MatchForfeitsService {
       .maybeSingle();
     if (!data) throw new NotFoundException(`Forfeit ${forfeitId} not found`);
     const forfeit = data as Row;
-    if (forfeit['voided_at']) throw new BadRequestException('Forfeit is already voided');
+    if (forfeit['voided_at']) {
+      // A retry of a take-back whose first send stopped after the stamp, before the settle.
+      await this.settleFighterOf(forfeit);
+      throw new BadRequestException('Forfeit is already voided');
+    }
     return forfeit;
   }
 
-  /** The Fighter's status as the record found it. A record that captured none restores none. */
-  private async restoreRegistrationStatus(forfeit: Row): Promise<void> {
-    const previousReg = (forfeit['previous_registration_state'] as Row | null) ?? {};
-    if (!previousReg['status']) return;
-    await this.supabase.service
-      .from('registrations')
-      .update({ status: previousReg['status'] })
-      .eq('id', forfeit['forfeiting_registration_id'] as string);
+  /** The status settle of a record's Fighter, after its own write. */
+  private async settleFighterOf(forfeit: Row): Promise<void> {
+    await this.fighterStatus.settle({
+      registrationId: forfeit['forfeiting_registration_id'] as string,
+      tournamentId: forfeit['tournament_id'] as string,
+    });
+  }
+
+  /** The settle of a retry, when the live record on its bout is this Fighter's. */
+  private async settleIfTheirs(active: Row | null, registrationId: string): Promise<void> {
+    if (active?.['forfeiting_registration_id'] === registrationId) {
+      await this.settleFighterOf(active);
+    }
   }
 
   /**
@@ -607,16 +663,16 @@ export class MatchForfeitsService {
    * Void the sub-forfeits this record cascaded into the fighter's remaining
    * pool matches.
    *
-   * Voiding the parent un-withdraws the fighter — `previous_registration_state`
-   * puts their `registrations.status` back — so leaving their other bouts on
+   * Voiding the parent can bring the fighter back in — the status settle after
+   * its stamp reads what is still live — so leaving their other bouts on
    * record as forfeits would count F's in the standings for someone who is back
    * in the tournament. `pool-standings.service.ts` and `swiss-standings-loader`
    * both key on `voided_at IS NULL` and nothing else, so stamping the child is
    * what removes the F; restoring its match is what puts the bout back on.
    *
-   * No registration restore for a child: its `previous_registration_state` is
-   * `{}` by construction and the PARENT owns the fighter's status. No
-   * `clearDownstreamOf` either — a pool match feeds no slot.
+   * No status write for a child: a child withdraws nobody (`fighter_outcome` is
+   * null on every one), and the settle after the parent's stamp reads what is
+   * still live. No `clearDownstreamOf` either — a pool match feeds no slot.
    *
    * A child already voided is SKIPPED. The organiser dealt with that bout
    * separately and whatever was replayed on it afterwards is a real result;
@@ -649,7 +705,11 @@ export class MatchForfeitsService {
     return children.length;
   }
 
-  /** The sub-forfeits of a record that still stand: the ones its take-back voids. */
+  /**
+   * The sub-forfeits of a record that still stand: the ones its take-back voids. Not one that
+   * disqualified on its own (a conduct forfeit recorded under the withdrawal, ruling 112): it is
+   * a cause of its own, and voiding the injury keeps the Fighter disqualified by it.
+   */
   private async activeChildren(parentForfeitId: string): Promise<Row[]> {
     const { data } = await this.supabase.service
       .from('match_forfeits')
@@ -657,10 +717,10 @@ export class MatchForfeitsService {
       // against. Leaving it out of the select does not make that check strict,
       // it makes it INERT: the column reads back undefined, the comparison has
       // nothing to compare, and it answers `null` for every child forever.
-      .select('id, match_id, previous_match_state, resulting_match_state')
+      .select('id, match_id, previous_match_state, resulting_match_state, fighter_outcome')
       .eq('parent_forfeit_id', parentForfeitId)
       .is('voided_at', null);
-    return (data ?? []) as Row[];
+    return ((data ?? []) as Row[]).filter((child) => child['fighter_outcome'] !== 'disqualified');
   }
 
   /**
@@ -766,6 +826,11 @@ export class MatchForfeitsService {
   ): Promise<void> {
     const wasCompleted = match.status === 'completed';
     if (match.status === 'voided' || (wasCompleted && !isOverrideReason(dto.reason))) {
+      // A retry of a forfeit whose first send closed the bout and stopped there settles.
+      await this.settleIfTheirs(
+        await this.loadActiveForfeit(matchId),
+        dto.forfeitingRegistrationId,
+      );
       throw new BadRequestException('Match is already closed');
     }
     // `loadMatch` selects *, so locked_at is already on the row — no extra read.
@@ -1209,24 +1274,6 @@ export class MatchForfeitsService {
     }
   }
 
-  private async applyTournamentState(
-    registrationId: string,
-    state: string,
-    canContinue: boolean | null,
-  ) {
-    if (state === 'disqualified') {
-      await this.supabase.service
-        .from('registrations')
-        .update({ status: 'disqualified' })
-        .eq('id', registrationId);
-    } else if (state === 'withdrawn' || canContinue === false) {
-      await this.supabase.service
-        .from('registrations')
-        .update({ status: 'withdrawn' })
-        .eq('id', registrationId);
-    }
-  }
-
   /**
    * The rules a forfeit recorded by hand is recorded by, in one read of the
    * Tournament's card rules: its forfeit rules and, for a black card, what that
@@ -1267,6 +1314,10 @@ export class MatchForfeitsService {
    *
    * A black card escalates neither (ruling 56). Counted before the new forfeit
    * row is inserted, hence the `+ 1`.
+   *
+   * `state` drives today's Pool cascade; `stored` is what the record keeps as its own effect
+   * (`fighter_outcome`). The 1st escalation is stored; the 2nd never is: the status settle counts
+   * the live forfeits every time, so a void counts again (ruling 80).
    */
   private async escalateTournamentState(
     registrationId: string,
@@ -1275,10 +1326,11 @@ export class MatchForfeitsService {
     state: string,
     rules: ForfeitRules,
     reason: ForfeitReason,
-  ): Promise<string> {
-    if (state === 'disqualified') return state;
+  ): Promise<{ state: string; stored: string }> {
+    const kept = { state, stored: state };
+    if (state === 'disqualified') return kept;
     // The Fighter did not choose a black card: its own rule says what it does.
-    if (isBlackCardReason(reason)) return state;
+    if (isBlackCardReason(reason)) return kept;
 
     if (rules.disqualifyBeforeFirstBout) {
       const { count } = await this.supabase.service
@@ -1287,7 +1339,7 @@ export class MatchForfeitsService {
         .eq('status', 'completed')
         .neq('id', matchId)
         .or(`red_registration_id.eq.${registrationId},blue_registration_id.eq.${registrationId}`);
-      if ((count ?? 0) === 0) return 'disqualified';
+      if ((count ?? 0) === 0) return { state: 'disqualified', stored: 'disqualified' };
     }
 
     const threshold = rules.disqualifyAfter;
@@ -1302,10 +1354,10 @@ export class MatchForfeitsService {
         // effects, not forfeits (rulings 56 and 89).
         .is('parent_forfeit_id', null)
         .is('voided_at', null);
-      if ((count ?? 0) + 1 >= threshold) return 'disqualified';
+      if ((count ?? 0) + 1 >= threshold) return { state: 'disqualified', stored: state };
     }
 
-    return state;
+    return kept;
   }
 
   /**

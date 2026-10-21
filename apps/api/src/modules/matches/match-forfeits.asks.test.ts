@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CLUB_START_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
-import { MatchForfeitsService } from './match-forfeits.service';
+import { forfeitsOver } from './fighter-status.fixtures';
 
 /**
  * "Can the Fighter continue?" is a question of the Pool and of Swiss only (operator ruling 76,
@@ -52,7 +52,7 @@ function bout(type: string) {
       ],
     },
   });
-  const service = new MatchForfeitsService(db as never, undefined as never);
+  const service = forfeitsOver(db);
   const injured = (canContinue: boolean) =>
     service.createForfeit('m1', {
       forfeitingRegistrationId: 'reg-red',
@@ -79,7 +79,12 @@ describe('"can the Fighter continue?" is asked of the Pool and of Swiss only', (
 
       expect(fighterStates(db)).toEqual([]);
       expect(recorded(db)).toEqual([
-        expect.objectContaining({ match_id: 'm1', reason: 'injury', can_continue: true }),
+        expect.objectContaining({
+          match_id: 'm1',
+          reason: 'injury',
+          can_continue: true,
+          fighter_outcome: null,
+        }),
       ]);
     },
   );
@@ -91,8 +96,12 @@ describe('"can the Fighter continue?" is asked of the Pool and of Swiss only', (
 
       await injured(false);
 
-      expect(fighterStates(db)).toContainEqual({ status: 'withdrawn' });
-      expect(recorded(db)[0]).toMatchObject({ match_id: 'm1', can_continue: false });
+      // What the forfeit did is stored with it; the status is the settle's (slice B).
+      expect(recorded(db)[0]).toMatchObject({
+        match_id: 'm1',
+        can_continue: false,
+        fighter_outcome: 'withdrawn',
+      });
     },
   );
 });

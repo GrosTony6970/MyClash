@@ -19,6 +19,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { PenaltiesService } from './penalties.service';
 import { withStampedRules } from '../phases/match-rules.fixtures';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 const EVENT_A = '11111111-1111-4111-8111-111111111111';
 const TOURNAMENT_A = '33333333-3333-4333-8333-333333333333';
@@ -118,7 +119,15 @@ beforeEach(() => {
   );
   const supabase = { service: db.service };
   const orgs = new OrganizationsService(db as never);
-  penalties = new PenaltiesService(supabase as never, undefined, undefined, orgs);
+  penalties = new PenaltiesService(
+    supabase as never,
+    undefined,
+    undefined,
+    orgs,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
   events = new EventsService(supabase as never, orgs, {} as never, createRulesetRegistry());
 });
 

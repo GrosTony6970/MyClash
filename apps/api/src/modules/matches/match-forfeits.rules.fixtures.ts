@@ -6,18 +6,19 @@
  */
 import { CLUB_START_FORFEIT_RULES, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
-import { MatchForfeitsService } from './match-forfeits.service';
+import { fighterStatusDouble, forfeitsOver } from './fighter-status.fixtures';
 
 const BUILT_IN = 'built-in';
 
 /** The bout of Red against Blue in a phase of `phaseType`, and Red's later bout in the Pool. */
-const boutsIn = (phaseType: string) => [
+const boutsIn = (phaseType: string, over: Record<string, unknown>) => [
   {
     id: 'm1',
     phase_id: 'phase-1',
     pool_id: 'pool-1',
     bracket_slot_id: null,
     status: 'running',
+    ...over,
     red_registration_id: 'reg-red',
     blue_registration_id: 'reg-blue',
     red_score: 2,
@@ -35,14 +36,18 @@ const boutsIn = (phaseType: string) => [
   },
 ];
 
-/** The bouts, under `rules` as the built-in penalty ruleset's, with Red's forfeits `history`. */
+/**
+ * The bouts, under `rules` as the built-in penalty ruleset's, with Red's forfeits `history`, the
+ * bout's state `boutState` over its running one.
+ */
 export function bout(
   rules: ForfeitRules,
   history: Record<string, unknown>[] = [],
   phaseType = 'pool',
+  boutState: Record<string, unknown> = {},
 ) {
   const db = mockSupabase({
-    matches: { rows: boutsIn(phaseType) },
+    matches: { rows: boutsIn(phaseType, boutState) },
     match_forfeits: {
       rows: history,
       returning: (row: Record<string, unknown>) => ({ id: `ff-${String(row['match_id'])}` }),
@@ -73,14 +78,15 @@ export function bout(
       ],
     },
   });
-  const service = new MatchForfeitsService(db as never, undefined as never);
+  const status = fighterStatusDouble(undefined, () => db.writes);
+  const service = forfeitsOver(db, status);
   const forfeit = (reason: string, canContinue?: boolean) =>
     service.createForfeit('m1', {
       forfeitingRegistrationId: 'reg-red',
       reason,
       ...(canContinue === undefined ? {} : { canContinue }),
     } as never);
-  return { db, forfeit };
+  return { db, forfeit, service, status };
 }
 
 type Db = ReturnType<typeof bout>['db'];
@@ -90,6 +96,12 @@ export const inserted = (db: Db) =>
   writesTo(db, 'match_forfeits')
     .filter((write) => write.op === 'insert')
     .map((write) => write.row as Record<string, unknown>);
+
+/**
+ * What the forfeit record written first stored as its own effect on its Fighter. The Fighter's
+ * status is the settle's, never a write of the door (probe check 16 holds what the settle answers).
+ */
+export const outcome = (db: Db) => inserted(db)[0]?.['fighter_outcome'];
 
 export const fighterStates = (db: Db) => writesTo(db, 'registrations').map((write) => write.row);
 

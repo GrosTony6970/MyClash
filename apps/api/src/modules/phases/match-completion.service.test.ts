@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { MatchCompletionService } from './match-completion.service';
 import { rulesOf, withStampedRules } from './match-rules.fixtures';
 
@@ -386,10 +386,9 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
   });
 
   /**
-   * A forfeit record whose whole effect was its own bout: the fighter's
-   * `registrations.status` still reads exactly what the record captured, which
-   * is what `applyTournamentState` leaves behind when it decides not to move
-   * them at all.
+   * A forfeit record whose whole effect was its own bout: it stores no outcome
+   * on its Fighter, and their `registrations.status` still reads exactly what the
+   * record captured.
    */
   const matchOnlyForfeit = (over: Row = {}) => ({
     match_forfeits: [
@@ -467,6 +466,36 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
 
     expect(supabase.writes).toEqual([]);
   });
+
+  // The record put its Fighter out itself (0240): voided here, where nothing settles, the Fighter
+  // would stay out with no cause on record, whatever their status reads now.
+  it.each([
+    ['withdrew', 'withdrawn'],
+    ['disqualified', 'disqualified'],
+  ])(
+    'refuses a record that %s its Fighter, even when the status still reads as it captured',
+    async (_did, outcome) => {
+      const supabase = uncompleteSupabase({
+        ...bracketFixture(false),
+        ...matchOnlyForfeit({
+          fighter_outcome: outcome,
+          previous_registration_state: { status: outcome },
+        }),
+        registrations: [{ id: 'reg-a', status: outcome }],
+      });
+
+      await expect(
+        new MatchCompletionService(
+          supabase as never,
+          openEvent() as never,
+          { clearDownstreamOf: vi.fn() } as never,
+        ).onMatchUncompleted('match-r1p1', { actor: ORGANISER }),
+      ).rejects.toMatchObject({ response: { code: 'forfeit_withdrew_fighter' } });
+      expect(supabase.writes).toEqual([]);
+      // The double answers every column whatever the read names: the outcome must be asked for.
+      expect(selectsFor(supabase.from, 'match_forfeits')[0]).toContain('fighter_outcome');
+    },
+  );
 
   it('refuses while the record still carries live children', async () => {
     // A withdrawal auto-forfeited the fighter's remaining pool bouts. Undoing

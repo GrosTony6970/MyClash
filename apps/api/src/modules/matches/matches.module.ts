@@ -5,6 +5,7 @@ import { StaffModule } from '../staff/staff.module';
 import { PhasesModule } from '../phases/phases.module';
 import { RefereesModule } from '../referees/referees.module';
 import { ClockService } from './clock.service';
+import { FighterStatusService } from './fighter-status.service';
 import { FrozenResultsModule } from './frozen-results.module';
 import { LeagueRescoreService } from './league-rescore.service';
 import { LeaguesModule } from '../leagues/leagues.module';
@@ -46,7 +47,14 @@ import { ScoringService } from './scoring.service';
     ClockService,
     MatchAutoLockService,
     MatchForfeitsService,
+    FighterStatusService,
   ],
-  exports: [MatchesService, ScoringService, ClockService, MatchForfeitsService],
+  exports: [
+    MatchesService,
+    ScoringService,
+    ClockService,
+    MatchForfeitsService,
+    FighterStatusService,
+  ],
 })
 export class MatchesModule {}

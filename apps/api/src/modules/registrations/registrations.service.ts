@@ -8,6 +8,13 @@ import type { IdentityMintReason } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import {
+  FighterStatusService,
+  isEntryStatusChanged,
+  type EntryStatus,
+  type SettleInput,
+} from '../matches/fighter-status.service';
+import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import {
   REGISTRATION_STATUS_TRANSITIONS,
   type CreateRegistrationDto,
 } from './dto/registrations.dto';
@@ -22,11 +29,21 @@ type RegistrationWithMintNotice = Record<string, unknown> & {
   mintedIdentity: IdentityMintReason | null;
 };
 
+/** What a hand door reads of an entry before it settles. */
+interface EntryRow {
+  id: string;
+  tournament_id: string;
+  entry_status: EntryStatus;
+  waitlist_position: number | null;
+}
+
 @Injectable()
 export class RegistrationsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly globalPersonResolver: GlobalPersonResolverService,
+    private readonly fighterStatus: FighterStatusService,
+    private readonly frozenResults: FrozenResultsGuard,
   ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
@@ -142,6 +159,7 @@ export class RegistrationsService {
         seed: dto.seed ?? null,
         bib_number: bibNumber,
         status: 'registered',
+        entry_status: 'registered',
       })
       .select('*')
       .single();
@@ -231,6 +249,7 @@ export class RegistrationsService {
         // queue time would burn numbers that may never be used.
         bib_number: null,
         status: 'waitlist',
+        entry_status: 'waitlist',
         waitlist_position: nextPosition,
       })
       .select('*')
@@ -249,70 +268,97 @@ export class RegistrationsService {
 
   // ── Status transition ────────────────────────────────────────────────────────
 
-  async updateStatus(registrationId: string, newStatus: string) {
-    const { data: reg, error: fetchError } = await this.supabase.service
-      .from('registrations')
-      .select('id, tournament_id, status')
-      .eq('id', registrationId)
-      .maybeSingle();
-
-    if (fetchError || !reg) throw new NotFoundException(`Registration ${registrationId} not found`);
-
-    const currentStatus = (reg as { status: string }).status;
-    const tournamentId = (reg as { tournament_id: string }).tournament_id;
-    const allowed = REGISTRATION_STATUS_TRANSITIONS[currentStatus] ?? [];
-
+  /**
+   * The organiser's hand (`entry_status`, keyed by the transitions table): check-in, a withdrawal
+   * and its undo (ruling 110). The status itself is the settle's, the hand one of its causes. A
+   * withdrawal and its undo can move the Fighter in or out, and so their bouts and the standings:
+   * on an Event that is over they are a super admin's, as every result change there (check-in
+   * changes no bout and stays open). The undo takes a seat as an entry does, so a Tournament the
+   * withdrawal's promote filled refuses it (`tournament_full`).
+   */
+  async updateStatus(registrationId: string, newStatus: string, userId?: string) {
+    const reg = await this.readEntry(registrationId);
+    const allowed = REGISTRATION_STATUS_TRANSITIONS[reg.entry_status] ?? [];
     if (!allowed.includes(newStatus)) {
+      // A retry of a change that took: its first send may have stopped before the settle.
+      if (newStatus === reg.entry_status) await this.settle(reg);
       throw new BadRequestException(
-        `Cannot transition from "${currentStatus}" to "${newStatus}". ` +
+        `Cannot transition from "${reg.entry_status}" to "${newStatus}". ` +
           `Allowed transitions: ${allowed.length ? allowed.join(', ') : 'none'}`,
       );
     }
+    if (newStatus !== 'checked_in') {
+      await this.frozenResults.assertTournamentResultsOpen(reg.tournament_id, userId);
+    }
+    if (newStatus === 'registered') await this.assertCapacityForCreate(reg.tournament_id);
+    await this.settle(reg, { status: newStatus as EntryStatus, expected: reg.entry_status });
 
+    // Slice 3a: a withdrawal frees a seat, whatever else holds the Fighter out, so the
+    // position-1 waitlist entry is promoted. Skip-the-queue is promoteFromWaitlist's.
+    if (newStatus === 'withdrawn') await this.autoPromoteFirstWaitlist(reg.tournament_id);
+    return this.readRow(registrationId);
+  }
+
+  private async readEntry(registrationId: string): Promise<EntryRow> {
     const { data, error } = await this.supabase.service
       .from('registrations')
-      .update({ status: newStatus })
+      .select('id, tournament_id, entry_status, waitlist_position')
       .eq('id', registrationId)
+      .maybeSingle();
+    if (error || !data) throw new NotFoundException(`Registration ${registrationId} not found`);
+    return data as EntryRow;
+  }
+
+  private async readRow(registrationId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await this.supabase.service
+      .from('registrations')
       .select('*')
+      .eq('id', registrationId)
       .single();
+    // The change is saved: a read that fails after it is a server error, not a refusal.
+    if (error)
+      throw new Error(`Registration ${registrationId} was not read back: ${error.message}`);
+    return data as Record<string, unknown>;
+  }
 
-    if (error) throw new BadRequestException(error.message);
+  /** The Fighter's status settled, with the hand's change when there is one. */
+  private settle(reg: EntryRow, entry?: SettleInput['entry']) {
+    return this.fighterStatus.settle({
+      registrationId: reg.id,
+      tournamentId: reg.tournament_id,
+      entry,
+    });
+  }
 
-    // Slice 3a: when someone withdraws out of a competing seat, auto-promote
-    // the position-1 waitlist entry to registered. Skip-the-queue is done
-    // via the explicit promoteFromWaitlist endpoint instead.
-    if (
-      newStatus === 'withdrawn' &&
-      (currentStatus === 'registered' || currentStatus === 'checked_in')
-    ) {
-      await this.autoPromoteFirstWaitlist(tournamentId);
+  /** A waitlisted entry seated: false when another promote seated it first. */
+  private async seat(reg: EntryRow): Promise<boolean> {
+    try {
+      await this.settle(reg, { status: 'registered', expected: 'waitlist', clearWaitlist: true });
+      return true;
+    } catch (error) {
+      if (isEntryStatusChanged(error)) return false;
+      throw error;
     }
-
-    return data;
   }
 
   /**
    * Slice 3a: flip position 1 to registered and shift positions 2..N up by
-   * one. No-op when the waitlist is empty.
+   * one. No-op when the waitlist is empty, or when another promote seated
+   * position 1 first (it closed the queue itself).
    */
   private async autoPromoteFirstWaitlist(tournamentId: string): Promise<void> {
     const { data: rows } = await this.supabase.service
       .from('registrations')
-      .select('id, waitlist_position')
+      .select('id, tournament_id, entry_status, waitlist_position')
       .eq('tournament_id', tournamentId)
       .eq('status', 'waitlist')
       .order('waitlist_position', { ascending: true });
-    const waitlist = (rows ?? []) as Array<{ id: string; waitlist_position: number }>;
-    if (waitlist.length === 0) return;
-
+    const waitlist = (rows ?? []) as EntryRow[];
     const first = waitlist[0];
-    if (!first) return;
-    await this.supabase.service
-      .from('registrations')
-      .update({ status: 'registered', waitlist_position: null })
-      .eq('id', first.id);
-
-    await this.shiftWaitlistPositionsDown(waitlist.slice(1));
+    if (!first || !(await this.seat(first))) return;
+    await this.shiftWaitlistPositionsDown(
+      waitlist.slice(1) as Array<{ id: string; waitlist_position: number }>,
+    );
   }
 
   /**
@@ -321,31 +367,23 @@ export class RegistrationsService {
    * still enforced — pass `force=true` to override and intentionally seat
    * the tournament above its cap.
    */
-  async promoteFromWaitlist(registrationId: string, force = false) {
-    const { data: reg } = await this.supabase.service
-      .from('registrations')
-      .select('id, tournament_id, status, waitlist_position')
-      .eq('id', registrationId)
-      .maybeSingle();
-    if (!reg) throw new NotFoundException(`Registration ${registrationId} not found`);
-    const row = reg as {
-      id: string;
-      tournament_id: string;
-      status: string;
-      waitlist_position: number | null;
-    };
-    if (row.status !== 'waitlist' || row.waitlist_position == null) {
+  async promoteFromWaitlist(registrationId: string, force = false, userId?: string) {
+    const row = await this.readEntry(registrationId);
+    if (row.entry_status !== 'waitlist' || row.waitlist_position == null) {
+      // A retry of a promote that took: its first send may have stopped before the settle.
+      await this.settle(row);
       throw new BadRequestException('Registration is not on the waitlist');
     }
+    // A seated Fighter is drawn into the bouts: a result change, refused on an Event that is over.
+    await this.frozenResults.assertTournamentResultsOpen(row.tournament_id, userId);
 
     if (!force) {
       await this.assertCapacityForCreate(row.tournament_id);
     }
 
-    await this.supabase.service
-      .from('registrations')
-      .update({ status: 'registered', waitlist_position: null })
-      .eq('id', row.id);
+    // Two promotes of one entry at once: the second is refused (`entry_status_changed`), and
+    // only the first closes the queue.
+    await this.settle(row, { status: 'registered', expected: 'waitlist', clearWaitlist: true });
 
     // Compact everyone with a position higher than the promoted row's.
     const { data: tail } = await this.supabase.service

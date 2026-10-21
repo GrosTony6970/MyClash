@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 import { RegistrationsService } from './registrations.service';
 import { REGISTRATION_STATUS_TRANSITIONS } from './dto/registrations.dto';
 
@@ -81,90 +81,12 @@ describe('RegistrationsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new RegistrationsService(mockSupabase as never, mockResolver as never);
-  });
-
-  // ── Status transitions ────────────────────────────────────────────────────
-
-  describe('updateStatus — status transition enforcement', () => {
-    it('allows registered → checked_in', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', status: 'registered' },
-        error: null,
-      });
-
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'reg-1', status: 'checked_in' },
-        error: null,
-      });
-
-      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
-
-      const result = await service.updateStatus('reg-1', 'checked_in');
-      expect(result['status']).toBe('checked_in');
-    });
-
-    it('blocks registered → done (cannot skip checked_in)', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', status: 'registered' },
-        error: null,
-      });
-      fromMock.mockReturnValue(chain);
-
-      await expect(service.updateStatus('reg-1', 'done')).rejects.toThrow(BadRequestException);
-    });
-
-    it('blocks checked_in → registered (no going back)', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', status: 'checked_in' },
-        error: null,
-      });
-      fromMock.mockReturnValue(chain);
-
-      await expect(service.updateStatus('reg-1', 'registered')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('allows checked_in → done', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', status: 'checked_in' },
-        error: null,
-      });
-
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null });
-
-      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
-
-      const result = await service.updateStatus('reg-1', 'done');
-      expect(result['status']).toBe('done');
-    });
-
-    it('blocks done → any (terminal state)', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null });
-      fromMock.mockReturnValue(chain);
-
-      await expect(service.updateStatus('reg-1', 'checked_in')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('throws NotFoundException for nonexistent registration', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      fromMock.mockReturnValue(chain);
-
-      await expect(service.updateStatus('nonexistent', 'checked_in')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
+    service = new RegistrationsService(
+      mockSupabase as never,
+      mockResolver as never,
+      fighterStatusDouble(),
+      { assertTournamentResultsOpen: vi.fn() } as never,
+    );
   });
 
   // ── Bib auto-assign ───────────────────────────────────────────────────────
@@ -412,125 +334,6 @@ describe('RegistrationsService', () => {
     });
   });
 
-  // ── Slice 3: auto-promote on withdraw + manual promote + reorder ─────────
-
-  describe('updateStatus — auto-promote on withdraw', () => {
-    it('promotes the position-1 waitlist entry to registered when someone withdraws', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', tournament_id: 't1', status: 'registered' },
-        error: null,
-      });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'reg-1', status: 'withdrawn' },
-        error: null,
-      });
-      // Auto-promote path: read waitlist
-      const listWaitlistChain = makeAwaitableChain({
-        data: [{ id: 'reg-w1', waitlist_position: 1 }],
-        error: null,
-      });
-      // Promote position 1 → registered
-      const promoteUpdateChain = makeChain({ data: null, error: null });
-      promoteUpdateChain.eq.mockReturnValue(Promise.resolve({ data: null, error: null }) as never);
-
-      fromMock
-        .mockReturnValueOnce(fetchChain) // fetch reg
-        .mockReturnValueOnce(updateChain) // update reg → withdrawn
-        .mockReturnValueOnce(listWaitlistChain) // list waitlist for this tournament
-        .mockReturnValueOnce(promoteUpdateChain); // update first row
-
-      await service.updateStatus('reg-1', 'withdrawn');
-      expect(promoteUpdateChain.update).toHaveBeenCalledWith({
-        status: 'registered',
-        waitlist_position: null,
-      });
-      expect(promoteUpdateChain.eq).toHaveBeenCalledWith('id', 'reg-w1');
-    });
-
-    it('is a no-op on the waitlist side when there is no queue', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-1', tournament_id: 't1', status: 'checked_in' },
-        error: null,
-      });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'reg-1', status: 'withdrawn' },
-        error: null,
-      });
-      const listWaitlistChain = makeAwaitableChain({ data: [], error: null });
-
-      fromMock
-        .mockReturnValueOnce(fetchChain)
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(listWaitlistChain);
-
-      const result = await service.updateStatus('reg-1', 'withdrawn');
-      expect(result['status']).toBe('withdrawn');
-    });
-  });
-
-  describe('promoteFromWaitlist — manual promote', () => {
-    it('flips status to registered and clears waitlist_position', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-w2', tournament_id: 't1', status: 'waitlist', waitlist_position: 2 },
-        error: null,
-      });
-      // Force=true skips the capacity check, so no tournament/count chains.
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.eq.mockReturnValue(Promise.resolve({ data: null, error: null }) as never);
-      // Compact tail: only position 3 is behind position 2.
-      const tailChain = makeAwaitableChain({
-        data: [
-          { id: 'reg-w2', waitlist_position: 2 },
-          { id: 'reg-w3', waitlist_position: 3 },
-        ],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(fetchChain)
-        .mockReturnValueOnce(updateChain) // flip status
-        .mockReturnValueOnce(tailChain); // tail read
-
-      await service.promoteFromWaitlist('reg-w2', true);
-      expect(updateChain.update).toHaveBeenCalledWith({
-        status: 'registered',
-        waitlist_position: null,
-      });
-    });
-
-    it('refuses when tournament is full and force is not set', async () => {
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({
-        data: { id: 'reg-w1', tournament_id: 't1', status: 'waitlist', waitlist_position: 1 },
-        error: null,
-      });
-      // assertCapacityForCreate: tournament max=2, count=2 → 409.
-      const tournamentChain = makeChain({ data: null, error: null });
-      tournamentChain.maybeSingle.mockResolvedValue({
-        data: { max_participants: 2 },
-        error: null,
-      });
-      const countChain = makeAwaitableChain({
-        data: [{ id: 'r1' }, { id: 'r2' }],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(fetchChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(countChain);
-
-      await expect(service.promoteFromWaitlist('reg-w1', false)).rejects.toMatchObject({
-        response: { reason: 'tournament_full' },
-      });
-    });
-  });
-
   describe('reorderWaitlist', () => {
     it('refuses ids that belong to a different tournament', async () => {
       // Validation: list this tournament's waitlist
@@ -609,25 +412,32 @@ describe('RegistrationsService', () => {
   });
 
   // ── Transition table completeness ─────────────────────────────────────────
+  // The doors that use it: `registrations.hand-doors.test.ts`.
 
   describe('REGISTRATION_STATUS_TRANSITIONS', () => {
-    it('covers all defined statuses', () => {
-      const statuses = ['registered', 'checked_in', 'done', 'withdrawn', 'disqualified'];
-      for (const s of statuses) {
-        expect(REGISTRATION_STATUS_TRANSITIONS).toHaveProperty(s);
-      }
+    it('is keyed on the organiser’s hand, every value of it', () => {
+      expect(Object.keys(REGISTRATION_STATUS_TRANSITIONS).sort()).toEqual([
+        'checked_in',
+        'registered',
+        'waitlist',
+        'withdrawn',
+      ]);
     });
 
     it('registered can go to checked_in or withdrawn (Slice 3 extension)', () => {
       expect(REGISTRATION_STATUS_TRANSITIONS['registered']).toEqual(['checked_in', 'withdrawn']);
     });
 
-    it('waitlist can be promoted to registered (Slice 3 extension)', () => {
-      expect(REGISTRATION_STATUS_TRANSITIONS['waitlist']).toEqual(['registered']);
+    it('a withdrawal by hand can be undone (ruling 110)', () => {
+      expect(REGISTRATION_STATUS_TRANSITIONS['withdrawn']).toEqual(['registered']);
     });
 
-    it('done is a terminal state (no transitions)', () => {
-      expect(REGISTRATION_STATUS_TRANSITIONS['done']).toEqual([]);
+    it('names no "done": it is no status (0078)', () => {
+      expect(Object.values(REGISTRATION_STATUS_TRANSITIONS).flat()).not.toContain('done');
+    });
+
+    it('a waitlisted entry is seated by the promote only', () => {
+      expect(REGISTRATION_STATUS_TRANSITIONS['waitlist']).toEqual([]);
     });
   });
 });

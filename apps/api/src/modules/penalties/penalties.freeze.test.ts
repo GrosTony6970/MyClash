@@ -3,6 +3,7 @@ import { restampUnstartedMatches } from '../phases/match-ruleset';
 import type * as MatchRuleset from '../phases/match-ruleset';
 import { PenaltiesService } from './penalties.service';
 import { freezePenaltyRulesetVersion } from './penalty-version.util';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 // The restamp of the bouts not yet started has its own tests
 // (`match-ruleset.restamp.test.ts`). Here: which door calls it, and for whom.
@@ -132,7 +133,15 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
       // A fought bout of the Tournament.
       matches: { select: [{ id: 'm-1' }] },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const assigned = service.assignTournamentRuleset(
       't-1',
@@ -155,7 +164,15 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
       matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.assignTournamentRuleset('t-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
 
@@ -179,7 +196,15 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
       // A fought bout of the Tournament.
       matches: { select: [{ id: 'm-1' }] },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
@@ -204,7 +229,15 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: 'pr-old' } },
       ...failing,
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
@@ -219,7 +252,15 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
       matches: { select: [] },
       penalty_rulesets: { maybeSingle: penaltyRow() },
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
 
@@ -250,6 +291,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
       undefined,
       undefined,
       { stampTournamentContentHash } as never,
+      fighterStatusDouble(),
     );
 
     await service.assignTournamentRuleset('t-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
@@ -271,6 +313,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
       undefined,
       undefined,
       { stampEventInheritingTournaments } as never,
+      fighterStatusDouble(),
     );
 
     await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');
@@ -306,6 +349,7 @@ describe('PenaltiesService — content-hash restamp on penalty re-pin', () => {
       undefined,
       undefined,
       { stampEventInheritingTournaments } as never,
+      fighterStatusDouble(),
     );
 
     await service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-1' } as never, 'user-1');

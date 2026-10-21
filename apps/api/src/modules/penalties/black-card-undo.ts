@@ -20,8 +20,9 @@ import {
  * recompute does not touch a bout a live forfeit record holds (ruling 322).
  *
  * So the void of the card goes to `MatchForfeitsService.voidForfeit` first,
- * the one remedy that restores the bout, the bracket, the Fighter's status
- * and the Pool bouts forfeited with it. Whole or not at all: where that
+ * the one remedy that restores the bout, the bracket and the Pool bouts
+ * forfeited with it. The Fighter's status is settled again once the card is
+ * voided (`PenaltiesService.voidPenalty`). Whole or not at all: where that
  * remedy cannot run, the card stays, with ONE coded refusal the pad words.
  *
  * Not the rule of the Reopen button, which still refuses such a bout: a
@@ -85,58 +86,26 @@ async function blackCardForfeit(db: Client, card: Row): Promise<Row | null> {
 }
 
 /**
- * Has something put this Fighter out AFTER this forfeit? `voidForfeit` writes
- * back the status the forfeit FOUND, whatever came since: taking back a first
- * black card would put back in a Fighter a second one disqualified. The bouts
- * this forfeit closed itself (its children) are its own and go with it.
- */
-async function forfeitedAgainSince(db: Client, forfeit: Row, card: Row): Promise<boolean> {
-  const others = await db
-    .from('match_forfeits')
-    .select('id, parent_forfeit_id, created_at')
-    .eq('tournament_id', card['tournament_id'] as string)
-    .eq('forfeiting_registration_id', card['registration_id'] as string)
-    .is('voided_at', null)
-    .neq('id', forfeit['id'] as string);
-  const made = Date.parse(String(forfeit['created_at']));
-  return rowsOf('The other forfeits of the fighter', others).some(
-    (other) =>
-      other['parent_forfeit_id'] !== forfeit['id'] &&
-      Date.parse(String(other['created_at'])) > made,
-  );
-}
-
-/**
- * The four things `voidForfeit` does not look at. An Event that is over
+ * The two things `voidForfeit` does not look at. An Event that is over
  * (ruling 337): the void hands the bout back as the forfeit found it, running
  * or paused, with the Pool bouts forfeited beside it, and there the clock and
  * the pad are refused for everybody, so nobody could end them again. A fact
  * of the Event, with no super admin bypass: a super admin is the one caller
  * who gets this far. A reserve in the Fighter's place is not undone by it (it
- * never writes `bracket_slots`). A later forfeit of the Fighter stands on the
- * status this one would overwrite. A review an organiser CONFIRMED is his
- * decision that the Fighter is out: restoring the status the forfeit found
- * would overturn it from a scorekeeper's tablet.
+ * never writes `bracket_slots`).
+ *
+ * A later forfeit of the Fighter and a confirmed review no longer refuse
+ * (rulings 106, 107): they were refused only because the void wrote back the
+ * status the forfeit FOUND. The status settle now works it out from what stays
+ * live, so a later withdrawal keeps the Fighter out, and a review stands while
+ * two of the cards it answered are live (`reviewAfterVoid`).
  */
 async function assertUndoable(deps: Deps, forfeit: Row, card: Row): Promise<void> {
-  const { db } = deps;
   if (await deps.frozenResults?.isEventOver(card['match_id'] as string)) {
     throw refused('The Event is over: nobody could end the bouts this black card closed');
   }
   if (forfeit['replacement_registration_id']) {
     throw refused('A reserve took the place of the fighter this black card put out');
-  }
-  if (await forfeitedAgainSince(db, forfeit, card)) {
-    throw refused('A later forfeit of this fighter stands on the one this black card made');
-  }
-  const confirmed = await db
-    .from('tournament_penalty_reviews')
-    .select('id')
-    .eq('tournament_id', card['tournament_id'] as string)
-    .eq('registration_id', card['registration_id'] as string)
-    .eq('status', 'confirmed');
-  if (rowsOf('The black card review', confirmed).length > 0) {
-    throw refused('An organiser confirmed the disqualification this black card asked for');
   }
 }
 
@@ -163,8 +132,9 @@ export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Act
 /**
  * The review "a second black card" asked for follows the cards left once a black card is
  * voided (`reviewAfterVoid`): a reopened review gets its answer back once every live card is one
- * the answer covered; a review nobody answered goes once fewer than two live cards remain; otherwise
- * the count follows. Written over the review as it was read, once more if it moved.
+ * the answer covered; a confirmed one asks again, or is dismissed, once fewer than two of the cards
+ * it answered are live; a review nobody answered goes once fewer than two live cards remain;
+ * otherwise the count follows. Written over the review as it was read, once more if it moved.
  */
 export async function dropSpentBlackCardReview(db: Client, card: Row): Promise<void> {
   if (card['card'] !== 'black') return;

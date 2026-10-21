@@ -184,7 +184,8 @@ const ROUTES: Route[] = [
     call: (r, entry = ENTRY_A) =>
       controller.updateStatus(entry, { status: 'checked_in' } as never, r as never),
     reached: () => registrations.updateStatus!,
-    handed: [ENTRY_A, 'checked_in'],
+    // The caller too: a withdrawal on an Event that is over is a super admin's (slice B).
+    handed: [ENTRY_A, 'checked_in', 'u-editor-a'],
   },
   {
     name: 'promote',
@@ -192,7 +193,7 @@ const ROUTES: Route[] = [
     byEntry: true,
     call: (r, entry = ENTRY_A) => controller.promote(entry, r as never, 'true'),
     reached: () => registrations.promoteFromWaitlist!,
-    handed: [ENTRY_A, true],
+    handed: [ENTRY_A, true, 'u-editor-a'],
   },
   {
     name: 'delete',

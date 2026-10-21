@@ -1,10 +1,10 @@
 import { vi } from 'vitest';
 import { mockSupabase, type TableSeed } from '../../common/testing/supabase-chain';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
-import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import type { BlackCardEffect } from '@myclash/rulesets';
 import { CLUB_START_FORFEIT_RULES, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble, forfeitsOver } from '../matches/fighter-status.fixtures';
 
 /** The seeded bout of `penalties.void-black-card*.test.ts`: a black card, its forfeit, its Fighter. */
 export const SCORER = 'a0000000-0000-4000-8000-000000000001';
@@ -193,18 +193,30 @@ export function setup(seed: Seed = {}) {
     recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 2, blueScore: 1 }),
     assertCorrectionLands: vi.fn().mockResolvedValue(undefined),
   };
-  const forfeits = new MatchForfeitsService(db as never);
+  // One settle for both services: a story reads every settle of its doors, in order.
+  const status = fighterStatusDouble(undefined, () => db.writes);
+  const forfeits = forfeitsOver(db, status);
   const service = new PenaltiesService(
     db as never,
     scoring as never,
     new FrozenResultsGuard(db as never, {} as never),
     undefined,
     forfeits,
+    undefined,
+    status,
   );
   const undo = (cardId = 'card-black', actor: object = { userId: SCORER }) =>
     service.voidPenalty(cardId, { reason: 'wrong fighter' }, actor);
-  return { db, scoring, service, forfeits, undo };
+  return { db, scoring, service, forfeits, undo, status };
 }
+
+/** Each settle the doors asked for: the Fighter, and the tables written before it. */
+export const settles = (status: ReturnType<typeof setup>['status']) =>
+  status.calls.map(({ input, writesBefore }) => ({
+    registrationId: input.registrationId,
+    tournamentId: input.tournamentId,
+    after: writesBefore.map((write) => `${write.table}:${write.op}`),
+  }));
 
 /** The tables written, in order. */
 export const written = (db: { writes: { table: string }[] }) =>

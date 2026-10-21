@@ -8,6 +8,7 @@ import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabas
 import { CreatePenaltyRulesetDto, UpdatePenaltyRulesetDto } from './dto/penalties.dto';
 import { PenaltiesService } from './penalties.service';
 import { buildPenaltyVersionRow, penaltyRowOfVersion } from './penalty-version.util';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 /**
  * A penalty ruleset owns its forfeit rules (operator rulings 63-76, 2026-10-20): every door that
@@ -54,7 +55,18 @@ function penalties(more: Record<string, unknown>[] = []) {
     },
     { card_ruleset_held_by_a_bout: () => ({ data: false, error: null }) },
   );
-  return { db, service: new PenaltiesService(db as never) };
+  return {
+    db,
+    service: new PenaltiesService(
+      db as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    ),
+  };
 }
 
 const CREATE = {

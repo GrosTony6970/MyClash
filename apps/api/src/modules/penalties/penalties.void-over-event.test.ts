@@ -4,6 +4,7 @@ import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { matchLocked } from '../matches/match-locked';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 /**
  * Ruling 231: voiding a card asks no review. Once the winner follows a
@@ -48,6 +49,10 @@ function setup(eventStatus: string, lockedAt: string | null = null) {
     db as never,
     scoring as never,
     new FrozenResultsGuard(db as never, {} as never),
+    undefined,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
   );
   return { db, scoring, service, askedWithWrites };
 }

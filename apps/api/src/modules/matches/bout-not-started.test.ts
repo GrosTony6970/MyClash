@@ -9,6 +9,7 @@ import {
 } from '../../common/testing/supabase-chain';
 import { PenaltiesService } from '../penalties/penalties.service';
 import { MatchesService } from './matches.service';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * What a bout takes from a pad (rulings 286, 286a, 290).
@@ -86,7 +87,15 @@ function setup(status: string, seed: Record<string, TableSeed> = {}) {
     {} as never,
     {} as never,
   );
-  const penalties = new PenaltiesService(db as never, scoring as never);
+  const penalties = new PenaltiesService(
+    db as never,
+    scoring as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
   const hit = (clientUuid: string, occurredAt = AFTER) =>
     matches.createExchange('m1', { ...HIT, clientUuid, occurredAt } as never);
   const card = (clientUuid: string, kind: object = QUEUED, occurredAt = AFTER) =>

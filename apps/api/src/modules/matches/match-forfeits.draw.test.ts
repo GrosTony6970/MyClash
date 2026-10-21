@@ -16,6 +16,7 @@ import { MatchForfeitsService } from './match-forfeits.service';
 import { bout, inserted, withInjury } from './match-forfeits.rules.fixtures';
 import { withStampedRules } from '../phases/match-rules.fixtures';
 import { buildSwissPlayers } from '../swiss/swiss-snapshot';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /** An injury counts as a draw; a loss to 6 where no draw is. */
 const draw = (fighter: ForfeitReasonRule['fighter']) =>
@@ -206,6 +207,7 @@ describe('a forfeit draw taken back', () => {
       { clearDownstreamOf: vi.fn() } as never,
       none,
       { recomputeMatchScore: vi.fn() } as never,
+      fighterStatusDouble(),
     );
 
     await service.voidForfeit('ff-1');

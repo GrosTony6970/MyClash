@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { FFAMHE_FORFEIT_RULES } from '@myclash/types/forfeit-rules';
 import { PenaltiesService } from './penalties.service';
+import { cardsPutOut, fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 /**
  * A Tournament's card rules, which every black card reads (none is an error): a black card ends
@@ -38,6 +39,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await expect(
@@ -96,7 +102,15 @@ describe('PenaltiesService', () => {
       penalty_rulesets: HOUSE_CARD_RULES,
     });
     const recomputeMatchScore = vi.fn();
-    const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     return { service, supabase, recomputeMatchScore };
   };
 
@@ -157,7 +171,15 @@ describe('PenaltiesService', () => {
       events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
     const recomputeMatchScore = vi.fn();
-    const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     const replayAnswer = vi.spyOn(
       service as unknown as { replayAnswer: (row: unknown) => Promise<unknown> },
       'replayAnswer',
@@ -198,7 +220,15 @@ describe('PenaltiesService', () => {
       tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
       events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
     });
-    const service = new PenaltiesService(supabase as never, { recomputeMatchScore } as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.createPenalty(
       'match-1',
@@ -245,6 +275,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -291,6 +326,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -333,6 +373,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     const refused = service.createPenalty(
@@ -359,7 +404,9 @@ describe('PenaltiesService', () => {
     expect(supabase.inserted.match_penalties ?? []).toEqual([]);
   });
 
-  it('black-card penalties complete the current match for the opponent', async () => {
+  // The bout's end is its forfeit's, and the forfeit is the forfeits service's (slice B: there is
+  // no other way for a card to close a bout, nor to change a status).
+  it('a black card hands its bout’s forfeit to the forfeits service', async () => {
     const supabase = fakeSupabase({
       match_penalties: {
         maybeSingle: null,
@@ -384,9 +431,15 @@ describe('PenaltiesService', () => {
       },
       penalty_rulesets: HOUSE_CARD_RULES,
     });
+    const forfeits = { createForfeit: vi.fn().mockResolvedValue(undefined) };
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      forfeits as never,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -402,10 +455,62 @@ describe('PenaltiesService', () => {
       { userId: 'scorekeeper-1' },
     );
 
-    expect(supabase.updated.matches?.[0]).toMatchObject({
-      status: 'completed',
-      winner_registration_id: 'reg-blue',
+    expect(forfeits.createForfeit).toHaveBeenCalledWith(
+      'match-1',
+      expect.objectContaining({ forfeitingRegistrationId: 'reg-red', reason: 'black_card_1' }),
+      { userId: 'scorekeeper-1' },
+      undefined,
+      expect.objectContaining({ cardEffect: 'match' }),
+    );
+    expect(supabase.updated.matches).toBeUndefined();
+  });
+
+  it('a black card refuses to forfeit with no forfeits service, rather than close the bout by itself', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: {
+        maybeSingle: null,
+        insert: { id: 'penalty-1', card: 'black' },
+        select: [],
+      },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+          match_rules: { penalty_ruleset_id: null },
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: { maybeSingle: { id: 'tournament-1', event_id: 'event-1' } },
+      events: { maybeSingle: { id: 'event-1', organization_id: 'org-1' } },
+      penalty_rulesets: HOUSE_CARD_RULES,
     });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
+
+    await expect(
+      service.createPenalty(
+        'match-1',
+        {
+          clientUuid: 'client-1',
+          sequence: 1,
+          registrationId: 'reg-red',
+          directCard: 'black',
+          reason: 'dangerous action',
+          occurredAt: '2026-05-05T10:00:00.000Z',
+        },
+        { userId: 'scorekeeper-1' },
+      ),
+    ).rejects.toThrow('A black card forfeit needs the MatchForfeitsService');
+    expect(supabase.updated.matches).toBeUndefined();
   });
 
   it('creates a pending tournament review after a second black card', async () => {
@@ -437,6 +542,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      { createForfeit: vi.fn().mockResolvedValue(undefined) } as never,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -498,6 +608,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     const answer = await service.createPenalty(
@@ -552,6 +667,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -574,9 +694,9 @@ describe('PenaltiesService', () => {
     });
   });
 
-  // First black card under a match-scope ruleset completes the match for the
-  // opponent but must NOT disqualify the fighter from the tournament.
-  it('first black card (match scope) completes the match without a tournament DQ', async () => {
+  // First black card under a match-scope ruleset ends the match for the opponent, and the settle is
+  // told that a 1st card does not put the Fighter out.
+  it('first black card (match scope) ends the match, and puts nobody out', async () => {
     const supabase = fakeSupabase({
       match_penalties: {
         maybeSingle: null,
@@ -612,9 +732,16 @@ describe('PenaltiesService', () => {
         },
       },
     });
+    const forfeits = { createForfeit: vi.fn().mockResolvedValue(undefined) };
+    const status = fighterStatusDouble();
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      forfeits as never,
+      undefined,
+      status,
     );
 
     await service.createPenalty(
@@ -630,10 +757,10 @@ describe('PenaltiesService', () => {
       { userId: 'scorekeeper-1' },
     );
 
-    expect(supabase.updated.matches?.[0]).toMatchObject({
-      status: 'completed',
-      winner_registration_id: 'reg-blue',
-    });
+    expect(forfeits.createForfeit.mock.calls[0]?.[4]).toMatchObject({ cardEffect: 'match' });
+    expect(cardsPutOut({ status })).toEqual(
+      expect.objectContaining({ firstCardOut: false, secondCardOut: true }),
+    );
     expect(supabase.updated.registrations).toBeUndefined();
   });
 
@@ -677,7 +804,7 @@ describe('PenaltiesService', () => {
     occurredAt: '2026-05-05T10:00:00.000Z',
   };
 
-  it('says so when the disqualification of a tournament-scope black card is not written', async () => {
+  it('a settle that fails after a tournament-scope black card is a server error', async () => {
     const supabase = fakeSupabase({
       ...DISQUALIFYING_TOURNAMENT,
       match_penalties: {
@@ -685,21 +812,29 @@ describe('PenaltiesService', () => {
         insert: { id: 'penalty-1', card: 'black' },
         select: [{ id: 'penalty-1' }],
       },
-      registrations: { updateError: { message: 'connection reset' } },
     });
+    const status = fighterStatusDouble();
+    status.settle.mockRejectedValueOnce(new Error('connection reset'));
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      { createForfeit: vi.fn().mockResolvedValue(undefined) } as never,
+      undefined,
+      status,
     );
 
-    await expect(
-      service.createPenalty('match-1', BLACK_CARD, { userId: 'scorekeeper-1' }),
-    ).rejects.toThrow(/reg-red not disqualified: connection reset/);
+    const failure = await service
+      .createPenalty('match-1', BLACK_CARD, { userId: 'scorekeeper-1' })
+      .catch((error: unknown) => error);
+    expect(failure).toEqual(new Error('connection reset'));
+    expect(failure).not.toBeInstanceOf(BadRequestException);
   });
 
   // That first send ended in a 500 after the card was written, and the tablet sends the card
-  // again by itself: the answer from the stored card is the only send left to disqualify.
-  it('disqualifies again when the tablet sends that black card again', async () => {
+  // again by itself: the answer from the stored card is the only send left to settle.
+  it('settles again when the tablet sends that black card again', async () => {
     const supabase = fakeSupabase({
       ...DISQUALIFYING_TOURNAMENT,
       match_penalties: {
@@ -715,15 +850,22 @@ describe('PenaltiesService', () => {
         select: [{ id: 'penalty-1' }],
       },
     });
+    const status = fighterStatusDouble();
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      status,
     );
 
     await service.createPenalty('match-1', BLACK_CARD, { userId: 'scorekeeper-1' });
 
     expect(supabase.inserted.match_penalties).toBeUndefined();
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+    expect(cardsPutOut({ status })).toMatchObject({ firstCardOut: true });
+    expect(supabase.updated.registrations).toBeUndefined();
   });
 
   // A ruleset-entry penalty (no directCard) derives its card from the entry's
@@ -773,6 +915,11 @@ describe('PenaltiesService', () => {
     const service = new PenaltiesService(
       supabase as never,
       { recomputeMatchScore: vi.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createPenalty(
@@ -872,7 +1019,15 @@ describe('PenaltiesService.listRulesetCatalogForOrg', () => {
       ],
       organizations: [{ id: 'org-x', name: 'Org X' }],
     });
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.listRulesetCatalogForOrg('org-me', 'user-1');
 
@@ -894,7 +1049,15 @@ describe('PenaltiesService.listRulesetCatalogForOrg', () => {
 
   it('rejects an unauthenticated caller', async () => {
     const supabase = catalogSupabase({});
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     await expect(service.listRulesetCatalogForOrg('org-me', undefined)).rejects.toThrow();
   });
 });

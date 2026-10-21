@@ -161,6 +161,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     'ExchangeEditRequestsAdminService',
     'MatchCompletionService',
     'PhasesService',
+    'RegistrationsService',
   ];
 
   const moduleFiles = walk(apiSrc);
@@ -195,6 +196,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     ['../admin/exchange-edit-requests.service.ts', '../admin/review-queue.module.ts'],
     ['../phases/match-completion.service.ts', '../phases/phases.module.ts'],
     ['../phases/phases.service.ts', '../phases/phases.module.ts'],
+    ['../registrations/registrations.service.ts', '../registrations/registrations.module.ts'],
   ];
 
   /**

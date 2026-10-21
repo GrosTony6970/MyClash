@@ -3,6 +3,7 @@ import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { phase } from './scoring.service.corrections.fixtures';
 import { withStampedRules } from '../phases/match-rules.fixtures';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * A forfeit taken back reopens the clock it ended (operator ruling 2026-10-16, "Forfeit back").
@@ -76,6 +77,7 @@ function service(previous: Record<string, unknown>, clockStatus: string) {
     undefined as never,
     undefined as never,
     scoring as never,
+    fighterStatusDouble(),
   );
   return { db, clock, steps, forfeits };
 }

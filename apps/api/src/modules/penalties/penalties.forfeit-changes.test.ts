@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { ForfeitRulesInvalidError } from './forfeit-rules-in-force';
+import { cardsPutOut } from '../matches/fighter-status.fixtures';
 import { blackCard, setup, type CardPath, type Seed } from './penalties.void-black-card.fixtures';
 
 /**
@@ -102,7 +103,7 @@ describe('a Tournament’s 2nd black card change over its ruleset’s, at every 
 
     await sendCard(bout);
 
-    expect(fighterStates(bout.db)).toContainEqual({ status: 'disqualified' });
+    expect(cardsPutOut(bout)).toMatchObject({ secondCardOut: true });
     expect(reviewOps(bout.db)).toEqual([]);
   });
 
@@ -128,7 +129,8 @@ describe('a Tournament’s 1st black card change (ruling 65)', () => {
       expect.objectContaining({ reason: 'black_card_1', can_continue: false, match_id: 'm1' }),
       expect.objectContaining({ reason: 'black_card_1', auto_created: true, match_id: 'm2' }),
     ]);
-    expect(fighterStates(bout.db)).toContainEqual({ status: 'disqualified' });
+    expect(cardsPutOut(bout)).toMatchObject({ firstCardOut: true });
+    expect(fighterStates(bout.db)).toEqual([]);
   });
 
   it('a 1st card forfeit by hand that does nothing ends that bout only', async () => {
@@ -159,7 +161,10 @@ describe('a Tournament’s other changes', () => {
 
     await recordForfeit(bout, 'injury');
 
-    expect(fighterStates(bout.db)).toContainEqual({ status: 'disqualified' });
+    expect(inserted(bout.db)[0]).toMatchObject({
+      reason: 'injury',
+      fighter_outcome: 'disqualified',
+    });
   });
 });
 

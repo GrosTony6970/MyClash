@@ -37,12 +37,19 @@ export interface ReviewRead {
 const REVIEW_TYPE = 'second_black_card';
 const UNIQUE_VIOLATION = '23505';
 
+/** A review as it is written over the one that was read. */
+export type ReviewNext = {
+  status: ReviewStatus;
+  black_card_count: number;
+  payload_json: Row;
+};
+
 /** The review once `cardIds` are the live black cards and `card` is the one just written. */
 export function nextReview(
   review: Pick<ReviewRead, 'status' | 'payload_json'>,
   cardIds: string[],
   card: string,
-) {
+): ReviewNext {
   const payload = { ...(review.payload_json ?? {}) };
   const counted = Array.isArray(payload['penaltyIds']) ? (payload['penaltyIds'] as unknown[]) : [];
   const reopen = review.status === 'dismissed' && !counted.includes(card);
@@ -63,14 +70,29 @@ export function nextReview(
  * 2026-10-14). A reopened review gets its answer back once every live card is one that answer
  * covered: voiding the card that reopened it does that, unless another new card came since,
  * which then holds the review open in its place. Below two live cards it gets its answer back
- * too. Any other void keeps the status, and the count follows the live cards. Below two live
- * cards, a review nobody ever answered goes (`'drop'`).
+ * too. A confirmed review stands while two of the cards it answered are live (ruling 106): below
+ * that it asks again while two live cards remain (a 3rd card nobody answered), and is dismissed by
+ * the void otherwise. Any other void keeps the status, and the count follows the live cards. Below
+ * two live cards, a review nobody ever answered goes (`'drop'`).
  */
 export function reviewAfterVoid(
   review: Pick<ReviewRead, 'status' | 'payload_json'>,
   liveIds: string[],
-): ReturnType<typeof nextReview> | 'drop' {
+): ReviewNext | 'drop' {
   const payload = { ...(review.payload_json ?? {}) };
+  if (review.status === 'confirmed' && !standsOn(payload, liveIds)) {
+    return liveIds.length >= 2
+      ? {
+          status: 'pending',
+          black_card_count: liveIds.length,
+          payload_json: { ...payload, penaltyIds: liveIds },
+        }
+      : {
+          status: 'dismissed',
+          black_card_count: liveIds.length,
+          payload_json: { ...payload, penaltyIds: liveIds, dismissedBy: 'card_void' },
+        };
+  }
   if (payload['reopenedFrom'] === 'dismissed') {
     const answered = Array.isArray(payload['answeredIds'])
       ? (payload['answeredIds'] as unknown[])
@@ -109,7 +131,7 @@ export async function dropReviewAsRead(db: Client, read: ReviewRead): Promise<bo
   return ((data ?? []) as Row[]).length > 0;
 }
 
-export function sameReview(read: ReviewRead, next: ReturnType<typeof nextReview>): boolean {
+export function sameReview(read: ReviewRead, next: ReviewNext): boolean {
   return (
     read.status === next.status &&
     read.black_card_count === next.black_card_count &&
@@ -126,15 +148,34 @@ export const reviewChanged = () =>
     code: REVIEW_CHANGED,
   });
 
-/** An organiser's answer is the review's own: what a card had reopened is forgotten. */
+/** An organiser's answer is the review's own: what a card had reopened, or a void dismissed, is forgotten. */
 export function answeredPayload(payload: unknown): Row {
   const {
     reopenedFrom: _from,
     reopenedBy: _by,
     answeredIds: _answered,
+    dismissedBy: _dismissed,
     ...rest
   } = (payload ?? {}) as Row;
   return rest;
+}
+
+const idsOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/**
+ * The payload an organiser's answer writes: the review's own, with the cards it answered
+ * (`answeredPenaltyIds`, the cards she was shown). A confirmed review stands while two of them are
+ * live: the status settle reads them (migration 0240), and so does `reviewAfterVoid`.
+ */
+export function answerPayload(payload: unknown): Row {
+  const own = answeredPayload(payload);
+  return { ...own, answeredPenaltyIds: idsOf(own['penaltyIds']) };
+}
+
+/** Two of the cards a confirmed review answered are among `liveIds`. */
+function standsOn(payload: Row, liveIds: string[]): boolean {
+  const answered = idsOf(payload['answeredPenaltyIds']);
+  return liveIds.filter((id) => answered.includes(id)).length >= 2;
 }
 
 /** The ids of the Fighter's live black cards in the Tournament, oldest first. */

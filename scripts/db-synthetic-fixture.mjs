@@ -118,12 +118,13 @@ VALUES (
 );
 
 -- Identity via person_id → persons.global_person_id (0083 retired fighter_id).
-INSERT INTO registrations (id, tournament_id, person_id, seed, status, bib_number)
+INSERT INTO registrations (id, tournament_id, person_id, seed, status, entry_status, bib_number)
 SELECT
   ('10000000-0000-4000-8000-000000005' || lpad(i::text, 3, '0'))::uuid,
   '10000000-0000-4000-8000-000000000300',
   ('10000000-0000-4000-8000-000000003' || lpad(i::text, 3, '0'))::uuid,
   i,
+  'checked_in',
   'checked_in',
   i
 FROM generate_series(1, 80) AS i;

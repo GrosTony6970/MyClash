@@ -5,6 +5,7 @@ import { createPenaltySchema } from '../penalties/dto/penalties.dto';
 import { PenaltiesService } from '../penalties/penalties.service';
 import { CreateExchangeDto } from './dto/matches.dto';
 import { MatchesService } from './matches.service';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * A hit or a card says how old it is (the offline bout, slice 3).
@@ -92,6 +93,8 @@ function setup() {
     undefined,
     undefined,
     forfeits as never,
+    undefined,
+    fighterStatusDouble(),
   );
   const pad = { staffAccountId: 'pad-1' };
   return {

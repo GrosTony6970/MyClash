@@ -65,6 +65,15 @@ export function isBlackCardReason(reason: string): reason is BlackCardReason {
   return (BLACK_CARD_REASONS as readonly string[]).includes(reason);
 }
 
+/**
+ * The forfeits "disqualify after N forfeits" counts: the ones the Fighter chose. Not an override
+ * (nobody forfeited), not a black card (the referee's, ruling 56). The API hands the list to the
+ * database's status settle (migration 0240), so the split is typed once.
+ */
+export const COUNTED_FORFEIT_REASONS = FORFEIT_REASONS.filter(
+  (reason) => !isBlackCardReason(reason),
+);
+
 /** What a black card does to its Fighter: ends the bout, the whole Tournament, or nothing. */
 export const BlackCardEffectSchema = z.enum(['match', 'tournament', 'none']);
 

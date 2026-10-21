@@ -6,7 +6,14 @@ import {
 } from '@myclash/types/forfeit-rules';
 import { selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
-import { bout, fighterStates, inserted, withInjury } from './match-forfeits.rules.fixtures';
+import {
+  bout,
+  fighterStates,
+  inserted,
+  outcome,
+  withInjury,
+} from './match-forfeits.rules.fixtures';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * What a forfeit does is its Tournament's PENALTY ruleset's (operator rulings 63-76, 2026-10-20):
@@ -30,12 +37,16 @@ const EARLIER = {
 };
 
 describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
-  it('FFAMHE disqualifies at the 2nd forfeit, on a club scoring ruleset too', async () => {
+  // The 2nd forfeit is stored as nothing of its own: the settle counts the live ones (ruling 80,
+  // probe check 16). Until the bouts follow the status (B2), the count still forfeits the Pool.
+  it('FFAMHE counts the 2nd forfeit, on a club scoring ruleset too: the Pool is forfeited', async () => {
     const { db, forfeit } = bout(FFAMHE_FORFEIT_RULES, [EARLIER]);
 
     await forfeit('voluntary', true);
 
-    expect(fighterStates(db)).toContainEqual({ status: 'disqualified' });
+    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1', 'm2']);
+    expect(outcome(db)).toBeNull();
+    expect(fighterStates(db)).toEqual([]);
   });
 
   it('a new club penalty ruleset (Off) does not', async () => {
@@ -43,7 +54,8 @@ describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
 
     await forfeit('voluntary', true);
 
-    expect(fighterStates(db)).toEqual([]);
+    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1']);
+    expect(outcome(db)).toBeNull();
   });
 
   it('reads the rules off the Tournament’s penalty ruleset row', async () => {
@@ -63,7 +75,7 @@ describe('what happens to the Fighter is the reason’s rule', () => {
 
     await forfeit('injury', true);
 
-    expect(fighterStates(db)).toContainEqual({ status: 'disqualified' });
+    expect(outcome(db)).toBe('disqualified');
     expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1', 'm2']);
   });
 
@@ -73,7 +85,7 @@ describe('what happens to the Fighter is the reason’s rule', () => {
 
     await forfeit('injury', false);
 
-    expect(fighterStates(db)).toEqual([]);
+    expect(outcome(db)).toBeNull();
     expect(inserted(db)).toEqual([expect.objectContaining({ match_id: 'm1', can_continue: true })]);
   });
 });
@@ -121,7 +133,15 @@ describe('stored forfeit rules that do not parse', () => {
   it('do not stop an override, which reads no forfeit rule', async () => {
     const broken = { reasons: {} } as unknown as ForfeitRules;
     const { db } = bout(broken);
-    const service = new MatchForfeitsService(db as never, undefined as never);
+    const service = new MatchForfeitsService(
+      db as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('m1', {
       forfeitingRegistrationId: 'reg-red',

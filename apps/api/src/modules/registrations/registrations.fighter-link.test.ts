@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mockSupabase as seededSupabase, writesTo } from '../../common/testing/supabase-chain';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 import { RegistrationsService } from './registrations.service';
+
+const resultsOpen = { assertTournamentResultsOpen: vi.fn() };
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
@@ -77,7 +80,12 @@ describe('RegistrationsService fighter linking', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new RegistrationsService(mockSupabase as never, mockResolver as never);
+    service = new RegistrationsService(
+      mockSupabase as never,
+      mockResolver as never,
+      fighterStatusDouble(),
+      resultsOpen as never,
+    );
   });
 
   it('delegates to the resolver (mint) when the person has no global identity', async () => {
@@ -198,7 +206,12 @@ describe('RegistrationsService fighter linking', () => {
         tournaments: { rows: [{ id: 'tournament-1', max_participants: null }] },
         registrations: { rows: [], returning: { id: 'reg-1' } },
       });
-      const linked = new RegistrationsService(db as never, mockResolver as never);
+      const linked = new RegistrationsService(
+        db as never,
+        mockResolver as never,
+        fighterStatusDouble(),
+        resultsOpen as never,
+      );
 
       await linked.create('tournament-1', { personId: 'person-1', hemaRatingsId });
 

@@ -9,7 +9,12 @@ import {
   type ChainResult,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
-import { PenaltiesService } from './penalties.service';
+import type { PenaltiesService } from './penalties.service';
+import {
+  cardsPutOut,
+  fighterStatusDouble,
+  penaltiesOver,
+} from '../matches/fighter-status.fixtures';
 
 /**
  * A bout keeps the card rules it started under (migration 0229): its copy of its rules pins them,
@@ -98,13 +103,8 @@ function bout(story: Story) {
   });
   const forfeits = { createForfeit: vi.fn().mockResolvedValue(undefined) };
   const scoring = { recomputeMatchScore: vi.fn().mockResolvedValue(undefined) };
-  const service = new PenaltiesService(
-    db as never,
-    scoring as never,
-    undefined,
-    undefined,
-    forfeits as never,
-  );
+  const status = fighterStatusDouble();
+  const service = penaltiesOver(db, { scoring, forfeits, status });
   const send = (card: Record<string, unknown>) =>
     service.createPenalty(
       'm1',
@@ -117,7 +117,7 @@ function bout(story: Story) {
       } as never,
       { staffAccountId: 'staff-1' },
     );
-  return { db, forfeits, send };
+  return { db, forfeits, send, status };
 }
 
 const ENTRY_CARD = { rulesetEntryId: 'entry-1' };
@@ -256,11 +256,13 @@ describe('a card whose rules cannot be read is an error, never a default', () =>
 describe('how far a black card reaches is the Tournament’s of now', () => {
   it('card rules the Tournament moved to since put the Fighter out, as its forfeit does', async () => {
     // The copy's rules B say the bout only; the Tournament's rules A say out.
-    const { db, forfeits, send } = bout({ copyPin: 'cards-b', tournamentPin: 'cards-a' });
+    const { db, forfeits, send, status } = bout({ copyPin: 'cards-b', tournamentPin: 'cards-a' });
 
     await send(BLACK_CARD);
 
-    expect(writesTo(db, 'registrations')[0]?.row).toEqual({ status: 'disqualified' });
+    // The settle is asked under the Tournament's rules of now, as the forfeit is (slice B).
+    expect(cardsPutOut({ status })).toMatchObject({ firstCardOut: true });
+    expect(writesTo(db, 'registrations')).toEqual([]);
     expect(forfeits.createForfeit).toHaveBeenCalledWith(
       'm1',
       expect.objectContaining({ forfeitingRegistrationId: 'reg-blue', reason: 'black_card_1' }),
@@ -306,11 +308,10 @@ describe('how far a black card reaches is the Tournament’s of now', () => {
 
     await expect(again.send(BLACK_CARD)).resolves.toBe(saved);
 
-    expect(writesTo(first.db, 'registrations')[0]?.row).toEqual({ status: 'disqualified' });
+    // The re-send settles under the same rules as the first send did.
+    expect(cardsPutOut(first)).toMatchObject({ firstCardOut: true });
     expect(writesTo(again.db, 'match_penalties')).toEqual([]);
-    expect(writesTo(again.db, 'registrations').map((write) => write.row)).toEqual(
-      writesTo(first.db, 'registrations').map((write) => write.row),
-    );
+    expect(cardsPutOut(again)).toEqual(cardsPutOut(first));
   });
 });
 
@@ -325,7 +326,7 @@ function cardRules(seed: { held?: ChainResult; tournaments?: TableSeed; events?:
     },
     { card_ruleset_held_by_a_bout: () => seed.held ?? { data: false, error: null } },
   );
-  return { db, service: new PenaltiesService(db as never) };
+  return { db, service: penaltiesOver(db) };
 }
 const HELD = { data: true, error: null };
 const RENAME = { name: 'Renamed' } as never;

@@ -38,6 +38,7 @@ import { assertBoutTakes } from '../matches/bout-not-started';
 import { BOUT_CARD_PIN, cardPinOf } from '../matches/bout-rules';
 import { scoredAtServer } from '../matches/late-press';
 import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
+import { FighterStatusService } from '../matches/fighter-status.service';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
 import { tournamentClockOf } from '../events/tournament-clock';
@@ -52,7 +53,7 @@ import {
 } from './card-rules-pin';
 import { cardAndForfeitRules } from './forfeit-rules-in-force';
 import {
-  answeredPayload,
+  answerPayload,
   reviewChanged,
   syncSecondBlackCardReview,
 } from './second-black-card-review';
@@ -139,17 +140,26 @@ type CatalogPenaltyRow = Omit<CatalogPenaltyRulesetSummary, 'owner_organization_
 @Injectable()
 export class PenaltiesService {
   private readonly logger = new Logger(PenaltiesService.name);
+  private readonly fighterStatus: FighterStatusService;
 
   constructor(
     private readonly supabase: SupabaseService,
     @Optional() private readonly scoring?: ScoringService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly orgs?: OrganizationsService,
-    @Optional() private readonly forfeits?: MatchForfeitsService,
+    // Required by Nest (no `@Optional()`): a black card's forfeit is its. `?:` only so a test that
+    // never sends a black card may build the service without it.
+    private readonly forfeits?: MatchForfeitsService,
     // Optional (provided via RulesetHashModule) so direct-construction unit tests
     // keep working. Restamps the tournament content hash after a penalty re-pin.
     @Optional() private readonly rulesetHash?: RulesetHashService,
-  ) {}
+    // REQUIRED, last for the reason `MatchForfeitsService` gives for its own: the `?:` shape keeps
+    // the class in `design:paramtypes`, and a hand construction without it throws here.
+    fighterStatus?: FighterStatusService,
+  ) {
+    if (!fighterStatus) throw new Error('PenaltiesService needs the FighterStatusService');
+    this.fighterStatus = fighterStatus;
+  }
 
   /**
    * Every penalty ruleset on the platform, private ones included — for the
@@ -963,11 +973,6 @@ export class PenaltiesService {
     // For non-black cards `causes_match_forfeit` stays as the sanction said
     // (false). For black cards we'll override based on the resolved scope
     // below — but at this point we just record the card.
-    const opponentRegistrationId =
-      dto.registrationId === match.redRegistrationId
-        ? match.blueRegistrationId
-        : match.redRegistrationId;
-
     const insertPayload: Record<string, unknown> = {
       client_uuid: dto.clientUuid,
       match_id: match.id,
@@ -1028,45 +1033,43 @@ export class PenaltiesService {
       const { blackCount, scope } = await this.blackCardScope(match, dto.registrationId, reach);
 
       if (scope !== 'none') {
-        if (this.forfeits) {
-          await this.forfeits.createForfeit(
-            matchId,
-            {
-              forfeitingRegistrationId: dto.registrationId,
-              reason: blackCount >= 2 ? 'black_card_2' : 'black_card_1',
-              canContinue: true,
-              note: dto.reason ?? 'Black card',
-            },
-            context,
-            causedAt,
-            { rules: reach.forfeitRules, cardEffect: scope },
-          );
-        } else {
-          await this.supabase.service
-            .from('matches')
-            .update({
-              status: 'completed',
-              ended_at: new Date().toISOString(),
-              winner_registration_id: opponentRegistrationId,
-              end_reason: 'black_card',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', matchId);
-        }
+        await this.forfeitsOrThrow().createForfeit(
+          matchId,
+          {
+            forfeitingRegistrationId: dto.registrationId,
+            reason: blackCount >= 2 ? 'black_card_2' : 'black_card_1',
+            canContinue: true,
+            note: dto.reason ?? 'Black card',
+          },
+          context,
+          causedAt,
+          { rules: reach.forfeitRules, cardEffect: scope },
+        );
       }
 
-      // A card that reaches the Tournament disqualifies at once. A 2nd card that does opens no
-      // "second black card" review: there is nothing left to ask (ruling 86).
-      if (scope === 'tournament') await this.disqualify(dto.registrationId);
+      // A 2nd card that disqualifies opens no "second black card" review: there is nothing left
+      // to ask (ruling 86).
       await this.syncReviewUnlessDisqualifying(
         match.tournamentId,
         dto.registrationId,
         String((data as Row)['id']),
         reach,
       );
+      // The card is a cause: what it does to the Fighter is the status settle's to work out.
+      await this.settleCardOf(match.tournamentId, dto.registrationId, reach);
     }
 
     return data;
+  }
+
+  /** A black card's forfeit is the forfeits service's: Nest always provides it. */
+  private forfeitsOrThrow(): MatchForfeitsService {
+    if (!this.forfeits) throw new Error('A black card forfeit needs the MatchForfeitsService');
+    return this.forfeits;
+  }
+
+  private settleCardOf(tournamentId: string, registrationId: string, reach: BlackCardReach) {
+    return this.fighterStatus.settle({ registrationId, tournamentId, rules: reach.forfeitRules });
   }
 
   /**
@@ -1122,7 +1125,11 @@ export class PenaltiesService {
     if (!context?.staffAccountId && !context?.correctsOverEvent) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
-    if (row['voided']) throw new BadRequestException('Penalty is already voided');
+    if (row['voided']) {
+      // A retry of a black card's take-back whose first send stopped after the void settles.
+      await this.settleIfBlack(row);
+      throw new BadRequestException('Penalty is already voided');
+    }
     // Ruling 231: a card's void asks no review, so on an over Event it is a
     // super admin's, as a new card already is there.
     await this.frozenResults?.assertResultMutationAllowed(match.id, context?.userId);
@@ -1144,7 +1151,17 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
     await this.scoring?.recomputeMatchScore(row['match_id'] as string);
     await dropSpentBlackCardReview(this.supabase.service, row);
+    await this.settleIfBlack(row);
     return data;
+  }
+
+  /** A black card is a cause of its Fighter's status; a yellow or a red one is none. */
+  private async settleIfBlack(card: Row): Promise<void> {
+    if (card['card'] !== 'black') return;
+    await this.fighterStatus.settle({
+      registrationId: card['registration_id'] as string,
+      tournamentId: card['tournament_id'] as string,
+    });
   }
 
   async listTournamentReviews(tournamentId: string) {
@@ -1166,10 +1183,12 @@ export class PenaltiesService {
     if (fetchError) throw new BadRequestException(fetchError.message);
     if (!existing) throw new NotFoundException(`Penalty review ${reviewId} not found`);
     const review = existing as Row;
-    await this.assertUserCanManageOrg(
-      await this.getTournamentOrganizationId(review['tournament_id'] as string),
-      userId,
-    );
+    const tournamentId = review['tournament_id'] as string;
+    await this.assertUserCanManageOrg(await this.getTournamentOrganizationId(tournamentId), userId);
+    // The answer can put a Fighter out or back in, so on an Event that is over it is a super
+    // admin's, as every other result change there. No `?.`: a missing guard refuses.
+    if (!this.frozenResults) throw new Error('A review answer needs the FrozenResultsGuard');
+    await this.frozenResults.assertTournamentResultsOpen(tournamentId, userId);
 
     // The answer is to the review the organiser saw. A black card that landed since changed it
     // (its count, or a dismissal it reopened), and so does one landing between this read and
@@ -1182,7 +1201,7 @@ export class PenaltiesService {
         reviewed_by_user_id: userId ?? null,
         reviewed_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        payload_json: answeredPayload(review['payload_json']),
+        payload_json: answerPayload(review['payload_json']),
       })
       .eq('id', reviewId)
       .eq('updated_at', review['updated_at'] as string)
@@ -1191,49 +1210,13 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw reviewChanged();
 
-    // After the answer is written: a refused answer disqualifies nobody. A confirmed answer
-    // stands only with its disqualification: if that write fails, the review is put back as the
-    // organiser saw it, so she is told and can answer again.
-    if (dto.status === 'confirmed') {
-      await this.disqualifyOrPutBack(review, (data as Row)['updated_at'] as string);
-    }
+    // After the answer is written, whatever it is (a dismissal of a confirmed review undoes it,
+    // ruling 79). A failed settle is a server error; the organiser's second answer settles.
+    await this.fighterStatus.settle({
+      registrationId: review['registration_id'] as string,
+      tournamentId,
+    });
     return data;
-  }
-
-  /** The disqualification a confirmed review stands on; on a failure, the review goes back. */
-  private async disqualifyOrPutBack(review: Row, answeredAt: string): Promise<void> {
-    try {
-      await this.disqualify(review['registration_id'] as string);
-    } catch (failure) {
-      if (await this.putReviewBack(review, answeredAt)) throw failure;
-      // A black card landed between the answer and the put-back (it keeps a confirmed review
-      // confirmed), or the put-back failed: the review stays answered, with nobody out.
-      throw new Error(
-        `Review ${String(review['id'])} left confirmed, registration not disqualified: ${String(failure)}`,
-        { cause: failure },
-      );
-    }
-  }
-
-  /**
-   * A review as it was read, written back over the answer that was written at `answeredAt`.
-   * True when it was. The organiser's page then reads it again before she answers again.
-   */
-  private async putReviewBack(review: Row, answeredAt: string): Promise<boolean> {
-    const { data, error } = await this.supabase.service
-      .from('tournament_penalty_reviews')
-      .update({
-        status: review['status'],
-        reviewed_by_user_id: review['reviewed_by_user_id'] ?? null,
-        reviewed_at: review['reviewed_at'] ?? null,
-        updated_at: new Date().toISOString(),
-        payload_json: review['payload_json'],
-      })
-      .eq('id', review['id'] as string)
-      .eq('updated_at', answeredAt)
-      .select('id')
-      .maybeSingle();
-    return !error && data !== null;
   }
 
   /**
@@ -1281,15 +1264,6 @@ export class PenaltiesService {
   ): Promise<void> {
     if (blackCardEffectOf(reach.forfeitRules, 'black_card_2') === 'tournament') return;
     await syncSecondBlackCardReview(this.supabase.service, tournamentId, registrationId, cardId);
-  }
-
-  /** Mark a Registration disqualified. A failed write is thrown, as a server error. */
-  private async disqualify(registrationId: string): Promise<void> {
-    const { error } = await this.supabase.service
-      .from('registrations')
-      .update({ status: 'disqualified' })
-      .eq('id', registrationId);
-    if (error) throw new Error(`Registration ${registrationId} not disqualified: ${error.message}`);
   }
 
   private async computeRulesetPenalty(match: MatchContext, dto: CreatePenaltyDto) {
@@ -1542,26 +1516,24 @@ export class PenaltiesService {
   /**
    * A card the server already holds is answered as it is. If it is a live black card, its
    * review is brought up to date first: the first send may have written the card and then
-   * failed on the review, and the tablet's retry is the only send left to repair it. So is the
-   * disqualification of a black card that reaches the whole Tournament: the first send wrote the
-   * card, then failed there with a 500, and the tablet sends it again by itself. The write is
-   * safe to repeat.
+   * failed on the review, and the tablet's retry is the only send left to repair it. So is its
+   * Fighter's status, which the settle works out again: the first send wrote the card, then
+   * failed with a 500, or was refused on a bout already over, and the tablet sends it again by
+   * itself. Both are safe to repeat.
    */
   private async replayAnswer(stored: Row): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
       const registrationId = String(stored['registration_id']);
+      const tournamentId = String(stored['tournament_id']);
       const match = await this.getMatchContext(String(stored['match_id']));
       const reach = await this.blackCardReach(match);
-      if (stored['causes_match_forfeit'] === true) {
-        const { scope } = await this.blackCardScope(match, registrationId, reach);
-        if (scope === 'tournament') await this.disqualify(registrationId);
-      }
       await this.syncReviewUnlessDisqualifying(
-        String(stored['tournament_id']),
+        tournamentId,
         registrationId,
         String(stored['id']),
         reach,
       );
+      await this.settleCardOf(tournamentId, registrationId, reach);
     }
     return stored;
   }

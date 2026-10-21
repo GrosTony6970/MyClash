@@ -9,6 +9,7 @@ import { STAFF_COOKIE_NAME, StaffService } from '../staff/staff.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * Who reaches a result write once the Event is over (rulings 249 to 252).
@@ -183,7 +184,15 @@ function chain(status: string, caller: Caller) {
     orgs as never,
   );
   const penalties = new PenaltiesController(
-    new PenaltiesService(db as never, scoring as never, frozen, orgs as never),
+    new PenaltiesService(
+      db as never,
+      scoring as never,
+      frozen,
+      orgs as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    ),
     db as never,
     staff,
     orgs as never,

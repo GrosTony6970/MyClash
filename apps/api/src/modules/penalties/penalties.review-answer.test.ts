@@ -1,17 +1,23 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 import { PenaltiesService } from './penalties.service';
 import { REVIEW_CHANGED } from './second-black-card-review';
 
 /**
- * The organiser's answer to a black card review (rulings 2026-10-14). It is the review's own:
- * it forgets what a card reopened. And it answers the review as the page showed it: a card that
- * landed since changed what she would be answering, so the answer is refused and the page reads
- * it again. A refused answer disqualifies nobody.
+ * The organiser's answer to a black card review (rulings 2026-10-14, 79, 106). It is the review's
+ * own: it forgets what a card reopened, and keeps the cards it answered (a confirmed review stands
+ * while two of them are live). It answers the review as the page showed it: a card that landed
+ * since changed what she would be answering, so the answer is refused and the page reads it again.
+ * Whatever she answers, her Fighter's status is the settle's, after the answer (slice B): there is
+ * no status write to fail and no answer to put back. On an Event that is over the answer is a super
+ * admin's, as every result change there.
  */
 const ok = (data: unknown) => ({ data, error: null });
 const SEEN = '2026-10-14T10:00:00.123456+00:00';
+const SUPER_ADMIN = 'super-admin-1';
 const REVIEW = {
   id: 'rv-1',
   tournament_id: 't-1',
@@ -26,43 +32,50 @@ const REVIEW = {
   },
 };
 
-function answering(written: unknown = { id: 'rv-1', status: 'dismissed' }) {
+function answering(
+  written: unknown = { id: 'rv-1', status: 'dismissed' },
+  { eventStatus = 'running', guarded = true } = {},
+) {
   const db = mockSupabase({
-    platform_roles: ok(null),
-    tournaments: ok({ event_id: 'e-1' }),
-    events: ok({ organization_id: 'o-1' }),
+    platform_roles: { rows: [{ user_id: SUPER_ADMIN, role: 'super_admin' }] },
+    tournaments: ok({ id: 't-1', event_id: 'e-1' }),
+    events: ok({ id: 'e-1', organization_id: 'o-1', status: eventStatus }),
     registrations: ok(null),
     tournament_penalty_reviews: [ok(REVIEW), ok(written)],
   });
-  const service = new PenaltiesService(db as never, { recomputeMatchScore: vi.fn() } as never);
-  return { db, service };
+  const status = fighterStatusDouble(undefined, () => db.writes);
+  const service = new PenaltiesService(
+    db as never,
+    { recomputeMatchScore: vi.fn() } as never,
+    guarded ? new FrozenResultsGuard(db as never, {} as never) : undefined,
+    undefined,
+    undefined,
+    undefined,
+    status,
+  );
+  const answer = (verdict: 'confirmed' | 'dismissed', userId = 'organiser-1') =>
+    service.reviewTournamentPenalty('rv-1', { status: verdict, seenUpdatedAt: SEEN }, userId);
+  return { db, service, status, answer };
 }
 
 describe('answering a black card review', () => {
-  it('forgets what a card reopened, over the review as it was read', async () => {
-    const { db, service } = answering();
+  it('forgets what a card reopened, and keeps the cards it answered, over the review as read', async () => {
+    const { db, answer } = answering();
 
-    await service.reviewTournamentPenalty(
-      'rv-1',
-      { status: 'dismissed', seenUpdatedAt: SEEN },
-      'organiser-1',
-    );
+    await answer('dismissed');
 
-    const [answer] = writesTo(db, 'tournament_penalty_reviews');
-    expect(answer?.row).toMatchObject({
-      status: 'dismissed',
-      reviewed_by_user_id: 'organiser-1',
-      payload_json: { penaltyIds: ['c-1', 'c-2', 'c-3'] },
-    });
-    expect((answer?.row as { payload_json: object }).payload_json).toEqual({
+    const [written] = writesTo(db, 'tournament_penalty_reviews');
+    expect(written?.row).toMatchObject({ status: 'dismissed', reviewed_by_user_id: 'organiser-1' });
+    expect((written?.row as { payload_json: object }).payload_json).toEqual({
       penaltyIds: ['c-1', 'c-2', 'c-3'],
+      answeredPenaltyIds: ['c-1', 'c-2', 'c-3'],
     });
-    expect(scopedTo(answer, 'updated_at')).toBe(SEEN);
+    expect(scopedTo(written, 'updated_at')).toBe(SEEN);
     expect(selectsFor(db.from, 'tournament_penalty_reviews')[0]).toBe('*');
   });
 
   it('refuses an answer to a review a card changed since the page showed it', async () => {
-    const { db, service } = answering();
+    const { db, status, service } = answering();
 
     const refused = service.reviewTournamentPenalty(
       'rv-1',
@@ -73,84 +86,69 @@ describe('answering a black card review', () => {
     await expect(refused).rejects.toBeInstanceOf(ConflictException);
     await expect(refused).rejects.toMatchObject({ response: { code: REVIEW_CHANGED } });
     expect(db.writes).toEqual([]);
+    expect(status.calls).toEqual([]);
   });
 
-  it('refuses, and disqualifies nobody, when a card lands between the read and the write', async () => {
-    const { db, service } = answering(null);
+  it('refuses, and settles nobody, when a card lands between the read and the write', async () => {
+    const { db, status, answer } = answering(null);
 
-    await expect(
-      service.reviewTournamentPenalty(
-        'rv-1',
-        { status: 'confirmed', seenUpdatedAt: SEEN },
-        'organiser-1',
-      ),
-    ).rejects.toMatchObject({ response: { code: REVIEW_CHANGED } });
+    await expect(answer('confirmed')).rejects.toMatchObject({ response: { code: REVIEW_CHANGED } });
     expect(writesTo(db, 'registrations')).toEqual([]);
+    expect(status.calls).toEqual([]);
   });
 
-  it('disqualifies the fighter once the confirmation is written', async () => {
-    const { db, service } = answering({ id: 'rv-1', status: 'confirmed' });
+  it.each(['confirmed', 'dismissed'] as const)(
+    'an answer %s settles its Fighter once it is written, and writes no status',
+    async (verdict) => {
+      const { db, status, answer } = answering({ id: 'rv-1', status: verdict });
 
-    await service.reviewTournamentPenalty(
-      'rv-1',
-      { status: 'confirmed', seenUpdatedAt: SEEN },
-      'organiser-1',
-    );
+      await answer(verdict);
 
-    expect(db.writes.map((w) => w.table)).toEqual(['tournament_penalty_reviews', 'registrations']);
-    expect(writesTo(db, 'registrations')[0]?.row).toEqual({ status: 'disqualified' });
+      expect(status.calls.map((call) => call.input)).toEqual([
+        { registrationId: 'r-1', tournamentId: 't-1' },
+      ]);
+      expect(status.calls[0]?.writesBefore.map((write) => write.table)).toEqual([
+        'tournament_penalty_reviews',
+      ]);
+      expect(writesTo(db, 'registrations')).toEqual([]);
+    },
+  );
+
+  it('a settle that fails is a server error, and the answer is not put back', async () => {
+    const { db, status, answer } = answering({ id: 'rv-1', status: 'confirmed' });
+    status.settle.mockRejectedValueOnce(new Error('the database is away'));
+
+    await expect(answer('confirmed')).rejects.toThrow('the database is away');
+    expect(writesTo(db, 'tournament_penalty_reviews')).toHaveLength(1);
+  });
+});
+
+describe('an answer on an Event that is over', () => {
+  it.each(['completed', 'archived'])(
+    'is refused on an Event %s, and nothing is written or settled',
+    async (eventStatus) => {
+      const { db, status, answer } = answering(undefined, { eventStatus });
+
+      await expect(answer('dismissed')).rejects.toMatchObject({
+        response: { code: 'event_results_frozen' },
+      });
+      expect(db.writes).toEqual([]);
+      expect(status.calls).toEqual([]);
+    },
+  );
+
+  it('is a super admin’s', async () => {
+    const { status, answer } = answering(undefined, { eventStatus: 'completed' });
+
+    await answer('dismissed', SUPER_ADMIN);
+
+    expect(status.calls).toHaveLength(1);
   });
 
-  it('puts the review back, and says so, when the disqualification is not written', async () => {
-    const WRITTEN = '2026-10-15T20:00:00.000000+00:00';
-    const db = mockSupabase({
-      platform_roles: ok(null),
-      tournaments: ok({ event_id: 'e-1' }),
-      events: ok({ organization_id: 'o-1' }),
-      registrations: { data: null, error: { message: 'connection reset' } },
-      tournament_penalty_reviews: [
-        ok(REVIEW),
-        ok({ id: 'rv-1', status: 'confirmed', updated_at: WRITTEN }),
-        ok({ id: 'rv-1' }),
-      ],
-    });
-    const service = new PenaltiesService(db as never, { recomputeMatchScore: vi.fn() } as never);
+  it('is refused when the over-Event check is missing, rather than taken unasked', async () => {
+    const { db, answer } = answering(undefined, { guarded: false });
 
-    await expect(
-      service.reviewTournamentPenalty(
-        'rv-1',
-        { status: 'confirmed', seenUpdatedAt: SEEN },
-        'organiser-1',
-      ),
-    ).rejects.toThrow(/^Registration r-1 not disqualified: connection reset$/);
-
-    const [answer, putBack] = writesTo(db, 'tournament_penalty_reviews');
-    expect(answer?.row).toMatchObject({ status: 'confirmed' });
-    expect(putBack?.row).toMatchObject({ status: 'pending', payload_json: REVIEW.payload_json });
-    expect(scopedTo(putBack, 'updated_at')).toBe(WRITTEN);
-  });
-
-  it('names a review left confirmed when its put-back finds it changed again', async () => {
-    // A black card landed between the answer and the put-back: it keeps the review confirmed.
-    const db = mockSupabase({
-      platform_roles: ok(null),
-      tournaments: ok({ event_id: 'e-1' }),
-      events: ok({ organization_id: 'o-1' }),
-      registrations: { data: null, error: { message: 'connection reset' } },
-      tournament_penalty_reviews: [
-        ok(REVIEW),
-        ok({ id: 'rv-1', status: 'confirmed', updated_at: '2026-10-15T20:00:00Z' }),
-        ok(null),
-      ],
-    });
-    const service = new PenaltiesService(db as never, { recomputeMatchScore: vi.fn() } as never);
-
-    await expect(
-      service.reviewTournamentPenalty(
-        'rv-1',
-        { status: 'confirmed', seenUpdatedAt: SEEN },
-        'organiser-1',
-      ),
-    ).rejects.toThrow(/^Review rv-1 left confirmed, registration not disqualified: /);
+    await expect(answer('dismissed')).rejects.toThrow('FrozenResultsGuard');
+    expect(db.writes).toEqual([]);
   });
 });

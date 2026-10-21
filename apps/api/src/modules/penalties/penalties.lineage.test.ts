@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 /**
  * Mock that returns a DIFFERENT penalty_rulesets row for the built-in lookup
@@ -50,7 +51,15 @@ function builtinRow(overrides: Record<string, unknown> = {}) {
 describe('PenaltiesService.describeRulesetLineage', () => {
   it('returns null for the built-in itself (no parent to diff)', async () => {
     const supabase = fakeSupabase(builtinRow({ id: 'builtin-1' }), builtinRow());
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     expect(await service.describeRulesetLineage('builtin-1', 'u-1')).toBeNull();
   });
 
@@ -62,7 +71,15 @@ describe('PenaltiesService.describeRulesetLineage', () => {
       name: 'My copy',
     });
     const supabase = fakeSupabase(custom, builtinRow());
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     expect(await service.describeRulesetLineage('pr-1', 'u-1')).toEqual({
       base: 'FFAMHE penalties',
       status: 'unchanged',
@@ -77,7 +94,15 @@ describe('PenaltiesService.describeRulesetLineage', () => {
       red_card_points: -2,
     });
     const supabase = fakeSupabase(custom, builtinRow());
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     expect(await service.describeRulesetLineage('pr-1', 'u-1')).toEqual({
       base: 'FFAMHE penalties',
       status: 'changed',
@@ -87,7 +112,15 @@ describe('PenaltiesService.describeRulesetLineage', () => {
   it('returns null when there is no built-in to compare against', async () => {
     const custom = builtinRow({ id: 'pr-1', built_in: false, public_visibility: true });
     const supabase = fakeSupabase(custom, null);
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     expect(await service.describeRulesetLineage('pr-1', 'u-1')).toBeNull();
   });
 });
@@ -144,7 +177,15 @@ describe('PenaltiesService.listRulesetCatalogForOrg lineage', () => {
       ],
       builtin,
     );
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     // assertUserCanManageOrg is exercised elsewhere; bypass it here so the test
     // is about the lineage, not the gate.
     vi.spyOn(

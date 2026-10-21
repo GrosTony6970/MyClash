@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 /**
  * The platform default a match or tournament falls back to when nobody pinned a
@@ -101,7 +102,16 @@ function filteringSupabase() {
   return { supabase: { service: { from } }, inserted };
 }
 
-const serviceUnderTest = () => new PenaltiesService(filteringSupabase().supabase as never);
+const serviceUnderTest = () =>
+  new PenaltiesService(
+    filteringSupabase().supabase as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
 
 describe('the built-in penalty ruleset every match falls back to', () => {
   it('resolves for a match whose tournament and event pin nothing', async () => {
@@ -142,7 +152,15 @@ describe('the built-in penalty ruleset every match falls back to', () => {
    */
   it('records a card from the built-in, and keeps the ruleset it came from', async () => {
     const { supabase, inserted } = filteringSupabase();
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createPenalty(
       'm-1',
@@ -191,7 +209,15 @@ describe('the built-in penalty ruleset every match falls back to', () => {
    */
   it('prices a card from the built-in ruleset’s own columns, not the hardcoded default', async () => {
     const { supabase, inserted } = filteringSupabase();
-    const service = new PenaltiesService(supabase as never);
+    const service = new PenaltiesService(
+      supabase as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     // A first offence in group 1 takes `sanctions[0]` — yellow. The hardcoded
     // default for yellow is 0; this row says a yellow costs 2.
     BUILTIN['yellow_card_points'] = -2;

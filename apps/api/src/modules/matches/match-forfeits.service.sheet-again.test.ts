@@ -4,6 +4,7 @@ import { MatchForfeitsService } from './match-forfeits.service';
 import { ScoringService } from './scoring.service';
 import { builtInResolver } from './built-in-resolver.fixtures';
 import { hit, phase } from './scoring.service.corrections.fixtures';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 /**
  * Ruling 322: a forfeit holds its bout, and the bout reads its sheet again
@@ -92,6 +93,7 @@ function forfeitsOver(db: ReturnType<typeof seeded>, scoring: unknown) {
     undefined as never,
     undefined as never,
     scoring as never,
+    fighterStatusDouble(),
   );
 }
 

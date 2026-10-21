@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { filtersFor, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { cardsPutOut } from '../matches/fighter-status.fixtures';
 import {
   CARD_RULES,
   blackCard,
@@ -84,7 +85,8 @@ describe('a black card does what the Tournament’s penalty ruleset says', () =>
       expect.objectContaining({ reason: 'black_card_1', can_continue: false, match_id: 'm1' }),
       expect.objectContaining({ reason: 'black_card_1', auto_created: true, match_id: 'm2' }),
     ]);
-    expect(fighterStates(opened.db)).toContainEqual({ status: 'disqualified' });
+    expect(cardsPutOut(opened)).toMatchObject({ firstCardOut: true });
+    expect(fighterStates(opened.db)).toEqual([]);
   });
 
   it('a black card that does nothing writes no forfeit', async () => {
@@ -257,7 +259,11 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
 
     await recordForfeit(opened, 'black_card_1');
 
-    expect(fighterStates(opened.db)).toContainEqual({ status: 'disqualified' });
+    // Recorded by hand, it has no card: it is its own cause, stored with it.
+    expect(inserted(opened.db)[0]).toMatchObject({
+      parent_forfeit_id: 'forfeit-2',
+      fighter_outcome: 'disqualified',
+    });
   });
 });
 
@@ -290,8 +296,12 @@ describe('a black card forfeit recorded by hand follows its card rule (rulings 5
 
     await recordForfeit(opened, 'black_card_1');
 
-    expect(inserted(opened.db)[0]).toMatchObject({ reason: 'black_card_1', can_continue: false });
-    expect(fighterStates(opened.db)).toContainEqual({ status: 'disqualified' });
+    expect(inserted(opened.db)[0]).toMatchObject({
+      reason: 'black_card_1',
+      can_continue: false,
+      fighter_outcome: 'disqualified',
+    });
+    expect(fighterStates(opened.db)).toEqual([]);
   });
 });
 
@@ -308,7 +318,7 @@ describe('the "second black card" review asks only when the 2nd card does not di
 
     await sendCard(opened);
 
-    expect(fighterStates(opened.db)).toContainEqual({ status: 'disqualified' });
+    expect(cardsPutOut(opened)).toMatchObject({ secondCardOut: true });
     expect(reviewWrites(opened.db)).toEqual([]);
   });
 

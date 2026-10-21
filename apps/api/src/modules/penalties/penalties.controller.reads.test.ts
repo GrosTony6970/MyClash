@@ -26,6 +26,7 @@ import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/su
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PenaltiesController } from './penalties.controller';
 import { PenaltiesService } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 const EVENT_A = '11111111-1111-4111-8111-111111111111';
 const EVENT_B = '22222222-2222-4222-8222-222222222222';
@@ -119,7 +120,15 @@ beforeEach(() => {
     getAuthUser: vi.fn(async (token: string) => ({ id: token })),
   };
   const orgs = new OrganizationsService(db as never);
-  service = new PenaltiesService(supabase as never, undefined, undefined, orgs);
+  service = new PenaltiesService(
+    supabase as never,
+    undefined,
+    undefined,
+    orgs,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
   authorizeMatchScoringRead = vi.fn(async () => {
     throw new ForbiddenException('Staff account is not assigned to this Lice');
   });

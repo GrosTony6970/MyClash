@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PenaltiesService } from './penalties.service';
 import { buildRulesetExport } from '../../common/ruleset-export';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 // getRuleset reads one penalty_rulesets row (with its entries) by id.
 function serviceWithRow(row: Record<string, unknown> | null) {
@@ -12,7 +13,15 @@ function serviceWithRow(row: Record<string, unknown> | null) {
     maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
   };
   const fromMock = vi.fn().mockReturnValue(chain);
-  const svc = new PenaltiesService({ service: { from: fromMock } } as never);
+  const svc = new PenaltiesService(
+    { service: { from: fromMock } } as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
   // Bypass the org-membership gate — auth is exercised elsewhere.
   vi.spyOn(
     svc as unknown as { assertUserCanManageOrg: () => Promise<void> },
@@ -57,7 +66,15 @@ describe('PenaltiesService — portable export/import', () => {
   });
 
   it('imports a penalty envelope through createRuleset with a fresh code', async () => {
-    const svc = new PenaltiesService({ service: { from: vi.fn() } } as never);
+    const svc = new PenaltiesService(
+      { service: { from: vi.fn() } } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     const spy = vi.spyOn(svc, 'createRuleset').mockResolvedValue({ id: 'new' } as never);
     const env = buildRulesetExport('penalty', {
       name: 'Imported Penalties',
@@ -81,7 +98,15 @@ describe('PenaltiesService — portable export/import', () => {
   });
 
   it('refuses to import a scoring envelope as a penalty ruleset', async () => {
-    const svc = new PenaltiesService({ service: { from: vi.fn() } } as never);
+    const svc = new PenaltiesService(
+      { service: { from: vi.fn() } } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
     const env = buildRulesetExport('scoring', { name: 'X', version: '1.0.0', scoreFormula: {} });
     await expect(svc.importRulesetJson('org-1', env, 'actor-1')).rejects.toBeInstanceOf(
       BadRequestException,

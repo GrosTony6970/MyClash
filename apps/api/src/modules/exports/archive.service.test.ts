@@ -488,13 +488,14 @@ describe('ArchiveService', () => {
         review_type: 'second_black_card',
         status: 'pending',
         black_card_count: 2,
-        // match_penalties.id values, in an array inside a JSON column, and the one
-        // card that reopened a dismissed review.
+        // match_penalties.id values, in an array inside a JSON column, the one card
+        // that reopened a dismissed review, and the cards an answer covered (0240).
         payload_json: {
           penaltyIds: ['mp-1'],
           reopenedFrom: 'dismissed',
           reopenedBy: 'mp-1',
           answeredIds: ['mp-1'],
+          answeredPenaltyIds: ['mp-1'],
         },
       },
     ],
@@ -731,7 +732,16 @@ describe('ArchiveService', () => {
         reopenedFrom: 'dismissed',
         reopenedBy: penaltyId,
         answeredIds: [penaltyId],
+        answeredPenaltyIds: [penaltyId],
       });
+    });
+
+    it('fills what a Fighter’s status is worked out from, on an archive made before 0240', async () => {
+      // The rules of the fill: `archive-fighter-status.test.ts`. This holds that the restore asks.
+      const { inserted } = await restoreScoped();
+      expect(inserted.registrations?.[0]).toHaveProperty('entry_status');
+      expect(inserted.registrations?.[0]).toHaveProperty('out_since');
+      expect(inserted.match_forfeits?.[0]).toHaveProperty('fighter_outcome');
     });
 
     it('leaves an id with no counterpart in the archive alone', async () => {

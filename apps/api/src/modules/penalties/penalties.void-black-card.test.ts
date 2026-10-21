@@ -7,6 +7,7 @@ import {
   SCORER,
   blackCard,
   otherForfeit,
+  settles,
   setup,
   written,
   type Seed,
@@ -29,7 +30,7 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
 
     // The Fighter has no black card review: nothing is written to the reviews (a review is
     // brought up to date once the card is voided, `penalties.void-black-card.review.test.ts`).
-    expect(written(db)).toEqual(['matches', 'registrations', 'match_forfeits', 'match_penalties']);
+    expect(written(db)).toEqual(['matches', 'match_forfeits', 'match_penalties']);
     const [bout] = writesTo(db, 'matches');
     expect(bout?.row).toMatchObject(BEFORE_THE_CARD);
     expect(scopedTo(bout, 'id')).toBe('m1');
@@ -42,14 +43,25 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
     expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
   });
 
-  it('puts the Fighter back in: the status the forfeit found', async () => {
-    const { db, undo } = setup();
+  it('settles the Fighter once the forfeit is back and again once the card is: no status written', async () => {
+    const { db, status, undo } = setup();
 
     await undo();
 
-    const [fighter] = writesTo(db, 'registrations');
-    expect(fighter?.row).toEqual({ status: 'confirmed' });
-    expect(scopedTo(fighter, 'id')).toBe('reg-blue');
+    // The status the forfeit found is not written back: the settle reads what stays live.
+    expect(writesTo(db, 'registrations')).toEqual([]);
+    expect(settles(status)).toEqual([
+      {
+        registrationId: 'reg-blue',
+        tournamentId: 'tournament-1',
+        after: ['matches:update', 'match_forfeits:update'],
+      },
+      {
+        registrationId: 'reg-blue',
+        tournamentId: 'tournament-1',
+        after: ['matches:update', 'match_forfeits:update', 'match_penalties:update'],
+      },
+    ]);
   });
 
   it('a scorekeeper’s PIN session takes it back too, and signs the void', async () => {
@@ -78,10 +90,9 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
 
     await undo();
 
-    expect(selectsFor(db.from, 'match_forfeits').slice(0, 2)).toEqual([
+    expect(selectsFor(db.from, 'match_forfeits')[0]).toBe(
       'id, replacement_registration_id, created_at',
-      'id, parent_forfeit_id, created_at',
-    ]);
+    );
     // The first read of the table is the leaf's; the forfeit service's follow.
     expect(filtersFor(db.from, 'match_forfeits', 'eq').slice(0, 2)).toEqual([
       ['match_id', 'm1'],
@@ -92,12 +103,6 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
       ['black_card_1', 'black_card_2'],
     ]);
     expect(filtersFor(db.from, 'match_forfeits', 'is')[0]).toEqual(['voided_at', null]);
-    expect(selectsFor(db.from, 'tournament_penalty_reviews')[0]).toBe('id');
-    expect(filtersFor(db.from, 'tournament_penalty_reviews', 'eq').slice(0, 3)).toEqual([
-      ['tournament_id', 'tournament-1'],
-      ['registration_id', 'reg-blue'],
-      ['status', 'confirmed'],
-    ]);
     // The card itself is never counted among "the others".
     expect(filtersFor(db.from, 'match_penalties', 'neq')[0]).toEqual(['id', 'card-black']);
   });
@@ -107,7 +112,30 @@ describe('PenaltiesService.voidPenalty: a black card that cannot be taken back w
   it.each<[string, Seed]>([
     ['a reserve took the Fighter’s place', { forfeit: { replacement_registration_id: 'reg-9' } }],
     [
-      'an organiser confirmed the second black card review',
+      'a bout this one feeds was fought',
+      {
+        forfeit: { downstream_match_ids: ['m2'] },
+        laterBout: { status: 'completed', started_at: '2026-10-06T10:30:00.000Z' },
+      },
+    ],
+    ['the bout was fought again since', { bout: { end_reason: 'first_to_points' } }],
+  ])('refuses when %s, and writes nothing', async (_why, seed) => {
+    const { db, scoring, undo } = setup(seed);
+
+    const refusal = await undo().catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toMatchObject(REFUSED);
+    expect(db.writes).toEqual([]);
+    expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
+  });
+
+  // Rulings 106 and 107: refused only because the void wrote back the status the forfeit found. The
+  // settle reads what stays live: the later withdrawal keeps her out, the review its two cards.
+  it.each<[string, Seed]>([
+    ['a later forfeit put the Fighter out again (ruling 107)', { otherForfeits: [otherForfeit()] }],
+    [
+      'an organiser confirmed the second black card review (ruling 106)',
       {
         reviews: [
           {
@@ -120,52 +148,15 @@ describe('PenaltiesService.voidPenalty: a black card that cannot be taken back w
         ],
       },
     ],
-    [
-      'a bout this one feeds was fought',
-      {
-        forfeit: { downstream_match_ids: ['m2'] },
-        laterBout: { status: 'completed', started_at: '2026-10-06T10:30:00.000Z' },
-      },
-    ],
-    ['the bout was fought again since', { bout: { end_reason: 'first_to_points' } }],
-    // Its void would write back the status THIS forfeit found: back in, over the later one.
-    ['a later forfeit put the Fighter out again', { otherForfeits: [otherForfeit()] }],
-  ])('refuses when %s, and writes nothing', async (_why, seed) => {
-    const { db, scoring, undo } = setup(seed);
-
-    const refusal = await undo().catch((err: unknown) => err);
-
-    expect(refusal).toBeInstanceOf(ConflictException);
-    expect((refusal as ConflictException).getResponse()).toMatchObject(REFUSED);
-    expect(db.writes).toEqual([]);
-    expect(scoring.recomputeMatchScore).not.toHaveBeenCalled();
-  });
-
-  it.each<[string, Record<string, unknown>]>([
-    ['made BEFORE this one', { created_at: '2026-10-06T09:00:00.000Z' }],
-    ['of ANOTHER Fighter', { forfeiting_registration_id: 'reg-red' }],
-    ['somebody voided', { voided_at: '2026-10-06T11:30:00.000Z' }],
-    ['this one made itself (a Pool bout closed with it)', { parent_forfeit_id: 'forfeit-1' }],
-  ])('another forfeit %s refuses nothing', async (_which, over) => {
-    const { db, undo } = setup({ otherForfeits: [otherForfeit(over)] });
+  ])('takes it back whole when %s, and settles the Fighter', async (_why, seed) => {
+    const { db, status, undo } = setup(seed);
 
     await undo();
 
-    expect(writesTo(db, 'match_penalties')).toHaveLength(1);
-  });
-
-  it('a review of ANOTHER Fighter, or one still pending, refuses nothing', async () => {
-    const review = { tournament_id: 'tournament-1', review_type: 'second_black_card' };
-    const { db, undo } = setup({
-      reviews: [
-        { ...review, id: 'review-1', registration_id: 'reg-red', status: 'confirmed' },
-        { ...review, id: 'review-2', registration_id: 'reg-blue', status: 'pending' },
-      ],
-    });
-
-    await undo();
-
-    expect(writesTo(db, 'match_penalties')).toHaveLength(1);
+    expect(writesTo(db, 'match_forfeits')[0]?.row).toMatchObject({ voided_by_user_id: SCORER });
+    expect(writesTo(db, 'match_penalties')[0]?.row).toMatchObject({ voided: true });
+    expect(status.calls.at(-1)?.input.registrationId).toBe('reg-blue');
+    expect(writesTo(db, 'registrations')).toEqual([]);
   });
 
   it('on an over Event the Event’s refusal comes first', async () => {

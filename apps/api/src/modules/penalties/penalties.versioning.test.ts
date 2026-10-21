@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { supabaseRpc } from '../../common/testing/supabase-chain';
 import { PenaltiesService, bumpPenaltyVersion } from './penalties.service';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 
 type TableState = Record<
   string,
@@ -119,7 +120,15 @@ function rulesetFixture(overrides: Record<string, unknown> = {}) {
 
 function makeService(state: TableState) {
   const supabase = fakeSupabase(state);
-  const service = new PenaltiesService(supabase as never);
+  const service = new PenaltiesService(
+    supabase as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    fighterStatusDouble(),
+  );
   return { service, supabase };
 }
 

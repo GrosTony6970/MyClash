@@ -31,9 +31,9 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * the pad gets to make by accident.
  *
  * The wide cases already have a correct, reachable remedy in
- * `PATCH /match-forfeits/:id/void`, which restores `registrations.status` from
- * `previous_registration_state`, cascade-voids the children and puts their bouts
- * back. Routing to it beats re-implementing ~150 lines of its guards here.
+ * `PATCH /match-forfeits/:id/void`, which cascade-voids the children, puts their
+ * bouts back and settles the Fighter's status from what stays live. Routing to it
+ * beats re-implementing ~150 lines of its guards here.
  */
 
 type Client = SupabaseService['service'];
@@ -53,6 +53,8 @@ export interface ActiveForfeitRecord {
   replacementRegistrationId: string | null;
   /** `previous_registration_state.status` — null when none was captured. */
   previousRegistrationStatus: string | null;
+  /** What the record did to its Fighter at its time (`fighter_outcome`, 0240): null = nothing. */
+  fighterOutcome: string | null;
 }
 
 /**
@@ -70,7 +72,7 @@ export async function readActiveForfeits(
   const { data } = await supabase
     .from('match_forfeits')
     .select(
-      'id, match_id, forfeiting_registration_id, replacement_registration_id, previous_registration_state',
+      'id, match_id, forfeiting_registration_id, replacement_registration_id, previous_registration_state, fighter_outcome',
     )
     .in('match_id', [...matchIds])
     .is('voided_at', null);
@@ -83,6 +85,7 @@ export async function readActiveForfeits(
       forfeitingRegistrationId: row['forfeiting_registration_id'] as string,
       replacementRegistrationId: (row['replacement_registration_id'] as string | null) ?? null,
       previousRegistrationStatus: (previous['status'] as string | null) ?? null,
+      fighterOutcome: (row['fighter_outcome'] as string | null) ?? null,
     };
   });
 }
@@ -91,16 +94,19 @@ export async function readActiveForfeits(
  * Refuse any record that reached beyond its own bout. A pure read — call it in
  * the assert phase, before anything has been written.
  *
- * TWO PREDICATES, and the obvious third one is wrong.
+ * THREE PREDICATES, and the obvious fourth one is wrong.
  *
  * 1. A live child. The record withdrew a fighter and auto-forfeited their
  *    remaining pool bouts; undoing it here would leave those bouts forfeited
  *    while the fighter is back in play.
- * 2. The fighter's `registrations.status` is no longer what the record captured.
- *    That is the only evidence that `applyTournamentState` actually moved them —
- *    it writes nothing at all for a plain match-only forfeit, while
- *    `previous_registration_state` is captured either way. Comparing against the
- *    CURRENT row is what separates the two.
+ * 2. The record withdrew or disqualified its Fighter itself (`fighter_outcome`,
+ *    0240). The status settle reads it as a cause, and this module settles
+ *    nobody: voided here, the Fighter would stay out with no cause on record.
+ * 3. The fighter's `registrations.status` is no longer what the record captured:
+ *    something this record counted toward moved them ("disqualify after N"
+ *    stores no outcome; a black card forfeit's card is its cause). Comparing
+ *    against the CURRENT row is what separates them from a plain match-only
+ *    forfeit, which moves nobody.
  *
  * NOT `can_continue === false`, which is the predicate that looks right and
  * refuses the exact case this must allow: `createAutoForfeit` hardcodes
@@ -108,10 +114,9 @@ export async function readActiveForfeits(
  * every reset of an auto-forfeited pool bout — the commonest thing an organiser
  * wants to undo.
  *
- * Note what predicate 2 implies: on the path that PASSES, previous === current,
- * so restoring the registration would write the value that is already there.
- * That is why this module never touches `registrations` — there is nothing to
- * put back.
+ * On the path that PASSES, the record put nobody out and moved nobody, so the
+ * void changes no Fighter's status: this module never touches `registrations`
+ * and asks no settle.
  */
 export async function assertForfeitsVoidableHere(
   supabase: Client,
@@ -129,7 +134,10 @@ export async function assertForfeitsVoidableHere(
   const withChildren = await recordsWithLiveChildren(supabase, records);
 
   const offender = records.find(
-    (record) => moved.has(record.forfeitingRegistrationId) || withChildren.has(record.id),
+    (record) =>
+      record.fighterOutcome !== null ||
+      moved.has(record.forfeitingRegistrationId) ||
+      withChildren.has(record.id),
   );
   if (!offender) return;
 

@@ -58,11 +58,61 @@ describe('AppModule', () => {
     const app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     try {
       expect(classesBuiltWithoutMetadata(app.get(ModulesContainer))).toEqual([]);
+      // An `@Optional()` parameter Nest cannot resolve is injected as undefined, with no error: a
+      // `T | undefined` type emits `Object` into the metadata, as `import type` does. Every such
+      // parameter carries a token of its own, or it is a bug that boots.
+      expect(parametersNestCannotResolve(app.get(ModulesContainer))).toEqual([]);
+      // And the services that settle a Fighter's status (slice B) hold each dependency they
+      // take, the optional ones included: one of them is the over-Event refusal.
+      for (const [service, fields] of await ownDependencies()) {
+        const instance = app.get(service, { strict: false }) as unknown as Record<string, unknown>;
+        expect(
+          fields.filter((field) => instance[field] === undefined),
+          service.name,
+        ).toEqual([]);
+      }
     } finally {
       await app.close();
     }
   }, 60_000);
 });
+
+/** Each class, and the dependencies it must hold once built. Imported after the env is set. */
+async function ownDependencies(): Promise<Array<[new (...args: never[]) => unknown, string[]]>> {
+  const { MatchForfeitsService } = await import('./modules/matches/match-forfeits.service.js');
+  const { PenaltiesService } = await import('./modules/penalties/penalties.service.js');
+  const { RegistrationsService } = await import('./modules/registrations/registrations.service.js');
+  return [
+    [
+      MatchForfeitsService,
+      ['matchCompletion', 'clock', 'bracketAdvance', 'frozenResults', 'scoring', 'fighterStatus'],
+    ],
+    [
+      PenaltiesService,
+      ['scoring', 'frozenResults', 'orgs', 'forfeits', 'rulesetHash', 'fighterStatus'],
+    ],
+    [RegistrationsService, ['fighterStatus', 'frozenResults']],
+  ];
+}
+
+/** `Class#index` of each constructor parameter whose metadata is `Object` with no token. */
+function parametersNestCannotResolve(modules: ModulesContainer): string[] {
+  const unresolved = new Set<string>();
+  for (const module of modules.values()) {
+    for (const wrapper of [...module.providers.values(), ...module.controllers.values()]) {
+      const type: unknown = wrapper.metatype;
+      if (typeof type !== 'function' || wrapper.inject || type === ModuleRef) continue;
+      const params = (Reflect.getMetadata('design:paramtypes', type) ?? []) as unknown[];
+      const tokens = (Reflect.getMetadata('self:paramtypes', type) ?? []) as { index: number }[];
+      params.forEach((param, index) => {
+        if (param === Object && !tokens.some((token) => token.index === index)) {
+          unresolved.add(`${type.name}#${index}`);
+        }
+      });
+    }
+  }
+  return [...unresolved].sort();
+}
 
 /** Classes that take constructor arguments but carry no `design:paramtypes`. */
 function classesBuiltWithoutMetadata(modules: ModulesContainer): string[] {

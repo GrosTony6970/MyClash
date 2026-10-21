@@ -11,6 +11,7 @@ import {
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
 import type * as MatchRuleset from '../phases/match-ruleset';
+import { fighterStatusDouble } from './fighter-status.fixtures';
 
 // A bout put back to "not started" reads its Tournament's ruleset. That read
 // has its own tests (`match-forfeits.service.restamp.test.ts`); the bouts of
@@ -140,7 +141,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -228,7 +237,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -256,9 +273,11 @@ describe('MatchForfeitsService', () => {
     });
     // Every one of those bouts is completed, and no others are touched.
     expect(idsWritten(supabase, 'matches')).toEqual(['match-1', 'later-1', 'paused-1']);
-    // The withdrawal itself lands on the fighter who withdrew.
-    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({ status: 'withdrawn' });
-    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
+    // The withdrawal is stored with the forfeit that made it; the status is the settle's.
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      fighter_outcome: 'withdrawn',
+    });
+    expect(idsWritten(supabase, 'registrations')).toEqual([]);
   });
 
   it('rejects void when a downstream dependent match has started', async () => {
@@ -275,7 +294,15 @@ describe('MatchForfeitsService', () => {
       },
       matches: { rows: [{ id: 'downstream-1', status: 'running' }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
   });
@@ -322,7 +349,15 @@ describe('MatchForfeitsService', () => {
     // Nothing conditioned on match count before this; the per-reason
     // tournamentState ('voluntary' -> 'ask') cannot express it.
     const supabase = mockSupabase(otherBouts([]));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -330,11 +365,12 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({
-      status: 'disqualified',
+    // Stored with the forfeit, as what it did to them; the status is the settle's.
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      forfeiting_registration_id: 'reg-red',
+      fighter_outcome: 'disqualified',
     });
-    // On them, and on nobody else in the pool.
-    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
+    expect(idsWritten(supabase, 'registrations')).toEqual([]);
   });
 
   it('does not auto-disqualify when the fighter has already completed a match', async () => {
@@ -350,7 +386,15 @@ describe('MatchForfeitsService', () => {
         },
       ]),
     );
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -372,7 +416,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules({ disqualifyAfter: 2 }),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -380,8 +432,11 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({
-      status: 'disqualified',
+    // The N-th is stored as nothing of its own: the settle counts the live forfeits (ruling 80).
+    // Until the bouts follow the status (B2), the count still takes it out of the Pool.
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      can_continue: false,
+      fighter_outcome: null,
     });
   });
 
@@ -399,7 +454,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules({ disqualifyAfter: 2 }),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -420,7 +483,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -440,7 +511,15 @@ describe('MatchForfeitsService', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules({ disqualifyAfter: 'off' }),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -459,7 +538,15 @@ describe('MatchForfeitsService — result overrides', () => {
       match_forfeits: { rows: [], returning: { id: 'override-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -489,8 +576,18 @@ describe('MatchForfeitsService — result overrides', () => {
   it('still refuses a FORFEIT on a completed match', async () => {
     const supabase = mockSupabase({
       matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
+      // No record on it: a retry of a forfeit would find its own and settle first.
+      match_forfeits: { rows: [] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.createForfeit('match-1', {
@@ -513,7 +610,15 @@ describe('MatchForfeitsService — result overrides', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules({ disqualifyAfter: 1, disqualifyBeforeFirstBout: true }),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -543,6 +648,9 @@ describe('MatchForfeitsService — result overrides', () => {
       undefined as never,
       undefined as never,
       bracketAdvance as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await expect(
@@ -581,6 +689,9 @@ describe('MatchForfeitsService — result overrides', () => {
       matchCompletion as never,
       undefined as never,
       bracketAdvance as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.createForfeit('match-1', {
@@ -640,7 +751,15 @@ describe('MatchForfeitsService — override regressions', () => {
       matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
       match_forfeits: { rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.createForfeit('match-1', {
@@ -660,7 +779,15 @@ describe('MatchForfeitsService — override regressions', () => {
       matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
       match_forfeits: { rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -742,7 +869,15 @@ describe('MatchForfeitsService — override regressions', () => {
       bracket_slots: { rows: BRACKET_SLOTS },
       registrations: { rows: ENTRANTS },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -779,7 +914,15 @@ describe('MatchForfeitsService — override regressions', () => {
       registrations: { rows: ENTRANTS },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -834,6 +977,9 @@ describe('MatchForfeitsService — override regressions', () => {
       { onMatchCompleted: vi.fn(async () => {}) } as never,
       undefined as never,
       bracketAdvance as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     const result = await service.createForfeit('match-1', {
@@ -862,7 +1008,15 @@ describe('MatchForfeitsService — override regressions', () => {
       },
       match_forfeits: { rows: [] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(
       service.createForfeit(
@@ -891,7 +1045,15 @@ describe('MatchForfeitsService — override regressions', () => {
       match_forfeits: { rows: [], returning: { id: 'override-1' } },
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit(
       'match-1',
@@ -945,6 +1107,9 @@ describe('MatchForfeitsService — override regressions', () => {
       undefined as never,
       undefined as never,
       bracketAdvance as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.voidForfeit('forfeit-1');
@@ -985,7 +1150,15 @@ describe('MatchForfeitsService — override regressions', () => {
         ],
       },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1040,7 +1213,15 @@ describe('MatchForfeitsService — override regressions', () => {
         ],
       },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
     // And nothing was written on the way to the refusal.
@@ -1073,7 +1254,15 @@ describe('MatchForfeitsService — override regressions', () => {
       },
       matches: { rows: [{ id: 'match-1', locked_at: null, ...result }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1112,7 +1301,15 @@ describe('MatchForfeitsService — override regressions', () => {
         ],
       },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1160,6 +1357,9 @@ describe('MatchForfeitsService — override regressions', () => {
         findDownstreamMatchIds: vi.fn(async () => []),
         clearDownstreamOf: vi.fn(async () => {}),
       } as never,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await service.voidForfeit('override-1');
@@ -1186,7 +1386,15 @@ describe('MatchForfeitsService — override regressions', () => {
       matches: { rows: [{ id: 'match-1', locked_at: null }] },
     });
     const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
-    const service = new MatchForfeitsService(supabase as never, matchCompletion as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      matchCompletion as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1213,7 +1421,15 @@ describe('MatchForfeitsService — override regressions', () => {
       },
       matches: { rows: [{ id: 'match-1', locked_at: null }] },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1241,6 +1457,8 @@ describe('MatchForfeitsService — override regressions', () => {
       undefined as never,
       undefined as never,
       frozenResults as never,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await expect(service.voidForfeit('forfeit-1', { userId: 'user-1' })).rejects.toThrow(
@@ -1263,7 +1481,15 @@ describe('MatchForfeitsService — override regressions', () => {
         ],
       },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await expect(service.voidForfeit('forfeit-1', { staffAccountId: 'staff-1' })).rejects.toThrow(
       'Match is locked',
@@ -1290,6 +1516,8 @@ describe('MatchForfeitsService — override regressions', () => {
       undefined as never,
       undefined as never,
       frozenResults as never,
+      undefined,
+      fighterStatusDouble(),
     );
 
     await expect(
@@ -1408,7 +1636,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1438,7 +1674,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
 
   it('voids the sub-forfeits when the parent record is voided', async () => {
     const supabase = mockSupabase(cascadeState('completed'));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.voidForfeit('forfeit-1');
 
@@ -1452,9 +1696,8 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // And onto the two bouts this record closed, nothing else. An unscoped
     // restore would put every match in the event back to a snapshot.
     expect(idsWritten(supabase, 'matches')).toEqual(['match-1', 'later-1']);
-    // The withdrawal is undone too, on the fighter it withdrew and nobody else.
-    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({ status: 'checked_in' });
-    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
+    // No status the record found is written back: the settle reads what stays live.
+    expect(idsWritten(supabase, 'registrations')).toEqual([]);
   });
 
   it('stamps the children before the parent, so a crash mid-void converges', async () => {
@@ -1462,7 +1705,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // once the parent is voided, `existingRecord` no longer blocks a fresh
     // record on the parent match, and nothing points at the orphans.
     const supabase = mockSupabase(cascadeState('completed'));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1476,7 +1727,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // its score — but the F must not stand for a bout being fought, so the
     // record still voids.
     const supabase = mockSupabase(cascadeState('running'));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1498,7 +1757,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // not project: it returns the whole fixture row whatever the select said,
     // so dropping the column again changes nothing it can observe.
     const supabase = mockSupabase(cascadeState('completed'));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.voidForfeit('forfeit-1');
 
@@ -1543,7 +1810,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
         ),
       },
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.voidForfeit('forfeit-1');
 
@@ -1558,7 +1833,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // Passes pre-fix — a guard against the cascade double-stamping the parent
     // or fanning out a query per void on the common case.
     const supabase = mockSupabase(cascadeState('completed', []));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const result = await service.voidForfeit('forfeit-1');
 
@@ -1687,7 +1970,15 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
 
   it('hangs a re-recorded pool forfeit off the live root withdrawal', async () => {
     const supabase = mockSupabase(poolStateWithLiveRoot());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1718,7 +2009,15 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
         ],
       }),
     );
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1740,7 +2039,15 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // them is a withdrawal this bout belongs under. A lost scope adopts
     // whichever it stopped excluding.
     const supabase = mockSupabase(poolStateWithLiveRoot({ records: NEAR_MISSES }));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1759,7 +2066,15 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // organiser stated — the record would vanish with a cascade it never
     // belonged to.
     const supabase = mockSupabase(poolStateWithLiveRoot({ status: 'completed' }));
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1787,7 +2102,15 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
       ...forfeitRules(),
     });
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     await service.createForfeit('match-1', {
       forfeitingRegistrationId: 'reg-red',
@@ -1878,7 +2201,15 @@ describe('MatchForfeitsService — cascade context on the read', () => {
 
   it('reports a child, and whether the record that withdrew the fighter still stands', async () => {
     const supabase = mockSupabase(readState());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const active = await service.getActiveForfeit('match-9');
 
@@ -1890,7 +2221,15 @@ describe('MatchForfeitsService — cascade context on the read', () => {
 
   it('reports a child whose parent has already been voided', async () => {
     const supabase = mockSupabase(readState());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const active = await service.getActiveForfeit('match-13');
 
@@ -1905,7 +2244,15 @@ describe('MatchForfeitsService — cascade context on the read', () => {
     // what the confirm copy quotes, so a voided child counted here would
     // promise the organiser a bout back that is already back.
     const supabase = mockSupabase(readState());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const active = await service.getActiveForfeit('match-1');
 
@@ -1917,7 +2264,15 @@ describe('MatchForfeitsService — cascade context on the read', () => {
 
   it('reports a standalone record when it closed nothing but its own bout', async () => {
     const supabase = mockSupabase(readState());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     const active = await service.getActiveForfeit('match-20');
 
@@ -1931,7 +2286,15 @@ describe('MatchForfeitsService — cascade context on the read', () => {
     // match-12 carries a record; it is simply not live. Answering with it would
     // render a void button for a bout that is already back on the schedule.
     const supabase = mockSupabase(readState());
-    const service = new MatchForfeitsService(supabase as never, undefined as never);
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      fighterStatusDouble(),
+    );
 
     expect(await service.getActiveForfeit('match-12')).toBeNull();
     expect(supabase.service.from).toHaveBeenCalledTimes(1);
