@@ -34,6 +34,7 @@ const apiUrl = getPublicApiUrl();
 export function BasicsTab({
   tournamentId,
   readOnly,
+  readOnlyWhy,
   onDirtyChange,
   onNameSaved,
 }: TabProps & {
@@ -358,7 +359,7 @@ export function BasicsTab({
         type="button"
         onClick={() => void save()}
         disabled={saving || readOnly}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

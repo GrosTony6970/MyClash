@@ -64,6 +64,15 @@ const FORBIDDEN = Symbol('a read the caller may not make');
 export const FORBIDDEN_READ = { [FORBIDDEN]: true } as const;
 const isForbiddenRead = (answer: unknown) =>
   typeof answer === 'object' && answer !== null && FORBIDDEN in answer;
+
+const EDGE_REFUSED = Symbol('a read an edge proxy refuses');
+/**
+ * A 403 no API sent: an edge ban or a firewall, with neither `detail` nor `code` ("blocked, wait",
+ * not a refusal of the caller). Through `apiRequest` only.
+ */
+export const EDGE_REFUSED_READ = { [EDGE_REFUSED]: true } as const;
+const isEdgeRefusedRead = (answer: unknown) =>
+  typeof answer === 'object' && answer !== null && EDGE_REFUSED in answer;
 const SERVER_FAULT = {
   ok: false as const,
   kind: 'http' as const,
@@ -213,6 +222,7 @@ function standInServer(
     }
     if (path in answers) {
       if (isForbiddenRead(answers[path])) return { ...REFUSAL, detail: 'Forbidden', code: null };
+      if (isEdgeRefusedRead(answers[path])) return { ...REFUSAL, detail: null, code: null };
       return isFailedRead(answers[path]) ? SERVER_FAULT : { ok: true, data: answers[path] };
     }
     throw new Error(`unexpected request ${path}`);
@@ -258,12 +268,13 @@ export function openArchivedPage(
 /**
  * The same page on an Event the test describes itself: `reads` holds the Event's
  * own read, and the club's list then holds that Event. A test that names
- * `EVENTS_READ` says what the list holds.
+ * `EVENTS_READ` says what the list holds. `options.locale` is the page's language.
  */
 export async function openEventPage(
   page: ReactNode,
   reads: Record<string, unknown>,
   taken: Record<string, unknown> = {},
+  options: { locale?: 'en' | 'fr' } = {},
 ): Promise<OpenedPage> {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const sent: string[] = [];
@@ -283,7 +294,7 @@ export async function openEventPage(
   const root: Root = createRoot(container);
   await act(async () => {
     root.render(
-      <I18nProvider locale="en">
+      <I18nProvider locale={options.locale ?? 'en'}>
         <ToastProvider>
           <OrganizerEventContextProvider slug={SLUG} urlEventId={EVENT_ID}>
             {page}

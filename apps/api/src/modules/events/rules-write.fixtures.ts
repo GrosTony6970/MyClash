@@ -175,6 +175,8 @@ export function harness(
   current: Row = ON_TF_1_0_0,
   custom: { rulesets?: Row[]; versions?: Row[] } = {},
   tables: Record<string, TableSeed> = {},
+  /** The club-role check the service asks: the mock unless a test builds the real one. */
+  options: { orgs?: (db: ReturnType<typeof seededDb>) => unknown } = {},
 ) {
   const row = structuredClone(current);
   const db = seededDb(row, custom, tables);
@@ -182,7 +184,7 @@ export function harness(
   const rulesHash = new RulesetHashService(db as never, registry);
   const svc = new EventsService(
     db as never,
-    { assertOrgRole } as never,
+    (options.orgs?.(db) ?? { assertOrgRole }) as never,
     {} as never,
     registry,
     undefined,
@@ -205,10 +207,10 @@ export function harness(
     written()?.['ruleset_config'] as Record<string, Record<string, unknown>> | undefined;
   const scoring = () => written()?.['scoring_config_json'] as typeof OWN_SCORING | undefined;
   /** `GET /tournaments/:id` as a signed-in organiser asks it. */
-  const getTournament = () =>
+  const getTournament = (userId = 'u1') =>
     new EventsController(
       svc,
-      { getAuthUser: vi.fn().mockResolvedValue({ id: 'u1' }) } as never,
+      { getAuthUser: vi.fn().mockResolvedValue({ id: userId }) } as never,
       {} as never,
       {} as never,
       {} as never,

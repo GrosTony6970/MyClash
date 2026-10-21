@@ -422,7 +422,8 @@ export class EventsController {
    * this on step 2 to hydrate the match-format form against the row just
    * created — without it the wizard 404s and shows the "Draft — step 2 of 4"
    * resume banner instead of letting the operator continue. Beside it, the
-   * rules in force (`effectiveRules`), which every settings screen shows.
+   * rules in force (`effectiveRules`), which every settings screen shows, and whether the reader
+   * may change them (`viewer_may_edit`: admin or higher in the club, ruling 101).
    */
   @Get('tournaments/:id')
   @ApiBearerAuth()

@@ -3,13 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as ApiClient from '@myclash/api-client';
 import { openArchivedPage, type, type OpenedPage } from '../../../archived-page.fixtures';
 import {
+  PINNED,
   RECAP,
   RECAP_TAKEN,
+  TABS,
   TOURNAMENT_READS,
   button,
   filePicker,
   isClosed,
   press,
+  refusedSaves,
 } from './page.fixtures';
 import TournamentSettingsPage from './page';
 
@@ -41,26 +44,6 @@ async function openTab(tab: string, taken: Record<string, unknown> = {}): Promis
   window.history.replaceState(null, '', `/#${tab}`);
   return openArchivedPage(<TournamentSettingsPage />, TOURNAMENT_READS, taken);
 }
-
-/** The ruleset the Tournament is pinned to, as the ruleset select holds it. */
-const PINNED = 'TF_v1:1.0.0';
-
-/** Every save the page sent, but the Recap's own three. */
-const refusedSaves = (page: OpenedPage) =>
-  page.writes().filter((save) => !save.startsWith(`POST ${RECAP}/`));
-
-/** Each tab, and the buttons it must still DRAW, closed. */
-const TABS: Array<[tab: string, closed: string[]]> = [
-  ['basics', ['Save changes']],
-  ['match-format', ['Save changes']],
-  [
-    'venues',
-    ['Save changes', 'Move pool matches now', 'Move Swiss matches now', 'Move bracket matches now'],
-  ],
-  ['display', ['Replace logo', 'Remove', 'Save changes']],
-  ['advanced', ['Customise this format', 'Save changes']],
-  ['locks', ['Save changes']],
-];
 
 let page: OpenedPage;
 afterEach(() => page.unmount());

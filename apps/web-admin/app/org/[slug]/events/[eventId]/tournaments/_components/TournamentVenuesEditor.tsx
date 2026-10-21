@@ -29,12 +29,18 @@ export function TournamentVenuesEditor({
   tournamentId,
   eventId,
   readOnly,
+  readOnlyWhy,
   onDirtyChange,
 }: {
   tournamentId: string;
   eventId: string;
-  /** The Event is archived: the server refuses the save and the three moves. */
+  /**
+   * The server refuses the save and the three moves: the Event is archived, or the reader is
+   * below admin (ruling 101).
+   */
   readOnly: boolean;
+  /** Why, the sentence the closed Save carries. */
+  readOnlyWhy: string | undefined;
   /** A pick not saved yet (O15): the settings page asks before it is lost. */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -187,7 +193,7 @@ export function TournamentVenuesEditor({
         type="button"
         onClick={() => void save()}
         disabled={saving || loading || venues.length === 0 || readOnly}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

@@ -35,7 +35,7 @@ const BEST_OF_OPTIONS = [
  * (operator rulings 43, 46). The "modified" badge and Reset compare with what the ruleset starts a
  * Tournament from at its pinned version (`start`, ruling 51); with no `start`, neither shows.
  */
-export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
+export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -238,7 +238,7 @@ export function MatchFormatTab({ tournamentId, readOnly, onDirtyChange }: TabPro
         type="button"
         onClick={() => void save()}
         disabled={rules.saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

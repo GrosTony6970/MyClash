@@ -31,7 +31,7 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
-import { OrganizationsService } from '../organizations/organizations.service';
+import { OrganizationsService, roleAtLeast } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { LeaguesService, isPublicLeague } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
@@ -3187,6 +3187,10 @@ export class EventsService {
    * org-role assertion that updateTournament does at the top, but with a
    * lower role threshold (scorekeeper, not admin) — read access should be
    * available to anyone running the tournament, not just admins.
+   *
+   * `viewer_may_edit` is true when the reader holds admin or higher in the Tournament's club: the
+   * role bar of the settings saves, so the settings page closes them for anyone else (ruling 101).
+   * The re-pin (owner), an archived Event and the platform read-only mode refuse on their own.
    */
   async getTournamentById(tournamentId: string, userId: string) {
     const { data, error } = await this.supabase.service
@@ -3197,7 +3201,7 @@ export class EventsService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
     const event = await this.getEventById((data as { event_id: string }).event_id);
-    await this.orgs.assertOrgRole(
+    const role = await this.orgs.assertOrgRole(
       (event as { organization_id: string }).organization_id,
       userId,
       'scorekeeper',
@@ -3231,6 +3235,7 @@ export class EventsService {
       ruleset_grammar: grammar,
       ruleset_is_system: isSystem,
       ruleset_base_code: baseCode,
+      viewer_may_edit: roleAtLeast(role, 'admin'),
     };
   }
 

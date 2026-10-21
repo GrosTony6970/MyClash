@@ -93,6 +93,12 @@ describe('the Tournament wizard of an archived Event', () => {
     expect(isClosed(filePicker())).toBe(true);
   });
 
+  it('says on the Venues save of step 4 why it is closed', async () => {
+    page = await openWizard('id=t-1&step=4');
+
+    expect(button('Save changes').title).toBe('This event is archived and read-only.');
+  });
+
   it('still leaves the wizard by "Use defaults and finish", which saves nothing', async () => {
     page = await openWizard('id=t-1&step=4');
 

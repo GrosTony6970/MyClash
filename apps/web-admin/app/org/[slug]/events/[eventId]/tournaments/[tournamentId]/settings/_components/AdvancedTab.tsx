@@ -14,7 +14,7 @@ import type { TabProps } from './tab-props';
  * only what the organiser changed (operator rulings 43, 46, 48, 52). A ruleset whose engine is
  * not TF_v1's has none: the API answers `tf: null`, and the tab shows no controls.
  */
-export function AdvancedTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
+export function AdvancedTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -51,7 +51,7 @@ export function AdvancedTab({ tournamentId, readOnly, onDirtyChange }: TabProps)
             type="button"
             onClick={() => void save()}
             disabled={rules.saving || readOnly}
-            title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+            title={readOnlyWhy}
             className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
           >
             {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

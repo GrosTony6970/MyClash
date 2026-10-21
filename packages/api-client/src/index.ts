@@ -24,6 +24,7 @@ export {
   failureCode,
   failureDetail,
   failureMessage,
+  isApiForbidden,
   isArchivedEventRefusal,
 } from './failure-message';
 export { fetchMe, ME_PATH } from './me';

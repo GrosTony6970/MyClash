@@ -699,6 +699,7 @@ export const organizer = {
       eyebrow: 'Tournoi',
       title: 'Paramètres du tournoi',
       subtitle: "Configurez les règles, le chronomètre, l'affichage et le comportement avancé.",
+      adminOnly: 'Seul un administrateur du club peut modifier ces réglages.',
       backToList: 'Retour à la liste des tournois',
       basics: 'Bases',
       matchFormat: 'Format des matchs',

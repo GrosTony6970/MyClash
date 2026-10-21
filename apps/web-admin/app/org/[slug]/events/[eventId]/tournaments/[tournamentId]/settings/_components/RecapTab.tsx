@@ -17,8 +17,18 @@ interface RecapContent {
 const LOCALES = ['en', 'fr'] as const;
 type Locale = (typeof LOCALES)[number];
 
-/** Organizer control for the AI tournament recap: generate → review → publish. */
-export function RecapTab({ tournamentId }: { tournamentId: string }) {
+/**
+ * Organizer control for the AI tournament recap: generate → review → publish. `closedWhy` closes
+ * its three saves for a reader the server refuses them (below admin, ruling 103); an archived
+ * Event does not close them (ruling 379).
+ */
+export function RecapTab({
+  tournamentId,
+  closedWhy,
+}: {
+  tournamentId: string;
+  closedWhy: string | undefined;
+}) {
   const { locale: uiLocale, t } = useI18n();
   const apiUrl = getPublicApiUrl();
   // A PATH, not a URL: the seam takes the base separately.
@@ -149,14 +159,22 @@ export function RecapTab({ tournamentId }: { tournamentId: string }) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" size="sm" loading={busy} onClick={() => void generate()}>
+        <Button
+          variant="primary"
+          size="sm"
+          loading={busy}
+          disabled={busy || !!closedWhy}
+          title={closedWhy}
+          onClick={() => void generate()}
+        >
           {content ? t('organizer.recap.regenerate') : t('organizer.recap.generate')}
         </Button>
         {content && content.status !== 'published' && (
           <Button
             variant="secondary"
             size="sm"
-            disabled={busy}
+            disabled={busy || !!closedWhy}
+            title={closedWhy}
             onClick={() => void setPublished(true)}
           >
             {t('organizer.recap.publish')}
@@ -166,7 +184,8 @@ export function RecapTab({ tournamentId }: { tournamentId: string }) {
           <Button
             variant="cancel"
             size="sm"
-            disabled={busy}
+            disabled={busy || !!closedWhy}
+            title={closedWhy}
             onClick={() => void setPublished(false)}
           >
             {t('organizer.recap.unpublish')}

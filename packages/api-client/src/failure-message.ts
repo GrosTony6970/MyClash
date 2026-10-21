@@ -144,6 +144,20 @@ export function isArchivedEventRefusal(failure: ApiFailure): boolean {
   return failureCode(failure) === 'event_archived';
 }
 
+/**
+ * Is this a 403 the API itself sent, a refusal of this caller? Not one an intermediary sent with
+ * neither `detail` nor `code` — see "an intermediary is not a dead session" in the header. For the
+ * screen that reads a refused read as "you may not" (the Tournament settings, ruling 101).
+ */
+export function isApiForbidden(failure: ApiFailure): boolean {
+  return failure.kind === 'unauthenticated' && failure.status === 403 && fromTheApi(failure);
+}
+
+/** A 401 or 403 carrying either half of a problem+json body: the API sent it. */
+function fromTheApi(failure: Extract<ApiFailure, { kind: 'unauthenticated' }>): boolean {
+  return failure.detail !== null || failure.code !== null;
+}
+
 /** The sentence for a 401 or a 403. */
 function refusedMessage(
   failure: Extract<ApiFailure, { kind: 'unauthenticated' }>,
@@ -151,7 +165,7 @@ function refusedMessage(
 ): string {
   // Neither half of a problem+json body, so the API did not send this —
   // see "an intermediary is not a dead session" in the header.
-  if (failure.detail === null && failure.code === null) {
+  if (!fromTheApi(failure)) {
     return t('common.apiFailure.blocked');
   }
   // The Event lock's two refusals: the only coded ones said here — see the header.

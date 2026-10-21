@@ -30,7 +30,7 @@ const COLORS = TOURNAMENT_SIDE_COLORS;
  * The scoring buttons, side colours and pinned penalties in force (`effectiveRules.scoring`), and
  * a Save of only what the organiser changed (operator rulings 43, 46). The logo saves at once.
  */
-export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
+export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -137,7 +137,7 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
     <div className="space-y-6">
       {heading}
 
-      {/* Closed whole on an archived Event: a picked file is an upload at once. */}
+      {/* Closed whole on an archived Event, or for a reader below admin: a picked file is an upload at once. */}
       <fieldset disabled={readOnly} className="space-y-2">
         <legend className="text-xs font-medium text-foreground-secondary">
           {t('organizer.tournaments.settings.logoLabel')}
@@ -483,7 +483,7 @@ export function DisplayTab({ tournamentId, readOnly, onDirtyChange }: TabProps) 
         type="button"
         onClick={() => void save()}
         disabled={saving || readOnly}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

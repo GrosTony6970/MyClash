@@ -82,7 +82,12 @@ export function Step4Advanced({
       <p className="text-xs text-muted">{t('admin.orgTournaments.advancedWizardHint')}</p>
 
       <div className="rounded-md border border-border p-4">
-        <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} readOnly={readOnly} />
+        <TournamentVenuesEditor
+          tournamentId={tournamentId}
+          eventId={eventId}
+          readOnly={readOnly}
+          readOnlyWhy={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        />
       </div>
 
       {!rules.form && <RulesFormState status={rules.status} onRetry={rules.reload} />}

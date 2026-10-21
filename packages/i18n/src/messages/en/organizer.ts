@@ -706,6 +706,8 @@ export const organizer = {
       eyebrow: 'Tournament',
       title: 'Tournament settings',
       subtitle: 'Configure rules, timer, display, and advanced behavior.',
+      // Under the header, and on each closed Save, for a reader below admin (ruling 102).
+      adminOnly: 'Only a club admin can change these settings.',
       backToList: 'Back to tournaments',
       basics: 'Basics',
       matchFormat: 'Match format',

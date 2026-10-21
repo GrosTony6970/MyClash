@@ -14,7 +14,7 @@ const LOCK_FORM: RulesFormSpec<TournamentLockConfig> = {
   bodyOf: (lock) => ({ lockConfig: lock }),
 };
 
-export function LocksTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
+export function LocksTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -45,6 +45,7 @@ export function LocksTab({ tournamentId, readOnly, onDirtyChange }: TabProps) {
           onChange={setLock}
           saving={rules.saving}
           readOnly={readOnly}
+          readOnlyWhy={readOnlyWhy}
           onSave={() => void save()}
         />
       ) : (
@@ -60,12 +61,14 @@ function LockFields({
   onChange: setLock,
   saving,
   readOnly,
+  readOnlyWhy,
   onSave,
 }: {
   lock: TournamentLockConfig;
   onChange: (next: TournamentLockConfig) => void;
   saving: boolean;
   readOnly: boolean;
+  readOnlyWhy: string | undefined;
   onSave: () => void;
 }) {
   const { t } = useI18n();
@@ -143,7 +146,7 @@ function LockFields({
         type="button"
         onClick={onSave}
         disabled={saving || readOnly}
-        title={readOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+        title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

@@ -50,6 +50,16 @@ const ORG_ROLE_ORDER = [
 ] as const;
 type OrgRole = (typeof ORG_ROLE_ORDER)[number];
 
+/**
+ * Whether `role` is `min` or above: the one owner of the club-role order. The column is TEXT with
+ * no CHECK, so a role the order does not hold loses every bar, and a bar it does not hold lets no
+ * one through.
+ */
+export function roleAtLeast(role: string | null | undefined, min: OrgRole): boolean {
+  const bar = ORG_ROLE_ORDER.indexOf(min);
+  return bar !== -1 && ORG_ROLE_ORDER.indexOf(role as OrgRole) >= bar;
+}
+
 @Injectable()
 export class OrganizationsService {
   constructor(
@@ -595,9 +605,10 @@ export class OrganizationsService {
     if (!data) throw notAMember();
 
     const memberRole = (data as { role: OrgRole }).role;
-    if (ORG_ROLE_ORDER.indexOf(memberRole) < ORG_ROLE_ORDER.indexOf(minRole)) {
+    if (!roleAtLeast(memberRole, minRole)) {
       throw new ForbiddenException(`Requires ${minRole} role or higher`);
     }
+    return memberRole;
   }
 
   /**

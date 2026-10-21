@@ -69,6 +69,8 @@ export const TOURNAMENT_ROW = {
   max_waitlist: null,
   logo_url: 'http://img.test/logo.png',
   effectiveRules: EFFECTIVE_RULES as EffectiveRules | null,
+  // An admin's read: the settings are the reader's to change (ruling 101).
+  viewer_may_edit: true as boolean,
 };
 
 /** `GET …/forfeit-rules` for the built-in's rules: no changes, so they are the rules in force. */
@@ -118,7 +120,8 @@ export const TOURNAMENT_READS: Record<string, unknown> = {
   [`${RECAP}?locale=fr`]: null,
 };
 
-const recap = (status: 'draft' | 'published') => ({
+/** A recap as its read and its saves answer it. */
+export const recap = (status: 'draft' | 'published') => ({
   content: 'Anna won the final.',
   status,
   generatedAt: '2025-06-01T10:00:00.000Z',
@@ -131,6 +134,26 @@ export const RECAP_TAKEN: Record<string, unknown> = {
   [`POST ${RECAP}/publish?locale=en`]: recap('published'),
   [`POST ${RECAP}/unpublish?locale=en`]: recap('draft'),
 };
+
+/** Each tab, and the buttons it must still DRAW, closed, when its saves are refused. */
+export const TABS: Array<[tab: string, closed: string[]]> = [
+  ['basics', ['Save changes']],
+  ['match-format', ['Save changes']],
+  [
+    'venues',
+    ['Save changes', 'Move pool matches now', 'Move Swiss matches now', 'Move bracket matches now'],
+  ],
+  ['display', ['Replace logo', 'Remove', 'Save changes']],
+  ['advanced', ['Customise this format', 'Save changes']],
+  ['locks', ['Save changes']],
+];
+
+/** The ruleset the Tournament is pinned to, as the ruleset select holds it. */
+export const PINNED = 'TF_v1:1.0.0';
+
+/** Every save the page sent, but the Recap's own three. */
+export const refusedSaves = (page: OpenedPage) =>
+  page.writes().filter((save) => !save.startsWith(`POST ${RECAP}/`));
 
 /** The button that reads `label`: the first one, from the top of the page. */
 export function button(label: string): HTMLButtonElement {

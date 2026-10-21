@@ -4,7 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminPageHeader, useLeaveGuard } from '@myclash/ui';
-import { apiRequest } from '@myclash/api-client';
+import { apiRequest, isApiForbidden } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
@@ -48,8 +48,15 @@ export default function TournamentSettingsPage() {
   // switch, a link or closing the browser tab asks first.
   const [dirty, setDirty] = useState(false);
   const { askToLeave, confirmDialog } = useLeaveGuard(dirty, { t, navigate: router.push });
-  const [name, setName] = useTournamentName(params.tournamentId);
-  const tab = { tournamentId: params.tournamentId, readOnly: isReadOnly, onDirtyChange: setDirty };
+  const { name, setName, mayEdit } = useTournamentHeader(params.tournamentId);
+  // Below admin, the server refuses every save here, the Recap's too (rulings 101-103).
+  const adminOnly = mayEdit ? undefined : t('organizer.tournaments.settings.adminOnly');
+  const tab = {
+    tournamentId: params.tournamentId,
+    readOnly: isReadOnly || !mayEdit,
+    readOnlyWhy: isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : adminOnly,
+    onDirtyChange: setDirty,
+  };
   const [active, setActive] = useState<TabKey>('basics');
 
   useEffect(() => {
@@ -81,6 +88,14 @@ export default function TournamentSettingsPage() {
           subtitle={t('organizer.tournaments.settings.subtitle')}
         />
       </div>
+      {adminOnly && (
+        <p
+          role="status"
+          className="mt-4 rounded-md border border-border px-4 py-3 text-sm text-foreground-secondary"
+        >
+          {adminOnly}
+        </p>
+      )}
 
       <RulesetDriftBanner {...tab} />
 
@@ -113,7 +128,9 @@ export default function TournamentSettingsPage() {
           {active === 'display' && <DisplayTab {...tab} />}
           {active === 'advanced' && <AdvancedTab {...tab} />}
           {active === 'locks' && <LocksTab {...tab} />}
-          {active === 'recap' && <RecapTab tournamentId={params.tournamentId} />}
+          {active === 'recap' && (
+            <RecapTab tournamentId={params.tournamentId} closedWhy={adminOnly} />
+          )}
         </section>
       </div>
       {confirmDialog}
@@ -124,17 +141,27 @@ export default function TournamentSettingsPage() {
 /**
  * The Tournament's name, for the header; null until it is read, and if the read fails. The
  * setter takes the name Basics saved: the header used to keep the old one.
+ *
+ * `mayEdit` is false when the read says its reader is below admin, or when the API refuses the
+ * read itself (a read_only member): the server refuses them every save here (ruling 101). A read
+ * that does not say (pending, failed, an edge's 403) leaves the page open: the server still refuses.
  */
-function useTournamentName(tournamentId: string): [string | null, (name: string) => void] {
+function useTournamentHeader(tournamentId: string) {
   const [name, setName] = useState<string | null>(null);
+  const [mayEdit, setMayEdit] = useState(true);
   useEffect(() => {
     let current = true;
-    void apiRequest<{ name?: string }>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then((r) => {
-      if (current && r.ok) setName(r.data.name ?? null);
+    void apiRequest<{ name?: string; viewer_may_edit?: boolean }>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}`,
+    ).then((r) => {
+      if (!current) return;
+      if (r.ok) setName(r.data.name ?? null);
+      setMayEdit(r.ok ? r.data.viewer_may_edit !== false : !isApiForbidden(r));
     });
     return () => {
       current = false;
     };
   }, [tournamentId]);
-  return [name, setName];
+  return { name, setName, mayEdit };
 }

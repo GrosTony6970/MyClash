@@ -45,13 +45,19 @@ const rulesOf = (over: Record<string, unknown> = {}) => {
 };
 /** The Tournament's MARKER change: a voluntary withdrawal is a loss to 37. */
 const STORED = { reasons: { voluntary: { opponentScore: 37 } } };
+/** Léa's read of the Tournament: she scores for the club and is not its admin. */
+const LEAS = { viewer_may_edit: false };
 
 let opened: OpenedTab;
 afterEach(() => opened.page.unmount());
 
-function open(stored: unknown = STORED, reads: Record<string, unknown> = {}) {
+function open(
+  stored: unknown = STORED,
+  reads: Record<string, unknown> = {},
+  row: Record<string, unknown> = {},
+) {
   return openTab('basics', {
-    row: { forfeit_rules: stored },
+    row: { forfeit_rules: stored, ...row },
     reads: { [PICK_2]: rulesOf({ disqualifyAfter: 7 }), ...reads },
   });
 }
@@ -169,6 +175,23 @@ describe('the forfeit rules on the Basics tab', () => {
     await choose('');
 
     expect(field('disqualify-after').value).toBe('9');
+    // An admin's: the rules stay live.
+    expect(field('disqualify-after').matches(':disabled')).toBe(false);
+  });
+
+  it('show a non-admin the Event’s rules for None, read-only (13c, ruling 90)', async () => {
+    opened = await open(STORED, { [NONE]: rulesOf({ disqualifyAfter: 9 }) }, LEAS);
+
+    expect(field('voluntary-score').matches(':disabled')).toBe(true);
+    expect(boxOf('voluntary-score').textContent).not.toContain('Reset');
+    const before = vi.mocked(ApiClient.apiRequest).mock.calls.length;
+    await choose('');
+
+    // The rules shown are the None read's, made for this pick.
+    const after = vi.mocked(ApiClient.apiRequest).mock.calls.slice(before);
+    expect(after.map(([, path]) => path)).toContain(NONE);
+    expect(field('disqualify-after').value).toBe('9');
+    expect(field('disqualify-after').matches(':disabled')).toBe(true);
   });
 
   it('show a non-admin the pinned rules, read-only, when the pick’s read is refused', async () => {
@@ -307,10 +330,10 @@ describe('the forfeit rules on the Basics tab', () => {
     expect(field('voluntary-score').value).toBe('6');
   });
 
-  // The tab knows no role: the block is live on load for anyone, and a non-admin learns from the
-  // Save's 403 (the server's own sentence).
+  // A read that does not say whether its reader may edit: the block stays live, and a non-admin
+  // learns from the Save's 403 (the server's own sentence).
   it('stay live on load, and say why a Save is refused for want of a role', async () => {
-    opened = await open();
+    opened = await open(STORED, {}, { viewer_may_edit: undefined });
     const read = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
     vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
       init?.method === 'PATCH'
