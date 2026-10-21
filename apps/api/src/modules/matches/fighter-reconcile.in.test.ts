@@ -246,18 +246,18 @@ describe('a bout put back faces two Fighters (review B2, M1)', () => {
   });
 });
 
-describe('a forfeit recorded under the organiser’s hand withdrawal (ruling 118)', () => {
-  it('comes back with her: the undo voids it, but not a forfeit of her own', async () => {
+describe('a forfeit recorded under the out status: the hand, a card, a review (118, 120)', () => {
+  it('comes back with her: her return voids it, but not a forfeit of her own', async () => {
     const { db, settle } = anasTournament({
       statuses: ['checked_in'],
       bouts: [done('m-6'), done('m-7')],
       forfeits: [
-        forfeit('h-hand', { match_id: 'm-6', under_hand_withdrawal: true }),
+        forfeit('h-out', { match_id: 'm-6', under_out_status: true }),
         forfeit('h-own', { match_id: 'm-7' }),
       ],
     });
     await settle();
-    expect(voided(db)).toEqual([{ id: 'h-hand', byReturn: true }]);
+    expect(voided(db)).toEqual([{ id: 'h-out', byReturn: true }]);
   });
 });
 

@@ -33,7 +33,8 @@ const EARLIER = {
   forfeiting_registration_id: 'reg-red',
   reason: 'voluntary',
   parent_forfeit_id: null,
-  under_hand_withdrawal: false,
+  auto_created: false,
+  under_out_status: false,
   voided_at: null,
 };
 

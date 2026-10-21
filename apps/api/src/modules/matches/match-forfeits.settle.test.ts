@@ -34,7 +34,7 @@ const earlierForfeit = (over: Record<string, unknown> = {}) => ({
   parent_forfeit_id: null,
   can_continue: true,
   auto_created: false,
-  under_hand_withdrawal: false,
+  under_out_status: false,
   voided_at: null,
   'matches.pool_id': 'pool-1',
   created_at: '2026-10-21T09:00:00.000Z',

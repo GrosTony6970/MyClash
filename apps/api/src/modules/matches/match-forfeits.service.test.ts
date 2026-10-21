@@ -5,6 +5,7 @@ import { MatchForfeitsService } from './match-forfeits.service';
 import {
   mockSupabase,
   scopedTo,
+  selectsFor,
   writesTo,
   type RecordedWrite,
   type SupabaseRow,
@@ -61,6 +62,9 @@ const idsWritten = (
  * forfeit at all. Seeded, so the count is a fact about rows — and the forfeit being
  * recorded now needs its stored id, which only `returning` can supply.
  */
+/** The column defaults of a person's record, which the double cannot apply (0241). */
+const COLUMN_DEFAULTS = { auto_created: false, under_out_status: false };
+
 const forfeitHistory = (mine: Record<string, unknown>[]) => ({
   rows: [
     {
@@ -106,8 +110,7 @@ const forfeitHistory = (mine: Record<string, unknown>[]) => ({
       match_id: 'match-5',
     },
     ...mine,
-    // The column default the double cannot apply (0241).
-  ].map((row): Record<string, unknown> => ({ under_hand_withdrawal: false, ...row })),
+  ].map((row): Record<string, unknown> => ({ ...COLUMN_DEFAULTS, ...row })),
   returning: { id: 'forfeit-new' },
 });
 
@@ -1626,7 +1629,7 @@ describe('MatchForfeitsService — the void of a withdrawal', () => {
  * Keyed on the BOUT (slice B, B2), not the Pool: a forfeit the Fighter chose later in the Pool,
  * on a bout the withdrawal never closed, is a forfeit of its own and counts toward "after N".
  */
-describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal', () => {
+describe('MatchForfeitsService — re-recorded forfeit under what holds her out', () => {
   /** The withdrawal this bout belongs under: hers, a person's, still on record, and out. */
   const LIVE_ROOT = {
     id: 'root-1',
@@ -1635,7 +1638,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     forfeiting_registration_id: 'reg-red',
     parent_forfeit_id: null,
     auto_created: false,
-    under_hand_withdrawal: false,
+    under_out_status: false,
     can_continue: false,
     voided_at: null,
     created_at: '2026-08-12T08:00:00.000Z',
@@ -1695,12 +1698,12 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       voided_at: '2026-08-11T09:00:00.000Z',
       created_at: '2026-08-12T09:04:00.000Z',
     },
-    // A forfeit recorded under the hand withdrawal: an effect of it, no root (ruling 118).
+    // A forfeit recorded under the out status: an effect of what held her out, no root (118, 120).
     {
       ...LIVE_ROOT,
-      id: 'ff-under-hand',
+      id: 'ff-under-out',
       match_id: 'match-9',
-      under_hand_withdrawal: true,
+      under_out_status: true,
       created_at: '2026-08-12T09:06:00.000Z',
     },
     // A bout forfeited because she was out by a card or the hand: no parent, and no root either.
@@ -1713,23 +1716,31 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     },
   ];
 
+  /** Her row as the last settle left it: in, out by the hand, or out by her cards' review. */
+  const IN = { status: 'checked_in', entry_status: 'checked_in' };
+  const BY_HAND = { status: 'withdrawn', entry_status: 'withdrawn' };
+  const BY_REVIEW = { status: 'disqualified', entry_status: 'checked_in' };
+
+  /** The double of the last `recordOn`, for the reads it made. */
+  let lastDb = mockSupabase({});
+
   const recordOn = async (
     records: SupabaseRow[],
     reason: string,
     status = 'running',
-    hand = 'checked_in',
+    fighter: SupabaseRow = IN,
     rules: Partial<ForfeitRules> = {},
   ) => {
-    const supabase = mockSupabase({
+    const supabase = (lastDb = mockSupabase({
       matches: { rows: [matchRow({ phaseType: 'pool', status })] },
       match_forfeits: {
         rows: records,
         returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
-      // Her row: the organiser's hand, read when no root covers the bout (ruling 118).
-      registrations: { rows: [{ id: 'reg-red', status: 'checked_in', entry_status: hand }] },
+      // Her row, read when no root covers the bout (rulings 118, 120).
+      registrations: { rows: [{ id: 'reg-red', ...fighter }] },
       ...forfeitRules(rules),
-    });
+    }));
     const service = forfeitsOver(supabase);
     const isOverride = reason === 'admin_correction';
     await service.createForfeit('match-1', {
@@ -1759,67 +1770,109 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
   it('still roots a forfeit on a bout put back when no live withdrawal covers her', async () => {
     expect(await recordOn([PUT_BACK, ...NEAR_MISSES], 'voluntary')).toMatchObject({
       parent_forfeit_id: null,
-      under_hand_withdrawal: false,
+      under_out_status: false,
     });
   });
 
   it('under the organiser’s hand withdrawal, with no root, it is that withdrawal’s (118)', async () => {
     expect(
-      await recordOn([PUT_BACK, ...NEAR_MISSES], 'voluntary', 'running', 'withdrawn'),
+      await recordOn([PUT_BACK, ...NEAR_MISSES], 'voluntary', 'running', BY_HAND),
     ).toMatchObject({
       parent_forfeit_id: null,
-      under_hand_withdrawal: true,
+      under_out_status: true,
       fighter_outcome: null,
       // Escalates nothing: it is no forfeit the Fighter chose.
       can_continue: true,
     });
   });
 
-  it('one under the hand escalates nothing: no "forfeit before the 1st bout" (118)', async () => {
+  it('out by a confirmed review or a card, with no root, it is that cause’s (120)', async () => {
+    // The hand still has her checked in: only her status says she is out.
+    expect(
+      await recordOn([PUT_BACK, ...NEAR_MISSES], 'voluntary', 'running', BY_REVIEW),
+    ).toMatchObject({
+      parent_forfeit_id: null,
+      under_out_status: true,
+      fighter_outcome: null,
+      can_continue: true,
+    });
+    // Her status, which the settle works out from every cause, not the hand alone.
+    expect(selectsFor(lastDb.service.from, 'registrations')).toContain('status');
+  });
+
+  it('one under the out status escalates nothing: no "forfeit before the 1st bout"', async () => {
     const before = { disqualifyBeforeFirstBout: true };
     const put = [PUT_BACK, ...NEAR_MISSES];
-    expect(await recordOn(put, 'voluntary', 'running', 'withdrawn', before)).toMatchObject({
-      under_hand_withdrawal: true,
-      fighter_outcome: null,
-    });
-    // Its twin, the hand checked in: a forfeit of her own, which that rule disqualifies.
-    expect(await recordOn(put, 'voluntary', 'running', 'checked_in', before)).toMatchObject({
-      under_hand_withdrawal: false,
+    for (const out of [BY_HAND, BY_REVIEW]) {
+      expect(await recordOn(put, 'voluntary', 'running', out, before)).toMatchObject({
+        under_out_status: true,
+        fighter_outcome: null,
+      });
+    }
+    // Its twin, the Fighter in: a forfeit of her own, which that rule disqualifies.
+    expect(await recordOn(put, 'voluntary', 'running', IN, before)).toMatchObject({
+      under_out_status: false,
       fighter_outcome: 'disqualified',
     });
   });
 
-  it('one under the hand is not counted toward "disqualify after N" (118)', async () => {
-    const underHand = {
+  it('one under the out status is not counted toward "disqualify after N" (118, 120)', async () => {
+    const underOut = {
       ...LIVE_ROOT,
-      id: 'ff-hand',
+      id: 'ff-out',
       match_id: 'match-3',
       reason: 'voluntary',
       can_continue: true,
-      under_hand_withdrawal: true,
+      under_out_status: true,
     };
     const after2 = { disqualifyAfter: 2 as const };
-    // Her first own forfeit: the one under the hand does not make it the 2nd.
-    expect(await recordOn([underHand], 'voluntary', 'running', 'checked_in', after2)).toMatchObject(
-      { can_continue: true },
-    );
-    const own = { ...underHand, under_hand_withdrawal: false };
-    expect(await recordOn([own], 'voluntary', 'running', 'checked_in', after2)).toMatchObject({
+    // Her first own forfeit: the one under the out status does not make it the 2nd.
+    expect(await recordOn([underOut], 'voluntary', 'running', IN, after2)).toMatchObject({
+      can_continue: true,
+    });
+    const own = { ...underOut, under_out_status: false };
+    expect(await recordOn([own], 'voluntary', 'running', IN, after2)).toMatchObject({
       can_continue: false,
     });
   });
 
-  it('a live root wins over the hand: the record hangs off it', async () => {
-    expect(
-      await recordOn([LIVE_ROOT, PUT_BACK], 'voluntary', 'running', 'withdrawn'),
-    ).toMatchObject({ parent_forfeit_id: 'root-1', under_hand_withdrawal: false });
+  it('the bouts taken out because she was out are not counted toward "disqualify after N"', async () => {
+    // Withdrawn by hand: two bouts taken out, voluntary and hung off nothing. The bout running
+    // then was never taken out, and her forfeit on it is her own: her 1st, not her 3rd.
+    const takenOut = (id: string, match: string) => ({
+      ...LIVE_ROOT,
+      id,
+      match_id: match,
+      reason: 'voluntary',
+      auto_created: true,
+    });
+    const after3 = { disqualifyAfter: 3 as const };
+    const taken = [takenOut('ff-out-1', 'match-3'), takenOut('ff-out-2', 'match-4')];
+    expect(await recordOn(taken, 'voluntary', 'running', BY_HAND, after3)).toMatchObject({
+      under_out_status: false,
+      can_continue: true,
+    });
+    // Its twin: two forfeits of her own make this one the 3rd.
+    const own = taken.map((f) => ({ ...f, auto_created: false, can_continue: true }));
+    expect(await recordOn(own, 'voluntary', 'running', BY_HAND, after3)).toMatchObject({
+      can_continue: false,
+    });
   });
 
-  it('a forfeit on a bout never put back is no effect of the hand either', async () => {
-    expect(await recordOn(NEAR_MISSES, 'voluntary', 'running', 'withdrawn')).toMatchObject({
-      parent_forfeit_id: null,
-      under_hand_withdrawal: false,
+  it('a live root wins over the out status: the record hangs off it', async () => {
+    expect(await recordOn([LIVE_ROOT, PUT_BACK], 'voluntary', 'running', BY_HAND)).toMatchObject({
+      parent_forfeit_id: 'root-1',
+      under_out_status: false,
     });
+  });
+
+  it('a forfeit on a bout never put back is no effect of the out status either', async () => {
+    for (const out of [BY_HAND, BY_REVIEW]) {
+      expect(await recordOn(NEAR_MISSES, 'voluntary', 'running', out)).toMatchObject({
+        parent_forfeit_id: null,
+        under_out_status: false,
+      });
+    }
   });
 
   it('never inherits for an OVERRIDE', async () => {

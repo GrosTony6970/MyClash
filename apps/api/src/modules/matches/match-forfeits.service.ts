@@ -41,6 +41,7 @@ import {
   winnerOf,
   type BoutDeps,
 } from './fighter-bouts';
+import { isOut } from './fighter-cause';
 import { FighterStatusService, type SettleInput } from './fighter-status.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
@@ -61,10 +62,13 @@ type Row = Record<string, unknown>;
 /** What a forfeit did to its Fighter at its time (`match_forfeits.fighter_outcome`, 0240). */
 type FighterOutcome = 'withdrawn' | 'disqualified' | null;
 
-/** The withdrawal a new record belongs under: a live root forfeit, or the hand (ruling 118). */
+/**
+ * What a new record belongs under: a live root forfeit or, with none, whatever else holds the
+ * Fighter out with no live root — the hand, a black card, a confirmed review (rulings 118, 120).
+ */
 interface Inheritance {
   parentId: string | null;
-  underHand: boolean;
+  underOutStatus: boolean;
 }
 
 /**
@@ -80,10 +84,10 @@ export interface VoidOptions {
  * A forfeit's own effect on its Fighter, stored once at its insert and read by the status settle.
  * None for an override (nobody forfeited), nor for a black card's forfeit its card sent (the card
  * is the cause, ruling 56, and the settle counts the cards). A black card forfeit recorded by hand
- * has no card: it stores what its card rule does (rulings 58, 82). A forfeit recorded under a live
- * withdrawal is one of its effects, so it withdraws nobody (ruling 89: voiding the withdrawal frees
- * the Fighter, 105), but one whose reason disqualifies still does (ruling 112). "Disqualify after
- * N" is never stored: the settle counts (ruling 80).
+ * has no card: it stores what its card rule does (rulings 58, 82). A forfeit recorded under what
+ * holds the Fighter out is one of its effects, so it withdraws nobody (rulings 89, 118, 120: the
+ * Fighter's return frees them, 105), but one whose reason disqualifies still does (112).
+ * "Disqualify after N" is never stored: the settle counts (ruling 80).
  */
 function fighterOutcomeOf(
   reason: string,
@@ -192,11 +196,11 @@ export class MatchForfeitsService {
     // The forfeit rules can escalate the per-reason state to a disqualification.
     // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
     // continue (which in pools also auto-forfeits their remaining matches).
-    // A forfeit recorded under a live withdrawal belongs to it, and is no new
-    // forfeit of the Fighter: it escalates nothing (rulings 89, 118). Nor does an
-    // override: nobody forfeited.
+    // A forfeit recorded under what holds the Fighter out belongs to it, and is no
+    // new forfeit of the Fighter: it escalates nothing (rulings 89, 118, 120). Nor
+    // does an override: nobody forfeited.
     const inheritance = await this.resolveInheritance(matchId, dto, phase);
-    const inherited = inheritance.parentId !== null || inheritance.underHand;
+    const inherited = inheritance.parentId !== null || inheritance.underOutStatus;
     const reasonState = this.reasonState(
       dto.reason,
       policy.tournamentState,
@@ -229,7 +233,7 @@ export class MatchForfeitsService {
     const forfeit = await this.insertForfeit({
       match_id: matchId,
       parent_forfeit_id: inheritance.parentId,
-      under_hand_withdrawal: inheritance.underHand,
+      under_out_status: inheritance.underOutStatus,
       tournament_id: phase.tournament_id,
       forfeiting_registration_id: dto.forfeitingRegistrationId,
       winner_registration_id: winnerRegistrationId,
@@ -391,16 +395,17 @@ export class MatchForfeitsService {
   }
 
   /**
-   * The withdrawal this new record belongs under: a live ROOT forfeit, or the organiser's hand.
+   * What this new record belongs under: a live ROOT forfeit, or what else holds the Fighter out.
    *
    * The case: an injury withdraws a fighter mid-pool and their remaining bouts
    * are forfeited because they are out. The organiser voids ONE of those to put
    * that bout back on, and a fresh forfeit is written on it later (ruling 89).
    * Without this the new row is a root of its own, so voiding the injury no
    * longer brings it back (ruling 105) and the fighter returns carrying an F
-   * that names a withdrawal nothing points at. A withdrawal by hand writes no
-   * record to hang off: the new row is marked as under it (ruling 118), and the
-   * undo of that withdrawal brings it back.
+   * that names a withdrawal nothing points at. The organiser's hand, a black
+   * card, a confirmed review — whatever holds the Fighter out with no live root —
+   * leave nothing to hang off: the new row is marked as under the Fighter's out status
+   * (rulings 118, 120), and the Fighter's return brings it back.
    *
    * Keyed on THIS BOUT: it held a bout forfeited because the Fighter was out,
    * live or voided. Not on the Pool: a forfeit the Fighter really chose later in
@@ -410,14 +415,14 @@ export class MatchForfeitsService {
    * Read PRESENT STATE for the root, never the void history. A root that was
    * voided and re-recorded is a DIFFERENT row, and it is the new one that has
    * the fighter withdrawn. Never a bout forfeited because the Fighter was out
-   * (`auto_created`), nor a record under the hand: those are effects, not roots.
+   * (`auto_created`), nor a record under the out status: those are effects, not roots.
    */
   private async resolveInheritance(
     matchId: string,
     dto: CreateMatchForfeitDto,
     phase: { tournament_id: string },
   ): Promise<Inheritance> {
-    const none: Inheritance = { parentId: null, underHand: false };
+    const none: Inheritance = { parentId: null, underOutStatus: false };
     // NEVER for an override. An override asserts the bout WAS fought and the
     // result was X; hanging it off a withdrawal would let voiding that
     // withdrawal erase a result an organiser stated. Nor for a black card: the
@@ -445,7 +450,7 @@ export class MatchForfeitsService {
       // fighter — a one-bout forfeit closed nothing else and adopts nothing.
       .is('parent_forfeit_id', null)
       .eq('auto_created', false)
-      .eq('under_hand_withdrawal', false)
+      .eq('under_out_status', false)
       .eq('can_continue', false)
       .is('voided_at', null)
       .neq('match_id', matchId)
@@ -453,20 +458,33 @@ export class MatchForfeitsService {
       .limit(1);
     if (roots.error) throw readFailed('The withdrawals', roots.error);
     const root = (roots.data ?? [])[0] as Row | undefined;
-    if (root) return { parentId: root['id'] as string, underHand: false };
-    return { parentId: null, underHand: await this.withdrawnByHand(dto.forfeitingRegistrationId) };
+    if (root) return { parentId: root['id'] as string, underOutStatus: false };
+    return { parentId: null, underOutStatus: await this.heldOut(dto.forfeitingRegistrationId) };
   }
 
-  /** The organiser's hand holds the Fighter withdrawn (`entry_status`, 0240). */
-  private async withdrawnByHand(registrationId: string): Promise<boolean> {
+  /**
+   * Something holds the Fighter out of the Tournament: the status the last settle worked out
+   * (0240). With no live root, that is the hand, a black card, a confirmed review, or another
+   * cause no root stands for.
+   *
+   * THE RACES: read outside the settle's row lock. (1) Two doors at once: this one reads "out",
+   * the door that brings the Fighter back settles "in" before this record is written; this door's
+   * own settle then works out "in", and its reconcile voids the record just written and puts its
+   * bout back (0241's hand read had the same window). (2) A door that changed a cause and whose
+   * settle failed (a 5xx; its retry settles) leaves the status behind its causes, and a forfeit
+   * recorded before that retry is marked by the old status: the hand's own column never lagged
+   * (the settle writes it), a card or a review can. Both accepted: rare, and the organiser sees
+   * the bout's result.
+   */
+  private async heldOut(registrationId: string): Promise<boolean> {
     const { data, error } = await this.supabase.service
       .from('registrations')
-      .select('entry_status')
+      .select('status')
       .eq('id', registrationId)
       .maybeSingle();
     if (error)
       throw new Error(`Registration ${registrationId} could not be read: ${error.message}`);
-    return (data as Row | null)?.['entry_status'] === 'withdrawn';
+    return isOut(((data as Row | null)?.['status'] as string | undefined) ?? '');
   }
 
   /**
@@ -941,7 +959,8 @@ export class MatchForfeitsService {
    *   disqualifies". A registration id is tournament-scoped, so counting that
    *   fighter's completed matches needs no tournament filter.
    * - `disqualifyAfter` — "Disqualify after N forfeits". Counts the forfeits the
-   *   Fighter chose: no black card, and no bout under a withdrawal.
+   *   Fighter chose: no black card, and no bout under what held them out — as the
+   *   status settle counts (0242).
    *
    * A black card escalates neither (ruling 56). Counted before the new forfeit
    * row is inserted, hence the `+ 1`.
@@ -981,10 +1000,12 @@ export class MatchForfeitsService {
         .eq('tournament_id', tournamentId)
         .eq('forfeiting_registration_id', registrationId)
         .in('reason', COUNTED_FORFEIT_REASONS)
-        // The bouts under a withdrawal, forfeited with it or recorded again since, are its
-        // effects, not forfeits (rulings 56, 89 and 118).
+        // The bouts under what held the Fighter out, forfeited with it or recorded again since,
+        // are its effects, not forfeits (rulings 56, 89, 118 and 120). A bout taken out under
+        // the hand, a card or a review hangs off no record: `auto_created` names it.
         .is('parent_forfeit_id', null)
-        .eq('under_hand_withdrawal', false)
+        .eq('auto_created', false)
+        .eq('under_out_status', false)
         .is('voided_at', null);
       if ((count ?? 0) + 1 >= threshold) return { state: 'disqualified', stored: state };
     }

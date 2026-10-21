@@ -87,7 +87,7 @@ export async function liveForfeitsOf(db: Client, fighter: Fighter): Promise<Row[
   const result = await db
     .from('match_forfeits')
     .select(
-      'id, match_id, reason, fighter_outcome, parent_forfeit_id, auto_created, under_hand_withdrawal, previous_match_state, resulting_match_state, created_at',
+      'id, match_id, reason, fighter_outcome, parent_forfeit_id, auto_created, under_out_status, previous_match_state, resulting_match_state, created_at',
     )
     .eq('tournament_id', fighter.tournamentId)
     .eq('forfeiting_registration_id', fighter.id)
@@ -107,7 +107,7 @@ export interface Cause {
  * review, "disqualify after N", a forfeit that withdrew, the organiser's hand. A forfeit scores the
  * bouts as its reason does (a draw when that reason draws, ruling 71) and they hang off its root;
  * a card or the review as a black card (ruling 69); the hand as a voluntary forfeit (ruling 110).
- * The count is the database's (0241): no record under a withdrawal, root or hand.
+ * The count is the database's (0242): no record under a root, nor under the out status.
  */
 export async function causeOf(
   db: Client,
@@ -129,7 +129,7 @@ export async function causeOf(
       (f) =>
         !f['auto_created'] &&
         f['parent_forfeit_id'] == null &&
-        f['under_hand_withdrawal'] !== true &&
+        f['under_out_status'] !== true &&
         (COUNTED_FORFEIT_REASONS as readonly unknown[]).includes(f['reason']),
     );
     const after = rules.disqualifyAfter;

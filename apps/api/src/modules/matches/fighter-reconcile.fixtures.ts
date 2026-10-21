@@ -70,7 +70,7 @@ export const forfeit = (id: string, over: SupabaseRow): SupabaseRow => ({
   id,
   tournament_id: 't1',
   forfeiting_registration_id: 'reg-ana',
-  under_hand_withdrawal: false,
+  under_out_status: false,
   reason: 'injury',
   fighter_outcome: null,
   parent_forfeit_id: null,

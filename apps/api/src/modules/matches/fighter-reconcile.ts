@@ -29,8 +29,9 @@ import { stampForfeitVoided, type ForfeitVoidActor } from './forfeit-void';
  *   the organiser voided during the current spell out (`voided_at >= out_since`, the void not the
  *   reconcile's own): she put it back, and it stays back until the Fighter's next spell.
  * - In: `bringBack` voids the records written because the Fighter was out — every live forfeit
- *   the reconcile wrote, and every one a person recorded under a withdrawal that is voided since
- *   (ruling 105) — and puts their bouts back unless they are in play or were fought again.
+ *   the reconcile wrote, every one a person recorded under a withdrawal that is voided since
+ *   (ruling 105), and every one recorded under the out status (rulings 118, 120) — and puts their
+ *   bouts back unless they are in play or were fought again.
  *
  * Both are safe to run again, which is how a door cut short is repaired: its retry settles, and
  * the reconcile after the settle finds what is left to do. A Pool bout feeds no bracket slot, so
@@ -188,9 +189,10 @@ export interface BroughtBack {
 /**
  * Void what was written because the Fighter was out, and put each bout back: every live record
  * the reconcile wrote, every one a person recorded under a withdrawal voided since (ruling 105),
- * and every one recorded under the organiser's hand withdrawal (ruling 118: the Fighter is in, so
- * that withdrawal is undone). Not a record that disqualified on its own (a conduct forfeit recorded
- * under a withdrawal, ruling 112): it stores an outcome, and while it is live the Fighter is not in.
+ * and every one recorded under the out status (rulings 118, 120: the Fighter is in, so the hand,
+ * the card or the review that held them out is gone). Not a record that disqualified on its own
+ * (a conduct forfeit recorded under a withdrawal, ruling 112): it stores an outcome, and while it
+ * is live the Fighter is not in.
  */
 export async function bringBack(
   deps: BoutDeps,
@@ -208,7 +210,7 @@ export async function bringBack(
   const records = [
     ...auto,
     ...underRoot.filter((f) => voidedRoots.has(f['parent_forfeit_id'] as string)),
-    ...byHand.filter((f) => f['under_hand_withdrawal'] === true && f['parent_forfeit_id'] == null),
+    ...byHand.filter((f) => f['under_out_status'] === true && f['parent_forfeit_id'] == null),
   ];
   const back: BroughtBack = { voided: records.length, putBack: [] };
   if (records.length === 0) return back;

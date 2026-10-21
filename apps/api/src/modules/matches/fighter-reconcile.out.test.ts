@@ -190,13 +190,13 @@ describe('a Fighter out: their Pool bouts are forfeited', () => {
     expect(what(inserted(db))[0]).toEqual(['m-scheduled', 'injury', 'f-2']);
   });
 
-  it('a forfeit under the hand withdrawal is not one of the N (ruling 118)', async () => {
+  it('a forfeit under the out status is not one of the N (rulings 118, 120)', async () => {
     const at = (time: string) => `2026-10-21T0${time}:00:00Z`;
     const { db, settle } = anasTournament({
       statuses: ['disqualified'],
       forfeits: [
         forfeit('f-1', { match_id: 'm-a', reason: 'voluntary', created_at: at('7') }),
-        forfeit('f-hand', { match_id: 'm-b', under_hand_withdrawal: true, created_at: at('8') }),
+        forfeit('f-hand', { match_id: 'm-b', under_out_status: true, created_at: at('8') }),
         forfeit('f-2', { match_id: 'm-c', reason: 'voluntary', created_at: at('9') }),
       ],
     });

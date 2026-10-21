@@ -81,7 +81,7 @@ export const FORFEIT = {
   forfeiting_registration_id: 'reg-blue',
   replacement_registration_id: null,
   reason: 'black_card_2',
-  under_hand_withdrawal: false,
+  under_out_status: false,
   voided_at: null,
   downstream_match_ids: [],
   previous_match_state: BEFORE_THE_CARD,
