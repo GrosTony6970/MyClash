@@ -31,9 +31,9 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * the pad gets to make by accident.
  *
  * The wide cases already have a correct, reachable remedy in
- * `PATCH /match-forfeits/:id/void`, which cascade-voids the children, puts their
- * bouts back and settles the Fighter's status from what stays live. Routing to it
- * beats re-implementing ~150 lines of its guards here.
+ * `PATCH /match-forfeits/:id/void`, which settles the Fighter's status from what
+ * stays live, and their Pool bouts follow it. Routing to it beats
+ * re-implementing ~150 lines of its guards here.
  */
 
 type Client = SupabaseService['service'];
@@ -51,10 +51,16 @@ export interface ActiveForfeitRecord {
   forfeitingRegistrationId: string;
   /** A reserve was swapped into the bracket for a round-1 no-show. */
   replacementRegistrationId: string | null;
-  /** `previous_registration_state.status` — null when none was captured. */
-  previousRegistrationStatus: string | null;
   /** What the record did to its Fighter at its time (`fighter_outcome`, 0240): null = nothing. */
   fighterOutcome: string | null;
+  /** Written by the status reconcile because its Fighter was out, not by a person. */
+  autoCreated: boolean;
+}
+
+/** A read that failed decides nothing: a plain Error (a 5xx), never "no row". */
+function rowsOf(what: string, result: { data: unknown; error: { message: string } | null }): Row[] {
+  if (result.error) throw new Error(`${what} could not be read: ${result.error.message}`);
+  return (result.data ?? []) as Row[];
 }
 
 /**
@@ -69,25 +75,22 @@ export async function readActiveForfeits(
   matchIds: readonly string[],
 ): Promise<ActiveForfeitRecord[]> {
   if (matchIds.length === 0) return [];
-  const { data } = await supabase
+  const result = await supabase
     .from('match_forfeits')
     .select(
-      'id, match_id, forfeiting_registration_id, replacement_registration_id, previous_registration_state, fighter_outcome',
+      'id, match_id, forfeiting_registration_id, replacement_registration_id, fighter_outcome, auto_created',
     )
     .in('match_id', [...matchIds])
     .is('voided_at', null);
 
-  return ((data ?? []) as Row[]).map((row) => {
-    const previous = (row['previous_registration_state'] as Row | null) ?? {};
-    return {
-      id: row['id'] as string,
-      matchId: row['match_id'] as string,
-      forfeitingRegistrationId: row['forfeiting_registration_id'] as string,
-      replacementRegistrationId: (row['replacement_registration_id'] as string | null) ?? null,
-      previousRegistrationStatus: (previous['status'] as string | null) ?? null,
-      fighterOutcome: (row['fighter_outcome'] as string | null) ?? null,
-    };
-  });
+  return rowsOf('The forfeits of these bouts', result).map((row) => ({
+    id: row['id'] as string,
+    matchId: row['match_id'] as string,
+    forfeitingRegistrationId: row['forfeiting_registration_id'] as string,
+    replacementRegistrationId: (row['replacement_registration_id'] as string | null) ?? null,
+    fighterOutcome: (row['fighter_outcome'] as string | null) ?? null,
+    autoCreated: row['auto_created'] === true,
+  }));
 }
 
 /**
@@ -96,23 +99,21 @@ export async function readActiveForfeits(
  *
  * THREE PREDICATES, and the obvious fourth one is wrong.
  *
- * 1. A live child. The record withdrew a fighter and auto-forfeited their
- *    remaining pool bouts; undoing it here would leave those bouts forfeited
- *    while the fighter is back in play.
+ * 1. A live child. The record withdrew a fighter, and bouts were forfeited or
+ *    recorded under it since; undoing it here would leave them standing.
  * 2. The record withdrew or disqualified its Fighter itself (`fighter_outcome`,
  *    0240). The status settle reads it as a cause, and this module settles
  *    nobody: voided here, the Fighter would stay out with no cause on record.
- * 3. The fighter's `registrations.status` is no longer what the record captured:
- *    something this record counted toward moved them ("disqualify after N"
- *    stores no outcome; a black card forfeit's card is its cause). Comparing
- *    against the CURRENT row is what separates them from a plain match-only
- *    forfeit, which moves nobody.
+ * 3. A record a person wrote, whose Fighter is out: it may be what holds them
+ *    out with no outcome of its own ("disqualify after N" counts it; a black
+ *    card forfeit's card is the cause). The plan's Reopen rule (slice B, §2.5).
  *
  * NOT `can_continue === false`, which is the predicate that looks right and
- * refuses the exact case this must allow: `createAutoForfeit` hardcodes
- * `can_continue: false` on every child it writes, so keying on it would refuse
- * every reset of an auto-forfeited pool bout — the commonest thing an organiser
- * wants to undo.
+ * refuses the exact case this must allow: every bout the reconcile forfeits
+ * while a Fighter is out has `can_continue: false`, so keying on it would refuse
+ * every reset of such a bout — the commonest thing an organiser wants to undo.
+ * That reset is the organiser's put-back: the reconcile leaves the bout alone
+ * for the rest of the Fighter's spell out (`voided_by_return` stays false).
  *
  * On the path that PASSES, the record put nobody out and moved nobody, so the
  * void changes no Fighter's status: this module never touches `registrations`
@@ -124,19 +125,19 @@ export async function assertForfeitsVoidableHere(
 ): Promise<void> {
   if (records.length === 0) return;
 
-  // Only records that captured a status can be compared. A child captures `{}`
-  // by construction, so it is not evidence of anything and must not be treated
-  // as a mismatch against a null.
-  const moved = await movedRegistrationIds(
+  // Records a person wrote: a bout forfeited because its Fighter is out may be reset, as the
+  // organiser's put-back (predicate 3 only, below). This filter is the exemption's one owner: a
+  // Reset touches one bout, so no Fighter has both kinds of record in one set.
+  const out = await outRegistrationIds(
     supabase,
-    records.filter((record) => record.previousRegistrationStatus !== null),
+    records.filter((record) => !record.autoCreated),
   );
   const withChildren = await recordsWithLiveChildren(supabase, records);
 
   const offender = records.find(
     (record) =>
       record.fighterOutcome !== null ||
-      moved.has(record.forfeitingRegistrationId) ||
+      out.has(record.forfeitingRegistrationId) ||
       withChildren.has(record.id),
   );
   if (!offender) return;
@@ -151,31 +152,23 @@ export async function assertForfeitsVoidableHere(
   });
 }
 
-/** Which of these fighters no longer hold the status their record captured. */
-async function movedRegistrationIds(
+/** Which of these records' Fighters are out of their Tournament now. */
+async function outRegistrationIds(
   supabase: Client,
   records: readonly ActiveForfeitRecord[],
 ): Promise<Set<string>> {
   if (records.length === 0) return new Set();
-  const { data } = await supabase
+  const result = await supabase
     .from('registrations')
     .select('id, status')
     .in(
       'id',
       records.map((record) => record.forfeitingRegistrationId),
     );
-
-  const current = new Map<string, string | null>();
-  for (const row of (data ?? []) as Row[]) {
-    current.set(row['id'] as string, (row['status'] as string | null) ?? null);
-  }
   return new Set(
-    records
-      .filter(
-        (record) =>
-          current.get(record.forfeitingRegistrationId) !== record.previousRegistrationStatus,
-      )
-      .map((record) => record.forfeitingRegistrationId),
+    rowsOf('The Fighters of these forfeits', result)
+      .filter((row) => row['status'] === 'withdrawn' || row['status'] === 'disqualified')
+      .map((row) => row['id'] as string),
   );
 }
 
@@ -184,7 +177,7 @@ async function recordsWithLiveChildren(
   supabase: Client,
   records: readonly ActiveForfeitRecord[],
 ): Promise<Set<string>> {
-  const { data } = await supabase
+  const result = await supabase
     .from('match_forfeits')
     .select('parent_forfeit_id')
     .in(
@@ -194,32 +187,39 @@ async function recordsWithLiveChildren(
     .is('voided_at', null);
 
   return new Set(
-    ((data ?? []) as Row[]).map((row) => row['parent_forfeit_id'] as string).filter(Boolean),
+    rowsOf('The forfeits under these records', result)
+      .map((row) => row['parent_forfeit_id'] as string)
+      .filter(Boolean),
   );
 }
 
 /**
- * Stamp the void columns. Shared with `MatchForfeitsService` so a record voided
- * by a reset, by the organiser, or by a parent's cascade all record the same
- * audit trail — who voided it and when.
+ * Stamp the void columns. Shared with `MatchForfeitsService` and the status
+ * reconcile, so a record voided by a reset, by the organiser, or because its
+ * Fighter came back in all record the same audit trail — who voided it and
+ * when. `byReturn` marks the last (`voided_by_return`, 0241): the reconcile's
+ * own void, which it may forfeit again on the Fighter's next spell out.
  */
 export async function stampForfeitVoided(
   supabase: Client,
   forfeitId: string,
   actor: ForfeitVoidActor,
+  byReturn = false,
 ): Promise<Row | null> {
   const now = new Date().toISOString();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('match_forfeits')
     .update({
       voided_at: now,
       voided_by_user_id: actor.userId ?? null,
       voided_by_staff_account_id: actor.staffAccountId ?? null,
       updated_at: now,
+      ...(byReturn ? { voided_by_return: true } : {}),
     })
     .eq('id', forfeitId)
     .select('*')
     .single();
+  if (error) throw new Error(`Forfeit ${forfeitId} was not voided: ${error.message}`);
   return (data as Row | null) ?? null;
 }
 

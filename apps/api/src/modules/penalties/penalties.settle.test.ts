@@ -91,7 +91,13 @@ describe('every retry of a card door settles', () => {
     await expect(undo()).rejects.toThrow('Penalty is already voided');
 
     expect(status.calls.map((call) => call.input)).toEqual([
-      { registrationId: 'reg-blue', tournamentId: 'tournament-1' },
+      {
+        registrationId: 'reg-blue',
+        tournamentId: 'tournament-1',
+        actor: expect.any(Object),
+        // Its take-back may have put the bout back: the other Fighter, when out, forfeits it.
+        boutsPutBack: ['m1'],
+      },
     ]);
   });
 

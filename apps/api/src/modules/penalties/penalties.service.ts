@@ -85,6 +85,12 @@ interface PenaltyActor {
   correctsOverEvent?: boolean;
 }
 
+/** Who a status settle acts for: the bouts its reconcile forfeits name them. */
+const actorOf = (context?: PenaltyActor) => ({
+  userId: context?.userId,
+  staffAccountId: context?.staffAccountId,
+});
+
 /** What says how far a black card reaches (ruling 54): the Tournament's rules in force of now. */
 interface BlackCardReach {
   /**
@@ -925,7 +931,7 @@ export class PenaltiesService {
     }
 
     const existing = await this.savedCardOf(matchId, dto.clientUuid);
-    if (existing) return this.replayAnswer(existing);
+    if (existing) return this.replayAnswer(existing, context);
     // Every refusal AFTER the replay answer, in a hit's order: a card the server holds is not
     // a result change, and the pad reads a refusal as "never taken" and holds the card.
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
@@ -1018,7 +1024,7 @@ export class PenaltiesService {
     if (error) {
       if (error.message.includes('unique') || error.message.includes('duplicate')) {
         const raceExisting = await this.savedCardOf(matchId, dto.clientUuid);
-        if (raceExisting) return this.replayAnswer(raceExisting);
+        if (raceExisting) return this.replayAnswer(raceExisting, context);
       }
       throw new BadRequestException(error.message);
     }
@@ -1032,7 +1038,9 @@ export class PenaltiesService {
     if (reach) {
       const { blackCount, scope } = await this.blackCardScope(match, dto.registrationId, reach);
 
-      if (scope !== 'none') {
+      // A card given on a bout already over ends nothing: that bout is decided. What the card
+      // does to the Fighter is the settle's below, and their other Pool bouts follow (ruling 57).
+      if (scope !== 'none' && match.status !== 'completed') {
         await this.forfeitsOrThrow().createForfeit(
           matchId,
           {
@@ -1056,7 +1064,7 @@ export class PenaltiesService {
         reach,
       );
       // The card is a cause: what it does to the Fighter is the status settle's to work out.
-      await this.settleCardOf(match.tournamentId, dto.registrationId, reach);
+      await this.settleCardOf(match.tournamentId, dto.registrationId, reach, context);
     }
 
     return data;
@@ -1068,8 +1076,19 @@ export class PenaltiesService {
     return this.forfeits;
   }
 
-  private settleCardOf(tournamentId: string, registrationId: string, reach: BlackCardReach) {
-    return this.fighterStatus.settle({ registrationId, tournamentId, rules: reach.forfeitRules });
+  private settleCardOf(
+    tournamentId: string,
+    registrationId: string,
+    reach: BlackCardReach,
+    context?: PenaltyActor,
+  ) {
+    const actor = actorOf(context);
+    return this.fighterStatus.settle({
+      registrationId,
+      tournamentId,
+      rules: reach.forfeitRules,
+      actor,
+    });
   }
 
   /**
@@ -1127,7 +1146,7 @@ export class PenaltiesService {
     }
     if (row['voided']) {
       // A retry of a black card's take-back whose first send stopped after the void settles.
-      await this.settleIfBlack(row);
+      await this.settleIfBlack(row, context);
       throw new BadRequestException('Penalty is already voided');
     }
     // Ruling 231: a card's void asks no review, so on an over Event it is a
@@ -1148,19 +1167,26 @@ export class PenaltiesService {
       .eq('id', penaltyId)
       .select('*')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    // A server error, never a 400: a black card's forfeit may be taken back by now, and the pad
+    // sends again only on a 5xx; its retry voids the card and settles.
+    if (error) throw new Error(`Penalty ${penaltyId} was not voided: ${error.message}`);
     await this.scoring?.recomputeMatchScore(row['match_id'] as string);
     await dropSpentBlackCardReview(this.supabase.service, row);
-    await this.settleIfBlack(row);
+    await this.settleIfBlack(row, context);
     return data;
   }
 
-  /** A black card is a cause of its Fighter's status; a yellow or a red one is none. */
-  private async settleIfBlack(card: Row): Promise<void> {
+  /**
+   * A black card is a cause of its Fighter's status; a yellow or a red one is none. Its take-back
+   * may have put its bout back: the other Fighter on it, when out, forfeits it.
+   */
+  private async settleIfBlack(card: Row, context?: PenaltyActor): Promise<void> {
     if (card['card'] !== 'black') return;
     await this.fighterStatus.settle({
       registrationId: card['registration_id'] as string,
       tournamentId: card['tournament_id'] as string,
+      actor: actorOf(context),
+      boutsPutBack: [card['match_id'] as string],
     });
   }
 
@@ -1215,6 +1241,7 @@ export class PenaltiesService {
     await this.fighterStatus.settle({
       registrationId: review['registration_id'] as string,
       tournamentId,
+      actor: { userId },
     });
     return data;
   }
@@ -1521,7 +1548,7 @@ export class PenaltiesService {
    * failed with a 500, or was refused on a bout already over, and the tablet sends it again by
    * itself. Both are safe to repeat.
    */
-  private async replayAnswer(stored: Row): Promise<Row> {
+  private async replayAnswer(stored: Row, context?: PenaltyActor): Promise<Row> {
     if (stored['card'] === 'black' && stored['voided'] !== true) {
       const registrationId = String(stored['registration_id']);
       const tournamentId = String(stored['tournament_id']);
@@ -1533,7 +1560,7 @@ export class PenaltiesService {
         String(stored['id']),
         reach,
       );
-      await this.settleCardOf(tournamentId, registrationId, reach);
+      await this.settleCardOf(tournamentId, registrationId, reach, context);
     }
     return stored;
   }

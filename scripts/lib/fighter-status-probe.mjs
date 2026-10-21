@@ -1,7 +1,7 @@
 /**
  * Check 16 of the RLS probe (`scripts/db-rls-probe.mjs`): a Fighter's status is worked out from
- * its causes, by `settle_fighter_status` alone (migration 0240, slice B, operator rulings 57,
- * 78-80, 83, 105-112).
+ * its causes, by `settle_fighter_status` alone (migrations 0240 and 0241, slice B, operator
+ * rulings 57, 78-80, 83, 105-112, 118).
  *
  * The seed's Registration of the published Tournament is the Fighter. Each case writes its causes
  * AS THE OWNER (0238 leaves no web role a write on the Match tables) in a savepoint rolled back:
@@ -97,6 +97,15 @@ const CAUSES = [
     rules: AFTER_2,
     want: 'withdrawn',
     set: async (sp) => forfeit(sp, 2, { parent: await forfeit(sp, 1, { outcome: 'withdrawn' }) }),
+  },
+  {
+    what: 'a forfeit under the hand withdrawal (ruling 118, 0241)',
+    rules: AFTER_2,
+    want: 'registered',
+    set: async (sp) => {
+      await forfeit(sp, 1);
+      await forfeit(sp, 2, { underHand: true });
+    },
   },
   {
     what: 'a bout forfeited with a withdrawal',

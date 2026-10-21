@@ -124,3 +124,21 @@ describe('FrozenResultsGuard', () => {
     expect(writesTo(db, 'exchange_edit_requests')).toEqual([]);
   });
 });
+
+/**
+ * The status reconcile asks it as a yes or no (slice B, B2): on an Event that is over its bouts
+ * stay as they are, but a super admin's correction there moves them.
+ */
+describe('FrozenResultsGuard.tournamentResultsOpen', () => {
+  it.each<[string, string, boolean]>([
+    ['running', ORGANISER, true],
+    ['completed', ORGANISER, false],
+    ['archived', ORGANISER, false],
+    ['completed', SUPER_ADMIN, true],
+  ])('an Event %s, asked for %s: %s', async (status, userId, open) => {
+    const { guard } = setup(status);
+    expect(await guard.tournamentResultsOpen('tournament-1', userId)).toBe(open);
+    const refusal = guard.assertTournamentResultsOpen('tournament-1', userId);
+    await (open ? expect(refusal).resolves.toBeUndefined() : expect(refusal).rejects.toThrow());
+  });
+});

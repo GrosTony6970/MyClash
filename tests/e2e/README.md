@@ -1163,12 +1163,11 @@ Two invariants, neither checkable against a mocked Supabase because both are
 about what OTHER rows say afterwards:
 
 - **the thread holds.** A forfeit re-recorded on a reopened bout hangs off the
-  ROOT withdrawal, not off the child it replaced. `cascadeVoidChildren` is one
-  query deep, so a tree of depth 2 strands grandchildren active when the root is
-  voided — an F standing in the standings for a fighter who is back in the
-  tournament, with nothing left pointing at it. The spec asserts
-  `cascaded_forfeit_count` covers the re-recorded record too, and that every
-  bout is playable again afterwards.
+  ROOT withdrawal, not off the child it replaced, so voiding the withdrawal
+  brings it back too (ruling 105). The spec asserts `cascaded_forfeit_count`
+  covers the re-recorded record too, and that every bout is playable again
+  afterwards. The bout put back by hand stays back while the fighter is out: the
+  status reconcile leaves it alone (slice B, B2).
 - **the cascade context is honest.** `GET /matches/:id/forfeit` reports
   `{role, childCount, parentActive}`, which the admin page branches its void
   confirmation on. `parentActive` cannot be derived on the frontend: the row
@@ -1176,6 +1175,10 @@ about what OTHER rows say afterwards:
 
 Nothing is played first — an injury in the first bout of the day is the
 realistic shape, and it keeps every count in the spec exact.
+
+A second test withdraws a fighter by hand (`PATCH /registrations/:id/status`,
+ruling 110): each of their Pool bouts gets a voluntary forfeit, and the undo
+voids them and puts every bout back.
 
 ## A result undone, and replayed the other way (opt-in)
 

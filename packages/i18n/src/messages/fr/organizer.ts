@@ -2951,6 +2951,18 @@ export const organizer = {
       colCountry: 'Pays',
       colId: 'ID',
     },
+    withdraw: {
+      withdraw: 'Retirer',
+      undo: 'Annuler le retrait',
+      confirmTitle: 'Retirer {name} de {tournament} ?',
+      confirmBody: 'Ses combats de poule restants seront déclarés forfaits.',
+      confirm: 'Retirer',
+      withdrawn: '{name} est retiré(e) de {tournament}.',
+      undone: '{name} est de retour dans {tournament} comme inscrit(e) : à pointer de nouveau.',
+      full: '{tournament} est complet : la place a été donnée à un combattant de la liste d’attente.',
+      changed: 'Cette inscription a changé entre-temps. La liste a été relue.',
+      failed: 'La modification n’a pas été enregistrée.',
+    },
     bulk: {
       selected: 'sélectionnés',
       section: {

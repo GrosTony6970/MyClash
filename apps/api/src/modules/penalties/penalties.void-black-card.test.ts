@@ -1,6 +1,12 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, HttpException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { filtersFor, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import {
+  filtersFor,
+  scopedTo,
+  selectsFor,
+  supabaseChain,
+  writesTo,
+} from '../../common/testing/supabase-chain';
 import {
   BEFORE_THE_CARD,
   REFUSED,
@@ -23,6 +29,26 @@ import {
  * applies no write, so every claim here is a write and its filter.
  */
 describe('PenaltiesService.voidPenalty: a black card that ended its bout', () => {
+  it('a card the database refuses to void, its forfeit taken back, is a server error', async () => {
+    // The pad sends again on a 5xx only: its retry voids the card and settles (review B2, m8).
+    const { db, undo, status } = setup();
+    const real = db.from.getMockImplementation()!;
+    db.from.mockImplementation((table: string) => {
+      const chain = real(table);
+      if (table !== 'match_penalties') return chain;
+      return Object.assign(chain, {
+        update: () => supabaseChain({ data: null, error: { message: 'a lock' } }),
+      });
+    });
+
+    const error = await undo().catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(HttpException);
+    expect(writesTo(db, 'match_forfeits')).toHaveLength(1);
+    expect(status.calls).toEqual([]);
+  });
+
   it('takes the forfeit back, then the card', async () => {
     const { db, scoring, undo } = setup();
 
@@ -43,19 +69,16 @@ describe('PenaltiesService.voidPenalty: a black card that ended its bout', () =>
     expect(scoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
   });
 
-  it('settles the Fighter once the forfeit is back and again once the card is: no status written', async () => {
+  it('settles the Fighter once, after the card is voided: no status written', async () => {
     const { db, status, undo } = setup();
 
     await undo();
 
-    // The status the forfeit found is not written back: the settle reads what stays live.
+    // The status the forfeit found is not written back: the settle reads what stays live. Not
+    // between the two: that settle would read the card live and forfeit the bout just put back
+    // (`VoidOptions.settledByCaller`).
     expect(writesTo(db, 'registrations')).toEqual([]);
     expect(settles(status)).toEqual([
-      {
-        registrationId: 'reg-blue',
-        tournamentId: 'tournament-1',
-        after: ['matches:update', 'match_forfeits:update'],
-      },
       {
         registrationId: 'reg-blue',
         tournamentId: 'tournament-1',

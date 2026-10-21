@@ -162,6 +162,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     'MatchCompletionService',
     'PhasesService',
     'RegistrationsService',
+    'FighterStatusService',
   ];
 
   const moduleFiles = walk(apiSrc);
@@ -197,6 +198,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     ['../phases/match-completion.service.ts', '../phases/phases.module.ts'],
     ['../phases/phases.service.ts', '../phases/phases.module.ts'],
     ['../registrations/registrations.service.ts', '../registrations/registrations.module.ts'],
+    ['./fighter-status.service.ts', './matches.module.ts'],
   ];
 
   /**
@@ -284,6 +286,23 @@ describe('every match-completion path hands off to MatchCompletionService', () =
   it('scoring.service (point cap / double cap)', () =>
     completesAndHandsOff('./scoring.service.ts', 'scoring auto-complete'));
   it('clock.service (clock end)', () => completesAndHandsOff('./clock.service.ts', 'clock end'));
+
+  // A Fighter's status forfeits their Pool bouts (slice B, B2): the bout write is in
+  // `fighter-bouts.ts`, reached through `fighter-reconcile.ts`, and the hand-off is the status
+  // service's, once per Pool phase after the reconcile. Two files hold the two halves, so the
+  // census above cannot ask both of one file.
+  it('the status reconcile (a Fighter out)', () => {
+    expect(read('./fighter-bouts.ts'), 'fighter-bouts should complete a bout').toMatch(
+      /status: 'completed'/,
+    );
+    expect(read('./fighter-reconcile.ts')).toMatch(/from '\.\/fighter-bouts'/);
+    expect(read('./fighter-reconcile.ts')).toMatch(/\bcompleteMatch\(/);
+    const service = read('./fighter-status.service.ts');
+    expect(service).toMatch(/from '\.\/fighter-reconcile'/);
+    expect(service, 'it must call matchCompletion.onMatchCompleted').toMatch(
+      /matchCompletion\??\.\s*onMatchCompleted\(/,
+    );
+  });
 });
 
 /**

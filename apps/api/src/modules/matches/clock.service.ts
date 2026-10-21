@@ -855,7 +855,7 @@ function reopenColumns(
   // A Reopen on a bout that is not completed moves the clock alone, and
   // leaves no mark: the Reopen "Start round N+1" makes itself
   // (`round-advance.ts`), and the one a forfeit taken back makes on the clock
-  // the forfeit ended (`MatchForfeitsService.reopenClockTakenBack`).
+  // the forfeit ended (`reopenClockTakenBack`, fighter-bouts.ts).
   if (uncompletes) Object.assign(columns, backInPlayColumns(now, match['back_in_play_at']));
   return columns;
 }

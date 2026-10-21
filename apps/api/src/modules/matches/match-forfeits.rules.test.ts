@@ -33,18 +33,22 @@ const EARLIER = {
   forfeiting_registration_id: 'reg-red',
   reason: 'voluntary',
   parent_forfeit_id: null,
+  under_hand_withdrawal: false,
   voided_at: null,
 };
 
 describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
   // The 2nd forfeit is stored as nothing of its own: the settle counts the live ones (ruling 80,
   // probe check 16). Until the bouts follow the status (B2), the count still forfeits the Pool.
-  it('FFAMHE counts the 2nd forfeit, on a club scoring ruleset too: the Pool is forfeited', async () => {
+  it('FFAMHE counts the 2nd forfeit, on a club scoring ruleset too: it takes her out', async () => {
     const { db, forfeit } = bout(FFAMHE_FORFEIT_RULES, [EARLIER]);
 
     await forfeit('voluntary', true);
 
-    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1', 'm2']);
+    // Her later Pool bout is the reconcile's, once the settle counts her out (B2).
+    expect(inserted(db)).toEqual([
+      expect.objectContaining({ match_id: 'm1', can_continue: false }),
+    ]);
     expect(outcome(db)).toBeNull();
     expect(fighterStates(db)).toEqual([]);
   });
@@ -54,7 +58,7 @@ describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
 
     await forfeit('voluntary', true);
 
-    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1']);
+    expect(inserted(db)).toEqual([expect.objectContaining({ match_id: 'm1', can_continue: true })]);
     expect(outcome(db)).toBeNull();
   });
 
@@ -69,14 +73,14 @@ describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
 });
 
 describe('what happens to the Fighter is the reason’s rule', () => {
-  it('"disqualified" disqualifies, and forfeits the later Pool bout', async () => {
+  it('"disqualified" disqualifies whatever the answer', async () => {
     const rules = withInjury({ outcome: 'fixed_loss', opponentScore: 6, fighter: 'disqualified' });
     const { db, forfeit } = bout(rules);
 
     await forfeit('injury', true);
 
     expect(outcome(db)).toBe('disqualified');
-    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1', 'm2']);
+    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1']);
   });
 
   it('"continues" ignores an answer that the Fighter cannot continue', async () => {
@@ -91,20 +95,20 @@ describe('what happens to the Fighter is the reason’s rule', () => {
 });
 
 describe('the score of a forfeit loss is the penalty ruleset’s', () => {
-  it('a reason’s 0-X applies on its bout and on the bouts its withdrawal forfeits', async () => {
+  it('a reason’s 0-X applies on its bout (and on the bouts its withdrawal forfeits, B2)', async () => {
     const rules = withInjury({ outcome: 'fixed_loss', opponentScore: 9, fighter: 'withdrawn' });
     const { db, forfeit } = bout(rules);
 
     await forfeit('injury');
 
+    // The later bouts are the reconcile's, scored by this reason (`fighter-reconcile.out.test.ts`).
     expect(inserted(db)).toEqual([
       expect.objectContaining({ match_id: 'm1', forfeiting_score: 0, opponent_score: 9 }),
-      expect.objectContaining({ match_id: 'm2', forfeiting_score: 0, opponent_score: 9 }),
     ]);
     expect(writesTo(db, 'matches')[0]?.row).toMatchObject({ red_score: 0, blue_score: 9 });
   });
 
-  it('a black card forfeit’s 0-X is the black card score, on its bout and the cascade', async () => {
+  it('a black card forfeit’s 0-X is the black card score', async () => {
     const rules = { ...CLUB_START_FORFEIT_RULES, blackCardOpponentScore: 11 };
     const { db, forfeit } = bout(rules);
 
@@ -113,8 +117,8 @@ describe('the score of a forfeit loss is the penalty ruleset’s', () => {
 
     expect(inserted(db)).toEqual([
       expect.objectContaining({ match_id: 'm1', opponent_score: 11, can_continue: false }),
-      expect.objectContaining({ match_id: 'm2', opponent_score: 11, auto_created: true }),
     ]);
+    expect(outcome(db)).toBe('disqualified');
   });
 });
 

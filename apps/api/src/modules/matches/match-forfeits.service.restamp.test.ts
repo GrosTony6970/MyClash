@@ -58,7 +58,6 @@ const record = (id: string, matchId: string, previous: Seed, over: Seed = {}): S
   downstream_match_ids: [],
   voided_at: null,
   previous_match_state: previous,
-  previous_registration_state: {},
   resulting_match_state: RESULT,
   ...over,
 });
@@ -134,68 +133,17 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
     expect(clearDownstreamOf).not.toHaveBeenCalled();
   });
 
-  /**
-   * A withdrawal forfeited three Pool bouts. Its take-back restored the first
-   * bout and the Fighter's status, then a read for the second bout failed. The
-   * next try was refused for good ("the match has been replayed"): the first
-   * bout no longer held the forfeit's result. So every read comes first.
-   */
-  it('a read that fails for a LATER bout of a withdrawal stops it before its first write', async () => {
-    const db = seeded(
-      [bout('m1'), bout('m2'), bout('m3', NO_TOURNAMENT)],
-      [
-        record('forfeit-1', 'm1', NOT_STARTED),
-        record('forfeit-2', 'm2', NOT_STARTED, { parent_forfeit_id: 'forfeit-1' }),
-        record('forfeit-3', 'm3', NOT_STARTED, { parent_forfeit_id: 'forfeit-1' }),
-      ],
-    );
-
-    await expect(forfeitsOver(db).voidForfeit('forfeit-1')).rejects.toThrow(
-      'The ruleset of bout m3 was not read: no Tournament',
-    );
-
-    expect(db.writes).toEqual([]);
-    expect(clearDownstreamOf).not.toHaveBeenCalled();
-  });
-
   it('a bout the forfeit found started asks for no ruleset: its read cannot stop the take-back', async () => {
     const db = seeded([bout('m1', NO_TOURNAMENT)], [record('forfeit-1', 'm1', RUNNING)]);
 
     await expect(forfeitsOver(db).voidForfeit('forfeit-1')).resolves.toBeDefined();
   });
 
-  it('the Pool bouts of a withdrawal: each one by the state it goes back to', async () => {
-    const child = (id: string, matchId: string, previous: Seed) =>
-      record(id, matchId, previous, { parent_forfeit_id: 'forfeit-1' });
-    const db = seeded(
-      [bout('m1'), bout('m2'), bout('m3')],
-      [
-        record('forfeit-1', 'm1', RUNNING),
-        child('forfeit-2', 'm2', NOT_STARTED),
-        child('forfeit-3', 'm3', RUNNING),
-      ],
-    );
-
-    await forfeitsOver(db).voidForfeit('forfeit-1');
-
-    for (const column of PAIR) expect(restoreOf(db, 'm2')?.row).not.toHaveProperty(column);
-    expect(restoreOf(db, 'm2')?.row).toMatchObject({ status: 'scheduled', ...STAMP_NOW });
-    const started = restoreOf(db, 'm3');
-    expect(started?.row).toMatchObject({ status: 'running' });
-    for (const column of [...Object.keys(STAMP_NOW), ...PAIR]) {
-      expect(started?.row).not.toHaveProperty(column);
-    }
-  });
-
-  it('stamps the Tournament once before its writes and once after them, whatever the bouts', async () => {
-    // Each stamp is a write. After the writes: a change of the rules between the read and the
-    // write left the bouts put back on the older copy (R3).
-    const child = (id: string, matchId: string) =>
-      record(id, matchId, NOT_STARTED, { parent_forfeit_id: 'forfeit-1' });
-    const db = seeded(
-      [bout('m1'), bout('m2'), bout('m3')],
-      [record('forfeit-1', 'm1', NOT_STARTED), child('forfeit-2', 'm2'), child('forfeit-3', 'm3')],
-    );
+  it('stamps the Tournament once before its write and once after it', async () => {
+    // Each stamp is a write. After the write: a change of the rules between the read and the
+    // write left the bout put back on the older copy (R3). The bouts her return brings back are
+    // the reconcile's (`fighter-reconcile.restamp.test.ts`).
+    const db = seeded([bout('m1')], [record('forfeit-1', 'm1', NOT_STARTED)]);
     const stamp = db.rpc.getMockImplementation()!;
     const boutWritesAtStamp: number[] = [];
     db.rpc.mockImplementation((name, args) => {
@@ -205,7 +153,7 @@ describe('MatchForfeitsService.voidForfeit: the ruleset of a bout put back', () 
 
     await forfeitsOver(db).voidForfeit('forfeit-1');
 
-    expect(boutWritesAtStamp).toEqual([0, 3]);
+    expect(boutWritesAtStamp).toEqual([0, 1]);
     expect(db.rpc.mock.calls.map(([, args]) => args)).toEqual([
       { p_tournament_id: 't-1' },
       { p_tournament_id: 't-1' },

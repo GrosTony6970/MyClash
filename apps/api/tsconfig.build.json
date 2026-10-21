@@ -81,6 +81,9 @@
     // The status settle every service that settles is built with in tests (slice B). It imports
     // vitest.
     "src/modules/matches/fighter-status.fixtures.ts",
+    // A Fighter's Tournament as the status reconcile reads it, shared by its two test files
+    // (slice B, B2). Imported by tests and nothing else.
+    "src/modules/matches/fighter-reconcile.fixtures.ts",
     // The archive service over seeded tables, split out of its test when the restore of an older
     // archive got a test file of its own (0229). It imports vitest.
     "src/modules/exports/archive.fixtures.ts",

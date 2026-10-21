@@ -45,7 +45,6 @@ const seeded = (previous: Record<string, unknown>) =>
             downstream_match_ids: [],
             voided_at: null,
             previous_match_state: previous,
-            previous_registration_state: {},
             resulting_match_state: { ...RESULT, winner_registration_id: 'blue' },
           },
         ],

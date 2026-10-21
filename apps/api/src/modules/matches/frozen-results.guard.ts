@@ -95,10 +95,17 @@ export class FrozenResultsGuard {
    * waitlist promotes, a review's answer).
    */
   async assertTournamentResultsOpen(tournamentId: string, userId?: string): Promise<void> {
+    if (!(await this.tournamentResultsOpen(tournamentId, userId))) throw eventResultsFrozen();
+  }
+
+  /**
+   * The same question as a yes or no, for the status reconcile: it writes no bout on an Event
+   * that is over, where the door that settled may still pass (a check-in, a retry).
+   */
+  async tournamentResultsOpen(tournamentId: string, userId?: string): Promise<boolean> {
     const state = await this.getEventStateForTournament(tournamentId);
-    if (!isOver(state.status)) return;
-    if (await this.isSuperAdmin(userId)) return;
-    throw eventResultsFrozen();
+    if (!isOver(state.status)) return true;
+    return this.isSuperAdmin(userId);
   }
 
   /**

@@ -386,9 +386,8 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
   });
 
   /**
-   * A forfeit record whose whole effect was its own bout: it stores no outcome
-   * on its Fighter, and their `registrations.status` still reads exactly what the
-   * record captured.
+   * A forfeit record whose whole effect was its own bout: a person wrote it, it
+   * stores no outcome on its Fighter, and they are in.
    */
   const matchOnlyForfeit = (over: Row = {}) => ({
     match_forfeits: [
@@ -397,8 +396,8 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
         match_id: 'match-r1p1',
         forfeiting_registration_id: 'reg-a',
         replacement_registration_id: null,
-        previous_registration_state: { status: 'checked_in' },
         parent_forfeit_id: null,
+        auto_created: false,
         voided_at: null,
         ...over,
       },
@@ -425,7 +424,7 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
 
     // THE UN-DQ GUARD. Reopen on the pad reaches this same owner, so a
     // registration write here is a disqualification reversed by a clock button.
-    // On the path that passes, previous === current — there is nothing to undo.
+    // On the path that passes, the record holds nobody out — there is nothing to undo.
     expect(supabase.writes.some((w) => w.table === 'registrations')).toBe(false);
   });
 
@@ -446,10 +445,10 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     expect(tables.indexOf('match_forfeits')).toBeGreaterThan(tables.lastIndexOf('matches'));
   });
 
-  it('refuses when the forfeit also took the fighter out of the tournament', async () => {
-    // `previous_registration_state` is captured for every root record whether or
-    // not `applyTournamentState` wrote anything, so the record alone proves
-    // nothing. The fighter's CURRENT status having moved is the evidence.
+  it('refuses a record a person wrote while its fighter is out of the tournament', async () => {
+    // It may be what holds them out with no outcome of its own: "disqualify after
+    // N" counts it, a black card forfeit's card is its cause. Voided here, where
+    // nothing settles, the status would stand on a record that is gone.
     const supabase = uncompleteSupabase({
       ...bracketFixture(false),
       ...matchOnlyForfeit(),
@@ -477,10 +476,7 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     async (_did, outcome) => {
       const supabase = uncompleteSupabase({
         ...bracketFixture(false),
-        ...matchOnlyForfeit({
-          fighter_outcome: outcome,
-          previous_registration_state: { status: outcome },
-        }),
+        ...matchOnlyForfeit({ fighter_outcome: outcome }),
         registrations: [{ id: 'reg-a', status: outcome }],
       });
 
@@ -511,9 +507,8 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
           match_id: 'pool-later',
           forfeiting_registration_id: 'reg-a',
           replacement_registration_id: null,
-          // A child captures `{}` — the PARENT owns the fighter's status.
-          previous_registration_state: {},
           parent_forfeit_id: 'forfeit-1',
+          auto_created: true,
           voided_at: null,
         },
       ],
@@ -528,6 +523,28 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     ).rejects.toThrow(ConflictException);
 
     expect(supabase.writes).toEqual([]);
+  });
+
+  it('voids a bout forfeited because its fighter is out: the organiser puts it back', async () => {
+    // The reconcile forfeited it because she is out; a Reset is the organiser's
+    // put-back, which the reconcile then leaves alone for the rest of her spell
+    // out (`voided_by_return` stays false).
+    const supabase = uncompleteSupabase({
+      ...bracketFixture(false),
+      ...matchOnlyForfeit({ auto_created: true, parent_forfeit_id: null }),
+      registrations: [{ id: 'reg-a', status: 'withdrawn' }],
+    });
+
+    await new MatchCompletionService(
+      supabase as never,
+      openEvent() as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { actor: ORGANISER });
+
+    const voided = supabase.writes.filter((w) => w.table === 'match_forfeits');
+    expect(voided).toHaveLength(1);
+    expect(voided[0]?.row).not.toHaveProperty('voided_by_return');
+    expect(selectsFor(supabase.from, 'match_forfeits')[0]).toContain('auto_created');
   });
 
   it('voids a record that swapped a reserve in, without touching the bracket', async () => {

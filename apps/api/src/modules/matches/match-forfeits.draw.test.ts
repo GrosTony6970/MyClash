@@ -123,7 +123,9 @@ describe('a forfeit that counts as a draw', () => {
     });
   });
 
-  it('makes the later Pool bouts a withdrawal forfeits draws too (ruling 71)', async () => {
+  // Ruling 71's later Pool bouts follow her status: the reconcile scores them by this reason
+  // (`fighter-reconcile.out.test.ts`, "a withdrawal whose reason draws").
+  it('a withdrawal that draws is a draw on its own bout, and withdraws her', async () => {
     const { db, forfeit } = bout(draw('withdrawn'));
 
     await expect(forfeit('injury')).resolves.toBeDefined();
@@ -133,22 +135,9 @@ describe('a forfeit that counts as a draw', () => {
         match_id: 'm1',
         score_policy: 'draw',
         winner_registration_id: null,
-      }),
-      expect.objectContaining({
-        match_id: 'm2',
-        auto_created: true,
-        score_policy: 'draw',
-        winner_registration_id: null,
-        forfeiting_score: 0,
-        opponent_score: 0,
+        fighter_outcome: 'withdrawn',
       }),
     ]);
-    expect(matchWrites(db).find((write) => write.id === 'm2')).toMatchObject({
-      status: 'completed',
-      winner_registration_id: null,
-      red_score: 0,
-      blue_score: 0,
-    });
   });
 });
 
@@ -190,7 +179,6 @@ describe('a forfeit draw taken back', () => {
               downstream_match_ids: [],
               voided_at: null,
               previous_match_state: RUNNING,
-              previous_registration_state: {},
               resulting_match_state: DRAWN,
             },
           ],

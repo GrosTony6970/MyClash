@@ -2981,6 +2981,19 @@ export const organizer = {
       colCountry: 'Country',
       colId: 'ID',
     },
+    // The organiser's hand on one entry (rulings 110, 111): beside it, on a Tournament's tab.
+    withdraw: {
+      withdraw: 'Withdraw',
+      undo: 'Undo withdrawal',
+      confirmTitle: 'Withdraw {name} from {tournament}?',
+      confirmBody: 'Their remaining Pool bouts will be forfeited.',
+      confirm: 'Withdraw',
+      withdrawn: '{name} is withdrawn from {tournament}.',
+      undone: '{name} is back in {tournament} as registered: check them in again.',
+      full: '{tournament} is full: the seat was given to a fighter from the waiting list.',
+      changed: 'This entry changed meanwhile. The list was read again.',
+      failed: 'The change was not saved.',
+    },
     bulk: {
       selected: 'selected',
       section: {

@@ -82,7 +82,10 @@ async function ownDependencies(): Promise<Array<[new (...args: never[]) => unkno
   const { MatchForfeitsService } = await import('./modules/matches/match-forfeits.service.js');
   const { PenaltiesService } = await import('./modules/penalties/penalties.service.js');
   const { RegistrationsService } = await import('./modules/registrations/registrations.service.js');
+  const { FighterStatusService } = await import('./modules/matches/fighter-status.service.js');
   return [
+    // The settle's reconcile: the bouts follow the status (slice B, B2).
+    [FighterStatusService, ['clock', 'scoring', 'matchCompletion', 'frozenResults']],
     [
       MatchForfeitsService,
       ['matchCompletion', 'clock', 'bracketAdvance', 'frozenResults', 'scoring', 'fighterStatus'],

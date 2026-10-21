@@ -5,7 +5,7 @@ import {
   FFAMHE_FORFEIT_RULES,
   type ForfeitRules,
 } from '@myclash/types/forfeit-rules';
-import { scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import {
   bout,
   fighterStates,
@@ -34,10 +34,20 @@ const earlierForfeit = (over: Record<string, unknown> = {}) => ({
   parent_forfeit_id: null,
   can_continue: true,
   auto_created: false,
+  under_hand_withdrawal: false,
   voided_at: null,
   'matches.pool_id': 'pool-1',
   created_at: '2026-10-21T09:00:00.000Z',
   ...over,
+});
+
+/** Her bout m1, forfeited because she was out and put back by the organiser since. */
+const PUT_BACK = earlierForfeit({
+  id: 'ff-put-back',
+  match_id: 'm1',
+  auto_created: true,
+  parent_forfeit_id: 'ff-earlier',
+  voided_at: '2026-10-21T09:10:00.000Z',
 });
 
 /** The tables written before each settle, and whom it settled. */
@@ -72,14 +82,13 @@ describe('a forfeit stores what it did to its Fighter, at its time', () => {
     expect(outcome(db)).toBe('disqualified');
   });
 
-  it('nothing for the N-th forfeit: the settle counts (ruling 80), and the Pool still cascades', async () => {
+  it('nothing for the N-th forfeit: the settle counts (ruling 80), and her bouts follow it', async () => {
     const { db, forfeit } = bout(FFAMHE_FORFEIT_RULES, [earlierForfeit()]);
     await forfeit('voluntary', true);
-    const rows = inserted(db);
-    expect(rows[0]).toMatchObject({ match_id: 'm1', fighter_outcome: null, can_continue: false });
-    // Until the bouts follow the status (B2), the N-th forfeit forfeits the later Pool bout.
-    expect(rows[1]).toMatchObject({ match_id: 'm2', auto_created: true });
-    expect(rows[1]?.['fighter_outcome'] ?? null).toBeNull();
+    // Her later Pool bout is the reconcile's, once the settle has her out (B2).
+    expect(inserted(db)).toEqual([
+      expect.objectContaining({ match_id: 'm1', fighter_outcome: null, can_continue: false }),
+    ]);
   });
 
   // A black card forfeit recorded by hand has no card for the settle to count: it is its own cause.
@@ -110,7 +119,7 @@ describe('a forfeit stores what it did to its Fighter, at its time', () => {
 
   it('nothing for a forfeit recorded under a live withdrawal (ruling 89)', async () => {
     const withdrawal = earlierForfeit({ reason: 'injury', can_continue: false });
-    const { db, forfeit } = bout(ASKS, [withdrawal]);
+    const { db, forfeit } = bout(ASKS, [withdrawal, PUT_BACK]);
     await forfeit('injury', false);
     expect(inserted(db)[0]).toMatchObject({
       parent_forfeit_id: 'ff-earlier',
@@ -120,7 +129,7 @@ describe('a forfeit stores what it did to its Fighter, at its time', () => {
 
   it('a disqualification under a live withdrawal when its reason disqualifies (ruling 112)', async () => {
     const withdrawal = earlierForfeit({ reason: 'injury', can_continue: false });
-    const { db, forfeit } = bout(FFAMHE_FORFEIT_RULES, [withdrawal]);
+    const { db, forfeit } = bout(FFAMHE_FORFEIT_RULES, [withdrawal, PUT_BACK]);
     await forfeit('conduct_violation');
     expect(inserted(db)[0]).toMatchObject({
       parent_forfeit_id: 'ff-earlier',
@@ -162,10 +171,9 @@ describe('a forfeit settles its Fighter, after its own writes', () => {
     const { db, forfeit, status } = bout(ASKS);
     status.settle.mockRejectedValueOnce(new Error('the database is away'));
     await forfeit('injury', false).catch(() => undefined);
-    // The later Pool bout forfeited with it, and the result it produced stamped on it.
-    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1', 'm2']);
+    // Its record, and the result it produced stamped on it.
+    expect(inserted(db).map((row) => row['match_id'])).toEqual(['m1']);
     expect(status.settle).toHaveBeenCalledTimes(1);
-    // The forfeit's OWN result stamp, not the one of the bout forfeited with it.
     expect(
       writesTo(db, 'match_forfeits').some(
         (write) =>
@@ -183,6 +191,8 @@ describe('every retry of the forfeit door settles', () => {
     const { forfeit, status } = bout(ASKS, [ownRecord], 'pool', { status: 'completed' });
     await expect(forfeit('injury', false)).rejects.toThrow('Match is already closed');
     expect(settles(status)).toEqual([{ fighter: 'reg-red@tournament-1', after: [] }]);
+    // The bout its first send completed is handed on again: its bracket fills (ruling 109).
+    expect(status.calls[0]!.input.completedPoolBout).toEqual({ matchId: 'm1', phaseId: 'phase-1' });
   });
 
   it('the other Fighter’s record on a closed bout settles nobody', async () => {
@@ -216,7 +226,6 @@ describe('taking a forfeit back settles its Fighter: no status it found is writt
     downstream_match_ids: [],
     previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
     resulting_match_state: {},
-    previous_registration_state: { id: 'reg-red', status: 'checked_in' },
   });
 
   it('settles once the record is stamped, and writes no status', async () => {
@@ -233,8 +242,9 @@ describe('taking a forfeit back settles its Fighter: no status it found is writt
 
   // Ruling 112: Ana withdraws injured in bout 1; bout 2 was running, so it was not forfeited; in it
   // she commits a conduct violation, recorded under the withdrawal. The injury is voided: she stays
-  // disqualified, so that forfeit stays and its bout keeps its result.
-  it('voiding the withdrawal leaves a disqualifying forfeit recorded under it', async () => {
+  // disqualified, so that forfeit stays and its bout keeps its result. The take-back voids its own
+  // record only: the bouts forfeited because she was out follow her status (the settle's).
+  it('voiding the withdrawal voids its own record only', async () => {
     const child = (id: string, matchId: string, over: Record<string, unknown>) =>
       earlierForfeit({
         id,
@@ -256,13 +266,10 @@ describe('taking a forfeit back settles its Fighter: no status it found is writt
     const stamped = writesTo(db, 'match_forfeits')
       .filter((write) => Object.hasOwn(write.row as object, 'voided_at'))
       .map((write) => scopedTo(write, 'id'));
-    expect(stamped.sort()).toEqual(['ff-auto', 'ff-m1']);
-    expect(writesTo(db, 'matches').map((write) => scopedTo(write, 'id'))).not.toContain('m3');
-    expect(result).toMatchObject({ cascaded_forfeit_count: 1 });
-    // The double answers whatever the select names: the column must be asked for.
-    expect(selectsFor(db.from, 'match_forfeits')).toContain(
-      'id, match_id, previous_match_state, resulting_match_state, fighter_outcome',
-    );
+    expect(stamped).toEqual(['ff-m1']);
+    expect(writesTo(db, 'matches').map((write) => scopedTo(write, 'id'))).toEqual(['m1']);
+    // The settle brought nothing back (the double answers so).
+    expect(result).toMatchObject({ cascaded_forfeit_count: 0 });
   });
 
   it('a take-back sent again, its record already voided, settles, then is refused', async () => {
@@ -270,5 +277,7 @@ describe('taking a forfeit back settles its Fighter: no status it found is writt
     const { service, status } = bout(ASKS, [voided], 'pool', { status: 'running' });
     await expect(service.voidForfeit('ff-m1')).rejects.toThrow('Forfeit is already voided');
     expect(settles(status)).toEqual([{ fighter: 'reg-red@tournament-1', after: [] }]);
+    // Its first send put the bout back: the other Fighter on it, when out, forfeits it.
+    expect(status.calls[0]!.input.boutsPutBack).toEqual(['m1']);
   });
 });

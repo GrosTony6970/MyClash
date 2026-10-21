@@ -598,17 +598,19 @@ describe('ArchiveService', () => {
       expect(forfeit['downstream_match_ids']).toEqual([matchId]);
     });
 
-    it('remaps ids nested in an OBJECT (match_forfeits.previous_*_state)', async () => {
+    it('remaps ids nested in an OBJECT (match_forfeits.previous_match_state)', async () => {
       const { forfeit, registrationId } = await restoreScoped();
       expect(registrationId).not.toBe('r-1');
       expect(forfeit['previous_match_state']).toMatchObject({
         status: 'running',
         winner_registration_id: registrationId,
       });
-      expect(forfeit['previous_registration_state']).toMatchObject({
-        id: registrationId,
-        status: 'checked_in',
-      });
+    });
+
+    it('leaves out the status a forfeit found, which an archive made before 0241 carries', async () => {
+      // The table has no such column since 0241: an insert naming it is refused (PGRST204).
+      const { forfeit } = await restoreScoped();
+      expect(forfeit).not.toHaveProperty('previous_registration_state');
     });
 
     it('remaps a FORWARD reference — phases.config_json.bronzeSlotId', async () => {

@@ -8,8 +8,8 @@ import {
 import { mockSupabase, type ChainResult } from '../../common/testing/supabase-chain';
 import { lastFunctionParams } from '../../common/testing/migration-function';
 import { PenaltiesService } from '../penalties/penalties.service';
-import { FighterStatusService, isEntryStatusChanged } from './fighter-status.service';
-import { settleRpc, type SettleCall } from './fighter-status.fixtures';
+import { isEntryStatusChanged } from './fighter-status.service';
+import { fighterStatusOver, settleRpc, type SettleCall } from './fighter-status.fixtures';
 import { MatchForfeitsService } from './match-forfeits.service';
 
 /**
@@ -36,13 +36,21 @@ const tournamentUnder = (rules: unknown, first = 'match', second = 'tournament')
   },
 });
 
+/** A Fighter who is in, with nothing forfeited: the bouts have nothing to follow. */
+const IN_WITH_NOTHING = {
+  registrations: {
+    rows: [{ id: 'reg-1', tournament_id: 't1', status: 'checked_in', out_since: null }],
+  },
+  match_forfeits: { rows: [] },
+};
+
 function settler(seed: Parameters<typeof mockSupabase>[0], answer?: ChainResult) {
   const calls: SettleCall[] = [];
   const db = mockSupabase(
-    seed,
+    { ...IN_WITH_NOTHING, ...seed },
     settleRpc(calls, () => db.writes, answer),
   );
-  return { service: new FighterStatusService(db as never), calls };
+  return { service: fighterStatusOver(db), calls };
 }
 
 const FIGHTER = { registrationId: 'reg-1', tournamentId: 't1' };
@@ -134,6 +142,8 @@ describe('what a settle asks the database', () => {
   });
 
   it('answers what the database answered: the status before and after', async () => {
+    // What the bouts did after it is the reconcile's (`fighter-reconcile.*.test.ts`): nothing,
+    // for a Fighter the seed has in with no forfeit.
     const { service } = settler(tournamentUnder(FFAMHE_FORFEIT_RULES), {
       data: { before: 'checked_in', after: 'withdrawn' },
       error: null,
@@ -141,6 +151,8 @@ describe('what a settle asks the database', () => {
     await expect(service.settle(FIGHTER)).resolves.toEqual({
       before: 'checked_in',
       after: 'withdrawn',
+      forfeited: 0,
+      broughtBack: 0,
     });
   });
 });

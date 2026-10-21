@@ -20,10 +20,10 @@ import {
  * recompute does not touch a bout a live forfeit record holds (ruling 322).
  *
  * So the void of the card goes to `MatchForfeitsService.voidForfeit` first,
- * the one remedy that restores the bout, the bracket and the Pool bouts
- * forfeited with it. The Fighter's status is settled again once the card is
- * voided (`PenaltiesService.voidPenalty`). Whole or not at all: where that
- * remedy cannot run, the card stays, with ONE coded refusal the pad words.
+ * the one remedy that restores the bout and the bracket. The Fighter's status
+ * is settled again once the card is voided (`PenaltiesService.voidPenalty`),
+ * and their Pool bouts follow it. Whole or not at all: where that remedy
+ * cannot run, the card stays, with ONE coded refusal the pad words.
  *
  * Not the rule of the Reopen button, which still refuses such a bout: a
  * referee who reopens to fix an entry has not asked for the card back.
@@ -119,7 +119,8 @@ export async function takeBackBlackCardForfeit(deps: Deps, card: Row, actor: Act
   if (!forfeit) return;
   await assertUndoable(deps, forfeit, card);
   try {
-    await deps.forfeits.voidForfeit(forfeit['id'] as string, actor);
+    // The card's door settles once the card itself is voided: a settle here would read it live.
+    await deps.forfeits.voidForfeit(forfeit['id'] as string, actor, { settledByCaller: true });
   } catch (err) {
     // Its 400s: a bout this one feeds was fought, the bout was fought again.
     // An over Event and a lock are refused before this is asked: by the card's

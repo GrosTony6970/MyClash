@@ -361,6 +361,7 @@ describe('RegistrationsService', () => {
             person_id: 'person-1',
             tournament_id: 'tourn-1',
             status: 'registered',
+            entry_status: 'registered',
             seed: 3,
             bib_number: 7,
             tournaments: { id: 'tourn-1', name: 'Longsword Open', event_id: 'event-1' },
@@ -369,7 +370,8 @@ describe('RegistrationsService', () => {
             id: 'reg-2',
             person_id: 'person-2',
             tournament_id: 'tourn-2',
-            status: 'checked_in',
+            status: 'disqualified',
+            entry_status: 'checked_in',
             seed: null,
             bib_number: 8,
             tournaments: { id: 'tourn-2', name: 'Rapier Open', event_id: 'event-1' },
@@ -388,6 +390,7 @@ describe('RegistrationsService', () => {
           tournamentId: 'tourn-1',
           tournamentName: 'Longsword Open',
           status: 'registered',
+          entryStatus: 'registered',
           seed: 3,
         },
         {
@@ -395,12 +398,16 @@ describe('RegistrationsService', () => {
           personId: 'person-2',
           tournamentId: 'tourn-2',
           tournamentName: 'Rapier Open',
-          status: 'checked_in',
+          status: 'disqualified',
+          entryStatus: 'checked_in',
           seed: null,
         },
       ]);
       // The PostgREST .eq() is the gate that limits rows to this event.
       expect(chain.eq).toHaveBeenCalledWith('tournaments.event_id', 'event-1');
+      // The double answers whatever the select names: the hand the page offers Withdraw on
+      // (ruling 111) must be asked for.
+      expect(String(chain.select.mock.calls[0]?.[0])).toContain('entry_status');
     });
 
     it('returns an empty array when no rows match (no error, no exception)', async () => {

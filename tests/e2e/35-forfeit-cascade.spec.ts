@@ -12,10 +12,10 @@ import { colorOf, createPoolTournament, poll, readPoolMatches } from './_pool';
  * Supabase, because both are about what OTHER rows say afterwards:
  *
  *   - a forfeit re-recorded on a reopened bout hangs off the ROOT withdrawal,
- *     not off the child it replaced. `cascadeVoidChildren` is one query deep, so
- *     a tree of depth 2 leaves grandchildren active when the root is voided — an
- *     F standing in the standings for a fighter who is back in the tournament,
- *     with nothing left pointing at it.
+ *     not off the child it replaced, so voiding the withdrawal brings it back too
+ *     (ruling 105): otherwise an F stands in the standings for a fighter who is
+ *     back in the tournament, with nothing left pointing at it. The bout put back
+ *     by hand stays back while they are out (the status reconcile, slice B2).
  *   - `getActiveForfeit` reports `{role, childCount, parentActive}`, which the
  *     admin page branches its confirm copy on. `parentActive` in particular
  *     cannot be derived on the frontend: the row says a parent EXISTS, never
@@ -180,6 +180,56 @@ test.describe(title, () => {
       (status) => status !== 'withdrawn',
       'voiding the withdrawal must reinstate the fighter',
     );
+  });
+
+  // Ruling 110 (slice B, B2): an organiser who withdraws a fighter by hand forfeits their
+  // remaining Pool bouts as voluntary forfeits, and the undo brings them back.
+  test('a withdrawal by hand forfeits the Pool bouts, and its undo brings them back', async ({
+    request,
+  }) => {
+    test.setTimeout(600_000);
+    const api = apiFor(request);
+    const { eventId } = runContext();
+    const token = Date.now().toString(36);
+
+    const fighters = await ensureRoster(
+      api,
+      eventId,
+      Array.from({ length: FIELD }, (_, i) => ({
+        givenName: 'Hand',
+        familyName: String(i + 1).padStart(2, '0'),
+      })),
+    );
+    const tournament = await createPoolTournament(api, eventId, {
+      name: `Hand withdrawal ${token}`,
+      slug: `hand-withdrawal-${token}`,
+      fighters,
+      poolCount: 1,
+    });
+    const leaving = tournament.registrationIdByPersonId.get(fighters[0]!.id) as string;
+    const theirBouts = (await readPoolMatches(api, tournament.id)).filter(
+      (match) => colorOf(match, leaving) !== null,
+    );
+
+    await api.ok(
+      await api.patch(`registrations/${leaving}/status`, { data: { status: 'withdrawn' } }),
+    );
+    for (const bout of theirBouts) {
+      const forfeit = await activeForfeit(api, bout.id);
+      expect(forfeit, `bout ${bout.id.slice(0, 8)} was not forfeited`).not.toBeNull();
+      expect(forfeit!.reason, 'a withdrawal by hand is a voluntary forfeit').toBe('voluntary');
+      expect(forfeit!.auto_created).toBe(true);
+    }
+    expect(await registrationStatus(api, tournament.id, leaving)).toBe('withdrawn');
+
+    await api.ok(
+      await api.patch(`registrations/${leaving}/status`, { data: { status: 'registered' } }),
+    );
+    for (const bout of theirBouts) {
+      expect(await activeForfeit(api, bout.id), 'the undo brings the bout back').toBeNull();
+      expect(await matchStatus(api, bout.id)).toBe('scheduled');
+    }
+    expect(await registrationStatus(api, tournament.id, leaving)).toBe('registered');
   });
 });
 

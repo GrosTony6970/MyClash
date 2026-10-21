@@ -97,7 +97,12 @@ describe('a withdrawal by hand (ruling 110)', () => {
   it('leaves the queue alone when another promote seated its 1st entry first', async () => {
     const { db, service, status } = doors([entry(), waiting('reg-w1', 1), waiting('reg-w2', 2)]);
     status.settle
-      .mockResolvedValueOnce({ before: 'checked_in', after: 'withdrawn' })
+      .mockResolvedValueOnce({
+        before: 'checked_in',
+        after: 'withdrawn',
+        forfeited: 0,
+        broughtBack: 0,
+      })
       .mockRejectedValueOnce(entryChanged());
 
     await service.updateStatus('reg-ana', 'withdrawn', 'org-1');
@@ -108,7 +113,12 @@ describe('a withdrawal by hand (ruling 110)', () => {
   it('a seat that cannot be settled is a server error', async () => {
     const { db, service, status } = doors([entry(), waiting('reg-w1', 1), waiting('reg-w2', 2)]);
     status.settle
-      .mockResolvedValueOnce({ before: 'checked_in', after: 'withdrawn' })
+      .mockResolvedValueOnce({
+        before: 'checked_in',
+        after: 'withdrawn',
+        forfeited: 0,
+        broughtBack: 0,
+      })
       .mockRejectedValueOnce(new Error('the database is away'));
 
     await expect(service.updateStatus('reg-ana', 'withdrawn', 'org-1')).rejects.toThrow(

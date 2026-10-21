@@ -64,6 +64,15 @@ const reviewWrites = (db: Opened['db']) => writesTo(db, 'tournament_penalty_revi
 const earlier = (over: Record<string, unknown>) =>
   otherForfeit({ auto_created: false, can_continue: true, ...over });
 
+/** This bout, forfeited because she was out, and put back by the organiser since (ruling 89). */
+const PUT_BACK = otherForfeit({
+  id: 'ff-put-back',
+  match_id: 'm1',
+  auto_created: true,
+  parent_forfeit_id: 'forfeit-2',
+  voided_at: '2026-10-06T11:30:00.000Z',
+});
+
 describe('a black card does what the Tournament’s penalty ruleset says', () => {
   it('a 2nd black card under rules that end only the bout does not disqualify', async () => {
     const opened = cardPath(HOUSE_CARDS, { cards: SECOND_CARD });
@@ -76,14 +85,14 @@ describe('a black card does what the Tournament’s penalty ruleset says', () =>
     expect(fighterStates(opened.db)).toEqual([]);
   });
 
-  it('a 1st black card that reaches the Tournament disqualifies, and forfeits the later Pool bout', async () => {
+  it('a 1st black card that reaches the Tournament disqualifies: her bouts follow the settle', async () => {
     const opened = cardPath({ first: 'tournament', second: 'tournament' });
 
     await sendCard(opened);
 
+    // Her later Pool bout is the reconcile's, once the settle has her out (ruling 57, B2).
     expect(inserted(opened.db)).toEqual([
       expect.objectContaining({ reason: 'black_card_1', can_continue: false, match_id: 'm1' }),
-      expect.objectContaining({ reason: 'black_card_1', auto_created: true, match_id: 'm2' }),
     ]);
     expect(cardsPutOut(opened)).toMatchObject({ firstCardOut: true });
     expect(fighterStates(opened.db)).toEqual([]);
@@ -219,10 +228,10 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
   it('a forfeit recorded again under a live withdrawal is no 2nd of "disqualify after 2"', async () => {
     // Ruling 89. The Fighter withdrew in her Pool; the organiser voided one bout the withdrawal
     // forfeited and records it again by hand. It hangs under the withdrawal, and adds nothing.
-    const root = earlier({ reason: 'injury', can_continue: false, 'matches.pool_id': 'pool-1' });
+    const root = earlier({ reason: 'injury', can_continue: false });
     const opened = cardPath(
       { ...HOUSE_CARDS, forfeitRules: { disqualifyAfter: 2 } },
-      { otherForfeits: [root] },
+      { otherForfeits: [root, PUT_BACK] },
     );
 
     await recordForfeit(opened, 'voluntary');
@@ -233,35 +242,35 @@ describe('a black card is not a forfeit the Fighter chose (ruling 56)', () => {
     expect(fighterStates(opened.db)).toEqual([]);
   });
 
-  /** A live withdrawal of the Fighter in this bout's Pool. */
-  const liveWithdrawal = earlier({
-    reason: 'injury',
-    can_continue: false,
-    'matches.pool_id': 'pool-1',
-  });
+  /** A live withdrawal of the Fighter. */
+  const liveWithdrawal = earlier({ reason: 'injury', can_continue: false });
 
   it('a forfeit recorded again under a live withdrawal is no "forfeit before the 1st bout"', async () => {
     const opened = cardPath(
       { ...HOUSE_CARDS, forfeitRules: beforeFirstBout },
-      { otherForfeits: [liveWithdrawal] },
+      { otherForfeits: [liveWithdrawal, PUT_BACK] },
     );
 
     await recordForfeit(opened, 'voluntary');
 
-    expect(fighterStates(opened.db)).toEqual([]);
+    expect(inserted(opened.db)[0]).toMatchObject({
+      parent_forfeit_id: 'forfeit-2',
+      fighter_outcome: null,
+    });
   });
 
   it('a black card that reaches the Tournament still disqualifies under a live withdrawal', async () => {
     const opened = cardPath(
       { first: 'tournament', second: 'tournament' },
-      { otherForfeits: [liveWithdrawal] },
+      { otherForfeits: [liveWithdrawal, PUT_BACK] },
     );
 
     await recordForfeit(opened, 'black_card_1');
 
-    // Recorded by hand, it has no card: it is its own cause, stored with it.
+    // Recorded by hand, it has no card: it is its own cause, stored with it, and hangs off no
+    // withdrawal, whose void would otherwise take it too.
     expect(inserted(opened.db)[0]).toMatchObject({
-      parent_forfeit_id: 'forfeit-2',
+      parent_forfeit_id: null,
       fighter_outcome: 'disqualified',
     });
   });

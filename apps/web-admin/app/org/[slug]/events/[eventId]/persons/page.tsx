@@ -36,6 +36,7 @@ import {
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
 import { MailPassesButton } from './_components/MailPassesButton';
 import { WaitingListPanel } from './_components/WaitingListPanel';
+import { WithdrawControls, type EntryStatus } from './_components/WithdrawControls';
 import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -64,6 +65,8 @@ interface Registration {
   tournamentId: string;
   tournamentName: string;
   status: RegistrationStatus;
+  /** The organiser's hand: Withdraw, or its undo, is offered on it (ruling 111). */
+  entryStatus: EntryStatus;
   seed: number | null;
   /** Slice 5: position 1..N for waitlist entries; null otherwise. */
   waitlistPosition: number | null;
@@ -1609,6 +1612,22 @@ export default function ParticipantsPage() {
                           </td>
                           <td className="sticky right-0 z-10 bg-surface py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_var(--color-border)] group-hover:bg-background">
                             <div className="flex gap-2">
+                              {/* One Tournament's tab: the row holds one entry (ruling 115). */}
+                              {activeTab !== 'all' && displayRegs[0] && (
+                                <WithdrawControls
+                                  apiUrl={apiUrl}
+                                  registrationId={displayRegs[0].id}
+                                  entryStatus={displayRegs[0].entryStatus}
+                                  fighterName={formatRosterName({
+                                    familyName: p.familyName,
+                                    givenName: p.givenName,
+                                  })}
+                                  tournamentName={displayRegs[0].tournamentName}
+                                  readOnly={isReadOnly}
+                                  confirm={confirm}
+                                  onChanged={refresh}
+                                />
+                              )}
                               {/* Open on an archived Event too: the row's own fields
                                 stay editable for the export (ruling 222b). */}
                               <button

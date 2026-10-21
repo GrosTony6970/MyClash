@@ -120,14 +120,14 @@ describe('a Tournament’s 2nd black card change over its ruleset’s, at every 
 });
 
 describe('a Tournament’s 1st black card change (ruling 65)', () => {
-  it('a 1st card that reaches the Tournament disqualifies, and forfeits the later Pool bout', async () => {
+  it('a 1st card that reaches the Tournament disqualifies: her bouts follow the settle', async () => {
     const bout = opened({ first: 'match', second: 'match' }, { firstBlackCard: 'tournament' });
 
     await sendCard(bout);
 
+    // Her later Pool bout is the reconcile's, once the settle has her out (B2).
     expect(inserted(bout.db)).toEqual([
       expect.objectContaining({ reason: 'black_card_1', can_continue: false, match_id: 'm1' }),
-      expect.objectContaining({ reason: 'black_card_1', auto_created: true, match_id: 'm2' }),
     ]);
     expect(cardsPutOut(bout)).toMatchObject({ firstCardOut: true });
     expect(fighterStates(bout.db)).toEqual([]);

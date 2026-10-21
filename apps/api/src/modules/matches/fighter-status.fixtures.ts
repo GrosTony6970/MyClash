@@ -3,11 +3,39 @@ import type { ChainResult, RecordedWrite } from '../../common/testing/supabase-c
 import { PenaltiesService } from '../penalties/penalties.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import {
+  FighterStatusService,
   settleRules,
-  type FighterStatusService,
   type SettleInput,
-  type Settled,
+  type SettleResult,
 } from './fighter-status.service';
+
+/** The collaborators of a real `FighterStatusService`, each a recording double. */
+export function statusCollaborators(opts: { eventOpen?: boolean } = {}) {
+  return {
+    clock: {
+      getClockState: vi.fn(async (_matchId: string) => ({ status: 'idle' })),
+      clockAction: vi.fn(async (_matchId: string, _action: string, ..._rest: unknown[]) => ({})),
+    },
+    scoring: { recomputeMatchScore: vi.fn(async (_matchId: string) => undefined) },
+    matchCompletion: { onMatchCompleted: vi.fn(async (_matchId: string) => undefined) },
+    frozen: {
+      tournamentResultsOpen: vi.fn(async (_id: string, _userId?: string) => opts.eventOpen ?? true),
+    },
+  };
+}
+
+/** The real `FighterStatusService` over `db`, with the collaborators `statusCollaborators` made. */
+export const fighterStatusOver = (
+  db: unknown,
+  deps: ReturnType<typeof statusCollaborators> = statusCollaborators(),
+) =>
+  new FighterStatusService(
+    db as never,
+    deps.clock as never,
+    deps.scoring as never,
+    deps.matchCompletion as never,
+    deps.frozen as never,
+  );
 
 /** `MatchForfeitsService` over `db` with no optional collaborator, and the status settle. */
 export const forfeitsOver = (db: unknown, status: FighterStatusService = fighterStatusDouble()) =>
@@ -51,11 +79,16 @@ export interface SettledCall {
  * answers is probe check 16's (`scripts/lib/fighter-status-probe.mjs`).
  */
 export function fighterStatusDouble(
-  answer: Settled = { before: 'registered', after: 'registered' },
+  answer: SettleResult = {
+    before: 'registered',
+    after: 'registered',
+    forfeited: 0,
+    broughtBack: 0,
+  },
   writes: () => RecordedWrite[] = () => [],
 ) {
   const calls: SettledCall[] = [];
-  const settle = vi.fn(async (input: SettleInput): Promise<Settled> => {
+  const settle = vi.fn(async (input: SettleInput): Promise<SettleResult> => {
     calls.push({ input, writesBefore: [...writes()] });
     return answer;
   });

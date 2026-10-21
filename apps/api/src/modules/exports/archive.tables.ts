@@ -404,16 +404,19 @@ const TABLES = {
     collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
     fk: { parent_forfeit_id: 'matchForfeits' },
     idMap: 'matchForfeits',
-    // Read off match-forfeits.service.ts `matchSnapshot` / `loadRegistration`.
-    // The two `*_match_state` blobs are the same snapshot shape, so both carry
-    // the winner; 0186 added the post-state so a void can tell whether the
-    // match still holds the result the record produced.
+    // Read off fighter-bouts.ts `matchSnapshot`. The two `*_match_state` blobs
+    // are the same snapshot shape, so both carry the winner; 0186 added the
+    // post-state so a void can tell whether the match still holds the result
+    // the record produced.
     json: [
       { path: 'downstream_match_ids[]', map: 'matches' },
       { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
       { path: 'resulting_match_state.winner_registration_id', map: 'registrations' },
-      { path: 'previous_registration_state.id', map: 'registrations' },
     ],
+    // The status a forfeit found was kept on its row until 0241: an archive made before it
+    // carries the column, and an insert naming a column the table no longer has is refused
+    // (PGRST204). `undefined` leaves the key out (`cleanRow`).
+    set: { previous_registration_state: undefined },
   },
   tournament_penalty_reviews: {
     key: 'tournamentPenaltyReviews',

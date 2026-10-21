@@ -27,15 +27,15 @@ const boutId = (n) => `dddddddd-0000-4000-8000-0000001600${String(n).padStart(2,
 export async function forfeit(
   sp,
   n,
-  { outcome = null, reason = 'injury', parent = null, auto = false } = {},
+  { outcome = null, reason = 'injury', parent = null, auto = false, underHand = false } = {},
 ) {
   await sp`INSERT INTO matches (id, phase_id, match_rules_id) VALUES (${boutId(n)}, ${PHASE}, ${SEED_COPY})`;
   const [row] = await sp`
     INSERT INTO match_forfeits (match_id, tournament_id, forfeiting_registration_id,
                                 winner_registration_id, reason, score_policy, fighter_outcome,
-                                parent_forfeit_id, auto_created)
+                                parent_forfeit_id, auto_created, under_hand_withdrawal)
     VALUES (${boutId(n)}, ${TOURNAMENT}, ${FIGHTER}, ${OPPONENT}, ${reason}, 'fixed_loss',
-            ${outcome}, ${parent}, ${auto})
+            ${outcome}, ${parent}, ${auto}, ${underHand})
     RETURNING id`;
   return row.id;
 }

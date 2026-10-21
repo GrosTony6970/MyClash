@@ -105,7 +105,7 @@ describe('answering a black card review', () => {
       await answer(verdict);
 
       expect(status.calls.map((call) => call.input)).toEqual([
-        { registrationId: 'r-1', tournamentId: 't-1' },
+        { registrationId: 'r-1', tournamentId: 't-1', actor: { userId: expect.any(String) } },
       ]);
       expect(status.calls[0]?.writesBefore.map((write) => write.table)).toEqual([
         'tournament_penalty_reviews',

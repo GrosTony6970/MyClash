@@ -26,7 +26,7 @@ const RESULT = {
 
 type Seed = Record<string, unknown>;
 
-function seeded(previous: Seed, others: { bouts: Seed[]; records: Seed[] } = NO_CASCADE) {
+function seeded(previous: Seed) {
   return mockSupabase({
     matches: {
       rows: [
@@ -41,7 +41,6 @@ function seeded(previous: Seed, others: { bouts: Seed[]; records: Seed[] } = NO_
           phases: phase('pool'),
           ...RESULT,
         },
-        ...others.bouts,
       ],
     },
     match_forfeits: {
@@ -54,10 +53,8 @@ function seeded(previous: Seed, others: { bouts: Seed[]; records: Seed[] } = NO_
           downstream_match_ids: [],
           voided_at: null,
           previous_match_state: previous,
-          previous_registration_state: {},
           resulting_match_state: RESULT,
         },
-        ...others.records,
       ],
     },
     // 3-4 now: the late hit is the third.
@@ -67,23 +64,6 @@ function seeded(previous: Seed, others: { bouts: Seed[]; records: Seed[] } = NO_
 }
 
 const RUNNING = { status: 'running', red_score: 3, blue_score: 2 };
-const NO_CASCADE = { bouts: [], records: [] };
-const PAUSED = { status: 'paused', red_score: 1, blue_score: 0 };
-
-/** A Pool bout the withdrawal forfeited too, as its row reads `now`, and its record. */
-function cascaded(bout: string, now: Seed) {
-  return {
-    bout: { id: bout, ...RESULT, ...now },
-    record: {
-      id: `forfeit-of-${bout}`,
-      match_id: bout,
-      parent_forfeit_id: 'forfeit-1',
-      voided_at: null,
-      previous_match_state: PAUSED,
-      resulting_match_state: RESULT,
-    },
-  };
-}
 
 function forfeitsOver(db: ReturnType<typeof seeded>, scoring: unknown) {
   return new MatchForfeitsService(
@@ -161,48 +141,5 @@ describe('MatchForfeitsService.voidForfeit — the sheet after a take-back (ruli
       cascaded_forfeit_count: 0,
     });
     expect(writesTo(db, 'match_forfeits')).toHaveLength(1);
-  });
-});
-
-/**
- * Ruling 330: the Pool bouts a withdrawal forfeited read their sheet again too.
- *
- * Dupont's other Pool bout was paused at 1-0 when she was withdrawn. A late
- * card was saved on its sheet while it was forfeited. Before the ruling the
- * take-back wrote 1-0 back and the card waited for the next hit.
- */
-describe('MatchForfeitsService.voidForfeit — the Pool bouts of a withdrawal (ruling 330)', () => {
-  it('each bout put back in play reads its sheet again, after its own record is voided', async () => {
-    const held = cascaded('m2', {});
-    // Reopened and being fought again: its row is left alone, so is its score.
-    const fought = cascaded('m3', { status: 'running', red_score: 2, blue_score: 2 });
-    const db = seeded(RUNNING, {
-      bouts: [held.bout, fought.bout],
-      records: [held.record, fought.record],
-    });
-    const voidedWhenAsked: number[] = [];
-    const scoring = {
-      recomputeMatchScore: vi.fn(async (_matchId: string) => {
-        voidedWhenAsked.push(writesTo(db, 'match_forfeits').length);
-      }),
-    };
-
-    await expect(forfeitsOver(db, scoring).voidForfeit('forfeit-1')).resolves.toMatchObject({
-      cascaded_forfeit_count: 2,
-    });
-
-    expect(scoring.recomputeMatchScore.mock.calls).toEqual([['m2'], [BOUT]]);
-    // m2 after its own record's void; the withdrawal's bout after all three.
-    expect(voidedWhenAsked).toEqual([1, 3]);
-  });
-
-  it('a sheet that cannot be read does not stop the rest of the take-back', async () => {
-    const held = cascaded('m2', {});
-    const db = seeded(RUNNING, { bouts: [held.bout], records: [held.record] });
-    const scoring = { recomputeMatchScore: vi.fn().mockRejectedValue(new Error('no sheet')) };
-
-    await forfeitsOver(db, scoring).voidForfeit('forfeit-1');
-
-    expect(writesTo(db, 'match_forfeits')).toHaveLength(2);
   });
 });
