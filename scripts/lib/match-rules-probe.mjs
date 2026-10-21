@@ -8,9 +8,10 @@
  * (one that holds the copy, one of another Tournament); the card pin resolves Tournament,
  * Event, built-in; a card ruleset a bout's copy pins, now or (not started) before, is held (0230), one only a
  * dead copy pins is not, and so is a club ruleset version a bout's copy names (ruling M, 0232); a copy
- * never changes but for its pin set NULL by a delete (a card ruleset's, an organisation's); an Event
- * delete still cascades; a Match takes only a copy of its own Tournament, whoever writes it; and
- * neither public role may call the functions. Every case runs in a savepoint always rolled back.
+ * never changes but for its pin set NULL by a delete (a card ruleset's, an organisation's); a Match
+ * takes only a copy of its own Tournament, whoever writes it; and neither public role may call the
+ * functions. Every case runs in a savepoint always rolled back. (An Event delete over bouts: 0237's
+ * cascade probe, on committed rows.)
  */
 
 import {
@@ -190,6 +191,8 @@ async function immutableFailures(tx, failures) {
       const before = await copyOf(sp, id);
       const error = await errorOf(sp, async (inner) => {
         await remove(inner);
+        // The keys 0237 defers are checked here, not at the rollback that never commits.
+        await inner`SET CONSTRAINTS ALL IMMEDIATE`;
         const after = await copyOf(inner, id);
         if (after.penalty_ruleset_id !== null || after.digest !== before.digest)
           failures.push(`deleting ${what} left the copy ${JSON.stringify(after)}`);
@@ -205,16 +208,6 @@ async function immutableFailures(tx, failures) {
       if (error) failures.push(`deleting ${what} was refused (${error.message})`);
     });
   }
-  // An Event delete cascades to its Tournaments, their phases, bouts and copies in one statement:
-  // the bouts' pointer (NO ACTION) is checked at its end, when both are gone. Its registrations go
-  // first: `registrations.person_id` is RESTRICT against the Event's persons, copies or none.
-  await isolated(tx, async (sp) => {
-    await stamp(sp);
-    await sp`DELETE FROM registrations r USING tournaments t
-             WHERE r.tournament_id = t.id AND t.event_id = ${OPEN}`;
-    const error = await errorOf(sp, (inner) => inner`DELETE FROM events WHERE id = ${OPEN}`);
-    if (error) failures.push(`an Event whose bouts hold copies was not deleted (${error.message})`);
-  });
 }
 
 /**

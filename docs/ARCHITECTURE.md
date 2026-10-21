@@ -2770,7 +2770,7 @@ The super admin (project owner) has a dashboard at `https://admin.myclash.fr/adm
 - **Actions**:
   - **Suspend** an organization (`status = 'suspended'`) — its events become read-only-public; members cannot create new content, but existing data stays visible.
   - **Reactivate** a suspended organization.
-  - **Delete** (hard) — for spam / abuse cases. Cascades to events, but global Fighter profiles and Persons that have been claimed by users are preserved (re-attached to a "deleted org" placeholder for data integrity).
+  - **Delete** (hard) — for spam / abuse cases, through the API only (0237 revoked the direct delete). Cascades to the club's Events and everything under them: their persons, registrations, bouts and results, League results included. Global Fighter profiles (`global_persons`) belong to no club and stay. The API makes a "deleted org" placeholder first, but moves nothing to it.
   - **Promote a user to super admin** (granting `platform_roles.role = 'super_admin'`).
   - **Reset organization owner** — if the original owner loses access, super admin can re-assign ownership to another member.
 

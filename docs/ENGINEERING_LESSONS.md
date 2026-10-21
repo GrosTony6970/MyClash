@@ -51,6 +51,16 @@ here.
   one switch each (ADR-016).
 - Every scoring exchange carries a **client-generated UUID**, and server inserts are idempotent on
   it. That is what makes offline-first sync safe.
+- **A foreign key whose child and parent both die by cascade from one ancestor is NO ACTION
+  DEFERRABLE INITIALLY DEFERRED** (0237). Postgres fires a table's cascade triggers in NAME order,
+  the name holds the OID as text, and an immediate key is checked when its parent's cascade step
+  ends: whether an Event delete worked depended on where the OID counter stood. A RESTRICT key is
+  checked at once even when deferrable, so it is never the fix. `pnpm db:cascade-probe` refuses
+  any key of the shape, and its positive control lists the nine of 0237: a new, correctly deferred
+  key of the shape is added to that list on purpose. Two consequences: a migration that writes rows
+  of those tables and then ALTERs one runs `SET CONSTRAINTS ALL IMMEDIATE` first (55006 "pending
+  trigger events"); and a delete of rows inserted by the SAME transaction is re-checked on every
+  update the cascade makes, so test a delete on committed rows.
 
 ## Offline & realtime
 

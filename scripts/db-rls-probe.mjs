@@ -26,7 +26,7 @@
  *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
  *      writes it (0209, ruling 144; the League tables, 0216; club scoring rulesets, 0225;
  *      penalty rulesets, 0226; re-pin records, 0227; a bout's copies of its rules, 0229;
- *      Tournaments, 0233);
+ *      Tournaments, 0233; an Event's and a club's DELETE alone, 0237);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar;
@@ -195,7 +195,7 @@ async function writeAs(tx, userId, write) {
  * JSON read beforehand, so it reads nothing as the admin: SELECT is per column since 0205.
  */
 async function apiOnlyWritesRefused(tx) {
-  for (const { table, key, row } of API_ONLY_WRITES) {
+  for (const { table, key, row, verbs } of API_ONLY_WRITES) {
     const [seeded] =
       await tx`SELECT to_jsonb(t) AS doc FROM ${tx(table)} t WHERE ${tx(key)}::text = ${row}`;
     if (!seeded) {
@@ -210,8 +210,8 @@ async function apiOnlyWritesRefused(tx) {
         sp`UPDATE ${sp(table)} SET ${sp(key)} = ${sp(key)} WHERE ${sp(key)}::text = ${row}`,
       DELETE: (sp) => sp`DELETE FROM ${sp(table)} WHERE ${sp(key)}::text = ${row}`,
     };
-    for (const [verb, write] of Object.entries(writes)) {
-      const failure = await writeAs(tx, ORG_ADMIN, write);
+    for (const verb of verbs ?? Object.keys(writes)) {
+      const failure = await writeAs(tx, ORG_ADMIN, writes[verb]);
       if (!failure)
         failures.push(`the organisation admin may ${verb} ${table}: only the API writes it`);
       else if (
@@ -289,7 +289,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, an Event moves only to a club its Tournaments' rulesets are offered to, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, an Event moves only to a club its Tournaments' rulesets are offered to, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules.`,
     );
   }
 } catch (error) {

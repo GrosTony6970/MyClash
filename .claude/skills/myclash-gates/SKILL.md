@@ -78,8 +78,8 @@ eight gates behind it silently did not run for roughly six weeks. Never re-chain
 locally either — you will reproduce the same blindness.
 
 A change under `packages/db/` also needs CI's `Database replay` job locally: a fresh `postgres:17`
-container, then `pnpm db:migrations:replay`, `pnpm db:rls-probe` and `pnpm db:merge-probe` with
-`DATABASE_URL` set (the commands are in CONTRIBUTING.md, "Before pushing"). No other gate runs a
+container, then `pnpm db:migrations:replay`, `pnpm db:rls-probe`, `pnpm db:merge-probe` and
+`CASCADE_PROBE_DISPOSABLE=1 pnpm db:cascade-probe` (last: it commits rows) with `DATABASE_URL` set (the commands are in CONTRIBUTING.md, "Before pushing"). No other gate runs a
 migration. They are sequential on purpose: a probe has no verdict on a half-replayed database.
 
 ## Traps

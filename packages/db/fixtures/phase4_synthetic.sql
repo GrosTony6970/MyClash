@@ -3,9 +3,9 @@
 
 BEGIN;
 
--- A previous copy blocks its own removal: a registration refuses to lose its person, and a Match
--- refuses to lose its red or blue registration (ON DELETE RESTRICT). So its Matches and
--- registrations go first.
+-- A previous copy goes first. Its Matches and registrations are deleted by hand, an order kept from
+-- before 0237, when a registration refused to lose its person mid-cascade; the organisation's
+-- cascade now takes them itself.
 DELETE FROM matches WHERE phase_id IN (
   SELECT ph.id FROM phases ph
   JOIN tournaments t ON t.id = ph.tournament_id

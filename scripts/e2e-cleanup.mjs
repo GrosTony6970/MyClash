@@ -61,8 +61,8 @@ export function selectDisposable(events) {
  * The club-kind flip comes first because a `standard` event holding recorded
  * results refuses both the tournament delete and the event hard delete
  * ("Submit a deletion request instead") — right for a real event, wrong for a
- * throwaway one. Pools go next: matches hold ON DELETE RESTRICT references to
- * registrations, so the cascade stalls on them otherwise.
+ * throwaway one. Pools go next, an order kept from before 0237, when matches'
+ * references to registrations stalled the cascade; it now takes them itself.
  *
  * Every step is best-effort except the last, whose result is returned: a
  * tournament that refuses to pre-delete still disappears when the event

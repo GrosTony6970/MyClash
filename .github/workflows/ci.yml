@@ -604,6 +604,15 @@ jobs:
         if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
         run: pnpm db:merge-probe
 
+      # 0237 (rulings 91, 92): an Event, a Tournament, a phase and a club delete whatever order
+      # their cascade's triggers fire in. LAST: it is the one probe that commits rows (its seed,
+      # deleted at its end), so a failure part-way cannot sit under the other two.
+      - name: Probe cascade deletes
+        if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
+        env:
+          CASCADE_PROBE_DISPOSABLE: '1'
+        run: pnpm db:cascade-probe
+
   shellcheck:
     name: Shellcheck infra scripts
     runs-on: ubuntu-latest

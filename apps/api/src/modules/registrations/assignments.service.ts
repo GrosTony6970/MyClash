@@ -421,7 +421,7 @@ export class AssignmentsService {
    * Force-delete a single registration. The guard rejects with 409 if
    * the registration's person has any blocking match in the same
    * tournament. Otherwise: hard-delete the unplayed matches that
-   * reference this registration (releases the matches FK RESTRICT),
+   * reference this registration (else the matches keys refuse it),
    * then delete the registration (pool_members cascade, bracket_slots
    * null out).
    *
@@ -456,7 +456,7 @@ export class AssignmentsService {
     }
 
     // Unplayed matches that reference this registration must be removed
-    // before the FK RESTRICT on matches.{red,blue}_registration_id lets
+    // before the foreign keys matches.{red,blue}_registration_id let
     // the registration delete go through.
     const unplayedMatchIds = report.matchesAsFighter
       .map((m) => m.matchId)

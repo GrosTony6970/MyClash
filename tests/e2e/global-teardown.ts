@@ -11,11 +11,11 @@ const CLEANUP = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').to
  * see what the run created (imported participants, the tournament, the generated
  * schedule). Set E2E_CLEANUP=1 (CI does) to hard-delete it instead.
  *
- * Cleanup order matters: pool matches reference registrations with ON DELETE
- * RESTRICT, so we clear each tournament's pools (→ matches) and delete the
- * tournament before hard-deleting the event. (The API now does this ordered
- * teardown server-side too, but doing it here keeps cleanup working against
- * older deploys.)
+ * Cleanup order: we clear each tournament's pools (→ matches) and delete the
+ * tournament before hard-deleting the event, an order kept from before 0237,
+ * when pool matches' references to registrations stalled the cascade. The
+ * event's hard delete now cascades on its own; the order keeps cleanup working
+ * against deploys older than 0237.
  *
  * It also reclassifies the event as a CLUB event first — see the comment on
  * that step. Without it, an event that holds scored matches cannot be deleted
@@ -71,7 +71,7 @@ export default async function globalTeardown() {
     );
   }
 
-  // 2) Delete tournaments first (clear pools → matches that block the cascade).
+  // 2) Delete tournaments first (clear pools → matches: the order kept from before 0237).
   const tRes = await ctx.get(`/api/v1/events/${runCtx.eventId}/tournaments`);
   if (tRes.ok()) {
     const tournaments = (await tRes.json()) as Array<{ id: string }>;

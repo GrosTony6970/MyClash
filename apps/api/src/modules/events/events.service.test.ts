@@ -244,14 +244,12 @@ describe('EventsService', () => {
       data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
       error: null,
     });
-    // No tournaments → the result-graph teardown is skipped.
+    // No tournaments → no recorded result to look for.
     const tournamentsChain = makeChain({ data: [], error: null });
-    const refereeChain = makeChain({ data: null, error: null }); // referee_assignments clear
     const deleteChain = makeChain({ data: null, error: null });
     fromMock
       .mockReturnValueOnce(eventChain)
       .mockReturnValueOnce(tournamentsChain)
-      .mockReturnValueOnce(refereeChain)
       .mockReturnValueOnce(deleteChain);
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -341,38 +339,70 @@ describe('EventsService', () => {
     },
   );
 
-  it('hard delete tears down forfeits/matches/registrations before deleting the event', async () => {
+  // The cascade deletes the bouts, forfeits, registrations and referees whatever order its triggers
+  // fire in (0237): the API deletes only the Event, and deletes nothing below it by hand.
+  const DEPENDANTS = ['referee_assignments', 'match_forfeits', 'matches', 'registrations'] as const;
+  const dependantChains = () =>
+    Object.fromEntries(
+      DEPENDANTS.map((table) => [table, makeFullChain({ count: 0, data: [], error: null })]),
+    );
+  // The read before the delete filters on the same id: only an `eq` made AFTER `delete` is its.
+  const deleteFilteredOn = (chain: ReturnType<typeof makeFullChain>, id: string) => {
+    const deletedAt = chain['delete']!.mock.invocationCallOrder[0] ?? Infinity;
+    const eq = chain['eq']!.mock;
+    return eq.calls.some(
+      (args, i) => args[0] === 'id' && args[1] === id && eq.invocationCallOrder[i]! > deletedAt,
+    );
+  };
+
+  it('hard delete leaves the dependants to the database: it deletes only the Event', async () => {
     const eventsChain = makeFullChain({
-      data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+      data: { id: 'event-marker-7', organization_id: 'org-1', status: 'draft' },
       error: null,
     });
-    const matchesChain = makeFullChain({ count: 0, data: [], error: null }); // scheduled-only
-    const forfeitsChain = makeFullChain({ data: null, error: null });
-    const registrationsChain = makeFullChain({ data: null, error: null });
-    const refereeChain = makeFullChain({ data: null, error: null });
+    const dependants = dependantChains();
     const byTable: Record<string, unknown> = {
       events: eventsChain,
       tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
       phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
       pools: makeFullChain({ data: [{ id: 'pool1' }], error: null }),
-      matches: matchesChain,
-      referee_assignments: refereeChain,
-      match_forfeits: forfeitsChain,
-      registrations: registrationsChain,
+      ...dependants,
     };
     fromMock.mockImplementation((table: string) => byTable[table]);
     assertOrgRole.mockResolvedValue(undefined);
 
-    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).resolves.toEqual({
+    await expect(service.deleteEvent('event-marker-7', 'hard', 'user-1')).resolves.toEqual({
       deleted: true,
-      id: 'event-1',
+      id: 'event-marker-7',
     });
-    // Referee assignments + result graph cleared first, then the event deleted.
-    expect(refereeChain['delete']).toHaveBeenCalled();
-    expect(forfeitsChain['delete']).toHaveBeenCalled();
-    expect(matchesChain['delete']).toHaveBeenCalled();
-    expect(registrationsChain['delete']).toHaveBeenCalled();
-    expect(eventsChain['delete']).toHaveBeenCalled();
+    expect(eventsChain['delete']).toHaveBeenCalledTimes(1);
+    expect(deleteFilteredOn(eventsChain, 'event-marker-7')).toBe(true);
+    for (const table of DEPENDANTS) expect(dependants[table]!['delete']).not.toHaveBeenCalled();
+  });
+
+  it('deleteTournament leaves the dependants to the database: it deletes only the Tournament', async () => {
+    const tournamentsChain = makeFullChain({
+      data: { event_id: 'event-1', status: 'draft' },
+      error: null,
+    });
+    const dependants = dependantChains();
+    const byTable: Record<string, unknown> = {
+      tournaments: tournamentsChain,
+      phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+      pools: makeFullChain({ data: [{ id: 'pool1' }], error: null }),
+      events: makeFullChain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null }),
+      ...dependants,
+    };
+    fromMock.mockImplementation((table: string) => byTable[table]);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(service.deleteTournament('tourn-marker-3', 'user-1')).resolves.toEqual({
+      id: 'tourn-marker-3',
+    });
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    expect(tournamentsChain['delete']).toHaveBeenCalledTimes(1);
+    expect(deleteFilteredOn(tournamentsChain, 'tourn-marker-3')).toBe(true);
+    for (const table of DEPENDANTS) expect(dependants[table]!['delete']).not.toHaveBeenCalled();
   });
 
   it('refuses event delete without explicit hard mode', async () => {
@@ -879,9 +909,6 @@ describe('EventsService', () => {
         // standard event ('hard delete refuses when the event has recorded
         // match results' above); an unrated kind sails through.
         matches: makeFullChain({ count: 1, data: [], error: null }),
-        referee_assignments: makeFullChain({ data: null, error: null }),
-        match_forfeits: makeFullChain({ data: null, error: null }),
-        registrations: makeFullChain({ data: null, error: null }),
       };
       // Fallback for unknown tables: vi.clearAllMocks() does NOT reset
       // implementations, so a map with holes would leak `undefined` into a
@@ -906,7 +933,6 @@ describe('EventsService', () => {
       const byTable: Record<string, unknown> = {
         events: eventsChain,
         tournaments: makeFullChain({ data: [], error: null }),
-        referee_assignments: makeFullChain({ data: null, error: null }),
       };
       fromMock.mockImplementation(
         (table: string) => byTable[table] ?? makeFullChain({ count: 0, data: [], error: null }),

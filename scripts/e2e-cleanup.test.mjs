@@ -93,7 +93,7 @@ test('deletes in the order that actually works', async () => {
     // Club flip FIRST: a standard event holding results refuses both deletes.
     ['PATCH', '/api/v1/events/ev-1'],
     ['GET', '/api/v1/events/ev-1/tournaments'],
-    // Pools before the tournament: matches RESTRICT-reference registrations.
+    // Pools before the tournament: the order kept from before 0237.
     ['DELETE', '/api/v1/tournaments/t-1/pools'],
     ['DELETE', '/api/v1/tournaments/t-1'],
     ['DELETE', '/api/v1/events/ev-1?mode=hard'],

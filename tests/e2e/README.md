@@ -14,8 +14,8 @@ data**. They are isolated from the local a11y/perf suites (`tests/a11y`,
 - **specs** — read the run context via `_context.ts` and drive the flows.
 - **`global-teardown.ts`** — by default **preserves** the test event and prints
   its admin URL so you can inspect what was created. Set `E2E_CLEANUP=1` to
-  hard-delete it instead. Two things have to happen in order for that to work:
-  the event is first reclassified as a **club event**, then each tournament's
+  hard-delete it instead. The event is first reclassified as a **club event**,
+  which that needs; then, in an order kept from older deploys, each tournament's
   pools (→ matches) are cleared before the tournament and finally the event go.
   - The **club flip** is what makes the delete possible at all. Six specs score
     real matches, and a `standard` event holding recorded results refuses both
@@ -25,8 +25,8 @@ data**. They are isolated from the local a11y/perf suites (`tests/a11y`,
     the event must stay `standard` all run, because club events do not count
     toward league standings and cannot be submitted to HEMA Ratings, which `11`
     and `12` depend on.
-  - The **pool clearing** keeps the cascade from hitting the
-    `registrations`/`matches` RESTRICT FKs.
+  - The **pool clearing** is an order kept from before 0237, when the cascade
+    stalled on the `registrations`/`matches` keys; it now cascades on its own.
 
 ## Running locally
 

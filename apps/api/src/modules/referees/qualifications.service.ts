@@ -478,7 +478,7 @@ export class QualificationsService {
 
     // R4 of the staffing overhaul (migration 0060): a skill referenced by
     // a tournament_slot_allowed_skills or event_slot_config_default_skills
-    // row would otherwise be blocked by ON DELETE RESTRICT at the FK level.
+    // row would otherwise be refused by its foreign key (checked at commit, 0237).
     // We count up front so the 409 message enumerates every blocker.
     const [{ count: slotTournamentCount, error: sErr1 }, { count: slotEventCount, error: sErr2 }] =
       await Promise.all([

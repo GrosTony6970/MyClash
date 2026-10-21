@@ -109,7 +109,8 @@ export const PRIVATE_COLUMNS = [
 
 /**
  * Tables only the API writes: no write grant for either public role, so a direct write through
- * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row.
+ * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row. An entry
+ * with `verbs` is refused only those (an Event's and a club's DELETE: both stay writable).
  */
 export const API_ONLY_WRITES = [
   // Every door that writes a referee asks the one checker and the lock (ADR-016, ADR-019).
@@ -137,6 +138,16 @@ export const API_ONLY_WRITES = [
   { table: 'match_rules', key: 'id', row: 'ad000000-0000-4000-8000-00000000000a' },
   // A Tournament, past the audited re-pin, the lock on its rules and the edit guards (0233).
   { table: 'tournaments', key: 'id', row: '77777777-0000-4000-8000-00000000000a' },
+  // An Event's delete, past the recorded-results check and the deletion request (0237, ruling
+  // 93). Only the delete: Events stay writable through PostgREST (0233's named list).
+  { table: 'events', key: 'id', row: 'eeeeeeee-0000-4000-8000-00000000000a', verbs: ['DELETE'] },
+  // A club's delete, past the HQ guard and the audit line (0237, ruling 95). Only the delete.
+  {
+    table: 'organizations',
+    key: 'id',
+    row: 'aaaaaaaa-0000-4000-8000-000000000001',
+    verbs: ['DELETE'],
+  },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';

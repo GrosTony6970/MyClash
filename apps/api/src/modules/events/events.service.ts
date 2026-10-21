@@ -1385,37 +1385,24 @@ export class EventsService {
       'admin',
     );
 
-    // A bare `delete events` relies on the DB cascade, but the diamond cascade
-    // (events→persons CASCADE vs events→tournaments→registrations) trips the
-    // RESTRICT FKs registrations.person_id and matches.*_registration_id, which
-    // Postgres checks immediately. So tear the result graph down in dependency
-    // order first — after refusing any event that holds real (scored) results.
-    const { data: tournamentRows, error: tournamentsError } = await this.supabase.service
-      .from('tournaments')
-      .select('id')
-      .eq('event_id', eventId);
-    // A failed read is not "no Tournament": read as none, the guard below checked nothing.
-    if (tournamentsError)
-      throw new Error(
-        `The Tournaments of Event ${eventId} were not read: ${tournamentsError.message}`,
-      );
-    const tournamentIds = ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
-
     if (!directDelete) {
+      const { data: tournamentRows, error: tournamentsError } = await this.supabase.service
+        .from('tournaments')
+        .select('id')
+        .eq('event_id', eventId);
+      // A failed read is not "no Tournament": read as none, the guard below checked nothing.
+      if (tournamentsError)
+        throw new Error(
+          `The Tournaments of Event ${eventId} were not read: ${tournamentsError.message}`,
+        );
       await this.assertNoRecordedResults(
-        tournamentIds,
+        ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id),
         'This event has recorded match results. Submit a deletion request instead of a hard delete.',
       );
     }
-    // Clear referee assignments up-front: deleting their matches/pools/lices would
-    // SET NULL the scope columns and violate referee_assignments_scope_check.
-    const { error: raErr } = await this.supabase.service
-      .from('referee_assignments')
-      .delete()
-      .eq('event_id', eventId);
-    if (raErr) throw new BadRequestException(raErr.message);
-    await this.clearTournamentResultGraph(tournamentIds);
 
+    // One delete: the cascade takes the Tournaments, bouts, registrations and referees, whatever
+    // order its triggers fire in (0237).
     const { error } = await this.supabase.service.from('events').delete().eq('id', eventId);
     if (error) throw new BadRequestException(error.message);
     return { deleted: true, id: eventId };
@@ -3901,10 +3888,8 @@ export class EventsService {
       userId,
       'admin',
     );
-    // Clear the RESTRICT-protected result graph (forfeits → matches →
-    // registrations) before the cascade delete, else the bare tournaments
-    // delete aborts on matches.*_registration_id.
-    await this.clearTournamentResultGraph([tournamentId]);
+    // One delete: the cascade takes the bouts and registrations whatever order its triggers fire in
+    // (0237).
     const { error } = await this.supabase.service
       .from('tournaments')
       .delete()
@@ -3939,45 +3924,6 @@ export class EventsService {
       .neq('status', 'scheduled');
     if (error) throw new Error(`The bouts were not counted before a delete: ${error.message}`);
     if ((count ?? 0) > 0) throw new ForbiddenException(message);
-  }
-
-  /**
-   * Delete the RESTRICT-protected result graph (match_forfeits → matches →
-   * registrations) for the given tournaments, so a following cascade delete of
-   * the tournament/event isn't aborted by the registrations.person_id /
-   * matches.*_registration_id foreign keys (which Postgres checks immediately).
-   * Order matters: forfeits + matches reference registrations; registrations
-   * reference persons.
-   */
-  private async clearTournamentResultGraph(tournamentIds: string[]): Promise<void> {
-    if (tournamentIds.length === 0) return;
-    const { data: phases } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .in('tournament_id', tournamentIds);
-    const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((p) => p.id);
-
-    const idsIn = async (table: string, column: string, values: string[]) => {
-      if (values.length === 0) return [] as string[];
-      const { data } = await this.supabase.service.from(table).select('id').in(column, values);
-      return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
-    };
-    const purge = async (table: string, column: string, values: string[]) => {
-      if (values.length === 0) return;
-      const { error } = await this.supabase.service.from(table).delete().in(column, values);
-      if (error) throw new BadRequestException(error.message);
-    };
-
-    // Referee assignments reference pools/matches with ON DELETE SET NULL; the
-    // null-out would violate referee_assignments_scope_check, so clear them first.
-    const poolIds = await idsIn('pools', 'phase_id', phaseIds);
-    const matchIds = await idsIn('matches', 'phase_id', phaseIds);
-    await purge('referee_assignments', 'pool_id', poolIds);
-    await purge('referee_assignments', 'match_id', matchIds);
-
-    await purge('match_forfeits', 'tournament_id', tournamentIds);
-    await purge('matches', 'phase_id', phaseIds);
-    await purge('registrations', 'tournament_id', tournamentIds);
   }
 
   async publishTournament(tournamentId: string, userId: string) {
