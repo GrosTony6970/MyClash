@@ -102,6 +102,29 @@ describe.each(EDITORS)('the Forfeits section of %s', (_editor, editor) => {
     ).toBeNull();
   });
 
+  // A draw is 0-0 on a Pool or Swiss bout, and the loss on a bracket bout (rulings 64, 72): the
+  // opponent's score still counts there, so its field stays live.
+  it('saves a reason that counts as a draw, its loss score still live', async () => {
+    page = await openPenaltyPage(editor, editReads(FFAMHE_FORFEIT_RULES));
+
+    await choose('forfeit-voluntary-outcome', 'draw');
+    await typeInto('forfeit-voluntary-score', '8');
+    await save();
+
+    const outcome = document.body.querySelector('[data-testid="forfeit-voluntary-outcome"]');
+    expect(outcome?.querySelector('option[value="draw"]')?.textContent).toBe(
+      'A draw, 0-0 (a loss in a bracket)',
+    );
+    const { voluntary } = FFAMHE_FORFEIT_RULES.reasons;
+    expect(savedRules()).toEqual({
+      ...FFAMHE_FORFEIT_RULES,
+      reasons: {
+        ...FFAMHE_FORFEIT_RULES.reasons,
+        voluntary: { ...voluntary, outcome: 'draw', opponentScore: 8 },
+      },
+    });
+  });
+
   it('saves Off as "off"', async () => {
     page = await openPenaltyPage(editor, editReads(FFAMHE_FORFEIT_RULES));
 

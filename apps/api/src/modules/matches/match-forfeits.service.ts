@@ -55,6 +55,40 @@ type Row = Record<string, unknown>;
 const COUNTED_FORFEIT_REASONS = FORFEIT_REASONS.filter((reason) => !isBlackCardReason(reason));
 
 /**
+ * An override's scores: it states the result; there is nothing to derive. The DTO guarantees the
+ * pair is present for an override reason and absent otherwise, so a missing pair here would be a
+ * wiring bug, not input.
+ */
+function explicitScores(
+  redForfeits: boolean,
+  explicit: { forfeitingScore: number; opponentScore: number } | undefined,
+) {
+  if (!explicit) {
+    throw new BadRequestException('An override requires explicit scores');
+  }
+  return {
+    redScore: redForfeits ? explicit.forfeitingScore : explicit.opponentScore,
+    blueScore: redForfeits ? explicit.opponentScore : explicit.forfeitingScore,
+    forfeitingScore: explicit.forfeitingScore,
+    opponentScore: explicit.opponentScore,
+  };
+}
+
+/** Who wins a forfeit's bout: the other Fighter, or no one on a draw (ruling 64). */
+function winnerOf(
+  match: { red_registration_id?: unknown; blue_registration_id?: unknown },
+  forfeitingRegistrationId: string,
+  policy: ForfeitOutcome,
+): string | null {
+  if (policy.scorePolicy === 'draw') return null;
+  const other =
+    forfeitingRegistrationId === match.red_registration_id
+      ? match.blue_registration_id
+      : match.red_registration_id;
+  return other as string;
+}
+
+/**
  * The rules a forfeit is recorded by: the Tournament's forfeit rules of now and, for a black card,
  * what that card does. The card path reads both before it writes the card and hands them over.
  */
@@ -130,12 +164,9 @@ export class MatchForfeitsService {
       ? null
       : (inForce ?? (await this.handForfeitRules(phase.tournament_id, dto.reason)));
     const policy: ForfeitOutcome = rules
-      ? forfeitOutcomeOf(rules.rules, dto.reason as ForfeitReason)
+      ? forfeitOutcomeOf(rules.rules, dto.reason as ForfeitReason, phase.type)
       : OVERRIDE_OUTCOME;
-    const winnerRegistrationId =
-      dto.forfeitingRegistrationId === match.red_registration_id
-        ? match.blue_registration_id
-        : match.red_registration_id;
+    const winnerRegistrationId = winnerOf(match, dto.forfeitingRegistrationId, policy);
 
     // The forfeit rules can escalate the per-reason state to a disqualification.
     // Resolved BEFORE canContinue, because a DQ implies the fighter cannot
@@ -214,7 +245,7 @@ export class MatchForfeitsService {
       await this.completeMatch(
         matchId,
         dto.forfeitingRegistrationId,
-        winnerRegistrationId as string,
+        winnerRegistrationId,
         scores,
         forfeitEndReason(dto.reason),
         now,
@@ -922,11 +953,9 @@ export class MatchForfeitsService {
     rules: ForfeitRules,
     actor: Actor,
   ): Promise<void> {
-    const policy = forfeitOutcomeOf(rules, reason);
-    const winnerRegistrationId =
-      registrationId === match['red_registration_id']
-        ? (match['blue_registration_id'] as string)
-        : (match['red_registration_id'] as string);
+    // A Pool bout: the cascade forfeits the withdrawn Fighter's later bouts of their Pool alone.
+    const policy = forfeitOutcomeOf(rules, reason, 'pool');
+    const winnerRegistrationId = winnerOf(match, registrationId, policy);
     const scores = this.resolveScores(match, registrationId, policy);
 
     const child = await this.insertForfeit({
@@ -1108,20 +1137,11 @@ export class MatchForfeitsService {
     explicit?: { forfeitingScore: number; opponentScore: number },
   ) {
     const redForfeits = forfeitingRegistrationId === match['red_registration_id'];
+    if (policy.scorePolicy === 'explicit') return explicitScores(redForfeits, explicit);
 
-    // An override states the result; there is nothing to derive. The DTO
-    // guarantees the pair is present for an override reason and absent
-    // otherwise, so a missing pair here would be a wiring bug, not input.
-    if (policy.scorePolicy === 'explicit') {
-      if (!explicit) {
-        throw new BadRequestException('An override requires explicit scores');
-      }
-      return {
-        redScore: redForfeits ? explicit.forfeitingScore : explicit.opponentScore,
-        blueScore: redForfeits ? explicit.opponentScore : explicit.forfeitingScore,
-        forfeitingScore: explicit.forfeitingScore,
-        opponentScore: explicit.opponentScore,
-      };
+    // A draw is 0-0 with no winner, as a double-hit ceiling draw is (ruling 64).
+    if (policy.scorePolicy === 'draw') {
+      return { redScore: 0, blueScore: 0, forfeitingScore: 0, opponentScore: 0 };
     }
 
     const currentForfeitingScore =
@@ -1151,7 +1171,7 @@ export class MatchForfeitsService {
   private async completeMatch(
     matchId: string,
     _forfeitingRegistrationId: string,
-    winnerRegistrationId: string,
+    winnerRegistrationId: string | null,
     scores: { redScore: number; blueScore: number },
     endReason: string,
     endedAt = new Date().toISOString(),

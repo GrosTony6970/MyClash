@@ -4,6 +4,7 @@
  */
 
 import { accountEmailsFailures } from './account-emails-probe.mjs';
+import { forfeitDrawFailures } from './forfeit-draw-probe.mjs';
 import { forfeitRulesFailures } from './forfeit-rules-probe.mjs';
 import { matchRulesFailures } from './match-rules-probe.mjs';
 import { programmeWritesFailures } from './programme-writes-probe.mjs';
@@ -23,5 +24,6 @@ export async function laterCheckFailures(tx) {
     ...(await programmeWritesFailures(tx)),
     ...(await rulesWriteFailures(tx)),
     ...(await forfeitRulesFailures(tx)),
+    ...(await forfeitDrawFailures(tx)),
   ];
 }

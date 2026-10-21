@@ -37,7 +37,7 @@ interface Props<R extends ForfeitRules> {
 /** What a field shows beside it, given its path and how a value of it reads. */
 export type ForfeitAffordance = (leaf: ForfeitLeaf, label: (value: unknown) => string) => ReactNode;
 
-const OUTCOMES: ForfeitReasonRule['outcome'][] = ['keep_current', 'fixed_loss'];
+const OUTCOMES: ForfeitReasonRule['outcome'][] = ['keep_current', 'fixed_loss', 'draw'];
 const FIGHTERS: ForfeitReasonRule['fighter'][] = ['continues', 'asks', 'withdrawn', 'disqualified'];
 const AFTER = ['off', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 const CARD_EFFECTS: BlackCardEffectName[] = ['match', 'tournament', 'none'];

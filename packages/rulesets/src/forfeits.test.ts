@@ -26,7 +26,7 @@ describe('what a forfeit does under the FFAMHE penalty ruleset', () => {
   ] as Array<[ForfeitReason, string, number, string]>)(
     'records %s as TF_v1 did before the move',
     (reason, scorePolicy, opponentScore, tournamentState) => {
-      expect(forfeitOutcomeOf(FFAMHE_FORFEIT_RULES, reason)).toEqual({
+      expect(forfeitOutcomeOf(FFAMHE_FORFEIT_RULES, reason, 'pool')).toEqual({
         scorePolicy,
         lossScore: 0,
         opponentScore,
@@ -45,13 +45,13 @@ describe('what a forfeit does under the FFAMHE penalty ruleset', () => {
       blackCardOpponentScore: 11,
     };
 
-    expect(forfeitOutcomeOf(rules, 'voluntary')).toEqual({
+    expect(forfeitOutcomeOf(rules, 'voluntary', 'pool')).toEqual({
       scorePolicy: 'keep_current',
       lossScore: 0,
       opponentScore: 9,
       tournamentState: 'withdrawn',
     });
-    expect(forfeitOutcomeOf(rules, 'black_card_2').opponentScore).toBe(11);
+    expect(forfeitOutcomeOf(rules, 'black_card_2', 'pool').opponentScore).toBe(11);
   });
 
   it('maps "continues" to a bout-only forfeit', () => {
@@ -63,7 +63,36 @@ describe('what a forfeit does under the FFAMHE penalty ruleset', () => {
       },
     };
 
-    expect(forfeitOutcomeOf(rules, 'injury').tournamentState).toBe('match_only');
+    expect(forfeitOutcomeOf(rules, 'injury', 'pool').tournamentState).toBe('match_only');
+  });
+});
+
+describe('a reason that counts as a draw (rulings 64, 72)', () => {
+  const rules: ForfeitRules = {
+    ...CLUB_START_FORFEIT_RULES,
+    reasons: {
+      ...CLUB_START_FORFEIT_RULES.reasons,
+      injury: { outcome: 'draw', opponentScore: 8, fighter: 'continues' },
+    },
+  };
+
+  it.each(['pool', 'swiss'])('is a draw on a %s bout', (phaseType) => {
+    expect(forfeitOutcomeOf(rules, 'injury', phaseType).scorePolicy).toBe('draw');
+  });
+
+  it.each(['single_elim', 'double_elim'])(
+    'is the reason’s loss on a %s bout, which has no draw',
+    (phaseType) => {
+      expect(forfeitOutcomeOf(rules, 'injury', phaseType)).toMatchObject({
+        scorePolicy: 'fixed_loss',
+        lossScore: 0,
+        opponentScore: 8,
+      });
+    },
+  );
+
+  it('is a rule the stored shape holds', () => {
+    expect(ForfeitRulesSchema.parse(rules)).toEqual(rules);
   });
 });
 
@@ -131,7 +160,7 @@ describe('forfeit vs override classification', () => {
   });
 
   it.each(OVERRIDE_REASONS)('gives %s an explicit, state-neutral outcome', (reason) => {
-    const outcome = forfeitOutcomeOf(FFAMHE_FORFEIT_RULES, reason);
+    const outcome = forfeitOutcomeOf(FFAMHE_FORFEIT_RULES, reason, 'pool');
 
     expect(outcome.scorePolicy).toBe('explicit');
     expect(outcome.tournamentState).toBe('match_only');

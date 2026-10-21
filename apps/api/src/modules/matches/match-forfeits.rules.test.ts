@@ -4,8 +4,9 @@ import {
   FFAMHE_FORFEIT_RULES,
   type ForfeitRules,
 } from '@myclash/types/forfeit-rules';
-import { mockSupabase, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import { MatchForfeitsService } from './match-forfeits.service';
+import { bout, fighterStates, inserted, withInjury } from './match-forfeits.rules.fixtures';
 
 /**
  * What a forfeit does is its Tournament's PENALTY ruleset's (operator rulings 63-76, 2026-10-20):
@@ -13,86 +14,9 @@ import { MatchForfeitsService } from './match-forfeits.service';
  * a black card's 0-X loss. The scoring ruleset holds none of it, so a Tournament on a club scoring
  * ruleset gets FFAMHE's "disqualify after 2" when it plays under the built-in penalty ruleset.
  *
- * The Tournament here pins no penalty ruleset, nor does its Event: the built-in answers.
+ * The Tournament here pins no penalty ruleset, nor does its Event: the built-in answers
+ * (`match-forfeits.rules.fixtures.ts`).
  */
-
-const BUILT_IN = 'built-in';
-
-/** A Pool bout of Red against Blue, still running, and Red's later bout in the Pool. */
-const BOUTS = [
-  {
-    id: 'm1',
-    phase_id: 'phase-1',
-    pool_id: 'pool-1',
-    bracket_slot_id: null,
-    status: 'running',
-    red_registration_id: 'reg-red',
-    blue_registration_id: 'reg-blue',
-    red_score: 2,
-    blue_score: 3,
-    phases: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1', config_json: {} },
-  },
-  {
-    id: 'm2',
-    pool_id: 'pool-1',
-    status: 'scheduled',
-    red_registration_id: 'reg-red',
-    blue_registration_id: 'reg-green',
-    red_score: 0,
-    blue_score: 0,
-  },
-];
-
-/** The bouts, under `rules` as the built-in penalty ruleset's, with Red's forfeits `history`. */
-function bout(rules: ForfeitRules, history: Record<string, unknown>[] = []) {
-  const db = mockSupabase({
-    matches: { rows: BOUTS },
-    match_forfeits: {
-      rows: history,
-      returning: (row: Record<string, unknown>) => ({ id: `ff-${String(row['match_id'])}` }),
-    },
-    registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
-    // A club scoring ruleset: nothing below reads it.
-    tournaments: {
-      rows: [
-        {
-          id: 'tournament-1',
-          event_id: 'event-1',
-          penalty_ruleset_id: null,
-          ruleset_code: 'club_formula',
-        },
-      ],
-    },
-    events: { rows: [{ id: 'event-1', penalty_ruleset_id: null }] },
-    penalty_rulesets: {
-      rows: [
-        {
-          id: BUILT_IN,
-          built_in: true,
-          owner_organization_id: null,
-          first_black_card_forfeit: 'match',
-          second_black_card_forfeit: 'tournament',
-          forfeit_rules: rules,
-        },
-      ],
-    },
-  });
-  const service = new MatchForfeitsService(db as never, undefined as never);
-  const forfeit = (reason: string, canContinue?: boolean) =>
-    service.createForfeit('m1', {
-      forfeitingRegistrationId: 'reg-red',
-      reason,
-      ...(canContinue === undefined ? {} : { canContinue }),
-    } as never);
-  return { db, forfeit };
-}
-
-const inserted = (db: ReturnType<typeof bout>['db']) =>
-  writesTo(db, 'match_forfeits')
-    .filter((write) => write.op === 'insert')
-    .map((write) => write.row as Record<string, unknown>);
-const fighterStates = (db: ReturnType<typeof bout>['db']) =>
-  writesTo(db, 'registrations').map((write) => write.row);
 
 /** A forfeit Red chose in another bout, before this one. */
 const EARLIER = {
@@ -130,12 +54,6 @@ describe('"disqualify after N forfeits" is the penalty ruleset’s', () => {
     // A double ignores the projection: the rules are read only if the read asks for them.
     expect(selectsFor(db.from, 'penalty_rulesets').join(' | ')).toContain('forfeit_rules');
   });
-});
-
-/** The club start, with one reason's rule changed. */
-const withInjury = (injury: ForfeitRules['reasons']['injury']): ForfeitRules => ({
-  ...CLUB_START_FORFEIT_RULES,
-  reasons: { ...CLUB_START_FORFEIT_RULES.reasons, injury },
 });
 
 describe('what happens to the Fighter is the reason’s rule', () => {

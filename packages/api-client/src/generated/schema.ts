@@ -11179,21 +11179,21 @@ export interface components {
         reasons?: {
           injury?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
           };
           voluntary?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
           };
           conduct_violation?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
@@ -11310,21 +11310,21 @@ export interface components {
         reasons?: {
           injury?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
           };
           voluntary?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
           };
           conduct_violation?: {
             /** @enum {string|null} */
-            outcome?: 'keep_current' | 'fixed_loss' | null;
+            outcome?: 'keep_current' | 'fixed_loss' | 'draw' | null;
             opponentScore?: number | null;
             /** @enum {string|null} */
             fighter?: 'continues' | 'asks' | 'withdrawn' | 'disqualified' | null;
@@ -11449,21 +11449,21 @@ export interface components {
         reasons: {
           injury: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
           };
           voluntary: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
           };
           conduct_violation: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
@@ -11510,21 +11510,21 @@ export interface components {
         reasons: {
           injury: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
           };
           voluntary: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
           };
           conduct_violation: {
             /** @enum {string} */
-            outcome: 'keep_current' | 'fixed_loss';
+            outcome: 'keep_current' | 'fixed_loss' | 'draw';
             opponentScore: number;
             /** @enum {string} */
             fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';

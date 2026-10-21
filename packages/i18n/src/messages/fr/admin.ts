@@ -1574,7 +1574,11 @@ export const admin = {
         conduct_violation: 'Faute de comportement',
       },
       outcome: 'Le combat compte comme',
-      outcomes: { keep_current: 'Le score atteint', fixed_loss: 'Une défaite' },
+      outcomes: {
+        keep_current: 'Le score atteint',
+        fixed_loss: 'Une défaite',
+        draw: 'Un match nul, 0-0 (une défaite en élimination directe)',
+      },
       opponentScore: 'Score de l’adversaire sur une défaite',
       fighter: 'Le combattant',
       fighters: {

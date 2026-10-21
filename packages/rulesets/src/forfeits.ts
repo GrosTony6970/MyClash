@@ -1,8 +1,9 @@
-import type {
-  ForfeitPatch,
-  ForfeitRuleReason,
-  ForfeitRules,
-  ForfeitRulesInForce,
+import {
+  isPoolOrSwissPhase,
+  type ForfeitPatch,
+  type ForfeitRuleReason,
+  type ForfeitRules,
+  type ForfeitRulesInForce,
 } from '@myclash/types/forfeit-rules';
 import { z } from 'zod';
 
@@ -74,7 +75,7 @@ const LossScoreSchema = z.number().int().min(1).max(99);
 
 export const ForfeitReasonRuleSchema = z
   .object({
-    outcome: z.enum(['keep_current', 'fixed_loss']),
+    outcome: z.enum(['keep_current', 'fixed_loss', 'draw']),
     opponentScore: LossScoreSchema,
     fighter: z.enum(['continues', 'asks', 'withdrawn', 'disqualified']),
   })
@@ -151,9 +152,12 @@ export type ForfeitRulesPatchSchemaIsTheContract = AssertTrue<
   Exact<z.infer<typeof ForfeitRulesPatchSchema>, ForfeitPatch>
 >;
 
-/** How the engine records one forfeit: its score, and what it does to the Fighter. */
+/**
+ * How the engine records one forfeit: its score, and what it does to the Fighter. A `'draw'` is
+ * 0-0 with no winner (`match_forfeits_draw_has_no_winner`, migration 0239).
+ */
 export interface ForfeitOutcome {
-  scorePolicy: 'keep_current' | 'fixed_loss' | 'explicit';
+  scorePolicy: 'keep_current' | 'fixed_loss' | 'draw' | 'explicit';
   /** The forfeiting Fighter's score on a loss. */
   lossScore: number;
   opponentScore: number;
@@ -183,8 +187,14 @@ const FIGHTER_STATE = {
  *   never withdraw or disqualify anyone.
  * - A black card is a loss of 0 to `blackCardOpponentScore` (ruling 69). What it does to the
  *   Fighter is its card rule's, which the caller lays over this `tournamentState`.
+ * - A reason that counts as a draw is one on a Pool or Swiss bout only, of the phase `phaseType`;
+ *   a bracket bout has no draw, so there it is the reason's loss (rulings 64, 72).
  */
-export function forfeitOutcomeOf(rules: ForfeitRules, reason: ForfeitReason): ForfeitOutcome {
+export function forfeitOutcomeOf(
+  rules: ForfeitRules,
+  reason: ForfeitReason,
+  phaseType: string,
+): ForfeitOutcome {
   if (isOverrideReason(reason)) return OVERRIDE_OUTCOME;
   if (isBlackCardReason(reason)) {
     const opponentScore = rules.blackCardOpponentScore;
@@ -196,8 +206,9 @@ export function forfeitOutcomeOf(rules: ForfeitRules, reason: ForfeitReason): Fo
     };
   }
   const rule = rules.reasons[reason as ForfeitRuleReason];
+  const noDraw = rule.outcome === 'draw' && !isPoolOrSwissPhase(phaseType);
   return {
-    scorePolicy: rule.outcome,
+    scorePolicy: noDraw ? 'fixed_loss' : rule.outcome,
     lossScore: 0,
     opponentScore: rule.opponentScore,
     tournamentState: FIGHTER_STATE[rule.fighter],

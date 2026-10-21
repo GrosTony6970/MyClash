@@ -34,7 +34,7 @@
  *      `public_visibility` alone, match the API's bar;
  *   7. `account_emails` (0217) is refused to anon and to a signed-in user on privilege, and answers
  *      the service role for the accounts it asks for, no other (`lib/account-emails-probe.mjs`);
- *      checks 8 to 14 are listed with it in `lib/rls-probe-later-checks.mjs`.
+ *      checks 8 to 15 are listed with it in `lib/rls-probe-later-checks.mjs`.
  * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose. Checks 5 and
  * 7 are a write and a function call, each refused on privilege before any policy runs. Check 10
  * moves an Event signed in past the policies, with the looping helpers made SECURITY DEFINER
@@ -238,7 +238,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, an Event moves only to a club its Tournaments' rulesets are offered to, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, an Event moves only to a club its Tournaments' rulesets are offered to, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw.`,
     );
   }
 } catch (error) {

@@ -1571,7 +1571,12 @@ export const admin = {
         conduct_violation: 'Conduct violation',
       },
       outcome: 'The bout counts as',
-      outcomes: { keep_current: 'The score it stood at', fixed_loss: 'A loss' },
+      outcomes: {
+        keep_current: 'The score it stood at',
+        fixed_loss: 'A loss',
+        // A bracket bout has no draw: it counts as the loss there (rulings 64, 72).
+        draw: 'A draw, 0-0 (a loss in a bracket)',
+      },
       opponentScore: 'Opponent’s score on a loss',
       fighter: 'The fighter',
       fighters: {

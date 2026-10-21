@@ -18,9 +18,13 @@ export const FORFEIT_RULE_REASONS: readonly ForfeitRuleReason[] = [
 ];
 
 export interface ForfeitReasonRule {
-  /** What the bout counts as: the score it stood at, or a loss of 0 to `opponentScore`. */
-  outcome: 'keep_current' | 'fixed_loss';
-  /** The forfeiting Fighter's opponent's score on a loss, 1-99. */
+  /**
+   * What the bout counts as: the score it stood at, a loss of 0 to `opponentScore`, or a draw,
+   * 0-0 with no winner, on a Pool or Swiss bout; a bracket bout has no draw, so it counts as the
+   * loss there (rulings 64, 72).
+   */
+  outcome: 'keep_current' | 'fixed_loss' | 'draw';
+  /** The forfeiting Fighter's opponent's score on a loss, 1-99 (a draw's, on a bracket bout). */
   opponentScore: number;
   /** What happens to the Fighter: continues, the official is asked, withdrawn, or disqualified. */
   fighter: 'continues' | 'asks' | 'withdrawn' | 'disqualified';
@@ -173,12 +177,20 @@ export function forfeitAsksOf(rules: ForfeitRules): ForfeitAsks {
 }
 
 /**
+ * A Pool or Swiss bout: the phases where a Fighter's bouts do not decide who goes on alone, so a
+ * forfeit may ask "can the Fighter continue?" (ruling 76) and may count as a draw (ruling 72).
+ */
+export function isPoolOrSwissPhase(phaseType: string | null | undefined): boolean {
+  return phaseType === 'pool' || phaseType === 'swiss';
+}
+
+/**
  * "Can the Fighter continue?" is a question of a Pool or Swiss bout only (ruling 76); on a bracket
  * bout the Fighter continues in the Tournament. A screen that does not know the bout's phase asks,
  * and the server decides by the phase it reads.
  */
 export function asksInPhase(phaseType: string | null | undefined): boolean {
-  return phaseType == null || phaseType === 'pool' || phaseType === 'swiss';
+  return phaseType == null || isPoolOrSwissPhase(phaseType);
 }
 
 export interface ForfeitQuestion {
