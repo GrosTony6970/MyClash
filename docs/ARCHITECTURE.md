@@ -1157,7 +1157,7 @@ still see a draft season's standings.
 ### 9.2 Mechanism
 
 - **Read-side**: clients subscribe via Supabase Realtime. Postgres `LISTEN/NOTIFY` on row changes (`exchanges`, `matches`, `match_events`) is bridged to clients with sub-second latency. RLS policies filter what each user sees.
-- **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent.
+- **Write-side**: clients write through NestJS, which writes to Postgres in a transaction. The realtime broadcast is a side-effect of the row change, not a separate publish step. This makes "what's broadcast" and "what's persisted" trivially consistent. Only the API writes a Match and what is recorded on it (`matches`, `exchanges`, `match_events`, `match_penalties`, `match_forfeits`) and deletes a phase or a Registration (migration `0238`: no write policy and no write grant for anon or authenticated on the five, no DELETE grant on `phases` and `registrations`).
 
 ```mermaid
 sequenceDiagram

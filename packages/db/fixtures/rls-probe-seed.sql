@@ -73,6 +73,38 @@ INSERT INTO registrations (id, tournament_id, person_id) VALUES
    'bbbbbbbb-0000-4000-8000-00000000000a'),
   ('cccccccc-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c',
    'bbbbbbbb-0000-4000-8000-00000000000a');
+-- What is recorded on the published bout: an Exchange, a Match event, a card and a forfeit. Only
+-- the API writes them (0238), and the probe tries each write as the club's admin. The forfeit is
+-- VOIDED, so the one-active-forfeit index stays free for the forfeit checks. A second Fighter is
+-- its winner.
+INSERT INTO persons (id, event_id, given_name, family_name) VALUES
+  ('b0f00000-0000-4000-8000-00000000000a', 'eeeeeeee-0000-4000-8000-00000000000a', 'Probe', 'Opponent');
+INSERT INTO registrations (id, tournament_id, person_id) VALUES
+  ('c0f00000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
+   'b0f00000-0000-4000-8000-00000000000a');
+INSERT INTO exchanges (id, client_uuid, match_id, sequence, type, occurred_at) VALUES
+  ('ec000000-0000-4000-8000-00000000000a', 'ec000000-0000-4000-8000-0000000000c1',
+   'dddddddd-0000-4000-8000-00000000000a', 1, 'clean', '2026-10-01 10:00:00+00');
+INSERT INTO match_events (id, match_id, sequence, type) VALUES
+  ('e7000000-0000-4000-8000-00000000000a', 'dddddddd-0000-4000-8000-00000000000a', 1, 'start');
+INSERT INTO match_penalties
+  (id, client_uuid, match_id, tournament_id, registration_id, sequence, card, occurred_at) VALUES
+  ('ca000000-0000-4000-8000-00000000000a', 'ca000000-0000-4000-8000-0000000000c1',
+   'dddddddd-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
+   'cccccccc-0000-4000-8000-00000000000a', 1, 'yellow', '2026-10-01 10:00:00+00');
+INSERT INTO match_forfeits
+  (id, match_id, tournament_id, forfeiting_registration_id, winner_registration_id, reason,
+   score_policy, voided_at) VALUES
+  ('f0f00000-0000-4000-8000-00000000000a', 'dddddddd-0000-4000-8000-00000000000a',
+   '77777777-0000-4000-8000-00000000000a', 'cccccccc-0000-4000-8000-00000000000a',
+   'c0f00000-0000-4000-8000-00000000000a', 'injury', 'keep_current', '2026-10-01 10:05:00+00');
+-- The forfeit's two Registration keys are checked at commit (0237), and the probe never commits:
+-- forced here, a mistyped id fails the seed with the key's own message, not a later check. Named,
+-- not ALL, and deferred again, so every later check runs with 0237's deferral.
+SET CONSTRAINTS match_forfeits_forfeiting_registration_id_fkey,
+  match_forfeits_winner_registration_id_fkey IMMEDIATE;
+SET CONSTRAINTS match_forfeits_forfeiting_registration_id_fkey,
+  match_forfeits_winner_registration_id_fkey DEFERRED;
 INSERT INTO pools (id, phase_id, name) VALUES
   ('90010000-0000-4000-8000-00000000000a', '99999999-0000-4000-8000-00000000000a', 'A'),
   ('90010000-0000-4000-8000-00000000000c', '99999999-0000-4000-8000-00000000000c', 'A');

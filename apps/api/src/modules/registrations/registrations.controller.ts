@@ -34,7 +34,7 @@ import { CreateRegistrationDto, UpdateRegistrationStatusDto } from './dto/regist
  *
  * The persons routes' two bars: reading needs membership of the Event's
  * organisation at any role (the rows carry each entrant's email); changing
- * needs `editor`, as RLS `registrations_write` does. A route addressed by a
+ * needs `editor`; the database refuses a web delete (0238). A route addressed by a
  * tournament, a registration or a person checks the Event that row is on, never
  * an id the caller sends. Callers are the admin pages only.
  */

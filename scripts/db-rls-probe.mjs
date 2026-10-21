@@ -22,11 +22,13 @@
  *      it is refused (42501) — a column no policy can hide on a row it shows;
  *   4. every view in `public` runs as its caller (security_invoker) — the runtime twin of
  *      db:review's static rule, which missed 0193;
- *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
- *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
- *      writes it (0209, ruling 144; the League tables, 0216; club scoring rulesets, 0225;
- *      penalty rulesets, 0226; re-pin records, 0227; a bout's copies of its rules, 0229;
- *      Tournaments, 0233; an Event's and a club's DELETE alone, 0237);
+ *   5. every API_ONLY_WRITES table refuses the verbs of its entry on privilege (42501, not an RLS
+ *      refusal) to the seeded organisation admin, signed in, and grants none of them to anon: only the
+ *      API's service role writes it (0209, ruling 144; the League tables, 0216; club scoring
+ *      rulesets, 0225; penalty rulesets, 0226; re-pin records, 0227; a bout's copies of its rules,
+ *      0229; Tournaments, 0233; an Event's and a club's DELETE alone, 0237; a bout and what is
+ *      recorded on it, a phase's and a Registration's DELETE alone, 0238;
+ *      `lib/api-only-writes-probe.mjs`);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar;
@@ -43,8 +45,9 @@ import { join } from 'node:path';
 
 import postgres from 'postgres';
 
+import { apiOnlyWritesFailures } from './lib/api-only-writes-probe.mjs';
 import { laterCheckFailures } from './lib/rls-probe-later-checks.mjs';
-import { API_ONLY_WRITES, ORG_ADMIN, PRIVATE_COLUMNS, VERDICTS } from './lib/rls-probe-tables.mjs';
+import { API_ONLY_WRITES, PRIVATE_COLUMNS, VERDICTS } from './lib/rls-probe-tables.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -169,60 +172,6 @@ async function privateColumnsHidden(tx) {
   }
 }
 
-/** Runs `write` signed in as `userId` in a savepoint that is always rolled back; its error, if any. */
-async function writeAs(tx, userId, write) {
-  let failure = null;
-  await rolledBack(() =>
-    tx.savepoint(async (sp) => {
-      await sp`SET LOCAL ROLE authenticated`;
-      const claims = JSON.stringify({ role: 'authenticated', sub: userId });
-      await sp`SELECT set_config('request.jwt.claims', ${claims}, true)`;
-      try {
-        await write(sp);
-      } catch (error) {
-        failure = error;
-      }
-      throw ROLLBACK;
-    }),
-  );
-  return failure;
-}
-
-/**
- * Each write must be refused on PRIVILEGE ("permission denied for table"), not by RLS: with the
- * grant back and no write policy, an INSERT is still 42501 ("violates row-level security") and an
- * UPDATE or DELETE touches no row in silence. The INSERT copies the seeded row under a new key from
- * JSON read beforehand, so it reads nothing as the admin: SELECT is per column since 0205.
- */
-async function apiOnlyWritesRefused(tx) {
-  for (const { table, key, row, verbs } of API_ONLY_WRITES) {
-    const [seeded] =
-      await tx`SELECT to_jsonb(t) AS doc FROM ${tx(table)} t WHERE ${tx(key)}::text = ${row}`;
-    if (!seeded) {
-      failures.push(`${table}: the seeded row ${row} is missing, so no write was tried`);
-      continue;
-    }
-    const copy = JSON.stringify({ ...seeded.doc, [key]: globalThis.crypto.randomUUID() });
-    const writes = {
-      INSERT: (sp) =>
-        sp`INSERT INTO ${sp(table)} SELECT * FROM jsonb_populate_record(NULL::${sp(table)}, ${copy}::text::jsonb)`,
-      UPDATE: (sp) =>
-        sp`UPDATE ${sp(table)} SET ${sp(key)} = ${sp(key)} WHERE ${sp(key)}::text = ${row}`,
-      DELETE: (sp) => sp`DELETE FROM ${sp(table)} WHERE ${sp(key)}::text = ${row}`,
-    };
-    for (const verb of verbs ?? Object.keys(writes)) {
-      const failure = await writeAs(tx, ORG_ADMIN, writes[verb]);
-      if (!failure)
-        failures.push(`the organisation admin may ${verb} ${table}: only the API writes it`);
-      else if (
-        failure.code !== '42501' ||
-        !failure.message.startsWith('permission denied for table')
-      )
-        failures.push(`${verb} on ${table} was not refused on privilege: ${failure.message}`);
-    }
-  }
-}
-
 /** The seeded public League (rls-probe-seed.sql). */
 const PUBLIC_LEAGUE = '1eaa0000-0000-4000-8000-00000000000a';
 
@@ -278,7 +227,7 @@ try {
       await seededRowsSplit(tx);
       await privateColumnsHidden(tx);
       await viewsRunAsCaller(tx);
-      await apiOnlyWritesRefused(tx);
+      failures.push(...(await apiOnlyWritesFailures(tx)));
       await visibleLeagueIsPublished(tx);
       failures.push(...(await laterCheckFailures(tx)));
       throw ROLLBACK;

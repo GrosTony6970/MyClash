@@ -77,6 +77,20 @@ export const VERDICTS = [
     visible: [],
     hidden: ['c5000000-0000-4000-8000-00000000000a'],
   },
+  // What is recorded on a public bout stays public once only the API writes it (0238).
+  { table: 'exchanges', key: 'id', visible: ['ec000000-0000-4000-8000-00000000000a'], hidden: [] },
+  {
+    table: 'match_events',
+    key: 'id',
+    visible: ['e7000000-0000-4000-8000-00000000000a'],
+    hidden: [],
+  },
+  {
+    table: 'match_penalties',
+    key: 'id',
+    visible: ['ca000000-0000-4000-8000-00000000000a'],
+    hidden: [],
+  },
   {
     // A bout's copy of its rules is read with its Tournament (0229).
     table: 'match_rules',
@@ -110,7 +124,8 @@ export const PRIVATE_COLUMNS = [
 /**
  * Tables only the API writes: no write grant for either public role, so a direct write through
  * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row. An entry
- * with `verbs` is refused only those (an Event's and a club's DELETE: both stay writable).
+ * with `verbs` is refused only those (the DELETE of an Event, a club, a phase or a Registration: each
+ * stays writable otherwise).
  */
 export const API_ONLY_WRITES = [
   // Every door that writes a referee asks the one checker and the lock (ADR-016, ADR-019).
@@ -146,6 +161,22 @@ export const API_ONLY_WRITES = [
     table: 'organizations',
     key: 'id',
     row: 'aaaaaaaa-0000-4000-8000-000000000001',
+    verbs: ['DELETE'],
+  },
+  // A Match and what is recorded on it, past the lock, the frozen results and the engine (0238,
+  // ruling 96).
+  { table: 'matches', key: 'id', row: 'dddddddd-0000-4000-8000-00000000000a' },
+  { table: 'exchanges', key: 'id', row: 'ec000000-0000-4000-8000-00000000000a' },
+  { table: 'match_events', key: 'id', row: 'e7000000-0000-4000-8000-00000000000a' },
+  { table: 'match_penalties', key: 'id', row: 'ca000000-0000-4000-8000-00000000000a' },
+  { table: 'match_forfeits', key: 'id', row: 'f0f00000-0000-4000-8000-00000000000a' },
+  // A phase's and a Registration's delete, which take Match rows by cascade (0238, rulings 99 and
+  // 100). Only the delete: both stay insertable and updatable through PostgREST.
+  { table: 'phases', key: 'id', row: '99999999-0000-4000-8000-00000000000a', verbs: ['DELETE'] },
+  {
+    table: 'registrations',
+    key: 'id',
+    row: 'cccccccc-0000-4000-8000-00000000000a',
     verbs: ['DELETE'],
   },
 ];
