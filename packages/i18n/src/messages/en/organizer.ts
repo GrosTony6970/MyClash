@@ -308,9 +308,12 @@ export const organizer = {
     confirmDq: 'Confirm disqualification',
     dismiss: 'Dismiss',
     confirmDqPrompt:
-      'Disqualify {name} from {tournament}? Their registration becomes "disqualified".',
+      'Disqualify {name} from {tournament}? Their registration becomes "disqualified", and their remaining Pool bouts are forfeited.',
     // O11: Dismiss asks too; a dismissed review can still be confirmed.
     dismissPrompt: 'Dismiss the review of {name} in {tournament}? They stay in the tournament.',
+    // Rulings 79, 119: dismissing a confirmed review undoes the disqualification.
+    undoDqPrompt:
+      'Dismiss the review of {name} in {tournament}? If nothing else holds them out, they come back in the tournament with the Pool bouts forfeited because of the disqualification. Otherwise those bouts stay forfeited.',
     disqualifyAfterAll: 'Disqualify after all',
     changedSince:
       'A new black card changed the review of {name} since it was shown. Read it again, then answer.',
@@ -2282,7 +2285,7 @@ export const organizer = {
     uncompleteBodyForfeitVoided:
       'The forfeit recorded on this bout is cancelled, so it stops counting in the standings.',
     uncompleteBodyForfeitBlocked:
-      'This bout was closed by a forfeit that also took the fighter out of the tournament. Undo that record first, from the forfeit panel on this bout.',
+      'This bout was closed by a forfeit that took the fighter out of the tournament, or the fighter is out of it now. Void that record first, from the forfeit panel on this bout.',
     uncompleteBodyForfeitReplacement:
       'A reserve took the missing fighter’s place in the draw. That stays as it is.',
     uncompleteBodySwissRoundDrawn:
@@ -2556,11 +2559,11 @@ export const organizer = {
     voidRecordBodyRestores: 'The match goes back to the result it had before.',
     voidRecordBodyUnadvances: 'On a bracket, whoever this record sent through is un-advanced.',
     voidRecordBodyReopensOne:
-      'The one other pool bout this record closed is reopened too, and the fighter is back in the tournament.',
+      'If nothing else holds the fighter out, they are back in the tournament, and the one other pool bout this record closed is reopened too. Otherwise that bout stays forfeited.',
     voidRecordBodyReopensMany:
-      'The {count} other pool bouts this record closed are reopened too, and the fighter is back in the tournament.',
+      'If nothing else holds the fighter out, they are back in the tournament, and the {count} other pool bouts this record closed are reopened too. Otherwise those bouts stay forfeited.',
     voidRecordBodyChildStaysWithdrawn:
-      'Only this bout reopens. The fighter stays withdrawn by the record that closed it, so check them in again if they are going to fight it.',
+      'Only this bout reopens, and it stays on while the fighter is out. The record that closed it still holds the fighter out: voiding that record brings them back in, unless something else holds them out.',
     voidRecordBodyChildParentGone:
       'Only this bout reopens. The withdrawal that closed it has already been voided, so nothing else changes.',
     voidRecordFailed: 'Could not void this record.',
@@ -2989,7 +2992,8 @@ export const organizer = {
       confirmBody: 'Their remaining Pool bouts will be forfeited.',
       confirm: 'Withdraw',
       withdrawn: '{name} is withdrawn from {tournament}.',
-      undone: '{name} is back in {tournament} as registered: check them in again.',
+      undone:
+        'The withdrawal of {name} from {tournament} is undone. If nothing else holds them out, they are back in as registered: check them in again.',
       full: '{tournament} is full: the seat was given to a fighter from the waiting list.',
       changed: 'This entry changed meanwhile. The list was read again.',
       failed: 'The change was not saved.',

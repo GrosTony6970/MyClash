@@ -6,7 +6,8 @@
  * A fighter's second non-voided black card in a tournament auto-creates a
  * pending `tournament_penalty_reviews` row (the API's
  * second-black-card-review.ts). Confirming disqualifies the
- * registration; dismissing closes the review. Before this page the state
+ * registration; dismissing closes the review, and dismissing a confirmed one
+ * takes the disqualification back (rulings 79, 119). Before this page the state
  * machine was WRITE-ONLY: no UI listed or resolved the reviews, so the
  * disqualification rule never actually enforced.
  */
@@ -22,6 +23,32 @@ import { localeToBcp47 } from '@myclash/time';
 import { readPenaltyReviews, type PenaltyReview, type Tournament } from './penalty-reviews-read';
 import { reviewedAt } from './reviewed-at';
 import { useEventStatus } from '../_hooks/useEventStatus';
+
+/** What an answer asks before it is sent. */
+function answerPrompt(
+  review: PenaltyReview,
+  status: 'confirmed' | 'dismissed',
+  who: { name: string; tournament: string },
+  t: (key: string, values?: Record<string, string>) => string,
+) {
+  if (status === 'confirmed') {
+    return {
+      title: t('organizer.penaltyReviews.confirmDqPrompt', who),
+      confirmLabel: t('actions.confirm'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+    };
+  }
+  return {
+    // A confirmed review dismissed undoes the disqualification (rulings 79, 119).
+    title:
+      review.status === 'confirmed'
+        ? t('organizer.penaltyReviews.undoDqPrompt', who)
+        : t('organizer.penaltyReviews.dismissPrompt', who),
+    confirmLabel: t('organizer.penaltyReviews.dismiss'),
+    cancelLabel: t('common.cancel'),
+  };
+}
 
 export default function PenaltyReviewsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -63,27 +90,9 @@ export default function PenaltyReviewsPage() {
     const name = nameOrUnknown(personByRegistration.get(review.registration_id), 'fighter', t);
     const tournamentName = tournaments.find((tour) => tour.id === review.tournament_id)?.name ?? '';
     // Both answers ask first (O11): a mis-tap must not close a disqualification case.
-    const ok = await confirm(
-      status === 'confirmed'
-        ? {
-            title: t('organizer.penaltyReviews.confirmDqPrompt', {
-              name,
-              tournament: tournamentName,
-            }),
-            confirmLabel: t('actions.confirm'),
-            cancelLabel: t('common.cancel'),
-            danger: true,
-          }
-        : {
-            title: t('organizer.penaltyReviews.dismissPrompt', {
-              name,
-              tournament: tournamentName,
-            }),
-            confirmLabel: t('organizer.penaltyReviews.dismiss'),
-            cancelLabel: t('common.cancel'),
-          },
-    );
-    if (!ok) return;
+    if (!(await confirm(answerPrompt(review, status, { name, tournament: tournamentName }, t)))) {
+      return;
+    }
     setWriting(true);
     const r = await apiRequest(apiUrl, `/api/v1/tournament-penalty-reviews/${review.id}`, {
       method: 'PATCH',
@@ -209,6 +218,17 @@ export default function PenaltyReviewsPage() {
                         : t('organizer.penaltyReviews.statusDismissed')}
                     </span>
                     {review.reviewed_at && <span className="text-muted">{answeredAt(review)}</span>}
+                    {/* Ruling 119: a confirmed review can be dismissed, which undoes it (79). */}
+                    {review.status === 'confirmed' && (
+                      <button
+                        type="button"
+                        disabled={answerClosed}
+                        onClick={() => void resolve(review, 'dismissed')}
+                        className="ml-auto rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground-secondary disabled:opacity-50"
+                      >
+                        {t('organizer.penaltyReviews.dismiss')}
+                      </button>
+                    )}
                     {review.status === 'dismissed' && (
                       <button
                         type="button"

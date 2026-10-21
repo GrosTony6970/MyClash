@@ -56,8 +56,14 @@ let page: OpenedPage;
 afterEach(() => page.unmount());
 
 const dialog = () => document.body.querySelector<HTMLElement>('[role="dialog"]');
-const button = (label: string, within: ParentNode = document.body) =>
-  [...within.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === label)!;
+const buttons = (label: string, within: ParentNode = document.body) =>
+  [...within.querySelectorAll<HTMLButtonElement>('button')].filter((b) => b.textContent === label);
+const button = (label: string, within: ParentNode = document.body) => buttons(label, within)[0]!;
+/** A pending review, and a confirmed one with its own Dismiss (ruling 119). */
+const BOTH_DISMISSES = [
+  review('rv-1', 'pending'),
+  review('rv-3', 'confirmed', '2026-10-14T10:00:00Z'),
+];
 async function tap(target: HTMLElement) {
   await act(async () => target.click());
   await page.settle();
@@ -79,8 +85,8 @@ describe('answering a penalty review', () => {
     expect(page.writes()).toEqual([]);
   });
 
-  it('closes both buttons while an answer is being saved', async () => {
-    page = await openEventPage(<PenaltyReviewsPage />, readsWith([review('rv-1', 'pending')]));
+  it('closes every answer while one is being saved', async () => {
+    page = await openEventPage(<PenaltyReviewsPage />, readsWith(BOTH_DISMISSES));
     const served = vi.mocked(apiRequest).getMockImplementation()!;
     let land: (value: ApiResult<unknown>) => void = () => undefined;
     vi.mocked(apiRequest).mockImplementation(async (base, path, init) =>
@@ -92,7 +98,7 @@ describe('answering a penalty review', () => {
     );
     await tap(button('Dismiss'));
     await tap(button('Dismiss', dialog()!));
-    expect(button('Dismiss').disabled).toBe(true);
+    expect(buttons('Dismiss').map((b) => b.disabled)).toEqual([true, true]);
     expect(button('Confirm disqualification').disabled).toBe(true);
     await act(async () => land({ ok: true, data: {} }));
     await page.settle();
@@ -119,6 +125,31 @@ describe('answering a penalty review', () => {
     await tap([...dialog()!.querySelectorAll<HTMLButtonElement>('button')].pop()!);
     expect(page.writes()).toEqual([ANSWER('rv-2')]);
     expect(sentBodies()).toEqual([{ status: 'confirmed', seenUpdatedAt: SEEN }]);
+  });
+
+  it('offers Dismiss on a confirmed review, saying she comes back, and sends it (ruling 119)', async () => {
+    page = await openEventPage(
+      <PenaltyReviewsPage />,
+      readsWith([review('rv-3', 'confirmed', '2026-10-14T10:00:00Z')]),
+      { [ANSWER('rv-3')]: {} },
+    );
+    expect(button('Dismiss'), 'a confirmed review offers Dismiss').toBeDefined();
+    await tap(button('Dismiss'));
+    expect(dialog()?.textContent).toContain(
+      'If nothing else holds them out, they come back in the tournament',
+    );
+    await tap(button('Cancel', dialog()!));
+    expect(page.writes()).toEqual([]);
+    await tap(button('Dismiss'));
+    await tap(button('Dismiss', dialog()!));
+    expect(page.writes()).toEqual([ANSWER('rv-3')]);
+    expect(sentBodies()).toEqual([{ status: 'dismissed', seenUpdatedAt: SEEN }]);
+  });
+
+  it('a confirmed disqualification says the Pool bouts will be forfeited (ruling 78)', async () => {
+    page = await openEventPage(<PenaltyReviewsPage />, readsWith([review('rv-1', 'pending')]));
+    await tap(button('Confirm disqualification'));
+    expect(dialog()?.textContent).toContain('their remaining Pool bouts are forfeited');
   });
 
   // From the review of push 3: a card that landed after the page read the review.
@@ -153,12 +184,13 @@ describe('answering a penalty review', () => {
   it('closes every answer on an archived Event', async () => {
     page = await openEventPage(
       <PenaltyReviewsPage />,
-      readsWith([review('rv-1', 'pending'), review('rv-2', 'dismissed', '2026-10-14T10:00:00Z')], {
+      readsWith([...BOTH_DISMISSES, review('rv-2', 'dismissed', '2026-10-14T10:00:00Z')], {
         ...EVENT,
         status: 'archived',
       }),
     );
-    for (const label of ['Dismiss', 'Confirm disqualification', 'Disqualify after all']) {
+    expect(buttons('Dismiss').map((b) => b.disabled)).toEqual([true, true]);
+    for (const label of ['Confirm disqualification', 'Disqualify after all']) {
       expect(button(label).disabled, label).toBe(true);
     }
   });

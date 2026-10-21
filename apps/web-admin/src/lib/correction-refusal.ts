@@ -30,6 +30,9 @@ export function correctionRefusal(failure: ApiFailure, t: (key: string) => strin
     case 'forfeit_rules_invalid':
       // A forfeit, on rules a hand-edited archive left that do not parse (rulings 63-76).
       return t('admin.common.forfeitRulesInvalid');
+    case 'forfeit_withdrew_fighter':
+      // The bout page's Reopen raced past its own check (`forfeitBlocked` on the preflight).
+      return t('organizer.matchDetail.uncompleteBodyForfeitBlocked');
     default:
       return null;
   }

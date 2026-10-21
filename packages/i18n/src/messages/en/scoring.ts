@@ -444,7 +444,7 @@ export const scoring = {
     dependentsBlockedMany:
       '{count} later bouts have already been fought. Only an organiser can undo this — ask one.',
     forfeitBlocked:
-      'This bout ended in a forfeit that took the fighter out of the tournament. An organiser has to cancel that first.',
+      'This bout ended in a forfeit that took the fighter out of the tournament, or the fighter is out of it now. An organiser has to cancel that forfeit first.',
     swissRoundAhead:
       'The next Swiss round has already been drawn from this result. Only an organiser can undo it now.',
     organiserOnly: 'Only an organiser can do this. Ask one for help.',

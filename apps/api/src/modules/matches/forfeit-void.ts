@@ -144,8 +144,8 @@ export async function assertForfeitsVoidableHere(
 
   throw new ConflictException({
     message:
-      'This bout was closed by a forfeit that also took the fighter out of the tournament. ' +
-      'An organiser has to undo that record before the bout can be reopened.',
+      'This bout was closed by a forfeit that took the fighter out of the tournament, or the ' +
+      'fighter is out of it now. An organiser has to void that record before the bout can be reopened.',
     code: 'forfeit_withdrew_fighter',
     forfeitId: offender.id,
     matchId: offender.matchId,

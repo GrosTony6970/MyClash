@@ -136,14 +136,16 @@ export const statusHelp = {
       who: 'Un organisateur, ou le combattant qui se retire.',
     },
     withdrawn: {
-      means: "Le combattant s'est retiré. Il ne compte pour rien au classement.",
-      next: "Sa place peut aller au premier de la liste d'attente.",
-      who: 'Un organisateur, ou le combattant lui-même.',
+      means:
+        'Le combattant est retiré du tournoi : par un forfait, ou par un organisateur. Ses assauts de poule restants sont déclarés forfaits ; les assauts déjà disputés gardent leur résultat.',
+      next: "Sa place peut aller au premier de la liste d'attente. Dès que plus rien ne le tient hors du tournoi, il y revient.",
+      who: 'Un arbitre qui enregistre un forfait, un organisateur, ou le combattant lui-même.',
     },
     disqualified: {
-      means: 'Le combattant a été exclu du tournoi par décision.',
-      next: "Ses combats restants ne sont pas scorés et il n'a aucun classement.",
-      who: 'Un organisateur.',
+      means:
+        'Le combattant a été exclu du tournoi : par un forfait, des cartons noirs, une révision confirmée, ou « Disqualifier après ce nombre de forfaits ».',
+      next: 'Ses assauts de poule restants sont déclarés forfaits ; les assauts déjà disputés gardent leur résultat. Dès que plus rien ne le tient hors du tournoi, il y revient.',
+      who: "Déduit de ses causes : les cartons ou forfaits donnés par un arbitre, la réponse d'un organisateur à une révision.",
     },
   },
   review: {

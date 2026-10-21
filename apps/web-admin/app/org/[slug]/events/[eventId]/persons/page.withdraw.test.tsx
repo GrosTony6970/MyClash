@@ -191,6 +191,10 @@ describe('withdrawing a Fighter by hand, on the roster (rulings 110, 111, 115)',
 
     expect(dialog()).toBeNull();
     expect(writes()).toEqual([['/api/v1/registrations/r-ben/status', { status: 'registered' }]]);
+    // Another cause may still hold her out: the toast does not promise she is back.
+    expect(document.body.textContent).toContain(
+      'The withdrawal of MOREL Ben from Longsword Zeta is undone. If nothing else holds them out',
+    );
   });
 
   it('an undo refused because her seat was given away says so, in words', async () => {

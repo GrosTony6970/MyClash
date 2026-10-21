@@ -133,14 +133,16 @@ export const statusHelp = {
       who: 'An organiser, or the fighter withdrawing themselves.',
     },
     withdrawn: {
-      means: 'The fighter has pulled out. They count for nothing in the standings.',
-      next: 'Their place can be given to the first person on the waitlist.',
-      who: 'An organiser, or the fighter themselves.',
+      means:
+        'The fighter is out of the tournament: by a forfeit that withdrew them, or by an organiser. Their remaining Pool bouts are forfeited; the bouts already fought keep their results.',
+      next: 'Their place can be given to the first person on the waitlist. Once nothing holds them out, they are back in.',
+      who: 'A referee recording a forfeit, an organiser, or the fighter themselves.',
     },
     disqualified: {
-      means: 'The fighter has been removed from the tournament by decision.',
-      next: 'Their remaining fights are not scored and they hold no ranking.',
-      who: 'An organiser.',
+      means:
+        'The fighter has been removed from the tournament: by a forfeit, black cards, a confirmed review, or "Disqualify after this many forfeits".',
+      next: 'Their remaining Pool bouts are forfeited; the bouts already fought keep their results. Once nothing holds them out, they are back in.',
+      who: "Worked out from its causes: a referee's cards or forfeits, an organiser's review answer.",
     },
   },
   review: {

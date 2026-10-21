@@ -422,7 +422,7 @@ export const scoring = {
     dependentsBlockedMany:
       '{count} assauts suivants ont déjà été combattus. Seul un organisateur peut annuler — demandez-lui.',
     forfeitBlocked:
-      "Cet assaut s'est terminé par un forfait qui a retiré le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
+      "Cet assaut s'est terminé par un forfait qui a retiré le combattant du tournoi, ou le combattant est désormais hors du tournoi. Un organisateur doit d'abord annuler ce forfait.",
     swissRoundAhead:
       'La ronde suisse suivante a déjà été tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",

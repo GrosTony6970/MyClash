@@ -303,9 +303,11 @@ export const organizer = {
     confirmDq: 'Confirmer la disqualification',
     dismiss: 'Rejeter',
     confirmDqPrompt:
-      'Disqualifier {name} de {tournament} ? Son inscription passera en "disqualified".',
+      'Disqualifier {name} de {tournament} ? Son inscription passera en "disqualified", et ses combats de poule restants seront déclarés forfaits.',
     dismissPrompt:
       'Rejeter la révision de {name} dans {tournament} ? Le combattant reste dans le tournoi.',
+    undoDqPrompt:
+      'Rejeter la révision de {name} dans {tournament} ? Si rien d’autre ne le tient hors du tournoi, le combattant y revient avec les combats de poule déclarés forfaits à cause de la disqualification. Sinon, ces combats restent forfaits.',
     disqualifyAfterAll: 'Disqualifier quand même',
     changedSince:
       'Un nouveau carton noir a changé la révision de {name} depuis son affichage. Relisez-la, puis répondez.',
@@ -2244,7 +2246,7 @@ export const organizer = {
     uncompleteBodyForfeitVoided:
       'Le forfait enregistré sur cet assaut est annulé : il cesse de compter au classement.',
     uncompleteBodyForfeitBlocked:
-      'Cet assaut a été clôturé par un forfait qui a aussi retiré le combattant du tournoi. Annulez d’abord cet enregistrement, depuis le panneau forfait de cet assaut.',
+      'Cet assaut a été clôturé par un forfait qui a retiré le combattant du tournoi, ou le combattant est désormais hors du tournoi. Annulez d’abord cet enregistrement, depuis le panneau forfait de cet assaut.',
     uncompleteBodyForfeitReplacement:
       'Un remplaçant a pris la place du combattant absent dans le tableau. Cela reste inchangé.',
     uncompleteBodySwissRoundDrawn:
@@ -2517,11 +2519,11 @@ export const organizer = {
     voidRecordBodyUnadvances:
       'Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant.',
     voidRecordBodyReopensOne:
-      'L’autre assaut de poule fermé par cet enregistrement est rouvert lui aussi, et le combattant revient dans le tournoi.',
+      'Si rien d’autre ne le tient hors du tournoi, le combattant y revient, et l’autre assaut de poule fermé par cet enregistrement est rouvert lui aussi. Sinon, cet assaut reste déclaré forfait.',
     voidRecordBodyReopensMany:
-      'Les {count} autres assauts de poule fermés par cet enregistrement sont rouverts eux aussi, et le combattant revient dans le tournoi.',
+      'Si rien d’autre ne le tient hors du tournoi, le combattant y revient, et les {count} autres assauts de poule fermés par cet enregistrement sont rouverts eux aussi. Sinon, ces assauts restent déclarés forfaits.',
     voidRecordBodyChildStaysWithdrawn:
-      'Seul cet assaut est rouvert. Le combattant reste déclaré forfait par l’enregistrement qui l’a fermé : pointez-le de nouveau s’il doit le disputer.',
+      'Seul cet assaut est rouvert, et il le reste tant que le combattant est hors du tournoi. L’enregistrement qui l’a fermé tient toujours le combattant hors du tournoi : l’annuler le fait revenir, sauf si autre chose l’en tient écarté.',
     voidRecordBodyChildParentGone:
       'Seul cet assaut est rouvert. Le forfait qui l’avait fermé a déjà été annulé, donc rien d’autre ne change.',
     voidRecordFailed: 'Impossible d’annuler cet enregistrement.',
@@ -2958,7 +2960,8 @@ export const organizer = {
       confirmBody: 'Ses combats de poule restants seront déclarés forfaits.',
       confirm: 'Retirer',
       withdrawn: '{name} est retiré(e) de {tournament}.',
-      undone: '{name} est de retour dans {tournament} comme inscrit(e) : à pointer de nouveau.',
+      undone:
+        'Le retrait de {name} de {tournament} est annulé. Si rien d’autre ne le tient hors du tournoi, il revient comme inscrit(e) : à pointer de nouveau.',
       full: '{tournament} est complet : la place a été donnée à un combattant de la liste d’attente.',
       changed: 'Cette inscription a changé entre-temps. La liste a été relue.',
       failed: 'La modification n’a pas été enregistrée.',
