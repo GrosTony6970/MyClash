@@ -59,6 +59,7 @@ export const FORFEIT_RECORD = {
   reason: 'injury',
   forfeiting_score: null,
   opponent_score: null,
+  score_policy: 'keep_current',
   note: null,
   parent_forfeit_id: null,
   auto_created: false,

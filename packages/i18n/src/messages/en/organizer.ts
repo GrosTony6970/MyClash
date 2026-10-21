@@ -2544,6 +2544,8 @@ export const organizer = {
     overrideHint:
       'The result is recorded as an override, never as a forfeit: it stays in the standings and in the HEMA Ratings submission, and it can be voided.',
     activeRecordTitle: 'This match already has a forfeit or override',
+    // After the forfeit's score: the bout counted as a draw, 0-0 with no winner (ruling 104).
+    forfeitDraw: 'Draw',
     activeRecordHint:
       'Only one can be on record at a time. Void this one to record a different result.',
     voidRecord: 'Void this record',

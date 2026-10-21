@@ -2508,6 +2508,7 @@ export const organizer = {
     overrideHint:
       'Le résultat est enregistré comme une correction, jamais comme un forfait : il reste dans le classement et dans la soumission HEMA Ratings, et il peut être annulé.',
     activeRecordTitle: 'Cet assaut a déjà un forfait ou une correction',
+    forfeitDraw: 'Match nul',
     activeRecordHint:
       'Un seul enregistrement à la fois. Annulez celui-ci pour enregistrer un autre résultat.',
     voidRecord: 'Annuler cet enregistrement',

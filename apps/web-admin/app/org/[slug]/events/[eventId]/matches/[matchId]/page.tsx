@@ -56,6 +56,8 @@ interface ActiveForfeit {
   reason: string;
   forfeiting_score: number | null;
   opponent_score: number | null;
+  /** 'draw': the bout counted as a draw, 0-0 with no winner (ruling 104 says so on the panel). */
+  score_policy: string;
   note: string | null;
   /** Set when a withdrawal recorded on another bout closed this one. */
   parent_forfeit_id: string | null;
@@ -643,6 +645,8 @@ export default function MatchDetailPage() {
               <span className="text-muted">
                 {' '}
                 · {activeForfeit.forfeiting_score}–{activeForfeit.opponent_score}
+                {activeForfeit.score_policy === 'draw' &&
+                  ` · ${t('organizer.bracketPage.forfeitDraw')}`}
               </span>
             )}
           </p>
