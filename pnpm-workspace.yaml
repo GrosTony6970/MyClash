@@ -137,6 +137,12 @@ overrides:
   # and a bare key would drag a future 5.x consumer back. It arrives through
   # postcss in next, vite and @tailwindcss/postcss: build and test tooling.
   'nanoid@3': ^3.3.18
+  # >=8.2.4 clears GHSA-587h-7wmj-h5pm (launch-editor's existence check bypassed on
+  # Windows). vitest's range already allowed the fix while the lockfile sat on 8.2.1.
+  # Keyed to a major, as above. It arrives through vitest and astro (the marketing
+  # build). A tilde, not a caret: the fix is a patch, and ^ took the minor released the
+  # day before (8.3.5, with a new rolldown) into a production build.
+  'vite@8': ~8.2.4
   # >=8.10.2 clears GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3 and
   # GHSA-vp8m-p9jh-q5pm. Nobody declares undici directly: jsdom (^8.9.0, test
   # tooling) and astro's unifont (^8.0.0, the web-marketing build) both allowed
