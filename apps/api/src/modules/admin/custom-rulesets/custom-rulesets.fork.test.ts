@@ -120,6 +120,20 @@ describe('CustomRulesetsService.forkForOrg', () => {
     expect(fromMock).not.toHaveBeenCalled();
   });
 
+  it('refuses a fork of Points cap, whose copy is a formula ruleset (ruling 133)', async () => {
+    fromMock.mockReturnValue(makeChain({ data: { id: 'new-1' }, error: null }));
+    const fork = service.forkForOrg(
+      'org-1',
+      dto({ baseCode: 'Generic_PointsCap', tfConfig: {} }),
+      'actor',
+    );
+    await expect(fork).rejects.toBeInstanceOf(BadRequestException);
+    await expect(fork).rejects.toThrow(
+      'Only TF v1 can be customised this way. Copy this format as a formula ruleset.',
+    );
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
   it('rejects a fork with no scoring targets', async () => {
     // Org rows are born published, so create IS the publish gate.
     fromMock.mockReturnValue(makeChain({ data: { id: 'new-1' }, error: null }));

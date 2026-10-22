@@ -2,18 +2,21 @@
  * What a clone/adopt source implies about the row you are about to create.
  *
  * "Clone" and "Adopt" both land on the org create page with `?cloneFrom=<id>`.
- * If the source's maths lives in CODE — the built-in itself, or someone's
- * `base_code` fork of it — the copy must stay coded, or it silently degrades
- * into an empty formula ruleset and drops every tunable the source carried.
+ * If the source is TF v1 — the built-in itself, or someone's `base_code` fork
+ * of it — the copy must stay coded, or it silently degrades into an empty
+ * formula ruleset and drops every tunable the source carried. A copy of Points
+ * cap is a formula ruleset of the club's own (operator ruling 133): it starts
+ * from Points cap's match format, and the club writes its formula.
  *
  * Pure: no React, no I/O.
  */
+
+import { rulesetEditorKind } from './ruleset-kind';
 
 /** The subset of a catalog row this derivation needs. */
 export interface CloneSourceRow {
   code: string;
   version: string;
-  is_system: boolean;
   base_code: string | null;
   base_version: string | null;
 }
@@ -29,8 +32,8 @@ export interface CodedCloneBase {
 }
 
 /**
- * The built-in a clone of `src` must be based on, or null when `src` is an
- * authored formula ruleset (which clones as a formula ruleset, unchanged).
+ * The built-in a clone of `src` must be based on, or null when `src` is not TF
+ * v1 or a copy of it (it clones as a formula ruleset).
  *
  * A fork resolves to ITS OWN base, never to the fork itself: only a built-in
  * can be a base — its algorithm is the thing being reused — and the API's
@@ -40,11 +43,9 @@ export interface CodedCloneBase {
  * version it is based on: a fork of 1.0.0 stays 1.0.0.
  */
 export function cloneCodedBase(src: CloneSourceRow): CodedCloneBase | null {
+  if (rulesetEditorKind(src.code, src.base_code) !== 'tf') return null;
   if (src.base_code) {
     return { baseCode: src.base_code, baseVersion: src.base_version ?? '1.0.0' };
   }
-  if (src.is_system) {
-    return { baseCode: src.code };
-  }
-  return null;
+  return { baseCode: src.code };
 }

@@ -11,6 +11,7 @@
  * The mock dispatches by TABLE NAME (the matches-mock lesson): an ordered queue
  * desyncs the moment a query is added.
  */
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { buildCodedForkRow } from './ruleset-defaults';
@@ -120,6 +121,8 @@ const TF_TOURNAMENT = {
   scoring_config_json: { afterblowMode: 'deductive', buttons: { clean: [], afterblow: [] } },
 };
 
+const POINTS_CAP_TOURNAMENT = { ...TF_TOURNAMENT, ruleset_code: 'Generic_PointsCap' };
+
 describe('forkCodedRulesetForTournament', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -181,6 +184,29 @@ describe('forkCodedRulesetForTournament', () => {
     expect(restamped()).toEqual([]);
   });
 
+  it('refuses to fork a Points-cap tournament: a copy of Points cap is a formula ruleset', async () => {
+    const { svc, captured } = forkHarness(POINTS_CAP_TOURNAMENT);
+
+    const fork = svc.forkCodedRulesetForTournament('t1', 'u1');
+    await expect(fork).rejects.toBeInstanceOf(BadRequestException);
+    await expect(fork).rejects.toThrow(
+      'Only TF v1 can be customised this way. Copy this format as a formula ruleset.',
+    );
+    expect(captured.forkInsert).toBeNull();
+    expect(captured.repoint).toBeNull();
+  });
+
+  it('refuses a caller who is not an admin of the organisation before saying what it uses', async () => {
+    // A Points-cap Tournament: a non-admin learns nothing from a 400 about its ruleset.
+    assertOrgRole.mockRejectedValueOnce(new ForbiddenException('Not an admin'));
+    const { svc, captured } = forkHarness(POINTS_CAP_TOURNAMENT);
+
+    await expect(svc.forkCodedRulesetForTournament('t1', 'u1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(captured.forkInsert).toBeNull();
+  });
+
   it('points the bouts not yet started at the fork too, once the Tournament points at it', async () => {
     // The organisation edits the fork from here on: a bout left on the built-in
     // would not follow (operator, 2026-10-11).
@@ -231,22 +257,5 @@ describe('buildCodedForkRow (pure)', () => {
     expect(row['is_system']).toBe(false);
     expect(row['public_visibility']).toBe(false);
     expect(row['status']).toBe('published');
-  });
-
-  it('nulls the afterblow columns when the grammar has no afterblow', () => {
-    const row = buildCodedForkRow({
-      code: 'c',
-      baseCode: 'Generic_PointsCap',
-      baseVersion: '1.0.0',
-      name: 'x',
-      ownerOrganizationId: 'o',
-      actorUserId: 'u',
-      tfConfig: {},
-      grammar: { ...grammar, hasAfterblow: false },
-    });
-    expect(row['has_afterblow']).toBe(false);
-    expect(row['afterblow_mode']).toBe(null);
-    expect(row['afterblow_valuation']).toBe(null);
-    expect(row['afterblow_fixed_value']).toBe(null);
   });
 });

@@ -97,6 +97,7 @@ import {
   freezeRulesetVersion,
   isSystemRuleset,
   normalizeRulesetVersion,
+  refuseNonTfBase,
   resolveRulesetConfigDefaults,
   resolveRulesetGrammar,
   resolveRulesetLabel,
@@ -3439,7 +3440,7 @@ export class EventsService {
   }
 
   /**
-   * "Customise this format": fork the built-in ruleset this tournament points at
+   * "Customise this format": fork the built-in TF v1 this tournament points at
    * into a PRIVATE, org-owned coded ruleset, then re-point the tournament to it.
    *
    * The fork reuses the built-in's coded algorithm (base_code) with the
@@ -3470,6 +3471,7 @@ export class EventsService {
         'Only a built-in format can be customised this way. This tournament already uses a custom ruleset — edit it directly.',
       );
     }
+    refuseNonTfBase(code);
 
     const fork = await this.createCodedFork(row, code, version, orgId, userId);
     // Re-point only the pointer. Scoring is byte-identical (same engine, same

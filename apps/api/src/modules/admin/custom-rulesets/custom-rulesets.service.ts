@@ -37,6 +37,7 @@ import {
   defaultRulesetVersion,
   isSystemRuleset,
   normalizeRulesetVersion,
+  refuseNonTfBase,
   resolveRulesetGrammar,
 } from '../../events/ruleset-defaults';
 import {
@@ -1176,7 +1177,8 @@ export class CustomRulesetsService {
   }
 
   /**
-   * Fork a BUILT-IN coded ruleset into a new org-owned row — the org-level
+   * Fork the built-in TF v1 (the one base a fork may reuse, `refuseNonTfBase`)
+   * into a new org-owned row — the org-level
    * equivalent of a tournament's "Customise this format". Produces exactly the
    * same shape as `EventsService.forkCodedRulesetForTournament` (same builder),
    * so a cloned fork is indistinguishable from a tournament-made one: the
@@ -1206,6 +1208,7 @@ export class CustomRulesetsService {
         `Only a built-in format can be customised this way. "${dto.baseCode}" is not one.`,
       );
     }
+    refuseNonTfBase(dto.baseCode);
     // Org rows are born status:'published', so create IS the publish gate —
     // same reasoning as createForOrg. No formula dry-run: there is no formula
     // (dryRunRuleset takes this identical branch for a base_code row).

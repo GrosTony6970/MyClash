@@ -92,8 +92,8 @@ const updateCustomRulesetSchema = z
 export class UpdateCustomRulesetDto extends createZodDto(updateCustomRulesetSchema) {}
 
 /**
- * Fork a BUILT-IN coded ruleset into a new org-owned row ("adopt"/"clone" of
- * something whose maths lives in code). Deliberately its own schema rather than
+ * Fork the built-in TF v1 into a new org-owned row ("adopt"/"clone" of TF v1
+ * or a copy of it). Deliberately its own schema rather than
  * optional fields on `createCustomRulesetSchema`: that one is shared by the
  * super-admin create and by `importForOrg`, and loosening its required
  * `scoreFormula` would weaken both — while a `baseCode` posted to the
@@ -107,7 +107,8 @@ export class UpdateCustomRulesetDto extends createZodDto(updateCustomRulesetSche
 const forkCustomRulesetSchema = z
   .object({
     // The built-in this fork reuses. `isSystemRuleset` re-checks it server-side,
-    // which is what stops an org forking another org's row.
+    // which is what stops an org forking another org's row, and
+    // `refuseNonTfBase` refuses any built-in but TF v1.
     baseCode: z.string().min(1).max(100),
     baseVersion: z.string().max(50).optional(),
     name: z.string().min(2).max(100),

@@ -16,8 +16,10 @@
  *   rulesets, but callers (DTO, wizard, tests) may pass the shorthand "1".
  *   We normalise both to the same defaults entry.
  */
+import { BadRequestException } from '@nestjs/common';
 import { DEFAULT_TARGETS, type RulesetMetadata, type RulesetRegistry } from '@myclash/rulesets';
 import { buildScoringButtons } from '@myclash/types';
+import { isCodedRuleset } from '@myclash/types/effective-rules';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
 import {
@@ -259,11 +261,25 @@ export function buildSeededScoringConfig(
 
 /**
  * True when (code, version) is a built-in coded ruleset served from the
- * in-memory registry (TF_v1, Generic_PointsCap, …) rather than a DB row. These
- * are the rulesets a "Customise this format" fork copies FROM.
+ * in-memory registry (TF_v1, Generic_PointsCap, …) rather than a DB row. Of
+ * these, only TF_v1 is what a "Customise this format" fork copies FROM
+ * (`refuseNonTfBase`).
  */
 export function isSystemRuleset(registry: RulesetRegistry, code: string, version: string): boolean {
   return registry.has(code, normalizeRulesetVersion(version));
+}
+
+/**
+ * Refuses a coded fork of any built-in but TF v1 (operator ruling 133, 2026-10-22). A fork reuses
+ * TF v1's engine through `tf_config`; a copy of Points cap is a formula ruleset of its own, made
+ * by a plain create. Both fork doors call this after their built-in check.
+ */
+export function refuseNonTfBase(code: string): void {
+  if (!isCodedRuleset(code)) {
+    throw new BadRequestException(
+      'Only TF v1 can be customised this way. Copy this format as a formula ruleset.',
+    );
+  }
 }
 
 /**
@@ -309,7 +325,7 @@ export interface CodedForkRowParams {
 }
 
 export function buildCodedForkRow(p: CodedForkRowParams): Record<string, unknown> {
-  const ab = p.grammar.hasAfterblow;
+  // Only TF v1 is forked (`refuseNonTfBase`), and its engine always has an afterblow.
   return {
     code: p.code,
     version: '1.0.0',
@@ -324,10 +340,10 @@ export function buildCodedForkRow(p: CodedForkRowParams): Record<string, unknown
     match_format_defaults: null,
     double_penalty_formula: null,
     targets: p.grammar.targets,
-    has_afterblow: ab,
-    afterblow_mode: ab ? p.grammar.defaultAfterblowMode : null,
-    afterblow_valuation: ab ? p.grammar.afterblowValuation : null,
-    afterblow_fixed_value: ab ? p.grammar.afterblowFixedValue : null,
+    has_afterblow: p.grammar.hasAfterblow,
+    afterblow_mode: p.grammar.defaultAfterblowMode,
+    afterblow_valuation: p.grammar.afterblowValuation,
+    afterblow_fixed_value: p.grammar.afterblowFixedValue,
     is_default: false,
     is_system: false,
     owner_organization_id: p.ownerOrganizationId,

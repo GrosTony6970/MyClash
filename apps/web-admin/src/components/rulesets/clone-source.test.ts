@@ -5,7 +5,6 @@ function row(over: Partial<CloneSourceRow>): CloneSourceRow {
   return {
     code: 'custom_thing-abc',
     version: '1.0.0',
-    is_system: false,
     base_code: null,
     base_version: null,
     ...over,
@@ -14,7 +13,7 @@ function row(over: Partial<CloneSourceRow>): CloneSourceRow {
 
 describe('cloneCodedBase', () => {
   it('bases a clone of the built-in on the built-in, and names no version: the server takes its latest', () => {
-    const base = cloneCodedBase(row({ code: 'TF_v1', version: '1.0.0', is_system: true }));
+    const base = cloneCodedBase(row({ code: 'TF_v1', version: '1.0.0' }));
     expect(base).toStrictEqual({ baseCode: 'TF_v1' });
   });
 
@@ -38,5 +37,18 @@ describe('cloneCodedBase', () => {
 
   it('returns null for an authored formula ruleset, which clones as a formula', () => {
     expect(cloneCodedBase(row({}))).toBeNull();
+  });
+
+  it('returns null for Points cap and a copy of it: their copy is a formula ruleset (ruling 133)', () => {
+    expect(cloneCodedBase(row({ code: 'Generic_PointsCap' }))).toBeNull();
+    expect(
+      cloneCodedBase(
+        row({
+          code: 'custom_generic_pointscap_fork_x',
+          base_code: 'Generic_PointsCap',
+          base_version: '1.0.0',
+        }),
+      ),
+    ).toBeNull();
   });
 });

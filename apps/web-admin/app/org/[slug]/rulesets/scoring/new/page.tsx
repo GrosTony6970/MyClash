@@ -60,7 +60,8 @@ interface OrgRulesetCatalogRow {
   is_system: boolean;
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
-  tiebreakers: Tiebreaker[] | null;
+  /** `NOT NULL DEFAULT '[]'` (0038): a built-in's is empty, its ranking is code. */
+  tiebreakers: Tiebreaker[];
   match_format_defaults: RulesetRowLike['match_format_defaults'];
   double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
@@ -99,7 +100,9 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     version: '1.0.0',
     scoreFormula: formula,
     constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(row.constants ?? {}) },
-    tiebreakers: row.tiebreakers ?? BLANK_INITIAL.tiebreakers,
+    // A built-in's row holds no tie-breakers of its own (its ranking is code): a copy of Points
+    // cap starts from a blank create's.
+    tiebreakers: row.is_system ? BLANK_INITIAL.tiebreakers : row.tiebreakers,
     ownMatchFormat,
     ownCoded,
     doublePenaltyFormula,
@@ -129,7 +132,7 @@ export default function OrgNewScoringRulesetPage() {
   // Wait for the clone source before rendering the form so RulesetForm seeds
   // from the cloned values (it reads `initial` once, on mount).
   const [cloneLoading, setCloneLoading] = useState<boolean>(Boolean(cloneFrom));
-  // Set when the source's maths lives in code (the built-in, or a fork of it):
+  // Set when the source is TF v1 (the built-in, or a fork of it):
   // the copy stays coded, so the form shows the dials instead of an empty
   // formula editor and the submit goes to the fork endpoint. Set in the same
   // batch as `initial`, which is safe because rendering is gated on
@@ -225,9 +228,10 @@ export default function OrgNewScoringRulesetPage() {
             validateUrl={
               orgId ? `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/validate` : undefined
             }
-            // Cloning something whose maths is CODE keeps it coded: show the
-            // dials, not an empty formula editor. `code` stays unset — the new
-            // row's code is generated server-side.
+            // Cloning TF v1 or a copy of it keeps it coded: show the dials, not
+            // an empty formula editor. A copy of Points cap is a formula ruleset
+            // (ruling 133). `code` stays unset — the new row's code is generated
+            // server-side.
             baseCode={codedBase?.baseCode ?? null}
             busy={busy || !orgId}
             submitLabel={t('admin.rulesets.createButton')}
