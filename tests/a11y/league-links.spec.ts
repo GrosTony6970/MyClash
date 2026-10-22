@@ -60,6 +60,11 @@ test('a ranked name opens the fighter, and a fighter with no public page is plai
   page,
 }) => {
   await stubPublicApi(page);
+  // The dev server compiles a page on its first visit. Since Next 16.4 a compile that a click's
+  // navigation sets off rebuilds the open page (Fast Refresh, twice) and drops that navigation:
+  // on CI the address stayed on the league past the wait. Compile the fighter's page first,
+  // while no page is open to rebuild. A production build compiles nothing on a click.
+  await page.request.get(FIGHTER);
   await page.goto(LEAGUE);
   await waitForPageMain(page);
 
