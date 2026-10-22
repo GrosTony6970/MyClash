@@ -139,23 +139,26 @@ export class SwissService {
    * their opponents keep those results, and their own row stays in the
    * standings flagged as withdrawn. Deleting them would silently rewrite every
    * opponent's record.
+   *
+   * Written by `swiss_withdraw` (0243) under the phase's row lock, which the
+   * round's write takes too: the round it counts from is read after any round
+   * written before it. Read first and written after, a round committed between
+   * stored the Fighter as withdrawn from a round that already held them.
    */
   async withdraw(phaseId: string, registrationId: string, actorUserId: string | null = null) {
-    const context = await this.pairing.requireContext(phaseId);
-    const entrant = context.entrants.find((e) => e.registrationId === registrationId);
-    if (!entrant) throw new NotFoundException(`Fighter ${registrationId} is not in this phase`);
-    if (entrant.withdrawnAtRound !== null) return { withdrawnAtRound: entrant.withdrawnAtRound };
-
-    const withdrawnAtRound = context.rounds.length + 1;
-    const { data, error } = await this.supabase.service
-      .from('swiss_entrants')
-      .update({ withdrawn_at_round: withdrawnAtRound })
-      .eq('phase_id', phaseId)
-      .eq('registration_id', registrationId)
-      .select('id')
-      .maybeSingle();
+    const { data, error } = await this.supabase.service.rpc('swiss_withdraw', {
+      p_phase: phaseId,
+      p_registration: registrationId,
+      p_by: 'hand',
+    });
+    if (error?.code === 'P0002') {
+      throw new NotFoundException(`Fighter ${registrationId} is not in this Swiss phase`);
+    }
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Fighter ${registrationId} is not in this phase`);
+    if (!data)
+      throw new BadRequestException(`The withdrawal of ${registrationId} was answered nothing`);
+    const { withdrawnAtRound, changed } = data as { withdrawnAtRound: number; changed: boolean };
+    if (!changed) return { withdrawnAtRound };
 
     await insertAuditLog(this.supabase.service, {
       actorUserId,

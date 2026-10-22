@@ -1,13 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
-import {
-  asSupabase as as,
-  phaseRow,
-  registration,
-  swissConfig,
-  swissRound,
-} from './swiss.fixtures';
+import { lastFunctionParams } from '../../common/testing/migration-function';
+import { asSupabase as as, phaseRow, swissConfig, swissRound } from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
 import { parseSwissConfig } from './dto/swiss-config.dto';
@@ -155,66 +150,74 @@ describe('SwissService.updateConfig — what a live phase will still accept', ()
   });
 });
 
+/**
+ * The Withdraw door writes through `swiss_withdraw` (0243), under the phase's row lock, which the
+ * round's write takes too. What the function decides — the round they go out at, one Fighter in
+ * one phase, a second withdraw leaving them where they were — is held on a real database by check
+ * 17 of the RLS probe (`scripts/lib/swiss-probe.mjs`). Here: what the door sends, and what it
+ * answers and records for each of the function's answers.
+ */
 describe('SwissService.withdraw — taking a fighter out mid-phase', () => {
-  it('marks the fighter as out from the next round on', async () => {
-    // Decision 11: the round they already played stands, so the withdrawal
-    // starts at the round after the ones generated.
-    const { supabase, service } = build();
+  type Answer = { data: unknown; error: { code?: string; message: string } | null };
+
+  const withdrawing = (answer: Answer) => {
+    const supabase = mockSupabase(
+      { audit_log: { rows: [] as SupabaseRow[] } },
+      { swiss_withdraw: () => answer },
+    );
+    const service = new SwissService(
+      as(supabase),
+      new SwissPairingService(as(supabase)),
+      {} as SwissSeedingService,
+    );
+    return { supabase, service };
+  };
+  const OUT_FROM_2: Answer = { data: { withdrawnAtRound: 2, changed: true }, error: null };
+  const NOT_IN: Answer = {
+    data: null,
+    error: { code: 'P0002', message: 'registration r9 is not in swiss phase p1' },
+  };
+
+  it('asks the database to withdraw the fighter by the organiser’s hand', async () => {
+    const { supabase, service } = withdrawing(OUT_FROM_2);
 
     await expect(service.withdraw('p1', 'r2', 'u1')).resolves.toEqual({ withdrawnAtRound: 2 });
 
-    expect(writesTo(supabase, 'swiss_entrants')[0]?.row).toEqual({ withdrawn_at_round: 2 });
-  });
-
-  it('scopes the withdrawal to one fighter in one phase', async () => {
-    // The same registration can be entered in another phase, and the phase
-    // holds other fighters. An unscoped update would withdraw them all.
-    const { supabase, service } = build();
-
-    await service.withdraw('p1', 'r2', 'u1');
-
-    expect(writesTo(supabase, 'swiss_entrants')[0]?.filters).toEqual(
-      expect.arrayContaining([
-        { method: 'eq', args: ['phase_id', 'p1'] },
-        { method: 'eq', args: ['registration_id', 'r2'] },
-      ]),
+    const [name, payload] = supabase.rpc.mock.calls[0]!;
+    expect(name).toBe('swiss_withdraw');
+    // The keys the function is last defined with: a renamed key is a call to nothing.
+    expect(Object.keys(payload as object).sort()).toEqual(
+      lastFunctionParams('swiss_withdraw').sort(),
     );
-  });
-
-  it('reports a fighter who is not in this phase', async () => {
-    const { supabase, service } = build();
-
-    await expect(service.withdraw('p1', 'r9', 'u1')).rejects.toBeInstanceOf(NotFoundException);
+    expect(payload).toEqual({ p_phase: 'p1', p_registration: 'r2', p_by: 'hand' });
+    // No write of its own: the function is the one writer.
     expect(writesTo(supabase, 'swiss_entrants')).toHaveLength(0);
   });
 
-  it('answers a fighter entered elsewhere exactly as one who exists nowhere', async () => {
-    // Only the phase's entrants are searched. A friendlier refusal that looked
-    // the id up would tell the caller which ids exist in other tournaments.
-    const answers: unknown[] = [];
-    for (const rows of [[registration('r9', { tournament_id: 't2' })], []]) {
-      const { service } = build({ registrations: { rows } });
-      const refusal = await service.withdraw('p1', 'r9', 'u1').catch((error: unknown) => error);
-      expect(refusal).toBeInstanceOf(NotFoundException);
-      answers.push((refusal as NotFoundException).getResponse());
-    }
-    expect(answers[1]).toEqual(answers[0]);
+  it('reports a fighter who is not in this phase, wherever else they are entered', async () => {
+    // The function looks in the phase's entrants only: a refusal that looked the id up would
+    // tell the caller which ids exist in other tournaments.
+    const { supabase, service } = withdrawing(NOT_IN);
+
+    const refusal = await service.withdraw('p1', 'r9', 'u1').catch((error: unknown) => error);
+
+    expect(refusal).toBeInstanceOf(NotFoundException);
+    expect((refusal as NotFoundException).message).toBe('Fighter r9 is not in this Swiss phase');
+    expect(writesTo(supabase, 'audit_log')).toHaveLength(0);
   });
 
-  it('leaves a fighter who has already withdrawn where they were', async () => {
-    // Withdrawing twice must not move the round they went out at, which is
-    // what every later pairing and standings read is computed from.
-    const { supabase, service } = build({
-      swiss_entrants: { rows: [entrant('r1'), entrant('r2', 1)] },
+  it('records nothing for a fighter who had withdrawn already', async () => {
+    const { supabase, service } = withdrawing({
+      data: { withdrawnAtRound: 1, changed: false },
+      error: null,
     });
 
     await expect(service.withdraw('p1', 'r2', 'u1')).resolves.toEqual({ withdrawnAtRound: 1 });
-    expect(writesTo(supabase, 'swiss_entrants')).toHaveLength(0);
     expect(writesTo(supabase, 'audit_log')).toHaveLength(0);
   });
 
   it('records the withdrawal against the phase', async () => {
-    const { supabase, service } = build();
+    const { supabase, service } = withdrawing(OUT_FROM_2);
 
     await service.withdraw('p1', 'r2', '11111111-1111-4111-8111-111111111111');
 
@@ -225,5 +228,17 @@ describe('SwissService.withdraw — taking a fighter out mid-phase', () => {
       entity_id: 'p1',
       payload_json: { registrationId: 'r2', withdrawnAtRound: 2 },
     });
+  });
+
+  it('refuses an answer that says nothing', async () => {
+    const { service } = withdrawing({ data: null, error: null });
+
+    await expect(service.withdraw('p1', 'r2', 'u1')).rejects.toThrow(/was answered nothing/);
+  });
+
+  it('surfaces any other failure of the database', async () => {
+    const { service } = withdrawing({ data: null, error: { code: '42501', message: 'denied' } });
+
+    await expect(service.withdraw('p1', 'r2', 'u1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

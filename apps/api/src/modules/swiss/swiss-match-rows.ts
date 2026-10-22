@@ -33,7 +33,8 @@ function swissMatchLabel(roundNumber: number, board: number, boardsInRound: numb
  * Pure, and separate from the insert that writes them: what a Swiss bout looks
  * like is a decision about the format, while the insert is plumbing. `stamp`
  * is the tournament's ruleset, resolved by the caller because it needs a
- * database read.
+ * database read. The phase and the round are set by `swiss_commit_round`
+ * (0243), which reads exactly these keys: a key it does not name is dropped.
  *
  * `aId` goes to red and `bId` to blue, and WHICH WAY ROUND IS ARBITRARY.
  * `SwissPairing` calls the pair a pairing order, not a side assignment: `a` is
@@ -44,15 +45,11 @@ function swissMatchLabel(roundNumber: number, board: number, boardsInRound: numb
  * regression.
  */
 export function swissMatchRows(
-  phaseId: string,
-  roundId: string,
   roundNumber: number,
   plan: SwissRoundPlan,
   stamp: MatchRulesetStamp,
 ): Array<Record<string, unknown>> {
   return plan.pairings.map((pairing) => ({
-    phase_id: phaseId,
-    swiss_round_id: roundId,
     red_registration_id: pairing.aId,
     blue_registration_id: pairing.bId,
     status: 'scheduled',

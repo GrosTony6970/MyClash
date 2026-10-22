@@ -376,6 +376,10 @@ describe('ArchiveService', () => {
         },
       },
     ],
+    // Withdrawn in an archive made before 0243: no `withdrawn_by`.
+    swiss_entrants: [
+      { id: 'se-1', phase_id: 'ph-1', registration_id: 'r-1', withdrawn_at_round: 2 },
+    ],
     // A clock press a pad sent with its own id (0221).
     match_events: [
       { id: 'me-1', match_id: 'm-1', sequence: 1, type: 'start', client_uuid: 'cu-press-1' },
@@ -744,6 +748,18 @@ describe('ArchiveService', () => {
       expect(inserted.registrations?.[0]).toHaveProperty('entry_status');
       expect(inserted.registrations?.[0]).toHaveProperty('out_since');
       expect(inserted.match_forfeits?.[0]).toHaveProperty('fighter_outcome');
+    });
+
+    it('takes a Swiss withdrawal of an archive made before 0243 as the organiser’s', async () => {
+      // 0243's CHECK ties the kind to the round: the round alone is refused.
+      const { inserted, registrationId } = await restoreScoped();
+      expect(inserted.swiss_entrants).toEqual([
+        expect.objectContaining({
+          registration_id: registrationId,
+          withdrawn_at_round: 2,
+          withdrawn_by: 'hand',
+        }),
+      ]);
     });
 
     it('leaves an id with no counterpart in the archive alone', async () => {

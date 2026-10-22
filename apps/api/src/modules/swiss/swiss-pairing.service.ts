@@ -11,14 +11,10 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
-import {
-  matchRulesetForPhase,
-  restampAfterInsert,
-  type MatchRulesetStamp,
-} from '../phases/match-ruleset';
+import { matchRulesetForPhase, restampAfterInsert } from '../phases/match-ruleset';
 import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
-import { swissMatchRows } from './swiss-match-rows';
+import { COMMIT_TRIES, fieldChanged, writeRound, type PlannedRound } from './swiss-commit';
 import {
   activeEntrants,
   buildSwissPlayers,
@@ -29,7 +25,7 @@ import {
 } from './swiss-snapshot';
 
 /**
- * The Swiss commit path: plan a round, write it, schedule it.
+ * The Swiss commit path: plan a round, write it (`swiss-commit.ts`), schedule it.
  *
  * Lives in the LEAF module on purpose. Automatic advancement means
  * MatchCompletionService (PhasesModule) has to invoke this, so PhasesModule
@@ -63,6 +59,11 @@ export class SwissPairingService {
   async planNextRound(
     phaseId: string,
   ): Promise<{ roundNumber: number; plan: SwissRoundPlan } | null> {
+    const planned = await this.planRound(phaseId);
+    return planned && { roundNumber: planned.roundNumber, plan: planned.plan };
+  }
+
+  private async planRound(phaseId: string): Promise<PlannedRound | null> {
     const context = await this.loadContext(phaseId);
     if (!context) return null;
     const { config, entrants, rounds } = context;
@@ -80,6 +81,7 @@ export class SwissPairingService {
         pairingMethod: config.pairingMethod,
         grouping: config.grouping,
       }),
+      field: field.map((entrant) => entrant.registrationId),
     };
   }
 
@@ -88,48 +90,49 @@ export class SwissPairingService {
    *
    * Idempotent by construction against the one race that matters: two matches
    * of the final round completing at the same instant both see "round complete"
-   * and both call this. `swiss_rounds UNIQUE (phase_id, round_number)` makes the
-   * loser of that race a 23505, which is treated as a benign no-op rather than
-   * an error — the round exists, which is all the caller wanted.
+   * and both call this. The second write finds the round standing ('exists'),
+   * a benign no-op rather than an error — the round exists, which is all the
+   * caller wanted.
+   *
+   * A withdraw landing between the plan and the write makes it 'stale': the
+   * round is planned again from the field as it is now (`swiss-commit.ts`).
    */
   async commitNextRound(phaseId: string): Promise<{ roundId: string; roundNumber: number } | null> {
-    const planned = await this.planNextRound(phaseId);
-    if (!planned) return null;
-    const { roundNumber, plan } = planned;
-    // The Tournament's ruleset, stamped per bout. Read BEFORE the round row: a read that fails
-    // throws, and thrown after it the round stood with no bouts, and the next try met its row
-    // as "already committed".
-    const stamp = await matchRulesetForPhase(this.supabase.service, phaseId);
-
-    const { data: inserted, error } = await this.supabase.service
-      .from('swiss_rounds')
-      .insert({
-        phase_id: phaseId,
-        round_number: roundNumber,
-        status: 'pending',
-        bye_registration_id: plan.byeRegistrationId,
-        pairing_meta_json: {
-          warnings: plan.warnings,
-          ranked: plan.pairings.flatMap((p) => [p.aId, p.bId]),
-          manualAdjustments: [],
-          generatedAt: new Date().toISOString(),
-        },
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (error) {
-      // 23505 = another completion already committed this round.
-      if (isUniqueViolation(error)) {
-        this.logger.log(`swiss round ${roundNumber} for phase ${phaseId} already committed`);
+    for (let tries = 0; tries < COMMIT_TRIES; tries++) {
+      const planned = await this.planRound(phaseId);
+      if (!planned) return null;
+      // The Tournament's ruleset, stamped per bout, read before the write.
+      const stamp = await matchRulesetForPhase(this.supabase.service, phaseId);
+      const answer = await writeRound(this.supabase, phaseId, planned, stamp);
+      if (answer.status === 'stale') {
+        this.logger.log(
+          `swiss round ${planned.roundNumber} for phase ${phaseId}: the field changed (try ${tries + 1} of ${COMMIT_TRIES})`,
+        );
+        continue;
+      }
+      if (answer.status === 'exists') {
+        this.logger.log(
+          `swiss round ${planned.roundNumber} for phase ${phaseId} already committed`,
+        );
         return null;
       }
-      throw new BadRequestException(error.message);
+      await this.publishRound(phaseId, planned, answer.roundId, answer.matchIds);
+      return { roundId: answer.roundId, roundNumber: planned.roundNumber };
     }
-    if (!inserted) throw new BadRequestException('Swiss round insert persisted nothing');
-    const roundId = (inserted as { id: string }).id;
+    throw fieldChanged();
+  }
 
-    const matchIds = await this.insertRoundMatches(phaseId, roundId, roundNumber, plan, stamp);
+  /** A round just written: its bouts take the ruleset of now, land on pistes, and are announced. */
+  private async publishRound(
+    phaseId: string,
+    planned: PlannedRound,
+    roundId: string,
+    matchIds: string[],
+  ): Promise<void> {
+    const { roundNumber, plan } = planned;
+    if (matchIds.length > 0) {
+      await restampAfterInsert(this.supabase.service, { phaseId }, this.logger);
+    }
     await this.scheduleRound(phaseId, matchIds);
     // AFTER scheduling, so the message can name the piste. Swallowed on
     // failure for the same reason `scheduleRound` is: this runs inside
@@ -140,7 +143,6 @@ export class SwissPairingService {
     this.logger.log(
       `swiss round ${roundNumber} committed phase=${phaseId} matches=${matchIds.length} bye=${plan.byeRegistrationId ?? 'none'}`,
     );
-    return { roundId, roundNumber };
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
@@ -204,25 +206,6 @@ export class SwissPairingService {
       ...player,
       score: scoreOf.get(player.registrationId) ?? null,
     }));
-  }
-
-  private async insertRoundMatches(
-    phaseId: string,
-    roundId: string,
-    roundNumber: number,
-    plan: SwissRoundPlan,
-    // The tournament's ruleset, stamped per match: generation used to hardcode
-    // TF_v1 and score non-TF tournaments with the wrong engine.
-    stamp: MatchRulesetStamp,
-  ): Promise<string[]> {
-    if (plan.pairings.length === 0) return [];
-
-    const rows = swissMatchRows(phaseId, roundId, roundNumber, plan, stamp);
-
-    const { data, error } = await this.supabase.service.from('matches').insert(rows).select('id');
-    if (error) throw new BadRequestException(error.message);
-    await restampAfterInsert(this.supabase.service, { phaseId }, this.logger);
-    return ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
   }
 
   /**
@@ -387,10 +370,6 @@ export interface SwissContext {
   config: SwissConfig;
   entrants: SwissEntrantRecord[];
   rounds: SwissRoundRecord[];
-}
-
-function isUniqueViolation(error: { code?: string; message?: string }): boolean {
-  return error.code === '23505' || /duplicate key value/i.test(error.message ?? '');
 }
 
 const describe = (err: unknown): string => (err instanceof Error ? err.message : String(err));

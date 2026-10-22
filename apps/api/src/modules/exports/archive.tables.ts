@@ -307,7 +307,7 @@ const TABLES = {
     // at has to exist first or the FK remaps to null and the round loses its
     // bouts.
     //
-    // Paths read off swiss-pairing.service.ts `commitNextRound`
+    // Paths read off swiss-commit.ts `writeRound`
     // (warnings/ranked) and swiss-override.service.ts `recordAdjustment`, whose
     // entries come in TWO shapes: a `swap` carrying a/bRegistrationId, and a
     // `set-sides` carrying matchId plus from/to side pairs. `byUserId` is

@@ -9,6 +9,7 @@ import { RulesetRegistry } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
 import { archivedEventRefusal } from '../../common/event-readonly/event-readonly.guard';
 import { withFighterStatusCauses } from './archive-fighter-status';
+import { withSwissWithdrawalKind } from './archive-swiss-entrants';
 import { boutsWithTheirCopies, carriesBoutsWithoutCopies } from './archive-match-rules';
 import { dropRestoredPins } from './archive-pins';
 import { assertRestoredRulesetsUsable } from './archive-rulesets';
@@ -458,6 +459,8 @@ export class ArchiveService {
     // An archive made before 0240 gets the columns its Fighters' status is worked out from, on
     // its own ids, before they are remapped.
     Object.assign(data, withFighterStatusCauses(data, new Date().toISOString()));
+    // And before 0243, the kind of each Swiss withdrawal.
+    Object.assign(data, withSwissWithdrawalKind(data));
 
     for (const table of INSERT_ORDER) {
       const key = TABLE_TO_ARCHIVE_KEY[table];
