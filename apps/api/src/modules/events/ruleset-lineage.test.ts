@@ -67,9 +67,10 @@ function forkRow(overrides: Partial<LineageRow> = {}): LineageRow {
 }
 
 /**
- * The built-in rows as they actually sit in the DB. TF_v1's `tf_config` is the
- * 0053 seed as realigned by 0072 — note the ABSENT `tournamentPolicy`, which is
- * the whole point: the resolver must fill it from the static defaults.
+ * The built-in rows as they sat in the DB before 0245. TF_v1's `tf_config` is the
+ * 0053 seed as realigned by 0072, after 0235's strip: the resolver fills what the row lacks from the
+ * static defaults. 0245 then emptied it (`TF_V1_ROW_AFTER_0245`), and the lineage
+ * must not move.
  */
 const TF_V1_DB_ROW = {
   code: 'TF_v1',
@@ -91,6 +92,9 @@ const TF_V1_DB_ROW = {
   },
   ...TF_GRAMMAR,
 };
+
+/** TF_v1's row once 0245 removed the engine's own values from it: nothing of its own. */
+const TF_V1_ROW_AFTER_0245 = { ...TF_V1_DB_ROW, tf_config: {} };
 
 /** Generic_PointsCap never got a tf_config seed — its overrides column is null. */
 const GENERIC_DB_ROW = {
@@ -146,6 +150,21 @@ describe('describeForkLineage', () => {
         ranking: 'unchanged',
         rankingCompatible: true,
       },
+    });
+  });
+
+  it('lights no lamp either once 0245 has emptied TF v1’s row', async () => {
+    const lineage = await describeForkLineage(
+      fakeSupabase([TF_V1_ROW_AFTER_0245]),
+      createRulesetRegistry(),
+      [forkRow()],
+    );
+
+    expect(lineage.get('fork-1')?.diff).toEqual({
+      grammar: 'unchanged',
+      endConditions: 'unchanged',
+      ranking: 'unchanged',
+      rankingCompatible: true,
     });
   });
 

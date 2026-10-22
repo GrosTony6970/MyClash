@@ -15,6 +15,7 @@ import { rulesWriteFailures } from './rules-write-probe.mjs';
 import { rulesetPairFailures } from './ruleset-pair-probe.mjs';
 import { swissFailures } from './swiss-probe.mjs';
 import { swissStatusFailures } from './swiss-status-probe.mjs';
+import { tfV1CopiesFailures } from './tf-v1-copies-probe.mjs';
 
 /** What is wrong, as sentences; none when all is right. Each check leaves no row behind. */
 export async function laterCheckFailures(tx) {
@@ -31,5 +32,6 @@ export async function laterCheckFailures(tx) {
     ...(await fighterStatusFailures(tx)),
     ...(await swissFailures(tx)),
     ...(await swissStatusFailures(tx)),
+    ...(await tfV1CopiesFailures(tx)),
   ];
 }
