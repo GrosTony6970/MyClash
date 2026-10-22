@@ -4,8 +4,9 @@ import { useI18n } from '@myclash/next-i18n/client';
 
 /**
  * The "modified" chip and the Reset link of a rules field: the ONE owner, for the rules a
- * Tournament starts from (`start-affordance.tsx`) and its changes of its forfeit rules
- * (`TournamentForfeitRules.tsx`). Both go outside the field's `<label>`: a button inside one
+ * Tournament starts from (`start-affordance.tsx`), its changes of its forfeit rules
+ * (`TournamentForfeitRules.tsx`) and a ruleset's own values against the engine's
+ * (`rulesets/RulesetFormFields.tsx`). Both go outside the field's `<label>`: a button inside one
  * becomes what clicking the label's text presses.
  */
 export function ModifiedBadge({ startLabel }: { startLabel: string }) {

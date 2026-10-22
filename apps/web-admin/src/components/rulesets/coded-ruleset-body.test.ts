@@ -1,57 +1,98 @@
 import { describe, expect, it } from 'vitest';
-import { codedRulesetTfConfig, type CodedRulesetSubmitValue } from './coded-ruleset-body';
-import { DEFAULT_MATCH_FORMAT_DEFAULTS } from './RulesetForm';
+import { codedRulesetTfConfig, targetsChanged } from './coded-ruleset-body';
 
-function value(over: Partial<CodedRulesetSubmitValue> = {}): CodedRulesetSubmitValue {
+const START_TARGETS = [
+  { name: 'Deep', value: 2 },
+  { name: 'Shallow', value: 1 },
+];
+
+/** A copy's stored tf_config: its own win bonus 5, cap 7, and a key the editor never shows. */
+const STORED = {
+  winBonus: 5,
+  matchFormat: { pointCap: 7 },
+  doublePenaltyFormula: 'n*(n-1)/2',
+  extra: 'kept',
+};
+
+function submit(over: Record<string, unknown> = {}) {
   return {
-    targets: [
-      { name: 'Deep', value: 2 },
-      { name: 'Shallow', value: 1 },
-    ],
-    matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
-    doublePenaltyFormula: null,
-    tfV1Internals: { winBonus: 3, deepTarget: 2, shallowTarget: 1 },
+    targets: START_TARGETS.map((target) => ({ ...target })),
+    matchFormatDefaults: { pointCap: 7 },
+    ownCoded: { winBonus: 5, doublePenaltyFormula: 'n*(n-1)/2' as const },
     ...over,
   };
 }
 
+/** Guards of the one tfConfig builder (operator rulings 59 and 136): only changes are written. */
 describe('codedRulesetTfConfig', () => {
-  it('mirrors the first two named targets into the legacy deep/shallow pair', () => {
-    // TF_v1 scoring still reads targetValues; the editor's source of truth is
-    // the named list. Both must be written or the two disagree.
+  it('writes an untouched Save back as stored, with nothing added', () => {
+    expect(codedRulesetTfConfig(STORED, submit(), START_TARGETS)).toEqual(STORED);
+  });
+
+  it('removes a dial or the match format that now follows the engine', () => {
     const out = codedRulesetTfConfig(
-      value({
-        targets: [
-          { name: 'Head', value: 5 },
-          { name: 'Arm', value: 3 },
-        ],
-      }),
+      STORED,
+      submit({ matchFormatDefaults: null, ownCoded: { doublePenaltyFormula: 'n*(n-1)/2' } }),
+      START_TARGETS,
     );
-    expect(out.targetValues).toEqual({ deepTarget: 5, shallowTarget: 3 });
-    expect(out.targets).toEqual([
+    expect(out).toEqual({ doublePenaltyFormula: 'n*(n-1)/2', extra: 'kept' });
+  });
+
+  it('writes a changed double penalty, and drops one that now follows the engine', () => {
+    const changed = codedRulesetTfConfig(
+      STORED,
+      submit({ ownCoded: { winBonus: 5, doublePenaltyFormula: 'n' } }),
+      START_TARGETS,
+    );
+    const reset = codedRulesetTfConfig(
+      STORED,
+      submit({ ownCoded: { winBonus: 5 } }),
+      START_TARGETS,
+    );
+    expect(changed['doublePenaltyFormula']).toBe('n');
+    expect(reset).not.toHaveProperty('doublePenaltyFormula');
+  });
+
+  it('starts an empty row from nothing', () => {
+    expect(
+      codedRulesetTfConfig(
+        null,
+        submit({ matchFormatDefaults: null, ownCoded: {} }),
+        START_TARGETS,
+      ),
+    ).toEqual({});
+  });
+
+  it('mirrors changed targets into the legacy deep/shallow pair', () => {
+    const targets = [
       { name: 'Head', value: 5 },
       { name: 'Arm', value: 3 },
-    ]);
-  });
-
-  it('carries winBonus and the match format', () => {
-    const out = codedRulesetTfConfig(
-      value({ tfV1Internals: { winBonus: 7, deepTarget: 2, shallowTarget: 1 } }),
-    );
-    expect(out.winBonus).toBe(7);
-    expect(out.matchFormat).toEqual(DEFAULT_MATCH_FORMAT_DEFAULTS);
-  });
-
-  it('sends an absent double penalty as undefined, not null', () => {
-    // The API's tfConfig patch validates against TFv1ConfigSchema.partial();
-    // an explicit null is a different thing from "not set".
-    expect(
-      codedRulesetTfConfig(value({ doublePenaltyFormula: null })).doublePenaltyFormula,
-    ).toBeUndefined();
+    ];
+    const out = codedRulesetTfConfig(STORED, submit({ targets }), START_TARGETS);
+    expect(out['targets']).toEqual(targets);
+    expect(out['targetValues']).toEqual({ deepTarget: 5, shallowTarget: 3 });
   });
 
   it('tolerates a single target without inventing a shallow value', () => {
-    const out = codedRulesetTfConfig(value({ targets: [{ name: 'Only', value: 4 }] }));
-    expect(out.targetValues).toEqual({ deepTarget: 4, shallowTarget: undefined });
+    const out = codedRulesetTfConfig(
+      null,
+      submit({ targets: [{ name: 'Only', value: 4 }] }),
+      START_TARGETS,
+    );
+    expect(out['targetValues']).toEqual({ deepTarget: 4, shallowTarget: undefined });
+  });
+});
+
+describe('targetsChanged', () => {
+  it('reads the same values in a new array as no change', () => {
+    expect(
+      targetsChanged(
+        START_TARGETS,
+        START_TARGETS.map((target) => ({ ...target })),
+      ),
+    ).toBe(false);
+    expect(targetsChanged(START_TARGETS, [{ name: 'Deep', value: 3 }, START_TARGETS[1]!])).toBe(
+      true,
+    );
   });
 });

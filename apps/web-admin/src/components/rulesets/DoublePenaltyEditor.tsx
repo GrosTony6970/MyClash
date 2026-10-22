@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import {
   DOUBLE_PENALTY_FORMULA_KEYS,
   DOUBLE_PENALTY_VARIABLE,
@@ -17,6 +18,8 @@ interface Props {
   value: DoublePenaltySpec | null;
   onChange: (next: DoublePenaltySpec | null) => void;
   disabled?: boolean;
+  /** The "modified" badge and Reset beside the heading, on a TF v1 ruleset. */
+  affordance?: ReactNode;
 }
 
 const NONE = '__none__';
@@ -32,7 +35,7 @@ const CUSTOM = '__custom__';
  * cannot reference stats that are meaningless in it. Keys stay available as
  * presets because `n` (max(0,n)) and `0` cannot be expressed as an AST.
  */
-export function DoublePenaltyEditor({ value, onChange, disabled }: Props) {
+export function DoublePenaltyEditor({ value, onChange, disabled, affordance }: Props) {
   const { t } = useI18n();
   const isAst = value != null && isDoublePenaltyAst(value);
   const selection = value == null ? NONE : isAst ? CUSTOM : value;
@@ -48,6 +51,7 @@ export function DoublePenaltyEditor({ value, onChange, disabled }: Props) {
       <h3 className="mb-1 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
         {t('admin.rulesets.doublePenaltyTitle')}
         <HelpTooltip text={rulesetHelp('doublePenalty', t)} />
+        {affordance}
       </h3>
       <p className="mb-3 text-xs text-muted">{t('admin.rulesets.doublePenaltyHelp')}</p>
 

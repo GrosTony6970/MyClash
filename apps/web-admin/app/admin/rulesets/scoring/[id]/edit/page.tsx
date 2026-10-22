@@ -17,7 +17,6 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
-  type MatchFormatDefaults,
   type RulesetFormValue,
 } from '../../../../../../src/components/rulesets/RulesetForm';
 import {
@@ -25,7 +24,10 @@ import {
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
-import { codedRulesetTfConfig } from '../../../../../../src/components/rulesets/coded-ruleset-body';
+import {
+  codedRulesetTfConfig,
+  targetsChanged,
+} from '../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -43,7 +45,7 @@ interface CustomRulesetDetail {
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[];
-  match_format_defaults: Partial<MatchFormatDefaults> | null;
+  match_format_defaults: RulesetRowLike['match_format_defaults'];
   double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
   has_afterblow: boolean | null;
@@ -84,6 +86,8 @@ export default function EditRulesetPage() {
         code: string;
         baseCode: string | null;
         isSystem: boolean;
+        /** The row's tf_config, which a coded Save writes back with only its changes applied. */
+        storedTfConfig: TfConfigOverride | null;
         systemRankingChain?: RankingRule[];
         systemMetadata?: RulesetMetadata;
       })
@@ -137,6 +141,7 @@ export default function EditRulesetPage() {
           ...rulesetFormInitial(data),
           baseCode: data.base_code,
           isSystem: data.is_system,
+          storedTfConfig: data.tf_config,
           systemRankingChain: data.systemRankingChain,
           systemMetadata: data.systemMetadata,
         });
@@ -261,17 +266,22 @@ export default function EditRulesetPage() {
                   setError(null);
                   // A coded ruleset (TF v1 or a base_code fork of it) stores
                   // its tunables in `tf_config` — the back-end merges that over
-                  // the coded defaults at tournament creation. A fork also
-                  // writes the flat grammar targets so its lineage lamp +
-                  // grammar resolver stay current. A formula ruleset sends the
-                  // sibling columns as before.
+                  // the coded defaults at tournament creation. Changed targets
+                  // also go to the flat column, so the lineage lamp, the grammar
+                  // resolver and the Discover card stay current. A formula
+                  // ruleset sends the sibling columns as before.
+                  const changed = targetsChanged(initial.targets, data.targets);
                   const body = isCodedRuleset(initial.code, initial.baseCode)
                     ? {
                         name: data.name,
                         description: data.description,
                         version: data.version,
-                        ...(initial.baseCode ? { targets: data.targets } : {}),
-                        tfConfig: codedRulesetTfConfig(data),
+                        ...(changed ? { targets: data.targets } : {}),
+                        tfConfig: codedRulesetTfConfig(
+                          initial.storedTfConfig,
+                          data,
+                          initial.targets,
+                        ),
                       }
                     : data;
                   const r = await apiRequest(apiUrl, `/api/v1/admin/custom-rulesets/${id}`, {

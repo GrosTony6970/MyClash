@@ -10002,7 +10002,7 @@ export interface components {
       }[];
       matchFormatDefaults?: {
         [key: string]: unknown;
-      };
+      } | null;
       doublePenaltyFormula?:
         | (
             | ('0' | 'n*(n-1)/3' | 'n*(n-1)/2' | 'n')
@@ -10079,7 +10079,7 @@ export interface components {
       }[];
       matchFormatDefaults?: {
         [key: string]: unknown;
-      };
+      } | null;
       doublePenaltyFormula?:
         | (
             | ('0' | 'n*(n-1)/3' | 'n*(n-1)/2' | 'n')

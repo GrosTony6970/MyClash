@@ -26,42 +26,20 @@ import {
 } from './AfterblowGrammarEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
 import { isCodedRuleset } from './ruleset-kind';
-
-export interface MatchFormatDefaults {
-  pointCap: number;
-  timerMode: 'countdown' | 'countup';
-  timeLimitsSeconds: { pool: number | null; bracket: number | null; finals: number | null };
-  softClockLimitSeconds: number;
-  maxDoubleHits: number | null;
-  scoringDirection: 'normal' | 'reverse_zero_loses';
-}
-
-export const DEFAULT_MATCH_FORMAT_DEFAULTS: MatchFormatDefaults = {
-  pointCap: 5,
-  timerMode: 'countdown',
-  timeLimitsSeconds: { pool: 180, bracket: 180, finals: 180 },
-  softClockLimitSeconds: 0,
-  maxDoubleHits: null,
-  scoringDirection: 'normal',
-};
-
-/**
- * TF v1 internals — the TFv1ConfigSchema-shaped values a super-admin can
- * tune on the system ruleset (Round 7). Stored in the parent row's
- * `tf_config` JSONB column; merged by resolveRulesetConfigDefaults over
- * TFv1DefaultConfig so a new tournament inherits these values.
- */
-export interface TfV1Internals {
-  winBonus: number;
-  deepTarget: number;
-  shallowTarget: number;
-}
-
-export const DEFAULT_TF_V1_INTERNALS: TfV1Internals = {
-  winBonus: 3,
-  deepTarget: 2,
-  shallowTarget: 1,
-};
+import { NumberField, SectionAffordance } from './RulesetFormFields';
+import { RulesetMatchFormatBox } from './RulesetMatchFormatBox';
+import {
+  acceptsWinBonus,
+  dialDiffers,
+  engineDial,
+  NO_DOUBLE_PENALTY,
+  shownDial,
+  storedOwn,
+  withDial,
+  withoutDial,
+  type OwnCoded,
+  type OwnMatchFormat,
+} from './ruleset-own-values';
 
 export interface RulesetFormValue {
   name: string;
@@ -70,17 +48,32 @@ export interface RulesetFormValue {
   scoreFormula: FormulaNode | null;
   constants: FormulaConstants;
   tiebreakers: Tiebreaker[];
-  matchFormatDefaults: MatchFormatDefaults;
+  /** The ruleset's own match format, as stored: a field it lacks follows the engine. */
+  ownMatchFormat: OwnMatchFormat;
+  /** A TF v1 ruleset's own win bonus and double penalty. Ignored for a formula ruleset. */
+  ownCoded: OwnCoded;
+  /** A formula ruleset's own double penalty. */
   doublePenaltyFormula: DoublePenaltySpec | null;
   /** Named targets — the grammar half of the ruleset, authorable for every
-   *  ruleset. For TF_v1 the caller also mirrors the first two into
-   *  tf_config.targetValues so today's scoring is unchanged. */
+   *  ruleset. For TF_v1, when the list changed, the caller also mirrors the
+   *  first two into tf_config.targetValues (`codedRulesetTfConfig`). */
   targets: Target[];
   /** Whether the ruleset uses afterblow and how a retaliation is valued. */
   afterblow: AfterblowGrammar;
-  /** Populated for TF_v1 rows (Round 7). Ignored for custom rulesets. */
-  tfV1Internals?: TfV1Internals;
 }
+
+/** What a Save hands the page: the match format is the ruleset's own values, null for none. */
+export type RulesetSubmitValue = {
+  name: string;
+  description: string;
+  version: string;
+} & FormulaConfig & {
+    matchFormatDefaults: OwnMatchFormat | null;
+    doublePenaltyFormula: DoublePenaltySpec | null;
+    targets: Target[];
+    /** Set for a TF v1 ruleset only. */
+    ownCoded?: OwnCoded;
+  } & AfterblowGrammar;
 
 interface Props {
   initial: RulesetFormValue;
@@ -91,7 +84,7 @@ interface Props {
   validateUrl?: string;
   submitLabel: string;
   /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
-   * section and the onSubmit payload carries `tfV1Internals`. */
+   * section and the onSubmit payload carries `ownCoded`. */
   code?: string;
   /** Set on a coded fork ("Customise this format"): the built-in coded engine
    *  it reuses. When it (or `code`) is 'TF_v1' the form renders the coded
@@ -108,14 +101,7 @@ interface Props {
    *  "no tie-breakers" fallback is replaced by a read-only list. */
   systemMetadata?: RulesetMetadata;
   systemRankingChain?: RankingRule[];
-  onSubmit: (
-    config: { name: string; description: string; version: string } & FormulaConfig & {
-        matchFormatDefaults: MatchFormatDefaults;
-        doublePenaltyFormula: DoublePenaltySpec | null;
-        targets: Target[];
-        tfV1Internals?: TfV1Internals;
-      } & AfterblowGrammar,
-  ) => void;
+  onSubmit: (config: RulesetSubmitValue) => void;
   onCancel?: () => void;
 }
 
@@ -142,15 +128,15 @@ export function RulesetForm({
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [constants, setConstants] = useState<FormulaConstants>(initial.constants);
   const [tiebreakers, setTiebreakers] = useState<Tiebreaker[]>(initial.tiebreakers);
-  const [matchFormatDefaults, setMatchFormatDefaults] = useState<MatchFormatDefaults>(
-    initial.matchFormatDefaults,
-  );
+  const [ownMatchFormat, setOwnMatchFormat] = useState<OwnMatchFormat>(initial.ownMatchFormat);
   const [doublePenaltyFormula, setDoublePenaltyFormula] = useState<DoublePenaltySpec | null>(
     initial.doublePenaltyFormula,
   );
-  const [tfV1Internals, setTfV1Internals] = useState<TfV1Internals>(
-    initial.tfV1Internals ?? DEFAULT_TF_V1_INTERNALS,
-  );
+  const [ownCoded, setOwnCoded] = useState<OwnCoded>(initial.ownCoded);
+  // The fields whose typed value cannot be saved (an empty box, a value the engine refuses).
+  const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
+  const validity = (key: string) => (valid: boolean) =>
+    setInvalidFields((fields) => ({ ...fields, [key]: !valid }));
   const [targets, setTargets] = useState<Target[]>(
     initial.targets.length > 0 ? initial.targets : [...DEFAULT_TARGETS],
   );
@@ -178,6 +164,10 @@ export function RulesetForm({
       setValidationError(formulaError ?? t('admin.rulesets.formulaInvalid'));
       return;
     }
+    if (Object.values(invalidFields).some(Boolean)) {
+      setValidationError(t('admin.rulesets.fieldInvalid'));
+      return;
+    }
     setValidationError(null);
     onSubmit({
       name: name.trim(),
@@ -189,13 +179,13 @@ export function RulesetForm({
       scoreFormula: (scoreFormula ?? ({} as FormulaNode)) as FormulaNode,
       constants,
       tiebreakers,
-      matchFormatDefaults,
+      matchFormatDefaults: storedOwn(ownMatchFormat),
       doublePenaltyFormula,
       targets,
       // AfterblowGrammar's keys are exactly the API's grammar fields, so a
       // flat spread lands them where grammarColumns() reads them.
       ...afterblow,
-      ...(isCoded ? { tfV1Internals } : {}),
+      ...(isCoded ? { ownCoded } : {}),
     });
   }
 
@@ -266,13 +256,18 @@ export function RulesetForm({
               editor below, which is authorable for every ruleset. winBonus
               stays, as a ranking (not grammar) input. */}
           <div className="grid gap-3 md:grid-cols-3">
-            <NumberInput
+            <NumberField
               label={t('admin.rulesets.tfV1WinBonus')}
-              value={tfV1Internals.winBonus}
+              value={shownDial(ownCoded, 'winBonus')}
+              accepts={acceptsWinBonus}
+              onChange={(n) => n !== null && setOwnCoded(withDial(ownCoded, 'winBonus', n))}
+              onValidity={validity('winBonus')}
+              modified={dialDiffers(ownCoded, 'winBonus')}
+              engineLabel={String(engineDial('winBonus'))}
+              onReset={() => setOwnCoded(withoutDial(ownCoded, 'winBonus'))}
               disabled={disabled}
               min={0}
               max={20}
-              onChange={(n) => setTfV1Internals({ ...tfV1Internals, winBonus: n })}
             />
           </div>
         </div>
@@ -339,122 +334,37 @@ export function RulesetForm({
         </div>
       )}
 
-      <DoublePenaltyEditor
-        value={doublePenaltyFormula}
-        onChange={setDoublePenaltyFormula}
+      {isCoded ? (
+        <DoublePenaltyEditor
+          value={shownDial(ownCoded, 'doublePenaltyFormula')}
+          // The TF v1 engine has no "none": no penalty is its '0' formula (ruling 138).
+          onChange={(next) =>
+            setOwnCoded(withDial(ownCoded, 'doublePenaltyFormula', next ?? NO_DOUBLE_PENALTY))
+          }
+          disabled={disabled}
+          affordance={
+            <SectionAffordance
+              modified={dialDiffers(ownCoded, 'doublePenaltyFormula')}
+              engineLabel={String(engineDial('doublePenaltyFormula'))}
+              onReset={() => setOwnCoded(withoutDial(ownCoded, 'doublePenaltyFormula'))}
+              disabled={disabled}
+            />
+          }
+        />
+      ) : (
+        <DoublePenaltyEditor
+          value={doublePenaltyFormula}
+          onChange={setDoublePenaltyFormula}
+          disabled={disabled}
+        />
+      )}
+
+      <RulesetMatchFormatBox
+        own={ownMatchFormat}
+        onChange={setOwnMatchFormat}
+        onValidity={(leaf, valid) => validity(leaf)(valid)}
         disabled={disabled}
       />
-
-      <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          {t('admin.srcComponents.matchFormatDefaultsTitle')}
-        </h3>
-        <p className="mb-3 text-xs text-muted">
-          {t('admin.srcComponents.matchFormatDefaultsHelp')}
-        </p>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <NumberInput
-            label={t('admin.srcComponents.pointCapLabel')}
-            value={matchFormatDefaults.pointCap}
-            disabled={disabled}
-            min={1}
-            max={50}
-            onChange={(n) => setMatchFormatDefaults({ ...matchFormatDefaults, pointCap: n })}
-          />
-          <SelectInput
-            label={t('admin.srcComponents.timerModeLabel')}
-            value={matchFormatDefaults.timerMode}
-            disabled={disabled}
-            options={[
-              { value: 'countdown', label: t('admin.srcComponents.timerModeCountdown') },
-              { value: 'countup', label: t('admin.srcComponents.timerModeCountup') },
-            ]}
-            onChange={(v) =>
-              setMatchFormatDefaults({
-                ...matchFormatDefaults,
-                timerMode: v as 'countdown' | 'countup',
-              })
-            }
-          />
-          <SelectInput
-            label={t('admin.srcComponents.scoringDirectionLabel')}
-            value={matchFormatDefaults.scoringDirection}
-            disabled={disabled}
-            options={[
-              { value: 'normal', label: t('admin.srcComponents.scoringDirectionNormal') },
-              {
-                value: 'reverse_zero_loses',
-                label: t('admin.srcComponents.scoringDirectionReverse'),
-              },
-            ]}
-            onChange={(v) =>
-              setMatchFormatDefaults({
-                ...matchFormatDefaults,
-                scoringDirection: v as 'normal' | 'reverse_zero_loses',
-              })
-            }
-          />
-          <NumberInput
-            label={t('admin.srcComponents.timeLimitPoolLabel')}
-            value={matchFormatDefaults.timeLimitsSeconds.pool ?? 0}
-            disabled={disabled}
-            min={0}
-            max={3600}
-            onChange={(n) =>
-              setMatchFormatDefaults({
-                ...matchFormatDefaults,
-                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, pool: n || null },
-              })
-            }
-          />
-          <NumberInput
-            label={t('admin.srcComponents.timeLimitBracketLabel')}
-            value={matchFormatDefaults.timeLimitsSeconds.bracket ?? 0}
-            disabled={disabled}
-            min={0}
-            max={3600}
-            onChange={(n) =>
-              setMatchFormatDefaults({
-                ...matchFormatDefaults,
-                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, bracket: n || null },
-              })
-            }
-          />
-          <NumberInput
-            label={t('admin.srcComponents.timeLimitFinalsLabel')}
-            value={matchFormatDefaults.timeLimitsSeconds.finals ?? 0}
-            disabled={disabled}
-            min={0}
-            max={3600}
-            onChange={(n) =>
-              setMatchFormatDefaults({
-                ...matchFormatDefaults,
-                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, finals: n || null },
-              })
-            }
-          />
-          <NumberInput
-            label={t('admin.srcComponents.softClockLabel')}
-            value={matchFormatDefaults.softClockLimitSeconds}
-            disabled={disabled}
-            min={0}
-            max={600}
-            onChange={(n) =>
-              setMatchFormatDefaults({ ...matchFormatDefaults, softClockLimitSeconds: n })
-            }
-          />
-          <NumberInput
-            label={t('admin.srcComponents.maxDoubleHitsLabel')}
-            value={matchFormatDefaults.maxDoubleHits ?? 0}
-            disabled={disabled}
-            min={0}
-            max={20}
-            onChange={(n) =>
-              setMatchFormatDefaults({ ...matchFormatDefaults, maxDoubleHits: n || null })
-            }
-          />
-        </div>
-      </div>
 
       {!isCoded && (
         <div>
@@ -625,69 +535,6 @@ function MetadataField({ label, value }: { label: string; value: string }) {
       <dt className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</dt>
       <dd className="mt-1 font-mono text-sm text-foreground">{value}</dd>
     </div>
-  );
-}
-
-function NumberInput({
-  label,
-  value,
-  onChange,
-  disabled,
-  min,
-  max,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  disabled?: boolean;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <label className="block text-xs font-semibold text-foreground-secondary">
-      {label}
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
-        disabled={disabled}
-        className="mt-1 w-full rounded-md border border-border px-3 py-2 font-mono text-sm disabled:bg-background"
-      />
-    </label>
-  );
-}
-
-function SelectInput({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="block text-xs font-semibold text-foreground-secondary">
-      {label}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:bg-background"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

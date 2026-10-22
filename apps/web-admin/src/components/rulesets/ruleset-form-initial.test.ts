@@ -1,42 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { isCodedRuleset, rulesetFormInitial } from './ruleset-form-initial';
-import { DEFAULT_TF_V1_INTERNALS } from './RulesetForm';
 
+/** A stored match format no engine default holds (cap 7), with a key the box does not show. */
 const TF_MATCH_FORMAT = {
-  pointCap: 10,
+  pointCap: 7,
   timerMode: 'countdown' as const,
   timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
   softClockLimitSeconds: 5,
   maxDoubleHits: 4,
+  bestOf: { pool: 3 },
 };
 
+/**
+ * The form starts from the ruleset's OWN values, exactly as stored (operator ruling 59): no default
+ * is filled in, so an untouched field stays empty and follows the engine. What the box shows for an
+ * empty field is `ruleset-own-values`' business.
+ */
 describe('rulesetFormInitial', () => {
-  it('hydrates TF v1 match-format defaults from tf_config (the org-view bug case)', () => {
-    const { matchFormatDefaults } = rulesetFormInitial({
+  it('hydrates TF v1 match format from tf_config, as stored (the org-view bug case)', () => {
+    const { ownMatchFormat } = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
       double_penalty_formula: null,
       tf_config: { matchFormat: TF_MATCH_FORMAT },
     });
 
-    expect(matchFormatDefaults.pointCap).toBe(10);
-    expect(matchFormatDefaults.timeLimitsSeconds).toEqual({ pool: 90, bracket: 90, finals: 90 });
-    expect(matchFormatDefaults.softClockLimitSeconds).toBe(5);
+    expect(ownMatchFormat).toEqual(TF_MATCH_FORMAT);
   });
 
-  it('deep-merges a partial tf_config timeLimitsSeconds over the schema defaults', () => {
-    const { matchFormatDefaults } = rulesetFormInitial({
+  it('keeps a partial stored match format partial (no 180 filled in)', () => {
+    const { ownMatchFormat } = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
       double_penalty_formula: null,
-      tf_config: { matchFormat: { timeLimitsSeconds: { pool: 120 } as never } },
+      tf_config: { matchFormat: { timeLimitsSeconds: { pool: 120 } } },
     });
 
-    expect(matchFormatDefaults.timeLimitsSeconds.pool).toBe(120);
-    expect(matchFormatDefaults.timeLimitsSeconds.bracket).toBe(180);
+    expect(ownMatchFormat).toEqual({ timeLimitsSeconds: { pool: 120 } });
   });
 
-  it('falls back to schema defaults + default internals for TF v1 with no tf_config', () => {
+  it('has no own values for TF v1 with no tf_config', () => {
     const out = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
@@ -44,8 +47,8 @@ describe('rulesetFormInitial', () => {
       tf_config: null,
     });
 
-    expect(out.matchFormatDefaults.pointCap).toBe(5);
-    expect(out.tfV1Internals).toEqual({ winBonus: 3, deepTarget: 2, shallowTarget: 1 });
+    expect(out.ownMatchFormat).toEqual({});
+    expect(out.ownCoded).toEqual({});
     // null, not '': the double-penalty is a spec (key | AST | null), and
     // "no penalty" is null rather than an empty string.
     expect(out.doublePenaltyFormula).toBe(null);
@@ -56,74 +59,62 @@ describe('rulesetFormInitial', () => {
       code: 'my_custom',
       match_format_defaults: { pointCap: 7 },
       double_penalty_formula: 'n*(n-1)/3',
-      tf_config: { matchFormat: TF_MATCH_FORMAT },
+      tf_config: { matchFormat: { pointCap: 12 }, winBonus: 4 },
     });
 
-    expect(out.matchFormatDefaults.pointCap).toBe(7);
+    expect(out.ownMatchFormat).toEqual({ pointCap: 7 });
+    expect(out.ownCoded).toEqual({});
     expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
   });
 
-  it('extracts TF v1 internals + double-penalty formula from tf_config', () => {
+  it('takes the TF v1 dials present in tf_config as its own, and only those', () => {
     const out = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
       double_penalty_formula: null,
-      tf_config: {
-        winBonus: 4,
-        targetValues: { deepTarget: 3, shallowTarget: 2 },
-        doublePenaltyFormula: 'n*(n-1)/3',
-      },
+      tf_config: { winBonus: 4, doublePenaltyFormula: 'n*(n-1)/2' },
+    });
+    const winBonusOnly = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      tf_config: { winBonus: 4 },
     });
 
-    expect(out.tfV1Internals).toEqual({ winBonus: 4, deepTarget: 3, shallowTarget: 2 });
-    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+    expect(out.ownCoded).toEqual({ winBonus: 4, doublePenaltyFormula: 'n*(n-1)/2' });
+    expect(winBonusOnly.ownCoded).toEqual({ winBonus: 4 });
   });
 
   it('hydrates a base_code fork from tf_config like TF v1 (not the flat columns)', () => {
     const out = rulesetFormInitial({
       code: 'custom_tf_v1_fork_abc',
       base_code: 'TF_v1',
-      match_format_defaults: null,
+      match_format_defaults: { pointCap: 12 },
       double_penalty_formula: null,
-      tf_config: {
-        winBonus: 5,
-        targetValues: { deepTarget: 3, shallowTarget: 2 },
-        matchFormat: TF_MATCH_FORMAT,
-        doublePenaltyFormula: 'n*(n-1)/3',
-      },
+      tf_config: { winBonus: 5, matchFormat: TF_MATCH_FORMAT },
     });
 
-    expect(out.tfV1Internals).toEqual({ winBonus: 5, deepTarget: 3, shallowTarget: 2 });
-    expect(out.matchFormatDefaults.pointCap).toBe(10);
-    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+    expect(out.ownCoded).toEqual({ winBonus: 5 });
+    expect(out.ownMatchFormat).toEqual(TF_MATCH_FORMAT);
   });
 
-  it('does NOT fall back to the generic defaults when a fork row keeps base_code', () => {
-    // Regression: the clone/adopt page used to strip base_code from its local
-    // row shape, so this same row hydrated as a formula ruleset — reading the
-    // (null) flat columns and silently replacing the fork's real configuration
-    // with the generic 5/180 defaults. The loss was invisible until a
-    // tournament scored by the copy.
+  it('reads the flat columns when a fork row lost its base_code', () => {
+    // The clone/adopt page used to strip base_code from its local row shape, so a fork row
+    // hydrated as a formula ruleset and read its (null) flat columns: the fork's own values were
+    // lost. Pinned so that regression stays legible.
     const forkRow = {
       code: 'custom_tf_v1_fork_abc',
       base_code: 'TF_v1',
       match_format_defaults: null,
       double_penalty_formula: null,
-      tf_config: {
-        winBonus: 5,
-        targetValues: { deepTarget: 3, shallowTarget: 2 },
-        matchFormat: TF_MATCH_FORMAT,
-      },
+      tf_config: { winBonus: 5, matchFormat: TF_MATCH_FORMAT },
     };
 
-    const withBase = rulesetFormInitial(forkRow);
     const withoutBase = rulesetFormInitial({ ...forkRow, base_code: null });
 
-    expect(withBase.matchFormatDefaults.pointCap).toBe(10);
-    expect(withBase.tfV1Internals.winBonus).toBe(5);
-    // The shape the bug produced, pinned so the regression is legible.
-    expect(withoutBase.matchFormatDefaults.pointCap).toBe(5);
-    expect(withoutBase.tfV1Internals).toEqual(DEFAULT_TF_V1_INTERNALS);
+    expect(rulesetFormInitial(forkRow).ownMatchFormat).toEqual(TF_MATCH_FORMAT);
+    expect(withoutBase.ownMatchFormat).toEqual({});
+    expect(withoutBase.ownCoded).toEqual({});
   });
 });
 
@@ -157,7 +148,9 @@ describe('rulesetFormInitial — targets hydration', () => {
     ]);
   });
 
-  it('derives TF v1 targets from the legacy tf_config.targetValues pair', () => {
+  it('shows the engine’s targets on TF v1 when only the legacy pair is stored', () => {
+    // The engine reads `targets`, which its own defaults always hold, so a stored
+    // targetValues pair alone is never played (tf_v1/targets.ts withDerivedTargets).
     const out = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
@@ -165,9 +158,23 @@ describe('rulesetFormInitial — targets hydration', () => {
       tf_config: { targetValues: { deepTarget: 4, shallowTarget: 2 } },
     });
     expect(out.targets).toEqual([
-      { name: 'Deep', value: 4 },
-      { name: 'Shallow', value: 2 },
+      { name: 'Deep', value: 2 },
+      { name: 'Shallow', value: 1 },
     ]);
+  });
+
+  it('reads TF v1 targets from tf_config, not the flat column the engine never plays', () => {
+    const out = rulesetFormInitial({
+      code: 'TF_v1',
+      match_format_defaults: null,
+      double_penalty_formula: null,
+      targets: [
+        { name: 'Deep', value: 2 },
+        { name: 'Shallow', value: 1 },
+      ],
+      tf_config: { targets: [{ name: 'Only', value: 5 }] },
+    });
+    expect(out.targets).toEqual([{ name: 'Only', value: 5 }]);
   });
 
   it('prefers an explicit tf_config.targets list over the legacy pair', () => {
@@ -269,13 +276,14 @@ describe('rulesetFormInitial — double-penalty spec hydration', () => {
     expect(out.doublePenaltyFormula).toEqual(ast);
   });
 
-  it('reads TF v1 double-penalty from tf_config', () => {
+  it('reads TF v1 double-penalty from tf_config, as one of its dials', () => {
     const out = rulesetFormInitial({
       code: 'TF_v1',
       match_format_defaults: null,
-      double_penalty_formula: null,
+      double_penalty_formula: 'n*(n-1)/2',
       tf_config: { doublePenaltyFormula: 'n*(n-1)/3' },
     });
-    expect(out.doublePenaltyFormula).toBe('n*(n-1)/3');
+    expect(out.ownCoded.doublePenaltyFormula).toBe('n*(n-1)/3');
+    expect(out.doublePenaltyFormula).toBe(null);
   });
 });

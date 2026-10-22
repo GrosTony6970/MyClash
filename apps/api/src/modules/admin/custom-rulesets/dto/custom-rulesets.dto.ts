@@ -61,8 +61,8 @@ const createCustomRulesetSchema = z
     constants: z.record(z.string(), z.number()),
     // Ordered list of tiebreakers ({ variable, direction }).
     tiebreakers: z.array(tiebreakerSchema),
-    // MatchFormatConfig used as the default for tournaments created with this ruleset.
-    matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
+    // The match format values this ruleset sets itself (the rest follow the engine); null for none.
+    matchFormatDefaults: z.record(z.string(), z.unknown()).nullable().optional(),
     // A named double-hit penalty: a whitelist KEY or an authored FormulaNode
     // AST over `doubleHits`. The score formula references its result via the
     // `doublePenalty` variable. Never eval'd — validated + evaluated by us.
@@ -80,7 +80,7 @@ const updateCustomRulesetSchema = z
     scoreFormula: z.record(z.string(), z.unknown()).optional(),
     constants: z.record(z.string(), z.number()).optional(),
     tiebreakers: z.array(tiebreakerSchema).optional(),
-    matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
+    matchFormatDefaults: z.record(z.string(), z.unknown()).nullable().optional(),
     doublePenaltyFormula: DoublePenaltySpecSchema.nullish(),
     // Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
     // (winBonus, targetValues, matchFormat, doublePenaltyFormula).

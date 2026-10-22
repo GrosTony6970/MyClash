@@ -1236,6 +1236,8 @@ export const admin = {
       "Composer une formule à l'aide des chips de variables et d'opérateurs. La formule est évaluée par combattant.",
     formulaEmpty: 'Aucun jeton pour le moment. Ajouter une variable ou un nombre pour commencer.',
     formulaInvalid: 'Formule invalide.',
+    fieldInvalid:
+      'Un champ est vide ou contient une valeur que les règles refusent. Corrigez-le, puis enregistrez.',
     formulaError: {
       empty: 'Formule vide',
       invalid: 'Expression invalide',

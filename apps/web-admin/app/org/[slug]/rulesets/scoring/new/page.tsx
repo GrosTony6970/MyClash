@@ -15,8 +15,6 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
-  DEFAULT_MATCH_FORMAT_DEFAULTS,
-  type MatchFormatDefaults,
   type RulesetFormValue,
 } from '../../../../../../src/components/rulesets/RulesetForm';
 import {
@@ -42,7 +40,9 @@ const BLANK_INITIAL: RulesetFormValue = {
   scoreFormula: null,
   constants: { ...DEFAULT_FORMULA_CONSTANTS, pointsPerVictory: 3 },
   tiebreakers: [{ variable: 'victories', direction: 'desc' }],
-  matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
+  // Nothing of its own: every match format field follows the engine (ruling 59).
+  ownMatchFormat: {},
+  ownCoded: {},
   doublePenaltyFormula: null,
   targets: [...DEFAULT_TARGETS],
   afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
@@ -61,7 +61,7 @@ interface OrgRulesetCatalogRow {
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[] | null;
-  match_format_defaults: Partial<MatchFormatDefaults> | null;
+  match_format_defaults: RulesetRowLike['match_format_defaults'];
   double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
   has_afterblow: boolean | null;
@@ -70,11 +70,11 @@ interface OrgRulesetCatalogRow {
   afterblow_fixed_value: number | null;
   /** Set on a coded fork. Load-bearing here: without it `rulesetFormInitial`
    *  reads the FLAT columns, which are null on a fork, and the clone silently
-   *  seeds from the generic 5/180 defaults instead of the fork's tf_config. */
+   *  loses the fork's own values held in its tf_config. */
   base_code: string | null;
   base_version: string | null;
-  /** TF v1's canonical match-format store — without it a TF v1 clone
-   *  would silently seed from the generic 5/180 defaults. */
+  /** TF v1's canonical store of its own values — without it a TF v1 clone
+   *  would silently lose them. */
   tf_config: RulesetRowLike['tf_config'];
   /** Server-computed lineage of the SOURCE vs its base, surfaced so the
    *  operator can see what they are copying. Never derived client-side. */
@@ -88,10 +88,11 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     row.score_formula && 'type' in (row.score_formula as object)
       ? (row.score_formula as FormulaNode)
       : null;
-  // Match-format defaults + double-penalty come from the same shared
-  // hydration the edit pages use, so cloning TF v1 carries its real
-  // configured values (tf_config.matchFormat), not the generic fallbacks.
-  const { matchFormatDefaults, doublePenaltyFormula, targets, afterblow } = rulesetFormInitial(row);
+  // The source's own values come from the same shared hydration the edit
+  // pages use, so a copy carries what its source set (a TF v1 copy's from
+  // tf_config) and nothing filled in.
+  const { ownMatchFormat, ownCoded, doublePenaltyFormula, targets, afterblow } =
+    rulesetFormInitial(row);
   return {
     name: `${row.name} (copy)`,
     description: row.description ?? '',
@@ -99,7 +100,8 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     scoreFormula: formula,
     constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(row.constants ?? {}) },
     tiebreakers: row.tiebreakers ?? BLANK_INITIAL.tiebreakers,
-    matchFormatDefaults,
+    ownMatchFormat,
+    ownCoded,
     doublePenaltyFormula,
     targets,
     afterblow,
@@ -133,6 +135,8 @@ export default function OrgNewScoringRulesetPage() {
   // batch as `initial`, which is safe because rendering is gated on
   // `cloneLoading` and RulesetForm reads `initial` once, on mount.
   const [codedBase, setCodedBase] = useState<CodedCloneBase | null>(null);
+  // A coded copy writes its source's tf_config with only the author's changes applied.
+  const [sourceTfConfig, setSourceTfConfig] = useState<RulesetRowLike['tf_config']>(null);
   const [sourceLineage, setSourceLineage] = useState<{ base: string; diff: BucketDiff } | null>(
     null,
   );
@@ -178,6 +182,7 @@ export default function OrgNewScoringRulesetPage() {
         if (!src) return;
         setInitial(cloneInitial(src));
         setCodedBase(cloneCodedBase(src));
+        setSourceTfConfig(src.tf_config);
         setSourceLineage(src.lineage);
       })
       .finally(() => {
@@ -244,7 +249,7 @@ export default function OrgNewScoringRulesetPage() {
                       description: data.description,
                       version: data.version,
                       targets: data.targets,
-                      tfConfig: codedRulesetTfConfig(data),
+                      tfConfig: codedRulesetTfConfig(sourceTfConfig, data, initial.targets),
                     }
                   : data;
                 const r = await apiRequest<{ id: string }>(apiUrl, path, {

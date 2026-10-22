@@ -176,10 +176,10 @@ export const BestOfConfigSchema = z
   .default({ pool: 1, bracket: 1, finals: 1 });
 
 export const MatchFormatConfigSchema = z.object({
-  // Federal-rulebook (FFAMHE) baseline. Any ruleset that wants different
-  // values must persist its own override into tf_config.matchFormat (TF v1)
-  // or match_format_defaults (custom rulesets); both are merged over this
-  // schema's defaults at form-hydration time, so stored overrides survive.
+  // Federal-rulebook (FFAMHE) baseline. A ruleset stores only the values its
+  // author changed, in tf_config.matchFormat (TF v1 and its copies) or
+  // match_format_defaults (club formula rulesets); everything it does not
+  // store is read from these defaults, in the editor and at Tournament seed.
   pointCap: z.number().int().positive().default(10),
   scoringDirection: ScoringDirectionSchema.default('normal'),
   timerMode: TimerModeSchema.default('countdown'),
@@ -253,7 +253,11 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
     // legacy branch rebuilds a config from three named legacy keys, so ANY
     // modern key that arrives alone is discarded rather than rejected. The
     // organiser's PATCH returned 200 and their chain was simply not there.
-    'levelAtTime' in raw;
+    'levelAtTime' in raw ||
+    // And the doubles outcome: a ruleset stores only the fields its author
+    // changed (operator ruling 59), so a format holding this key alone is
+    // ordinary, and the legacy branch would drop it.
+    'maxDoubleHitOutcome' in raw;
 
   if (hasSharedShape) {
     const parsed = MatchFormatConfigSchema.parse(raw);

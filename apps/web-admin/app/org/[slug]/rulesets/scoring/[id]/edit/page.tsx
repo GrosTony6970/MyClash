@@ -17,7 +17,6 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
-  type MatchFormatDefaults,
   type RulesetFormValue,
 } from '../../../../../../../src/components/rulesets/RulesetForm';
 import {
@@ -26,7 +25,10 @@ import {
   type RulesetRowLike,
 } from '../../../../../../../src/components/rulesets/ruleset-form-initial';
 import { ForkLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
-import { codedRulesetTfConfig } from '../../../../../../../src/components/rulesets/coded-ruleset-body';
+import {
+  codedRulesetTfConfig,
+  targetsChanged,
+} from '../../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -44,7 +46,7 @@ interface OrgCustomRulesetDetail {
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[];
-  match_format_defaults: Partial<MatchFormatDefaults> | null;
+  match_format_defaults: RulesetRowLike['match_format_defaults'];
   double_penalty_formula: DoublePenaltySpec | null;
   targets: Target[] | null;
   has_afterblow: boolean | null;
@@ -62,9 +64,9 @@ interface OrgCustomRulesetDetail {
    * The server projects both sides' EFFECTIVE behaviour instead.
    */
   lineage: { base: string; diff: BucketDiff } | null;
-  /** Super-admin TF v1 overrides — the CANONICAL store for TF v1's
-   *  match-format defaults + double-penalty formula. Omitting this field
-   *  was the bug where the org view of TF v1 showed the generic 5/180
+  /** A coded ruleset's own values (TF v1's platform-admin changes, a fork's
+   *  whole config) — the CANONICAL store of its match format + dials. Omitting
+   *  this field was the bug where the org view of TF v1 showed the editor's own
    *  fallbacks instead of the configured values. */
   tf_config: RulesetRowLike['tf_config'];
   submitted_for_review_at: string | null;
@@ -96,6 +98,8 @@ export default function OrgEditScoringRulesetPage() {
   const [initial, setInitial] = useState<
     | (RulesetFormValue & {
         code: string;
+        /** The row's tf_config, which a coded Save writes back with only its changes applied. */
+        storedTfConfig: RulesetRowLike['tf_config'];
         systemRankingChain?: RankingRule[];
         systemMetadata?: RulesetMetadata;
       })
@@ -185,6 +189,7 @@ export default function OrgEditScoringRulesetPage() {
           // Same hydration as the super-admin page: TF v1 reads
           // tf_config.*, custom rulesets read the flat columns.
           ...rulesetFormInitial(data),
+          storedTfConfig: data.tf_config,
           systemRankingChain: data.systemRankingChain,
           systemMetadata: data.systemMetadata,
         });
@@ -274,16 +279,17 @@ export default function OrgEditScoringRulesetPage() {
                 setBusy(true);
                 setError(null);
                 // A coded fork's edits land in tf_config (the coded engine's
-                // tunables), plus the flat grammar targets so the lineage lamp
-                // and grammar resolver stay current. A formula ruleset sends the
-                // flat shape as before.
+                // tunables), plus changed targets in the flat grammar column so
+                // the lineage lamp and grammar resolver stay current. A formula
+                // ruleset sends the flat shape as before.
+                const changed = targetsChanged(initial.targets, data.targets);
                 const body = isCodedRuleset(initial.code, forkBaseCode)
                   ? {
                       name: data.name,
                       description: data.description,
                       version: data.version,
-                      targets: data.targets,
-                      tfConfig: codedRulesetTfConfig(data),
+                      ...(changed ? { targets: data.targets } : {}),
+                      tfConfig: codedRulesetTfConfig(initial.storedTfConfig, data, initial.targets),
                     }
                   : data;
                 const r = await apiRequest(

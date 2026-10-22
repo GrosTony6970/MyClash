@@ -1237,6 +1237,7 @@ export const admin = {
       'Compose a formula using the variable and operator chips. The formula is evaluated per fighter.',
     formulaEmpty: 'No tokens yet. Add a variable or a number to start.',
     formulaInvalid: 'Formula is invalid.',
+    fieldInvalid: 'A field is empty or holds a value the rules refuse. Correct it, then save.',
     // Why the formula editor cannot read what was composed.
     formulaError: {
       empty: 'Empty formula',

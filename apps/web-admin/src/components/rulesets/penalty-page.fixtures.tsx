@@ -104,12 +104,14 @@ function control<T extends HTMLElement>(testId: string): T {
   return found!;
 }
 
-/** The field of the label whose words start with `words` ("Name", "Code"). */
+/** The field of the label whose words start with `words` ("Name", "Code"), inside it or named by
+ *  its `htmlFor`. */
 export function labelled(words: string): HTMLInputElement {
   const label = [...document.querySelectorAll('label')].find((each) =>
     each.textContent?.trim().startsWith(words),
   );
-  const field = label?.querySelector('input');
+  const linked = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
+  const field = label?.querySelector('input') ?? (linked as HTMLInputElement | null);
   if (!field) throw new Error(`no field labelled ${words}`);
   return field;
 }

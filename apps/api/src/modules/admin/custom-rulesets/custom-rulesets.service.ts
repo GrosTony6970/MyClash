@@ -55,6 +55,7 @@ import type {
   ForkCustomRulesetDto,
   UpdateCustomRulesetDto,
 } from './dto/custom-rulesets.dto';
+import { validateMatchFormatDefaults } from './match-format-defaults';
 
 export interface CustomRulesetRow {
   id: string;
@@ -280,6 +281,9 @@ export function validateTfConfigPatch(raw: unknown): Record<string, unknown> {
   for (const key of Object.keys(patch)) {
     if (key in parsed) out[key] = patch[key];
   }
+  // The TF parse above reads a legacy key of the match format and lets it through; stored raw, it
+  // would override the field the editor shows. The one check of a stored match format refuses it.
+  if (out['matchFormat'] !== undefined) validateMatchFormatDefaults(out['matchFormat']);
   return out;
 }
 
@@ -493,7 +497,7 @@ export class CustomRulesetsService {
         score_formula: config.scoreFormula,
         constants: config.constants,
         tiebreakers: config.tiebreakers,
-        match_format_defaults: dto.matchFormatDefaults ?? null,
+        match_format_defaults: validateMatchFormatDefaults(dto.matchFormatDefaults),
         double_penalty_formula: doublePenaltyFormula,
         // A draft is scored as its draft (ruling 6); publishing it sets the edition of its day.
         decision_edition: TODAYS_EDITION,
@@ -577,7 +581,7 @@ export class CustomRulesetsService {
     }
 
     if (dto.matchFormatDefaults !== undefined) {
-      updates['match_format_defaults'] = dto.matchFormatDefaults;
+      updates['match_format_defaults'] = validateMatchFormatDefaults(dto.matchFormatDefaults);
     }
     if (dto.doublePenaltyFormula !== undefined) {
       updates['double_penalty_formula'] = effectiveDoublePenalty;
@@ -1137,7 +1141,7 @@ export class CustomRulesetsService {
         score_formula: config.scoreFormula,
         constants: config.constants,
         tiebreakers: config.tiebreakers,
-        match_format_defaults: dto.matchFormatDefaults ?? null,
+        match_format_defaults: validateMatchFormatDefaults(dto.matchFormatDefaults),
         double_penalty_formula: doublePenaltyFormula,
         decision_edition: decisionEdition,
         is_default: false,

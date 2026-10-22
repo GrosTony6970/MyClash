@@ -17,6 +17,7 @@ import {
   evaluateRound,
   MatchFormatConfigSchema,
   EDITION_2026_10,
+  normalizeMatchFormatConfig,
 } from './match-format';
 
 const BASE_MATCH: Match = {
@@ -159,5 +160,17 @@ describe('evaluateRound at the doubles ceiling', () => {
     );
     expect(ev.autoOver).toBe(true);
     expect(ev.winnerColor).toBeNull();
+  });
+});
+
+describe('normalizeMatchFormatConfig with only a doubles outcome', () => {
+  // Since the ruleset editor stores only the fields an author changed (operator ruling 59), a
+  // partial format is the normal case. The legacy branch, which rebuilds a config from three
+  // legacy keys, used to take this one and drop the outcome.
+  it('keeps an outcome that is not the default', () => {
+    expect(normalizeMatchFormatConfig({ maxDoubleHitOutcome: 'result_stands' })).toMatchObject({
+      maxDoubleHitOutcome: 'result_stands',
+      pointCap: 10,
+    });
   });
 });

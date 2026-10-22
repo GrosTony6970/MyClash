@@ -1,7 +1,6 @@
 /**
- * Ruleset kind predicate, in a dependency-free module so both RulesetForm and
- * ruleset-form-initial (which import values from each other) can share it
- * without an import cycle.
+ * Ruleset kind predicate, in a dependency-free module so RulesetForm,
+ * ruleset-form-initial and the pages can share it without an import cycle.
  *
  * A ruleset whose maths is CODE — TF_v1 itself, or a `base_code` fork of it
  * ("Customise this format") — has no authored score formula: the form shows the

@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
+import { RulesetMatchFormatBox } from './RulesetMatchFormatBox';
 
 /**
  * The formula editor's parse errors ("Empty formula", "Mismatched parentheses") and the
@@ -39,9 +38,19 @@ describe('the words of the ruleset editor', () => {
   });
 
   it('names the timer and scoring options through the translator', () => {
-    const form = readFileSync(join(__dirname, 'RulesetForm.tsx'), 'utf8');
-    for (const english of ["'Countdown'", "'Count-up'", "'Normal'", "'Reverse (zero loses)'"]) {
-      expect(form).not.toContain(`label: ${english}`);
-    }
+    act(() =>
+      root.render(
+        <I18nProvider locale="fr">
+          <RulesetMatchFormatBox own={{}} onChange={() => undefined} onValidity={() => undefined} />
+        </I18nProvider>,
+      ),
+    );
+    const options = [...container.querySelectorAll('option')].map((o) => o.textContent);
+    expect(options).toEqual([
+      'Compte à rebours',
+      'Chronomètre croissant',
+      'Normal',
+      'Inversé (zéro perd)',
+    ]);
   });
 });

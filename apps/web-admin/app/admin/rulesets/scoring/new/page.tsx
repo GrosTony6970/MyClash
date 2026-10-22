@@ -5,10 +5,7 @@ import { useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
-import {
-  RulesetForm,
-  DEFAULT_MATCH_FORMAT_DEFAULTS,
-} from '../../../../../src/components/rulesets/RulesetForm';
+import { RulesetForm } from '../../../../../src/components/rulesets/RulesetForm';
 import { DEFAULT_AFTERBLOW_GRAMMAR } from '../../../../../src/components/rulesets/AfterblowGrammarEditor';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
@@ -48,7 +45,9 @@ export default function NewRulesetPage() {
           scoreFormula: null,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, pointsPerVictory: 3 },
           tiebreakers: [{ variable: 'victories', direction: 'desc' }],
-          matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
+          // Nothing of its own: every match format field follows the engine (ruling 59).
+          ownMatchFormat: {},
+          ownCoded: {},
           doublePenaltyFormula: null,
           targets: [...DEFAULT_TARGETS],
           afterblow: DEFAULT_AFTERBLOW_GRAMMAR,
