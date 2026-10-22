@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
+import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
 import {
   FIELD_OF_FOUR,
   OTHER_PHASE,
@@ -93,6 +93,23 @@ describe('SwissPairingService — planning a round', () => {
 
     expect(fighters(planned!.plan)).toEqual(['r1', 'r2', 'r3', 'r4']);
     expect(planned?.plan.byeRegistrationId).toBeNull();
+  });
+
+  it('leaves a fighter put back out of a round they missed only', async () => {
+    // Put back after round 2 was paired without them (ruling 121): out of round 2's field, in
+    // round 3's. The double ignores the projection, so the select is asserted too.
+    const back = { ...entrant('r5'), missed_rounds: [2] };
+    const supabase = mockSupabase(
+      readState({ swiss_entrants: { rows: [...FIELD_OF_FOUR, back] } }),
+    );
+    const service = new SwissPairingService(as(supabase));
+
+    const entrants = await service.loadEntrants('p1');
+
+    expect(selectsFor(supabase.from, 'swiss_entrants')).toEqual([
+      'registration_id, withdrawn_at_round, missed_rounds',
+    ]);
+    expect(entrants.find((e) => e.registrationId === 'r5')?.missedRounds).toEqual([2]);
   });
 
   it('gives the bye when the field is odd', async () => {

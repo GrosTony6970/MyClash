@@ -16,7 +16,7 @@ import {
   type ForfeitOutcome,
   type ForfeitReason,
 } from '@myclash/rulesets';
-import { asksInPhase, type ForfeitRules } from '@myclash/types/forfeit-rules';
+import { asksInPhase, isPoolOrSwissPhase, type ForfeitRules } from '@myclash/types/forfeit-rules';
 import { blackCardEffectOf } from '../penalties/card-rules-pin';
 import { cardAndForfeitRules, forfeitRulesRefusal } from '../penalties/forfeit-rules-in-force';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -577,25 +577,29 @@ export class MatchForfeitsService {
   }
 
   /**
-   * The status settle of a record's Fighter, after its own write; their Pool bouts follow it. A
-   * Pool bout the record completed is handed to the completion owner after them (ruling 109); a
-   * bout its take-back put back is forfeited again by the other Fighter on it, when they are out.
+   * The status settle of a record's Fighter, after its own write; their Pool and Swiss bouts follow
+   * it. A Pool or Swiss bout the record completed is handed to the completion owner after them
+   * (ruling 109), by its unit: its Swiss round, else its Pool phase. A bout its take-back put back
+   * is forfeited again by the other Fighter on it, when they are out.
    */
   private settleFighterOf(
     forfeit: Row,
     actor: Actor,
-    completedIn?: { id: string; type: string },
+    completedIn?: { id: string; type: string; swissRoundId: string | null },
     putBack = false,
   ) {
-    const completedPoolBout =
-      completedIn?.type === 'pool'
-        ? { matchId: forfeit['match_id'] as string, phaseId: completedIn.id }
+    const completedBout =
+      completedIn && isPoolOrSwissPhase(completedIn.type)
+        ? {
+            matchId: forfeit['match_id'] as string,
+            unitId: completedIn.swissRoundId ?? completedIn.id,
+          }
         : undefined;
     const input: SettleInput = {
       registrationId: forfeit['forfeiting_registration_id'] as string,
       tournamentId: forfeit['tournament_id'] as string,
       actor: { userId: actor.userId, staffAccountId: actor.staffAccountId },
-      completedPoolBout,
+      completedBout,
       boutsPutBack: putBack ? [forfeit['match_id'] as string] : undefined,
     };
     return this.fighterStatus.settle(input);
@@ -606,7 +610,7 @@ export class MatchForfeitsService {
     active: Row | null,
     registrationId: string,
     actor: Actor,
-    phase: { id: string; type: string },
+    phase: { id: string; type: string; swissRoundId: string | null },
   ): Promise<void> {
     if (active?.['forfeiting_registration_id'] === registrationId) {
       await this.settleFighterOf(active, actor, phase);
@@ -1052,8 +1056,12 @@ export class MatchForfeitsService {
     return (data as Row | null) ?? null;
   }
 
+  /** The bout's phase, and its Swiss round when it has one (`loadMatch` selects `*`). */
   private phase(match: Row) {
     const phase = Array.isArray(match['phases']) ? match['phases'][0] : match['phases'];
-    return phase as { id: string; type: string; tournament_id: string };
+    return {
+      ...(phase as { id: string; type: string; tournament_id: string }),
+      swissRoundId: (match['swiss_round_id'] as string | null | undefined) ?? null,
+    };
   }
 }

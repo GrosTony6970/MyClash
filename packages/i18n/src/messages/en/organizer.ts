@@ -1704,12 +1704,18 @@ export const organizer = {
       assignReferees: 'Assign referees',
       entrantsTitle: 'Entrants ({count})',
       withdrawHint:
-        'A withdrawal takes no part in later rounds. The rounds they already played stand, and still count toward their opponents.',
+        'A withdrawal takes no part in later rounds. The rounds they already played stand, and still count toward their opponents. Put back in the pairings: paired again from the next round; the rounds they missed count nothing.',
       withdraw: 'Withdraw',
       withdrawn: 'Fighter withdrawn.',
       withdrawnAt: 'out from round {round}',
+      reinstate: 'Put back in the pairings',
+      reinstated: 'Fighter put back in the pairings.',
+      fighterOut:
+        'This fighter is out of the tournament (withdrawn or disqualified): bring them back first.',
+      fieldChanged: 'The field changed while the round was being paired: try again.',
     },
     rounds: {
+      roundHasRecords: 'This round holds a black card or a forfeit: take it back first.',
       noPhase: 'No Swiss phase yet.',
       empty: 'No rounds paired yet.',
       progress: '{done} of {total} rounds complete',

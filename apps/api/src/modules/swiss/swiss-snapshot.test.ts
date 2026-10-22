@@ -11,9 +11,14 @@ import { DEFAULT_SWISS_POINTS } from './dto/swiss-config.dto';
 
 const POINTS = { ...DEFAULT_SWISS_POINTS };
 
-const entrant = (id: string, withdrawnAtRound: number | null = null): SwissEntrantRecord => ({
+const entrant = (
+  id: string,
+  withdrawnAtRound: number | null = null,
+  missedRounds: number[] = [],
+): SwissEntrantRecord => ({
   registrationId: id,
   withdrawnAtRound,
+  missedRounds,
 });
 
 const bout = (over: Partial<SwissMatchRecord> & { id: string }): SwissMatchRecord => ({
@@ -55,6 +60,14 @@ describe('activeEntrants', () => {
 
   it('keeps everyone for a round before any withdrawal', () => {
     expect(activeEntrants(field, 1)).toHaveLength(3);
+  });
+
+  it('leaves a fighter put back out of the rounds they missed, and in the rounds after', () => {
+    // Withdrawn after round 1, round 2 paired without them, put back (ruling 121).
+    const back = [entrant('a'), entrant('d', null, [2])];
+    expect(activeEntrants(back, 1).map((e) => e.registrationId)).toEqual(['a', 'd']);
+    expect(activeEntrants(back, 2).map((e) => e.registrationId)).toEqual(['a']);
+    expect(activeEntrants(back, 3).map((e) => e.registrationId)).toEqual(['a', 'd']);
   });
 });
 

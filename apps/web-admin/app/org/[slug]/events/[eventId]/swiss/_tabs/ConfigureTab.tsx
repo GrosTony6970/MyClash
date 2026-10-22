@@ -14,8 +14,9 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ConfirmDialog, useToast } from '@myclash/ui';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { swissFailureMessage } from '@/lib/swiss-refusal';
 import {
   swissMutate,
   type SwissConfig,
@@ -102,10 +103,13 @@ export function ConfigureTab({
     try {
       const result = await fn();
       if (!result.ok) {
-        // The API's own reason, where this used to show `body.message` or the
-        // invented line "HTTP 409". A Swiss refusal names the round, the
-        // entrant or the config field it objects to.
-        const message = failureMessage(result.failure, t, t('admin.common.somethingWentWrong'));
+        // A coded Swiss refusal in the reader's language, else the API's own reason,
+        // where this used to show `body.message` or the invented line "HTTP 409".
+        const message = swissFailureMessage(
+          result.failure,
+          t,
+          t('admin.common.somethingWentWrong'),
+        );
         if (message) toast.error(message);
         return false;
       }
@@ -276,6 +280,14 @@ export function ConfigureTab({
           onWithdraw={(registrationId) =>
             void run(t('organizer.swiss.configure.withdrawn'), () =>
               swissMutate(`/swiss-phases/${view.phaseId}/withdraw`, {
+                method: 'POST',
+                body: { registrationId },
+              }),
+            )
+          }
+          onReinstate={(registrationId) =>
+            void run(t('organizer.swiss.configure.reinstated'), () =>
+              swissMutate(`/swiss-phases/${view.phaseId}/reinstate`, {
                 method: 'POST',
                 body: { registrationId },
               }),

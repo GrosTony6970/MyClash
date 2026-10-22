@@ -33,7 +33,10 @@ describe('swiss_commit_round — the twins it shares with the TS', () => {
     ]);
   });
 
-  it('draws the field as activeEntrants does', () => {
+  // The invariant that lets the SQL leave `missed_rounds` out: missed rounds hold only rounds
+  // that exist (0244: a put-back records rounds up to the last, the delete of the last round
+  // forgets it), so the round a commit writes, the last + 1, is never one of them.
+  it('draws the field as activeEntrants does, missed rounds holding only rounds that exist', () => {
     const predicate = /where phase_id = p_phase and \((.*?)\);/u.exec(body)?.[1];
     expect(predicate, 'the field predicate').toBeDefined();
     const clauses = predicate!.split(' or ');
@@ -53,10 +56,13 @@ describe('swiss_commit_round — the twins it shares with the TS', () => {
       });
     const round = 3;
     for (const withdrawn of [null, 2, 3, 4]) {
-      const entrant = { registrationId: 'r1', withdrawnAtRound: withdrawn };
-      expect(activeEntrants([entrant], round).length === 1, `withdrawn at ${withdrawn}`).toBe(
-        active(withdrawn, round),
-      );
+      for (const missedRounds of [[], [1, 2]]) {
+        const entrant = { registrationId: 'r1', withdrawnAtRound: withdrawn, missedRounds };
+        expect(
+          activeEntrants([entrant], round).length === 1,
+          `withdrawn at ${withdrawn}, missed ${JSON.stringify(missedRounds)}`,
+        ).toBe(active(withdrawn, round));
+      }
     }
   });
 });

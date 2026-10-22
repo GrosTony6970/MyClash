@@ -19,7 +19,6 @@ import type { SupabaseService } from '../supabase/supabase.service';
 /** The double stands in for SupabaseService; every caller casts at the seam. */
 export const asSupabase = (supabase: { service: unknown }): SupabaseService =>
   supabase as unknown as SupabaseService;
-
 export const swissConfig = (roundCount = 5) => ({
   roundCount,
   seedingStrategy: 'random',
@@ -71,6 +70,8 @@ export const entrant = (
   phase_id: phaseId,
   registration_id: registrationId,
   withdrawn_at_round: withdrawnAtRound,
+  // NOT NULL DEFAULT '{}' (0244): the double has no defaults.
+  missed_rounds: [],
 });
 
 /**

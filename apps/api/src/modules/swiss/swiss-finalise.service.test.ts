@@ -6,6 +6,7 @@ import {
   type RecordedWrite,
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 import { asSupabase as as, phaseRow, swissConfig, swissRound } from './swiss.fixtures';
 import { parseSwissConfig } from './dto/swiss-config.dto';
 import { SwissFinaliseService } from './swiss-finalise.service';
@@ -19,9 +20,11 @@ const build = (over: Record<string, unknown> = {}) => {
     audit_log: { rows: [] as SupabaseRow[] },
     ...over,
   });
+  const status = fighterStatusDouble();
   return {
     supabase,
-    service: new SwissFinaliseService(as(supabase), new SwissPairingService(as(supabase))),
+    follow: status.followReopenedSwissPhase,
+    service: new SwissFinaliseService(as(supabase), new SwissPairingService(as(supabase)), status),
   };
 };
 
@@ -175,5 +178,35 @@ describe('SwissFinaliseService — resuming a frozen phase', () => {
 
     await expect(service.unfinalise('p1', 'u1')).resolves.toEqual({ finalized: null });
     expect(parseSwissConfig(writtenConfig(supabase))?.finalized).toBeNull();
+  });
+});
+
+describe('SwissFinaliseService — the Fighters it did not follow while over, on Resume (127, 129)', () => {
+  it('settles them once the freeze is cleared, so the phase reads open', async () => {
+    const { supabase, service, follow } = build({ phases: { rows: [frozen(3)] } });
+    const phaseWritesSeen: number[] = [];
+    follow.mockImplementation(() => {
+      phaseWritesSeen.push(writesTo(supabase, 'phases').length);
+      return Promise.resolve();
+    });
+
+    await service.unfinalise('p1', 'u1');
+    expect(follow).toHaveBeenCalledWith('p1', 't1', { userId: 'u1' });
+    expect(phaseWritesSeen).toEqual([1]);
+  });
+
+  it('settles them on a phase already resumed too: a retry repairs a send cut short', async () => {
+    const { service, follow } = build();
+    await service.unfinalise('p1', 'u1');
+    expect(follow).toHaveBeenCalledWith('p1', 't1', { userId: 'u1' });
+  });
+
+  it('settles nobody when the resume is refused', async () => {
+    const { service, follow } = build({
+      phases: { rows: [frozen(3), downstreamBracket()] },
+      matches: { rows: [{ id: 'm1', phase_id: 'b1', status: 'running' }] },
+    });
+    await expect(service.unfinalise('p1', 'u1')).rejects.toBeInstanceOf(ConflictException);
+    expect(follow).not.toHaveBeenCalled();
   });
 });

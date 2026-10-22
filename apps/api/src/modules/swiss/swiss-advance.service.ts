@@ -190,6 +190,24 @@ export class SwissAdvanceService {
     }
   }
 
+  /**
+   * A bout put back by a take-back or by a Fighter's return (slice B-Swiss): its round's status
+   * from the bouts AS THEY ARE, with no `asIfUnplayed`. The bout's state is written already, and
+   * some bouts handed in were not put back at all (a card's bout that finished by play, a void
+   * that restored a completed result): reading them is right in every case, the projection only
+   * when the caller has not written yet. Swallows, like its siblings; a no-op off Swiss.
+   */
+  async onBoutPutBack(matchId: string): Promise<void> {
+    if (!this.roundState) return;
+    try {
+      const round = await this.roundOf(matchId);
+      if (!round) return;
+      await this.roundState.refresh(round.roundId);
+    } catch (err) {
+      this.logger.warn(`swiss round refresh after match ${matchId} failed: ${describe(err)}`);
+    }
+  }
+
   private async roundOf(matchId: string): Promise<SwissRoundRef | null> {
     const { data } = await this.supabase.service
       .from('matches')

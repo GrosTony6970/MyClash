@@ -10,10 +10,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
 // Value imports, not `import type`: Nest DI metadata.
+import { FighterStatusService } from '../matches/fighter-status.service';
 import { SwissPairingService } from './swiss-pairing.service';
 import { SwissSeedingService } from './swiss-seeding.service';
 import type { SwissConfig } from './dto/swiss-config.dto';
 import { writeSwissConfig } from './swiss-phase-config';
+import { deleteRefusal, FIGHTER_OUT } from './swiss-refusals';
 import { SWISS_DEFAULTS, type GenerateSwissDto, type UpdateSwissConfigDto } from './dto/swiss.dto';
 import type { SwissSeeding } from './swiss-seeding.service';
 
@@ -33,6 +35,7 @@ export class SwissService {
     private readonly supabase: SupabaseService,
     private readonly pairing: SwissPairingService,
     private readonly seeding: SwissSeedingService,
+    private readonly fighterStatus: FighterStatusService,
   ) {}
 
   /**
@@ -129,6 +132,12 @@ export class SwissService {
       entityId: phaseId,
       payload: { changed: Object.keys(stripUndefined(dto)) },
     });
+    // More rounds can reopen a phase over by its rounds (rulings 127, 129).
+    if (dto.roundCount !== undefined) {
+      await this.fighterStatus.followReopenedSwissPhase(phaseId, context.tournamentId, {
+        userId: actorUserId ?? undefined,
+      });
+    }
     return next;
   }
 
@@ -171,55 +180,72 @@ export class SwissService {
   }
 
   /**
-   * Delete the last round, provided nothing in it has started.
+   * Put a withdrawn fighter back in the pairings (rulings 108, 121, 122), whoever withdrew them.
    *
-   * Matches go FIRST. `matches.swiss_round_id` is ON DELETE SET NULL, so
-   * dropping the round row first would orphan its bouts — they would survive
-   * with a null round, invisible to every Swiss read path and impossible to
-   * clean up from the UI.
+   * Paired again from the next round; the rounds paired while they were withdrawn count nothing
+   * for them, and stay valid rounds (`missedRounds`). Refused while the fighter is out of the
+   * Tournament: `swiss_put_back` (0244) reads their status under the phase's row lock, which the
+   * status reconcile's withdraw waits on, so a put-back never leaves an out fighter paired.
+   */
+  async reinstate(phaseId: string, registrationId: string, actorUserId: string | null = null) {
+    const { data, error } = await this.supabase.service.rpc('swiss_put_back', {
+      p_phase: phaseId,
+      p_registration: registrationId,
+      p_by: 'hand',
+    });
+    if (error?.code === 'P0002') {
+      throw new NotFoundException(`Fighter ${registrationId} is not in this Swiss phase`);
+    }
+    if (error?.code === 'P0001' && error.message.startsWith(FIGHTER_OUT)) {
+      throw new ConflictException({
+        message: 'This fighter is out of the tournament: bring them back first',
+        code: FIGHTER_OUT,
+      });
+    }
+    if (error) throw new BadRequestException(error.message);
+    if (!data)
+      throw new BadRequestException(`The put-back of ${registrationId} was answered nothing`);
+    const answer = data as { status: 'in' | 'put_back'; missedRounds: number[] };
+    if (answer.status === 'put_back') {
+      await insertAuditLog(this.supabase.service, {
+        actorUserId,
+        action: 'swiss.reinstate',
+        entityType: 'phase',
+        entityId: phaseId,
+        payload: { registrationId, missedRounds: answer.missedRounds },
+      });
+    }
+    return answer;
+  }
+
+  /**
+   * Delete the last round, provided nothing in it has started and no black card or forfeit on its
+   * bouts holds a Fighter out.
+   *
+   * One step, `swiss_delete_last_round` (0244), under the phase's row lock: the bouts go FIRST
+   * (`matches.swiss_round_id` is ON DELETE SET NULL, so a bout left behind would survive with no
+   * round), then the round, then its number from every entrant's missed rounds. FOUGHT_STATUSES,
+   * not `!== 'scheduled'`: a VOIDED bout is not under way, and this is the remedy the un-completion
+   * refusal sends organisers to by name — "delete that round first".
    */
   async deleteRound(phaseId: string, roundNumber: number, actorUserId: string | null = null) {
-    const context = await this.pairing.requireContext(phaseId);
-    const last = context.rounds[context.rounds.length - 1];
-    if (!last) throw new NotFoundException('This phase has no rounds');
-    if (last.roundNumber !== roundNumber) {
-      throw new ConflictException(
-        `Only the last round (${last.roundNumber}) can be deleted; rounds are cumulative.`,
-      );
+    const { data, error } = await this.supabase.service.rpc('swiss_delete_last_round', {
+      p_phase: phaseId,
+      p_round: roundNumber,
+      p_fought: [...FOUGHT_STATUSES],
+    });
+    if (error) throw deleteRefusal(error, roundNumber);
+    const matches = (data as { matches?: number } | null)?.matches;
+    if (matches === undefined) {
+      throw new BadRequestException(`The delete of round ${roundNumber} was answered nothing`);
     }
-    // FOUGHT_STATUSES, not `!== 'scheduled'`. The old spelling counted a VOIDED
-    // bout as under way, and this is the remedy the un-completion refusal sends
-    // organisers to by name — "delete that round first". A voided bout in the
-    // last round therefore blocked the documented way out, with nothing left to
-    // undo to clear it.
-    //
-    // The set rather than `hasBeenFought`, because the context row carries no
-    // `started_at`: requireContext selects id, registrations, status and
-    // end_reason. Widening a context read shared by updateConfig and withdraw
-    // for one guard buys nothing while that column cannot change the answer —
-    // see the note in fought-match.ts.
-    if (last.matches.some((m) => (FOUGHT_STATUSES as readonly string[]).includes(m.status))) {
-      throw new ConflictException(`Round ${roundNumber} has a bout under way`);
-    }
-
-    const { error: matchError } = await this.supabase.service
-      .from('matches')
-      .delete()
-      .eq('swiss_round_id', last.id);
-    if (matchError) throw new BadRequestException(matchError.message);
-
-    const { error: roundError } = await this.supabase.service
-      .from('swiss_rounds')
-      .delete()
-      .eq('id', last.id);
-    if (roundError) throw new BadRequestException(roundError.message);
 
     await insertAuditLog(this.supabase.service, {
       actorUserId,
       action: 'swiss.round_delete',
       entityType: 'phase',
       entityId: phaseId,
-      payload: { roundNumber, matches: last.matches.length },
+      payload: { roundNumber, matches },
     });
     return { deleted: roundNumber };
   }

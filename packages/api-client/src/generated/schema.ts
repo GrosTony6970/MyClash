@@ -7691,6 +7691,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/swiss-phases/{phaseId}/reinstate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Put a withdrawn fighter back in the pairings (org admin+)
+     * @description Paired again from the next round; the rounds missed count nothing. 409 fighter_out while the fighter is out of the tournament.
+     */
+    post: operations['SwissController_reinstate'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/swiss-phases/{phaseId}/rounds/{roundNumber}': {
     parameters: {
       query?: never;
@@ -23387,6 +23407,29 @@ export interface operations {
     };
   };
   SwissController_withdraw: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        phaseId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WithdrawSwissDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SwissController_reinstate: {
     parameters: {
       query?: never;
       header?: never;

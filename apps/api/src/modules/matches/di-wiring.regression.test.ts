@@ -303,6 +303,16 @@ describe('every match-completion path hands off to MatchCompletionService', () =
       /matchCompletion\??\.\s*onMatchCompleted\(/,
     );
   });
+
+  // A bout the reconcile or a take-back put back reopens its Swiss round (slice B-Swiss). Not an
+  // un-completion (the census below): the bout is put back by its own door, and a Pool or Swiss
+  // bout feeds no slot, so there is nothing to revert; the owner only refreshes the round.
+  it('the status reconcile (a bout put back)', () => {
+    expect(
+      read('./fighter-status.service.ts'),
+      'it must call matchCompletion.onBoutPutBack',
+    ).toMatch(/matchCompletion\??\.\s*onBoutPutBack\(/);
+  });
 });
 
 /**

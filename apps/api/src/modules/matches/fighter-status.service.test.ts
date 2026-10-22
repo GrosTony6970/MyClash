@@ -5,11 +5,16 @@ import {
   FFAMHE_FORFEIT_RULES,
   type ForfeitRules,
 } from '@myclash/types/forfeit-rules';
-import { mockSupabase, type ChainResult } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  type ChainResult,
+} from '../../common/testing/supabase-chain';
 import { lastFunctionParams } from '../../common/testing/migration-function';
 import { PenaltiesService } from '../penalties/penalties.service';
 import { isEntryStatusChanged } from './fighter-status.service';
-import { fighterStatusOver, settleRpc, type SettleCall } from './fighter-status.fixtures';
+import { fighterStatusOver, settleRpc, swissRpc, type SettleCall } from './fighter-status.fixtures';
 import { MatchForfeitsService } from './match-forfeits.service';
 
 /**
@@ -42,6 +47,8 @@ const IN_WITH_NOTHING = {
     rows: [{ id: 'reg-1', tournament_id: 't1', status: 'checked_in', out_since: null }],
   },
   match_forfeits: { rows: [] },
+  // In no Swiss phase: nothing to put back in the pairings.
+  swiss_entrants: { rows: [] },
 };
 
 function settler(seed: Parameters<typeof mockSupabase>[0], answer?: ChainResult) {
@@ -208,5 +215,119 @@ describe('what a refused settle becomes', () => {
       code: 'forfeit_rules_invalid',
     });
     expect(calls).toEqual([]);
+  });
+});
+
+describe('a Swiss phase reopened (rulings 127, 129)', () => {
+  const fighter = (id: string, status: string) => ({
+    id,
+    tournament_id: 't1',
+    status,
+    out_since: status === 'withdrawn' ? '2026-10-21T10:00:00.000Z' : null,
+  });
+  const entrant = (registration: string, phase = 'p1', withdrawnBy: string | null = null) => ({
+    phase_id: phase,
+    registration_id: registration,
+    withdrawn_by: withdrawnBy,
+  });
+
+  /**
+   * Back in but still withdrawn by status (read first), out, plainly in, and out in another phase.
+   * `answers`: functions that answer otherwise than the recording doubles.
+   */
+  function reopened(answers: Record<string, (args: Record<string, unknown>) => ChainResult> = {}) {
+    // One record of every call, the settles and the Swiss functions (each named by its `fn`).
+    const sequence: SettleCall[] = [];
+    const db = mockSupabase(
+      {
+        ...IN_WITH_NOTHING,
+        ...tournamentUnder(CLUB_START_FORFEIT_RULES),
+        registrations: {
+          rows: [
+            fighter('reg-back', 'checked_in'),
+            fighter('reg-out', 'withdrawn'),
+            fighter('reg-in', 'checked_in'),
+            fighter('reg-elsewhere', 'withdrawn'),
+          ],
+        },
+        swiss_entrants: {
+          rows: [
+            entrant('reg-out'),
+            entrant('reg-back', 'p1', 'status'),
+            entrant('reg-in'),
+            entrant('reg-elsewhere', 'p2'),
+          ],
+        },
+        phases: { rows: [] },
+      },
+      {
+        ...settleRpc(sequence, () => db.writes),
+        ...swissRpc(sequence, () => db.writes),
+        ...answers,
+      },
+    );
+    const named = () =>
+      sequence
+        .filter((call) => call.args['fn'] !== 'swiss_phase_over')
+        .map(({ args }) => `${(args['fn'] as string) ?? 'settle'} ${args['p_registration']}`);
+    return { service: fighterStatusOver(db), named, db };
+  }
+
+  it('settles the Fighters the phase did not follow while over, and no one else', async () => {
+    const { service, named, db } = reopened();
+    await service.followReopenedSwissPhase('p1', 't1', { userId: 'u1' });
+    const settled = named().filter((call) => call.startsWith('settle'));
+    expect(settled).toEqual(['settle reg-out', 'settle reg-back']);
+    // The double returns whole rows: the entrants, their kind and their statuses read by name.
+    expect(selectsFor(db.from, 'swiss_entrants')[0]).toBe('registration_id, withdrawn_by');
+    expect(selectsFor(db.from, 'registrations')[0]).toBe('id, status');
+    // The rules in force are read once for them all (every Save sends the round count).
+    expect(queriedTables(db.from).filter((table) => table === 'tournaments')).toHaveLength(1);
+  });
+
+  it('moves every pairing first, then settles those out before those back in (127, 129, 131)', async () => {
+    // Back in read first: whichever order the rows come in, every pairing has moved before a
+    // settle can forfeit, and the Fighters out are settled first, in the order they went out.
+    const { service, named } = reopened();
+    await service.followReopenedSwissPhase('p1', 't1', { userId: 'u1' });
+    expect(named().slice(0, 3)).toEqual([
+      'swiss_withdraw reg-out',
+      'swiss_put_back reg-back',
+      'settle reg-out',
+    ]);
+  });
+
+  it('tries every Fighter, then fails as a 5xx: a resend repairs who did not follow', async () => {
+    const seen: unknown[] = [];
+    const { service } = reopened({
+      settle_fighter_status: (args) => {
+        seen.push(args['p_registration']);
+        // A 404 of one settle (a Registration gone meanwhile) is folded in, never the answer.
+        return args['p_registration'] === 'reg-back'
+          ? { data: null, error: { code: 'P0002', message: 'registration not found' } }
+          : { data: { before: 'checked_in', after: 'checked_in' }, error: null };
+      },
+    });
+    const refusal = await service
+      .followReopenedSwissPhase('p1', 't1', { userId: 'u1' })
+      .catch((error: unknown) => error);
+    expect(seen).toEqual(['reg-out', 'reg-back']);
+    expect(refusal).toBeInstanceOf(Error);
+    expect(refusal).not.toBeInstanceOf(HttpException);
+    expect((refusal as Error).message).toContain('reg-back');
+  });
+
+  it('still settles a Fighter whose pairing could not move first: the settle moves it again', async () => {
+    const { service, named } = reopened({
+      swiss_put_back: () => ({
+        data: null,
+        error: { code: '57014', message: 'statement timeout' },
+      }),
+    });
+    const refusal = await service
+      .followReopenedSwissPhase('p1', 't1', { userId: 'u1' })
+      .catch((error: unknown) => error);
+    expect(named()).toContain('settle reg-back');
+    expect((refusal as Error).message).toContain('reg-back');
   });
 });

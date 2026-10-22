@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { mockSupabase, queriedTables, writesTo } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
+import type { FighterStatusService } from '../matches/fighter-status.service';
 import type { SwissPairingService } from './swiss-pairing.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
 import type { GenerateSwissDto } from './dto/swiss.dto';
@@ -17,7 +18,8 @@ import { SwissService } from './swiss.service';
 const as = (supabase: { service: unknown }): SupabaseService =>
   supabase as unknown as SupabaseService;
 
-const unusedCollaborators = () => [{} as SwissPairingService, {} as SwissSeedingService] as const;
+const unusedCollaborators = () =>
+  [{} as SwissPairingService, {} as SwissSeedingService, {} as FighterStatusService] as const;
 
 const dto = {} as GenerateSwissDto;
 

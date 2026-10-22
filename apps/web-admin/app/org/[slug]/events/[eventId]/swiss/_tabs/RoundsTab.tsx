@@ -16,8 +16,8 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { failureMessage } from '@myclash/api-client';
 import { ConfirmDialog, useToast } from '@myclash/ui';
+import { swissFailureMessage } from '@/lib/swiss-refusal';
 import {
   swissMutate,
   type SwissAdminRound,
@@ -64,10 +64,14 @@ export function RoundsTab({
     try {
       const result = await fn();
       if (!result.ok) {
-        // The API's own reason, where this used to show `body.message` or the
-        // invented line "HTTP 409". A Swiss refusal names the round, the
-        // entrant or the config field it objects to.
-        const message = failureMessage(result.failure, t, t('admin.common.somethingWentWrong'));
+        // A coded Swiss refusal in the reader's language (a round holding a black
+        // card or a forfeit), else the API's own reason, where this used to show
+        // `body.message` or the invented line "HTTP 409".
+        const message = swissFailureMessage(
+          result.failure,
+          t,
+          t('admin.common.somethingWentWrong'),
+        );
         if (message) toast.error(message);
         return result;
       }

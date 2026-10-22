@@ -17,7 +17,10 @@ export function statusCollaborators(opts: { eventOpen?: boolean } = {}) {
       clockAction: vi.fn(async (_matchId: string, _action: string, ..._rest: unknown[]) => ({})),
     },
     scoring: { recomputeMatchScore: vi.fn(async (_matchId: string) => undefined) },
-    matchCompletion: { onMatchCompleted: vi.fn(async (_matchId: string) => undefined) },
+    matchCompletion: {
+      onMatchCompleted: vi.fn(async (_matchId: string) => undefined),
+      onBoutPutBack: vi.fn(async (_matchId: string) => undefined),
+    },
     frozen: {
       tournamentResultsOpen: vi.fn(async (_id: string, _userId?: string) => opts.eventOpen ?? true),
     },
@@ -92,7 +95,13 @@ export function fighterStatusDouble(
     calls.push({ input, writesBefore: [...writes()] });
     return answer;
   });
-  return Object.assign({ settle } as unknown as FighterStatusService, { settle, calls });
+  // A Swiss door's reopen (rulings 127, 129).
+  const followReopenedSwissPhase = vi.fn(() => Promise.resolve());
+  return Object.assign({ settle, followReopenedSwissPhase } as unknown as FighterStatusService, {
+    settle,
+    followReopenedSwissPhase,
+    calls,
+  });
 }
 
 /**
@@ -125,5 +134,32 @@ export function settleRpc(
       calls.push({ args, writesBefore: [...writes()] });
       return answer;
     },
+    ...swissRpc([], writes),
+  };
+}
+
+/**
+ * The Swiss functions the reconcile calls (0244), for a double whose Fighter is in no Swiss phase
+ * unless the test seeds one: each call recorded into `calls` (its `fn` named in its args) with the
+ * writes made before it, a withdraw and a put-back answered as done, and no phase over unless
+ * named in `over`.
+ */
+export function swissRpc(
+  calls: SettleCall[],
+  writes: () => RecordedWrite[] = () => [],
+  over: string[] = [],
+) {
+  const recorded =
+    (fn: string, answer: (args: Record<string, unknown>) => unknown) =>
+    (args: Record<string, unknown>): ChainResult => {
+      calls.push({ args: { fn, ...args }, writesBefore: [...writes()] });
+      return { data: answer(args), error: null };
+    };
+  return {
+    swiss_withdraw: recorded('swiss_withdraw', () => ({ withdrawnAtRound: 2, changed: true })),
+    swiss_put_back: recorded('swiss_put_back', () => ({ status: 'put_back', missedRounds: [] })),
+    swiss_phase_over: recorded('swiss_phase_over', (args) =>
+      over.includes(args['p_phase'] as string),
+    ),
   };
 }

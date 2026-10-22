@@ -233,7 +233,7 @@ describe('MatchForfeitsService', () => {
     expect(status.calls[0]!.input).toMatchObject({
       registrationId: 'reg-red',
       actor: { userId: 'user-org' },
-      completedPoolBout: { matchId: 'match-1', phaseId: 'phase-1' },
+      completedBout: { matchId: 'match-1', unitId: 'phase-1' },
     });
     expect(status.calls[0]!.writesBefore.map((write) => write.table)).toContain('matches');
   });
@@ -1558,7 +1558,7 @@ describe('MatchForfeitsService — the void of a withdrawal', () => {
       registrationId: 'reg-red',
       tournamentId: 'tournament-1',
       actor: { userId: 'user-org', staffAccountId: undefined },
-      completedPoolBout: undefined,
+      completedBout: undefined,
       // The bout it put back: the other Fighter on it, when out, forfeits it (review B2, M1).
       boutsPutBack: ['match-1'],
     });

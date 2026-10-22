@@ -10,6 +10,7 @@ import {
   fighterStatusOver,
   settleRpc,
   statusCollaborators,
+  swissRpc,
   type SettleCall,
 } from './fighter-status.fixtures';
 
@@ -123,12 +124,22 @@ export interface PoolSeed {
   /** Replaces the whole `matches` seed, for the same reason. */
   matchesTable?: ChainResult[];
   eventOpen?: boolean;
+  /** Her phases, when not `PHASES`: a Swiss phase, for one. */
+  phases?: SupabaseRow[];
+  /** Her Swiss entries (none unless named). */
+  swissEntrants?: SupabaseRow[];
+  /** The Swiss phases `swiss_phase_over` answers as over. */
+  over?: string[];
+  /** More tables: the rules in force, for a door that reads them itself (a Swiss reopen). */
+  extra?: Record<string, { rows: SupabaseRow[] }>;
 }
 
 /** The real status service over Ana's Tournament, and what it wrote. */
 export function anasTournament(seed: PoolSeed) {
   let next = 0;
   const calls: SettleCall[] = [];
+  /** The Swiss functions the reconcile called, each with the writes made before it. */
+  const swissCalls: SettleCall[] = [];
   const db = mockSupabase(
     {
       registrations:
@@ -136,7 +147,7 @@ export function anasTournament(seed: PoolSeed) {
         (seed.statuses.length === 1
           ? { rows: [anaRow(seed.statuses[0]!), ...(seed.others ?? [])] }
           : anaRead(seed.statuses)),
-      phases: { rows: PHASES },
+      phases: { rows: seed.phases ?? PHASES },
       matches: seed.matchesTable ?? { rows: seed.bouts ?? ANA_BOUTS },
       match_forfeits: seed.forfeitsTable ?? {
         rows: seed.forfeits ?? [],
@@ -144,11 +155,16 @@ export function anasTournament(seed: PoolSeed) {
       },
       match_penalties: { rows: seed.cards ?? [] },
       tournament_penalty_reviews: { rows: seed.reviews ?? [] },
+      swiss_entrants: { rows: seed.swissEntrants ?? [] },
+      ...seed.extra,
     },
-    settleRpc(calls, () => db.writes, {
-      data: { before: 'checked_in', after: seed.statuses[0] },
-      error: null,
-    }),
+    {
+      ...settleRpc(calls, () => db.writes, {
+        data: { before: 'checked_in', after: seed.statuses[0] },
+        error: null,
+      }),
+      ...swissRpc(swissCalls, () => db.writes, seed.over),
+    },
   );
   const deps = statusCollaborators({ eventOpen: seed.eventOpen });
   const service = fighterStatusOver(db, deps);
@@ -160,7 +176,7 @@ export function anasTournament(seed: PoolSeed) {
       actor: { userId: 'user-org' },
       ...over,
     });
-  return { db, deps, calls, service, settle };
+  return { db, deps, calls, swissCalls, service, settle };
 }
 
 type Db = ReturnType<typeof anasTournament>['db'];

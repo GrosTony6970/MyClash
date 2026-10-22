@@ -46,6 +46,11 @@ export interface SwissEntrantRecord {
   registrationId: string;
   /** Set once the fighter withdrew; they take no part from that round on. */
   withdrawnAtRound: number | null;
+  /**
+   * The rounds paired while a fighter later put back was withdrawn (`swiss_put_back`, 0244): they
+   * take no part in them, and those rounds count nothing for them (ruling 121).
+   */
+  missedRounds: number[];
 }
 
 export type SwissPoints = SwissConfig['points'];
@@ -62,7 +67,9 @@ export function activeEntrants(
   nextRoundNumber: number,
 ): SwissEntrantRecord[] {
   return entrants.filter(
-    (e) => e.withdrawnAtRound === null || e.withdrawnAtRound > nextRoundNumber,
+    (e) =>
+      (e.withdrawnAtRound === null || e.withdrawnAtRound > nextRoundNumber) &&
+      !e.missedRounds.includes(nextRoundNumber),
   );
 }
 

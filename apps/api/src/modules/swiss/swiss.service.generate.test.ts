@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { asSupabase as as, registration } from './swiss.fixtures';
+import type { FighterStatusService } from '../matches/fighter-status.service';
 import type { SwissPairingService } from './swiss-pairing.service';
 import { SwissSeedingService } from './swiss-seeding.service';
 import type { GenerateSwissDto } from './dto/swiss.dto';
@@ -45,6 +46,7 @@ const build = (over: Record<string, unknown> = {}) => {
     as(supabase),
     pairing as unknown as SwissPairingService,
     new SwissSeedingService(as(supabase)),
+    {} as FighterStatusService,
   );
   return { supabase, pairing, service };
 };

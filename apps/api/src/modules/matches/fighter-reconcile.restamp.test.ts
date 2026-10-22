@@ -31,6 +31,7 @@ type Seed = Record<string, unknown>;
 
 const bout = (id: string, over: Seed = {}): Seed => ({
   id,
+  phase_id: 'pool-1',
   red_registration_id: 'reg-ana',
   blue_registration_id: 'reg-bob',
   locked_at: null,
@@ -55,6 +56,9 @@ function returning(bouts: Seed[], records: Seed[]) {
     registrations: { rows: [anaRow('checked_in')] },
     matches: { rows: bouts },
     match_forfeits: { rows: records },
+    // A Pool phase, never over (126); in no Swiss phase.
+    phases: { rows: [{ id: 'pool-1', tournament_id: 't1', type: 'pool' }] },
+    swiss_entrants: { rows: [] },
   });
   const db = mockSupabase(tables, {
     ...functions,

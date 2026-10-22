@@ -322,7 +322,7 @@ describe('around the take-out', () => {
 
   it('hands each Pool phase to the completion owner once, the door’s own bout first (109)', async () => {
     const { deps, settle } = anasTournament({ statuses: ['withdrawn'] });
-    await settle({ completedPoolBout: { matchId: 'm-door', phaseId: 'pool-1' } });
+    await settle({ completedBout: { matchId: 'm-door', unitId: 'pool-1' } });
     const asked = deps.matchCompletion.onMatchCompleted.mock.calls.map(([id]) => id);
     // pool-1 by the door's bout, pool-2 by the paused bout the take-out completed.
     expect(asked).toEqual(['m-door', 'm-paused']);

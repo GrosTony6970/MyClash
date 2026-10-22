@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-// Value import, not `import type`: Nest DI metadata.
+// Value imports, not `import type`: Nest DI metadata.
+import { FighterStatusService } from '../matches/fighter-status.service';
 import { SwissPairingService } from './swiss-pairing.service';
 import { hasStartedDownstreamBracket, writeSwissConfig } from './swiss-phase-config';
 
@@ -23,6 +24,7 @@ export class SwissFinaliseService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly pairing: SwissPairingService,
+    private readonly fighterStatus: FighterStatusService,
   ) {}
 
   async finalise(phaseId: string, actorUserId: string | null = null) {
@@ -48,9 +50,17 @@ export class SwissFinaliseService {
     return finalized;
   }
 
+  /**
+   * Resume. The Fighters the phase did not follow while it was over then follow it as if it had
+   * run all along (rulings 127, 129): on every send, so a retry repairs one cut short after its write.
+   */
   async unfinalise(phaseId: string, actorUserId: string | null = null) {
     const context = await this.pairing.requireContext(phaseId);
-    if (!context.config.finalized) return { finalized: null };
+    const actor = { userId: actorUserId ?? undefined };
+    if (!context.config.finalized) {
+      await this.fighterStatus.followReopenedSwissPhase(phaseId, context.tournamentId, actor);
+      return { finalized: null };
+    }
 
     if (await hasStartedDownstreamBracket(this.supabase, context.tournamentId, phaseId)) {
       throw new ConflictException(
@@ -67,6 +77,7 @@ export class SwissFinaliseService {
       payload: { wasFinalizedAt: context.config.finalized },
     });
     this.logger.log(`swiss phase ${phaseId} resumed`);
+    await this.fighterStatus.followReopenedSwissPhase(phaseId, context.tournamentId, actor);
     return { finalized: null };
   }
 }

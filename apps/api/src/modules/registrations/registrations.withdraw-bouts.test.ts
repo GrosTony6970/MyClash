@@ -55,6 +55,8 @@ function anaWith(row: Record<string, unknown>, forfeits: Record<string, unknown>
       phases: { rows: [{ id: 'pool-1', tournament_id: 't1', type: 'pool' }] },
       matches: { rows: [nextBout(forfeits.length > 0)] },
       match_forfeits: { rows: forfeits, returning: { id: 'new-1' } },
+      // In no Swiss phase.
+      swiss_entrants: { rows: [] },
     },
     settleRpc(calls, () => db.writes),
   );

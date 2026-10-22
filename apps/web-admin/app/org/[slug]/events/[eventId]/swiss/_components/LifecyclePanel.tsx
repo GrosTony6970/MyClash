@@ -103,14 +103,70 @@ export function LifecyclePanel({
   );
 }
 
+type Entrant = SwissView['entrants'][number];
+
+/**
+ * One entrant: Withdraw while paired; once withdrawn, the round they went out at and "Put back in
+ * the pairings" (rulings 108, 122: whoever withdrew them). `busy` carries the tab's read-only and
+ * finalised lock (ConfigureTab passes `busy || locked`).
+ */
+function EntrantRow({
+  entrant,
+  busy,
+  onWithdraw,
+  onReinstate,
+}: {
+  entrant: Entrant;
+  busy: boolean;
+  onWithdraw: (registrationId: string) => void;
+  onReinstate: (registrationId: string) => void;
+}) {
+  const { t } = useI18n();
+  const action = 'shrink-0 rounded border border-border px-2 py-0.5 text-muted disabled:opacity-40';
+  return (
+    <li className="flex items-center justify-between gap-2 rounded border border-border bg-background px-2 py-1 text-xs">
+      <span className="min-w-0 truncate">
+        <span className="font-medium text-foreground">{entrant.personName}</span>
+        {entrant.clubLabel && <span className="ml-1 text-muted">{entrant.clubLabel}</span>}
+      </span>
+      {entrant.withdrawnAtRound !== null ? (
+        <span className="flex shrink-0 items-center gap-1">
+          <span className="rounded-full bg-warning/15 px-2 py-0.5 font-semibold text-warning">
+            {t('organizer.swiss.configure.withdrawnAt', { round: entrant.withdrawnAtRound })}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onReinstate(entrant.registrationId)}
+            className={`${action} hover:border-accent hover:text-accent`}
+          >
+            {t('organizer.swiss.configure.reinstate')}
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onWithdraw(entrant.registrationId)}
+          className={`${action} hover:border-danger hover:text-danger`}
+        >
+          {t('organizer.swiss.configure.withdraw')}
+        </button>
+      )}
+    </li>
+  );
+}
+
 export function WithdrawPanel({
   view,
   busy,
   onWithdraw,
+  onReinstate,
 }: {
   view: SwissView;
   busy: boolean;
   onWithdraw: (registrationId: string) => void;
+  onReinstate: (registrationId: string) => void;
 }) {
   const { t } = useI18n();
 
@@ -123,29 +179,13 @@ export function WithdrawPanel({
       <p className="text-xs text-muted">{t('organizer.swiss.configure.withdrawHint')}</p>
       <ul className="max-h-[40vh] space-y-1 overflow-y-auto">
         {view.entrants.map((entrant) => (
-          <li
+          <EntrantRow
             key={entrant.registrationId}
-            className="flex items-center justify-between gap-2 rounded border border-border bg-background px-2 py-1 text-xs"
-          >
-            <span className="min-w-0 truncate">
-              <span className="font-medium text-foreground">{entrant.personName}</span>
-              {entrant.clubLabel && <span className="ml-1 text-muted">{entrant.clubLabel}</span>}
-            </span>
-            {entrant.withdrawnAtRound !== null ? (
-              <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 font-semibold text-warning">
-                {t('organizer.swiss.configure.withdrawnAt', { round: entrant.withdrawnAtRound })}
-              </span>
-            ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => onWithdraw(entrant.registrationId)}
-                className="shrink-0 rounded border border-border px-2 py-0.5 text-muted hover:border-danger hover:text-danger disabled:opacity-40"
-              >
-                {t('organizer.swiss.configure.withdraw')}
-              </button>
-            )}
-          </li>
+            entrant={entrant}
+            busy={busy}
+            onWithdraw={onWithdraw}
+            onReinstate={onReinstate}
+          />
         ))}
       </ul>
     </div>

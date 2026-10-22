@@ -15,6 +15,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import type { BoutDeps } from './fighter-bouts';
 import { isOut, outOpponents, readFighter, type Fighter } from './fighter-cause';
 import { bringBack, takeOut, type TakenOut } from './fighter-reconcile';
+import { entrantsToFollowOf, swissBackIn, swissOut } from './fighter-swiss';
 import { ClockService } from './clock.service';
 import type { ForfeitVoidActor } from './forfeit-void';
 import { FrozenResultsGuard } from './frozen-results.guard';
@@ -31,11 +32,13 @@ import { ScoringService } from './scoring.service';
  * every retry of one: the settle reads committed causes under the Registration's row lock, so the
  * last one to run reads them all, and a retry repairs a first send cut short after its cause.
  *
- * Then the Fighter's Pool bouts follow the status (`fighter-reconcile.ts`, 0241), on every settle,
- * never on a change only: a door cut short after the status moved would leave the bouts behind for
- * good. A bout put back faces two Fighters: the other one, out, forfeits it. Last, each Pool phase
- * whose bouts were completed is handed to the completion owner once, so the last Pool bout ended
- * by a forfeit fills the bracket (ruling 109).
+ * Then the Fighter's Pool and Swiss bouts and Swiss pairings follow the status
+ * (`fighter-reconcile.ts`, 0241; `fighter-swiss.ts`, 0244), on every settle, never on a change
+ * only: a door cut short after the status moved would leave the bouts behind for good. A bout put
+ * back faces two Fighters: the other one, out, forfeits it, and a Swiss bout put back reopens its
+ * round. Last, each Pool phase and each Swiss round whose bouts were completed is handed to the
+ * completion owner once, so the last bout ended by a forfeit fills the bracket or pairs the next
+ * round (ruling 109).
  */
 
 /** The organiser's hand (`registrations.entry_status`). */
@@ -56,17 +59,30 @@ export interface SettleInput {
    * over only a super admin's settle moves a bout.
    */
   actor?: ForfeitVoidActor;
-  /** A Pool bout the door itself completed (a forfeit), for the completion owner (ruling 109). */
-  completedPoolBout?: { matchId: string; phaseId: string };
+  /**
+   * A Pool or Swiss bout the door itself completed (a forfeit), for the completion owner (ruling
+   * 109), and its unit: its Swiss round, else its Pool phase.
+   */
+  completedBout?: { matchId: string; unitId: string };
   /** Bouts the door itself put back (a take-back): an opponent who is out forfeits them. */
   boutsPutBack?: string[];
 }
 
-/** What the bouts did after a settle, and one bout per Pool phase they were completed in. */
+/**
+ * What the bouts did after a settle: one bout per unit they were completed in, and every bout put
+ * back, by the door or by the reconcile.
+ */
 interface Followed {
   forfeited: number;
   broughtBack: number;
-  boutPerPhase: Map<string, string>;
+  boutPerUnit: Map<string, string>;
+  putBack: string[];
+}
+
+/** What a settle hands the completion owner: every bout put back, one bout per unit completed. */
+interface HandOff {
+  putBack: string[];
+  boutPerUnit: Map<string, string>;
 }
 
 /** The status the Fighter had, and has. */
@@ -131,7 +147,8 @@ export class FighterStatusService {
     private readonly frozenResults: FrozenResultsGuard,
   ) {}
 
-  async settle(input: SettleInput): Promise<SettleResult> {
+  /** `held`: a reopen's follow, which hands the rounds on once, after its last Fighter. */
+  async settle(input: SettleInput, held?: HandOff): Promise<SettleResult> {
     const rules = input.rules ?? (await this.rulesInForce(input.tournamentId));
     const { data, error } = await this.supabase.service.rpc('settle_fighter_status', {
       p_registration: input.registrationId,
@@ -144,12 +161,94 @@ export class FighterStatusService {
     });
     if (error) throw refusalOf(error, input.registrationId);
     const followed = await this.reconcile(input, rules);
-    await this.completePhases(input.completedPoolBout, followed.boutPerPhase);
+    const handOff = held ?? { putBack: [], boutPerUnit: new Map<string, string>() };
+    handOff.putBack.push(...followed.putBack);
+    for (const [unit, bout] of followed.boutPerUnit) {
+      if (!handOff.boutPerUnit.has(unit)) handOff.boutPerUnit.set(unit, bout);
+    }
+    if (!held) await this.handOn(input.completedBout, handOff);
     return {
       ...(data as Settled),
       forfeited: followed.forfeited,
       broughtBack: followed.broughtBack,
     };
+  }
+
+  /**
+   * A Swiss phase reopened (Resume, or a round count saved): each Fighter whose status it did not
+   * follow while it was over is settled again, as if it had run all along. Out (ruling 127):
+   * withdrawn from the next round, a paired bout not started forfeited. Back in (129): put back in
+   * the pairings unless a round was paired without them, a forfeit 126 left voided. Still over by
+   * its rounds, the phase is left alone (`swiss_phase_over`, 125). A "next round" committed while
+   * this runs converges the way every status change does: the withdraw lands after it, and the
+   * bout it paired is forfeited (123).
+   *
+   * The order of the rows changes nothing (129). The pairings of them all move first. Then the
+   * Fighters are settled with every round hand-off held until the last one: a forfeit would close
+   * a round and pair the next before a bout coming back was back in it. Those out come first, in
+   * the order they went out (131): of two out on one bout, the first to leave forfeits it, as if
+   * the phase had run — before a Fighter back in, whose settle would have their out opponent
+   * forfeit every bout of theirs at once. Every Fighter is tried; a failure is a 5xx after the rest, and the doors
+   * call this on every send (Resume, and Save, which sends the round count), so a resend repairs it.
+   */
+  async followReopenedSwissPhase(
+    phaseId: string,
+    tournamentId: string,
+    actor: ForfeitVoidActor,
+  ): Promise<void> {
+    const db = this.supabase.service;
+    const registrations = await entrantsToFollowOf(db, phaseId);
+    if (registrations.length === 0) return;
+    const rules = await this.rulesInForce(tournamentId);
+    const failed: string[] = [];
+    const fighters: Fighter[] = [];
+    for (const id of registrations) {
+      await this.tried(`Registration ${id}`, failed, async () =>
+        fighters.push(await readFighter(db, id)),
+      );
+    }
+    const ordered = [
+      ...fighters
+        .filter((fighter) => isOut(fighter.status))
+        .sort((a, b) => Date.parse(a.outSince ?? '') - Date.parse(b.outSince ?? '')),
+      ...fighters.filter((fighter) => !isOut(fighter.status)),
+    ];
+    for (const fighter of ordered) {
+      await this.tried(`Registration ${fighter.id}`, failed, () =>
+        isOut(fighter.status) ? swissOut(db, fighter) : swissBackIn(db, fighter),
+      );
+    }
+    const held: HandOff = { putBack: [], boutPerUnit: new Map() };
+    for (const { id } of ordered) {
+      await this.tried(`Registration ${id}`, failed, () =>
+        this.settle({ registrationId: id, tournamentId, rules, actor }, held),
+      );
+    }
+    await this.tried('The round hand-off', failed, () => this.handOn(undefined, held));
+    if (failed.length > 0) {
+      throw new Error(`Swiss phase ${phaseId} reopened, but not followed: ${failed.join('; ')}`);
+    }
+  }
+
+  /** One step of a reopen's follow: a failure is logged and kept, the rest go on. */
+  private async tried(who: string, failed: string[], step: () => Promise<unknown>) {
+    try {
+      await step();
+    } catch (error) {
+      this.logger.error(`${who} did not follow a reopened Swiss phase`, (error as Error).stack);
+      failed.push(`${who}: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * A Swiss bout put back reopens its round, read from the bouts as they now are; then each unit
+   * the bouts were completed in is handed to the completion owner.
+   */
+  private async handOn(door: SettleInput['completedBout'], handOff: HandOff): Promise<void> {
+    for (const matchId of new Set(handOff.putBack)) {
+      await this.matchCompletion.onBoutPutBack(matchId);
+    }
+    await this.completeUnits(door, handOff.boutPerUnit);
   }
 
   /**
@@ -159,7 +258,12 @@ export class FighterStatusService {
    * Then the bouts put back, by this reconcile or by the door, follow the other Fighter on them.
    */
   private async reconcile(input: SettleInput, rules: ForfeitRulesInForce) {
-    const followed: Followed = { forfeited: 0, broughtBack: 0, boutPerPhase: new Map() };
+    const followed: Followed = {
+      forfeited: 0,
+      broughtBack: 0,
+      boutPerUnit: new Map(),
+      putBack: [],
+    };
     const actor = input.actor ?? {};
     if (!(await this.frozenResults.tournamentResultsOpen(input.tournamentId, actor.userId))) {
       this.logger.log(
@@ -172,10 +276,12 @@ export class FighterStatusService {
     // A bout faces two Fighters, and this settle followed one: the other, out, forfeits it.
     const db = this.supabase.service;
     // Through their own loop and its re-check: their settle may land meanwhile. What their loop
-    // puts back is theirs to follow, not this settle's.
+    // puts back is theirs to follow, not this settle's; its rounds are reopened all the same.
+    const theirs: string[] = [];
     for (const opponent of await outOpponents(db, input.registrationId, putBack)) {
-      await this.followStatus(opponent.id, rules, actor, followed, []);
+      await this.followStatus(opponent.id, rules, actor, followed, theirs);
     }
+    followed.putBack.push(...putBack, ...theirs);
     return followed;
   }
 
@@ -191,11 +297,15 @@ export class FighterStatusService {
     for (let round = 0; round < RECONCILE_ROUNDS; round++) {
       const out = isOut(fighter.status);
       if (out) {
+        // Out of the pairings FIRST: a round paired before is seen by the bouts read, and the
+        // round the forfeits close pairs without them.
+        await swissOut(db, fighter);
         this.tookOut(followed, await takeOut(this.boutDeps, fighter, rules, actor));
       } else {
         const back = await bringBack(this.boutDeps, fighter, actor);
         followed.broughtBack += back.voided;
         putBack.push(...back.putBack);
+        await swissBackIn(db, fighter);
       }
       fighter = await readFighter(db, registrationId);
       if (isOut(fighter.status) === out) return;
@@ -207,19 +317,22 @@ export class FighterStatusService {
 
   private tookOut(followed: Followed, taken: TakenOut): void {
     followed.forfeited += taken.forfeited;
-    for (const [phase, bout] of taken.boutPerPhase) {
-      if (!followed.boutPerPhase.has(phase)) followed.boutPerPhase.set(phase, bout);
+    for (const [unit, bout] of taken.boutPerUnit) {
+      if (!followed.boutPerUnit.has(unit)) followed.boutPerUnit.set(unit, bout);
     }
   }
 
-  /** Once per Pool phase: the door's own bout first, then each phase the reconcile completed in. */
-  private async completePhases(
-    door: SettleInput['completedPoolBout'],
-    boutPerPhase: Map<string, string>,
+  /**
+   * Once per Pool phase and per Swiss round: the door's own bout first, then each unit the
+   * reconcile completed bouts in.
+   */
+  private async completeUnits(
+    door: SettleInput['completedBout'],
+    boutPerUnit: Map<string, string>,
   ): Promise<void> {
     const bouts = new Map<string, string>();
-    if (door) bouts.set(door.phaseId, door.matchId);
-    for (const [phase, bout] of boutPerPhase) if (!bouts.has(phase)) bouts.set(phase, bout);
+    if (door) bouts.set(door.unitId, door.matchId);
+    for (const [unit, bout] of boutPerUnit) if (!bouts.has(unit)) bouts.set(unit, bout);
     for (const matchId of bouts.values()) await this.matchCompletion.onMatchCompleted(matchId);
   }
 

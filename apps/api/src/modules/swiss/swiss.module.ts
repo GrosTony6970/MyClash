@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
+import { MatchesModule } from '../matches/matches.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { SwissCoreModule } from './swiss-core.module';
@@ -22,7 +23,8 @@ import { SwissService } from './swiss.service';
  * here; module-graph.test.ts pins that.
  */
 @Module({
-  imports: [SupabaseModule, SwissCoreModule, HemaRatingsModule, OrganizationsModule],
+  // MatchesModule gives the status settle (ruling 127); nothing it reaches imports this module.
+  imports: [SupabaseModule, SwissCoreModule, HemaRatingsModule, OrganizationsModule, MatchesModule],
   controllers: [SwissController, SwissStandingsController],
   providers: [
     SwissService,

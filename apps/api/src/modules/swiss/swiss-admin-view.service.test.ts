@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
   asSupabase as as,
+  entrant,
   namedEntrant,
   registration,
   swissViewState as state,
@@ -140,10 +141,7 @@ describe('SwissAdminViewService — the entrants', () => {
     // them would make the Configure tab disagree with the draw.
     const { service } = build({
       swiss_entrants: {
-        rows: [
-          namedEntrant('r1', 'Ada', 'Lovelace'),
-          { phase_id: 'p1', registration_id: 'r9', withdrawn_at_round: null },
-        ],
+        rows: [namedEntrant('r1', 'Ada', 'Lovelace'), entrant('r9')],
       },
     });
 

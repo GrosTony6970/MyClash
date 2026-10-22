@@ -18,59 +18,75 @@ import {
   type BoutDeps,
 } from './fighter-bouts';
 import { causeOf, liveForfeitsOf, rowsOf, type Cause, type Fighter } from './fighter-cause';
+import { swissPhasesOver } from './fighter-swiss';
 import { forfeitEndReason } from './forfeit-end-reason';
 import { stampForfeitVoided, type ForfeitVoidActor } from './forfeit-void';
 
 /**
- * A Fighter's Pool bouts follow their status (slice B, B2; rulings 57, 78, 105, 109, 110).
+ * A Fighter's Pool and Swiss bouts follow their status (slice B, B2; rulings 57, 78, 105, 109,
+ * 110; slice B-Swiss, rulings 123-126).
  *
  * - Out (withdrawn or disqualified, whatever the cause): `takeOut` forfeits each of their
- *   scheduled or paused bouts in every Pool phase of the Tournament, except a bout whose forfeit
- *   the organiser voided during the current spell out (`voided_at >= out_since`, the void not the
- *   reconcile's own): she put it back, and it stays back until the Fighter's next spell.
+ *   scheduled or paused bouts in every Pool phase of the Tournament, and in every Swiss phase that
+ *   is not over (a paired bout not started, 123), except a bout whose forfeit the organiser voided
+ *   during the current spell out (`voided_at >= out_since`, the void not the reconcile's own): she
+ *   put it back, and it stays back until the Fighter's next spell.
  * - In: `bringBack` voids the records written because the Fighter was out — every live forfeit
  *   the reconcile wrote, every one a person recorded under a withdrawal that is voided since
  *   (ruling 105), and every one recorded under the out status (rulings 118, 120) — and puts their
- *   bouts back unless they are in play or were fought again.
+ *   bouts back unless they are in play or were fought again. Not a record on a bout of a Swiss
+ *   phase that is over (126): the phase is left alone.
  *
  * Both are safe to run again, which is how a door cut short is repaired: its retry settles, and
- * the reconcile after the settle finds what is left to do. A Pool bout feeds no bracket slot, so
- * putting one back un-advances nothing (a bracket the Pool already filled stays, §6).
+ * the reconcile after the settle finds what is left to do. A Pool or Swiss bout feeds no bracket
+ * slot, so putting one back un-advances nothing (a bracket already filled stays, §6).
  */
 
 type Client = BoutDeps['db'];
 type Row = Record<string, unknown>;
 
-/** What one `takeOut` did: the bouts it forfeited, and one of them per Pool phase. */
+/**
+ * What one `takeOut` did: the bouts it forfeited, and one of them per unit the completion owner
+ * closes: a Pool phase, or a Swiss round (a Fighter can hold unstarted bouts in two rounds).
+ */
 export interface TakenOut {
   forfeited: number;
-  boutPerPhase: Map<string, string>;
+  boutPerUnit: Map<string, string>;
 }
+
+/** The unit a bout is handed to the completion owner by: its Swiss round, else its phase. */
+export const unitOf = (bout: Row): string =>
+  (bout['swiss_round_id'] as string | null) ?? (bout['phase_id'] as string);
 
 // ── Out ─────────────────────────────────────────────────────────────────────────
 
-/** The Fighter's scheduled or paused bouts of every Pool phase, but the ones put back by hand. */
-async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
+/** The Pool phases of the Tournament, and its Swiss phases that are not over (125). */
+async function phasesToTakeOutOf(db: Client, fighter: Fighter): Promise<string[]> {
   const phases = rowsOf(
-    'The Pool phases',
+    'The Pool and Swiss phases',
     await db
       .from('phases')
-      .select('id')
+      .select('id, type')
       .eq('tournament_id', fighter.tournamentId)
-      .eq('type', 'pool'),
+      .in('type', ['pool', 'swiss']),
   );
+  const swiss = phases.filter((phase) => phase['type'] === 'swiss').map((p) => p['id'] as string);
+  const over = await swissPhasesOver(db, swiss);
+  return phases.map((phase) => phase['id'] as string).filter((id) => !over.has(id));
+}
+
+/** The Fighter's scheduled or paused Pool and Swiss bouts, but the ones put back by hand. */
+async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
+  const phases = await phasesToTakeOutOf(db, fighter);
   if (phases.length === 0) return [];
   const bouts = rowsOf(
-    'The Pool bouts of the Fighter',
+    'The Pool and Swiss bouts of the Fighter',
     await db
       .from('matches')
       .select(
-        'id, phase_id, red_registration_id, blue_registration_id, red_score, blue_score, status, winner_registration_id, ended_at, end_reason',
+        'id, phase_id, swiss_round_id, red_registration_id, blue_registration_id, red_score, blue_score, status, winner_registration_id, ended_at, end_reason',
       )
-      .in(
-        'phase_id',
-        phases.map((phase) => phase['id'] as string),
-      )
+      .in('phase_id', phases)
       .in('status', ['scheduled', 'paused'])
       .or(`red_registration_id.eq.${fighter.id},blue_registration_id.eq.${fighter.id}`),
   );
@@ -91,23 +107,22 @@ async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
   return bouts.filter((bout) => !handled.has(bout['id'] as string));
 }
 
-/** Forfeit the Fighter's bouts while they are out; one bout per Pool phase it completed bouts in. */
+/** Forfeit the Fighter's bouts while they are out; one bout per unit it completed bouts in. */
 export async function takeOut(
   deps: BoutDeps,
   fighter: Fighter,
   rules: ForfeitRulesInForce,
   actor: ForfeitVoidActor,
 ): Promise<TakenOut> {
-  const taken: TakenOut = { forfeited: 0, boutPerPhase: new Map() };
+  const taken: TakenOut = { forfeited: 0, boutPerUnit: new Map() };
   const bouts = await boutsToTakeOut(deps.db, fighter);
   if (bouts.length === 0) return taken;
   const cause = await causeOf(deps.db, fighter, rules, await liveForfeitsOf(deps.db, fighter));
   for (const bout of bouts) {
     if (!(await forfeitBout(deps, fighter, bout, cause, rules, actor))) continue;
     taken.forfeited += 1;
-    if (!taken.boutPerPhase.has(bout['phase_id'] as string)) {
-      taken.boutPerPhase.set(bout['phase_id'] as string, bout['id'] as string);
-    }
+    if (!taken.boutPerUnit.has(unitOf(bout)))
+      taken.boutPerUnit.set(unitOf(bout), bout['id'] as string);
   }
   return taken;
 }
@@ -121,6 +136,8 @@ async function forfeitBout(
   rules: ForfeitRulesInForce,
   actor: ForfeitVoidActor,
 ): Promise<boolean> {
+  // 'pool' for a Swiss bout too: the forfeit rules read a Pool and a Swiss bout alike
+  // (`isPoolOrSwissPhase`; ruling 72, a Swiss bout can be a forfeit draw).
   const policy = forfeitOutcomeOf(rules, cause.reason, 'pool');
   const winnerRegistrationId = winnerOf(bout, fighter.id, policy);
   const scores = resolveScores(bout, fighter.id, policy);
@@ -207,11 +224,11 @@ export async function bringBack(
     deps.db,
     underRoot.map((f) => f['parent_forfeit_id'] as string),
   );
-  const records = [
+  const records = await outsideOverPhases(deps.db, [
     ...auto,
     ...underRoot.filter((f) => voidedRoots.has(f['parent_forfeit_id'] as string)),
     ...byHand.filter((f) => f['under_out_status'] === true && f['parent_forfeit_id'] == null),
-  ];
+  ]);
   const back: BroughtBack = { voided: records.length, putBack: [] };
   if (records.length === 0) return back;
 
@@ -230,6 +247,38 @@ export async function bringBack(
     await restampAfterInsert(deps.db, { matchId: records[0]!['match_id'] as string }, deps.logger);
   }
   return back;
+}
+
+/**
+ * The records but those on a bout of a Swiss phase that is over (126): `takeOut`'s own forfeit can
+ * be what closed the phase, and the phase is left alone, its standings as played. Those stay live,
+ * counting for nothing (the settle counts no record the reconcile wrote, nor one under a root or
+ * under the out status, and none of them carries a `fighter_outcome`: 0242).
+ */
+async function outsideOverPhases(db: Client, records: Row[]): Promise<Row[]> {
+  if (records.length === 0) return records;
+  const bouts = rowsOf(
+    'The bouts of the records to bring back',
+    await db
+      .from('matches')
+      .select('id, phase_id')
+      .in('id', [...new Set(records.map((f) => f['match_id'] as string))]),
+  );
+  const phaseOf = new Map(bouts.map((bout) => [bout['id'] as string, bout['phase_id'] as string]));
+  const swiss = rowsOf(
+    'The Swiss phases of those bouts',
+    await db
+      .from('phases')
+      .select('id')
+      .in('id', [...new Set(phaseOf.values())])
+      .eq('type', 'swiss'),
+  );
+  if (swiss.length === 0) return records;
+  const over = await swissPhasesOver(
+    db,
+    swiss.map((phase) => phase['id'] as string),
+  );
+  return records.filter((f) => !over.has(phaseOf.get(f['match_id'] as string) ?? ''));
 }
 
 /** Which of these records are voided. */

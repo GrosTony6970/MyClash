@@ -127,6 +127,7 @@ beforeEach(() => {
       'commitNextRound',
       'updateConfig',
       'withdraw',
+      'reinstate',
       'deleteRound',
       'finalise',
       'unfinalise',
@@ -215,6 +216,13 @@ const ROUTES: Route[] = [
     args: (userId) => [PHASE_A, ANNA, userId],
   },
   {
+    handler: 'reinstate',
+    bar: 'admin',
+    call: (row, r) => controller.reinstate(PHASE[row], { registrationId: ANNA }, r),
+    reaches: 'reinstate',
+    args: (userId) => [PHASE_A, ANNA, userId],
+  },
+  {
     handler: 'deleteRound',
     bar: 'admin',
     call: (row, r) => controller.deleteRound(PHASE[row], 2, r),
@@ -265,7 +273,7 @@ describe('SwissController authorization', () => {
       return typeof value === 'function' && Reflect.getMetadata(PATH_METADATA, value) !== undefined;
     });
     expect(routes.sort()).toEqual(ROUTES.map((route) => route.handler).sort());
-    expect(WRITES).toHaveLength(9);
+    expect(WRITES).toHaveLength(10);
   });
 
   it.each(ROUTES)('$handler refuses a caller with no token, before any read', async (route) => {

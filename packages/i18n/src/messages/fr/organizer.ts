@@ -1693,12 +1693,18 @@ export const organizer = {
       assignReferees: 'Affecter les arbitres',
       entrantsTitle: 'Participants ({count})',
       withdrawHint:
-        'Un forfait ne participe plus aux rondes suivantes. Les rondes déjà disputées restent acquises et comptent pour ses adversaires.',
+        'Un forfait ne participe plus aux rondes suivantes. Les rondes déjà disputées restent acquises et comptent pour ses adversaires. Remettre dans les appariements : il est de nouveau apparié dès la ronde suivante ; les rondes manquées ne comptent pas.',
       withdraw: 'Forfait',
       withdrawn: 'Combattant déclaré forfait.',
       withdrawnAt: 'sorti à la ronde {round}',
+      reinstate: 'Remettre dans les appariements',
+      reinstated: 'Combattant remis dans les appariements.',
+      fighterOut:
+        'Ce combattant est hors du tournoi (retiré ou disqualifié) : réintégrez-le d’abord.',
+      fieldChanged: 'Les combattants ont changé pendant l’appariement de la ronde : réessayez.',
     },
     rounds: {
+      roundHasRecords: 'Cette ronde porte un carton noir ou un forfait : annulez-le d’abord.',
       noPhase: 'Pas encore de phase suisse.',
       empty: 'Aucune ronde appariée.',
       progress: '{done} rondes terminées sur {total}',

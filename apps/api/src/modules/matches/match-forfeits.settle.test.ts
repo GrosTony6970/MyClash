@@ -159,6 +159,13 @@ describe('a forfeit settles its Fighter, after its own writes', () => {
     expect(fighterStates(db)).toEqual([]);
   });
 
+  it('hands a Swiss bout it ended to the completion owner by its round (109)', async () => {
+    // The last bout of a Swiss round ended by a forfeit closes the round: the next one pairs.
+    const { forfeit, status } = bout(ASKS, [], 'swiss', { swiss_round_id: 'round-2' });
+    await forfeit('injury', false);
+    expect(status.calls[0]!.input.completedBout).toEqual({ matchId: 'm1', unitId: 'round-2' });
+  });
+
   it('a settle that fails is a server error, never the 400 of a refused forfeit', async () => {
     const { forfeit, status } = bout(ASKS);
     status.settle.mockRejectedValueOnce(new Error('the database is away'));
@@ -192,7 +199,7 @@ describe('every retry of the forfeit door settles', () => {
     await expect(forfeit('injury', false)).rejects.toThrow('Match is already closed');
     expect(settles(status)).toEqual([{ fighter: 'reg-red@tournament-1', after: [] }]);
     // The bout its first send completed is handed on again: its bracket fills (ruling 109).
-    expect(status.calls[0]!.input.completedPoolBout).toEqual({ matchId: 'm1', phaseId: 'phase-1' });
+    expect(status.calls[0]!.input.completedBout).toEqual({ matchId: 'm1', unitId: 'phase-1' });
   });
 
   it('the other Fighter’s record on a closed bout settles nobody', async () => {

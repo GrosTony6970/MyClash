@@ -711,3 +711,22 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     expect(supabase.writes).toEqual([]);
   });
 });
+
+describe('MatchCompletionService.onBoutPutBack', () => {
+  it('hands the bout to the Swiss round owner, with no un-completion of its own', async () => {
+    // A take-back or a Fighter's return put the bout back by its own door (slice B-Swiss).
+    const swissAdvance = { onBoutPutBack: vi.fn(async () => undefined) };
+    const frozen = { assertResultMutationAllowed: vi.fn() };
+    const supabase = mockSupabase({});
+    await new MatchCompletionService(
+      supabase as never,
+      frozen as never,
+      undefined,
+      undefined,
+      swissAdvance as never,
+    ).onBoutPutBack('m1');
+    expect(swissAdvance.onBoutPutBack).toHaveBeenCalledWith('m1');
+    expect(frozen.assertResultMutationAllowed).not.toHaveBeenCalled();
+    expect(supabase.writes).toEqual([]);
+  });
+});

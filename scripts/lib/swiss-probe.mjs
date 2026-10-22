@@ -1,87 +1,40 @@
 /**
- * Check 17 of the RLS probe (`scripts/db-rls-probe.mjs`): a Swiss round is written in one locked
- * step, and a withdraw takes the same lock (migration 0243, slice B-Swiss).
+ * Check 17 of the RLS probe (`scripts/db-rls-probe.mjs`), its first half: a Swiss round is written
+ * in one locked step, and a withdraw takes the same lock (migration 0243, slice B-Swiss). The
+ * second half, a Swiss Fighter's pairings following their status (0244), is
+ * `swiss-status-probe.mjs`; the seed and the calls are `swiss-probe-kit.mjs`.
  *
- * The RLS seed holds no Swiss row, so each case seeds, in a savepoint rolled back, a Swiss phase of
- * the published Tournament and four entrants (the seed's two Registrations and two of its own),
- * then calls the functions AS THE OWNER and reads the rows back. Every answer is asserted
- * strictly: a stub that answers NULL fails each case on its answer.
+ * Every answer is asserted strictly: a stub that answers NULL fails each case on its answer.
  *
  * NOT the lock: every case runs in one rolled-back transaction, so a second call never waits.
- * The lock is held by its text (0243's DO block), read again here on every replay.
+ * The lock is held by its text (0243's and 0244's DO blocks), read again here on every replay.
  */
 
-import { errorOf, isolated, OPEN, PHASE, SEED_COPY, TOURNAMENT } from './match-rules-probe-kit.mjs';
-import { FIGHTER } from './fighter-status-probe-kit.mjs';
+import { PHASE, SEED_COPY } from './match-rules-probe-kit.mjs';
+import {
+  bout,
+  caseFailures,
+  commit,
+  entrantOf,
+  FIELD,
+  FIGHTER,
+  FOURTH,
+  functionFailures,
+  OPPONENT,
+  released,
+  roundCount,
+  SWISS,
+  THIRD,
+  withdraw,
+} from './swiss-probe-kit.mjs';
 
-const OPPONENT = 'c0f00000-0000-4000-8000-00000000000a';
-const THIRD = 'c0f00000-0000-4000-8000-0000000017a3';
-const FOURTH = 'c0f00000-0000-4000-8000-0000000017a4';
-const SWISS = '99999999-0000-4000-8000-0000000017a1';
-const FIELD = [FIGHTER, OPPONENT, THIRD, FOURTH];
-const WITHDRAW = 'public.swiss_withdraw(uuid, uuid, text)';
-const COMMIT = 'public.swiss_commit_round(uuid, integer, uuid[], uuid, jsonb, jsonb)';
-const LOCKED = [WITHDRAW, COMMIT];
-const LOCK_FIRST = String.raw`^\s*select\y[^;]*\yfrom\s+public\.phases\y[^;]*\yfor\s+no\s+key\s+update\s*;`;
-
-/** The Swiss phase and its four entrants. */
-async function seedSwiss(sp) {
-  await sp`INSERT INTO phases (id, tournament_id, type, sort_order, config_json)
-           VALUES (${SWISS}, ${TOURNAMENT}, 'swiss', 2, ${sp.json({ roundCount: 3, finalized: null })})`;
-  for (const [n, id] of [
-    [3, THIRD],
-    [4, FOURTH],
-  ]) {
-    const person = `b0f00000-0000-4000-8000-0000000017b${n}`;
-    await sp`INSERT INTO persons (id, event_id, given_name, family_name)
-             VALUES (${person}, ${OPEN}, 'Probe', ${`Swiss ${n}`})`;
-    await sp`INSERT INTO registrations (id, tournament_id, person_id)
-             VALUES (${id}, ${TOURNAMENT}, ${person})`;
-  }
-  for (const id of FIELD) {
-    await sp`INSERT INTO swiss_entrants (phase_id, registration_id) VALUES (${SWISS}, ${id})`;
-  }
-}
-
-/** A bout as `swissMatchRows` builds it, without its phase and round. */
-const bout = (red, blue, board, status = 'scheduled') => ({
-  red_registration_id: red,
-  blue_registration_id: blue,
-  status,
-  match_number_label: `SW-R1-M${board}`,
-  match_rules_id: SEED_COPY,
-});
+const LOCKED = [
+  'public.swiss_withdraw(uuid, uuid, text)',
+  'public.swiss_commit_round(uuid, integer, uuid[], uuid, jsonb, jsonb)',
+];
 
 /** Round 1 of the four: board 2 sent first, so the answer must order the ids itself. */
 const ROUND_1 = [bout(THIRD, FOURTH, 2), bout(FIGHTER, OPPONENT, 1)];
-
-const commit = async (sp, round, field, bouts, bye = null, meta = { warnings: [] }) =>
-  (
-    await sp`SELECT public.swiss_commit_round(${SWISS}, ${round}, ${field}::uuid[], ${bye},
-                                              ${sp.json(meta)}, ${sp.json(bouts)}) AS r`
-  )[0].r;
-
-const withdraw = async (sp, registration, by) =>
-  (await sp`SELECT public.swiss_withdraw(${SWISS}, ${registration}, ${by}) AS r`)[0].r;
-
-const roundCount = async (sp) =>
-  (await sp`SELECT count(*)::int AS n FROM swiss_rounds WHERE phase_id = ${SWISS}`)[0].n;
-
-const entrantOf = async (sp, registration) =>
-  (
-    await sp`SELECT withdrawn_at_round, withdrawn_by FROM swiss_entrants
-             WHERE phase_id = ${SWISS} AND registration_id = ${registration}`
-  )[0];
-
-/** A savepoint RELEASED on success and rolled back only on its error; the error, or null. */
-async function released(sp, statement) {
-  try {
-    await sp.savepoint(statement);
-    return null;
-  } catch (error) {
-    return error;
-  }
-}
 
 /** The cases; each throws what is wrong. */
 const CASES = [
@@ -253,59 +206,9 @@ const REFUSALS = [
   },
 ];
 
-async function caseFailures(tx) {
-  const failures = [];
-  for (const { what, run } of CASES) {
-    const error = await errorOf(tx, async (sp) => {
-      await seedSwiss(sp);
-      await run(sp);
-    });
-    if (error) failures.push(`check 17: ${what}: ${error.message}`);
-  }
-  for (const { what, code, by, run } of REFUSALS) {
-    let error = null;
-    await isolated(tx, async (sp) => {
-      await seedSwiss(sp);
-      error = await errorOf(sp, run);
-    });
-    const refused = by
-      ? error?.constraint_name === by || String(error?.message).includes(by)
-      : error?.code === code;
-    if (!refused) {
-      failures.push(
-        `check 17: ${what} is not refused by ${by ?? code} (${error ? error.message : 'taken'})`,
-      );
-    }
-  }
-  return failures;
-}
-
-/** Who may call each function, its volatility, and the phase lock as its first statement. */
-async function functionFailures(tx) {
-  const failures = [];
-  for (const fn of LOCKED) {
-    const [row] = await tx`
-      SELECT has_function_privilege('anon', ${fn}::regprocedure, 'EXECUTE') AS anon,
-             has_function_privilege('authenticated', ${fn}::regprocedure, 'EXECUTE') AS authed,
-             has_function_privilege('service_role', ${fn}::regprocedure, 'EXECUTE') AS service,
-             p.provolatile,
-             substring(p.prosrc FROM '\\ybegin\\y(.*)$') ~* ${LOCK_FIRST} AS locks
-      FROM pg_proc p WHERE p.oid = ${fn}::regprocedure`;
-    if (row.anon || row.authed) failures.push(`check 17: a web role may execute ${fn}`);
-    if (!row.service) failures.push(`check 17: the service role may not execute ${fn}`);
-    if (row.provolatile !== 'v') failures.push(`check 17: ${fn} is not VOLATILE`);
-    if (!row.locks) failures.push(`check 17: ${fn} does not lock the phase first`);
-  }
-  return failures;
-}
-
 /** What is wrong, as sentences; none when all is right. */
 export async function swissFailures(tx) {
-  const missing = [];
-  for (const fn of LOCKED) {
-    const [row] = await tx`SELECT to_regprocedure(${fn}) IS NOT NULL AS ok`;
-    if (!row.ok) missing.push(`check 17: ${fn} does not exist`);
-  }
-  if (missing.length > 0) return missing;
-  return [...(await functionFailures(tx)), ...(await caseFailures(tx))];
+  const pins = await functionFailures(tx, LOCKED, { locked: true });
+  if (pins.some((failure) => failure.endsWith('does not exist'))) return pins;
+  return [...pins, ...(await caseFailures(tx, CASES, REFUSALS))];
 }

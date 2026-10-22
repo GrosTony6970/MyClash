@@ -143,14 +143,19 @@ describe('a Fighter back in: the bouts forfeited because she was out come back',
     expect(selectsFor(db.from, 'match_forfeits')[0]).toContain('resulting_match_state');
   });
 
-  it('a Fighter in with nothing forfeited costs one read of her records, and writes nothing', async () => {
+  it('a Fighter in with nothing forfeited costs a read of her records and one of her Swiss entries, and writes nothing', async () => {
     const { db, settle } = anasTournament({
       statuses: ['checked_in'],
       forfeits: [forfeit('own', { match_id: 'm-1' })],
     });
     await settle();
     expect(db.writes).toEqual([]);
-    expect(queriedTables(db.from)).toEqual(['registrations', 'match_forfeits', 'registrations']);
+    expect(queriedTables(db.from)).toEqual([
+      'registrations',
+      'match_forfeits',
+      'swiss_entrants',
+      'registrations',
+    ]);
   });
 });
 
@@ -269,6 +274,8 @@ describe('a bring-back the database refuses', () => {
         forfeit('a-1', { match_id: 'm-1', auto_created: true, resulting_match_state: FORFEITED }),
       ],
       matchesTable: [
+        // The bouts' phases: a Pool bout, never over (126).
+        { data: [{ id: 'm-1', phase_id: 'pool-1' }], error: null },
         { data: [{ id: 'm-1', status: 'completed' }], error: null },
         { data: null, error: { message: 'connection lost' } },
       ],
@@ -288,6 +295,8 @@ describe('a bring-back the database refuses', () => {
         }),
       ],
       matchesTable: [
+        // The bouts' phases: a Pool bout, never over (126).
+        { data: [{ id: 'm-1', phase_id: 'pool-1' }], error: null },
         { data: [{ id: 'm-1', status: 'completed' }], error: null },
         { data: null, error: { message: 'a lock' } },
       ],

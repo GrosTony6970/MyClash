@@ -75,8 +75,8 @@ describe('a forfeit that counts as a draw', () => {
     // The Swiss standings' and pairing's own reader, with a MARKER draw value.
     const players = buildSwissPlayers(
       [
-        { registrationId: 'reg-red', withdrawnAtRound: null },
-        { registrationId: 'reg-blue', withdrawnAtRound: null },
+        { registrationId: 'reg-red', withdrawnAtRound: null, missedRounds: [] },
+        { registrationId: 'reg-blue', withdrawnAtRound: null, missedRounds: [] },
       ],
       [
         {

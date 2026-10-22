@@ -315,14 +315,19 @@ export class SwissPairingService {
   async loadEntrants(phaseId: string): Promise<SwissEntrantRecord[]> {
     const { data, error } = await this.supabase.service
       .from('swiss_entrants')
-      .select('registration_id, withdrawn_at_round')
+      .select('registration_id, withdrawn_at_round, missed_rounds')
       .eq('phase_id', phaseId);
     if (error) throw new BadRequestException(error.message);
     return (
-      (data ?? []) as Array<{ registration_id: string; withdrawn_at_round: number | null }>
+      (data ?? []) as Array<{
+        registration_id: string;
+        withdrawn_at_round: number | null;
+        missed_rounds: number[];
+      }>
     ).map((r) => ({
       registrationId: r.registration_id,
       withdrawnAtRound: r.withdrawn_at_round,
+      missedRounds: r.missed_rounds,
     }));
   }
 

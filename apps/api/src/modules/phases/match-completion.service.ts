@@ -426,6 +426,15 @@ export class MatchCompletionService {
   }
 
   /**
+   * A bout a take-back or a Fighter's return put back (`FighterStatusService`): its Swiss round's
+   * status follows its bouts as they now are. Not an un-completion: the bout is put back by its
+   * own door, with no dependents to revert (a Pool or Swiss bout feeds no slot). A no-op off Swiss.
+   */
+  async onBoutPutBack(matchId: string): Promise<void> {
+    await this.swissAdvance?.onBoutPutBack(matchId);
+  }
+
+  /**
    * After a SWISS match completes, pair the next round if this one just closed.
    *
    * A third side effect INSIDE the single owner, not a fifth call site: the

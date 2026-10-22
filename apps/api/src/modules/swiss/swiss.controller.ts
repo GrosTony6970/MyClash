@@ -166,6 +166,22 @@ export class SwissController {
     return this.swiss.withdraw(phaseId, dto.registrationId, userId);
   }
 
+  @Post('swiss-phases/:phaseId/reinstate')
+  @ApiOperation({
+    summary: 'Put a withdrawn fighter back in the pairings (org admin+)',
+    description:
+      'Paired again from the next round; the rounds missed count nothing. 409 fighter_out while the fighter is out of the tournament.',
+  })
+  @ApiParam({ name: 'phaseId', format: 'uuid' })
+  async reinstate(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Body() dto: WithdrawSwissDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await this.callerOnPhase(req, phaseId);
+    return this.swiss.reinstate(phaseId, dto.registrationId, userId);
+  }
+
   @Delete('swiss-phases/:phaseId/rounds/:roundNumber')
   @ApiOperation({
     summary: 'Delete the last round, only while nothing in it has started (org admin+)',

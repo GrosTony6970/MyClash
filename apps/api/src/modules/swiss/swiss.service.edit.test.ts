@@ -2,8 +2,10 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { describe, expect, it } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { lastFunctionParams } from '../../common/testing/migration-function';
+import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
 import { asSupabase as as, phaseRow, swissConfig, swissRound } from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
+import type { FighterStatusService } from '../matches/fighter-status.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
 import { parseSwissConfig } from './dto/swiss-config.dto';
 import type { UpdateSwissConfigDto } from './dto/swiss.dto';
@@ -28,12 +30,14 @@ const build = (over: Record<string, unknown> = {}) => {
     audit_log: { rows: [] as SupabaseRow[] },
     ...over,
   });
+  const status = fighterStatusDouble();
   const service = new SwissService(
     as(supabase),
     new SwissPairingService(as(supabase)),
     {} as SwissSeedingService,
+    status,
   );
-  return { supabase, service };
+  return { supabase, service, follow: status.followReopenedSwissPhase };
 };
 
 /** Two rounds generated, which is where the retroactive edits freeze. */
@@ -150,6 +154,27 @@ describe('SwissService.updateConfig — what a live phase will still accept', ()
   });
 });
 
+describe('SwissService.updateConfig — the Fighters a round count reopens for (127, 129)', () => {
+  it('settles them once the new round count is written: it can reopen the phase', async () => {
+    const { supabase, service, follow } = build();
+    const phaseWritesSeen: number[] = [];
+    follow.mockImplementation(() => {
+      phaseWritesSeen.push(writesTo(supabase, 'phases').length);
+      return Promise.resolve();
+    });
+
+    await service.updateConfig('p1', dto({ roundCount: 6 }), 'u1');
+    expect(follow).toHaveBeenCalledWith('p1', 't1', { userId: 'u1' });
+    expect(phaseWritesSeen).toEqual([1]);
+  });
+
+  it('settles nobody for an edit that leaves the round count alone', async () => {
+    const { service, follow } = build();
+    await service.updateConfig('p1', dto({ tiebreakChain: ['buchholz'] }), 'u1');
+    expect(follow).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * The Withdraw door writes through `swiss_withdraw` (0243), under the phase's row lock, which the
  * round's write takes too. What the function decides — the round they go out at, one Fighter in
@@ -169,6 +194,7 @@ describe('SwissService.withdraw — taking a fighter out mid-phase', () => {
       as(supabase),
       new SwissPairingService(as(supabase)),
       {} as SwissSeedingService,
+      {} as FighterStatusService,
     );
     return { supabase, service };
   };
