@@ -41,7 +41,12 @@ describe('the words of the ruleset editor', () => {
     act(() =>
       root.render(
         <I18nProvider locale="fr">
-          <RulesetMatchFormatBox own={{}} onChange={() => undefined} onValidity={() => undefined} />
+          <RulesetMatchFormatBox
+            own={{}}
+            onChange={() => undefined}
+            onValidity={() => undefined}
+            hasMaxDoubles
+          />
         </I18nProvider>,
       ),
     );

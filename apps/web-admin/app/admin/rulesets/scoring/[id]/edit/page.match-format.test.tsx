@@ -6,7 +6,11 @@ import {
   typeInto,
   type OpenedPenaltyPage,
 } from '../../../../../../src/components/rulesets/penalty-page.fixtures';
-import { tfV1Row } from '../../../../../../src/components/rulesets/scoring-page.fixtures';
+import {
+  FORK_TF_CONFIG,
+  tfForkRow,
+  tfV1Row,
+} from '../../../../../../src/components/rulesets/scoring-page.fixtures';
 import EditRulesetPage from './page';
 
 /**
@@ -65,5 +69,18 @@ describe('the platform’s TF_v1 editor', () => {
       targets,
       targetValues: { deepTarget: 4, shallowTarget: 1 },
     });
+  });
+
+  it('writes a club’s TF_v1 copy back to its tf_config, as a copy of TF_v1', async () => {
+    page = await openPenaltyPage(<EditRulesetPage />, {
+      '/api/v1/admin/custom-rulesets/rs-tf': { ...tfForkRow(), id: 'rs-tf' },
+      '/api/v1/admin/custom-rulesets/rs-tf/versions': [],
+    });
+
+    await save();
+
+    const patch = page.saves.find((s) => s.path === '/api/v1/admin/custom-rulesets/rs-tf');
+    expect(patch?.body['tfConfig']).toEqual(FORK_TF_CONFIG);
+    expect(patch?.body).not.toHaveProperty('matchFormatDefaults');
   });
 });

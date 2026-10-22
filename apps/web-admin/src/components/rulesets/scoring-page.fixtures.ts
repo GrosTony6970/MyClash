@@ -5,6 +5,8 @@
  * keeping the ruleset's own value is seen.
  */
 
+import { Generic_PointsCap } from '@myclash/rulesets';
+
 /** A score formula the form accepts as it is. */
 export const VICTORIES = { type: 'var', name: 'victories' };
 
@@ -78,6 +80,26 @@ export function tfForkRow(): Record<string, unknown> {
     afterblow_mode: 'deductive',
     afterblow_valuation: 'fixed',
     afterblow_fixed_value: 1,
+  };
+}
+
+/**
+ * The built-in Points cap's row. Its `tf_config` holds what its Tournaments start from; the flat
+ * `match_format_defaults` holds a cap of 3 nothing reads: an editor that shows or writes it is
+ * seen.
+ */
+export function pointsCapRow(tfConfig: Record<string, unknown> | null): Record<string, unknown> {
+  return {
+    ...base('rs-pc', 'Generic_PointsCap'),
+    is_system: true,
+    owner_organization_id: null,
+    tf_config: tfConfig,
+    match_format_defaults: { pointCap: 3 },
+    targets: [{ name: 'Hit', value: 1 }],
+    // What the API adds to a built-in row from the engine (`hydrateSystemRow`).
+    systemRankingChain: Generic_PointsCap.rankingChain,
+    systemStandingsColumns: Generic_PointsCap.standingsColumns,
+    systemMetadata: Generic_PointsCap.metadata,
   };
 }
 

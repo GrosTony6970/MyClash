@@ -220,3 +220,41 @@ describe('a TF_v1 ruleset’s dials', () => {
     expect(submitted[0]?.['ownCoded']).toEqual({ doublePenaltyFormula: '0' });
   });
 });
+
+/** What each editor shows and lets the author change (`EDITOR_SECTIONS`, ruling 139). */
+const KINDS: Array<[string, Partial<RulesetRowLike>, Record<string, boolean>]> = [
+  [
+    'a TF_v1 copy',
+    { code: 'custom_tf_v1_fork_abc', base_code: 'TF_v1' },
+    { formula: false, dials: true, targets: true, afterblow: false, maxDoubles: true },
+  ],
+  [
+    'Points cap',
+    { code: 'Generic_PointsCap' },
+    { formula: false, dials: false, targets: false, afterblow: false, maxDoubles: false },
+  ],
+  [
+    'a formula ruleset',
+    { code: 'custom_house' },
+    { formula: true, dials: false, targets: true, afterblow: true, maxDoubles: true },
+  ],
+];
+
+describe.each(KINDS)('the editor of %s', (_name, stored, expected) => {
+  it('shows and unlocks exactly its own sections', async () => {
+    await openForm(row(stored));
+    const has = (words: string) =>
+      [...document.querySelectorAll('label, h3')].some((each) =>
+        each.textContent?.trim().startsWith(words),
+      );
+    const target = document.querySelector<HTMLInputElement>('input[aria-label="Target name"]');
+
+    expect({
+      formula: has('Score formula'),
+      dials: has('Win bonus'),
+      targets: target?.disabled === false,
+      afterblow: !labelled('This ruleset uses afterblow').disabled,
+      maxDoubles: has('Max double hits'),
+    }).toEqual(expected);
+  });
+});

@@ -20,14 +20,11 @@ import {
   type RulesetFormValue,
 } from '../../../../../../src/components/rulesets/RulesetForm';
 import {
-  isCodedRuleset,
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../src/components/rulesets/ruleset-form-initial';
-import {
-  codedRulesetTfConfig,
-  targetsChanged,
-} from '../../../../../../src/components/rulesets/coded-ruleset-body';
+import { rulesetEditorKind } from '../../../../../../src/components/rulesets/ruleset-kind';
+import { rulesetUpdateBody } from '../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -136,8 +133,9 @@ export default function EditRulesetPage() {
           scoreFormula: formula,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(data.constants ?? {}) },
           tiebreakers: data.tiebreakers ?? [],
-          // TF v1 hydrates from tf_config.*, custom rulesets from the flat
-          // columns — one shared helper so the org pages can't drift.
+          // TF v1 hydrates from tf_config.* (Points cap its match format only),
+          // custom rulesets from the flat columns — one shared helper so the org
+          // pages can't drift.
           ...rulesetFormInitial(data),
           baseCode: data.base_code,
           isSystem: data.is_system,
@@ -268,22 +266,14 @@ export default function EditRulesetPage() {
                   // its tunables in `tf_config` — the back-end merges that over
                   // the coded defaults at tournament creation. Changed targets
                   // also go to the flat column, so the lineage lamp, the grammar
-                  // resolver and the Discover card stay current. A formula
-                  // ruleset sends the sibling columns as before.
-                  const changed = targetsChanged(initial.targets, data.targets);
-                  const body = isCodedRuleset(initial.code, initial.baseCode)
-                    ? {
-                        name: data.name,
-                        description: data.description,
-                        version: data.version,
-                        ...(changed ? { targets: data.targets } : {}),
-                        tfConfig: codedRulesetTfConfig(
-                          initial.storedTfConfig,
-                          data,
-                          initial.targets,
-                        ),
-                      }
-                    : data;
+                  // resolver and the Discover card stay current. Points cap
+                  // stores its match format there too; a formula ruleset sends
+                  // the sibling columns as before.
+                  const body = rulesetUpdateBody(
+                    rulesetEditorKind(initial.code, initial.baseCode),
+                    initial,
+                    data,
+                  );
                   const r = await apiRequest(apiUrl, `/api/v1/admin/custom-rulesets/${id}`, {
                     method: 'PATCH',
                     body,

@@ -20,15 +20,12 @@ import {
   type RulesetFormValue,
 } from '../../../../../../../src/components/rulesets/RulesetForm';
 import {
-  isCodedRuleset,
   rulesetFormInitial,
   type RulesetRowLike,
 } from '../../../../../../../src/components/rulesets/ruleset-form-initial';
 import { ForkLineagePanel } from '../../../../../../../src/components/rulesets/LineageLamps';
-import {
-  codedRulesetTfConfig,
-  targetsChanged,
-} from '../../../../../../../src/components/rulesets/coded-ruleset-body';
+import { rulesetEditorKind } from '../../../../../../../src/components/rulesets/ruleset-kind';
+import { rulesetUpdateBody } from '../../../../../../../src/components/rulesets/coded-ruleset-body';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -186,8 +183,8 @@ export default function OrgEditScoringRulesetPage() {
           scoreFormula: formula,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(data.constants ?? {}) },
           tiebreakers: data.tiebreakers ?? [],
-          // Same hydration as the super-admin page: TF v1 reads
-          // tf_config.*, custom rulesets read the flat columns.
+          // Same hydration as the super-admin page: TF v1 reads tf_config.*
+          // (Points cap its match format only), custom rulesets the flat columns.
           ...rulesetFormInitial(data),
           storedTfConfig: data.tf_config,
           systemRankingChain: data.systemRankingChain,
@@ -282,16 +279,11 @@ export default function OrgEditScoringRulesetPage() {
                 // tunables), plus changed targets in the flat grammar column so
                 // the lineage lamp and grammar resolver stay current. A formula
                 // ruleset sends the flat shape as before.
-                const changed = targetsChanged(initial.targets, data.targets);
-                const body = isCodedRuleset(initial.code, forkBaseCode)
-                  ? {
-                      name: data.name,
-                      description: data.description,
-                      version: data.version,
-                      ...(changed ? { targets: data.targets } : {}),
-                      tfConfig: codedRulesetTfConfig(initial.storedTfConfig, data, initial.targets),
-                    }
-                  : data;
+                const body = rulesetUpdateBody(
+                  rulesetEditorKind(initial.code, forkBaseCode),
+                  initial,
+                  data,
+                );
                 const r = await apiRequest(
                   apiUrl,
                   `/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,

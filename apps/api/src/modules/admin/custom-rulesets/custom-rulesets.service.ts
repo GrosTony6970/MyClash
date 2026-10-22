@@ -55,7 +55,7 @@ import type {
   ForkCustomRulesetDto,
   UpdateCustomRulesetDto,
 } from './dto/custom-rulesets.dto';
-import { validateMatchFormatDefaults } from './match-format-defaults';
+import { validateMatchFormatDefaults, validatePointsCapTfConfig } from './match-format-defaults';
 
 export interface CustomRulesetRow {
   id: string;
@@ -589,9 +589,12 @@ export class CustomRulesetsService {
     Object.assign(updates, grammarColumns(dto));
     if (dto.tfConfig !== undefined) {
       // Validate against TFv1ConfigSchema.partial() — accept any subset of the
-      // schema's fields. Only meaningful for TF v1; on non-system rows the
-      // column is set but the resolver never reads it.
-      updates['tf_config'] = validateTfConfigPatch(dto.tfConfig);
+      // schema's fields. Meaningful for TF v1 and its forks; Points cap keeps
+      // only its match format there (ruling 139).
+      updates['tf_config'] =
+        existing.code === 'Generic_PointsCap'
+          ? validatePointsCapTfConfig(dto.tfConfig)
+          : validateTfConfigPatch(dto.tfConfig);
     }
 
     const { data, error } = await this.supabase.service

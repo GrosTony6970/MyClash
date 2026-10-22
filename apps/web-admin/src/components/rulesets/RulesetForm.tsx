@@ -25,7 +25,7 @@ import {
   type AfterblowGrammar,
 } from './AfterblowGrammarEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
-import { isCodedRuleset } from './ruleset-kind';
+import { EDITOR_SECTIONS, rulesetEditorKind } from './ruleset-kind';
 import { NumberField, SectionAffordance } from './RulesetFormFields';
 import { RulesetMatchFormatBox } from './RulesetMatchFormatBox';
 import {
@@ -55,7 +55,8 @@ export interface RulesetFormValue {
   /** A formula ruleset's own double penalty. */
   doublePenaltyFormula: DoublePenaltySpec | null;
   /** Named targets — the grammar half of the ruleset, authorable for every
-   *  ruleset. For TF_v1, when the list changed, the caller also mirrors the
+   *  ruleset but Points cap (its single hit is code). For TF_v1, when the list
+   *  changed, the caller also mirrors the
    *  first two into tf_config.targetValues (`codedRulesetTfConfig`). */
   targets: Target[];
   /** Whether the ruleset uses afterblow and how a retaliation is valued. */
@@ -83,8 +84,9 @@ interface Props {
    *  chip (the formula evaluator stays out of the admin bundle). */
   validateUrl?: string;
   submitLabel: string;
-  /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
-   * section and the onSubmit payload carries `ownCoded`. */
+  /** Ruleset code — with `baseCode`, it picks the editor (`rulesetEditorKind`):
+   * for 'TF_v1' the form renders the TF v1 internals section and the onSubmit
+   * payload carries `ownCoded`; 'Generic_PointsCap' opens the Points-cap editor. */
   code?: string;
   /** Set on a coded fork ("Customise this format"): the built-in coded engine
    *  it reuses. When it (or `code`) is 'TF_v1' the form renders the coded
@@ -120,7 +122,7 @@ export function RulesetForm({
   onCancel,
 }: Props) {
   const { t } = useI18n();
-  const isCoded = isCodedRuleset(code, baseCode);
+  const sections = EDITOR_SECTIONS[rulesetEditorKind(code, baseCode)];
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [version, setVersion] = useState(initial.version);
@@ -158,9 +160,9 @@ export function RulesetForm({
       setValidationError(t('admin.rulesets.nameRequired'));
       return;
     }
-    // TF v1 has no editable score-formula AST (the scoring algorithm is in
-    // code, not data). Skip the formula validity check for that path.
-    if (!isCoded && !scoreFormula) {
+    // A coded engine has no editable score-formula AST (the scoring algorithm is
+    // in code, not data). Skip the formula validity check for that path.
+    if (sections.formula && !scoreFormula) {
       setValidationError(formulaError ?? t('admin.rulesets.formulaInvalid'));
       return;
     }
@@ -185,7 +187,7 @@ export function RulesetForm({
       // AfterblowGrammar's keys are exactly the API's grammar fields, so a
       // flat spread lands them where grammarColumns() reads them.
       ...afterblow,
-      ...(isCoded ? { ownCoded } : {}),
+      ...(sections.dials ? { ownCoded } : {}),
     });
   }
 
@@ -244,7 +246,7 @@ export function RulesetForm({
         </label>
       </div>
 
-      {isCoded && (
+      {sections.dials && (
         <div className="rounded-md border border-purple-200 bg-purple-50/40 p-5 shadow-sm">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-purple-700">
             {tfInternalsTitle ?? t('admin.rulesets.tfV1InternalsTitle')}
@@ -279,7 +281,11 @@ export function RulesetForm({
           <HelpTooltip text={rulesetHelp('targets', t)} />
         </h3>
         <p className="mb-3 text-xs text-muted">{t('admin.rulesets.targetsHelp')}</p>
-        <TargetsEditor value={targets} onChange={setTargets} disabled={disabled} />
+        <TargetsEditor
+          value={targets}
+          onChange={setTargets}
+          disabled={disabled || !sections.targets}
+        />
       </div>
 
       <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
@@ -291,13 +297,13 @@ export function RulesetForm({
         <AfterblowGrammarEditor
           value={afterblow}
           onChange={setAfterblow}
-          // TF_v1's afterblow is the federation's, defined in code — shown here
-          // read-only rather than as an editable no-op.
-          disabled={disabled || isCoded}
+          // A coded engine's afterblow (TF_v1's is the federation's) is defined in
+          // code — shown here read-only rather than as an editable no-op.
+          disabled={disabled || !sections.afterblow}
         />
       </div>
 
-      {!isCoded && (
+      {sections.formula && (
         <div className="rounded-md border border-border bg-surface p-5 shadow-sm">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.constantsTitle')}
@@ -334,7 +340,7 @@ export function RulesetForm({
         </div>
       )}
 
-      {isCoded ? (
+      {sections.dials && (
         <DoublePenaltyEditor
           value={shownDial(ownCoded, 'doublePenaltyFormula')}
           // The TF v1 engine has no "none": no penalty is its '0' formula (ruling 138).
@@ -351,7 +357,8 @@ export function RulesetForm({
             />
           }
         />
-      ) : (
+      )}
+      {sections.formula && (
         <DoublePenaltyEditor
           value={doublePenaltyFormula}
           onChange={setDoublePenaltyFormula}
@@ -363,10 +370,11 @@ export function RulesetForm({
         own={ownMatchFormat}
         onChange={setOwnMatchFormat}
         onValidity={(leaf, valid) => validity(leaf)(valid)}
+        hasMaxDoubles={sections.maxDoubles}
         disabled={disabled}
       />
 
-      {!isCoded && (
+      {sections.formula && (
         <div>
           <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.formulaTitle')}
@@ -384,7 +392,7 @@ export function RulesetForm({
         </div>
       )}
 
-      {!isCoded && (
+      {sections.formula && (
         <div>
           <h3 className="mb-2 flex items-center text-xs font-semibold uppercase tracking-wider text-muted">
             {t('admin.rulesets.tiebreakersTitle')}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isCodedRuleset, rulesetFormInitial } from './ruleset-form-initial';
+import { rulesetFormInitial } from './ruleset-form-initial';
+import { isCodedRuleset, rulesetEditorKind } from './ruleset-kind';
 
 /** A stored match format no engine default holds (cap 7), with a key the box does not show. */
 const TF_MATCH_FORMAT = {
@@ -115,6 +116,30 @@ describe('rulesetFormInitial', () => {
     expect(rulesetFormInitial(forkRow).ownMatchFormat).toEqual(TF_MATCH_FORMAT);
     expect(withoutBase.ownMatchFormat).toEqual({});
     expect(withoutBase.ownCoded).toEqual({});
+  });
+
+  it('hydrates Points cap from tf_config, where its Tournaments read it (ruling 139)', () => {
+    const out = rulesetFormInitial({
+      code: 'Generic_PointsCap',
+      match_format_defaults: { pointCap: 3 },
+      double_penalty_formula: 'n',
+      tf_config: { matchFormat: { timeLimitsSeconds: { pool: 120 } } },
+    });
+
+    expect(out.ownMatchFormat).toEqual({ timeLimitsSeconds: { pool: 120 } });
+    expect(out.ownCoded).toEqual({});
+    expect(out.doublePenaltyFormula).toBeNull();
+  });
+});
+
+describe('rulesetEditorKind', () => {
+  it('names the editor of TF v1, its copies, Points cap and a formula ruleset', () => {
+    expect(rulesetEditorKind('TF_v1')).toBe('tf');
+    expect(rulesetEditorKind('custom_tf_v1_fork_x', 'TF_v1')).toBe('tf');
+    expect(rulesetEditorKind('Generic_PointsCap')).toBe('pointsCap');
+    expect(rulesetEditorKind('custom_pc_fork_x', 'Generic_PointsCap')).toBe('formula');
+    expect(rulesetEditorKind('my_formula', null)).toBe('formula');
+    expect(rulesetEditorKind(undefined)).toBe('formula');
   });
 });
 

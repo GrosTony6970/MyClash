@@ -8,7 +8,8 @@
  * ruling 59): nothing is filled in, so a field the ruleset does not store stays
  * empty and follows the engine. What the box shows for it is
  * `ruleset-own-values`' business. For TF v1 and its copies the store is the
- * `tf_config` JSONB column (the PATCH writes `tfConfig`); for a club formula
+ * `tf_config` JSONB column (the PATCH writes `tfConfig`), and so for the built-in
+ * Points cap's match format; for a club formula
  * ruleset it is the flat `match_format_defaults` / `double_penalty_formula`
  * columns. Reading the wrong one is the bug where the org view of TF v1 showed
  * the editor's own fallbacks instead of the configured values.
@@ -18,10 +19,8 @@
 
 import { DEFAULT_TARGETS, type DoublePenaltySpec, type Target } from '@myclash/rulesets';
 import { DEFAULT_AFTERBLOW_GRAMMAR, type AfterblowGrammar } from './AfterblowGrammarEditor';
-import { isCodedRuleset } from './ruleset-kind';
+import { rulesetEditorKind } from './ruleset-kind';
 import type { OwnCoded, OwnMatchFormat } from './ruleset-own-values';
-
-export { isCodedRuleset };
 
 export interface RulesetRowLike {
   code: string;
@@ -74,13 +73,16 @@ export function rulesetFormInitial(row: RulesetRowLike): {
   targets: Target[];
   afterblow: AfterblowGrammar;
 } {
-  const isCoded = isCodedRuleset(row.code, row.base_code);
+  const kind = rulesetEditorKind(row.code, row.base_code);
+  const isCoded = kind === 'tf';
   const tfCfg = row.tf_config ?? {};
+  // Points cap keeps its match format in tf_config, where its Tournaments read it (ruling 139).
+  const ownFormat = kind === 'formula' ? row.match_format_defaults : tfCfg.matchFormat;
 
   return {
-    ownMatchFormat: { ...((isCoded ? tfCfg.matchFormat : row.match_format_defaults) ?? {}) },
+    ownMatchFormat: { ...(ownFormat ?? {}) },
     ownCoded: isCoded ? initialOwnCoded(tfCfg) : {},
-    doublePenaltyFormula: isCoded ? null : (row.double_penalty_formula ?? null),
+    doublePenaltyFormula: kind === 'formula' ? (row.double_penalty_formula ?? null) : null,
     targets: initialTargets(row, isCoded),
     afterblow: {
       // TF_v1's afterblow grammar is federal and lives in code, not the row —

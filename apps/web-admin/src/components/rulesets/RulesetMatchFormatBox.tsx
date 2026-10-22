@@ -18,6 +18,8 @@ interface Props {
   onChange: (own: OwnMatchFormat) => void;
   /** Called with a field's key and whether its typed value can be saved. */
   onValidity: (leaf: MatchFormatLeaf, valid: boolean) => void;
+  /** False for an engine with no doubles ceiling (Points cap): the field is not shown. */
+  hasMaxDoubles: boolean;
   disabled?: boolean;
 }
 
@@ -94,12 +96,13 @@ export function RulesetMatchFormatBox(props: Props) {
           min: 0,
           max: 600,
         })}
-        {number('maxDoubleHits', {
-          label: t('admin.srcComponents.maxDoubleHitsLabel'),
-          min: 0,
-          max: 20,
-          nullable: true,
-        })}
+        {props.hasMaxDoubles &&
+          number('maxDoubleHits', {
+            label: t('admin.srcComponents.maxDoubleHitsLabel'),
+            min: 0,
+            max: 20,
+            nullable: true,
+          })}
       </div>
     </div>
   );

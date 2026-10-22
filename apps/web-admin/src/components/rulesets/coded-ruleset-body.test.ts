@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { codedRulesetTfConfig, targetsChanged } from './coded-ruleset-body';
+import { codedRulesetTfConfig, rulesetUpdateBody, targetsChanged } from './coded-ruleset-body';
+import type { RulesetSubmitValue } from './RulesetForm';
 
 const START_TARGETS = [
   { name: 'Deep', value: 2 },
@@ -80,6 +81,35 @@ describe('codedRulesetTfConfig', () => {
       START_TARGETS,
     );
     expect(out['targetValues']).toEqual({ deepTarget: 4, shallowTarget: undefined });
+  });
+});
+
+describe('rulesetUpdateBody', () => {
+  const HEAD = { name: 'House', description: '', version: '1.0.0' };
+  const data = (over: Record<string, unknown> = {}) =>
+    ({ ...HEAD, scoreFormula: {}, ...submit(over) }) as unknown as RulesetSubmitValue;
+  const start = { storedTfConfig: STORED, targets: START_TARGETS };
+
+  it('writes a TF v1 edit to tf_config, the flat targets only when they changed', () => {
+    const targets = [{ name: 'Head', value: 5 }];
+    expect(rulesetUpdateBody('tf', start, data())).toEqual({ ...HEAD, tfConfig: STORED });
+    expect(rulesetUpdateBody('tf', start, data({ targets }))).toMatchObject({ targets });
+  });
+
+  it('writes only Points cap’s own match format, to tf_config (ruling 139)', () => {
+    expect(rulesetUpdateBody('pointsCap', start, data())).toEqual({
+      ...HEAD,
+      tfConfig: { matchFormat: { pointCap: 7 } },
+    });
+    expect(rulesetUpdateBody('pointsCap', start, data({ matchFormatDefaults: null }))).toEqual({
+      ...HEAD,
+      tfConfig: {},
+    });
+  });
+
+  it('sends a formula ruleset’s form as it is', () => {
+    const formula = data();
+    expect(rulesetUpdateBody('formula', start, formula)).toBe(formula);
   });
 });
 
