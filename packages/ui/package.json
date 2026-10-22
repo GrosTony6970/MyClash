@@ -24,14 +24,14 @@
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.112.2",
-    "lucide-react": "^1.29.0",
-    "@types/node": "^26.1.2",
+    "lucide-react": "^1.59.0",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "react-dom": "^19.2.8",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
