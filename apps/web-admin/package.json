@@ -23,7 +23,7 @@
     "@myclash/time": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
-    "@sentry/nextjs": "^10.76.2",
+    "@sentry/nextjs": "^11.8.0",
     "@supabase/supabase-js": "^2.112.2",
     "next": "16.4.2",
     "qrcode.react": "^4.2.0",
