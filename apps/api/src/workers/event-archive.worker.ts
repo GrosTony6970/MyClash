@@ -5,7 +5,7 @@
  * and all associated tournaments have been completed for at least 24 hours.
  *
  * Eligibility criteria:
- *   - event.status IN ('running', 'completed')
+ *   - event.status = 'completed' (the ticker, with its League recompute, first; ruling 156)
  *   - event.end_date < 24h ago
  *   - ALL tournaments for the event have status = 'completed'
  *   - max(end_date, last tournament updated_at) < 24h ago
@@ -65,7 +65,7 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
     const { data: candidates, error: candidatesErr } = await this.supabase.service
       .from('events')
       .select('id, status, end_date')
-      .in('status', ['running', 'completed'])
+      .eq('status', 'completed')
       // end_date is a DATE (0223): every Event that ended on or before the day 24 h ago, the same
       // rows the old text comparison with the full timestamp took. The loop below holds the 24 h.
       .lte('end_date', twentyFourHoursAgo.toISOString().slice(0, 10));
@@ -99,13 +99,20 @@ export class EventArchiveWorker extends SentryReportingWorkerHost implements OnM
 
       if (now.getTime() - lastMilestone < 24 * 60 * 60 * 1000) continue;
 
-      const { error: updateErr } = await this.supabase.service
+      // Still completed: an Event reopened since the read is left alone.
+      const { data: hit, error: updateErr } = await this.supabase.service
         .from('events')
         .update({ status: 'archived', updated_at: now.toISOString() })
-        .eq('id', event.id);
+        .eq('id', event.id)
+        .eq('status', 'completed')
+        .select('id');
 
       if (updateErr) {
         this.logger.warn(`Failed to archive event ${event.id}: ${updateErr.message}`);
+        continue;
+      }
+      if (!hit?.length) {
+        this.logger.log(`Event ${event.id}: no longer completed; not archived`);
         continue;
       }
 

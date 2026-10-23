@@ -11,7 +11,7 @@
  * rather than throwing, so callers can use them on every keystroke/render.
  */
 
-import { DateTime } from 'luxon';
+import { DateTime, IANAZone } from 'luxon';
 
 export const DEFAULT_EVENT_TIMEZONE = 'Europe/Paris';
 
@@ -65,6 +65,17 @@ export function minutesIntoDayInZone(iso: string | null | undefined, tz: string)
 /** The UTC ISO instant of `hour:00` on `day` in `tz` (grid axis origin). */
 export function dayStartUtcIso(day: string, tz: string, hour = 0): string | null {
   return zonedToUtcIso(day, `${String(hour).padStart(2, '0')}:00`, tz);
+}
+
+/**
+ * Whether `tz` names an IANA zone (`Europe/Paris`, `UTC`).
+ *
+ * Luxon itself is not the check: it reads `undefined`, `null`, `'local'` and
+ * `'system'` as the SYSTEM zone and `'UTC+3'` as a fixed offset, all valid, so a
+ * stored value like those would quietly put an Event on the server's clock.
+ */
+export function isIanaZone(tz: unknown): boolean {
+  return typeof tz === 'string' && IANAZone.isValidZone(tz);
 }
 
 /** The local calendar date (`YYYY-MM-DD`, in `tz`) of a UTC ISO instant. */

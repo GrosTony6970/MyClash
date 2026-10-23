@@ -43,6 +43,7 @@ import {
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { getStaffSession } from '../../common/auth/identity';
 import { hasPlatformTier } from '../../common/auth/platform-role';
+import { eventOpenWindow, unknownZoneWarning } from '../../common/event-open-window';
 import { isOver } from '../../common/live-status';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
@@ -135,6 +136,8 @@ type EventRow = {
   /** Day 0 of the programme — the basis for which block is running now. */
   start_date: string | null;
   end_date: string;
+  /** The Event's own clock: a sign-in lasts until it closes (ruling 155). */
+  timezone: string;
 };
 
 type StaffAccountRow = {
@@ -1598,7 +1601,7 @@ export class StaffService {
   private async getEventById(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id,organization_id,slug,name,status,start_date,end_date')
+      .select('id,organization_id,slug,name,status,start_date,end_date,timezone')
       .eq('id', eventId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -1609,7 +1612,7 @@ export class StaffService {
   private async findEventBySlug(slug: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id,organization_id,slug,name,status,event_kind,start_date,end_date')
+      .select('id,organization_id,slug,name,status,event_kind,start_date,end_date,timezone')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -1623,10 +1626,17 @@ export class StaffService {
     }
   }
 
+  /** Until the Event closes, 06:00 after its last day on its own clock (rulings 154, 155). */
   private getStaffSessionExpiry(event: EventRow) {
-    const end = new Date(`${event.end_date}T23:59:59.000Z`);
+    const window = eventOpenWindow(event);
+    if (!window) {
+      this.logger.warn(`Event ${event.id}: its dates cannot be read; sign-in lasts 12 hours`);
+    } else if (window.unknownZone) {
+      this.logger.warn(unknownZoneWarning(event.id, event.timezone));
+    }
+    const end = window?.closesAt;
     const fallback = new Date(Date.now() + 12 * 60 * 60 * 1000);
-    return Number.isNaN(end.getTime()) || end.getTime() < Date.now() ? fallback : end;
+    return !end || end.getTime() < Date.now() ? fallback : end;
   }
 
   private async getAccountForEvent(eventId: string, accountId: string): Promise<StaffAccountRow> {

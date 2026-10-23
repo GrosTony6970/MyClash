@@ -471,9 +471,10 @@ shelved before it ever runs).
 stateDiagram-v2
   [*] --> draft: organiser creates
   draft --> published: publish (becomes publicly visible)
-  published --> running: event day begins
-  running --> completed: all tournaments finished
-  completed --> archived: archive
+  published --> running: 00:00 on its first day, in the Event's zone
+  running --> completed: 06:00 after its last day, in the Event's zone
+  published --> completed: its last day ended before it opened
+  completed --> archived: archive (by hand, or automatically once every Tournament is completed, 24 h after the later of its last day's start in UTC and the last Tournament change)
   draft --> archived: abandon
   published --> archived: cancel
 ```

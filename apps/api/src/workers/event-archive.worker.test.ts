@@ -6,15 +6,18 @@
  *   ✓ event with end_date only 12h ago is skipped (within 24h grace window)
  *   ✓ event with a non-completed tournament is skipped
  *   ✓ audit_log row is written for archived events
+ *   ✓ only a completed Event is archived (ruling 156), on the seeded double
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Logger } from '@nestjs/common';
 import { EventArchiveWorker } from './event-archive.worker';
+import { mockSupabase, scopedTo, supabaseChain, writesTo } from '../common/testing/supabase-chain';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock } };
+const cannedSupabase = { service: { from: fromMock } };
 
 function makeQueue() {
   return { add: vi.fn().mockResolvedValue(undefined) } as never;
@@ -40,7 +43,7 @@ function makeChain(result: unknown) {
 }
 
 function makeWorker() {
-  return new EventArchiveWorker(makeQueue(), mockSupabase as never);
+  return new EventArchiveWorker(makeQueue(), cannedSupabase as never);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -69,8 +72,8 @@ describe('EventArchiveWorker', () => {
       error: null,
     });
 
-    // 3. Update event status to 'archived'
-    const updateChain = makeChain({ error: null });
+    // 3. Update event status to 'archived': the row it hit comes back
+    const updateChain = makeChain({ data: [{ id: 'event-1' }], error: null });
 
     // 4. Audit log insert
     const auditChain = makeChain({ error: null });
@@ -99,6 +102,9 @@ describe('EventArchiveWorker', () => {
       // 16th; a timestamp cast to a DATE would not.
       expect(candidatesChain.lte).toHaveBeenCalledWith('end_date', '2026-10-16');
       expect(candidatesChain.lt).not.toHaveBeenCalled();
+      // Ruling 156: a completed Event only, never a running one.
+      expect(candidatesChain.eq).toHaveBeenCalledWith('status', 'completed');
+      expect(candidatesChain.in).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -112,7 +118,7 @@ describe('EventArchiveWorker', () => {
     // Candidates: event with end_date only 12h ago (it passed the .lt filter in a test
     // scenario where we control the returned data directly)
     const candidatesChain = makeChain({
-      data: [{ id: 'event-2', status: 'running', end_date: twelveHoursAgo }],
+      data: [{ id: 'event-2', status: 'completed', end_date: twelveHoursAgo }],
       error: null,
     });
 
@@ -137,7 +143,7 @@ describe('EventArchiveWorker', () => {
     const twentyFiveHoursAgo = new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString();
 
     const candidatesChain = makeChain({
-      data: [{ id: 'event-3', status: 'running', end_date: twentyFiveHoursAgo }],
+      data: [{ id: 'event-3', status: 'completed', end_date: twentyFiveHoursAgo }],
       error: null,
     });
 
@@ -189,5 +195,74 @@ describe('EventArchiveWorker', () => {
     const result = await worker.runAutoArchive();
 
     expect(result.archived).toEqual([]);
+  });
+});
+
+/**
+ * Ruling 156: only a completed Event is archived. The ticker is the one way into
+ * `completed`, and it runs the League update; an Event archived while still
+ * running would skip it. Seeded, so the read's filter decides who is archived.
+ */
+describe('EventArchiveWorker: a completed Event only', () => {
+  const finished = '2026-10-17T18:00:00.000Z';
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-20T12:00:00.000Z') });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function seeded(events: Array<{ id: string; status: string }>) {
+    return mockSupabase({
+      events: { rows: events.map((e) => ({ ...e, end_date: '2026-10-17' })) },
+      tournaments: {
+        rows: events.map((e) => ({
+          id: `t-${e.id}`,
+          event_id: e.id,
+          status: 'completed',
+          updated_at: finished,
+        })),
+      },
+      audit_log: { rows: [] },
+    });
+  }
+
+  it('archives the completed Event and leaves the running one', async () => {
+    const supabase = seeded([
+      { id: 'run', status: 'running' },
+      { id: 'done', status: 'completed' },
+    ]);
+
+    const result = await new EventArchiveWorker(makeQueue(), supabase as never).runAutoArchive();
+
+    expect(result.archived).toEqual(['done']);
+    const archived = writesTo(supabase, 'events');
+    expect(archived.map((write) => scopedTo(write, 'id'))).toEqual(['done']);
+    expect(scopedTo(archived[0], 'status')).toBe('completed');
+    expect(writesTo(supabase, 'audit_log').map((write) => write.row)).toEqual([
+      expect.objectContaining({ action: 'event.auto_archive', entity_id: 'done' }),
+    ]);
+  });
+
+  it('does not archive an Event reopened between the read and the write', async () => {
+    const supabase = seeded([{ id: 'done', status: 'completed' }]);
+    const seededFrom = supabase.from.getMockImplementation()!;
+    // The candidates read and the Tournaments read see the seed; the write finds no row.
+    supabase.from
+      .mockImplementationOnce(seededFrom)
+      .mockImplementationOnce(seededFrom)
+      .mockImplementationOnce(() => supabaseChain({ data: [], error: null }));
+
+    const worker = new EventArchiveWorker(makeQueue(), supabase as never);
+    const log = vi.spyOn((worker as unknown as { logger: Logger }).logger, 'log');
+    log.mockImplementation(() => undefined);
+    const result = await worker.runAutoArchive();
+
+    expect(result.archived).toEqual([]);
+    expect(writesTo(supabase, 'audit_log')).toEqual([]);
+    expect(log.mock.calls.map(([message]) => String(message))).toContain(
+      'Event done: no longer completed; not archived',
+    );
   });
 });

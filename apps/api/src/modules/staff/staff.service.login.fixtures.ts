@@ -39,6 +39,7 @@ export const eventRow = (id: string, over: Record<string, unknown> = {}) => ({
   status: 'running',
   start_date: '2026-08-08',
   end_date: '2099-12-31',
+  timezone: 'Europe/Paris',
   ...over,
 });
 

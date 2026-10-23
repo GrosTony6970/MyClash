@@ -10,6 +10,7 @@ import {
   formatDayCount,
   formatInZone,
   formatTime,
+  isIanaZone,
   localeToBcp47,
   minutesIntoDayInZone,
   utcToZonedParts,
@@ -89,6 +90,21 @@ describe('dayStartUtcIso', () => {
   it('returns the UTC instant of hour:00 on the day in the zone', () => {
     expect(dayStartUtcIso('2027-06-21', PARIS, 8)).toBe('2027-06-21T06:00:00.000Z');
   });
+});
+
+describe('isIanaZone', () => {
+  it.each<unknown>([NY, PARIS, 'UTC'])('accepts the zone name %s', (zone) => {
+    expect(isIanaZone(zone)).toBe(true);
+  });
+
+  // Luxon reads the first four as the SYSTEM zone and the fifth as a fixed offset, all as valid
+  // zones, so a stored value like these would quietly put an Event on the server's clock.
+  it.each<unknown>([undefined, null, 'local', 'system', 'UTC+3', '', 'Mars/Olympus'])(
+    'refuses %s',
+    (zone) => {
+      expect(isIanaZone(zone)).toBe(false);
+    },
+  );
 });
 
 describe('formatInZone', () => {
