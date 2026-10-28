@@ -21,10 +21,19 @@ const REFUSAL_KEY: Record<RulesChangeCode, string> = {
   [RULES_CHANGE_CODES.forfeitLocked]: 'admin.rulesChange.refusal.forfeitLocked',
 };
 
+/**
+ * `rules_change_closed` says what closed the rules (`details.closedBy`, ruling 148): the
+ * Tournament itself, or its Event. Static words: the refusal is worded with no values.
+ */
+const CLOSED_BY_EVENT_KEY = 'admin.rulesChange.refusal.closedByEvent';
+
 /** The words of a rules-change refusal, or null when the failure carries no such code. */
 export function rulesChangeRefusal(failure: ApiFailure, t: (key: string) => string): string | null {
   const code = failureCode(failure);
-  return code !== null && Object.hasOwn(REFUSAL_KEY, code)
-    ? t(REFUSAL_KEY[code as RulesChangeCode])
-    : null;
+  if (code === null || !Object.hasOwn(REFUSAL_KEY, code)) return null;
+  const closedBy = 'details' in failure ? failure.details?.['closedBy'] : undefined;
+  if (code === RULES_CHANGE_CODES.closed && closedBy === 'event') {
+    return t(CLOSED_BY_EVENT_KEY);
+  }
+  return t(REFUSAL_KEY[code as RulesChangeCode]);
 }

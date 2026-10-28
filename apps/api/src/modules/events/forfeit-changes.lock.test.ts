@@ -20,7 +20,8 @@ const ON_A_STARTED_BOUT = { bouts: [{ status: 'running' }] };
 
 function save(patch: Record<string, unknown>, stored: unknown = STORED, started = true) {
   const opened = harness({
-    current: { ...RUNNING_TF, forfeit_rules: stored },
+    // A draft: a fought bout, or none, decides the lock (a running status locks on its own).
+    current: { ...RUNNING_TF, status: 'draft', forfeit_rules: stored },
     ...(started ? ON_A_STARTED_BOUT : {}),
   });
   const stamp = vi.spyOn(
@@ -89,7 +90,9 @@ describe('the forfeit rules of a Tournament no bout of which has started', () =>
 
     await saved;
     expect(cap.update?.['forfeit_rules']).toEqual({ ...STORED, disqualifyAfter: 4 });
-    expect(stamp).toHaveBeenCalledWith('t1');
+    // The fingerprint rides in the save's own update (revision 10 fold 2; its arms are tested in
+    // `settings-hash.test.ts`): no stamp after the write.
+    expect(stamp).not.toHaveBeenCalled();
     expect(restamped()).toEqual(['t1']);
   });
 

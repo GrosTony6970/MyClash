@@ -469,6 +469,8 @@ export const admin = {
       needsAudit:
         'This tournament has started: this change needs a reason and your confirmation, and it is shown publicly.',
       closed: 'This tournament is completed or archived: its rules can no longer change.',
+      closedByEvent:
+        'The event of this tournament is completed or archived: its rules can no longer change.',
       changedSinceRead:
         'The rules of this tournament changed since this page read them. Reload the page and check them again.',
       confirmMismatch: 'The name you typed is not the name of this tournament.',

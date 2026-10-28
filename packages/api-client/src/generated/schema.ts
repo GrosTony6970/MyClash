@@ -11365,6 +11365,22 @@ export interface components {
       color?: string | null;
       maxParticipants?: number | null;
       maxWaitlist?: number | null;
+      audit?: {
+        justification: string;
+        confirm: string;
+        expected: {
+          rulesetCode: string | null;
+          rulesetVersion: string | null;
+          rulesetConfig: {
+            [key: string]: unknown;
+          } | null;
+          scoringConfig: {
+            [key: string]: unknown;
+          } | null;
+          penaltyRulesetId: string | null;
+          penaltyRulesetVersion: string | null;
+        };
+      };
     };
     RepinTournamentRulesetDto: {
       rulesetCode: string;

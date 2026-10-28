@@ -96,13 +96,20 @@ export interface RulesClock {
 }
 
 /**
+ * Whether the Tournament's own rules are locked: it runs, or ANY bout of it has started. The ONE
+ * owner of "locked" for a Tournament key, a card pin and a forfeit rule; `lockedChanges` asks it.
+ */
+export function clockLocks(clock: RulesClock): boolean {
+  return clock.running || clock.startedFormatPhases.size > 0;
+}
+
+/**
  * Every entry, with `locked` set. A swiss, bracket or finals key locks once a bout of that format
  * phase has started; every other path, a pool key included (a pool key is a Tournament key), locks
- * once the Tournament runs or ANY bout of it has started (operator rulings "Phase lock", "Offline
- * clock").
+ * on `clockLocks` (operator rulings "Phase lock", "Offline clock").
  */
 export function lockedChanges(changes: readonly RulesChange[], clock: RulesClock): RulesChange[] {
-  const tournamentLocked = clock.running || clock.startedFormatPhases.size > 0;
+  const tournamentLocked = clockLocks(clock);
   return changes.map((change) => {
     const phase = formatPhaseOfPath(change.path);
     const locked =

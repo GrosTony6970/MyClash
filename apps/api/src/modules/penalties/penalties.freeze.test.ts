@@ -4,6 +4,7 @@ import type * as MatchRuleset from '../phases/match-ruleset';
 import { PenaltiesService } from './penalties.service';
 import { freezePenaltyRulesetVersion } from './penalty-version.util';
 import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
+import { CARD_RULES_LOCKED } from '../events/tournament-clock';
 
 // The restamp of the bouts not yet started has its own tests
 // (`match-ruleset.restamp.test.ts`). Here: which door calls it, and for whom.
@@ -130,7 +131,8 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
     const supabase = fakeSupabase({
       tournaments: { maybeSingle: { event_id: 'ev-1', penalty_ruleset_id: 'pr-old' } },
       events: { maybeSingle: { organization_id: 'org-1' } },
-      // A fought bout of the Tournament.
+      // A fought bout of the Tournament's Pool (the clock reads its phases, then their bouts).
+      phases: { select: [{ id: 'p-1', type: 'pool' }] },
       matches: { select: [{ id: 'm-1' }] },
     });
     const service = new PenaltiesService(
@@ -148,11 +150,14 @@ describe('PenaltiesService.assignTournamentRuleset — re-pin guard + freeze', (
       { penaltyRulesetId: 'pr-new' } as never,
       'user-1',
     );
-    await expect(assigned).rejects.toThrow(/locked/i);
     // The code the Basics tab words it by, as the settings save's twin lock answers.
     await expect(assigned).rejects.toMatchObject({
       status: 403,
-      response: { code: 'card_change_locked' },
+      response: {
+        code: 'card_change_locked',
+        message:
+          'This tournament has started, or its Event is running with bouts made: its card rules are locked.',
+      },
     });
     expect(supabase.updated.tournaments).toBeUndefined();
   });
@@ -191,8 +196,13 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
   it('blocks an event-default swap when an inheriting tournament has scored matches', async () => {
     const supabase = fakeSupabase({
       events: { maybeSingle: { organization_id: 'org-1', penalty_ruleset_id: 'pr-old' } },
-      // A tournament under the event that inherits the default (penalty_ruleset_id NULL).
-      tournaments: { select: [{ id: 't-1' }] },
+      // A tournament under the event that inherits the default (penalty_ruleset_id NULL); the
+      // clock reads its row, its phases, then their bouts.
+      tournaments: {
+        select: [{ id: 't-1' }],
+        maybeSingle: { id: 't-1', event_id: 'ev-1', status: 'draft' },
+      },
+      phases: { select: [{ id: 'p-1', type: 'pool' }] },
       // A fought bout of the Tournament.
       matches: { select: [{ id: 'm-1' }] },
     });
@@ -208,7 +218,15 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
 
     await expect(
       service.assignEventRuleset('ev-1', { penaltyRulesetId: 'pr-new' } as never, 'user-1'),
-    ).rejects.toThrow(/locked/i);
+    ).rejects.toMatchObject({
+      status: 403,
+      response: {
+        code: 'card_change_locked',
+        message:
+          'A tournament of this Event has started, or the Event is running with its bouts made: the card rules it inherits are locked.',
+      },
+    });
+    expect(CARD_RULES_LOCKED.event).toContain('A tournament of this Event has started');
     expect(supabase.updated.events).toBeUndefined();
   });
 
@@ -220,7 +238,11 @@ describe('PenaltiesService.assignEventRuleset — re-pin guard + freeze', () => 
     [
       'their bouts',
       {
-        tournaments: { select: [{ id: 't-1' }] },
+        tournaments: {
+          select: [{ id: 't-1' }],
+          maybeSingle: { id: 't-1', event_id: 'ev-1', status: 'draft' },
+        },
+        phases: { select: [{ id: 'p-1', type: 'pool' }] },
         matches: { error: { message: 'connection reset' } },
       },
     ],

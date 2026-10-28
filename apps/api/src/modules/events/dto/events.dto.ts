@@ -6,6 +6,7 @@ import {
   MAX_AUTHORED_TARGET_VALUE,
 } from '@myclash/rulesets';
 import { EVENT_KINDS, isCalendarDay } from '@myclash/types';
+import { settingsAuditSchema } from './rules-audit.schema';
 
 /**
  * A day of an Event (DATE since 0223): `format: date` for the OpenAPI client, and a day Postgres
@@ -373,6 +374,8 @@ const updateTournamentSchema = z
     maxParticipants: z.number().min(1).nullish(),
     // Slice 4: max waitlist size. Null = no cap.
     maxWaitlist: z.number().min(0).nullish(),
+    /** The audited form of a rules save: sent again by the dialog the lock opened. */
+    audit: settingsAuditSchema.optional(),
   })
   .strict();
 export class UpdateTournamentDto extends createZodDto(updateTournamentSchema) {}

@@ -17,6 +17,7 @@ import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { PenaltiesService } from './penalties.service';
 import { withStampedRules } from '../phases/match-rules.fixtures';
 import { fighterStatusDouble } from '../matches/fighter-status.fixtures';
@@ -128,7 +129,20 @@ beforeEach(() => {
     undefined,
     fighterStatusDouble(),
   );
-  events = new EventsService(supabase as never, orgs, {} as never, createRulesetRegistry());
+  const registry = createRulesetRegistry();
+  events = new EventsService(
+    supabase as never,
+    orgs,
+    {} as never,
+    registry,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    // The REAL fingerprint: a pin change puts it in the save's own update (revision 9 fold 1).
+    new RulesetHashService(supabase as never, registry),
+  );
 });
 
 interface Door {
@@ -228,6 +242,19 @@ describe('penalty ruleset pin doors', () => {
     await expect(pin(PRIVATE_B, 'u-admin-a')).rejects.toBeInstanceOf(BadRequestException);
     expect(writesTo(db, 'matches')).toEqual([]);
     expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it('Tournament edit writes the fingerprint in the same update, even when the card rules read alike', async () => {
+    // Club B's ruleset and Club A's play the same cards: the fingerprint does not move, and the
+    // pin change alone is a fresh look at the rules (revision 9 fold 1).
+    await events.updateTournament(
+      TOURNAMENT_LEGACY,
+      { penaltyRulesetId: PRIVATE_A } as never,
+      'u-admin-a',
+    );
+    const writes = writesTo(db, 'tournaments').map((w) => w.row as Record<string, unknown>);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.['ruleset_content_hash']).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('Tournament edit lets an unchanged pin through: every settings save re-sends it', async () => {

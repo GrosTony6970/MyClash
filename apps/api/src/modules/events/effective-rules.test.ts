@@ -172,7 +172,10 @@ describe("the pad's rules (`GET tournaments/:id/match-config`) carry no forfeit 
     const event = { id: 'e1', status: 'published', organization_id: 'org-1', event_kind: null };
     const rulesetConfig = { tournamentPolicy: { disqualifyAfter: 3 }, forfeitPolicy: {} };
     const db = mockSupabase({
-      tournaments: { rows: [{ ...ON_TF_1_0_0, ruleset_config: rulesetConfig, events: event }] },
+      // Running: the pad's anonymous read hides a draft Tournament.
+      tournaments: {
+        rows: [{ ...ON_TF_1_0_0, status: 'running', ruleset_config: rulesetConfig, events: event }],
+      },
     });
     const rulesets = new RulesetResolver(db as never, createRulesetRegistry());
     const deps = { supabase: db, orgs: {}, rulesets } as never;

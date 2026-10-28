@@ -40,11 +40,16 @@ export const OWN_SCORING = {
   display: { sideColors: { red: 'blue', blue: 'red' }, quickPenalties: [1] },
 };
 
+/**
+ * A draft: nothing started, so its rules are open to a plain save (the lock's own tests start it:
+ * `settings-lock.test.ts`). The time it was last written is what a rules save is conditional on.
+ */
 export const ON_TF_1_0_0: Row = {
   id: 't1',
   event_id: 'e1',
   name: 'Sabre',
-  status: 'running',
+  status: 'draft',
+  updated_at: '2026-10-01T09:00:00.000Z',
   ruleset_code: 'TF_v1',
   ruleset_version: '1.0.0',
   ruleset_config: OWN,
@@ -152,8 +157,9 @@ function seededDb(
   return mockSupabase(
     {
       tournaments: { rows: [row] },
-      events: { rows: [{ id: 'e1', organization_id: 'org-1' }] },
+      events: { rows: [{ id: 'e1', organization_id: 'org-1', status: 'published' }] },
       platform_roles: { rows: [] },
+      phases: { rows: [] },
       matches: { rows: [] },
       custom_rulesets: { rows: custom.rulesets ?? [] },
       custom_ruleset_versions: { rows: custom.versions ?? [] },

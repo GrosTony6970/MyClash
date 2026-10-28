@@ -30,10 +30,12 @@ import {
   RULES_CHANGE_CODES,
   sameTournamentName,
   type RulesChange,
+  type RulesClosedBy,
   type RulesExpected,
 } from '@myclash/types';
 import { buttonValuesOf, scoringDiff, stableStringify, type BucketDiff } from '@myclash/rulesets';
 import { insertAuditLog } from '../../common/audit-log';
+import { isOver } from '../../common/live-status';
 import type {
   RulesetHashService,
   TournamentHashRow,
@@ -56,13 +58,26 @@ const EXPECTED_COLUMNS = {
 
 const RPC = 'repin_tournament_rules';
 
-/** A completed or archived Tournament: its results are final, no door changes its rules. */
-export function assertRulesOpen(read: Row): void {
-  const status = String(read['status'] ?? '');
-  if (status !== 'completed' && status !== 'archived') return;
+/**
+ * A Tournament completed or archived, or one whose Event is (ruling 148): its results are final,
+ * no door changes its rules. `isOver` is the one owner of "over"; the Event's own clock completes
+ * it (06:00 local the morning after its last day). Asked by the rules paths only, never by a plain
+ * save: a status change must still be able to complete a Tournament under a completed Event.
+ */
+export function assertRulesOpen(read: Row, event: Row): void {
+  const closedBy: RulesClosedBy | null = isOver(read['status'])
+    ? 'tournament'
+    : isOver(event['status'])
+      ? 'event'
+      : null;
+  if (!closedBy) return;
   throw new ForbiddenException({
     code: RULES_CHANGE_CODES.closed,
-    message: 'A completed or archived tournament cannot change its rules: its results are final.',
+    closedBy,
+    message:
+      closedBy === 'tournament'
+        ? 'A completed or archived tournament cannot change its rules: its results are final.'
+        : 'This tournament belongs to an event that is over, so its rules cannot change.',
   });
 }
 
@@ -157,14 +172,47 @@ export interface AuditedRulesInput {
   changes: RulesChange[];
 }
 
+/** What an audited settings save answers: the row as written, or none when it was not read back. */
+export interface SettingsWritten {
+  row: Row | null;
+  readBackFailed: boolean;
+}
+
 /**
  * Write an audited rules change and answer the Tournament row as written. Refuses 409
  * `rules_changed_since_read` when the row moved since `read`; nothing is written then.
+ *
+ * Once the database has committed, the settings kind never fails: a row that is not read back
+ * answers `readBackFailed` (the change and its record are written; the screen reloads them). The
+ * re-pin still throws there, as it always did: its screen has nothing to do after the write.
  */
 export async function writeAuditedRules(
   deps: AuditedRulesDeps,
+  input: AuditedRulesInput & { kind: 'ruleset' },
+): Promise<Row>;
+export async function writeAuditedRules(
+  deps: AuditedRulesDeps,
+  input: AuditedRulesInput & { kind: 'settings' },
+): Promise<SettingsWritten>;
+export async function writeAuditedRules(
+  deps: AuditedRulesDeps,
   input: AuditedRulesInput,
-): Promise<Row> {
+): Promise<Row | SettingsWritten> {
+  const tournamentId = await commitAuditedRules(deps, input);
+  if (input.kind === 'ruleset') return reread(deps.db, tournamentId);
+  try {
+    return { row: await reread(deps.db, tournamentId), readBackFailed: false };
+  } catch (err) {
+    deps.logger.warn(String(err));
+    return { row: null, readBackFailed: true };
+  }
+}
+
+/** Placings, the database call, then the two best-effort follow-ups; answers the Tournament id. */
+async function commitAuditedRules(
+  deps: AuditedRulesDeps,
+  input: AuditedRulesInput,
+): Promise<string> {
   const tournamentId = String(input.read['id']);
   const placingsBefore = await deps.snapshotPlacings(tournamentId);
   const next = nextColumns(input.next);
@@ -182,7 +230,7 @@ export async function writeAuditedRules(
   const repinId = String(data);
   await fillPlacingsAfter(deps, tournamentId, repinId);
   await mirrorInAuditLog(deps, input, repinId);
-  return reread(deps.db, tournamentId);
+  return tournamentId;
 }
 
 /** The rules columns as read: what the database compares the row with before it writes. */

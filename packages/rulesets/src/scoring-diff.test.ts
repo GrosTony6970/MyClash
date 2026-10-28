@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCORING_CONFIG, RULES_CHANGE_PATHS, type FormatPhase } from '@myclash/types';
 import { canonicalizeScoringBehaviour, stableStringify } from './content-hash';
-import { buttonValuesOf, lockedChanges, scoringDiff } from './scoring-diff';
+import { buttonValuesOf, clockLocks, lockedChanges, scoringDiff } from './scoring-diff';
 
 /**
  * The diff the rules lock reads. Its promise is that it cannot miss a change the content hash
@@ -314,6 +314,12 @@ describe('lockedChanges', () => {
   it('locks an unknown entry and the buttons on the Tournament clock', () => {
     const changes = [{ path: 'unknown' as const, before: {}, after: {} }, entry('buttons.clean')];
     expect(lockedChanges(changes, clock(true, [])).map((c) => c.locked)).toEqual([true, true]);
+  });
+
+  it('clockLocks: locked once the Tournament runs or any bout has started, never before', () => {
+    expect(clockLocks(clock(false, []))).toBe(false);
+    expect(clockLocks(clock(true, []))).toBe(true);
+    expect(clockLocks(clock(false, ['finals']))).toBe(true);
   });
 
   it('keeps every entry and its values, flagging each', () => {

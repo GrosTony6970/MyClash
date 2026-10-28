@@ -72,7 +72,10 @@ export interface RulesChange {
 export const RULES_CHANGE_CODES = {
   /** 403: a scoring change the lock refuses without the audit; the body's `details.changes`. */
   needsAudit: 'rules_change_needs_audit',
-  /** 403: a completed or archived Tournament: no door changes its rules. */
+  /**
+   * 403: a Tournament completed or archived, or one whose Event is (ruling 148): no door changes
+   * its rules. `details.closedBy` says which (`RulesClosedBy`).
+   */
   closed: 'rules_change_closed',
   /** 409: the rules moved since the screen read them (`expected`), or since the save's own read. */
   changedSinceRead: 'rules_changed_since_read',
@@ -91,6 +94,19 @@ export const RULES_CHANGE_CODES = {
 } as const;
 
 export type RulesChangeCode = (typeof RULES_CHANGE_CODES)[keyof typeof RULES_CHANGE_CODES];
+
+/**
+ * What closed a Tournament's rules (`rules_change_closed`, ruling 148): the Tournament itself is
+ * completed or archived, or its Event is. Sent in the refusal's `details.closedBy`.
+ */
+export type RulesClosedBy = 'tournament' | 'event';
+
+/**
+ * The fields of a settings save that are rules: the only ones an audited save may carry beside
+ * `audit` (`rules_change_mixed` otherwise), and the only ones the dialog sends again. The pair is
+ * not one (it moves through the re-pin), nor is the card pin (it is refused on the clock first).
+ */
+export const RULES_SAVE_KEYS = ['rulesetConfig', 'scoringConfig'] as const;
 
 /**
  * What the screen read of a Tournament's rules, sent back with an audited change so the server

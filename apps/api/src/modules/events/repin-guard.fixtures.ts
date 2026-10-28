@@ -6,6 +6,7 @@
 import { vi } from 'vitest';
 import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
 
 /** The Tournaments whose bouts not yet started were stamped again, in order. */
@@ -38,7 +39,12 @@ function tournamentsChain(current: Record<string, unknown>, cap: Captured) {
       cap.update = p;
       return chain;
     }),
-    maybeSingle: vi.fn().mockResolvedValue({ data: current, error: null }),
+    // The save reads its write back through `maybeSingle` too: the row with the update on it.
+    maybeSingle: vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve({ data: { ...current, ...(cap.update ?? {}) }, error: null }),
+      ),
     single: vi
       .fn()
       .mockImplementation(() =>
@@ -100,6 +106,18 @@ function matchesChain(opts: HarnessOpts, cap: Captured) {
   return chain;
 }
 
+/** The Tournament's phases: one Pool holding its bouts, when the test gives it any. */
+function phasesChain(opts: HarnessOpts) {
+  const phases = opts.bouts || opts.boutsError ? [{ id: 'p1', type: 'pool' }] : [];
+  const chain: Record<string, unknown> = {};
+  Object.assign(chain, {
+    select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    then: (resolve: (value: unknown) => unknown) => resolve({ data: phases, error: null }),
+  });
+  return chain;
+}
+
 /** custom_rulesets read during the reseed (no override row) + safe fallback. */
 function nullRowChain() {
   const chain: Record<string, unknown> = {};
@@ -107,6 +125,10 @@ function nullRowChain() {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     in: vi.fn(() => chain),
+    // The fingerprint's penalty read filters on null and orders its versions.
+    is: vi.fn(() => chain),
+    order: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
     maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
   });
   return chain;
@@ -117,6 +139,7 @@ export function harness(opts: HarnessOpts) {
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'tournaments') return tournamentsChain(opts.current, cap);
     if (table === 'events') return eventsChain();
+    if (table === 'phases') return phasesChain(opts);
     if (table === 'matches') return matchesChain(opts, cap);
     return nullRowChain();
   });
@@ -125,16 +148,20 @@ export function harness(opts: HarnessOpts) {
     offeredVersion: vi.fn().mockResolvedValue(null),
     draftsOfferedTo: vi.fn().mockResolvedValue(false),
   };
+  const db = { service: { from } };
+  const registry = createRulesetRegistry();
   const svc = new EventsService(
-    { service: { from } } as never,
+    db as never,
     { assertOrgRole } as never,
     {} as never,
-    createRulesetRegistry(),
+    registry,
     undefined,
     undefined,
     undefined,
     undefined,
     selectableRulesets as never,
+    // The REAL fingerprint: a rules save puts it in its own update (revision 10 fold 2).
+    new RulesetHashService(db as never, registry),
   );
   return { svc, cap, selectableRulesets };
 }

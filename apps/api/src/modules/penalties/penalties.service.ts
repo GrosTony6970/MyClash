@@ -12,6 +12,7 @@ import {
   computeDirectPenaltySanction,
   computePenaltySanction,
   diffPenaltyBucket,
+  clockLocks,
   parsePenaltyRulesetCsv,
   projectPenaltyBucketFromLive,
   type BlackCardEffect,
@@ -21,7 +22,6 @@ import {
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
 import type { ForfeitRulesInForce } from '@myclash/types/forfeit-rules';
-import { RULES_CHANGE_CODES } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
 import { assertPlatformTier, hasPlatformTier } from '../../common/auth/platform-role';
@@ -41,7 +41,7 @@ import { scoringAwaitsRoundAdvance } from '../matches/round-awaits-advance';
 import { FighterStatusService } from '../matches/fighter-status.service';
 import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { matchLocked } from '../matches/match-locked';
-import { tournamentClockOf } from '../events/tournament-clock';
+import { cardChangeLocked, tournamentClockOf } from '../events/tournament-clock';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { dropSpentBlackCardReview, takeBackBlackCardForfeit } from './black-card-undo';
 import {
@@ -830,9 +830,7 @@ export class PenaltiesService {
     // matches would apply a different sanction ladder/cost to later cards.
     // Mirrors the tournament-path guard (assignTournamentRuleset).
     if (nextId !== currentId && (await this.eventHasInheritingStartedMatches(eventId))) {
-      throw new ForbiddenException(
-        'A tournament in this event inherits the event default penalty ruleset and has scored matches, so it is locked. Change it before scoring starts.',
-      );
+      throw cardChangeLocked('event');
     }
     // Pin the ruleset's current version so the content-hash reads the frozen
     // snapshot for exactly what was pinned (null when clearing the default).
@@ -879,11 +877,7 @@ export class PenaltiesService {
     // ladder/cost to later cards than the ones already recorded. The one clock
     // of a Tournament's rules (`tournamentClockOf`), as the settings save asks it.
     if (nextId !== currentId && (await this.tournamentHasStartedMatches(tournamentId))) {
-      throw new ForbiddenException({
-        code: RULES_CHANGE_CODES.cardLocked,
-        message:
-          'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
-      });
+      throw cardChangeLocked('tournament');
     }
     const nextVersion = nextId
       ? await loadPinnablePenaltyRulesetVersion(this.supabase, nextId, orgId)
@@ -1781,7 +1775,7 @@ export class PenaltiesService {
 
   /** True if a bout of the tournament has started: its rules' one clock (`tournamentClockOf`). */
   private async tournamentHasStartedMatches(tournamentId: string): Promise<boolean> {
-    return (await tournamentClockOf(this.supabase.service, tournamentId)).locked;
+    return clockLocks(await tournamentClockOf(this.supabase.service, tournamentId));
   }
 
   /** The event's currently-pinned default penalty ruleset id (null if none). */
@@ -1810,7 +1804,7 @@ export class PenaltiesService {
     if (error)
       throw new Error(`The Tournaments of Event ${eventId} were not read: ${error.message}`);
     for (const { id } of (tournaments ?? []) as Array<{ id: string }>) {
-      if ((await tournamentClockOf(this.supabase.service, id)).locked) return true;
+      if (clockLocks(await tournamentClockOf(this.supabase.service, id))) return true;
     }
     return false;
   }

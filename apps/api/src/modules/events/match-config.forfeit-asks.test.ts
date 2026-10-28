@@ -31,6 +31,8 @@ async function readWith(penaltyRulesets: Record<string, unknown>, changes: unkno
       rows: [
         {
           ...ON_TF_1_0_0,
+          // The pad reads a Tournament that is under way; a draft is hidden from it.
+          status: 'running',
           penalty_ruleset_id: null,
           event_id: 'e1',
           events: EVENT,

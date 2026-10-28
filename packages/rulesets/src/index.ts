@@ -190,7 +190,7 @@ export type {
 } from './content-hash';
 
 // What changed in a Tournament's scoring rules, and which changes the rules lock refuses
-export { buttonValuesOf, lockedChanges, scoringDiff } from './scoring-diff';
+export { buttonValuesOf, clockLocks, lockedChanges, scoringDiff } from './scoring-diff';
 export type { ButtonValues, RulesClock, ScoringSide } from './scoring-diff';
 
 // Penalty rulesets

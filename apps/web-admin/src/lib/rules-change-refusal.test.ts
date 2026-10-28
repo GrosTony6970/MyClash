@@ -59,6 +59,34 @@ describe('rulesChangeRefusal', () => {
     );
   });
 
+  describe('says what closed the rules (ruling 148)', () => {
+    const closedBy = (by: unknown): ApiFailure => ({
+      kind: 'unauthenticated',
+      status: 403,
+      detail: 'An English sentence.',
+      code: 'rules_change_closed',
+      details: by === undefined ? null : { closedBy: by },
+    });
+
+    it('its Event, completed or archived', () => {
+      expect(rulesChangeRefusal(closedBy('event'), english)).toBe(
+        'The event of this tournament is completed or archived: its rules can no longer change.',
+      );
+      expect(rulesChangeRefusal(closedBy('event'), french)).toBe(
+        'L’événement de ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
+      );
+    });
+
+    it.each([['tournament'], [undefined]])('the Tournament itself (closedBy %s)', (by) => {
+      expect(rulesChangeRefusal(closedBy(by), english)).toBe(
+        'This tournament is completed or archived: its rules can no longer change.',
+      );
+      expect(rulesChangeRefusal(closedBy(by), french)).toBe(
+        'Ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
+      );
+    });
+  });
+
   it('has nothing to say of a failure that carries no rules-change code', () => {
     expect(rulesChangeRefusal(refused(403, 'FORBIDDEN'), english)).toBeNull();
     expect(rulesChangeRefusal(refused(400, null), english)).toBeNull();

@@ -476,6 +476,8 @@ export const admin = {
       needsAudit:
         'Ce tournoi a commencé : ce changement demande un motif et votre confirmation, et il est affiché publiquement.',
       closed: 'Ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
+      closedByEvent:
+        'L’événement de ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
       changedSinceRead:
         'Les règles de ce tournoi ont changé depuis que cette page les a lues. Rechargez la page et vérifiez-les à nouveau.',
       confirmMismatch: 'Le nom saisi n’est pas celui de ce tournoi.',

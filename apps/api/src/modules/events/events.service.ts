@@ -60,10 +60,17 @@ import type {
 import type { RepinTournamentRulesetDto } from './dto/repin-ruleset.dto';
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { SelectableRulesetsService } from '../rulesets/selectable-rulesets.service';
-import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
+import { RulesetHashService, type TournamentHashRow } from '../ruleset-hash/ruleset-hash.service';
 import { restampUnstartedMatches } from '../phases/match-ruleset';
-import { diffRulesetBuckets, projectRulesetBuckets, RulesetRegistry } from '@myclash/rulesets';
-import type { BucketDiff, RulesetBucketInputs } from '@myclash/rulesets';
+import {
+  buttonValuesOf,
+  clockLocks,
+  diffRulesetBuckets,
+  projectRulesetBuckets,
+  RulesetRegistry,
+  stableStringify,
+} from '@myclash/rulesets';
+import type { BucketDiff, RulesClock, RulesetBucketInputs } from '@myclash/rulesets';
 import {
   normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
@@ -76,7 +83,14 @@ import {
   settingsOfSeed,
   type RulesSeed,
 } from './ruleset-move-config';
-import { tournamentClockOf } from './tournament-clock';
+import { cardChangeLocked, tournamentClockOf } from './tournament-clock';
+import {
+  assertAuditedSaveShape,
+  changesRulesColumn,
+  lockOfSettingsSave,
+  failClosed,
+  needsAudit,
+} from './settings-save-lock';
 import { forfeitChangesOfSave } from './forfeit-changes-save';
 import { applyForfeitPatch } from '@myclash/types/forfeit-rules';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
@@ -3271,6 +3285,34 @@ export class EventsService {
     );
 
     const currentJson = current as Record<string, unknown>;
+    const eventRow = event as Record<string, unknown>;
+    // Does this save move the pair: the ONE answer, asked by the audited form and the switch.
+    const currentCode = currentJson['ruleset_code'] as string | undefined;
+    const currentVersionRaw = currentJson['ruleset_version'] as string | undefined;
+    const currentVersion = currentVersionRaw
+      ? normalizeRulesetVersion(currentVersionRaw)
+      : undefined;
+    const dtoVersion = dto.rulesetVersion ? normalizeRulesetVersion(dto.rulesetVersion) : undefined;
+    const codeChanged = dto.rulesetCode !== undefined && dto.rulesetCode !== currentCode;
+    const versionChanged = dtoVersion !== undefined && dtoVersion !== currentVersion;
+    // The audited form, checked before anything is built: authz above, then closed, stale, name,
+    // shape (the plan's order; ruling 148 for "closed").
+    if (dto.audit) {
+      assertRulesOpen(currentJson, eventRow);
+      assertReadAsExpected(currentJson, dto.audit.expected);
+      assertConfirmedName(dto.audit.confirm, currentJson);
+      assertAuditedSaveShape(
+        dto as unknown as Record<string, unknown>,
+        codeChanged || versionChanged,
+      );
+    }
+    // One read of the clock per save, whichever door asks first; a failed read is the same 503 at
+    // every door (`rules_check_unavailable`), never "nothing started".
+    let clockRead: Promise<RulesClock> | undefined;
+    const clockNow = () =>
+      (clockRead ??= failClosed(this.logger, tournamentId, () =>
+        tournamentClockOf(this.supabase.service, tournamentId),
+      ));
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.weapon !== undefined) {
@@ -3318,15 +3360,6 @@ export class EventsService {
       const merged = deepMergeJson(currentJson['lock_config_json'] ?? {}, dto.lockConfig);
       updates['lock_config_json'] = normalizeTournamentLockConfig(merged);
     }
-    const currentCode = currentJson['ruleset_code'] as string | undefined;
-    const currentVersionRaw = currentJson['ruleset_version'] as string | undefined;
-    const currentVersion = currentVersionRaw
-      ? normalizeRulesetVersion(currentVersionRaw)
-      : undefined;
-    const dtoVersion = dto.rulesetVersion ? normalizeRulesetVersion(dto.rulesetVersion) : undefined;
-    const codeChanged = dto.rulesetCode !== undefined && dto.rulesetCode !== currentCode;
-    const versionChanged = dtoVersion !== undefined && dtoVersion !== currentVersion;
-
     if (codeChanged || versionChanged) {
       // Guard the score-changing swap. Standings resolve the tournament's LIVE
       // ruleset pointer at read time (pool-standings.service.ts), so switching
@@ -3335,10 +3368,11 @@ export class EventsService {
       // change has to go through the audited re-pin flow (typed confirmation +
       // justification + public disclosure). The score-preserving "Customise
       // this format" fork re-points via repointTournamentToRuleset, not here,
-      // so it is intentionally unaffected.
-      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
-        throw new ForbiddenException(
-          'This tournament has scored matches, so its ruleset is locked to ordinary edits. Re-pin it through the audited change flow instead.',
+      // so it is intentionally unaffected. Coded: the screen sends the owner to the re-pin.
+      if (clockLocks(await clockNow()))
+        throw needsAudit(
+          [],
+          'This tournament has started, so its ruleset moves only through the audited re-pin.',
         );
       // A built-in's other version keeps the stored settings and buttons; another
       // code, or a club ruleset's other version, starts from that pair's (ruling
@@ -3381,12 +3415,7 @@ export class EventsService {
       dto.penaltyRulesetId !== undefined ? (dto.penaltyRulesetId ?? null) : currentPenaltyRulesetId;
     const penaltyChanged = nextPenaltyRulesetId !== currentPenaltyRulesetId;
     if (penaltyChanged) {
-      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
-        throw new ForbiddenException({
-          code: RULES_CHANGE_CODES.cardLocked,
-          message:
-            'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
-        });
+      if (clockLocks(await clockNow())) throw cardChangeLocked('tournament');
       // Re-pin the penalty version so the content-hash tracks the new snapshot.
       updates['penalty_ruleset_version'] = nextPenaltyRulesetId
         ? await this.pinnablePenaltyVersion(event, nextPenaltyRulesetId)
@@ -3394,10 +3423,10 @@ export class EventsService {
     }
     // The Tournament's changes of its forfeit rules lock on the same clock (ruling 73), with the
     // same race (`tournament-clock.ts`). Two saves at once: each patches the changes it read, and
-    // the later write wins whole, as `scoring_config_json` does; accepted.
+    // the later write is refused 409, as a `scoring_config_json` save is (`writeTournamentSave`).
     const forfeit = forfeitChangesOfSave(currentJson['forfeit_rules'], dto.forfeitRules);
     if (forfeit.changed) {
-      if ((await tournamentClockOf(this.supabase.service, tournamentId)).locked)
+      if (clockLocks(await clockNow()))
         throw new ForbiddenException({
           code: RULES_CHANGE_CODES.forfeitLocked,
           message:
@@ -3406,19 +3435,25 @@ export class EventsService {
       updates['forfeit_rules'] = forfeit.next;
     }
 
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .update(updates)
-      .eq('id', tournamentId)
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-    // Freeze the newly-pinned penalty ruleset's current version (best-effort).
-    if (penaltyChanged && nextPenaltyRulesetId) {
-      await freezePenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId, userId);
+    // The scoring settings lock on the clock, key by key (a move of the pair was refused above).
+    const settingsTouched = 'ruleset_config' in updates || 'scoring_config_json' in updates;
+    if (dto.audit || (settingsTouched && !codeChanged && !versionChanged)) {
+      const candidate = { ...currentJson, ...updates };
+      const lock = await lockOfSettingsSave(
+        { rulesHash: () => this.rulesHash(), clock: clockNow, logger: this.logger },
+        currentJson,
+        candidate,
+        dto.audit !== undefined,
+      );
+      if (dto.audit) {
+        return this.writeAuditedSettings(currentJson, candidate, lock.changes, dto.audit, userId);
+      }
+      if (lock.locked) {
+        assertRulesOpen(currentJson, eventRow);
+        throw needsAudit(lock.changes, 'This tournament has started: these rules need the audit.');
+      }
     }
-    // Restamp the content hash when anything score-determining changed.
+
     const scoringChanged =
       codeChanged ||
       versionChanged ||
@@ -3426,7 +3461,14 @@ export class EventsService {
       forfeit.changed ||
       dto.rulesetConfig !== undefined ||
       dto.scoringConfig !== undefined;
-    if (scoringChanged) await this.stampTournamentContentHash(tournamentId);
+    // The fingerprint rides in the save's own write, so a ceremony landing in between is refused
+    // by the condition below rather than overwritten by a stale hash.
+    if (scoringChanged) await this.hashIntoSave(currentJson, updates, penaltyChanged);
+    const data = await this.writeTournamentSave(currentJson, updates);
+    // Freeze the newly-pinned penalty ruleset's current version (best-effort).
+    if (penaltyChanged && nextPenaltyRulesetId) {
+      await freezePenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId, userId);
+    }
     const before = current as { id: string; event_id: string; status: string };
     await this.afterTournamentStatus(before, dto.status);
     // The bouts not yet started follow (operator, 2026-10-11). Also when the
@@ -3437,6 +3479,120 @@ export class EventsService {
       await restampUnstartedMatches(this.supabase.service, tournamentId);
     }
     return data;
+  }
+
+  /**
+   * The audited settings save: one write of the rules and their record (`writeAuditedRules`, kind
+   * `settings`), the pair kept. Its bucket diff compares the stored pair with itself, both configs.
+   */
+  private async writeAuditedSettings(
+    read: Record<string, unknown>,
+    candidate: Record<string, unknown>,
+    changes: RulesChange[],
+    audit: { justification: string },
+    userId: string,
+  ) {
+    if (changes.length === 0) {
+      throw new BadRequestException({
+        code: RULES_CHANGE_CODES.unchanged,
+        message: 'This save changes no rule.',
+      });
+    }
+    const { code, version } = pairOf(read);
+    const diff = await this.computeRulesetBucketDiff(
+      { code, version, config: (read['ruleset_config'] as Record<string, unknown>) ?? {} },
+      { code, version, config: (candidate['ruleset_config'] as Record<string, unknown>) ?? {} },
+    );
+    const written = await writeAuditedRules(this.auditedDeps(), {
+      kind: 'settings',
+      read,
+      next: {
+        rulesetCode: String(read['ruleset_code'] ?? code),
+        rulesetVersion: String(read['ruleset_version'] ?? version),
+        rulesetConfig: candidate['ruleset_config'],
+        scoringConfig: candidate['scoring_config_json'],
+      },
+      actorUserId: userId,
+      justification: audit.justification,
+      diff,
+      changes,
+    });
+    return {
+      tournament: written.row,
+      rulesetChange: { changes, readBackFailed: written.readBackFailed },
+    };
+  }
+
+  /** What an audited write needs from this service. */
+  private auditedDeps() {
+    return {
+      db: this.supabase.service,
+      rulesHash: this.rulesHash(),
+      snapshotPlacings: (id: string) => this.snapshotPlacings(id),
+      logger: this.logger,
+    };
+  }
+
+  /**
+   * Put the rules fingerprint into a save's update when the save changes what it covers, a button's
+   * value (not covered, but a fresh look at the rules), or the card pin (revision 9 fold 1). A save
+   * of a drifted Tournament that changes none of them keeps its old hash, and its banner. A
+   * fingerprint that cannot be computed is left out, with a warning: the banner is the trace.
+   */
+  private async hashIntoSave(
+    read: Record<string, unknown>,
+    updates: Record<string, unknown>,
+    penaltyChanged: boolean,
+  ): Promise<void> {
+    const candidate = JSON.parse(JSON.stringify({ ...read, ...updates })) as Record<
+      string,
+      unknown
+    >;
+    const id = String(read['id']);
+    const hashOf = async (row: Record<string, unknown>, what: string): Promise<string | null> => {
+      try {
+        return await this.rulesHash().contentHashOf(row as unknown as TournamentHashRow);
+      } catch (err) {
+        this.logger.warn(`The rules fingerprint of Tournament ${id} ${what}: ${String(err)}`);
+        return null;
+      }
+    };
+    const [now, was] = await Promise.all([
+      hashOf(candidate, 'was not computed for its save'),
+      hashOf(read, 'as stored was not computed; the save writes its own'),
+    ]);
+    if (now === null) return;
+    // A read side that cannot be hashed (a broken stored config) and a save that repairs it: written.
+    // A read blip there writes the save's correct hash too, and clears a drift banner; accepted.
+    const buttons = (row: Record<string, unknown>) =>
+      stableStringify(buttonValuesOf(row['scoring_config_json'] as Record<string, unknown> | null));
+    const buttonsMoved = buttons(read) !== buttons(candidate);
+    if (was !== now || buttonsMoved || penaltyChanged) updates['ruleset_content_hash'] = now;
+  }
+
+  /**
+   * The save's one write. A save that changes a rules column's value is written only on the row it
+   * read (`updated_at`): a change landing in between (a ceremony, another organiser's save) makes it
+   * 409 `rules_changed_since_read` instead of being overwritten. Any other save writes as before.
+   */
+  private async writeTournamentSave(
+    read: Record<string, unknown>,
+    updates: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const conditional = changesRulesColumn(read, updates);
+    let query = this.supabase.service.from('tournaments').update(updates).eq('id', read['id']);
+    if (conditional) query = query.eq('updated_at', read['updated_at']);
+    const { data, error } = await query.select('*').maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (data) return data as Record<string, unknown>;
+    if (conditional) {
+      throw new ConflictException({
+        code: RULES_CHANGE_CODES.changedSinceRead,
+        message:
+          'The rules of this tournament changed since you opened them. Reload and check them.',
+      });
+    }
+    throw new NotFoundException(`Tournament ${String(read['id'])} not found`);
   }
 
   /**
@@ -3608,13 +3764,7 @@ export class EventsService {
       });
     }
     const { next, diff, changes } = await this.planRulesetMove(row, move);
-    const deps = {
-      db: this.supabase.service,
-      rulesHash: this.rulesHash(),
-      snapshotPlacings: (id: string) => this.snapshotPlacings(id),
-      logger: this.logger,
-    };
-    const tournament = await writeAuditedRules(deps, {
+    const tournament = await writeAuditedRules(this.auditedDeps(), {
       kind: 'ruleset',
       read: row,
       next,
@@ -3670,7 +3820,7 @@ export class EventsService {
       (event as { organization_id: string }).organization_id,
       userId,
     );
-    assertRulesOpen(row);
+    assertRulesOpen(row, event as Record<string, unknown>);
     return { row, event };
   }
 

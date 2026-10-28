@@ -22,6 +22,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as MatchRuleset from '../phases/match-ruleset';
 import { assertOrgRole, harness, RUNNING_TF } from './repin-guard.fixtures';
+import { CARD_RULES_LOCKED } from './tournament-clock';
 
 // The restamp of the bouts not yet started has its own tests
 // (`match-ruleset.restamp.test.ts`). Here: which door calls it, and when.
@@ -36,35 +37,49 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
     assertOrgRole.mockResolvedValue(undefined);
   });
 
-  it('refuses a score-changing ruleset swap once matches are scored', async () => {
+  it('refuses a score-changing ruleset swap once a bout is fought, with the re-pin code', async () => {
     const { svc, cap } = harness({
-      current: RUNNING_TF,
+      current: { ...RUNNING_TF, status: 'draft' },
       bouts: [{ status: 'completed' }],
     });
 
-    await expect(
-      svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    const refused = await svc
+      .updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1')
+      .catch((err: unknown) => err);
+    expect(refused).toBeInstanceOf(ForbiddenException);
+    expect((refused as ForbiddenException).getResponse()).toMatchObject({
+      code: 'rules_change_needs_audit',
+    });
     // The guard fires before any write: the ruleset is not swapped.
     expect(cap.update).toBeNull();
-    // It asks for THIS Tournament's fought bouts (the clock's one read).
+    // It asks for the started bouts of THIS Tournament's Pool (the clock's read per phase).
     expect(cap.boutsRead).toEqual({
-      select: 'id, phases!inner(tournament_id)',
+      select: 'id',
       filters: [
-        ['eq', 'phases.tournament_id', 't1'],
+        ['eq', 'phase_id', 'p1'],
         ['neq', 'status', 'scheduled'],
       ],
     });
   });
 
-  it('refuses a card rules change once a bout is fought, on the same clock', async () => {
-    const { svc, cap } = harness({ current: RUNNING_TF, bouts: [{ status: 'running' }] });
+  it('refuses a card rules change once a bout is fought, on the same clock, coded', async () => {
+    const { svc, cap } = harness({
+      current: { ...RUNNING_TF, status: 'draft' },
+      bouts: [{ status: 'running' }],
+    });
 
-    await expect(
-      svc.updateTournament('t1', { penaltyRulesetId: 'pr-2' } as never, 'u1'),
-    ).rejects.toThrow('its penalty ruleset is locked');
+    const refused = await svc
+      .updateTournament('t1', { penaltyRulesetId: 'pr-2' } as never, 'u1')
+      .catch((err: unknown) => err);
+    expect((refused as ForbiddenException).getResponse()).toEqual({
+      code: 'card_change_locked',
+      message:
+        'This tournament has started, or its Event is running with bouts made: its card rules are locked.',
+    });
+    expect(CARD_RULES_LOCKED.tournament).toBe(
+      'This tournament has started, or its Event is running with bouts made: its card rules are locked.',
+    );
     expect(cap.update).toBeNull();
-    expect(cap.boutsRead?.select).toBe('id, phases!inner(tournament_id)');
   });
 
   it('locks on a voided bout too: voiding a bout does not void its cards, which still count', async () => {
@@ -96,9 +111,10 @@ describe('updateTournament — mid-event ruleset re-pin guard', () => {
       boutsError: { message: 'connection reset' },
     });
 
+    // The same coded 503 at every door of the save (the lock's own refusal), never a 500.
     await expect(
       svc.updateTournament('t1', { rulesetCode: 'Generic_PointsCap' } as never, 'u1'),
-    ).rejects.toThrow('were not read for its lock: connection reset');
+    ).rejects.toMatchObject({ status: 503, response: { code: 'rules_check_unavailable' } });
     expect(cap.update).toBeNull();
   });
 
