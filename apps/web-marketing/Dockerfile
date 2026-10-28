@@ -17,6 +17,7 @@ ARG PNPM_VERSION
 RUN npm install -g corepack && corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY apps/web-marketing/package.json ./apps/web-marketing/
 # No `--filter` chain of workspace packages: this app deliberately depends on
 # nothing from packages/. It is a leaf, and keeping it one is what lets the

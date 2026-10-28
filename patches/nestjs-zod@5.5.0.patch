@@ -1,0 +1,72 @@
+diff --git a/dist/dto-CHeB-l1i.mjs b/dist/dto-CHeB-l1i.mjs
+index 71150dbea8fed02a5f524d4db5c0193bd77f0e65..d91845fd8adbe552546ba53896eba2738ef4c704 100644
+--- a/dist/dto-CHeB-l1i.mjs
++++ b/dist/dto-CHeB-l1i.mjs
+@@ -367,8 +367,30 @@ function openApiMetadataFactory({ schema, io }) {
+ 	}
+ 	return properties;
+ }
++/**
++* MyClash patch (nestjs-zod issue #474, PR #477 unreleased): zod >= 4.5 writes a nullable primitive
++* as `type: ["string", "null"]`. Nothing below handles a list-valued `type`, and @nestjs/swagger
++* reads it as an array. Rewrite it into the `anyOf` form zod < 4.5 wrote, which
++* convertToOpenApi3Point0 already turns into `nullable: true`. Remove when nestjs-zod ships the fix.
++*/
++const MYCLASH_ANNOTATION_KEYS = new Set(["description", "title", "default", "examples", "deprecated", "readOnly", "writeOnly", "$comment", "id"]);
++function myclashSplitTypeLists(node) {
++	if (Array.isArray(node)) return node.map(myclashSplitTypeLists);
++	if (!node || typeof node !== "object") return node;
++	const out = {};
++	for (const [key, value] of Object.entries(node)) out[key] = myclashSplitTypeLists(value);
++	if (!Array.isArray(out.type)) return out;
++	const top = {};
++	const member = {};
++	for (const [key, value] of Object.entries(out)) if (key !== "type") (MYCLASH_ANNOTATION_KEYS.has(key) ? top : member)[key] = value;
++	const types = out.type;
++	const nonNull = types.filter((t) => t !== "null");
++	const anyOf = nonNull.length === 1 ? [{ type: nonNull[0], ...member }] : nonNull.map((t) => ({ type: t }));
++	if (types.includes("null")) anyOf.push({ type: "null" });
++	return nonNull.length === 1 ? { anyOf, ...top } : { anyOf, ...top, ...member };
++}
+ function generateJsonSchema(schema, io) {
+-	const generatedJsonSchema = "_zod" in schema ? toJSONSchema(schema, { io }) : zodV3ToOpenAPI(schema);
++	const generatedJsonSchema = "_zod" in schema ? myclashSplitTypeLists(toJSONSchema(schema, { io })) : zodV3ToOpenAPI(schema);
+ 	const $defs = "$defs" in generatedJsonSchema && generatedJsonSchema.$defs ? generatedJsonSchema.$defs : void 0;
+ 	const newSchema = cleanupRefs(generatedJsonSchema, io);
+ 	const newDefs = {};
+diff --git a/dist/dto-sWxCeI9D.cjs b/dist/dto-sWxCeI9D.cjs
+index b01e7e7d7ca3fc93a9eb88857d715ba409edfe96..09e02c147f7403ff56164799b80df365dd91ab19 100644
+--- a/dist/dto-sWxCeI9D.cjs
++++ b/dist/dto-sWxCeI9D.cjs
+@@ -390,8 +390,30 @@ function openApiMetadataFactory({ schema, io }) {
+ 	}
+ 	return properties;
+ }
++/**
++* MyClash patch (nestjs-zod issue #474, PR #477 unreleased): zod >= 4.5 writes a nullable primitive
++* as `type: ["string", "null"]`. Nothing below handles a list-valued `type`, and @nestjs/swagger
++* reads it as an array. Rewrite it into the `anyOf` form zod < 4.5 wrote, which
++* convertToOpenApi3Point0 already turns into `nullable: true`. Remove when nestjs-zod ships the fix.
++*/
++const MYCLASH_ANNOTATION_KEYS = new Set(["description", "title", "default", "examples", "deprecated", "readOnly", "writeOnly", "$comment", "id"]);
++function myclashSplitTypeLists(node) {
++	if (Array.isArray(node)) return node.map(myclashSplitTypeLists);
++	if (!node || typeof node !== "object") return node;
++	const out = {};
++	for (const [key, value] of Object.entries(node)) out[key] = myclashSplitTypeLists(value);
++	if (!Array.isArray(out.type)) return out;
++	const top = {};
++	const member = {};
++	for (const [key, value] of Object.entries(out)) if (key !== "type") (MYCLASH_ANNOTATION_KEYS.has(key) ? top : member)[key] = value;
++	const types = out.type;
++	const nonNull = types.filter((t) => t !== "null");
++	const anyOf = nonNull.length === 1 ? [{ type: nonNull[0], ...member }] : nonNull.map((t) => ({ type: t }));
++	if (types.includes("null")) anyOf.push({ type: "null" });
++	return nonNull.length === 1 ? { anyOf, ...top } : { anyOf, ...top, ...member };
++}
+ function generateJsonSchema(schema, io) {
+-	const generatedJsonSchema = "_zod" in schema ? (0, zod_v4_core.toJSONSchema)(schema, { io }) : zodV3ToOpenAPI(schema);
++	const generatedJsonSchema = "_zod" in schema ? myclashSplitTypeLists((0, zod_v4_core.toJSONSchema)(schema, { io })) : zodV3ToOpenAPI(schema);
+ 	const $defs = "$defs" in generatedJsonSchema && generatedJsonSchema.$defs ? generatedJsonSchema.$defs : void 0;
+ 	const newSchema = cleanupRefs(generatedJsonSchema, io);
+ 	const newDefs = {};

@@ -21,6 +21,7 @@ WORKDIR /app
 FROM base AS deps
 # Copy workspace manifests only (for cache efficiency)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY apps/api/package.json ./apps/api/
 COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/
@@ -71,6 +72,7 @@ RUN pnpm --filter @myclash/api build
 # and other build/test tooling in the final production image.
 FROM base AS prod-deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY apps/api/package.json ./apps/api/
 COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/

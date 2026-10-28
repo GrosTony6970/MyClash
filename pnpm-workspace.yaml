@@ -152,7 +152,25 @@ overrides:
   # GHSA-vp8m-p9jh-q5pm. Nobody declares undici directly: jsdom (^8.9.0, test
   # tooling) and astro's unifont (^8.0.0, the web-marketing build) both allowed
   # the fix while the lockfile sat on 8.10.0.
-  'undici@8': ^8.10.2
+  # >=8.12.2 clears GHSA-xjj6-f33q-929c, GHSA-4w7w-5xrc-9h26, GHSA-2m5v-pch6-74hx
+  # and GHSA-qrxm-fqhp-jwvm (a crash on stacked content-encodings, a cache shared
+  # across a cross-origin redirect, TLS options dropped by an Agent, a TLS 1.2
+  # renegotiation loop). A tilde: the fix is a patch of 8.12.
+  'undici@8': ~8.12.2
+  # >=4.6.6 clears GHSA-mrhx-c7xc-m3w5 (a large array that fails validation
+  # collects one issue per item, with no cap, until the process runs out of
+  # memory). The API validates every request body with zod (^4.4.3, which sat on
+  # 4.4.3), so this one reaches a running service. The pin also holds the other
+  # zod 4 consumers (astro, eslint-plugin-react-hooks, the AI SDKs). A tilde: the
+  # fix is a patch.
+  'zod@4': ~4.6.6
+  # Every @google/design.md release, 0.4.0 included, declares zod ^3, and zod 3
+  # has no fixed release. The tool BUNDLES its own zod 3.25.76 inside
+  # dist/linter/index.js and never loads this dependency, so moving it to zod 4
+  # changes nothing `designmd lint DESIGN.md` runs (operator ruling, 2026-10-28).
+  # It only stops the audit listing a package nothing imports. The bundled copy
+  # reads our own DESIGN.md. Delete this line when design.md declares zod 4.
+  '@google/design.md>zod': ~4.6.6
   # >=2.1.6 clears GHSA-qhr7-859c-m2p7 and GHSA-6j4f-fj2g-mc7p (unbounded
   # recursion). Arrives through minimatch 9 (^2.0.2) in eslint and glob: lint
   # and build tooling.
@@ -184,3 +202,18 @@ auditConfig:
     # 3.0.3. Only @next/eslint-plugin-next > fast-glob > micromatch asks for it:
     # lint tooling that expands our own patterns.
     - GHSA-vfj7-8cjw-p6xm
+
+# Local fixes to a dependency's published code (operator ruling, 2026-10-28).
+# Every Dockerfile that runs `pnpm install` copies patches/ before it: a frozen
+# install checks each patch file's hash against the lockfile, even when that
+# image never installs the patched package.
+#
+# nestjs-zod 5.5.0 (the latest) does not handle the `type: ["string", "null"]`
+# shape that zod >= 4.5 writes for a nullable field, so the OpenAPI document
+# described those fields as string arrays (issue #474, fix PR #477 unreleased).
+# The patch rewrites the shape into the `anyOf` form zod 4.4 wrote, and the
+# generated client is byte-identical to the one zod 4.4.3 produced.
+# `quality:openapi-drift` holds it: without the patch the client drifts. Delete
+# this entry and the file the day a nestjs-zod release carries the fix.
+patchedDependencies:
+  nestjs-zod@5.5.0: patches/nestjs-zod@5.5.0.patch

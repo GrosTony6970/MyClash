@@ -77,6 +77,7 @@ export const SOURCE_SUFFIXES = [
   '.txt',
   '.py',
   '.example',
+  '.patch',
 
   // Whole filenames. These carry no extension and are edited by hand like any
   // other source, so they are held to the same rule.

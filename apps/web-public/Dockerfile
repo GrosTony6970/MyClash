@@ -15,6 +15,7 @@ WORKDIR /app
 # ── deps ─────────────────────────────────────────────────────────────────────
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY patches/ ./patches/
 COPY apps/web-public/package.json ./apps/web-public/
 COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/
