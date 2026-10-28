@@ -47,7 +47,7 @@
     "ioredis": "6.0.0",
     "jsonwebtoken": "^9.0.3",
     "nestjs-zod": "^5.5.0",
-    "openai": "^7.4.0",
+    "openai": "^7.43.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.18.1",
