@@ -1,16 +1,19 @@
 # Findings the Trivy scan of the web-marketing image accepts. Read by the
 # `trivy-images` job of .github/workflows/ci.yml, for this image only.
 #
-# Accepted by the operator on 2026-10-10 (the first three rows) and 2026-10-22
-# (CVE-2026-111943). Every row is in the Go runtime that the Caddy binary was
-# built with (Go 1.26.8; the first three fixed in 1.26.9, the last in 1.26.10).
-# Caddy 2.11.7 is the newest release and it has no fix. The image serves static
-# pages only.
+# Accepted by the operator on 2026-10-10 (the first three rows), 2026-10-22
+# (CVE-2026-111943) and 2026-10-28 (the last two). The first four are in the Go
+# runtime that the Caddy binary was built with (Go 1.26.8; the first three fixed
+# in 1.26.9, CVE-2026-111943 in 1.26.10). CVE-2026-56857 is in that runtime too
+# (fixed in 1.26.9). CVE-2026-116587 is in the go-jose module Caddy bundles
+# (v4.1.5, fixed in 4.1.6). Caddy 2.11.7 is the newest release and it has no fix.
+# The image serves static pages only, over plain HTTP on :80 (Caddyfile), so
+# Caddy does no TLS or certificate work here.
 #
-# REMOVE each entry when a Caddy release built with Go 1.26.10 or later is
-# out: `caddy:2-alpine` follows the newest release, so the scan is then green
-# without it. Each entry names the Caddy binary, so it accepts nothing in
-# another file of the image.
+# REMOVE each entry when a Caddy release built with the fixed Go (and go-jose
+# 4.1.6) is out: `caddy:2-alpine` follows the newest release, so the scan is
+# then green without it. Each entry names the Caddy binary, so it accepts
+# nothing in another file of the image.
 vulnerabilities:
   - id: CVE-2026-78667
     paths:
@@ -28,3 +31,11 @@ vulnerabilities:
     paths:
       - usr/bin/caddy
     statement: Go stdlib crypto/x509 in the Caddy 2.11.7 binary. No Caddy release has the fix.
+  - id: CVE-2026-56857
+    paths:
+      - usr/bin/caddy
+    statement: Go stdlib os.Root.Mkdir following junctions, Windows only, in the Caddy 2.11.7 binary. The image runs Linux. No Caddy release has the fix.
+  - id: CVE-2026-116587
+    paths:
+      - usr/bin/caddy
+    statement: go-jose v4.1.5 JWK parsing in the Caddy 2.11.7 binary. This Caddy serves plain HTTP and does no certificate work. No Caddy release has the fix.
