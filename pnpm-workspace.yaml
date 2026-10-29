@@ -153,8 +153,8 @@ overrides:
   'vite@8': ~8.2.4
   # >=3.4.17 clears GHSA-cg2g-xh64-v4q7 and GHSA-mrv2-3pqr-j5jr (template expressions
   # surviving in shadow roots; an IN_PLACE hook that removes a parent). Only mermaid asks
-  # for it (^3.3.3, which already allowed the fix while the lockfile sat on 3.4.13): the
-  # `docs:mermaid` check, dev tooling. A tilde, as vite's: the fix is a patch.
+  # for it (^3.4.12 since mermaid 12, which still allows the vulnerable 3.4.12-3.4.16):
+  # the `docs:mermaid` check, dev tooling. A tilde, as vite's: the fix is a patch.
   'dompurify@3': ~3.4.17
   # >=8.10.2 clears GHSA-rfgv-xxqx-mfg5, GHSA-w293-vg96-wgc3 and
   # GHSA-vp8m-p9jh-q5pm. Nobody declares undici directly: jsdom (^8.9.0, test
