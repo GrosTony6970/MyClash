@@ -17,6 +17,10 @@
     "./forfeit-rules": {
       "types": "./dist/forfeit-rules.d.ts",
       "default": "./dist/forfeit-rules.js"
+    },
+    "./sentry-data-collection": {
+      "types": "./dist/sentry-data-collection.d.ts",
+      "default": "./dist/sentry-data-collection.js"
     }
   },
   "scripts": {

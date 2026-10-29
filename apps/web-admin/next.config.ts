@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next';
-import { withSentryConfig } from '@sentry/nextjs';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 // ── Build-time required env validation ─────────────────────────────────
 // This is the ONLY layer that catches a missing NEXT_PUBLIC_*. There used
@@ -93,15 +93,16 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: { deleteSourcemapsAfterUpload: true },
   silent: true,
   telemetry: false,
+  // No tracing flag here: since Sentry 11 they also act on Turbopack builds and
+  // would switch off browser tracing, our only source of frontend web vitals
+  // (docs/OBSERVABILITY_REVIEW.md). The observability gate refuses them.
   webpack: {
     treeshake: {
       removeDebugLogging: true,
-      removeTracing: true,
     },
   },
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
-    excludeTracing: true,
     excludeReplayIframe: true,
     excludeReplayShadowDom: true,
     excludeReplayWorker: true,

@@ -89,6 +89,7 @@ const WALKING_GATES = [
   'check-bundle-budgets.mjs',
   'check-client-secret-boundaries.mjs',
   'check-complexity.mjs',
+  'check-observability-review.mjs',
   'check-realtime-bindings.mjs',
   'check-shared-type-leaks.mjs',
   'check-test-code-leak.mjs',

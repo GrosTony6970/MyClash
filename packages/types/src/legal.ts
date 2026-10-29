@@ -49,6 +49,15 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
   },
   privacy: {
     kind: 'privacy',
+    // 2026-10-29: rewrote what §7, §7.1 and §8 say Sentry receives. The policy
+    // said no IP address and no personal data reach it; Sentry 10 did not honour
+    // its own "no personal data" switch and sent cookies, tokens, bodies and
+    // query strings. With Sentry 11 the browser's reports, performance traces
+    // and session signals now RECORD the browser's IP address and type, and
+    // the text says so; server reports carry no IP. Bumped, not corrected in
+    // place: this EXPANDS processing, and legal_acceptances is append-only, so
+    // everyone is asked to accept the new text.
+    //
     // 2026-08-11: corrected §7 and §8. The 2026-08-04 rewrite fixed the
     // template's "Sentry self-hosted" claim by calling Sentry a US transfer,
     // and overshot — the DSN points at Sentry's European region, so the logs
@@ -68,7 +77,7 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
     // this one — Sentry self-hosted, no transfers outside the EU, analytics
     // cookies behind a consent panel that did not exist, and a 30-day
     // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
-    version: '2026-08-11',
+    version: '2026-10-29',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };

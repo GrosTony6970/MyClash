@@ -41,9 +41,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
-# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
-# on Node 26 — harmless upstream deprecation. Disables only this warning.
-ENV NODE_OPTIONS=--disable-warning=DEP0205
 # No GIT_COMMIT / release SHA in this stage, on purpose. BuildKit folds build
 # args and env into the cache key of every RUN, so a per-commit value here
 # invalidated the whole `next build` on every deploy while the COPY layers below
@@ -141,9 +138,6 @@ RUN apk upgrade --no-cache
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
-# on Node 26 — harmless upstream deprecation. Disables only this warning.
-ENV NODE_OPTIONS=--disable-warning=DEP0205
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs \

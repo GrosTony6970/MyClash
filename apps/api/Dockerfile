@@ -98,11 +98,6 @@ RUN apk upgrade --no-cache
 # with the API (brace-expansion 5.0.9, 2026-09-30).
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
-# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
-# on Node 26 — harmless upstream deprecation. Disables only this warning.
-# (Build stage is tsc, so only the runtime needs it.)
-ENV NODE_OPTIONS=--disable-warning=DEP0205
-
 WORKDIR /app
 
 # Non-root user

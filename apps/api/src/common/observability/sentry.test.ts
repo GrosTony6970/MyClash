@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SENTRY_DATA_COLLECTION } from '@myclash/types/sentry-data-collection';
 import { captureApiException, initApiSentry, isApiSentryEnabled } from './sentry';
 
 const mocks = vi.hoisted(() => {
@@ -51,20 +52,34 @@ describe('API Sentry helper', () => {
       environment: 'staging',
       release: 'abc123',
       tracesSampleRate: 0.25,
-      sendDefaultPii: false,
+      dataCollection: SENTRY_DATA_COLLECTION,
+      traceLifecycle: 'stream',
+      beforeSend: expect.any(Function),
+      beforeBreadcrumb: expect.any(Function),
+      beforeSendSpan: expect.any(Function),
     });
   });
 
-  it('never opts in to Sentry PII collection', () => {
-    // The privacy policy promises this: no IP address, no cookies, no request
-    // body and no user identity reach Sentry. `false` is also the SDK default,
-    // which is exactly why it is asserted here — a default that silently flips
-    // on an upgrade would make a published document wrong with no diff to
-    // review. If this test fails, the policy needs changing, not the test.
+  it('takes what may leave from the shared module, and not from the old switch', () => {
+    // The privacy policy (§7.1) makes the promise. The old switch's name proved
+    // nothing on Sentry 10, so its absence is asserted too: the resolved-options
+    // test (sentry.resolved.test.ts) proves what the SDK really does with this.
     initApiSentry({ SENTRY_DSN_API: 'https://example@sentry.io/1' });
 
-    const options = mocks.sentryInit.mock.calls.at(-1)?.[0] as { sendDefaultPii?: boolean };
-    expect(options.sendDefaultPii).toBe(false);
+    const options = mocks.sentryInit.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(options['dataCollection']).toBe(SENTRY_DATA_COLLECTION);
+    expect(options).not.toHaveProperty('sendDefaultPii');
+  });
+
+  it('scrubs the context path in the report only', () => {
+    initApiSentry({ SENTRY_DSN_API: 'https://example@sentry.io/1' });
+    const context = { path: '/api/v1/event-passes/probe-marker-1?t=probe-marker-2' };
+    captureApiException(new Error('boom'), context);
+
+    expect(mocks.setContext).toHaveBeenCalledWith('myclash', {
+      path: '/api/v1/event-passes/[token]',
+    });
+    expect(context.path).toBe('/api/v1/event-passes/probe-marker-1?t=probe-marker-2');
   });
 
   it('captures exceptions with redacted context only when enabled', () => {

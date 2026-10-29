@@ -1,4 +1,10 @@
 import * as Sentry from '@sentry/nestjs';
+import {
+  SENTRY_DATA_COLLECTION,
+  SENTRY_TRACE_LIFECYCLE,
+  createSentryScrubbers,
+  sentryOwnHosts,
+} from '@myclash/types/sentry-data-collection';
 import { redactValue } from './redaction';
 
 export interface SentryInitResult {
@@ -8,6 +14,7 @@ export interface SentryInitResult {
 }
 
 let sentryEnabled = false;
+let scrubContextPath: (url: string | undefined) => string | undefined = (url) => url;
 
 export function initApiSentry(env: NodeJS.ProcessEnv = process.env): SentryInitResult {
   const dsn = env['SENTRY_DSN_API'];
@@ -19,19 +26,28 @@ export function initApiSentry(env: NodeJS.ProcessEnv = process.env): SentryInitR
     return release ? { enabled: false, environment, release } : { enabled: false, environment };
   }
 
+  // What a report may carry is the privacy policy's promise (§7.1). Sentry 10's
+  // "no personal data" switch still sent cookies, bearer tokens, bodies and
+  // query strings, so an option's name is no evidence. The settings and hooks
+  // come from one shared module; the observability gate checks every init uses
+  // them, and the envelope probe of the Sentry 11 slice proved what leaves.
+  const scrubbers = createSentryScrubbers({
+    ownHosts: sentryOwnHosts([env['SUPABASE_URL'], env['SUPABASE_AUTH_INTERNAL_URL']]),
+    domain: env['DOMAIN'],
+    runtime: 'server',
+  });
   Sentry.init({
     dsn,
     environment,
     release,
     tracesSampleRate: parseSampleRate(env['SENTRY_TRACES_SAMPLE_RATE']),
-    // Stated, not left to the default. `false` IS the SDK default today, but
-    // the privacy policy now makes a promise about it — no IP address, no
-    // cookies, no request bodies, no user identity leaves for Sentry — and a
-    // promise resting on a default is one SDK upgrade or one re-run of the
-    // Sentry setup wizard away from being false. Written down, flipping it is
-    // a visible diff instead of a silent change of behaviour.
-    sendDefaultPii: false,
+    dataCollection: SENTRY_DATA_COLLECTION,
+    traceLifecycle: SENTRY_TRACE_LIFECYCLE,
+    beforeSend: scrubbers.beforeSend,
+    beforeBreadcrumb: scrubbers.beforeBreadcrumb,
+    beforeSendSpan: scrubbers.beforeSendSpan,
   });
+  scrubContextPath = scrubbers.scrubUrl;
   sentryEnabled = true;
 
   return release ? { enabled: true, environment, release } : { enabled: true, environment };
@@ -46,8 +62,14 @@ export function captureApiException(
   context: Record<string, unknown> = {},
 ): void {
   if (!sentryEnabled) return;
+  // The reporter scrubs, not the caller: the exception filter also puts this
+  // path in the error reply, which keeps its shape.
+  const scrubbed =
+    typeof context['path'] === 'string'
+      ? { ...context, path: scrubContextPath(context['path']) }
+      : context;
   Sentry.withScope((scope) => {
-    scope.setContext('myclash', redactValue(context) as Record<string, unknown>);
+    scope.setContext('myclash', redactValue(scrubbed) as Record<string, unknown>);
     Sentry.captureException(exception);
   });
 }

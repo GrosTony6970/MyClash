@@ -37,6 +37,8 @@ Two notes for anyone changing it:
 
 Empty DSNs disable capture safely. API 5xx responses, unhandled rejections, and uncaught exceptions are sent to Sentry when configured. Next.js apps initialize the Sentry SDK for browser and server runtime capture.
 
+What a report, a trace or a breadcrumb may carry is set in one place, `packages/types/src/sentry-data-collection.ts`, and every one of the seven inits takes its setting and its three hooks from there. It is the privacy policy's §7.1 in code: no cookie, no body, no query string, no URL fragment, no token in a path, no IP on server reports; the browser records the visitor's IP (policy §7.1). Sentry 10's "no personal data" switch sent cookies, tokens, bodies and queries anyway, so an option's name is not evidence: `pnpm observability:review` checks the wiring, and the Sentry 11 slice proved what leaves with an envelope sink. Browser tracing stays on: the `removeTracing` / `excludeTracing` flags would switch it off since Sentry 11, and the gate refuses them.
+
 Known issue: frontend source-map upload is not enabled until the owner creates Sentry projects and provides the upload token/project metadata outside git.
 
 ## Uptime And Metrics

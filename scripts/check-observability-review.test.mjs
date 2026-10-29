@@ -3,9 +3,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  BROWSER_INITS,
   REQUIRED_ENV_KEYS,
   REQUIRED_FILES,
+  SERVER_INITS,
   checkObservability,
+  checkSentryPrivacy,
+  listSentrySourcePaths,
+  stripComments,
 } from './check-observability-review.mjs';
 
 const SENTRY_PACKAGES = {
@@ -126,4 +131,159 @@ test('the real repository passes', () => {
     read: (path) => readFileSync(path, 'utf8'),
   });
   assert.deepEqual(findings, []);
+});
+
+// ── Rules A-C: what may leave for Sentry ────────────────────────────────────
+
+// The refused key, built from parts so this file never holds its shape.
+const OLD = ['send', 'Default', 'Pii'].join('');
+
+const HOOK_LINES = [
+  '  traceLifecycle: SENTRY_TRACE_LIFECYCLE,',
+  '  beforeSend: scrubbers.beforeSend,',
+  '  beforeBreadcrumb: scrubbers.beforeBreadcrumb,',
+  '  beforeSendSpan: scrubbers.beforeSendSpan,',
+];
+const SERVER_INIT = [
+  "const scrubbers = createSentryScrubbers({ ownHosts: [], runtime: 'server' });",
+  "Sentry.init({ dsn: 'https://k@o.example.test/1',",
+  '  dataCollection: SENTRY_DATA_COLLECTION,',
+  ...HOOK_LINES,
+  '});',
+].join('\n');
+const BROWSER_INIT = [
+  "const scrubbers = createSentryScrubbers({ ownHosts: [], runtime: 'browser' });",
+  'Sentry.init({',
+  '  dataCollection: SENTRY_BROWSER_DATA_COLLECTION,',
+  '  integrations: sentryBrowserIntegrations,',
+  ...HOOK_LINES,
+  '});',
+].join('\n');
+
+function privacyTree() {
+  const files = new Map();
+  for (const path of SERVER_INITS) files.set(path, SERVER_INIT);
+  for (const path of BROWSER_INITS) files.set(path, BROWSER_INIT);
+  for (const path of NEXT_CONFIGS)
+    files.set(path, 'withSentryConfig(c, { authToken, silent: true })');
+  files.set('apps/x/src/clean.ts', 'export const a = 1;');
+  return files;
+}
+
+function checkPrivacy(files) {
+  return checkSentryPrivacy({
+    read: (path) => files.get(path),
+    sourcePaths: [...files.keys()].filter((path) => path.startsWith('apps/x/')),
+  });
+}
+
+const API = SERVER_INITS[0];
+const STAFF_SERVER = 'apps/web-staff/sentry.server.config.ts';
+const STAFF_BROWSER = 'apps/web-staff/instrumentation-client.ts';
+
+test('rules A-C: a clean tree passes, and the count covers inits, sources and configs', () => {
+  const { findings, scanned } = checkPrivacy(privacyTree());
+  assert.deepEqual(findings, []);
+  assert.equal(scanned, SERVER_INITS.length + BROWSER_INITS.length + 1 + NEXT_CONFIGS.length);
+});
+
+test('rule A: a server init holding the browser setting is refused', () => {
+  const files = privacyTree();
+  files.set(
+    STAFF_SERVER,
+    SERVER_INIT.replace('SENTRY_DATA_COLLECTION', 'SENTRY_BROWSER_DATA_COLLECTION'),
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${STAFF_SERVER} must pass dataCollection: SENTRY_DATA_COLLECTION`,
+    `${STAFF_SERVER} must not use SENTRY_BROWSER_DATA_COLLECTION`,
+  ]);
+});
+
+test('rule A: beforeSendSpan does not stand in for a missing beforeSend', () => {
+  const files = privacyTree();
+  files.set(API, SERVER_INIT.replace('  beforeSend: scrubbers.beforeSend,\n', ''));
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${API} must pass beforeSend: scrubbers.beforeSend`,
+  ]);
+});
+
+test('rule A: a setting present only in a comment does not count', () => {
+  const files = privacyTree();
+  files.set(
+    API,
+    SERVER_INIT.replace(
+      '  dataCollection: SENTRY_DATA_COLLECTION,',
+      '  // dataCollection: SENTRY_DATA_COLLECTION,',
+    ),
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${API} must pass dataCollection: SENTRY_DATA_COLLECTION`,
+  ]);
+});
+
+test('rule A: a browser init without the integrations filter is refused', () => {
+  const files = privacyTree();
+  files.set(
+    STAFF_BROWSER,
+    BROWSER_INIT.replace('  integrations: sentryBrowserIntegrations,\n', ''),
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${STAFF_BROWSER} must pass integrations: sentryBrowserIntegrations`,
+  ]);
+});
+
+test('rule A: traceLifecycle must be the shared constant, not any value', () => {
+  const files = privacyTree();
+  files.set(API, SERVER_INIT.replace('SENTRY_TRACE_LIFECYCLE', "process.env['X']"));
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${API} must pass traceLifecycle: SENTRY_TRACE_LIFECYCLE`,
+  ]);
+});
+
+test('rule B: the old switch back in an app file is refused, even after a URL on the same line', () => {
+  const files = privacyTree();
+  files.set(
+    'apps/x/src/clean.ts',
+    `Sentry.init({ dsn: 'https://k@o.example.test/1', ${OLD}: true });`,
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `apps/x/src/clean.ts sets ${OLD}: it proved nothing on Sentry 10; use the shared dataCollection`,
+  ]);
+});
+
+test('rule B: the old switch in a comment, or named in prose, passes', () => {
+  const files = privacyTree();
+  files.set(
+    'apps/x/src/clean.ts',
+    `// ${OLD}: false\n/* ${OLD}: true */\nconst why = 'the ${OLD} option';`,
+  );
+  assert.deepEqual(checkPrivacy(files).findings, []);
+});
+
+test('rule C: a tracing flag back in a Next config is refused', () => {
+  const files = privacyTree();
+  files.set(
+    NEXT_CONFIGS[1],
+    'withSentryConfig(c, { authToken, bundleSizeOptimizations: { excludeTracing: true } })',
+  );
+  assert.deepEqual(checkPrivacy(files).findings, [
+    `${NEXT_CONFIGS[1]} must not set removeTracing / excludeTracing: Sentry 11 would switch browser tracing off`,
+  ]);
+});
+
+test('stripComments keeps strings and templates whole', () => {
+  assert.equal(
+    stripComments("const u = 'https://a.test/x'; // gone"),
+    "const u = 'https://a.test/x';  ",
+  );
+  assert.equal(stripComments('const t = `a//b`; /* gone */ x'), 'const t = `a//b`;   x');
+});
+
+test('the real tree: rule B walks every init, and rules A-C pass', () => {
+  const sourcePaths = listSentrySourcePaths();
+  for (const path of [...SERVER_INITS, ...BROWSER_INITS]) {
+    assert.ok(sourcePaths.includes(path), `rule B's walk misses ${path}`);
+  }
+  const read = (path) => readFileSync(path, 'utf8');
+  assert.deepEqual(checkSentryPrivacy({ read, sourcePaths }).findings, []);
 });

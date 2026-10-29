@@ -12,12 +12,9 @@ allowBuilds:
   esbuild: true
   # Native image pipeline behind next/image optimisation in the standalone runtime.
   sharp: true
-  # Downloads the sentry-cli binary, used to upload source maps during `next build`
-  # in each app's Docker builder stage.
-  '@sentry/cli': true
   # Prebuilt native accelerator for msgpackr, which backs Next's build cache.
   msgpackr-extract: true
-  # Library setup; arrives transitively via the Google GenAI / Sentry trees.
+  # Library setup; arrives transitively via the Google GenAI tree.
   protobufjs: true
   # DENIED — `preinstall` is a literal no-op echo and `prepare` only runs for git
   # or local installs, never for a registry tarball. Nothing to gain.
@@ -87,7 +84,8 @@ peerDependencyRules:
 #
 # Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
 # dedupes has drifted over time (glob now serves @nestjs/cli and
-# @sentry/bundler-plugin-core, minimatch serves eslint 10's config-array), so
+# @sentry/bundler-plugins — the source-map uploader, held on glob 10 against its own
+# ^13 ask — minimatch serves eslint 10's config-array), so
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing.
 overrides:
@@ -113,7 +111,6 @@ overrides:
   glob: ^10.5.0
   minimatch: ^9.0.9
   picomatch: ^4.0.5
-  import-in-the-middle: ^3.0.1
   # >=0.35.0 cleared GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs); >=0.35.4
   # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). next and astro 7 both ask
   # for ^0.35.4 themselves; web-marketing declares `^0.35.3` directly, the one
