@@ -465,6 +465,27 @@ export const admin = {
     noScoringChange: 'No scoring setting changes: only the ruleset changes.',
     previewFailed: 'Could not load what this change does.',
     typeNameLabel: 'Type the tournament name to confirm: {name}',
+    // The dialog of a settings change (rulings 162-169).
+    settingsTitle: 'Change the rules of a started tournament?',
+    settingsIntro:
+      'The change and your reason are recorded and shown publicly. Bouts already fought keep their rules; bouts not started take the new ones.',
+    fightersIntro: 'The Fighters named below change status at once.',
+    reasonPlaceholder: 'Why the rules are changing (shown publicly)',
+    confirm: 'Save the change',
+    locked: 'locked',
+    fightersHeading: 'These Fighters’ status changes:',
+    fighterLine: '{name}: {before} → {after}',
+    saved: 'Rules saved.',
+    notSettledHeading: 'These Fighters were not updated:',
+    unnamed: 'an entry that could not be named',
+    handOffFailed: 'A Pool this change finished may not have moved on to its next phase.',
+    followFailed: 'The update of the Fighters did not finish: some may not be updated.',
+    inStepHeading: 'Brought back in step:',
+    close: 'Close',
+    reloadToSee: 'Rules saved. Reload the page to see them.',
+    elsewhere:
+      'This change needs a reason and your confirmation. Make it from the tournament’s settings.',
+    openSettings: 'Open the tournament’s settings',
     refusal: {
       needsAudit:
         'This tournament has started: this change needs a reason and your confirmation, and it is shown publicly.',
@@ -481,7 +502,6 @@ export const admin = {
         'The rules could not be checked just now. Nothing was saved. Try again in a moment.',
       cardLocked:
         'This tournament has started, or its event is running with bouts made: its card rules are locked.',
-      forfeitLocked: 'A bout of this tournament has started: its forfeit rules are locked.',
     },
   },
   srcComponents: {

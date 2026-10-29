@@ -11,7 +11,8 @@ import { pickWizardDefaults } from './wizard-defaults';
 import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { rulesChangeRefusal } from '@/lib/rules-change-refusal';
+import { needsAuditOf, rulesChangeRefusal } from '@/lib/rules-change-refusal';
+import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 import { PenaltyPickField } from '../../_shared/PenaltyPickField';
 import { TournamentForfeitRules } from '../../_shared/TournamentForfeitRules';
 import { useForfeitForm } from '../../_shared/useForfeitForm';
@@ -89,6 +90,8 @@ export function Step1Basics({
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // A resumed draft's change needs the audit: made from the settings (ruling 168).
+  const [needsAudit, setNeedsAudit] = useState(false);
   const forfeit = useForfeitForm(eventId, initialTournamentId, penaltyRulesetId);
   const adoptForfeit = forfeit.adopt;
 
@@ -165,9 +168,12 @@ export function Step1Basics({
         });
         // Guard the response so a failed save surfaces a toast instead of
         // silently advancing the wizard and discarding the edits.
+        const locked = !r.ok && needsAuditOf(r) !== null;
+        setNeedsAudit(locked);
         if (!r.ok) {
-          const message =
-            rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.updateFailed'));
+          const message = locked
+            ? null
+            : (rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.updateFailed')));
           if (message) toast.error(message);
           return;
         }
@@ -366,6 +372,9 @@ export function Step1Basics({
         </label>
       </div>
 
+      {needsAudit && initialTournamentId && (
+        <RulesChangeElsewhere tournamentId={initialTournamentId} tab="basics" />
+      )}
       <div className="flex justify-end">
         <button
           type="button"

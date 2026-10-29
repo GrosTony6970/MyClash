@@ -3,7 +3,6 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useId, useMemo } from 'react';
 
-import { useToast } from '@myclash/ui';
 // One owner for the option list, so the two surfaces cannot offer different
 // wording — or different values — for the same setting.
 import {
@@ -15,7 +14,7 @@ import {
 import { LevelAtTimeEditor, levelChainsAreValid } from '../../../new/_wizard/LevelAtTimeEditor';
 import { RulesFormState } from '../../../_shared/RulesFormState';
 import { startAffordance } from '../../../_shared/start-affordance';
-import { useEffectiveRules } from '../../../_shared/useEffectiveRules';
+import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
 
 type MatchFormat = WizardMatchFormat;
@@ -35,15 +34,14 @@ const BEST_OF_OPTIONS = [
  * (operator rulings 43, 46). The "modified" badge and Reset compare with what the ruleset starts a
  * Tournament from at its pinned version (`start`, ruling 51); with no `start`, neither shows.
  */
-export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
+export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, ...props }: TabProps) {
   const { t } = useI18n();
 
-  const toast = useToast();
   const bestOfOptions = useMemo(
     () => BEST_OF_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
     [t],
   );
-  const rules = useEffectiveRules(tournamentId, MATCH_FORMAT_FORM, onDirtyChange);
+  const rules = useTabRules(tournamentId, MATCH_FORMAT_FORM, props);
   const { form: data, setForm: setData } = rules;
 
   const heading = (
@@ -77,10 +75,6 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, onDirtyCha
     set({ timeLimitsSeconds: { ...data.timeLimitsSeconds, [phase]: v } });
   const setBestOf = (phase: 'pool' | 'bracket' | 'finals', v: string) =>
     set({ bestOf: { ...data.bestOf, [phase]: Number(v) } });
-
-  async function save() {
-    if ((await rules.save()) === 'saved') toast.success(t('organizer.tournaments.settings.saved'));
-  }
 
   return (
     <div className="space-y-4">
@@ -236,13 +230,14 @@ export function MatchFormatTab({ tournamentId, readOnly, readOnlyWhy, onDirtyCha
 
       <button
         type="button"
-        onClick={() => void save()}
+        onClick={() => void rules.saveTab()}
         disabled={rules.saving || readOnly || !levelChainsAreValid(data.levelAtTime)}
         title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {rules.saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
+      {rules.auditDialog}
     </div>
   );
 }

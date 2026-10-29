@@ -29,7 +29,6 @@ const STATUS: Record<string, number> = {
   rules_change_mixed: 400,
   rules_check_unavailable: 503,
   card_change_locked: 403,
-  forfeit_rules_locked: 403,
 };
 
 describe('rulesChangeRefusal', () => {
@@ -83,6 +82,37 @@ describe('rulesChangeRefusal', () => {
       );
       expect(rulesChangeRefusal(closedBy(by), french)).toBe(
         'Ce tournoi est terminé ou archivé : ses règles ne peuvent plus changer.',
+      );
+    });
+  });
+
+  it('knows no forfeit lock: a forfeit change goes through the audit (5b)', () => {
+    expect(Object.values(RULES_CHANGE_CODES)).not.toContain('forfeit_rules_locked');
+  });
+
+  describe('says why rules that cannot be read refuse a save (the 409’s cause)', () => {
+    const invalid = (cause: unknown): ApiFailure => ({
+      kind: 'http',
+      status: 409,
+      detail: 'An English sentence.',
+      code: 'forfeit_rules_invalid',
+      details: { cause },
+      validationErrors: null,
+    });
+
+    it('the Tournament’s own change: Reset it', () => {
+      expect(rulesChangeRefusal(invalid('changes'), english)).toBe(
+        'The forfeit rules of this tournament cannot be read. Reset each change below, then save.',
+      );
+      expect(rulesChangeRefusal(invalid('changes'), french)).toMatch(/^[^[].*\.$/);
+    });
+
+    it('its penalty ruleset: fix the ruleset', () => {
+      expect(rulesChangeRefusal(invalid('ruleset'), english)).toBe(
+        'The forfeit rules of this tournament’s penalty ruleset cannot be read. Fix the penalty ruleset.',
+      );
+      expect(rulesChangeRefusal(invalid('ruleset'), french)).not.toBe(
+        rulesChangeRefusal(invalid('changes'), french),
       );
     });
   });

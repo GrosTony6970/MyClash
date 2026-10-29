@@ -245,7 +245,7 @@ describe('the forfeit rules on the Basics tab', () => {
     expect(sentForfeit()).toEqual({ secondBlackCard: null });
   });
 
-  it('say why a Save is refused once a bout has started', async () => {
+  it('open the rules-change dialog once a bout has started (5c)', async () => {
     opened = await open();
     const read = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
     vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
@@ -254,18 +254,27 @@ describe('the forfeit rules on the Basics tab', () => {
             ok: false,
             kind: 'unauthenticated',
             status: 403,
-            detail: 'This tournament has scored matches, so its forfeit rules are locked.',
-            code: 'forfeit_rules_locked',
-            details: null,
+            detail: 'This tournament has started: these rules need the audit.',
+            code: 'rules_change_needs_audit',
+            details: {
+              changes: [
+                {
+                  path: 'forfeitRules.reasons.injury.opponentScore',
+                  before: 6,
+                  after: 41,
+                  locked: true,
+                },
+              ],
+              fighters: [],
+            },
           } as Awaited<ReturnType<typeof ApiClient.apiRequest>>)
         : read(base, path, init),
     );
     await set('injury-score', '41');
     await save();
 
-    expect(document.body.textContent).toContain(
-      'A bout of this tournament has started: its forfeit rules are locked.',
-    );
+    expect(asked()).toBe(true);
+    expect(document.body.textContent).not.toContain('these rules need the audit');
   });
 
   it('say the stored rules cannot be read, and Reset the stored change', async () => {

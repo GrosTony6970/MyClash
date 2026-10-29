@@ -17,7 +17,7 @@ const apiUrl = getPublicApiUrl();
  * acknowledge, which re-stamps the fingerprint to the current behaviour.
  * Renders nothing when there is no drift (the common case).
  */
-export function RulesetDriftBanner({ tournamentId, readOnly }: TabProps) {
+export function RulesetDriftBanner({ tournamentId, readOnly, rulesSavedAt }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
@@ -27,19 +27,21 @@ export function RulesetDriftBanner({ tournamentId, readOnly }: TabProps) {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    // Drift is a best-effort integrity hint — never surface a read failure.
+    // Drift is a best-effort integrity hint — never surface a read failure. A failed read is no
+    // evidence either way: the banner keeps what the last read said. Read again after each save
+    // of the rules (`rulesSavedAt`): a save writes the fingerprint, so the banner can go.
     void apiRequest<{ drifted?: boolean }>(
       apiUrl,
       `/api/v1/tournaments/${tournamentId}/ruleset-drift`,
       { signal: controller.signal },
     ).then((r) => {
-      if (!cancelled && r.ok && r.data.drifted) setDrifted(true);
+      if (!cancelled && r.ok) setDrifted(r.data.drifted === true);
     });
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [tournamentId]);
+  }, [tournamentId, rulesSavedAt]);
 
   async function acknowledge() {
     setBusy(true);

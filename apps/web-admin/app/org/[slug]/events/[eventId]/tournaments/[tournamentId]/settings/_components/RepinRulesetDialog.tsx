@@ -1,18 +1,11 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
-import { useState } from 'react';
 import { Modal } from '@myclash/ui';
-import { rulesChangeLines, sameTournamentName } from '@myclash/types';
+import { rulesChangeLines } from '@myclash/types';
 import { LineageLamps } from '@/components/rulesets/LineageLamps';
+import { ConfirmFields, ConfirmFooter, useConfirmWords, type ConfirmWords } from './RulesConfirm';
 import type { RepinPreview } from './useRepinDialog';
-
-/** The backend requires a justification of at least this many characters; the
- *  confirm button stays disabled until the reason is real. */
-const MIN_JUSTIFICATION = 10;
-
-const FIELD = 'w-full rounded-md border border-border px-3 py-2 text-sm';
-const LABEL = 'mb-1 block text-xs font-medium text-foreground-secondary';
 
 interface RepinRulesetDialogProps {
   fromLabel: string;
@@ -24,7 +17,7 @@ interface RepinRulesetDialogProps {
   previewError: string | null;
   busy: boolean;
   error: string | null;
-  onConfirm: (words: { justification: string; typedName: string }) => void;
+  onConfirm: (words: ConfirmWords) => void;
   onClose: () => void;
 }
 
@@ -33,18 +26,13 @@ interface RepinRulesetDialogProps {
  * refused because the tournament already has fought bouts. It shows what changes
  * (the preview's `changes`, worded by `rulesChangeLines`: the lines the public
  * notice shows too), and asks for a reason (shown publicly) and the tournament's
- * name, typed. The confirm button opens only when the typed name is the stored
- * one by `sameTournamentName`, the server's own test. Confirming calls POST
- * /tournaments/:id/repin-ruleset (`useRepinDialog`). The tab mounts it only while
- * a re-pin is asked, so each ask starts with an empty reason and name.
+ * name, typed (`RulesConfirm.tsx`, shared with a settings change). Confirming calls
+ * POST /tournaments/:id/repin-ruleset (`useRepinDialog`). The tab mounts it only
+ * while a re-pin is asked, so each ask starts with an empty reason and name.
  */
 export function RepinRulesetDialog(props: RepinRulesetDialogProps) {
   const { t } = useI18n();
-  const [justification, setJustification] = useState('');
-  const [typedName, setTypedName] = useState('');
-  const valid =
-    justification.trim().length >= MIN_JUSTIFICATION &&
-    sameTournamentName(typedName, props.tournamentName);
+  const fields = useConfirmWords(props.tournamentName);
 
   return (
     <Modal
@@ -54,10 +42,12 @@ export function RepinRulesetDialog(props: RepinRulesetDialogProps) {
       size="lg"
       title={t('admin.orgTournaments.repinRulesetTitle')}
       footer={
-        <RepinFooter
-          {...props}
-          valid={valid}
-          onConfirm={() => props.onConfirm({ justification: justification.trim(), typedName })}
+        <ConfirmFooter
+          busy={props.busy}
+          valid={fields.valid}
+          label={t('admin.orgTournaments.repinRulesetConfirm')}
+          onConfirm={() => props.onConfirm(fields.words())}
+          onClose={props.onClose}
         />
       }
     >
@@ -73,91 +63,13 @@ export function RepinRulesetDialog(props: RepinRulesetDialogProps) {
         </p>
         <RepinChanges {...props} />
         <ConfirmFields
-          justification={justification}
-          setJustification={setJustification}
-          typedName={typedName}
-          setTypedName={setTypedName}
+          fields={fields}
+          placeholder={t('admin.orgTournaments.repinRulesetJustificationPlaceholder')}
           tournamentName={props.tournamentName}
           error={props.error}
         />
       </div>
     </Modal>
-  );
-}
-
-/** The reason, the typed name, and why the last confirm was refused. */
-function ConfirmFields(p: {
-  justification: string;
-  setJustification: (value: string) => void;
-  typedName: string;
-  setTypedName: (value: string) => void;
-  tournamentName: string;
-  error: string | null;
-}) {
-  const { t } = useI18n();
-  return (
-    <>
-      <label className="block">
-        <span className={LABEL}>{t('admin.orgTournaments.repinRulesetJustificationLabel')}</span>
-        <textarea
-          value={p.justification}
-          onChange={(e) => p.setJustification(e.target.value)}
-          rows={3}
-          placeholder={t('admin.orgTournaments.repinRulesetJustificationPlaceholder')}
-          className={FIELD}
-        />
-      </label>
-      <label className="block">
-        <span className={LABEL}>
-          {t('admin.rulesChange.typeNameLabel', { name: p.tournamentName })}
-        </span>
-        <input
-          value={p.typedName}
-          onChange={(e) => p.setTypedName(e.target.value)}
-          autoComplete="off"
-          className={FIELD}
-        />
-      </label>
-      {p.error ? (
-        <p className="rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          {p.error}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function RepinFooter({
-  busy,
-  valid,
-  onConfirm,
-  onClose,
-}: {
-  busy: boolean;
-  valid: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onClose}
-        disabled={busy}
-        className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-background disabled:opacity-50"
-      >
-        {t('common.cancel')}
-      </button>
-      <button
-        type="button"
-        onClick={onConfirm}
-        disabled={busy || !valid}
-        className="rounded-md bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground hover:bg-danger-hover disabled:opacity-50"
-      >
-        {busy ? t('common.saving') : t('admin.orgTournaments.repinRulesetConfirm')}
-      </button>
-    </>
   );
 }
 

@@ -7,8 +7,9 @@ import { describe, expect, it } from 'vitest';
  * (ruling 234), but only where a screen reaches it. A screen that gives every
  * 403 its own meaning must rule the archived refusal out first: the Tournament
  * settings read it as "bouts are scored" and opened the re-pin dialog, then
- * said "only the ruleset's owner". The tab is too large to mount, so its two
- * 403 branches are pinned as text.
+ * said "only the ruleset's owner". Since commit 5c the ruleset change opens the
+ * re-pin on the lock's CODE alone (`page.rules-change.basics.test.tsx` mounts it),
+ * so one uncoded 403 branch is left, the owner bar's, and it is pinned as text.
  */
 const EVENT_PAGES = join(__dirname, '..', '..', 'app', 'org', '[slug]', 'events', '[eventId]');
 const read = (...path: string[]) => readFileSync(join(EVENT_PAGES, ...path), 'utf8');
@@ -28,9 +29,9 @@ function count(text: string, part: string): number {
 }
 
 describe('the Tournament settings give a 403 their own meaning only when the Event is not archived', () => {
-  it('rules the archived refusal out at both 403 branches', () => {
-    expect(count(BASICS_TAB, 'r.status === 403')).toBe(2);
-    expect(count(BASICS_TAB, 'r.status === 403 && !isArchivedEventRefusal(r)')).toBe(2);
+  it('rules the archived refusal out at its one uncoded 403 branch', () => {
+    expect(count(BASICS_TAB, 'r.status === 403')).toBe(1);
+    expect(count(BASICS_TAB, 'r.status === 403 && !isArchivedEventRefusal(r)')).toBe(1);
   });
 });
 

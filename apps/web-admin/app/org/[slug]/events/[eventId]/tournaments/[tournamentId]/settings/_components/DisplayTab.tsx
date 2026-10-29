@@ -9,7 +9,7 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DISPLAY_FORM } from '../../../_shared/display-form';
 import { RulesFormState } from '../../../_shared/RulesFormState';
-import { useEffectiveRules } from '../../../_shared/useEffectiveRules';
+import { useTabRules } from './useTabRules';
 import type { TabProps } from './tab-props';
 
 const apiUrl = getPublicApiUrl();
@@ -30,11 +30,11 @@ const COLORS = TOURNAMENT_SIDE_COLORS;
  * The scoring buttons, side colours and pinned penalties in force (`effectiveRules.scoring`), and
  * a Save of only what the organiser changed (operator rulings 43, 46). The logo saves at once.
  */
-export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange }: TabProps) {
+export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, ...props }: TabProps) {
   const { t } = useI18n();
 
   const toast = useToast();
-  const rules = useEffectiveRules(tournamentId, DISPLAY_FORM, onDirtyChange);
+  const rules = useTabRules(tournamentId, DISPLAY_FORM, props);
   const { form: data, setForm: setData, saving } = rules;
   const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);
   // Set by an upload or a removal; until then, the row's own.
@@ -119,10 +119,6 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange 
     } finally {
       setUploadingLogo(false);
     }
-  }
-
-  async function save() {
-    if ((await rules.save()) === 'saved') toast.success(t('organizer.tournaments.settings.saved'));
   }
 
   const toggleQuick = (ref: number) => {
@@ -481,13 +477,14 @@ export function DisplayTab({ tournamentId, readOnly, readOnlyWhy, onDirtyChange 
 
       <button
         type="button"
-        onClick={() => void save()}
+        onClick={() => void rules.saveTab()}
         disabled={saving || readOnly}
         title={readOnlyWhy}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
+      {rules.auditDialog}
     </div>
   );
 }

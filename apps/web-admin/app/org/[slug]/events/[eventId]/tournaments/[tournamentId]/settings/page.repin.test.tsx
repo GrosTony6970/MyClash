@@ -81,12 +81,25 @@ const READS = {
   },
 };
 
-/** The guard's refusal of the plain ruleset change: bouts were fought (no rules-change code). */
+/**
+ * The lock's refusal of the plain ruleset change: the Tournament has started. The pair moves only
+ * through the re-pin, so its list is empty (5a); the screen opens the re-pin on this code alone.
+ */
 const FOUGHT = {
   ok: false,
   kind: 'unauthenticated',
   status: 403,
-  detail: 'Matches are already scored.',
+  detail: 'This tournament has started, so its ruleset moves only through the audited re-pin.',
+  code: 'rules_change_needs_audit',
+  details: { changes: [], fighters: [] },
+} as const;
+
+/** The owner bar's refusal: a 403 with no rules-change code. */
+const OWNER_ONLY = {
+  ok: false,
+  kind: 'unauthenticated',
+  status: 403,
+  detail: 'Only an owner may re-pin.',
   code: 'FORBIDDEN',
   details: null,
 } as const;
@@ -268,7 +281,7 @@ describe('the re-pin dialog on the Basics tab', () => {
   it('says the owner-only words alike for the preview and the confirm', async () => {
     const reads = vi.mocked(ApiClient.apiRequest).getMockImplementation()!;
     vi.mocked(ApiClient.apiRequest).mockImplementation(async (base, path, init) =>
-      path.includes('/repin-preview') ? FOUGHT : reads(base, path, init),
+      path.includes('/repin-preview') ? OWNER_ONLY : reads(base, path, init),
     );
     await askRepin();
     expect(dialog()!.textContent).toContain(

@@ -3,30 +3,28 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchSelectableRulesets, withPinnedVersion } from '@/lib/selectable-rulesets';
+import { withPinnedVersion } from '@/lib/selectable-rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
 import { storedRulesOf, useRepinDialog, type RulesetPair } from './useRepinDialog';
 import { apiRequest, failureMessage, isArchivedEventRefusal } from '@myclash/api-client';
-import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { rulesChangeRefusal } from '@/lib/rules-change-refusal';
+import { needsAuditOf, rulesChangeRefusal } from '@/lib/rules-change-refusal';
 import { PenaltyPickField } from '../../../_shared/PenaltyPickField';
 import { TournamentForfeitRules } from '../../../_shared/TournamentForfeitRules';
 import { useForfeitRules, type StoredForfeit } from '../../../_shared/useForfeitRules';
 import { sameForm, useSavedSnapshot } from '../../../_shared/useSavedSnapshot';
 import type { TabProps } from './tab-props';
-import { saveBody, savedAfter, type TournamentBasics } from './basics-save';
+import { forfeitSavedAfter, saveBody, savedAfter, type TournamentBasics } from './basics-save';
+import { basicsOf, loadBasics, type PenaltyRuleset, type Ruleset } from './basics-load';
+import { RulesChangeDialog } from './RulesChangeDialog';
+import { useRulesChangeDialog, type RulesHost } from './useRulesChangeDialog';
 
-interface Ruleset {
-  code: string;
-  version: string;
-  label: string;
-}
-interface PenaltyRuleset {
-  id: string;
-  name: string;
+/** What a refused Save sent: the form, and the forfeit rules it would leave stored. */
+interface BasicsSent {
+  form: TournamentBasics;
+  after: StoredForfeit;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -36,6 +34,7 @@ export function BasicsTab({
   readOnly,
   readOnlyWhy,
   onDirtyChange,
+  onRulesSaved,
   onNameSaved,
 }: TabProps & {
   /** The name the server took: the page's header shows it. */
@@ -82,67 +81,52 @@ export function BasicsTab({
         : null,
     onRepinned: (to) => {
       rulesetApplied(to);
+      onRulesSaved?.();
       toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
     },
   });
   const rememberRules = repin.remember;
+  const audit = useRulesChangeDialog<BasicsSent>(tournamentId);
 
   useEffect(() => {
     if (!orgSlug) return;
-    // Resolve org id from slug so we can hit the org-scoped penalty-rulesets
-    // endpoint (which filters out other orgs' public rulesets).
-    // Silent reads: the tab shows its loading line until the row lands, and
-    // every save below reports its own refusal. A failed org resolve leaves the
-    // penalty list empty: the platform-wide catalogue is for platform staff.
-    void apiRequest<{ id: string }>(
-      apiUrl,
-      `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
-    ).then((orgRes) => {
-      return Promise.all([
-        apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
-          (r) => (r.ok ? r.data : null),
-        ),
-        // Event-scoped, so an org-authored ruleset stays selectable here.
-        // The bare /rulesets catalog is registry-only and never contains one.
-        fetchSelectableRulesets(apiUrl, eventId),
-        orgRes.ok
-          ? apiRequest<PenaltyRuleset[]>(
-              apiUrl,
-              `/api/v1/organizations/${orgRes.data.id}/penalty-rulesets`,
-            ).then((r) => (r.ok ? r.data : []))
-          : [],
-      ]).then(([row, r, p]) => {
-        if (row) {
-          // As stored: a restored archive's `{}` is no change, as the server reads it.
-          const forfeit = applyForfeitPatch(
-            (row['forfeit_rules'] as ForfeitChanges | null) ?? null,
-            {},
-          );
-          const read: TournamentBasics = {
-            name: row['name'] as string,
-            slug: row['slug'] as string,
-            weapon: row['weapon'] as string,
-            rulesetCode: row['ruleset_code'] as string,
-            rulesetVersion: row['ruleset_version'] as string,
-            penaltyRulesetId: (row['penalty_ruleset_id'] as string | null) ?? null,
-            maxParticipants: (row['max_participants'] as number | null) ?? null,
-            maxWaitlist: (row['max_waitlist'] as number | null) ?? null,
-            forfeitRules: forfeit,
-          };
-          setData(read);
-          markSaved(read);
-          setStored({ pin: read.penaltyRulesetId, forfeit });
-          setOriginalRuleset({
-            code: row['ruleset_code'] as string,
-            version: row['ruleset_version'] as string,
-          });
-          rememberRules(storedRulesOf(row));
-        }
-        setRulesets(r as Ruleset[]);
-        setPenaltyRulesets(p);
-      });
+    void loadBasics(orgSlug, tournamentId, eventId).then(({ row, rulesets, penaltyRulesets }) => {
+      if (row) {
+        const { form, forfeit } = basicsOf(row);
+        setData(form);
+        markSaved(form);
+        setStored({ pin: form.penaltyRulesetId, forfeit });
+        setOriginalRuleset({ code: form.rulesetCode, version: form.rulesetVersion });
+        rememberRules(storedRulesOf(row));
+      }
+      setRulesets(rulesets);
+      setPenaltyRulesets(penaltyRulesets);
     });
   }, [tournamentId, orgSlug, eventId, markSaved, rememberRules]);
+
+  /**
+   * The audited save's host (`useRulesChangeDialog`): it sent the forfeit rules alone, so only
+   * they are marked saved (ruling 151); the row it read back, or a later read of it, becomes what
+   * the next audit and re-pin send back, unless a later save or read was remembered since.
+   */
+  const auditHost = (): RulesHost<BasicsSent> => ({
+    stored: repin.stored!,
+    saved: (row, { form: sent, after }) => {
+      markSaved((saved) => forfeitSavedAfter(saved, after.forfeit));
+      setData((now) =>
+        now && sameForm(now.forfeitRules, sent.forfeitRules)
+          ? { ...now, forfeitRules: after.forfeit }
+          : now,
+      );
+      setStored((before) => ({ pin: before?.pin ?? null, forfeit: after.forfeit }));
+      if (row) rememberRules(storedRulesOf(row));
+    },
+    stamp: repin.stamp,
+    reread: (row, at) => {
+      if (repin.stamp() === at) rememberRules(storedRulesOf(row));
+    },
+    onRulesSaved,
+  });
 
   async function save() {
     if (!data) return;
@@ -155,9 +139,13 @@ export function BasicsTab({
         body,
       });
       if (!r.ok) {
-        const message =
-          rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.saveFailed'));
-        if (message) toast.error(message);
+        const locked = needsAuditOf(r);
+        if (locked) audit.open({ ...locked, body, sent: { form: sent, after } });
+        else {
+          const message =
+            rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.saveFailed'));
+          if (message) toast.error(message);
+        }
         return;
       }
       // The written row (the PATCH answers it): its name and card pin are what a re-pin then
@@ -173,6 +161,7 @@ export function BasicsTab({
       );
       setStored(after);
       onNameSaved?.(sent.name);
+      onRulesSaved?.();
       toast.success(t('organizer.tournaments.settings.saved'));
     } finally {
       setSaving(false);
@@ -188,10 +177,10 @@ export function BasicsTab({
     rulesetChoices.find((r) => r.code === code && r.version === version)?.label ?? code;
 
   /**
-   * Apply the pending ruleset change. Tries the ordinary PATCH first (the fast
-   * path for a tournament with no results); a 403 means the commit-1 guard
-   * blocked it because matches are scored, so we open the audited re-pin
-   * ceremony instead.
+   * Apply the pending ruleset change. Tries the ordinary PATCH first (the fast path for a
+   * Tournament that has not started); the lock's coded refusal (`rules_change_needs_audit`, its
+   * list empty: the pair moves only through the re-pin) opens the audited re-pin instead. Every
+   * other refusal is said (an archived Event's too, ruling 234).
    */
   async function changeRuleset() {
     if (!data) return;
@@ -203,18 +192,15 @@ export function BasicsTab({
     if (r.ok) {
       rememberRules(storedRulesOf(r.data as Record<string, unknown>));
       rulesetApplied(to);
+      onRulesSaved?.();
       toast.success(t('admin.orgTournaments.changeRulesetSuccess'));
       return;
     }
-    // NOT a message, and kept as it was: a 403 here means the commit-1 guard
-    // blocked the fast path because matches are scored, so the screen opens the
-    // audited re-pin ceremony instead of saying anything. An archived Event
-    // answers 403 too, and that one is said (ruling 234).
-    if (r.kind === 'unauthenticated' && r.status === 403 && !isArchivedEventRefusal(r)) {
+    if (needsAuditOf(r)) {
       await repin.open(to);
       return;
     }
-    const message = failureMessage(r, t, t('admin.common.saveFailed'));
+    const message = rulesChangeRefusal(r, t) ?? failureMessage(r, t, t('admin.common.saveFailed'));
     if (message) toast.error(message);
   }
 
@@ -377,6 +363,9 @@ export function BasicsTab({
           onConfirm={(words) => void repin.confirm(words)}
           onClose={repin.close}
         />
+      )}
+      {repin.stored && (
+        <RulesChangeDialog dialog={audit} tournamentName={repin.stored.name} host={auditHost} />
       )}
     </div>
   );

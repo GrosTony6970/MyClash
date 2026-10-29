@@ -8,6 +8,7 @@ import { TfRulesetControls } from '../../_shared/TfRulesetControls';
 import { RulesFormState } from '../../_shared/RulesFormState';
 import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
 import { useEffectiveRules } from '../../_shared/useEffectiveRules';
+import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 
 /**
  * TF_v1's own settings in force (`effectiveRules.tf`), for TF_v1 and a fork of it, and a Finish
@@ -103,6 +104,7 @@ export function Step4Advanced({
         />
       )}
 
+      {rules.needsAudit && <RulesChangeElsewhere tournamentId={tournamentId} tab="advanced" />}
       <div className="flex items-center gap-3 justify-between mt-6">
         <button
           type="button"

@@ -51,11 +51,14 @@ export default function TournamentSettingsPage() {
   const { name, setName, mayEdit } = useTournamentHeader(params.tournamentId);
   // Below admin, the server refuses every save here, the Recap's too (rulings 101-103).
   const adminOnly = mayEdit ? undefined : t('organizer.tournaments.settings.adminOnly');
+  // Each save of the rules: the drift banner reads again (revision 10 fold 7).
+  const [rulesSavedAt, setRulesSavedAt] = useState(0);
   const tab = {
     tournamentId: params.tournamentId,
     readOnly: isReadOnly || !mayEdit,
     readOnlyWhy: isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : adminOnly,
     onDirtyChange: setDirty,
+    onRulesSaved: () => setRulesSavedAt((n) => n + 1),
   };
   const [active, setActive] = useState<TabKey>('basics');
 
@@ -97,7 +100,7 @@ export default function TournamentSettingsPage() {
         </p>
       )}
 
-      <RulesetDriftBanner {...tab} />
+      <RulesetDriftBanner {...tab} rulesSavedAt={rulesSavedAt} />
 
       <div className="mt-6 grid grid-cols-[200px_1fr] gap-8">
         <nav

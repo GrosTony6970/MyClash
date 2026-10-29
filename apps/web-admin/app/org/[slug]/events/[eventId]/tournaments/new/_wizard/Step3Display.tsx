@@ -8,6 +8,7 @@ import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-
 import { DISPLAY_FORM } from '../../_shared/display-form';
 import { RulesFormState } from '../../_shared/RulesFormState';
 import { useEffectiveRules } from '../../_shared/useEffectiveRules';
+import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 import { DisplayPreview } from './DisplayPreview';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -450,6 +451,7 @@ export function Step3Display({
         <DisplayPreview data={data} logoUrl={logoUrl} rulesetCode={rulesetCode} />
       </div>
 
+      {rules.needsAudit && <RulesChangeElsewhere tournamentId={tournamentId} tab="display" />}
       <div className="flex justify-between mt-6">
         <button
           type="button"

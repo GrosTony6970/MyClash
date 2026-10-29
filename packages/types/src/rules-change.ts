@@ -87,7 +87,10 @@ export interface RulesChange {
  * web apps that word them (`rules-change-refusal.ts` in web-admin).
  */
 export const RULES_CHANGE_CODES = {
-  /** 403: a scoring change the lock refuses without the audit; the body's `details.changes`. */
+  /**
+   * 403: a rules change the lock refuses without the audit; the body's `details.changes`, and
+   * `details.fighters` for a forfeit change that moves a Fighter's status.
+   */
   needsAudit: 'rules_change_needs_audit',
   /**
    * 403: a Tournament completed or archived, or one whose Event is (ruling 148): no door changes
@@ -106,8 +109,6 @@ export const RULES_CHANGE_CODES = {
   checkUnavailable: 'rules_check_unavailable',
   /** 403: a card rules change refused on the Tournament's clock. */
   cardLocked: 'card_change_locked',
-  /** 403: a change of the Tournament's forfeit rules refused on its clock (ruling 73). */
-  forfeitLocked: 'forfeit_rules_locked',
 } as const;
 
 export type RulesChangeCode = (typeof RULES_CHANGE_CODES)[keyof typeof RULES_CHANGE_CODES];

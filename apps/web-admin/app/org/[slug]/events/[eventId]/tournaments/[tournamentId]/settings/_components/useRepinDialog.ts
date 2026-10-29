@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import type { BucketDiff } from '@myclash/rulesets';
@@ -131,7 +131,8 @@ export function useRepinDialog({ tournamentId, otherRefusal, onRepinned }: Repin
   const { t } = useI18n();
   const wordsOf: RefusalWords = (r, fallback) =>
     rulesChangeRefusal(r, t) ?? otherRefusal(r) ?? failureMessage(r, t, fallback);
-  const [stored, remember] = useState<StoredRules | null>(null);
+  const remembered = useRemembered();
+  const { stored, remember } = remembered;
   const [target, setTarget] = useState<RulesetPair | null>(null);
   const { preview, previewError, load, clear } = useRepinPreview(tournamentId, wordsOf);
   const [busy, setBusy] = useState(false);
@@ -165,5 +166,21 @@ export function useRepinDialog({ tournamentId, otherRefusal, onRepinned }: Repin
     onRepinned(target);
   }
 
-  return { stored, remember, target, preview, previewError, busy, error, open, close, confirm };
+  return { ...remembered, target, preview, previewError, busy, error, open, close, confirm };
+}
+
+/**
+ * The stored rules the tab last knew, and how many times it was told: a read sent before a later
+ * `remember` is dropped when it lands (`stamp`; Pass 6 item 3). ONE identity for `remember`: the
+ * tab's loader effect depends on it, and web-admin has no React Compiler.
+ */
+function useRemembered() {
+  const [stored, setStored] = useState<StoredRules | null>(null);
+  const told = useRef(0);
+  const remember = useCallback((next: StoredRules) => {
+    told.current++;
+    setStored(next);
+  }, []);
+  const stamp = useCallback(() => told.current, []);
+  return { stored, remember, stamp };
 }

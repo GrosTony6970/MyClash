@@ -472,6 +472,29 @@ export const admin = {
     noScoringChange: 'Aucun réglage de score ne change : seul le règlement change.',
     previewFailed: 'Impossible de charger ce que fait ce changement.',
     typeNameLabel: 'Saisissez le nom du tournoi pour confirmer : {name}',
+    // Le dialogue d’un changement de réglages (décisions 162-169).
+    settingsTitle: 'Modifier les règles d’un tournoi commencé ?',
+    settingsIntro:
+      'Le changement et votre raison sont enregistrés et affichés publiquement. Les combats déjà disputés gardent leurs règles ; les combats non commencés prennent les nouvelles.',
+    fightersIntro: 'Les combattants nommés ci-dessous changent de statut immédiatement.',
+    reasonPlaceholder: 'Pourquoi les règles changent (affiché publiquement)',
+    confirm: 'Enregistrer le changement',
+    locked: 'verrouillé',
+    fightersHeading: 'Le statut de ces combattants change :',
+    fighterLine: '{name} : {before} → {after}',
+    saved: 'Règles enregistrées.',
+    notSettledHeading: 'Ces combattants n’ont pas été mis à jour :',
+    unnamed: 'une inscription dont le nom n’a pas pu être lu',
+    handOffFailed:
+      'Une poule que ce changement a terminée n’est peut-être pas passée à sa phase suivante.',
+    followFailed:
+      'La mise à jour des combattants ne s’est pas terminée : certains ne sont peut-être pas à jour.',
+    inStepHeading: 'Remis en accord avec les règles :',
+    close: 'Fermer',
+    reloadToSee: 'Règles enregistrées. Rechargez la page pour les voir.',
+    elsewhere:
+      'Ce changement demande un motif et votre confirmation. Faites-le depuis les réglages du tournoi.',
+    openSettings: 'Ouvrir les réglages du tournoi',
     refusal: {
       needsAudit:
         'Ce tournoi a commencé : ce changement demande un motif et votre confirmation, et il est affiché publiquement.',
@@ -488,8 +511,6 @@ export const admin = {
         'Les règles n’ont pas pu être vérifiées pour le moment. Rien n’a été enregistré. Réessayez dans un instant.',
       cardLocked:
         'Ce tournoi a commencé, ou son événement est en cours avec des assauts créés : ses règles de cartons sont verrouillées.',
-      forfeitLocked:
-        'Un assaut de ce tournoi a commencé : ses règles de forfait sont verrouillées.',
     },
   },
   srcComponents: {

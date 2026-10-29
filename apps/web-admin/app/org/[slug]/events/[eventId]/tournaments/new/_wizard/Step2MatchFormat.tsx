@@ -9,6 +9,7 @@ import {
 } from '../../_shared/match-format-form';
 import { RulesFormState } from '../../_shared/RulesFormState';
 import { useEffectiveRules } from '../../_shared/useEffectiveRules';
+import { RulesChangeElsewhere } from './RulesChangeElsewhere';
 import { LevelAtTimeEditor, levelChainsAreValid } from './LevelAtTimeEditor';
 
 type MatchFormat = WizardMatchFormat;
@@ -228,6 +229,7 @@ export function Step2MatchFormat({
         ]}
       />
 
+      {rules.needsAudit && <RulesChangeElsewhere tournamentId={tournamentId} tab="match-format" />}
       <div className="flex justify-between mt-6">
         <button
           type="button"

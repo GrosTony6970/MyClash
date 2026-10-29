@@ -11,4 +11,8 @@ export interface TabProps {
   readOnlyWhy: string | undefined;
   /** The tab holds edits not saved yet (O15): the page asks before they are lost. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** A save wrote the Tournament's rules: the drift banner reads again (revision 10 fold 7). */
+  onRulesSaved?: () => void;
+  /** How many rules saves the page has seen: the drift banner reads again on each. */
+  rulesSavedAt?: number;
 }

@@ -56,6 +56,16 @@ export function saveBody(
 }
 
 /**
+ * The form as saved, after an AUDITED save that left `forfeit` stored: it sent the forfeit rules
+ * alone, so only they are marked saved; a name or a cap changed beside stays unsaved, and the next
+ * Save sends it (ruling 151). Never `savedAfter`, which marks the whole form.
+ */
+export const forfeitSavedAfter = (
+  saved: TournamentBasics | null,
+  forfeit: ForfeitChanges | null,
+) => (saved ? { ...saved, forfeitRules: forfeit } : saved);
+
+/**
  * The form as saved, after a Save that sent `sent` and left `forfeit` stored: the ruleset pair is
  * not part of it, and the forfeit changes are the stored ones, a Reset sent no longer a null.
  */

@@ -11,8 +11,9 @@ import {
 } from 'react';
 import type { EffectiveRules } from '@myclash/types';
 import { useToast } from '@myclash/ui';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { needsAuditOf, rulesChangeRefusal, type NeedsAudit } from '@/lib/rules-change-refusal';
 import { patchOf } from './patch-of';
 import { sameForm, useDirtyReport } from './useSavedSnapshot';
 
@@ -35,6 +36,9 @@ export interface RulesFormSpec<F> {
 /** What a save did: nothing to send, written, or refused (the refusal is already said). */
 export type RulesSave = 'none' | 'saved' | 'failed';
 
+/** A save the lock refused (`rules_change_needs_audit`): what it sent, from which form. */
+export type RefusedRulesSave<F> = NeedsAudit & { body: Record<string, unknown>; sent: F };
+
 export interface RulesForm<F> {
   status: RulesStatus;
   /** The row read, with the raw columns a save answered on top. Null until the read lands. */
@@ -51,6 +55,16 @@ export interface RulesForm<F> {
    * step's `wizardStep`). Sends nothing, and says so, when nothing changed and there is no extra.
    */
   save: (extra?: Record<string, unknown>) => Promise<RulesSave>;
+  /**
+   * The last save was refused `rules_change_needs_audit` and no dialog took it: a wizard step,
+   * whose change is made from the Tournament's settings (ruling 168).
+   */
+  needsAudit: boolean;
+  /** An audited save landed: what the form sent is saved, the row it read back taken. */
+  setSaved: Dispatch<SetStateAction<F | null>>;
+  setRow: Dispatch<SetStateAction<RulesRow | null>>;
+  /** Which read the state comes from: an answer compares it before and after it lands. */
+  generation: () => number;
 }
 
 /**
@@ -65,17 +79,48 @@ export interface RulesForm<F> {
  * organisers saving at once: each sends only what they changed, so neither overwrites a field the
  * other changed, but a list (buttons, pinned penalties, a level chain) is sent whole, so the last
  * writer of a list wins it whole, as the last writer of one field wins it.
+ *
+ * A save the lock refuses (`rules_change_needs_audit`) goes to `onNeedsAudit`, the settings
+ * tab's dialog; with none (a wizard step), `needsAudit` says so. Every other refusal is worded.
  */
 export function useEffectiveRules<F>(
   tournamentId: string,
   spec: RulesFormSpec<F>,
   onDirtyChange?: (dirty: boolean) => void,
+  onNeedsAudit?: (refused: RefusedRulesSave<F>) => void,
 ): RulesForm<F> {
+  const read = useRulesRead(tournamentId, spec, onDirtyChange);
+  const { save, saving, needsAudit } = useRulesSave(tournamentId, spec, read, onNeedsAudit);
+  const { status, row, form, setForm, reload, setSaved, setRow, generation } = read;
+  return {
+    status,
+    row,
+    rules: row?.effectiveRules ?? null,
+    form,
+    setForm,
+    saving,
+    reload,
+    save,
+    needsAudit,
+    setSaved,
+    setRow,
+    generation,
+  };
+}
+
+/** The save half: what changed since the read or the last save, and what its refusal means. */
+function useRulesSave<F>(
+  tournamentId: string,
+  spec: RulesFormSpec<F>,
+  read: ReturnType<typeof useRulesRead<F>>,
+  onNeedsAudit?: (refused: RefusedRulesSave<F>) => void,
+) {
   const { t } = useI18n();
   const toast = useToast();
-  const read = useRulesRead(tournamentId, spec, onDirtyChange);
   const { form, saved, setSaved, setRow, generation } = read;
   const [saving, setSaving] = useState(false);
+  const [needsAudit, setNeedsAudit] = useState(false);
+  const path = `/api/v1/tournaments/${tournamentId}`;
 
   const save = useCallback(
     async (extra: Record<string, unknown> = {}): Promise<RulesSave> => {
@@ -86,16 +131,15 @@ export function useEffectiveRules<F>(
         return 'none';
       }
       setSaving(true);
+      setNeedsAudit(false);
       const readWhenSent = generation();
+      const body = { ...changes, ...extra };
       try {
-        const r = await apiRequest<Record<string, unknown>>(
-          apiUrl,
-          `/api/v1/tournaments/${tournamentId}`,
-          { method: 'PATCH', body: { ...changes, ...extra } },
-        );
+        const r = await apiRequest<RulesRow>(apiUrl, path, { method: 'PATCH', body });
         if (!r.ok) {
-          const message = failureMessage(r, t, t('admin.common.saveFailed'));
-          if (message) toast.error(message);
+          const audit = sayUnlessLocked(r, t, toast);
+          if (audit && onNeedsAudit) onNeedsAudit({ ...audit, body, sent: form });
+          else if (audit) setNeedsAudit(true);
           return 'failed';
         }
         if (generation() === readWhenSent) {
@@ -107,11 +151,28 @@ export function useEffectiveRules<F>(
         setSaving(false);
       }
     },
-    [form, saved, spec, tournamentId, t, toast, setSaved, setRow, generation],
+    [form, saved, spec, path, t, toast, setSaved, setRow, generation, onNeedsAudit],
   );
 
-  const { status, row, setForm, reload } = read;
-  return { status, row, rules: row?.effectiveRules ?? null, form, setForm, saving, reload, save };
+  return { save, saving, needsAudit };
+}
+
+/**
+ * Says a refused save in the reader's words, unless the lock refused it
+ * (`rules_change_needs_audit`): that one goes through the audit, and its lists are returned.
+ */
+function sayUnlessLocked(
+  failure: ApiFailure,
+  t: (key: string) => string,
+  toast: { error: (message: string) => void },
+): NeedsAudit | null {
+  const audit = needsAuditOf(failure);
+  if (!audit) {
+    const words =
+      rulesChangeRefusal(failure, t) ?? failureMessage(failure, t, t('admin.common.saveFailed'));
+    if (words) toast.error(words);
+  }
+  return audit;
 }
 
 /**

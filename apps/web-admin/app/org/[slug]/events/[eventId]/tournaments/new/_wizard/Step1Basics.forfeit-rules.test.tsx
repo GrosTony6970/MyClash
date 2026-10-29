@@ -28,6 +28,12 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiClient>()),
   apiRequest: vi.fn(),
 }));
+vi.mock('next/navigation', () => ({ useParams: () => ({ slug: 'org', eventId: 'ev1' }) }));
+vi.mock('next/link', () => ({
+  default: ({ href, children }: { href: string; children?: React.ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 
 const DRAFT = '/api/v1/tournaments/t1';
 /** A resumed draft that changed one rule: a voluntary withdrawal is a loss to 37 (a MARKER). */
@@ -177,10 +183,16 @@ describe('the forfeit rules in Step 1 of the wizard', () => {
   });
 
   it.each([
-    ['en', 'A bout of this tournament has started: its forfeit rules are locked.'],
-    ['fr', 'Un assaut de ce tournoi a commencé : ses règles de forfait sont verrouillées.'],
+    [
+      'en',
+      'This change needs a reason and your confirmation. Make it from the tournament’s settings.',
+    ],
+    [
+      'fr',
+      'Ce changement demande un motif et votre confirmation. Faites-le depuis les réglages du tournoi.',
+    ],
   ] as const)(
-    'a resumed draft: says in %s why a change is refused once a bout has started',
+    'a resumed draft: says in %s where a change that needs the audit is made (ruling 168)',
     async (locale, sentence) => {
       const serveReads = vi.mocked(apiRequest).getMockImplementation()!;
       vi.mocked(apiRequest).mockImplementation(async (base, path, init) =>
@@ -189,9 +201,9 @@ describe('the forfeit rules in Step 1 of the wizard', () => {
               ok: false,
               kind: 'unauthenticated',
               status: 403,
-              detail: 'This tournament has scored matches, so its forfeit rules are locked.',
-              code: 'forfeit_rules_locked',
-              details: null,
+              detail: 'This tournament has started: these rules need the audit.',
+              code: 'rules_change_needs_audit',
+              details: { changes: [], fighters: [] },
             } as Awaited<ReturnType<typeof apiRequest>>)
           : serveReads(base, path, init),
       );
@@ -200,6 +212,8 @@ describe('the forfeit rules in Step 1 of the wizard', () => {
       await next();
 
       expect(document.body.textContent).toContain(sentence);
+      const link = container.querySelector('a[href*="/settings"]');
+      expect(link?.getAttribute('href')).toBe('/org/org/events/ev1/tournaments/t1/settings#basics');
     },
   );
 });
