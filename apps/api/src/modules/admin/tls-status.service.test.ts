@@ -67,7 +67,7 @@ describe('deriveHealth', () => {
 
 // `fetchPeerCertificate` is protected, so it has to be reached through a cast to
 // spy on it. Naming the shape rather than casting the whole service to `never`:
-// Vitest 4 resolves a spy on a `never`-typed object to `never` too, so
+// Vitest (4 and 5) resolves a spy on a `never`-typed object to `never` too, so
 // `.mockImplementation` stops existing on it.
 type TlsProbeSurface = { fetchPeerCertificate: (host: string) => Promise<PeerCertLike> };
 

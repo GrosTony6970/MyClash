@@ -54,7 +54,7 @@ function addressSays(search: string) {
 beforeEach(() => {
   NAVIGATION.search = new URLSearchParams();
   NAVIGATION.replaced.length = 0;
-  // This test run has no `localStorage`: one kept in a map, as a browser keeps it.
+  // The browser's `localStorage`, kept in a map the tests seed and read.
   const kept = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => kept.get(key) ?? null,

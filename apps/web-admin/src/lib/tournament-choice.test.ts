@@ -30,7 +30,7 @@ describe('chooseTournament', () => {
   });
 });
 
-/** This test run has no `localStorage`: one kept in a map, as a browser keeps it. */
+/** The browser's `localStorage`, kept in a map the tests seed and read. */
 function memoryStorage() {
   const kept = new Map<string, string>();
   return {

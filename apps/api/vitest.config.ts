@@ -22,7 +22,7 @@ export default defineConfig({
       // A no-regression FLOOR, not a target. Raise it when coverage improves;
       // never lower it to make a red gate green.
       //
-      // Vitest 4's v8 provider always applies AST-aware remapping (the opt-in
+      // Vitest's v8 provider (4 and 5) always applies AST-aware remapping (the opt-in
       // `experimentalAstAwareRemapping` of v3), mapping raw v8 ranges onto real
       // syntax nodes instead of over-crediting them — so these are honest
       // figures rather than the flat 70 that was never genuinely met.

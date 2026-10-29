@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   // Match the Next build's automatic JSX runtime.
   //
-  // Vite 8 (pulled in by Vitest 4) transforms with oxc instead of esbuild and
+  // Vite 8 (Vitest 5's peer) transforms with oxc instead of esbuild and
   // ignores the old `esbuild` block outright — it says so on stderr and then
   // carries on. oxc honours tsconfig.json's "jsx": "preserve", which Next
   // requires, so JSX reaches the import analyser untransformed and every .tsx
@@ -17,6 +17,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['app/**/*.test.ts', 'app/**/*.test.tsx', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
     coverage: {
       provider: 'v8',

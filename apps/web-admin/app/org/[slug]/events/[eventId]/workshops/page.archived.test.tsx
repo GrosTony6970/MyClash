@@ -161,7 +161,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  // This test run has no localStorage, and the board keeps its zoom and its hours there.
+  // The board keeps its zoom and its hours in localStorage: here it remembers nothing.
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined });
   // jsdom makes no object URL, and "Export CSV" (a download, not a save) asks for one.
   URL.createObjectURL = () => 'blob:csv';
