@@ -51,7 +51,7 @@ export function glyphNamesInUse(source = readFileSync(NAV_ICON_SOURCE, 'utf8')) 
   return [...new Set(names)].sort();
 }
 
-/** The `__iconNode` array lucide ships for one glyph. */
+/** The node array lucide ships for one glyph (`__iconData.node` since lucide-react 1.6x). */
 async function readIconNode(name) {
   const lucideRoot = dirname(require.resolve('lucide-react/package.json'));
   const iconFile = join(lucideRoot, 'dist', 'esm', 'icons', `${name}.mjs`);
@@ -65,10 +65,20 @@ async function readIconNode(name) {
       { cause },
     );
   }
-  if (!Array.isArray(module.__iconNode)) {
-    throw new Error(`lucide's ${name}.mjs no longer exports an __iconNode array.`);
+  // A renamed glyph stays behind as a one-line re-export of its new name, with no
+  // data of its own. Name the new one, so the fix is a rename in NAV_ICON_GLYPHS.
+  const alias = readFileSync(iconFile, 'utf8').match(
+    /export \{ default \} from '\.\/([a-z0-9-]+)\.mjs'/,
+  );
+  if (alias) {
+    throw new Error(
+      `lucide renamed '${name}' to '${alias[1]}'. Point NAV_ICON_GLYPHS at '${alias[1]}'.`,
+    );
   }
-  return module.__iconNode;
+  if (!Array.isArray(module.__iconData?.node)) {
+    throw new Error(`lucide's ${name}.mjs no longer exports an __iconData.node array.`);
+  }
+  return module.__iconData.node;
 }
 
 /** The full text of nav-icon-glyphs.ts, prettier-formatted. */

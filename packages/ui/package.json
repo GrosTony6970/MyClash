@@ -23,13 +23,13 @@
     "@myclash/types": "workspace:^"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.112.2",
-    "lucide-react": "^1.29.0",
-    "@types/node": "^26.1.2",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@supabase/supabase-js": "^2.118.0",
+    "lucide-react": "^1.63.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
-    "react-dom": "^19.2.8",
+    "react-dom": "^19.3.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.12"
   },

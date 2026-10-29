@@ -34,17 +34,17 @@ import { LUCIDE_GLYPHS, type GlyphName, type IconNode } from './nav-icon-glyphs'
  * because the barrel missed `rootMainFiles`; that was true of the budget's
  * definition and false of the browser's.
  *
- * So `nav-icon-glyphs.ts` carries the 51 `__iconNode` arrays (17 KB raw, 4 KB
+ * So `nav-icon-glyphs.ts` carries the 51 lucide node arrays (17 KB raw, 4 KB
  * gzip) and `Glyph` below reproduces lucide's `<svg>` exactly — same default
  * attributes, same `lucide lucide-<name>` classes, same attribute order. The
  * file is GENERATED: `node packages/ui/scripts/generate-nav-icons.mjs`, and
  * `nav-icon-glyphs.test.ts` regenerates it from `node_modules` on every run, so
  * a lucide upgrade that redraws an icon goes red instead of drifting silently.
  *
- * All 52 slugs were diffed against the markup lucide produced, and every one is
- * byte-identical but for a single class: for the two digit-bearing names lucide
- * also emits a legacy duplicate (`lucide-building2` beside `lucide-building-2`,
- * `lucide-clock3` beside `lucide-clock-3`). Only the canonical one is kept —
+ * All 52 slugs were diffed against the markup lucide-react 1.63.0 produced, and
+ * every one is byte-identical but for a single class: for a renamed glyph lucide
+ * also emits its old name (`lucide-home` beside `lucide-house`, `lucide-stars`
+ * beside `lucide-sparkles`; five slugs in all). Only the canonical one is kept —
  * nothing in the repo's CSS selects a `.lucide*` class.
  *
  * Adding an icon is therefore no longer free: add the slug below, point it at a
@@ -120,7 +120,7 @@ export type NavIconName = (typeof NAV_ICON_NAMES)[number];
 
 export const NAV_ICON_GLYPHS: Record<NavIconName, GlyphName> = {
   overview: 'house',
-  organizations: 'building-2',
+  organizations: 'building-complex',
   accounts: 'user-cog',
   globalProfiles: 'globe',
   clubs: 'shield',
