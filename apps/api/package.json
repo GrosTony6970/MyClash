@@ -43,7 +43,7 @@
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
     "csv-parse": "^7.0.2",
-    "fastify": "^5.12.2",
+    "fastify": "^5.12.6",
     "ioredis": "6.0.0",
     "jsonwebtoken": "^9.0.3",
     "nestjs-zod": "^5.5.0",
@@ -60,8 +60,8 @@
     "@nestjs/testing": "^11.2.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.12",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   }
 }

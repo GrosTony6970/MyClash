@@ -96,14 +96,19 @@ overrides:
   # malformed URLs, request and header validation bypasses). @nestjs/platform-fastify
   # 11.2.6 asks for exactly 5.11.3, inside the advisory range, so this pin is what
   # holds the API on the fix.
-  fastify: ^5.12.2
+  # >=5.12.6 clears GHSA-389g-gv7q-r4x8 (a header validation bypass through
+  # case-sensitive propertyNames). A tilde: the fix is a patch of 5.12.
+  fastify: ~5.12.6
   # >=3.1.6 clears CVE-2026-75899/75931/75975/76172 (SSRF and host confusion).
   # The pin is the floor AND the ceiling in practice: ^3.1.5 resolved to exactly
   # 3.1.5, which is inside the advisory range, so the pin written to close the
   # PREVIOUS advisory (GHSA-4c8g-83qw-93j6, cleared by >=3.1.4) was holding the
   # tree on the vulnerable version. It reaches the API image through fastify →
   # @fastify/ajv-compiler, so a stale floor here ships.
-  fast-uri: ^3.1.6
+  # >=3.1.9 clears GHSA-w74x-v6f9-j3xg, GHSA-xhq7-xmqj-769h, GHSA-wjr9-j795-jxcr and
+  # GHSA-333x-w4r6-6crp (scheme spoofing, path equivalence, host confusion, scheme
+  # injection). A tilde: the fix is a patch of 3.1.
+  fast-uri: ~3.1.9
   cross-spawn: ^7.0.6
   glob: ^10.5.0
   minimatch: ^9.0.9
@@ -125,7 +130,10 @@ overrides:
   # the 5.x consumers back to 4.x.
   # >=4.3.2 clears GHSA-2883-xcg3-v3hh; ^4.3.1 resolved to exactly 4.3.1.
   'js-yaml@4': ^4.3.2
-  'js-yaml@5': ^5.2.3
+  # >=5.4.1 clears GHSA-r3ph-w7gj-g6xm (an empty merge source escapes the
+  # maxTotalMergeKeys CPU cap). @nestjs/swagger asks for exactly 5.2.1, so this
+  # pin is what holds the API on the fix. A tilde, as vite's below.
+  'js-yaml@5': ~5.4.1
   find-my-way: ^9.7.0
   # >=4.28.7 clears GHSA-c83g-rgw3-j3cx (unbounded query-cache growth) and
   # GHSA-73wf-gq98-2v4g (a prototype write from custom stats). Every consumer's
@@ -181,6 +189,11 @@ overrides:
   # through postcss in next, vite and @tailwindcss/postcss, and through css-tree
   # in jsdom: build and test tooling, reading our own source maps.
   'source-map-js@1': ^1.2.2
+  # >=7.29.6 clears GHSA-4x5r-pxfx-6jf8 (a sourceMappingURL comment reads any
+  # file). Only eslint-plugin-react-hooks asks for it (^7.24.4, which already
+  # allowed the fix while the lockfile sat on 7.29.0): lint tooling. A tilde,
+  # as vite's: the fix is a patch.
+  '@babel/core@7': ~7.29.6
 
 # Advisories the Dependency audit does not fail on (operator ruling,
 # 2026-10-03). Each has NO fixed release to install and reaches no running

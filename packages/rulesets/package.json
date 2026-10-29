@@ -27,9 +27,9 @@
     "coverage": "vitest run --coverage --passWithNoTests"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.12",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "dependencies": {
     "@myclash/rules": "workspace:^",

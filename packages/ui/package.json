@@ -31,7 +31,7 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "react-dom": "^19.2.8",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
