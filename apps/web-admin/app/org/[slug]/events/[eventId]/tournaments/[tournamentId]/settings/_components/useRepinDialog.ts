@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import type { BucketDiff } from '@myclash/rulesets';
 import type { RulesChange, RulesExpected } from '@myclash/types';
+import type { ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { rulesChangeRefusal } from '@/lib/rules-change-refusal';
 
@@ -46,6 +47,7 @@ export function storedRulesOf(row: Record<string, unknown>): StoredRules {
       scoringConfig: raw<Record<string, unknown>>('scoring_config_json'),
       penaltyRulesetId: raw<string>('penalty_ruleset_id'),
       penaltyRulesetVersion: raw<string>('penalty_ruleset_version'),
+      forfeitRules: raw<ForfeitChanges>('forfeit_rules'),
     },
   };
 }

@@ -14,6 +14,9 @@ export const rulesExpectedSchema = z
     scoringConfig: z.record(z.string(), z.unknown()).nullable(),
     penaltyRulesetId: z.string().nullable(),
     penaltyRulesetVersion: z.string().nullable(),
+    // The Tournament's own changes of its forfeit rules, raw (0246): a stored `{}` or a key this
+    // build does not know is sent back as read.
+    forfeitRules: z.record(z.string(), z.unknown()).nullable(),
   })
   .strict();
 

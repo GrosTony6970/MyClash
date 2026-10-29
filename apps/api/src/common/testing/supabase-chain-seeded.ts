@@ -11,6 +11,7 @@ import { vi } from 'vitest';
 import {
   buildChain,
   newQueryLog,
+  nullBoundRefusal,
   unsupported,
   UNSIMULATED,
   type QueryLog,
@@ -270,15 +271,17 @@ function installRanges(
     args: readonly unknown[],
     predicate: (row: SupabaseRow) => boolean,
   ) => SupabaseChain,
+  mode: ReadMode,
 ): void {
   for (const operator of ['gte', 'gt', 'lte', 'lt'] as const) {
-    chain[operator] = vi.fn((c: string, v: unknown) =>
-      narrow(operator, [c, v], inRange(operator, c, v)),
-    );
+    chain[operator] = vi.fn((c: string, v: unknown) => {
+      mode.refused ??= nullBoundRefusal(operator, c, v);
+      return narrow(operator, [c, v], inRange(operator, c, v));
+    });
   }
 }
 
-function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): void {
+function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet, mode: ReadMode): void {
   const narrow = (
     method: string,
     args: readonly unknown[],
@@ -306,7 +309,7 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
   });
   chain.ilike = vi.fn((c: string, p: string) => narrow('ilike', [c, p], likeRow(c, p)));
   chain.or = vi.fn((source: string) => narrow('or', [source], orPredicate(source)));
-  installRanges(chain, narrow);
+  installRanges(chain, narrow, mode);
 
   chain.order = vi.fn((column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
     const known = ['ascending', 'nullsFirst'];
@@ -374,11 +377,14 @@ export function seededTableChain(seed: SeededTable, sink: WriteSink): SupabaseCh
   const log = newQueryLog();
 
   const chain = buildChain(
-    () => ({
-      data: mode.headOnly ? null : rows(),
-      error: null,
-      ...(mode.counting ? { count: set.total() } : {}),
-    }),
+    () =>
+      mode.refused
+        ? { data: null, error: mode.refused }
+        : {
+            data: mode.headOnly ? null : rows(),
+            error: null,
+            ...(mode.counting ? { count: set.total() } : {}),
+          },
     rows,
     log,
     sink,
@@ -386,7 +392,7 @@ export function seededTableChain(seed: SeededTable, sink: WriteSink): SupabaseCh
 
   installUnsupported(chain);
   installSelect(chain, mode);
-  installNarrowing(chain, log, set);
+  installNarrowing(chain, log, set, mode);
   installInsert(chain, mode);
   return chain;
 }

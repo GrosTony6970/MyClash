@@ -83,7 +83,10 @@ async function ownDependencies(): Promise<Array<[new (...args: never[]) => unkno
   const { PenaltiesService } = await import('./modules/penalties/penalties.service.js');
   const { RegistrationsService } = await import('./modules/registrations/registrations.service.js');
   const { FighterStatusService } = await import('./modules/matches/fighter-status.service.js');
+  const { EventsService } = await import('./modules/events/events.service.js');
   return [
+    // The audited settings save: its fingerprint, and the Fighters' follow and their names (5b).
+    [EventsService, ['rulesetHash', 'fighterStatus', 'entityLabels']],
     // The settle's reconcile: the bouts follow the status (slice B, B2).
     [FighterStatusService, ['clock', 'scoring', 'matchCompletion', 'frozenResults']],
     [

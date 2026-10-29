@@ -7,7 +7,8 @@
  */
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
-import type { RulesChangeNotice } from '@myclash/types';
+import { createTranslator, en, fr } from '@myclash/i18n';
+import { rulesChangeLines, type RulesChangeNotice } from '@myclash/types';
 import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
@@ -164,6 +165,62 @@ describe('the public notice of rules changes', () => {
     const logged = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
     expect(await notices()).toEqual([]);
     expect(logged).toHaveBeenCalledWith(expect.stringContaining('connection reset'));
+  });
+});
+
+describe('the public notice of a forfeit rules change (rulings 145, 147)', () => {
+  const FORFEIT_CHANGES = [
+    { path: 'forfeitRules.disqualifyAfter', before: 'off', after: 2, locked: true },
+    {
+      path: 'forfeitRules.reasons.voluntary.fighter',
+      before: 'asks',
+      after: 'asks',
+      stored: 'set',
+      locked: true,
+    },
+    { path: 'forfeitRules.blackCardOpponentScore', before: 6, after: 6, stored: 'reset' },
+    // A record holding values on the path-only entry, and a mark that is no mark.
+    { path: 'forfeitRules.unknown', before: { reg: 'reg-paul' }, after: { x: 1 }, locked: true },
+    { path: 'forfeitRules.disqualifyBeforeFirstBout', before: false, after: true, stored: 'Paul' },
+  ];
+
+  it('carries the rules with their values and their stored mark, and no Fighter', async () => {
+    const { notices } = build([record({ kind: 'settings', changes: FORFEIT_CHANGES })]);
+    const [notice] = await notices();
+
+    expect(notice!.changes).toEqual([
+      { path: 'forfeitRules.disqualifyAfter', before: 'off', after: 2, locked: true },
+      {
+        path: 'forfeitRules.reasons.voluntary.fighter',
+        before: 'asks',
+        after: 'asks',
+        locked: true,
+        stored: 'set',
+      },
+      { path: 'forfeitRules.blackCardOpponentScore', before: 6, after: 6, stored: 'reset' },
+      { path: 'forfeitRules.unknown', before: null, after: null, locked: true },
+      { path: 'forfeitRules.disqualifyBeforeFirstBout', before: false, after: true },
+    ]);
+    expect(JSON.stringify(notice)).not.toMatch(/reg-paul|Paul/);
+  });
+
+  it('is worded line by line in English and in French', async () => {
+    const { notices } = build([record({ kind: 'settings', changes: FORFEIT_CHANGES })]);
+    const [notice] = await notices();
+
+    expect(rulesChangeLines(notice!.changes, createTranslator(en))).toEqual([
+      'Disqualify after this many forfeits: Off → 2',
+      'Voluntary withdrawal, the fighter: now holds the ruleset’s value',
+      'Opponent’s score on a black card forfeit: now follows the ruleset',
+      'Another forfeit rule changed',
+      'A forfeit before the first bout disqualifies: No → Yes',
+    ]);
+    expect(rulesChangeLines(notice!.changes, createTranslator(fr)).slice(0, 4)).toEqual([
+      'Disqualifier après ce nombre de forfaits : Désactivé → 2',
+      'Abandon volontaire, le combattant : garde désormais la valeur du règlement',
+      'Score de l’adversaire sur un forfait par carton noir : suit désormais le règlement',
+      'Modification : Une autre règle de forfait',
+    ]);
   });
 });
 

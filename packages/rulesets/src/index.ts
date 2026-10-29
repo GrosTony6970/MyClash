@@ -191,6 +191,7 @@ export type {
 
 // What changed in a Tournament's scoring rules, and which changes the rules lock refuses
 export { buttonValuesOf, clockLocks, lockedChanges, scoringDiff } from './scoring-diff';
+export { forfeitRulesChanges } from './forfeit-rules-diff';
 export type { ButtonValues, RulesClock, ScoringSide } from './scoring-diff';
 
 // Penalty rulesets

@@ -8,7 +8,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as MatchRuleset from '../phases/match-ruleset';
 import { filtersFor, writesTo } from '../../common/testing/supabase-chain';
-import { assertOrgRole, harness, ON_TF_1_0_0, RPC, type Row } from './rules-write.fixtures';
+import {
+  assertOrgRole,
+  expectedOf,
+  harness,
+  ON_TF_1_0_0,
+  refusal,
+  RPC,
+  type Row,
+} from './rules-write.fixtures';
 
 vi.mock('../phases/match-ruleset', async (original) => ({
   ...(await original<typeof MatchRuleset>()),
@@ -36,31 +44,12 @@ const eventOf = (status: string) => ({
 const CAP_9 = { rulesetConfig: { matchFormat: { pointCap: 9 } } };
 const FINALS_200 = { rulesetConfig: { matchFormat: { timeLimitsSeconds: { finals: 200 } } } };
 
-/** What the screen read: the raw rules columns of `row`. */
-const expectedOf = (row: Row) => ({
-  rulesetCode: row['ruleset_code'],
-  rulesetVersion: row['ruleset_version'],
-  rulesetConfig: row['ruleset_config'],
-  scoringConfig: row['scoring_config_json'],
-  penaltyRulesetId: row['penalty_ruleset_id'],
-  penaltyRulesetVersion: row['penalty_ruleset_version'],
-});
 const audit = (row: Row, over: Row = {}) => ({
   justification: 'The referees asked for a lower cap.',
   confirm: String(row['name']),
   expected: expectedOf(row),
   ...over,
 });
-
-/** The refusal's body as the filter sends it: the extra keys move into `details`. */
-async function refusal(promise: Promise<unknown>) {
-  const err = (await promise.then(
-    () => null,
-    (e: unknown) => e,
-  )) as { getStatus(): number; getResponse(): Row } | null;
-  if (!err) throw new Error('the save was not refused');
-  return { status: err.getStatus(), body: err.getResponse() };
-}
 
 const rulesWrites = (h: ReturnType<typeof harness>) =>
   writesTo(h.db, 'tournaments').filter((w) => 'ruleset_config' in (w.row as Row));
@@ -232,9 +221,14 @@ describe('the audited save', () => {
     expect(((args['p_next'] as Row)['ruleset_config'] as Row)['matchFormat']).toMatchObject({
       pointCap: 9,
     });
+    // A scoring change moves no Fighter: nothing to follow (5b).
     expect(answer['rulesetChange']).toEqual({
       changes: [{ path: 'matchFormat.pointCap', before: 7, after: 9, locked: true }],
       readBackFailed: false,
+      notSettled: [],
+      inStep: [],
+      handOffFailed: false,
+      followFailed: false,
     });
     expect((answer['tournament'] as Row)['id']).toBe('t1');
   });

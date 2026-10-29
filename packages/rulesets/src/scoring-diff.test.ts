@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SCORING_CONFIG, RULES_CHANGE_PATHS, type FormatPhase } from '@myclash/types';
+import {
+  DEFAULT_SCORING_CONFIG,
+  RULES_CHANGE_PATHS,
+  SCORING_CHANGE_PATHS,
+  type FormatPhase,
+} from '@myclash/types';
 import { canonicalizeScoringBehaviour, stableStringify } from './content-hash';
 import { buttonValuesOf, clockLocks, lockedChanges, scoringDiff } from './scoring-diff';
 
@@ -57,7 +62,7 @@ const formula = canonicalizeScoringBehaviour({
   decisionEdition: '2026-10',
 });
 
-const CANONICAL_PATHS = RULES_CHANGE_PATHS.filter((path) => !path.startsWith('buttons.'));
+const CANONICAL_PATHS = SCORING_CHANGE_PATHS.filter((path) => !path.startsWith('buttons.'));
 
 /** The test's own leaf walk: anything but a non-empty plain object is a leaf. */
 function leavesOf(value: unknown, prefix: string[] = []): string[] {

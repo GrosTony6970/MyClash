@@ -14,7 +14,12 @@ import { EventsService } from './events.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
-import { mockSupabase, writesTo, type TableSeed } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  writesTo,
+  type RpcAnswer,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 
 export type Row = Record<string, unknown>;
 export const RPC = 'repin_tournament_rules';
@@ -148,11 +153,15 @@ export const FORK = {
   ],
 };
 
-/** The seeded tables around `row`; the re-pin's function writes what it is sent over `row`. */
+/**
+ * The seeded tables around `row`; the re-pin's function writes what it is sent over `row`. Other
+ * database functions answer by `functions`.
+ */
 function seededDb(
   row: Row,
   custom: { rulesets?: Row[]; versions?: Row[] },
   tables: Record<string, TableSeed>,
+  functions: Record<string, RpcAnswer> = {},
 ) {
   return mockSupabase(
     {
@@ -173,19 +182,51 @@ function seededDb(
         Object.assign(row, JSON.parse(JSON.stringify(args['p_next'])));
         return { data: 'repin-1', error: null };
       },
+      ...functions,
     },
   );
+}
+
+/** What the screen read: the raw rules columns of `row` (`RulesExpected`). */
+export const expectedOf = (row: Row) => ({
+  rulesetCode: row['ruleset_code'],
+  rulesetVersion: row['ruleset_version'],
+  rulesetConfig: row['ruleset_config'],
+  scoringConfig: row['scoring_config_json'],
+  penaltyRulesetId: row['penalty_ruleset_id'],
+  penaltyRulesetVersion: row['penalty_ruleset_version'],
+  forfeitRules: row['forfeit_rules'] ?? null,
+});
+
+/** A refusal's status and body as the filter sends it: the extra keys move into `details`. */
+export async function refusal(promise: Promise<unknown>) {
+  const err = (await promise.then(
+    () => null,
+    (e: unknown) => e,
+  )) as { getStatus(): number; getResponse(): Row } | null;
+  if (!err) throw new Error('the save was not refused');
+  return { status: err.getStatus(), body: err.getResponse() };
+}
+
+/** What a test may hand the service beyond the seeded tables. */
+export interface HarnessOptions {
+  /** The club-role check the service asks: the mock unless a test builds the real one. */
+  orgs?: (db: ReturnType<typeof seededDb>) => unknown;
+  /** Database functions beside the re-pin's, by name. */
+  functions?: Record<string, RpcAnswer>;
+  /** The status settle and the label reader of an audited forfeit rules change (5b). */
+  fighterStatus?: unknown;
+  labels?: unknown;
 }
 
 export function harness(
   current: Row = ON_TF_1_0_0,
   custom: { rulesets?: Row[]; versions?: Row[] } = {},
   tables: Record<string, TableSeed> = {},
-  /** The club-role check the service asks: the mock unless a test builds the real one. */
-  options: { orgs?: (db: ReturnType<typeof seededDb>) => unknown } = {},
+  options: HarnessOptions = {},
 ) {
   const row = structuredClone(current);
-  const db = seededDb(row, custom, tables);
+  const db = seededDb(row, custom, tables, options.functions);
   const registry = createRulesetRegistry();
   const rulesHash = new RulesetHashService(db as never, registry);
   const svc = new EventsService(
@@ -202,6 +243,8 @@ export function harness(
       draftsOfferedTo: vi.fn().mockResolvedValue(false),
     } as never,
     rulesHash,
+    options.fighterStatus as never,
+    options.labels as never,
   );
   /** The rules the move wrote: the PATCH's own update, or what the re-pin sent the database. */
   const written = (): Row | undefined =>

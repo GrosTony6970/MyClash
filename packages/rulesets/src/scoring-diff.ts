@@ -4,7 +4,7 @@
  *
  * The diff walks the scoring canonical (`canonicalizeScoringBehaviour`), the same object the
  * content hash fingerprints, so a change the hash sees is a change the diff names. It names it by
- * the fixed path list of `@myclash/types` (`RULES_CHANGE_PATHS`), and a leaf of the canonical that
+ * the fixed path list of `@myclash/types` (`SCORING_CHANGE_PATHS`), and a leaf of the canonical that
  * is not on that list still yields an `unknown` entry: a new canonical field is never a change the
  * lock cannot see.
  *
@@ -12,7 +12,7 @@
  * buttons from `@myclash/types`.
  */
 import {
-  RULES_CHANGE_PATHS,
+  SCORING_CHANGE_PATHS,
   formatPhaseOfPath,
   scoringButtonsOf,
   type FormatPhase,
@@ -69,13 +69,13 @@ export interface ScoringSide {
 }
 
 /**
- * Every change between two sides, one entry per listed path, in `RULES_CHANGE_PATHS` order; a list
+ * Every change between two sides, one entry per listed path, in `SCORING_CHANGE_PATHS` order; a list
  * or an object the path names is ONE entry. Then ONE `unknown` entry when any leaf the list does
  * not cover changed: its `before`/`after` map each such leaf's dotted path to its value.
  */
 export function scoringDiff(before: ScoringSide, after: ScoringSide): RulesChange[] {
   const changes: RulesChange[] = [];
-  for (const path of RULES_CHANGE_PATHS) {
+  for (const path of SCORING_CHANGE_PATHS) {
     const pair = valuesAt(before, after, path);
     if (pair && differs(pair[0], pair[1])) {
       changes.push({ path, before: pair[0], after: pair[1] });
@@ -121,7 +121,7 @@ export function lockedChanges(changes: readonly RulesChange[], clock: RulesClock
 function valuesAt(
   before: ScoringSide,
   after: ScoringSide,
-  path: (typeof RULES_CHANGE_PATHS)[number],
+  path: (typeof SCORING_CHANGE_PATHS)[number],
 ): [unknown, unknown] | null {
   if (path === 'buttons.clean' || path === 'buttons.afterblow') {
     const key = path === 'buttons.clean' ? 'clean' : 'afterblow';
@@ -145,7 +145,7 @@ function unlistedChange(
   before: Record<string, unknown>,
   after: Record<string, unknown>,
 ): RulesChange | null {
-  const listed = RULES_CHANGE_PATHS.map((path) => path.split('.'));
+  const listed = SCORING_CHANGE_PATHS.map((path) => path.split('.'));
   const seen = new Set<string>();
   const was: Record<string, unknown> = {};
   const now: Record<string, unknown> = {};

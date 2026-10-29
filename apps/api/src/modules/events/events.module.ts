@@ -5,6 +5,7 @@ import { LeaguesModule } from '../leagues/leagues.module';
 import { ClubsModule } from '../clubs/clubs.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
+import { MatchesModule } from '../matches/matches.module';
 import { RulesetResolverModule } from '../matches/ruleset-resolver.module';
 import { RulesetHashModule } from '../ruleset-hash/ruleset-hash.module';
 import { RulesetsModule } from '../rulesets/rulesets.module';
@@ -34,6 +35,9 @@ import { ClockReconciliationService } from './clock-reconciliation.service';
     // RulesetHashService — stamps the tournament's effective content-hash on
     // create/update/re-pin. Leaf module (Supabase only), so no cycle.
     RulesetHashModule,
+    // FighterStatusService — the Fighters follow an audited forfeit rules change. Acyclic: no
+    // module MatchesModule imports reaches EventsModule (guarded by module-graph.test.ts).
+    MatchesModule,
   ],
   controllers: [EventsController],
   providers: [EventsService, EventThemesService, ClockReconciliationService],

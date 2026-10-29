@@ -2,11 +2,13 @@
  * The lock of a Tournament's settings save, and the shape of its audited form (the audited settings
  * change, revisions 7-18 of its plan).
  *
- * A save that changes a scoring setting reads the Tournament's clock (`tournamentClockOf`) and lists
- * every change (`scoringChangesOf`), each flagged by `lockedChanges`. When one is locked, the save
- * is refused `rules_change_needs_audit` with the whole list: the dialog shows it, and the organiser
- * sends the same save again with `audit` (the Tournament's name typed, a reason, the rules the screen
- * read). An audited save is recorded even when nothing in it locks: the organiser asked for it.
+ * A save that changes a scoring setting or a forfeit rule reads the Tournament's clock
+ * (`tournamentClockOf`) and lists every change (`scoringChangesOf`, and the forfeit side's
+ * `forfeit-rules-lock.ts`), each flagged by `lockedChanges`. When one is locked, the save is refused
+ * `rules_change_needs_audit` with the whole list, and the Fighters a forfeit change moves: the
+ * dialog shows them, and the organiser sends the same save again with `audit` (the Tournament's name
+ * typed, a reason, the rules the screen read). An audited save is recorded even when nothing in it
+ * locks: the organiser asked for it.
  *
  * Fail closed: when the clock or the changes cannot be read, the save is refused
  * `rules_check_unavailable` (503), never let through as "nothing started".
@@ -14,15 +16,37 @@
 import { BadRequestException, ForbiddenException, type Logger } from '@nestjs/common';
 import { RULES_CHANGE_CODES, RULES_SAVE_KEYS, type RulesChange } from '@myclash/types';
 import { clockLocks, lockedChanges, stableStringify, type RulesClock } from '@myclash/rulesets';
+import type { ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import type { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
 import { scoringChangesOf } from './audited-rules-write';
+import { forfeitSideOf, type ForfeitSide } from './forfeit-rules-lock';
 
 type Row = Record<string, unknown>;
 
-/** The refusal that opens the dialog: every change of the save, the locked ones flagged. */
-export function needsAudit(changes: readonly RulesChange[], message: string): ForbiddenException {
-  return new ForbiddenException({ code: RULES_CHANGE_CODES.needsAudit, changes, message });
+/** A Fighter whose status a forfeit rules change moves, as the dialog names them (ruling 143). */
+export interface PreviewFighter {
+  registrationId: string;
+  name: string;
+  before: string;
+  after: string;
+}
+
+/**
+ * The refusal that opens the dialog: every change of the save, the locked ones flagged, and the
+ * Fighters a forfeit rules change moves.
+ */
+export function needsAudit(
+  changes: readonly RulesChange[],
+  message: string,
+  fighters: readonly PreviewFighter[] = [],
+): ForbiddenException {
+  return new ForbiddenException({
+    code: RULES_CHANGE_CODES.needsAudit,
+    changes,
+    fighters,
+    message,
+  });
 }
 
 /**
@@ -73,32 +97,53 @@ export interface SaveLockDeps {
   rulesHash: () => RulesetHashService;
   /** The Tournament's clock, read once per save whichever door asks first, already fail-closed. */
   clock: () => Promise<RulesClock>;
+  /** The card rules the Tournament plays under now: read only when its forfeit changes move. */
+  cardRules: () => Promise<Row>;
   logger: Logger;
+}
+
+/** What a save touches: the audit asked for, its scoring settings, its forfeit changes. */
+export interface SaveTouches {
+  audited: boolean;
+  scoring: boolean;
+  forfeit: boolean;
 }
 
 export interface SaveLock {
   changes: RulesChange[];
   locked: boolean;
+  /** The forfeit side, when the save changes the forfeit rules and the lock read them. */
+  forfeit: ForfeitSide | null;
 }
 
 /**
  * The lock of a save whose candidate row is `candidate`. Nothing to list when the clock does not
- * lock and the save is not audited: no setting of an unstarted Tournament locks.
+ * lock and the save is not audited: no setting of an unstarted Tournament locks. Each side is read
+ * only when the save touches it.
  */
 export async function lockOfSettingsSave(
   deps: SaveLockDeps,
   read: Row,
   candidate: Row,
-  audited: boolean,
+  touches: SaveTouches,
 ): Promise<SaveLock> {
   const tournamentId = String(read['id']);
   const clock = await deps.clock();
-  if (!clockLocks(clock) && !audited) return { changes: [], locked: false };
-  const listed = await failClosed(deps.logger, tournamentId, () =>
-    scoringChangesOf(deps.rulesHash(), read, candidate),
-  );
-  const changes = lockedChanges(listed, clock);
-  return { changes, locked: changes.some((change) => change.locked === true) };
+  if (!clockLocks(clock) && !touches.audited) return { changes: [], locked: false, forfeit: null };
+  const scoring = touches.scoring
+    ? await failClosed(deps.logger, tournamentId, () =>
+        scoringChangesOf(deps.rulesHash(), read, candidate),
+      )
+    : [];
+  const forfeit = touches.forfeit
+    ? forfeitSideOf(
+        await failClosed(deps.logger, tournamentId, deps.cardRules),
+        (read['forfeit_rules'] as ForfeitChanges | null | undefined) ?? null,
+        (candidate['forfeit_rules'] as ForfeitChanges | null | undefined) ?? null,
+      )
+    : null;
+  const changes = lockedChanges([...scoring, ...(forfeit?.changes ?? [])], clock);
+  return { changes, locked: changes.some((change) => change.locked === true), forfeit };
 }
 
 /**

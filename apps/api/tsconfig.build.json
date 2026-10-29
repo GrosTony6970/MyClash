@@ -98,6 +98,9 @@
     // The harness of a Tournament's rules as the doors write and read them, shared by its three
     // test files. It imports vitest.
     "src/modules/events/rules-write.fixtures.ts",
+    // The forfeit side of that harness (the audited settings change, commit 5b), shared by its
+    // two test files. It imports vitest.
+    "src/modules/events/settings-forfeit.fixtures.ts",
     "src/modules/penalties/penalties.void-black-card.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",

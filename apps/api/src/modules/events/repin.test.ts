@@ -12,7 +12,7 @@ import { restampUnstartedMatches } from '../phases/match-ruleset';
 import type * as MatchRuleset from '../phases/match-ruleset';
 import { writesTo } from '../../common/testing/supabase-chain';
 import { lastFunctionBody, lastFunctionParams } from '../../common/testing/migration-function';
-import { REASON, RPC, assertOrgRole, dto, harness, type Row } from './repin.fixtures';
+import { EXPECTED, REASON, RPC, assertOrgRole, dto, harness, type Row } from './repin.fixtures';
 
 vi.mock('../phases/match-ruleset', async (original) => ({
   ...(await original<typeof MatchRuleset>()),
@@ -56,6 +56,7 @@ describe('repinTournamentRuleset: one audited write', () => {
       scoring_config_json: null,
       penalty_ruleset_id: null,
       penalty_ruleset_version: null,
+      forfeit_rules: null,
     });
     const next = args!['p_next'] as Row;
     expect(next).toMatchObject({ ruleset_code: 'Generic_PointsCap', ruleset_version: '1.1.0' });
@@ -75,15 +76,30 @@ describe('repinTournamentRuleset: one audited write', () => {
       placings_before: [
         { rank: 1, registrationId: 'r1', displayName: 'Alice', stats: { score: 5 } },
       ],
-      config_before: { rulesetConfig: { winBonus: 3 }, scoringConfig: null },
+      config_before: { rulesetConfig: { winBonus: 3 }, scoringConfig: null, forfeitRules: null },
       config_after: {
         rulesetConfig: next['ruleset_config'],
         scoringConfig: next['scoring_config_json'],
+        forfeitRules: null,
       },
     });
     const changes = audit['changes'] as Array<{ path: string; locked: boolean }>;
     expect(changes.map((change) => change.path)).toContain('engine');
     expect(changes.every((change) => change.locked)).toBe(true);
+  });
+
+  it('keeps the forfeit rules the Tournament holds, raw, as it read them (0246)', async () => {
+    const stored = { reasons: { injury: { fighter: 'withdrawn' } }, restored: {} };
+    const { svc, calls } = harness({ row: { forfeit_rules: stored } });
+    await svc.repinTournamentRuleset(
+      't1',
+      dto({ expected: { ...EXPECTED, forfeitRules: stored } }),
+      'u1',
+    );
+
+    const [args] = calls();
+    expect((args!['p_expected'] as Row)['forfeit_rules']).toEqual(stored);
+    expect((args!['p_next'] as Row)['forfeit_rules']).toEqual(stored);
   });
 
   it('writes nothing else itself, fills the placings after by the record id, and mirrors it', async () => {

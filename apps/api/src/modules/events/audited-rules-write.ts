@@ -33,6 +33,7 @@ import {
   type RulesClosedBy,
   type RulesExpected,
 } from '@myclash/types';
+import type { ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { buttonValuesOf, scoringDiff, stableStringify, type BucketDiff } from '@myclash/rulesets';
 import { insertAuditLog } from '../../common/audit-log';
 import { isOver } from '../../common/live-status';
@@ -54,6 +55,7 @@ const EXPECTED_COLUMNS = {
   scoringConfig: 'scoring_config_json',
   penaltyRulesetId: 'penalty_ruleset_id',
   penaltyRulesetVersion: 'penalty_ruleset_version',
+  forfeitRules: 'forfeit_rules',
 } as const satisfies Record<keyof RulesExpected, string>;
 
 const RPC = 'repin_tournament_rules';
@@ -112,17 +114,23 @@ export function assertConfirmedName(confirm: string, read: Row): void {
   });
 }
 
-/** The rules an audited change writes: the pair and its two settings. */
+/**
+ * The rules an audited change writes: the pair, its two settings, and the Tournament's own changes
+ * of its forfeit rules (0246), the stored value as it is when the change does not touch them.
+ */
 export interface NextRules {
   rulesetCode: string;
   rulesetVersion: string;
   rulesetConfig: unknown;
   scoringConfig: unknown;
+  forfeitRules: ForfeitChanges | null;
 }
 
 /**
  * The rules columns as the database will hold them: each value through JSON, as `jsonb` stores
- * it (an undefined key gone), so the hash is taken over what is written.
+ * it (an undefined key gone), so the hash is taken over what is written. The forfeit rules are
+ * NOT defaulted: a caller that forgot them drops the key, and the database refuses
+ * `p_next_incomplete` rather than wipe them.
  */
 function nextColumns(next: NextRules): Row {
   return JSON.parse(
@@ -131,6 +139,7 @@ function nextColumns(next: NextRules): Row {
       ruleset_version: next.rulesetVersion,
       ruleset_config: next.rulesetConfig ?? null,
       scoring_config_json: next.scoringConfig ?? null,
+      forfeit_rules: next.forfeitRules,
     }),
   ) as Row;
 }
@@ -264,10 +273,12 @@ function auditOf(input: AuditedRulesInput, placingsBefore: Placings): Row {
     config_before: {
       rulesetConfig: input.read['ruleset_config'] ?? null,
       scoringConfig: input.read['scoring_config_json'] ?? null,
+      forfeitRules: input.read['forfeit_rules'] ?? null,
     },
     config_after: {
       rulesetConfig: input.next.rulesetConfig ?? null,
       scoringConfig: input.next.scoringConfig ?? null,
+      forfeitRules: input.next.forfeitRules ?? null,
     },
     changes: input.changes,
   };

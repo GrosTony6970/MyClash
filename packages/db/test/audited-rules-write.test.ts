@@ -1,7 +1,9 @@
 /**
- * An audited change of a Tournament's rules is one write that checks what it read (migration 0234):
- * `repin_tournament_rules` locks the Tournament, refuses `rules_changed_since_read` when one of
- * six columns differs from what the API read, else writes the rules, the record and the stamp.
+ * An audited change of a Tournament's rules is one write that checks what it read (migrations 0234,
+ * 0246): `repin_tournament_rules` refuses `p_next_incomplete` when the rules to write name no
+ * forfeit rules, locks the Tournament, refuses `rules_changed_since_read` when one of seven
+ * columns differs from what the API read, else writes the rules (its forfeit rules too), the
+ * record and the stamp.
  *
  * Asserted WHOLE from the migrations, as `programme-writes.test.ts` does for 0231: a compare that
  * loses a column, a lock that goes, or a stamp that is not called cannot pass as a substring. The
@@ -33,8 +35,12 @@ const REPIN = `create or replace function public.repin_tournament_rules(
     t record;
     v_id uuid;
   begin
+    if not (p_next ? 'forfeit_rules') then
+      raise exception 'p_next_incomplete' using errcode = 'P0001';
+    end if;
     select tr.event_id, tr.ruleset_code, tr.ruleset_version, tr.ruleset_config,
-           tr.scoring_config_json, tr.penalty_ruleset_id, tr.penalty_ruleset_version
+           tr.scoring_config_json, tr.penalty_ruleset_id, tr.penalty_ruleset_version,
+           tr.forfeit_rules
       into t
       from public.tournaments tr
       where tr.id = p_tournament_id
@@ -49,6 +55,7 @@ const REPIN = `create or replace function public.repin_tournament_rules(
       and ${SAME('scoring_config_json')}
       and ${SAME('penalty_ruleset_id')}
       and ${SAME('penalty_ruleset_version')}
+      and ${SAME('forfeit_rules')}
     ) then
       raise exception 'rules_changed_since_read' using errcode = 'P0001';
     end if;
@@ -57,6 +64,7 @@ const REPIN = `create or replace function public.repin_tournament_rules(
           ruleset_version = p_next->>'ruleset_version',
           ruleset_config = nullif(p_next->'ruleset_config', 'null'::jsonb),
           scoring_config_json = nullif(p_next->'scoring_config_json', 'null'::jsonb),
+          forfeit_rules = nullif(p_next->'forfeit_rules', 'null'::jsonb),
           ruleset_content_hash = p_next->>'ruleset_content_hash',
           updated_at = now()
       where id = p_tournament_id;
@@ -106,7 +114,7 @@ describe("an audited change of a Tournament's rules", () => {
     ).replace(/--[^\n]*/g, ''),
   );
 
-  it('locks the row, compares six columns raw, then writes the rules, the record and the stamp', () => {
+  it('refuses an incomplete write, locks the row, compares seven columns raw, then writes', () => {
     expect(functionStatement(sql, NAME)).toBe(flat(REPIN));
   });
 
@@ -132,11 +140,11 @@ describe("an audited change of a Tournament's rules", () => {
     expect(created).toBeGreaterThan(-1);
     expect(revoke).toBeGreaterThan(created);
     expect(lastIndex(sql, `alter\\s+${routine(NAME)}`)).toBe(-1);
+    // 0234 granted it, 0246 granted it again beside its re-issue: never another grant.
     const grants = matches(sql, `grant\\s[^;]*\\bon\\s+${routine(NAME)}[^;]*;`);
-    expect(grants.map((hit) => hit.text)).toEqual([
-      `grant execute on function public.${NAME}(uuid, jsonb, jsonb, jsonb) to service_role;`,
-    ]);
-    expect(grants.every((hit) => hit.at > revoke)).toBe(true);
+    const serviceOnly = `grant execute on function public.${NAME}(uuid, jsonb, jsonb, jsonb) to service_role;`;
+    expect(grants.map((hit) => hit.text)).toEqual([serviceOnly, serviceOnly]);
+    expect(grants.at(-1)!.at).toBeGreaterThan(revoke);
   });
 
   // A presence check over every migration would pass on the older migrations' reloads: the

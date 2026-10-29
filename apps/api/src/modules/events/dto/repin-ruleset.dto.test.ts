@@ -21,6 +21,9 @@ const expected: RulesExpected = {
   scoringConfig: null,
   penaltyRulesetId: null,
   penaltyRulesetVersion: null,
+  // The Tournament's own forfeit changes as stored, raw: a restored `{}` and a key this build does
+  // not know are sent back as read (0246 compares them).
+  forfeitRules: { reasons: { injury: {} }, unknownRule: 1 } as never,
 };
 
 const body = {
@@ -56,9 +59,15 @@ describe('RepinTournamentRulesetDto', () => {
     expect(schema.safeParse(rest).success).toBe(false);
   });
 
-  it('refuses rules read without one of their six columns, or with a seventh', () => {
-    const { penaltyRulesetVersion: _, ...five } = expected;
-    expect(schema.safeParse({ ...body, expected: five }).success).toBe(false);
+  it('refuses rules read without one of their seven columns, or with an eighth', () => {
+    const { penaltyRulesetVersion: _, ...six } = expected;
+    expect(schema.safeParse({ ...body, expected: six }).success).toBe(false);
+    // The forfeit rules are required: a screen that does not send them cannot be compared.
+    const { forfeitRules: _forfeit, ...noForfeit } = expected;
+    expect(schema.safeParse({ ...body, expected: noForfeit }).success).toBe(false);
+    expect(
+      schema.safeParse({ ...body, expected: { ...expected, forfeitRules: null } }).success,
+    ).toBe(true);
     expect(
       schema.safeParse({ ...body, expected: { ...expected, status: 'running' } }).success,
     ).toBe(false);

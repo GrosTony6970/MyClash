@@ -205,29 +205,43 @@ export function buildChain(
     for (const method of TERMINAL) chain[method] = vi.fn(() => Promise.resolve(resolve()));
     return chain;
   }
+  installRowTerminals(chain, resolve, rows);
+  return chain;
+}
 
+/** The terminals of a chain over rows: `maybeSingle`, `single`, and `csv` refused. */
+function installRowTerminals(
+  chain: SupabaseChain,
+  resolve: () => ChainResult,
+  rows: () => SupabaseRow[],
+): void {
   // `maybeSingle` means "nought or one", not "the first one". PostgREST nulls
   // `data` and returns PGRST116 the moment two rows match, and a great many
   // reads here ignore `error` — so a fixture that quietly handed back row zero
   // let a filter that does not narrow pass as one that does, and hid the exact
   // production failure (a user in two organizations reading as a member of
   // none). Only `single` demands exactly one; `maybeSingle` still allows zero.
+  // A query the database refuses (`nullBoundRefusal`) answers its error on every terminal.
+  const refused = (): ChainResult | null => {
+    const answer = resolve();
+    return answer.error ? { data: null, error: answer.error } : null;
+  };
   chain.maybeSingle = vi.fn(() => {
     const found = rows();
     return Promise.resolve(
-      found.length > 1 ? notExactlyOneRow() : { data: found[0] ?? null, error: null },
+      refused() ??
+        (found.length > 1 ? notExactlyOneRow() : { data: found[0] ?? null, error: null }),
     );
   });
   chain.single = vi.fn(() => {
     const found = rows();
     return Promise.resolve(
-      found.length === 1 ? { data: found[0], error: null } : notExactlyOneRow(),
+      refused() ?? (found.length === 1 ? { data: found[0], error: null } : notExactlyOneRow()),
     );
   });
   chain.csv = vi.fn(() => {
     throw unsupported('csv', 'it would have to render rows as text');
   });
-  return chain;
 }
 
 /**
@@ -281,6 +295,23 @@ export interface ReadMode {
    */
   written: SupabaseRow[] | null;
   representation: boolean;
+  /** The error a filter the database refuses left the query with (`nullBoundRefusal`). */
+  refused?: ChainResult['error'];
+}
+
+/**
+ * A range filter (`gte`, `gt`, `lte`, `lt`) on a null bound: postgrest-js sends the text `null`,
+ * which the database cannot read as a time or a number, and the request fails. The double answers
+ * that error RESOLVED, as postgrest-js resolves an error answer, never a throw (the audited settings
+ * change, its plan's revision 18 fold 5). Null when the bound is a value. The database's exact answer
+ * (a 400, or `22007`) is unverified here; either one fails closed.
+ */
+export function nullBoundRefusal(operator: string, column: string, value: unknown) {
+  if (value !== null && value !== undefined) return null;
+  return {
+    message: `invalid input syntax: ${operator}.${column} was sent the bound "null"`,
+    code: '22007',
+  };
 }
 
 /**

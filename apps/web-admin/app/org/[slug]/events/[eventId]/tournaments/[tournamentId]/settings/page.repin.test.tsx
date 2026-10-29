@@ -40,6 +40,8 @@ const ROW = {
   ruleset_config: { pointCap: 10, timeLimitsSeconds: { pool: 90 } },
   scoring_config_json: { afterblowMode: 'full', buttons: { clean: [] } },
   penalty_ruleset_version: '1',
+  // The Tournament's own forfeit changes, raw: sent back as read (0246 compares them).
+  forfeit_rules: { reasons: { injury: { fighter: 'withdrawn' as const } } },
 };
 const READ_EXPECTED: RulesExpected = {
   rulesetCode: 'TF_v1',
@@ -48,6 +50,7 @@ const READ_EXPECTED: RulesExpected = {
   scoringConfig: ROW.scoring_config_json,
   penaltyRulesetId: 'pr-1',
   penaltyRulesetVersion: '1',
+  forfeitRules: ROW.forfeit_rules,
 };
 
 const READS = {
@@ -209,6 +212,7 @@ describe('the re-pin dialog on the Basics tab', () => {
       ruleset_code: 'Generic_PointsCap',
       ruleset_config: { pointCap: 5 },
       scoring_config_json: { afterblowMode: 'none', buttons: { clean: [] } },
+      forfeit_rules: { disqualifyAfter: 3 },
     };
     answers[`POST ${REPIN}`] = { ok: true, data: { tournament: first, rulesetChange: {} } };
     await askRepin();
@@ -230,6 +234,7 @@ describe('the re-pin dialog on the Basics tab', () => {
       rulesetCode: 'Generic_PointsCap',
       rulesetConfig: first.ruleset_config,
       scoringConfig: first.scoring_config_json,
+      forfeitRules: { disqualifyAfter: 3 },
     });
   });
 

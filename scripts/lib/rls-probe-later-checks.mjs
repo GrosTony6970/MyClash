@@ -5,6 +5,7 @@
 
 import { accountEmailsFailures } from './account-emails-probe.mjs';
 import { fighterStatusFailures } from './fighter-status-probe.mjs';
+import { fightersStatusUnderFailures } from './fighters-status-under-probe.mjs';
 import { forfeitDrawFailures } from './forfeit-draw-probe.mjs';
 import { forfeitRulesFailures } from './forfeit-rules-probe.mjs';
 import { matchRulesFailures } from './match-rules-probe.mjs';
@@ -33,5 +34,6 @@ export async function laterCheckFailures(tx) {
     ...(await swissFailures(tx)),
     ...(await swissStatusFailures(tx)),
     ...(await tfV1CopiesFailures(tx)),
+    ...(await fightersStatusUnderFailures(tx)),
   ];
 }

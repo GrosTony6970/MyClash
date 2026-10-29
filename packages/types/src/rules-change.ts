@@ -12,6 +12,17 @@
  */
 
 import type { FormatPhase } from '@myclash/rules';
+import type { ForfeitChanges } from './forfeit-rules';
+import {
+  DISQUALIFY_AFTER_OFF_KEY,
+  DISQUALIFY_AFTER_PATH,
+  FORFEIT_ENUM_VALUE_KEYS,
+  FORFEIT_NUMBER_PATHS,
+  FORFEIT_RULES_CHANGE_PATHS,
+  STORED_KEY,
+  forfeitRulesChangeKey,
+  type RulesChangeStored,
+} from './forfeit-rules-change';
 
 /** The format phases of a bout (`formatPhaseOf`, `@myclash/rules`): a pool key is a Tournament key. */
 export type { FormatPhase };
@@ -27,7 +38,8 @@ const PER_PHASE = (key: 'timeLimitsSeconds' | 'bestOf' | 'levelAtTime') =>
     `matchFormat.${key}.finals`,
   ] as const;
 
-export const RULES_CHANGE_PATHS = [
+/** The scoring paths: the ones `scoringDiff` walks. */
+export const SCORING_CHANGE_PATHS = [
   'kind',
   'engine',
   'decisionEdition',
@@ -54,6 +66,9 @@ export const RULES_CHANGE_PATHS = [
   'buttons.afterblow',
 ] as const;
 
+/** Every listed path: the scoring paths, then the forfeit rules' (`forfeit-rules-change.ts`). */
+export const RULES_CHANGE_PATHS = [...SCORING_CHANGE_PATHS, ...FORFEIT_RULES_CHANGE_PATHS] as const;
+
 export type RulesChangePath = (typeof RULES_CHANGE_PATHS)[number] | 'unknown';
 
 /** One change: the value before and after, and whether the lock refused it on its own. */
@@ -63,6 +78,8 @@ export interface RulesChange {
   after: unknown;
   /** Set by the lock (`lockedChanges`) and by a re-pin (always true): this entry needs the audit. */
   locked?: boolean;
+  /** A forfeit entry whose two values in force are equal: what its stored change did (ruling 147). */
+  stored?: RulesChangeStored;
 }
 
 /**
@@ -102,13 +119,6 @@ export type RulesChangeCode = (typeof RULES_CHANGE_CODES)[keyof typeof RULES_CHA
 export type RulesClosedBy = 'tournament' | 'event';
 
 /**
- * The fields of a settings save that are rules: the only ones an audited save may carry beside
- * `audit` (`rules_change_mixed` otherwise), and the only ones the dialog sends again. The pair is
- * not one (it moves through the re-pin), nor is the card pin (it is refused on the clock first).
- */
-export const RULES_SAVE_KEYS = ['rulesetConfig', 'scoringConfig'] as const;
-
-/**
  * What the screen read of a Tournament's rules, sent back with an audited change so the server
  * can refuse it when the rules moved since (operator ruling "Stale screen"). The RAW stored values,
  * as the Tournament row holds them: never normalized, never defaulted.
@@ -120,6 +130,8 @@ export interface RulesExpected {
   scoringConfig: Record<string, unknown> | null;
   penaltyRulesetId: string | null;
   penaltyRulesetVersion: string | null;
+  /** The Tournament's own changes of its forfeit rules (`forfeit_rules`), as stored. */
+  forfeitRules: ForfeitChanges | null;
 }
 
 /**
@@ -204,6 +216,7 @@ export const rulesChangeKey: Record<RulesChangePath, string> = {
   tiebreakers: 'common.rulesChange.path.tiebreakers',
   'buttons.clean': 'common.rulesChange.path.cleanButtons',
   'buttons.afterblow': 'common.rulesChange.path.afterblowButtons',
+  ...forfeitRulesChangeKey,
   unknown: 'common.rulesChange.path.unknown',
 };
 
@@ -222,6 +235,13 @@ const NUMBER_PATHS: ReadonlySet<RulesChangePath> = new Set<RulesChangePath>([
   'matchFormat.bestOf.bracket',
   'matchFormat.bestOf.finals',
   'winBonus',
+  ...(FORFEIT_NUMBER_PATHS as ReadonlySet<RulesChangePath>),
+]);
+
+/** A value shown as yes or no. */
+const BOOLEAN_PATHS: ReadonlySet<RulesChangePath> = new Set<RulesChangePath>([
+  'grammar.hasAfterblow',
+  'forfeitRules.disqualifyBeforeFirstBout',
 ]);
 
 /** A value shown in seconds. */
@@ -269,6 +289,7 @@ const ENUM_VALUE_KEYS: Partial<Record<RulesChangePath, Readonly<Record<string, s
     draw_zero_scores: 'common.rulesChange.value.doubleDraw',
     result_stands: 'common.rulesChange.value.resultStands',
   },
+  ...FORFEIT_ENUM_VALUE_KEYS,
 };
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -296,7 +317,8 @@ function showsValue(path: RulesChangePath): boolean {
     NUMBER_PATHS.has(path) ||
     SECONDS_PATHS.has(path) ||
     Object.hasOwn(ENUM_VALUE_KEYS, path) ||
-    path === 'grammar.hasAfterblow'
+    BOOLEAN_PATHS.has(path) ||
+    path === DISQUALIFY_AFTER_PATH
   );
 }
 
@@ -310,11 +332,13 @@ function valueWords(path: RulesChangePath, value: unknown, t: Translate): string
     const key = emptyValueKey(path, value);
     return key === null ? null : t(key);
   }
+  // Before the enums: a count, or its one word (`'off'`).
+  if (path === DISQUALIFY_AFTER_PATH && value === 'off') return t(DISQUALIFY_AFTER_OFF_KEY);
   const enumKeys = ENUM_VALUE_KEYS[path];
   if (enumKeys) {
     return typeof value === 'string' && Object.hasOwn(enumKeys, value) ? t(enumKeys[value]!) : null;
   }
-  if (path === 'grammar.hasAfterblow') {
+  if (BOOLEAN_PATHS.has(path)) {
     if (typeof value !== 'boolean') return null;
     return t(value ? 'common.rulesChange.value.yes' : 'common.rulesChange.value.no');
   }
@@ -330,6 +354,11 @@ function changeLine(change: RulesChange, t: Translate): string {
     ? change.path
     : 'unknown';
   const label = t(rulesChangeKey[path]);
+  // The same value in force on both sides: only what the Tournament stores moved (ruling 147).
+  const stored = change.stored === 'set' || change.stored === 'reset' ? change.stored : null;
+  if (stored && JSON.stringify(change.before) === JSON.stringify(change.after)) {
+    return t(STORED_KEY[stored], { label });
+  }
   if (showsValue(path)) {
     const before = valueWords(path, change.before, t);
     const after = valueWords(path, change.after, t);
@@ -360,22 +389,4 @@ export function rulesChangeLines(
       ),
     ),
   ];
-}
-
-/** A name as compared: one Unicode form, trimmed, runs of whitespace as one space, lower case. */
-function comparableName(name: string): string {
-  return name.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-/**
- * Whether a typed name is the Tournament's name (operator ruling "Typed name"): case and runs of
- * whitespace do not count, accents do ('Épée Dames' is not 'Epee dames'). The dialog's confirm
- * button and the server both ask this, so they never disagree.
- *
- * `toLowerCase`, not `toLocaleLowerCase`: the locale form depends on the machine (a Turkish
- * browser lowers 'I' to a dotless 'ı'), and the server and the browser must give one answer.
- * NFC first: an 'É' typed as 'E' plus a combining accent is the same name.
- */
-export function sameTournamentName(a: string, b: string): boolean {
-  return comparableName(a) === comparableName(b);
 }

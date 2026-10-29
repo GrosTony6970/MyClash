@@ -17,6 +17,7 @@ import { isOut, outOpponents, readFighter, type Fighter } from './fighter-cause'
 import { bringBack, takeOut, type TakenOut } from './fighter-reconcile';
 import { entrantsToFollowOf, swissBackIn, swissOut } from './fighter-swiss';
 import { ClockService } from './clock.service';
+import { followRulesChangeOf, type RulesFollowed, type RulesMove } from './follow-rules-change';
 import type { ForfeitVoidActor } from './forfeit-void';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { ScoringService } from './scoring.service';
@@ -227,6 +228,38 @@ export class FighterStatusService {
     await this.tried('The round hand-off', failed, () => this.handOn(undefined, held));
     if (failed.length > 0) {
       throw new Error(`Swiss phase ${phaseId} reopened, but not followed: ${failed.join('; ')}`);
+    }
+  }
+
+  /**
+   * An audited change of the Tournament's forfeit rules is written: each Fighter it moves, and each
+   * one out of step, is settled in the order the database gives (`follow-rules-change.ts`), every
+   * settle reading the rules now in force, with ONE hand-off to the completion owner after the
+   * last. Never throws: what did not follow is answered, for the dialog (ruling 144).
+   */
+  async followRulesChange(
+    tournamentId: string,
+    change: RulesMove,
+    actor: ForfeitVoidActor,
+  ): Promise<RulesFollowed & { handOffFailed: boolean }> {
+    const held: HandOff = { putBack: [], boutPerUnit: new Map() };
+    const logged = (step: string, error: unknown) =>
+      this.logger.error(`${step} did not follow a rules change`, (error as Error).stack);
+    const followed = await followRulesChangeOf(
+      {
+        db: this.supabase.service,
+        settle: (registrationId) => this.settle({ registrationId, tournamentId, actor }, held),
+        logged,
+      },
+      tournamentId,
+      change,
+    );
+    try {
+      await this.handOn(undefined, held);
+      return { ...followed, handOffFailed: false };
+    } catch (error) {
+      logged('The hand-off of a rules change', error);
+      return { ...followed, handOffFailed: true };
     }
   }
 

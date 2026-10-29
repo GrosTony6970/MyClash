@@ -11379,6 +11379,9 @@ export interface components {
           } | null;
           penaltyRulesetId: string | null;
           penaltyRulesetVersion: string | null;
+          forfeitRules: {
+            [key: string]: unknown;
+          } | null;
         };
       };
     };
@@ -11398,6 +11401,9 @@ export interface components {
         } | null;
         penaltyRulesetId: string | null;
         penaltyRulesetVersion: string | null;
+        forfeitRules: {
+          [key: string]: unknown;
+        } | null;
       };
     };
     CreateLiceDto: {

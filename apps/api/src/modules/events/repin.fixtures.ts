@@ -36,6 +36,7 @@ export const EXPECTED = {
   scoringConfig: null,
   penaltyRulesetId: null,
   penaltyRulesetVersion: null,
+  forfeitRules: null,
 };
 
 export const REASON = 'Wrong ruleset selected during setup; correcting to points cap.';

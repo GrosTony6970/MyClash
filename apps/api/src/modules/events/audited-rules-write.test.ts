@@ -10,6 +10,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { BucketDiff } from '@myclash/rulesets';
 import { RULES_CHANGE_CODES, type RulesExpected } from '@myclash/types';
+import type { ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { assertReadAsExpected, writeAuditedRules } from './audited-rules-write';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
@@ -29,6 +30,7 @@ const STORED: Row = {
   scoring_config_json: null,
   penalty_ruleset_id: 'p-1',
   penalty_ruleset_version: '2.0.0',
+  forfeit_rules: { disqualifyAfter: 2, reasons: { injury: { fighter: 'withdrawn' } } },
 };
 
 const EXPECTED: RulesExpected = {
@@ -39,6 +41,7 @@ const EXPECTED: RulesExpected = {
   scoringConfig: null,
   penaltyRulesetId: 'p-1',
   penaltyRulesetVersion: '2.0.0',
+  forfeitRules: { reasons: { injury: { fighter: 'withdrawn' } }, disqualifyAfter: 2 },
 };
 
 describe('assertReadAsExpected', () => {
@@ -56,6 +59,8 @@ describe('assertReadAsExpected', () => {
     ['a setting it no longer has', { rulesetConfig: { doublePenaltyFormula: 'n*(n-1)/3' } }],
     ['buttons where there were none', { scoringConfig: {} }],
     ['another card version', { penaltyRulesetVersion: '2.1.0' }],
+    ['its forfeit rules changed', { forfeitRules: { disqualifyAfter: 3 } }],
+    ['its forfeit rules gone', { forfeitRules: null }],
   ])('refuses %s: 409, coded', (_, moved) => {
     const refusal = (() => {
       try {
@@ -105,6 +110,7 @@ function harness(rpc: RpcAnswer = () => ({ data: 'repin-1', error: null })) {
       rulesetVersion: '1.1.0',
       rulesetConfig: { ...(STORED['ruleset_config'] as Row), dropped: undefined },
       scoringConfig: null,
+      forfeitRules: { disqualifyAfter: 3 } as ForfeitChanges | null,
     },
     actorUserId: 'unknown',
     justification: 'The end rule of the 2026-10 edition applies from today.',
@@ -122,6 +128,36 @@ describe('writeAuditedRules', () => {
     expect((args['p_next'] as Row)['ruleset_config']).not.toHaveProperty('dropped');
     expect(args['p_audit']).toMatchObject({ actor_user_id: null, from_version: '1.0.0' });
     expect(args['p_expected']).toMatchObject({ ruleset_version: '1', penalty_ruleset_id: 'p-1' });
+  });
+
+  it('sends the forfeit rules as read and as written, raw, and records both (0246)', async () => {
+    const { db, deps, input } = harness();
+    await writeAuditedRules(deps as never, input);
+    const args = db.rpc.mock.calls[0]?.[1] as Row;
+    expect((args['p_expected'] as Row)['forfeit_rules']).toEqual(STORED['forfeit_rules']);
+    expect((args['p_next'] as Row)['forfeit_rules']).toEqual({ disqualifyAfter: 3 });
+    expect(args['p_audit']).toMatchObject({
+      config_before: { forfeitRules: STORED['forfeit_rules'] },
+      config_after: { forfeitRules: { disqualifyAfter: 3 } },
+    });
+  });
+
+  it('sends forfeit rules of none as null, and forgotten ones not at all: the database refuses', async () => {
+    const none = harness();
+    await writeAuditedRules(none.deps as never, {
+      ...none.input,
+      next: { ...none.input.next, forfeitRules: null },
+    });
+    expect((none.db.rpc.mock.calls[0]?.[1] as Row)['p_next']).toHaveProperty('forfeit_rules', null);
+
+    const forgotten = harness();
+    await writeAuditedRules(forgotten.deps as never, {
+      ...forgotten.input,
+      next: { ...forgotten.input.next, forfeitRules: undefined as never },
+    });
+    expect((forgotten.db.rpc.mock.calls[0]?.[1] as Row)['p_next']).not.toHaveProperty(
+      'forfeit_rules',
+    );
   });
 
   it('answers a Tournament the database no longer has as not found', async () => {

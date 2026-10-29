@@ -61,13 +61,13 @@ export const unitOf = (bout: Row): string =>
 // ── Out ─────────────────────────────────────────────────────────────────────────
 
 /** The Pool phases of the Tournament, and its Swiss phases that are not over (125). */
-async function phasesToTakeOutOf(db: Client, fighter: Fighter): Promise<string[]> {
+async function phasesToTakeOutOf(db: Client, tournamentId: string): Promise<string[]> {
   const phases = rowsOf(
     'The Pool and Swiss phases',
     await db
       .from('phases')
       .select('id, type')
-      .eq('tournament_id', fighter.tournamentId)
+      .eq('tournament_id', tournamentId)
       .in('type', ['pool', 'swiss']),
   );
   const swiss = phases.filter((phase) => phase['type'] === 'swiss').map((p) => p['id'] as string);
@@ -75,11 +75,20 @@ async function phasesToTakeOutOf(db: Client, fighter: Fighter): Promise<string[]
   return phases.map((phase) => phase['id'] as string).filter((id) => !over.has(id));
 }
 
-/** The Fighter's scheduled or paused Pool and Swiss bouts, but the ones put back by hand. */
-async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
-  const phases = await phasesToTakeOutOf(db, fighter);
+/**
+ * A Fighter's unfought bouts: their scheduled or paused bouts in the Tournament's Pool phases and
+ * its Swiss phases that are not over. The ONE owner of "which bouts": `boutsToTakeOut` reads them,
+ * and so does the follow of a rules change (`follow-rules-change.ts`), which asks it of Fighters
+ * still in, so it reads nothing of the Fighter's spell out.
+ */
+export async function unfoughtBoutsOf(
+  db: Client,
+  tournamentId: string,
+  registrationId: string,
+): Promise<Row[]> {
+  const phases = await phasesToTakeOutOf(db, tournamentId);
   if (phases.length === 0) return [];
-  const bouts = rowsOf(
+  return rowsOf(
     'The Pool and Swiss bouts of the Fighter',
     await db
       .from('matches')
@@ -88,8 +97,13 @@ async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
       )
       .in('phase_id', phases)
       .in('status', ['scheduled', 'paused'])
-      .or(`red_registration_id.eq.${fighter.id},blue_registration_id.eq.${fighter.id}`),
+      .or(`red_registration_id.eq.${registrationId},blue_registration_id.eq.${registrationId}`),
   );
+}
+
+/** The Fighter's scheduled or paused Pool and Swiss bouts, but the ones put back by hand. */
+async function boutsToTakeOut(db: Client, fighter: Fighter): Promise<Row[]> {
+  const bouts = await unfoughtBoutsOf(db, fighter.tournamentId, fighter.id);
   if (bouts.length === 0) return [];
   const putBack = rowsOf(
     'The bouts put back by hand',

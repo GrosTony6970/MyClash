@@ -90,9 +90,16 @@ import {
   lockOfSettingsSave,
   failClosed,
   needsAudit,
+  type SaveLock,
 } from './settings-save-lock';
 import { forfeitChangesOfSave } from './forfeit-changes-save';
-import { applyForfeitPatch } from '@myclash/types/forfeit-rules';
+import { followNamed, previewFighters, type RulesFollow } from './rules-change-fighters';
+import type { ForfeitSide } from './forfeit-rules-lock';
+import { tournamentCardRules } from '../penalties/card-rules-pin';
+// Value imports ON PURPOSE: `import type` erases the DI metadata of a constructor parameter.
+import { FighterStatusService } from '../matches/fighter-status.service';
+import { EntityLabelService } from '../entity-label/entity-label.service';
+import { applyForfeitPatch, type ForfeitChanges } from '@myclash/types/forfeit-rules';
 import { scoringKindOf } from '../ruleset-hash/scoring-structure';
 import { loadRulesetRepins } from './rules-change-notice';
 import {
@@ -208,6 +215,11 @@ export class EventsService {
     // Optional for the same reason; provided via RulesetHashModule. Computes the
     // tournament's effective content-hash identity, stamped at create/update/re-pin.
     @Optional() private readonly rulesetHash?: RulesetHashService,
+    // Optional for the same reason; provided via MatchesModule. The Fighters follow an audited
+    // forfeit rules change; that door refuses to write without it (`fighterStatusService`).
+    @Optional() private readonly fighterStatus?: FighterStatusService,
+    // Optional for the same reason; global (EntityLabelModule). Names the Fighters it moves.
+    @Optional() private readonly entityLabels?: EntityLabelService,
   ) {}
 
   /**
@@ -3425,32 +3437,39 @@ export class EventsService {
     // same race (`tournament-clock.ts`). Two saves at once: each patches the changes it read, and
     // the later write is refused 409, as a `scoring_config_json` save is (`writeTournamentSave`).
     const forfeit = forfeitChangesOfSave(currentJson['forfeit_rules'], dto.forfeitRules);
-    if (forfeit.changed) {
-      if (clockLocks(await clockNow()))
-        throw new ForbiddenException({
-          code: RULES_CHANGE_CODES.forfeitLocked,
-          message:
-            'This tournament has scored matches, so its forfeit rules are locked. Change them before scoring starts.',
-        });
-      updates['forfeit_rules'] = forfeit.next;
-    }
+    if (forfeit.changed) updates['forfeit_rules'] = forfeit.next;
 
-    // The scoring settings lock on the clock, key by key (a move of the pair was refused above).
-    const settingsTouched = 'ruleset_config' in updates || 'scoring_config_json' in updates;
+    // The scoring settings and the forfeit rules lock on the clock, key by key (a move of the pair
+    // was refused above); a locked change goes through the audit (rulings 142, 147).
+    const scoringTouched = 'ruleset_config' in updates || 'scoring_config_json' in updates;
+    const settingsTouched = scoringTouched || forfeit.changed;
     if (dto.audit || (settingsTouched && !codeChanged && !versionChanged)) {
       const candidate = { ...currentJson, ...updates };
       const lock = await lockOfSettingsSave(
-        { rulesHash: () => this.rulesHash(), clock: clockNow, logger: this.logger },
+        {
+          rulesHash: () => this.rulesHash(),
+          clock: clockNow,
+          cardRules: async () =>
+            (await tournamentCardRules(this.supabase.service, tournamentId)).cardRules,
+          logger: this.logger,
+        },
         currentJson,
         candidate,
-        dto.audit !== undefined,
+        { audited: dto.audit !== undefined, scoring: scoringTouched, forfeit: forfeit.changed },
       );
       if (dto.audit) {
-        return this.writeAuditedSettings(currentJson, candidate, lock.changes, dto.audit, userId);
+        return this.writeAuditedSettings(currentJson, candidate, lock, dto.audit, userId);
       }
       if (lock.locked) {
         assertRulesOpen(currentJson, eventRow);
-        throw needsAudit(lock.changes, 'This tournament has started: these rules need the audit.');
+        const fighters = lock.forfeit?.follows
+          ? await previewFighters(this.fighterDeps(), tournamentId, lock.forfeit)
+          : [];
+        throw needsAudit(
+          lock.changes,
+          'This tournament has started: these rules need the audit.',
+          fighters,
+        );
       }
     }
 
@@ -3484,20 +3503,25 @@ export class EventsService {
   /**
    * The audited settings save: one write of the rules and their record (`writeAuditedRules`, kind
    * `settings`), the pair kept. Its bucket diff compares the stored pair with itself, both configs.
+   * Then, when what a settle reads moved, the Fighters follow (ruling 143), after the write and
+   * never undoing it: who did not follow is answered by name (ruling 144).
    */
   private async writeAuditedSettings(
     read: Record<string, unknown>,
     candidate: Record<string, unknown>,
-    changes: RulesChange[],
+    lock: SaveLock,
     audit: { justification: string },
     userId: string,
   ) {
+    const { changes } = lock;
     if (changes.length === 0) {
       throw new BadRequestException({
         code: RULES_CHANGE_CODES.unchanged,
         message: 'This save changes no rule.',
       });
     }
+    // The follow's collaborators are asked for BEFORE the write: a wiring fault writes nothing.
+    const follow = this.rulesFollowOf(lock.forfeit);
     const { code, version } = pairOf(read);
     const diff = await this.computeRulesetBucketDiff(
       { code, version, config: (read['ruleset_config'] as Record<string, unknown>) ?? {} },
@@ -3511,6 +3535,7 @@ export class EventsService {
         rulesetVersion: String(read['ruleset_version'] ?? version),
         rulesetConfig: candidate['ruleset_config'],
         scoringConfig: candidate['scoring_config_json'],
+        forfeitRules: (candidate['forfeit_rules'] as ForfeitChanges | null | undefined) ?? null,
       },
       actorUserId: userId,
       justification: audit.justification,
@@ -3519,8 +3544,34 @@ export class EventsService {
     });
     return {
       tournament: written.row,
-      rulesetChange: { changes, readBackFailed: written.readBackFailed },
+      rulesetChange: {
+        changes,
+        readBackFailed: written.readBackFailed,
+        ...(await followNamed(follow, String(read['id']), { userId })),
+      },
     };
+  }
+
+  /** What the Fighters' follow of a save needs, when what a settle reads moved; else null. */
+  private rulesFollowOf(side: ForfeitSide | null): RulesFollow | null {
+    if (!side?.follows) return null;
+    return { side, status: this.fighterStatusService(), labels: this.fighterDeps().labels };
+  }
+
+  /** The status settle, which the Fighters' follow cannot go without: its absence is a wiring fault. */
+  private fighterStatusService(): FighterStatusService {
+    if (!this.fighterStatus)
+      throw new Error('The Fighters cannot follow a rules change: the status settle is not wired.');
+    return this.fighterStatus;
+  }
+
+  /** What naming the Fighters of a rules change reads; the label reader is required. */
+  private fighterDeps() {
+    if (!this.entityLabels)
+      throw new Error(
+        'The Fighters of a rules change cannot be named: the label reader is not wired.',
+      );
+    return { supabase: this.supabase, labels: this.entityLabels, logger: this.logger };
   }
 
   /** What an audited write needs from this service. */
@@ -3870,6 +3921,8 @@ export class EventsService {
       rulesetVersion: move.toVersion,
       rulesetConfig: after.rulesetConfig,
       scoringConfig: after.seededScoring ?? row['scoring_config_json'],
+      // A move of the pair keeps the Tournament's forfeit changes as stored, raw (0246).
+      forfeitRules: (row['forfeit_rules'] as ForfeitChanges | null | undefined) ?? null,
     };
     const fromConfig = (row['ruleset_config'] as Record<string, unknown>) ?? {};
     const diff = await this.computeRulesetBucketDiff(

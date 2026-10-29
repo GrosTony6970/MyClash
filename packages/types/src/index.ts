@@ -34,6 +34,8 @@ export * from './referee-availability';
 export * from './referee-capacity';
 export * from './round-code';
 export * from './rules-change';
+export * from './forfeit-rules-change';
+export * from './tournament-name';
 export * from './scoring-config';
 export * from './staff-role';
 export * from './venue';

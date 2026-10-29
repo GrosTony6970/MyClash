@@ -1,9 +1,9 @@
 /**
  * A Tournament's changes of its forfeit rules lock once a bout has started (operator ruling 73,
- * 2026-10-20), as its card rules do. The lock refuses only a REAL change: the stored changes
- * before and after the save, compared as canonical JSON. A Reset of a key it does not hold, or the
- * same changes in another key order, passes; adding a stored change equal to the ruleset's value
- * is a change. Each refusal carries its code, which the screens word.
+ * 2026-10-20), as its card rules do. The lock sees only a REAL change: the stored changes before
+ * and after the save, compared as canonical JSON. A Reset of a key it does not hold, or the same
+ * changes in another key order, passes. A real change goes through the audit (rulings 142, 147):
+ * its refusal, entries and Fighters are `settings-forfeit.lock.test.ts`'s.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RULES_CHANGE_CODES } from '@myclash/types';
@@ -31,27 +31,12 @@ function save(patch: Record<string, unknown>, stored: unknown = STORED, started 
   return { ...opened, stamp, saved: opened.svc.updateTournament('t1', patch as never, 'u1') };
 }
 
-const LOCKED = { response: { code: RULES_CHANGE_CODES.forfeitLocked }, status: 403 };
-
 beforeEach(() => {
   vi.clearAllMocks();
   assertOrgRole.mockResolvedValue(undefined);
 });
 
 describe('the forfeit rules of a Tournament whose bout has started', () => {
-  it('refuse a real change with its code, and write nothing', async () => {
-    const { saved, cap } = save({ forfeitRules: { disqualifyAfter: 4 } });
-
-    await expect(saved).rejects.toMatchObject(LOCKED);
-    expect(cap.update).toBeNull();
-  });
-
-  it('refuse a stored change equal to the ruleset’s value: it is a change all the same', async () => {
-    const { saved } = save({ forfeitRules: { reasons: { voluntary: { fighter: 'asks' } } } });
-
-    await expect(saved).rejects.toMatchObject(LOCKED);
-  });
-
   it('take the same changes sent again, in another key order', async () => {
     const reordered = { reasons: { injury: { opponentScore: 9, fighter: 'withdrawn' } } };
     const { saved, cap } = save({ forfeitRules: reordered });

@@ -4,10 +4,10 @@ import {
   formatPhaseOfPath,
   rulesChangeKey,
   rulesChangeLines,
-  sameTournamentName,
   type RulesChange,
   type RulesChangePath,
 } from './rules-change';
+import { sameTournamentName } from './tournament-name';
 
 type Tree = { readonly [key: string]: string | Tree };
 
@@ -195,6 +195,63 @@ describe('rulesChangeLines', () => {
       { path: 'matchFormat.newSetting' as string as RulesChangePath, before: 1, after: 2 },
     ];
     expect(rulesChangeLines(changes, en)).toEqual(['Another scoring setting changed']);
+  });
+});
+
+describe('rulesChangeLines over the forfeit rules (rulings 142, 145, 147)', () => {
+  it('words "disqualify after" off and a count, in both languages', () => {
+    const changes = [change('forfeitRules.disqualifyAfter', 'off', 2)];
+    expect(rulesChangeLines(changes, en)).toEqual(['Disqualify after this many forfeits: Off → 2']);
+    expect(rulesChangeLines(changes, fr)).toEqual([
+      'Disqualifier après ce nombre de forfaits : Désactivé → 2',
+    ]);
+  });
+
+  it('words each forfeit enum, a yes or no and a score', () => {
+    const changes = [
+      change('forfeitRules.reasons.injury.fighter', 'asks', 'withdrawn'),
+      change('forfeitRules.reasons.voluntary.outcome', 'fixed_loss', 'draw'),
+      change('forfeitRules.secondBlackCard', 'tournament', 'none'),
+      change('forfeitRules.disqualifyBeforeFirstBout', false, true),
+      change('forfeitRules.reasons.conduct_violation.opponentScore', 6, 9),
+    ];
+    expect(rulesChangeLines(changes, en)).toEqual([
+      'Injury forfeit, the fighter: The official is asked → Is withdrawn',
+      'Voluntary withdrawal, the bout counts as: A loss → A draw, 0-0 (a loss in a bracket)',
+      'Second black card forfeit: End of tournament → No forfeit',
+      'A forfeit before the first bout disqualifies: No → Yes',
+      'Conduct violation, opponent’s score on a loss: 6 → 9',
+    ]);
+    expect(rulesChangeLines(changes.slice(0, 1), fr)).toEqual([
+      'Forfait sur blessure, le combattant : L’arbitre est consulté → Est retiré',
+    ]);
+  });
+
+  it('words a change of what is stored alone, the value in force the same (ruling 147)', () => {
+    const set = {
+      ...change('forfeitRules.reasons.voluntary.fighter', 'asks', 'asks'),
+      stored: 'set' as const,
+    };
+    const reset = { ...change('forfeitRules.disqualifyAfter', 2, 2), stored: 'reset' as const };
+    expect(rulesChangeLines([set, reset], en)).toEqual([
+      'Voluntary withdrawal, the fighter: now holds the ruleset’s value',
+      'Disqualify after this many forfeits: now follows the ruleset',
+    ]);
+    expect(rulesChangeLines([set, reset], fr)).toEqual([
+      'Abandon volontaire, le combattant : garde désormais la valeur du règlement',
+      'Disqualifier après ce nombre de forfaits : suit désormais le règlement',
+    ]);
+  });
+
+  it('words a stored mark on two different values as the change it is', () => {
+    const moved = { ...change('forfeitRules.disqualifyAfter', 2, 3), stored: 'set' as const };
+    expect(rulesChangeLines([moved], en)).toEqual(['Disqualify after this many forfeits: 2 → 3']);
+  });
+
+  it('words another forfeit rule as changed, never its value', () => {
+    const changes = [change('forfeitRules.unknown', { x: 1 }, { x: 2 })];
+    expect(rulesChangeLines(changes, en)).toEqual(['Another forfeit rule changed']);
+    expect(rulesChangeLines(changes, fr)).toEqual(['Modification : Une autre règle de forfait']);
   });
 });
 
