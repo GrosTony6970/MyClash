@@ -13,7 +13,7 @@
     "test": "astro build && node --test \"test/*.test.mjs\""
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.6.0",
+    "@astrojs/sitemap": "^3.7.4",
     "@fontsource/cinzel": "^5.2.5",
     "@fontsource/cormorant-garamond": "^5.2.5",
     "astro": "~7.3.8",
