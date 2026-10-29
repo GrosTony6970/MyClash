@@ -15,6 +15,9 @@ export default defineConfig({
   // `vi.mock` can apply, so such a page could not be mounted in a test.
   resolve: { tsconfigPaths: true },
   test: {
+    // This package's own module cache. Vitest wipes the cache when the lockfile changes,
+    // and a cache shared by every package is wiped by a dozen runs at once (ENOTEMPTY).
+    fsModuleCachePath: 'node_modules/.vitest-cache',
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
