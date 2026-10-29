@@ -78,6 +78,9 @@
     // A bout under its Tournament's forfeit rules, shared by the rules and draw tests (C5).
     // Imported by tests and nothing else.
     "src/modules/matches/match-forfeits.rules.fixtures.ts",
+    // The fetch recorder the AI adapters' wire tests run the real SDKs against. Imported by
+    // tests and nothing else.
+    "src/modules/ai-providers/adapters/wire-recorder.fixtures.ts",
     // The status settle every service that settles is built with in tests (slice B). It imports
     // vitest.
     "src/modules/matches/fighter-status.fixtures.ts",
