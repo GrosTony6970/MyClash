@@ -18,9 +18,11 @@ export interface ModelInfo {
   /** Surfaced in the UI as the suggested model for the tool-calling chatbot. */
   recommendedForToolUse?: boolean;
   /**
-   * Whether the model accepts the `temperature` sampling param. Anthropic
-   * Opus 4.7/4.8 reject `temperature`/`top_p`/`top_k` with a 400, so the
-   * adapters must omit it based on this flag — never on an id substring.
+   * Whether the model accepts the `temperature` sampling param; the OpenAI,
+   * Mistral and Google adapters omit it based on this flag — never on an id
+   * substring. Every Anthropic row is `false`: API version 2026-10-21 rejects
+   * `temperature`/`top_p`/`top_k` with a 400 on every model, and the Anthropic
+   * adapter never sends it.
    */
   supportsTemperature: boolean;
   pricing: { input: number; output: number };
@@ -42,14 +44,13 @@ export const MODEL_REGISTRY: Record<AIProvider, ModelInfo[]> = {
     {
       id: 'claude-sonnet-5',
       label: 'Claude Sonnet 5',
-      // Sonnet 5, like Opus 4.7/4.8, 400s on non-default sampling params — omit.
       supportsTemperature: false,
       pricing: { input: eur(3), output: eur(15) },
     },
     {
       id: 'claude-haiku-4-5',
       label: 'Claude Haiku 4.5',
-      supportsTemperature: true,
+      supportsTemperature: false,
       pricing: { input: eur(1), output: eur(5) },
     },
   ],

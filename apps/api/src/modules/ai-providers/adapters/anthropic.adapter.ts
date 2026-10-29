@@ -51,21 +51,31 @@ function mapStopReason(r: string | null | undefined): GenerationStopReason {
   return 'other';
 }
 
+/**
+ * A new client per call: the key changes with each call (an organisation's, a fighter's or the
+ * platform's), and the SDK takes `fetch` when it is built, so a cached client would also escape
+ * the wire tests' recorder. From 0.134 on, the SDK traces by itself through whatever global
+ * OpenTelemetry tracer and propagator are registered: spans, and trace headers sent to
+ * Anthropic. Sentry 11 registers neither unless `enableOpenTelemetrySetup` is on, so today it is
+ * inert; `openTelemetry: false` keeps it off whatever gets registered later.
+ */
+function createClient(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, openTelemetry: false });
+}
+
 @Injectable()
 export class AnthropicAdapter implements ProviderAdapter {
   async generate(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
-    const client = new Anthropic({ apiKey });
-    // Opus 4.7/4.8 reject `temperature` with a 400 — omit it per the registry
-    // capability flag rather than sending it unconditionally.
-    const model = findModel('anthropic', request.model);
-    const supportsTemperature = model?.supportsTemperature ?? true;
+    const client = createClient(apiKey);
+    // No `temperature`, on any model: API version 2026-10-21 (SDK 1.x) answers 400 to
+    // temperature, top_p or top_k on every model. `request.temperature` is for the other
+    // providers.
     const messages: Anthropic.MessageParam[] = request.messages
       ? mapMessages(request.messages)
       : [{ role: 'user', content: request.user ?? '' }];
     const response = await client.messages.create({
       model: request.model,
       max_tokens: request.maxTokens,
-      ...(supportsTemperature ? { temperature: request.temperature } : {}),
       system: request.system,
       messages,
       ...(request.tools?.length
@@ -91,6 +101,7 @@ export class AnthropicAdapter implements ProviderAdapter {
 
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
+    const model = findModel('anthropic', request.model);
     const pricing = (model ?? getDefaultModel('anthropic')).pricing;
     const costEur = inputTokens * pricing.input + outputTokens * pricing.output;
 
@@ -106,7 +117,7 @@ export class AnthropicAdapter implements ProviderAdapter {
   }
 
   async listModels(apiKey: string): Promise<string[]> {
-    const client = new Anthropic({ apiKey });
+    const client = createClient(apiKey);
     const ids: string[] = [];
     for await (const m of client.models.list()) ids.push(m.id);
     return ids;

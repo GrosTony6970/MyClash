@@ -82,7 +82,7 @@ afterEach(() => {
 
 describe('AnthropicAdapter on the wire', () => {
   it.each([
-    ['a registered model that takes temperature', 'claude-haiku-4-5'],
+    ['Haiku 4.5, which took temperature before API 2026-10-21', 'claude-haiku-4-5'],
     ['a model id the registry does not know', 'claude-wire-unknown'],
   ])('sends a single-turn request for %s', async (_case, model) => {
     useWire({ 'POST /v1/messages': anthropicMessagesRoute(textAnswer) });
@@ -99,13 +99,16 @@ describe('AnthropicAdapter on the wire', () => {
     const [request] = wire.requests;
     expect(request?.method).toBe('POST');
     expect(request?.url).toBe(MESSAGES_URL);
-    expect(request?.headers['x-api-key']).toBe(KEY);
-    expect(request?.headers['authorization']).toBeUndefined();
-    expect(request?.headers['anthropic-version']).toBe('2023-06-01');
+    // SDK 1.x moved the key from `x-api-key` to a Bearer header and speaks API 2026-10-21,
+    // which answers 400 to `temperature` on every model: none is sent, whatever
+    // the caller asked for.
+    expect(request?.headers['authorization']).toBe(`Bearer ${KEY}`);
+    expect(request?.headers['x-api-key']).toBeUndefined();
+    expect(request?.headers['anthropic-version']).toBe('2026-10-21');
+    expect(request?.headers['x-stainless-package-version']).toMatch(/^1\./);
     expect(request?.body).toEqual({
       model,
       max_tokens: 256,
-      temperature: 0.1,
       system: 'You answer questions about one tournament.',
       messages: [{ role: 'user', content: 'How many fighters are in Pool A?' }],
     });
@@ -186,8 +189,11 @@ describe('AnthropicAdapter on the wire', () => {
 
     expect(ids).toEqual(['claude-a', 'claude-b', 'claude-c']);
     expect(wire.requests.map((r) => new URL(r.url).search)).toEqual(['', '?after_id=claude-b']);
-    expect(wire.requests[0]?.headers['x-api-key']).toBe(KEY);
-    expect(wire.requests[0]?.headers['anthropic-version']).toBe('2023-06-01');
+    expect(wire.requests[0]?.headers['authorization']).toBe(`Bearer ${KEY}`);
+    expect(wire.requests[0]?.headers['x-api-key']).toBeUndefined();
+    expect(wire.requests[0]?.headers['anthropic-version']).toBe('2026-10-21');
+    // A pin on the SDK, not on the adapter: 1.x newly sends its timeout on this request too.
+    expect(wire.requests[0]?.headers['x-stainless-timeout']).toBeDefined();
   });
 
   // A pin on the SDK, not on the adapter: Sentry receives this error's message, so a future

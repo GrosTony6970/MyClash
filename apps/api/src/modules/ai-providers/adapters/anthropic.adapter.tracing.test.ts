@@ -14,8 +14,9 @@ import { anthropicMessagesRoute, recordFetch, type WireRecorder } from './wire-r
 
 // Anthropic's SDK traces by itself from 0.134 on: it takes the GLOBAL tracer provider when a
 // client is built, starts a span per call and injects trace headers through the global
-// propagator. Ruling 193 keeps it silent. This file registers a provider and a propagator that
-// would see both, and asserts neither is used. Its own file, so its globals touch no other test.
+// propagator. `openTelemetry: false` keeps it silent. This file registers a provider and a
+// propagator that would see both, and asserts neither is used. Its own file, so its globals touch
+// no other test.
 //
 // `@opentelemetry/api` is a devDependency at ~1.9.1: the 2.10.0 OpenTelemetry SDK packages
 // Sentry and Mistral resolve against cap their peer below 1.10.0, and a second copy of the API

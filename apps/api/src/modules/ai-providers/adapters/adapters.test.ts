@@ -100,44 +100,21 @@ describe('AnthropicAdapter', () => {
     expect(result.toolCall).toEqual({ name: 'search', arguments: { q: 'hello' } });
   });
 
-  it('omits temperature for models that reject it (Opus 4.8)', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'ok' }],
-      usage: { input_tokens: 1, output_tokens: 1 },
-      stop_reason: 'end_turn',
-    });
-    await adapter.generate('key-123', { ...baseRequest, model: 'claude-opus-4-8' });
-    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-    expect(arg).not.toHaveProperty('temperature');
-    expect(arg['model']).toBe('claude-opus-4-8');
-  });
-
-  it('omits temperature for Sonnet 5 (rejects sampling params)', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'ok' }],
-      usage: { input_tokens: 1, output_tokens: 1 },
-      stop_reason: 'end_turn',
-    });
-    await adapter.generate('key-123', { ...baseRequest, model: 'claude-sonnet-5' });
-    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-    expect(arg).not.toHaveProperty('temperature');
-    expect(arg['model']).toBe('claude-sonnet-5');
-  });
-
-  it('includes temperature for models that support it (Haiku 4.5)', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'ok' }],
-      usage: { input_tokens: 1, output_tokens: 1 },
-      stop_reason: 'end_turn',
-    });
-    await adapter.generate('key-123', {
-      ...baseRequest,
-      model: 'claude-haiku-4-5',
-      temperature: 0.3,
-    });
-    const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
-    expect(arg['temperature']).toBe(0.3);
-  });
+  // Anthropic API 2026-10-21 answers 400 to `temperature` on every model.
+  it.each(['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-unknown-model'])(
+    'never sends temperature, whatever the model (%s)',
+    async (model) => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+        stop_reason: 'end_turn',
+      });
+      await adapter.generate('key-123', { ...baseRequest, model, temperature: 0.3 });
+      const arg = (mockCreate.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+      expect(arg).not.toHaveProperty('temperature');
+      expect(arg['model']).toBe(model);
+    },
+  );
 
   it('maps a multi-turn transcript and returns all tool calls + stopReason', async () => {
     mockCreate.mockResolvedValue({

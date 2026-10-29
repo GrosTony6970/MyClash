@@ -240,7 +240,6 @@
     "apps/api/src/modules/admin/system-actions.service.ts:121",
     "apps/api/src/modules/admin/system-versions.service.ts:116",
     "apps/api/src/modules/admin/system-versions.service.ts:230",
-    "apps/api/src/modules/ai-providers/adapters/anthropic.adapter.ts:56",
     "apps/api/src/modules/ai-providers/adapters/google.adapter.ts:97",
     "apps/api/src/modules/ai-providers/adapters/mistral.adapter.ts:90",
     "apps/api/src/modules/ai-providers/adapters/openai.adapter.ts:64",

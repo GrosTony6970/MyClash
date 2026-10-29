@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MistralAdapter } from './mistral.adapter';
 import {
   recordFetch,
@@ -42,6 +42,12 @@ function useWire(routes: Parameters<typeof recordFetch>[0]): void {
   wire = recordFetch(routes);
   vi.stubGlobal('fetch', wire.fetch);
 }
+
+// The adapter imports the ESM-only SDK on its first call. Mistral 3 is ~1,600 modules (~2.3 s
+// alone, past 5 s under the full suite's load), so it loads once here, not inside a test's limit.
+beforeAll(async () => {
+  await import('@mistralai/mistralai');
+}, 60_000);
 
 beforeEach(() => {
   for (const name of SDK_ENV) vi.stubEnv(name, undefined);
