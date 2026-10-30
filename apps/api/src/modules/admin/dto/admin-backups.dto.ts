@@ -1,6 +1,11 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+/** A server backup set is named by its night. */
+export const BACKUP_TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
+/** An uploaded set is one night too (`infra/ops-runner/upload-store.mjs` holds the same shape). */
+export const UPLOAD_ID_PATTERN = /^upload-\d{8}T\d{6}Z$/;
+
 export type BackupArtifactKind = 'db' | 'storage';
 export type BackupLocation = 'local' | 's3' | 'upload';
 export type BackupOperationKind = 'backup' | 'restore';
@@ -54,6 +59,8 @@ export interface BackupStatusDto {
     finishedAt?: string | null;
     /** Error message from the most recent backup run, when it failed. */
     error?: string | null;
+    /** A failure the screen words itself: `scheduled_backup_missed` (ruling 217). */
+    code?: string | null;
     localAvailable: boolean;
     cloudAvailable: boolean;
   } | null;
@@ -98,6 +105,8 @@ export interface DeleteAllBackupsResponseDto {
   deleted: true;
   deletedLocalSets: number;
   deletedCloudSets: number;
+  /** Delete-all clears the uploaded nights too (ruling 218). */
+  deletedUploadSets: number;
   deletedFiles: string[];
   /** Local artifacts the wipe could not remove. Reported, never swallowed. */
   failedFiles: string[];
@@ -114,18 +123,30 @@ export interface BackupUploadResponseDto {
 export interface BackupDeleteResponseDto {
   deleted: true;
   backupId: string;
-  location: Extract<BackupLocation, 'local' | 's3'>;
+  location: BackupLocation;
   deletedArtifacts: string[];
 }
 
 const restoreBackupSchema = z
   .object({
     location: z.enum(['local', 's3', 'upload']),
-    backupId: z.string().regex(/^\d{8}T\d{6}Z$|^[A-Za-z0-9_-]{8,80}$/),
+    backupId: z
+      .string()
+      .regex(new RegExp(`${BACKUP_TIMESTAMP_PATTERN.source}|${UPLOAD_ID_PATTERN.source}`)),
     includeStorage: z.boolean().optional(),
+    /**
+     * What the dialog said an upload restores. The ops runner refuses the restore when the night
+     * changed since (another tab uploaded a file), so "images only" never drops the database.
+     */
+    scope: z.enum(['both', 'database', 'images']).optional(),
     confirmed: z.boolean(),
   })
-  .strict();
+  .strict()
+  // A server set restores database + images, whatever a scope said: refused, not ignored.
+  .refine((body) => body.scope === undefined || body.location === 'upload', {
+    message: 'A restore scope is for an uploaded backup only.',
+    path: ['scope'],
+  });
 export class RestoreBackupDto extends createZodDto(restoreBackupSchema) {}
 
 const updateBackupScheduleSchema = z

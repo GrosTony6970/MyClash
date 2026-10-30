@@ -207,7 +207,12 @@ const server = createServer(async (req, res) => {
     // Honour a status an operation deliberately chose (lock contention is a
     // 409, not a server fault) so the API can relay it as the same class
     // instead of flattening everything into a 503.
-    sendJson(res, error?.statusCode ?? 500, { error: sanitizeError(error) });
+    // A refusal's own code (`badRequest(message, code)`) rides along for the screen to word.
+    // Node's system errors carry a string `code` too (ENOENT…): only a refusal's is sent.
+    sendJson(res, error?.statusCode ?? 500, {
+      error: sanitizeError(error),
+      ...(error?.statusCode && typeof error.code === 'string' ? { code: error.code } : {}),
+    });
   }
 });
 

@@ -18,11 +18,16 @@ export const UPLOAD_SET_ID_PATTERN = /^upload-(?<ts>\d{8}T\d{6}Z)$/;
 const INCOMING_PREFIX = '.incoming-';
 
 /** A refusal the HTTP layer answers as 400, not as a server fault (the API relays the class). */
-export function badRequest(message) {
+export function badRequest(message, code) {
   const error = new Error(message);
   error.statusCode = 400;
+  // A refusal the screen words itself: the runner's answer carries it, the API relays it.
+  if (code) error.code = code;
   return error;
 }
+
+/** A restore whose night changed since the dialog said what it restores. */
+export const UPLOAD_CHANGED_CODE = 'upload_changed';
 
 function uploadsRoot(rootDir) {
   return path.join(rootDir, 'backups', 'uploads');
@@ -167,7 +172,10 @@ export async function resolveUploadSet(rootDir, id) {
 export function restoreArgs(set, includeStorage, expectedScope) {
   const planned = plannedRestore(set, includeStorage);
   if (expectedScope !== undefined && expectedScope !== planned.scope) {
-    throw badRequest('This upload changed since the page read it. Reload, then restore again.');
+    throw badRequest(
+      'This upload changed since the page read it. Reload, then restore again.',
+      UPLOAD_CHANGED_CODE,
+    );
   }
   return planned;
 }

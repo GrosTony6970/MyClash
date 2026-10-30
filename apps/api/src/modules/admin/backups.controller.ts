@@ -94,19 +94,19 @@ export class BackupsAdminController {
   @Delete()
   @ApiOperation({
     summary:
-      'Wipe every local + S3 backup. Requires the literal confirmation token "DELETE ALL MYCLASH BACKUPS".',
+      'Wipe every local, S3 and uploaded backup. Requires the literal confirmation token "DELETE ALL MYCLASH BACKUPS".',
   })
   deleteAllBackups(@Body() dto: DeleteAllBackupsDto): Promise<DeleteAllBackupsResponseDto> {
     return this.backups.deleteAllBackups(dto);
   }
 
   @Delete(':backupId')
-  @ApiOperation({ summary: 'Delete a local or Scaleway S3 backup copy' })
+  @ApiOperation({ summary: 'Delete a local, Scaleway S3 or uploaded backup copy' })
   @ApiParam({ name: 'backupId', type: 'string' })
-  @ApiQuery({ name: 'location', enum: ['local', 's3'] })
+  @ApiQuery({ name: 'location', enum: ['local', 's3', 'upload'] })
   deleteBackup(
     @Param('backupId') backupId: string,
-    @Query('location') location: Extract<BackupLocation, 'local' | 's3'> = 'local',
+    @Query('location') location: BackupLocation = 'local',
   ): Promise<BackupDeleteResponseDto> {
     return this.backups.deleteBackup(backupId, location);
   }

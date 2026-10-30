@@ -1676,7 +1676,7 @@ export interface paths {
     get: operations['BackupsAdminController_listBackups'];
     put?: never;
     post?: never;
-    /** Wipe every local + S3 backup. Requires the literal confirmation token "DELETE ALL MYCLASH BACKUPS". */
+    /** Wipe every local, S3 and uploaded backup. Requires the literal confirmation token "DELETE ALL MYCLASH BACKUPS". */
     delete: operations['BackupsAdminController_deleteAllBackups'];
     options?: never;
     head?: never;
@@ -1745,7 +1745,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete a local or Scaleway S3 backup copy */
+    /** Delete a local, Scaleway S3 or uploaded backup copy */
     delete: operations['BackupsAdminController_deleteBackup'];
     options?: never;
     head?: never;
@@ -10193,6 +10193,8 @@ export interface components {
       location: 'local' | 's3' | 'upload';
       backupId: string;
       includeStorage?: boolean;
+      /** @enum {string} */
+      scope?: 'both' | 'database' | 'images';
       confirmed: boolean;
     };
     DeleteAllBackupsDto: {
@@ -14716,7 +14718,7 @@ export interface operations {
   BackupsAdminController_deleteBackup: {
     parameters: {
       query: {
-        location: 'local' | 's3';
+        location: 'local' | 's3' | 'upload';
       };
       header?: never;
       path: {

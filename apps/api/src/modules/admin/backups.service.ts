@@ -11,6 +11,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { opsRunnerException, readOpsRunnerError } from './ops-runner-error';
+import { BACKUP_TIMESTAMP_PATTERN, UPLOAD_ID_PATTERN } from './dto/admin-backups.dto';
 import type {
   BackupActionResponseDto,
   BackupArtifactDto,
@@ -30,10 +31,8 @@ import type {
   UpdateBackupScheduleDto,
 } from './dto/admin-backups.dto';
 
-const TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
 const BACKUP_FILENAME_PATTERN =
   /^(db-(?<dbTs>\d{8}T\d{6}Z)\.sql\.gz|storage-(?<storageTs>\d{8}T\d{6}Z)\.tar\.gz)(?<gpg>\.gpg)?$/;
-const UPLOAD_ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/;
 const DEFAULT_OPS_TIMEOUT_MS = 15_000;
 /**
  * 150 MiB (operator ruling, 2026-10-30). A restore from an upload reads the database dump, about
@@ -152,18 +151,16 @@ export class AdminBackupsService {
       location: dto.location,
       backupId: dto.backupId,
       includeStorage: dto.includeStorage ?? true,
+      ...(dto.scope ? { scope: dto.scope } : {}),
       confirmation: expectedConfirmation,
     });
   }
 
-  async deleteBackup(
-    backupId: string,
-    location: Extract<BackupLocation, 'local' | 's3'>,
-  ): Promise<BackupDeleteResponseDto> {
-    validateBackupId(backupId, location);
-    if (!['local', 's3'].includes(location)) {
+  async deleteBackup(backupId: string, location: BackupLocation): Promise<BackupDeleteResponseDto> {
+    if (!['local', 's3', 'upload'].includes(location)) {
       throw new BadRequestException('Invalid backup location.');
     }
+    validateBackupId(backupId, location);
     return this.opsDelete<BackupDeleteResponseDto>(
       `/backups/${encodeURIComponent(backupId)}?location=${encodeURIComponent(location)}`,
     );
@@ -343,7 +340,9 @@ function validateBackupFilename(filename: string): void {
 
 function validateBackupId(backupId: string, location: BackupLocation): void {
   const ok =
-    location === 'upload' ? UPLOAD_ID_PATTERN.test(backupId) : TIMESTAMP_PATTERN.test(backupId);
+    location === 'upload'
+      ? UPLOAD_ID_PATTERN.test(backupId)
+      : BACKUP_TIMESTAMP_PATTERN.test(backupId);
   if (!ok) throw new BadRequestException('Invalid backup identifier.');
 }
 

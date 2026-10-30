@@ -95,6 +95,12 @@ test('every mutating ops operation runs under the shared lock', async () => {
     /error\?\.statusCode \?\? 500/,
     'lock contention must surface as its own status, not a blanket 500',
   );
+  // A refusal's code (upload_changed) is what lets the screen word it in the reader's language.
+  assert.match(
+    server,
+    /\{ code: error\.code \}/,
+    "a refusal's code must ride along in the runner's answer",
+  );
 });
 
 test('backup.sh cannot mistake a missing docker compose for a stopped database', async () => {

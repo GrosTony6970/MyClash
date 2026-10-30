@@ -2531,16 +2531,16 @@ export const admin = {
       'How many backups to keep in Scaleway S3. Typically larger than local for disaster recovery.',
     dangerZoneTitle: 'Danger zone — delete all backups',
     dangerZoneDescription:
-      'Permanently wipe every local + S3 backup. Use only when rotating encryption keys or starting fresh after a migration. This cannot be undone.',
+      'Permanently wipe every local, S3 and uploaded backup. Use only when rotating encryption keys or starting fresh after a migration. This cannot be undone.',
     deleteAllButton: 'Delete all backups',
     deleteAllConfirmTitle: 'Delete every backup?',
     deleteAllConfirmBody:
-      'Type DELETE ALL MYCLASH BACKUPS exactly to confirm. Every local and Scaleway S3 backup will be removed immediately.',
+      'Type DELETE ALL MYCLASH BACKUPS exactly to confirm. Every local, Scaleway S3 and uploaded backup will be removed immediately.',
     deleteAllConfirmTokenLabel: 'Confirmation',
     deleteAllConfirmTokenPlaceholder: 'DELETE ALL MYCLASH BACKUPS',
-    deleteAllSuccess: 'Deleted {local} local + {cloud} cloud sets.',
+    deleteAllSuccess: 'Deleted {local} local + {cloud} cloud sets and {uploads} uploaded.',
     deleteAllPartial:
-      'Deleted {local} local + {cloud} cloud sets, but {failed} file(s) could not be removed.',
+      'Deleted {local} local + {cloud} cloud sets and {uploads} uploaded, but {failed} file(s) could not be removed.',
     deleteAllError: 'Could not delete backups.',
     uploadTitle: 'Restore from desktop upload',
     uploadFile: 'Backup file',
@@ -2588,6 +2588,21 @@ export const admin = {
       'Replace all uploaded files (logos, event assets) with the storage volume from this backup.',
     restoreScopeServices:
       'Stop the app and Supabase services during the restore, then restart them afterwards.',
+    restoreScopeKeepImages:
+      'Leave the uploaded files (logos, event assets) as they are: this upload has no images file.',
+    restoreDialogBodyImages:
+      'This will replace the uploaded files (logos, event assets) with the images file of the {location} backup dated {timestamp}. The database is not touched.',
+    restoreScopeKeepDb: 'Leave the database as it is.',
+    restoreDialogBodyDatabase:
+      'This will replace the current database from the {location} backup dated {timestamp}. This upload has no images file: the uploaded files stay as they are.',
+    uploadChanged:
+      'This upload changed since the page showed it (a file was added or removed). Reload the page, check what the restore replaces, then restore again.',
+    scheduledBackupMissed:
+      'the scheduled backup did not run: another operation (a restore, an upload, a delete) was running until the next scheduled time.',
+    restoreScopeSameNight:
+      'The images must come from the same night as the database in use: images from another night leave broken logos and photos.',
+    restoreScopeStorageService:
+      'Stop the file storage service during the restore, then restart it. The rest of the site keeps running.',
     pollError: 'Lost contact with the running operation — still retrying automatically.',
     retry: 'Refresh now',
     uploadTooLarge: 'That file is too large (maximum {max}).',

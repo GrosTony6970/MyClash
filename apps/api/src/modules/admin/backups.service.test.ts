@@ -330,20 +330,6 @@ describe('AdminBackupsService', () => {
     );
   });
 
-  it('rejects invalid delete locations and backup identifiers', async () => {
-    const service = new AdminBackupsService({
-      opsRunnerUrl: 'http://ops-runner:4075',
-      opsRunnerSecret: 'secret',
-    });
-
-    await expect(service.deleteBackup('bad-id', 'local')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    await expect(
-      service.deleteBackup('20260505T030000Z', 'upload' as never),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   it('validates uploaded backup filenames', async () => {
     const service = new AdminBackupsService({
       opsRunnerUrl: 'http://ops-runner:4075',

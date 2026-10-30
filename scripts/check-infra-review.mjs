@@ -2173,7 +2173,8 @@ if (superAdminBackupsPageText.includes('admin.backups.restoreConfirmation')) {
 for (const expected of [
   "@Delete(':backupId')",
   'deleteBackup',
-  "location: Extract<BackupLocation, 'local' | 's3'>",
+  // A copy is deleted where it lives; an uploaded night has its own Delete (ruling 218).
+  "@ApiQuery({ name: 'location', enum: ['local', 's3', 'upload'] })",
   "@Get('schedule')",
   "@Put('schedule')",
   'getSchedule',
@@ -2187,7 +2188,7 @@ for (const expected of [
 }
 for (const expected of [
   'deleteBackup',
-  "location: Extract<BackupLocation, 'local' | 's3'>",
+  "if (!['local', 's3', 'upload'].includes(location))",
   'getSchedule',
   'updateSchedule',
   "opsPut<BackupScheduleDto>('/schedule'",

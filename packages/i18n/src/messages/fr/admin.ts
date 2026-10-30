@@ -2542,16 +2542,17 @@ export const admin = {
       'Nombre de sauvegardes à conserver sur Scaleway S3. Habituellement plus grand que le local pour le PRA.',
     dangerZoneTitle: 'Zone dangereuse — supprimer toutes les sauvegardes',
     dangerZoneDescription:
-      'Effacer toutes les sauvegardes locales et S3. À utiliser uniquement lors de la rotation des clés de chiffrement ou après une migration. Irréversible.',
+      'Effacer toutes les sauvegardes locales, S3 et envoyées. À utiliser uniquement lors de la rotation des clés de chiffrement ou après une migration. Irréversible.',
     deleteAllButton: 'Supprimer toutes les sauvegardes',
     deleteAllConfirmTitle: 'Supprimer toutes les sauvegardes ?',
     deleteAllConfirmBody:
-      'Tapez exactement DELETE ALL MYCLASH BACKUPS pour confirmer. Toutes les sauvegardes locales et S3 seront supprimées immédiatement.',
+      'Tapez exactement DELETE ALL MYCLASH BACKUPS pour confirmer. Toutes les sauvegardes locales, S3 et envoyées seront supprimées immédiatement.',
     deleteAllConfirmTokenLabel: 'Confirmation',
     deleteAllConfirmTokenPlaceholder: 'DELETE ALL MYCLASH BACKUPS',
-    deleteAllSuccess: '{local} sauvegardes locales + {cloud} cloud supprimées.',
+    deleteAllSuccess:
+      '{local} sauvegardes locales + {cloud} cloud et {uploads} envoyées supprimées.',
     deleteAllPartial:
-      '{local} sauvegardes locales + {cloud} cloud supprimées, mais {failed} fichier(s) non supprimés.',
+      '{local} sauvegardes locales + {cloud} cloud et {uploads} envoyées supprimées, mais {failed} fichier(s) non supprimés.',
     deleteAllError: 'Impossible de supprimer les sauvegardes.',
     uploadTitle: 'Restaurer depuis un fichier local',
     uploadFile: 'Fichier de sauvegarde',
@@ -2600,6 +2601,21 @@ export const admin = {
       'Remplacer tous les fichiers envoyés (logos, médias) par le volume de stockage de cette sauvegarde.',
     restoreScopeServices:
       "Arrêter l'app et les services Supabase pendant la restauration, puis les redémarrer ensuite.",
+    restoreScopeKeepImages:
+      "Laisser les fichiers envoyés (logos, médias) tels quels : cet envoi n'a pas de fichier d'images.",
+    restoreDialogBodyImages:
+      "Cela remplacera les fichiers envoyés (logos, médias) par le fichier d'images de la sauvegarde {location} datée du {timestamp}. La base de données n'est pas touchée.",
+    restoreScopeKeepDb: 'Laisser la base de données telle quelle.',
+    restoreDialogBodyDatabase:
+      "Cela remplacera la base de données actuelle avec la sauvegarde {location} datée du {timestamp}. Cet envoi n'a pas de fichier d'images : les fichiers envoyés restent tels quels.",
+    uploadChanged:
+      "Cet envoi a changé depuis l'affichage de la page (un fichier a été ajouté ou retiré). Rechargez la page, vérifiez ce que la restauration remplace, puis relancez-la.",
+    scheduledBackupMissed:
+      "la sauvegarde planifiée n'a pas eu lieu : une autre opération (une restauration, un envoi, une suppression) a duré jusqu'à l'horaire suivant.",
+    restoreScopeSameNight:
+      "Les images doivent venir de la même nuit que la base de données en place : des images d'une autre nuit laissent des logos et des photos cassés.",
+    restoreScopeStorageService:
+      'Arrêter le service de stockage des fichiers pendant la restauration, puis le redémarrer. Le reste du site continue de tourner.',
     pollError: "Contact perdu avec l'opération en cours — nouvelle tentative automatique.",
     retry: 'Actualiser maintenant',
     uploadTooLarge: 'Ce fichier est trop volumineux (maximum {max}).',

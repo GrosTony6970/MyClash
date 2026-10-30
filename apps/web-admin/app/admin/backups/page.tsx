@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { lastBackupReason, restoreRefusal, restoreScope, restoreWords } from './restore-words';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
@@ -69,6 +70,7 @@ interface BackupStatus {
     status: 'success' | 'failed' | 'unknown';
     finishedAt?: string | null;
     error?: string | null;
+    code?: string | null;
     localAvailable: boolean;
     cloudAvailable: boolean;
   } | null;
@@ -132,7 +134,7 @@ export default function AdminBackupsPage() {
   } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     backup: BackupSet;
-    location: Extract<BackupLocation, 'local' | 's3'>;
+    location: BackupLocation;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -277,7 +279,9 @@ export default function AdminBackupsPage() {
           if (message) setError(message);
           return;
         }
-        setBackups((current) => [res.data.backup, ...current]);
+        // The answer is the whole night (ruling 213): it replaces that night's row.
+        const staged = res.data.backup;
+        setBackups((current) => [staged, ...current.filter((backup) => backup.id !== staged.id)]);
         setSelectedFilename(null);
         if (fileRef.current) fileRef.current.value = '';
         setNotice(t('admin.backups.uploadStaged'));
@@ -293,11 +297,22 @@ export default function AdminBackupsPage() {
     setPendingRestore(null);
     void apiRequest<{ operation: BackupOperation }>(apiUrl, '/api/v1/admin/backups/restore', {
       method: 'POST',
-      body: { location, backupId: backup.id, includeStorage: true, confirmed: true },
+      body: {
+        location,
+        backupId: backup.id,
+        includeStorage: true,
+        confirmed: true,
+        // What the dialog said: the ops runner refuses a night that changed since.
+        ...(location === 'upload'
+          ? { scope: restoreScope(location, backup.upload?.artifacts ?? []) }
+          : {}),
+      },
     })
       .then((res) => {
         if (!res.ok) {
-          const message = failureMessage(res, t, t('admin.backups.restoreError'));
+          const message =
+            restoreRefusal(failureCode(res), t) ??
+            failureMessage(res, t, t('admin.backups.restoreError'));
           if (message) setError(message);
           return;
         }
@@ -307,7 +322,7 @@ export default function AdminBackupsPage() {
       .finally(() => setBusy(false));
   };
 
-  const deleteBackup = (backup: BackupSet, location: Extract<BackupLocation, 'local' | 's3'>) => {
+  const deleteBackup = (backup: BackupSet, location: BackupLocation) => {
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -360,6 +375,7 @@ export default function AdminBackupsPage() {
     void apiRequest<{
       deletedLocalSets: number;
       deletedCloudSets: number;
+      deletedUploadSets: number;
       failedFiles?: string[];
     }>(apiUrl, '/api/v1/admin/backups', {
       method: 'DELETE',
@@ -379,6 +395,7 @@ export default function AdminBackupsPage() {
           t(failed > 0 ? 'admin.backups.deleteAllPartial' : 'admin.backups.deleteAllSuccess', {
             local: result.deletedLocalSets,
             cloud: result.deletedCloudSets,
+            uploads: result.deletedUploadSets,
             failed,
           }),
         );
@@ -446,9 +463,12 @@ export default function AdminBackupsPage() {
 
       {status?.lastBackup?.status === 'failed' && (
         <Alert tone="error">
-          {`${t('admin.backups.lastBackup')}: ${t('admin.backups.statuses.failed')}${
-            status.lastBackup.error ? ` — ${status.lastBackup.error}` : ''
-          }`}
+          {[
+            `${t('admin.backups.lastBackup')}: ${t('admin.backups.statuses.failed')}`,
+            lastBackupReason(status.lastBackup, t),
+          ]
+            .filter(Boolean)
+            .join(' — ')}
         </Alert>
       )}
 
@@ -803,18 +823,15 @@ export default function AdminBackupsPage() {
       {pendingRestore && (
         <ConfirmDialog
           title={t('admin.backups.restoreDialogTitle')}
-          body={t('admin.backups.restoreDialogBody', {
-            location: t(`admin.backups.locationsMap.${pendingRestore.location}`),
-            timestamp: formatTimestamp(pendingRestore.backup.timestamp),
-          })}
-          bulletsTitle={t('admin.backups.restoreScopeTitle')}
-          bullets={[
-            t('admin.backups.restoreScopeDb', {
+          {...restoreWords(
+            restoreScope(pendingRestore.location, pendingRestore.backup.upload?.artifacts ?? []),
+            {
+              location: t(`admin.backups.locationsMap.${pendingRestore.location}`),
               timestamp: formatTimestamp(pendingRestore.backup.timestamp),
-            }),
-            t('admin.backups.restoreScopeStorage'),
-            t('admin.backups.restoreScopeServices'),
-          ]}
+            },
+            t,
+          )}
+          bulletsTitle={t('admin.backups.restoreScopeTitle')}
           dangerLabel={t('admin.backups.continueRestore')}
           cancelLabel={t('actions.cancel')}
           busy={busy}
@@ -981,7 +998,7 @@ function BackupActions(props: {
   apiUrl: string;
   busy: boolean;
   onRestore: (location: BackupLocation) => void;
-  onDelete: (location: Extract<BackupLocation, 'local' | 's3'>) => void;
+  onDelete: (location: BackupLocation) => void;
 }) {
   const { t } = useI18n();
   const locations: Array<[Extract<BackupLocation, 'local' | 's3'>, boolean]> = [
@@ -1041,16 +1058,28 @@ function BackupActions(props: {
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-info">
             {t('admin.backups.locationsMap.upload')}
           </p>
-          <button
-            type="button"
-            onClick={() => props.onRestore('upload')}
-            disabled={props.busy}
-            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:bg-border disabled:text-muted"
-          >
-            {t('admin.backups.restoreFrom', {
-              location: t('admin.backups.locationsMap.upload'),
-            })}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => props.onRestore('upload')}
+              disabled={props.busy}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:bg-border disabled:text-muted"
+            >
+              {t('admin.backups.restoreFrom', {
+                location: t('admin.backups.locationsMap.upload'),
+              })}
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onDelete('upload')}
+              disabled={props.busy}
+              className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:border-border disabled:text-muted disabled:hover:bg-transparent"
+            >
+              {t('admin.backups.deleteFrom', {
+                location: t('admin.backups.locationsMap.upload'),
+              })}
+            </button>
+          </div>
         </div>
       )}
     </div>

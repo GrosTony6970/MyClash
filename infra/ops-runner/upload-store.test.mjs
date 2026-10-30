@@ -178,7 +178,7 @@ test('restoreArgs: a night that changed since the dialog is refused, never resto
   // The dialog said "images only"; a database arrived from another tab since.
   assert.throws(
     () => restoreArgs(both, true, 'images'),
-    (error) => error.statusCode === 400,
+    (error) => error.statusCode === 400 && error.code === 'upload_changed',
   );
   assert.throws(
     () => restoreArgs({ db: '/b/db', storage: null }, true, 'both'),
