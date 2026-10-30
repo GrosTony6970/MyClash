@@ -1,7 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "Node16",
+    // node20, not Node16: every NestJS 12 package is ESM-only, and only node20 (or nodenext)
+    // lets this CommonJS app import them, as Node's require(esm) does at run time. Node16
+    // answers TS1479 on every Nest import. The app stays CommonJS: package.json has no "type".
+    // Check a change here cold (--incremental false): the incremental buildinfo
+    // (tsBuildInfoFile below, in .turbo/) can report the old error count.
+    "module": "node20",
     "moduleResolution": "node16",
     "target": "ES2022",
     "lib": ["ES2022"],

@@ -153,6 +153,14 @@ here.
   the module is consumed at provider-construction time rather than module-decoration time. Vitest
   never resolves the full module graph, so prove it by booting `docker compose up api` (or the
   compiled `node dist/main.js`) before merging.
+- **A CommonJS app importing ESM-only packages needs TypeScript `module: node20`.** Every NestJS
+  12 package is ESM-only; Node loads them into our CommonJS API through `require(esm)`, but
+  `module: Node16` answers TS1479 on each import (981 errors). `node20` (or `nodenext`) models
+  `require(esm)`; the emitted JavaScript is the same.
+- **Check a `module` or `moduleResolution` change cold.** The base tsconfig sets
+  `incremental: true`, and a run that reads the old `.turbo/*.tsbuildinfo` reports the old error
+  count either way (it once showed `node20` failing and `Node16` passing). Delete the buildinfo
+  or pass `--incremental false`, and build the workspace packages first.
 - Next 15/16 server-component `params` and `searchParams` are Promises. Always
   `const { x } = await params;`. Reading `.x` synchronously yields `undefined`, which
   template-literals into the string `"undefined"` — producing redirects to `/org/undefined/...`

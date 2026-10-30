@@ -129,8 +129,9 @@ describe('the API edge, as configureHttpApp builds it', () => {
     expect(allowed.status).toBe(204);
     expect(allowed.headers.get('access-control-allow-origin')).toBe(ALLOWED_ORIGIN);
     expect(allowed.headers.get('access-control-allow-credentials')).toBe('true');
-    // The request log runs on a preflight too (its answer carries the request id).
-    expect(allowed.headers.get('x-request-id')).toEqual(expect.any(String));
+    // Since NestJS 12.3 (#18217, "run cors before nest middleware") the CORS plugin answers a
+    // preflight before the request log runs, so the answer has no request id and the log no line.
+    expect(allowed.headers.get('x-request-id')).toBeNull();
     const foreign = await preflight('https://probe-marker.example');
     expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
   });
@@ -173,8 +174,14 @@ describe('the API edge, as configureHttpApp builds it', () => {
   it('case 12: an address with a broken percent escape is refused by Fastify itself', async () => {
     const res = await rawRequest(port, 'GET', '/api/v1/edge/%E0%A4%A');
     expect(res.status).toBe(400);
-    expect(res.headers['content-type']).toBe('application/json');
-    expect(JSON.parse(res.body)).toMatchObject({ code: 'FST_ERR_BAD_URL' });
+    // NestJS 12's adapter sends Fastify's router errors through its frameworkErrors handler,
+    // which adds the charset; status, code and message are Fastify's as before.
+    expect(res.headers['content-type']).toBe('application/json; charset=utf-8');
+    expect(JSON.parse(res.body)).toMatchObject({
+      statusCode: 400,
+      code: 'FST_ERR_BAD_URL',
+      message: "'/api/v1/edge/%E0%A4%A' is not a valid url component",
+    });
   });
 
   it('case 14: main.ts and AppModule call the functions this file runs', () => {

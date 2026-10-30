@@ -14,7 +14,7 @@ your judgement is the last gate before `main`.
 
 Review against what this repo is, not what a generic TypeScript project would be:
 
-- **API** — NestJS 11 on Fastify (`apps/api`), global `ValidationPipe`, class-validator DTOs.
+- **API** — NestJS 12 on Fastify (`apps/api`), global validation pipe, Zod DTOs (`nestjs-zod`).
 - **Apps** — three Next.js 16 / React 19 PWAs: `web-admin` (organizer), `web-public` (spectator),
   `web-staff` (offline-first scoring pad). Plus `web-marketing`, an Astro 7 static site.
 - **Data** — Postgres 17 behind Supabase (PostgREST, GoTrue, Realtime, Storage). Schema changes are
@@ -57,7 +57,8 @@ Read the relevant one before asserting a rule; do not invent standards.
 
 3. **System integration**
    - DTOs read through `@Body()`/`@Query()`/`@Param()` must be **value-imported** — `import type`
-     erases the metadata and the global ValidationPipe rejects every field.
+     erases the metadata, the global pipe no longer sees a Zod DTO, and the body goes through
+     unchecked.
    - PostgREST embeds resolve through real foreign keys; a `uuid` column without a `REFERENCES`
      clause 400s on embed while reading fine.
    - Frontend calls go through `@myclash/api-client` (generated — regenerate rather than hand-edit).

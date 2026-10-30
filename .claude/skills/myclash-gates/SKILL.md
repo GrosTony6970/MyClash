@@ -30,7 +30,7 @@ worse — phantom passes.
 pnpm turbo run build --filter="./packages/*"
 ```
 
-- **`@myclash/rulesets` must be built before the API typechecks** (`moduleResolution: node`).
+- **`@myclash/rulesets` must be built before the API typechecks** (the API reads its `dist`).
 - **Rebuild `@myclash/ui` before typechecking any app**, or the app checks against old prop types
   and passes on code that will not compile in Docker.
 - **The API's own typecheck must go through `nest build`.** Incremental `tsc` stale-passes: it

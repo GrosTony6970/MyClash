@@ -29,8 +29,8 @@ allowBuilds:
   simple-git-hooks: false
 
 # Peer-range carve-outs, read by `pnpm peers check` (the `quality:peers` gate)
-# as well as by install. Both entries below are upstream version lag, not
-# breakage — neither package has a release that accepts our version.
+# as well as by install. Every entry below is upstream version lag, not
+# breakage — no release of the package accepts our version yet.
 #
 # Getting the shape wrong here fails SILENTLY, in three different ways:
 #   - the key must be camelCase. addSettingsFromWorkspaceManifestToConfig copies
@@ -43,8 +43,8 @@ allowBuilds:
 #     Spaces around `>` degrade it to a match-all selector that silences the peer
 #     for EVERY parent.
 #
-# Scoped to a major so the carve-out expires on its own: eslint 11 or TypeScript
-# 7 will fall outside the range and redden the gate. It does NOT catch the other
+# Scoped to a major so the carve-out expires on its own: eslint 11, TypeScript 7
+# or NestJS 13 will fall outside the range and redden the gate. It does NOT catch the other
 # direction — a future jsx-a11y that narrows within eslint 10 stays silenced.
 #
 # Only `bad` issues are filtered, never `missing`; there are no missing peers
@@ -71,6 +71,15 @@ peerDependencyRules:
     # reports 0 errors and 0 warnings across all 17 files on 6.0.3.
     zod-to-ts>typescript: '6'
     tsconfck>typescript: '6'
+    # nestjs-zod 5.5.0 (the latest, and its main branch) peers @nestjs/common
+    # ^10 || ^11 and @nestjs/swagger ^7.4.2 || ^8 || ^11; no release names Nest 12
+    # (issue #471). Verified rather than assumed: it reaches Nest only through root
+    # exports and swagger's _OPENAPI_METADATA_FACTORY, every API test passes on
+    # Nest 12.3.2, the edge tests' Zod refusals hold, and the generated client is
+    # unchanged (quality:openapi-drift). Operator ruling, 2026-10-30. These are its
+    # only two peers that move: zod and rxjs are in range.
+    nestjs-zod>@nestjs/common: '12'
+    nestjs-zod>@nestjs/swagger: '12'
 
 # Transitive-version pins. Moved here verbatim from `package.json#pnpm.overrides`
 # when the repo went to pnpm 11 — v11 no longer reads the `pnpm` field in
@@ -83,19 +92,21 @@ peerDependencyRules:
 # deleting a pin that is no longer needed over raising it to a new major.
 #
 # Audited 2026-08-07 with `pnpm why` on each: none is vestigial. What each one
-# dedupes has drifted over time (glob now serves @nestjs/cli and
-# @sentry/bundler-plugins — the source-map uploader, held on glob 10 against its own
-# ^13 ask — minimatch serves eslint 10's config-array), so
+# dedupes has drifted over time (glob now serves only @sentry/bundler-plugins — the
+# source-map uploader, held on glob 10 against its own ^13 ask; @nestjs/cli 12 no
+# longer uses it — minimatch serves eslint 10's config-array), so
 # re-check the consumer before assuming a pin is dead — the reason it was added
 # is rarely the reason it is still load-bearing.
 overrides:
   # >=5.12.2 clears GHSA-667r-xxjv-c9mm, GHSA-p68q-wchp-6fh7, GHSA-hwr6-493r-vm6h and
   # GHSA-9q9j-q6p8-xq58 (request body replacement, an authentication bypass through
-  # malformed URLs, request and header validation bypasses). @nestjs/platform-fastify
-  # 11.2.6 asks for exactly 5.11.3, inside the advisory range, so this pin is what
-  # holds the API on the fix.
-  # >=5.12.6 clears GHSA-389g-gv7q-r4x8 (a header validation bypass through
-  # case-sensitive propertyNames). A tilde: the fix is a patch of 5.12.
+  # malformed URLs, request and header validation bypasses). >=5.12.5 clears
+  # GHSA-4mh8-r7rc-xpvc. >=5.12.6 clears GHSA-389g-gv7q-r4x8 (a header validation
+  # bypass through case-sensitive propertyNames). A tilde: the fix is a patch of 5.12.
+  # Today the floor is also held by the API's own `^5.12.6` and by
+  # @nestjs/platform-fastify 12.3.2, which asks for exactly 5.12.7 (11.2.6 asked for
+  # 5.11.3, inside the advisory range, which is why the pin was written). Its remaining job
+  # is the ceiling: one fastify, below 5.13, for both consumers.
   fastify: ~5.12.6
   # >=3.1.6 clears CVE-2026-75899/75931/75975/76172 (SSRF and host confusion).
   # The pin is the floor AND the ceiling in practice: ^3.1.5 resolved to exactly
@@ -123,15 +134,17 @@ overrides:
   # >=0.35.5 clears GHSA-wq5f-xc86-pv6w (librsvg, inherited again).
   sharp: ^0.35.5
   # Transitive advisory floors. js-yaml is in the tree on two major lines at
-  # once, so it needs a key per major — a bare `js-yaml` override would drag
-  # the 5.x consumers back to 4.x.
+  # once, so the key names the major — a bare `js-yaml` override would drag the
+  # 5.x copy back to 4.x. That copy needs no pin now: its one consumer,
+  # @nestjs/swagger 12.0.5, asks for exactly 5.5.0, past every 5.x advisory
+  # (the newest, GHSA-r3ph-w7gj-g6xm, is <=5.4.0); a `~5.4.1` pin held it on 5.4.3.
   # >=4.3.2 clears GHSA-2883-xcg3-v3hh; ^4.3.1 resolved to exactly 4.3.1.
   'js-yaml@4': ^4.3.2
-  # >=5.4.1 clears GHSA-r3ph-w7gj-g6xm (an empty merge source escapes the
-  # maxTotalMergeKeys CPU cap). @nestjs/swagger asks for exactly 5.2.1, so this
-  # pin is what holds the API on the fix. A tilde, as vite's below.
-  'js-yaml@5': ~5.4.1
-  find-my-way: ^9.7.0
+  # >=9.7.0 clears GHSA-c96f-x56v-gq3h (<=9.6.0). fastify (^9.6.0) and
+  # @fastify/middie (^9.5.0) still admit a vulnerable version, so the pin stays. It is 9.10.0, not the advisory's
+  # 9.7.0: an override replaces @nestjs/platform-fastify's own exact 9.10.0 ask, and
+  # `^9.7.0` kept the lockfile on 9.7.0 under Nest's router.
+  find-my-way: ^9.10.0
   # >=4.28.7 clears GHSA-c83g-rgw3-j3cx (unbounded query-cache growth) and
   # GHSA-73wf-gq98-2v4g (a prototype write from custom stats). Every consumer's
   # range (babel's ^4.24.0, webpack's ^4.28.1) already allowed the fix while
