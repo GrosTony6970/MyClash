@@ -14,11 +14,15 @@ import { describe, expect, it } from 'vitest';
 import { apiSourceFiles } from './testing/supabase-query-scan';
 
 const READERS = new Set(['file', 'files', 'parts', 'saveRequestFiles', 'formData']);
+// Every call the tree walk finds has a reader's name after a dot. A file with none is not parsed:
+// parsing all ~1,500 files took 9 s under coverage and timed the test out.
+const MENTION = /\.\s*(?:file|files|parts|saveRequestFiles|formData)\b/;
 const SRC = path.resolve(__dirname, '..');
 const OWNER = path.join(SRC, 'common', 'read-upload.ts');
 
 /** The `line: .name(` of each plugin reader called in `source`. */
 function readerCalls(source: string, file = 'probe.ts'): string[] {
+  if (!MENTION.test(source)) return [];
   const found: string[] = [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const visit = (node: ts.Node): void => {
@@ -52,6 +56,10 @@ describe('the upload source guard', () => {
       '3: .parts(',
       '4: .saveRequestFiles(',
     ]);
+  });
+
+  it('finds a call split over lines, the dot on its own line', () => {
+    expect(readerCalls('await req\n  .file\n  ?.();')).toEqual(['1: .file(']);
   });
 
   it('finds none outside read-upload.ts', () => {
