@@ -17,20 +17,37 @@ import {
 export const UPLOAD_SET_ID_PATTERN = /^upload-(?<ts>\d{8}T\d{6}Z)$/;
 const INCOMING_PREFIX = '.incoming-';
 
-/** A refusal the HTTP layer answers as 400, not as a server fault (the API relays the class). */
-export function badRequest(message, code) {
+/**
+ * A refusal the HTTP layer answers with `statusCode`, not as a server fault (the API relays the
+ * class). Its `code` is one the screen words itself; `details` carries the numbers it names.
+ */
+export function refusal(statusCode, message, code, details) {
   const error = new Error(message);
-  error.statusCode = 400;
-  // A refusal the screen words itself: the runner's answer carries it, the API relays it.
+  error.statusCode = statusCode;
   if (code) error.code = code;
+  if (details) error.details = details;
   return error;
+}
+
+/** A refusal the HTTP layer answers as 400. */
+export function badRequest(message, code) {
+  return refusal(400, message, code);
 }
 
 /** A restore whose night changed since the dialog said what it restores. */
 export const UPLOAD_CHANGED_CODE = 'upload_changed';
 
-function uploadsRoot(rootDir) {
+export function uploadsRoot(rootDir) {
   return path.join(rootDir, 'backups', 'uploads');
+}
+
+/** The open (chunked) uploads' folder: not a night, so the lister and the sweep skip it. */
+export const PARTIAL_DIR = '.partial';
+
+/** Where `stageUpload` keeps `filename` in its night's folder. */
+export function stagedPath(rootDir, filename) {
+  const parsed = parseUploadName(filename);
+  return path.join(nightDir(rootDir, parsed.timestamp), parsed.filename);
 }
 
 function nightDir(rootDir, timestamp) {
@@ -68,10 +85,13 @@ export async function stageUpload(rootDir, filename, sourcePath, { verify }) {
   }
   await mkdir(nightDir(rootDir, parsed.timestamp), { recursive: true });
   await rename(sourcePath, path.join(nightDir(rootDir, parsed.timestamp), parsed.filename));
-  const artifacts = await nightArtifacts(rootDir, parsed.timestamp);
-  return {
-    backup: buildBackupSet(uploadSetId(parsed.timestamp), parsed.timestamp, artifacts, 'upload'),
-  };
+  return { backup: await nightSet(rootDir, parsed.timestamp) };
+}
+
+/** One night's whole set, as the list shows it. */
+export async function nightSet(rootDir, timestamp) {
+  const artifacts = await nightArtifacts(rootDir, timestamp);
+  return buildBackupSet(uploadSetId(timestamp), timestamp, artifacts, 'upload');
 }
 
 /** A refused or broken incoming file goes, and its night's folder with it when that leaves it empty. */
@@ -230,6 +250,8 @@ export async function removeAllUploads(rootDir) {
     const files = (await stat(target)).isDirectory() ? await readdirOrEmpty(target) : [entry];
     try {
       await rm(target, { recursive: true, force: true });
+      // The open uploads go too (their next chunk reads `upload_gone`), but they are no night.
+      if (entry === PARTIAL_DIR) continue;
       wipe.deletedSets += 1;
       wipe.deletedFiles.push(...files.filter((file) => parseBackupFilename(file)));
     } catch {

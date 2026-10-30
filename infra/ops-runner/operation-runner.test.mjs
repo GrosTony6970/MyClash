@@ -111,6 +111,8 @@ test('a backup started by hand that meets the lock held is listed as failed', as
   const started = runner.start('backup', async () => ({ command: ['bash', 'b.sh'] }));
   assert.equal(await settled(started), 'busy');
   assert.equal(operations.get(started.operation.id)?.status, 'failed');
+  // The screen words it in the reader's language: the lock's code rides on the operation.
+  assert.equal(operations.get(started.operation.id)?.code, 'ops_busy');
 });
 
 test('a lock that cannot be written is a failed run with its own cause, not "busy"', async () => {
@@ -120,6 +122,7 @@ test('a lock that cannot be written is a failed run with its own cause, not "bus
   });
   assert.equal(await settled(started), 'failed');
   assert.match(started.operation.error, /ENOSPC/u);
+  assert.equal(started.operation.code, undefined, "Node's own codes are no refusal");
   assert.equal(operations.get(started.operation.id)?.status, 'failed');
   assert.deepEqual(events, ['history backup failed']);
 });

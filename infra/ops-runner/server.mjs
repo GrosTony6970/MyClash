@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import {
@@ -11,6 +11,7 @@ import {
   expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
   newestServerBackup,
+  newestSetBytes,
   nextBackupRun,
   parseAwsS3List,
   parseBackupFilename,
@@ -22,6 +23,8 @@ import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 import { createOperationRunner } from './operation-runner.mjs';
 import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
+import { createUploadSessions } from './upload-chunks.mjs';
+import { handleUploadSessions, sendError, sendJson } from './upload-routes.mjs';
 import {
   badRequest,
   discardIncoming,
@@ -40,6 +43,15 @@ const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
 const ROOT_DIR = process.env.MYCLASH_ROOT_DIR ?? '/srv/myclash';
 const MAX_BODY_BYTES = Number(process.env.OPS_RUNNER_MAX_BODY_BYTES ?? 1024 * 1024 * 1024);
+// The one owner of an uploaded backup file's limit (ruling 212: 2 GB; the env changes it). A
+// value that is not a positive whole number would compare false and mean no limit at all.
+const DEFAULT_UPLOAD_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+const UPLOAD_MAX_BYTES = (() => {
+  const value = Number(process.env.BACKUP_UPLOAD_MAX_BYTES ?? DEFAULT_UPLOAD_MAX_BYTES);
+  if (Number.isSafeInteger(value) && value > 0) return value;
+  console.warn(`BACKUP_UPLOAD_MAX_BYTES is not a byte count; using ${DEFAULT_UPLOAD_MAX_BYTES}.`);
+  return DEFAULT_UPLOAD_MAX_BYTES;
+})();
 // Keep the outcome of the last N backup/restore runs so the dashboard can
 // report whether the most recent backup actually succeeded (the artifact
 // list alone can't tell success from a stale older set).
@@ -84,6 +96,19 @@ const scheduledBackup = createScheduledBackup({
       console.warn(`[schedule] could not record a missed night: ${sanitizeError(error)}`),
     ),
 });
+// A backup uploaded in chunks (ruling 216): see upload-chunks.mjs.
+const uploadSessions = createUploadSessions({
+  rootDir: ROOT_DIR,
+  maxUploadBytes: UPLOAD_MAX_BYTES,
+  freeBytes: async () => {
+    const disk = await statfs(ROOT_DIR);
+    return disk.bavail * disk.bsize;
+  },
+  safetyNetBytes: async () => newestSetBytes(await listLocalBackupArtifacts(ROOT_DIR)),
+  verify: gzipIntact,
+  withLock: (fn) => withOpsLock(ROOT_DIR, { kind: 'upload', onReclaim: logReclaimedLock }, fn),
+  now: () => new Date(),
+});
 
 // Allowlist of compose service names that may be controlled via the lifecycle
 // endpoints. Mirrored verbatim by the API's system-actions service for
@@ -121,6 +146,9 @@ if (!SECRET) {
 await sweepIncoming(ROOT_DIR).catch((error) =>
   console.warn(`[uploads] boot sweep failed: ${sanitizeError(error)}`),
 );
+await uploadSessions
+  .sweep({ boot: true })
+  .catch((error) => console.warn(`[uploads] open uploads sweep failed: ${sanitizeError(error)}`));
 
 const server = createServer(async (req, res) => {
   try {
@@ -130,6 +158,7 @@ const server = createServer(async (req, res) => {
     }
 
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    if (await handleUploadSessions(req, res, url, uploadSessions)) return;
     if (req.method === 'GET' && url.pathname === '/status') {
       sendJson(res, 200, await statusResponse());
       return;
@@ -206,13 +235,8 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     // Honour a status an operation deliberately chose (lock contention is a
     // 409, not a server fault) so the API can relay it as the same class
-    // instead of flattening everything into a 503.
-    // A refusal's own code (`badRequest(message, code)`) rides along for the screen to word.
-    // Node's system errors carry a string `code` too (ENOENT…): only a refusal's is sent.
-    sendJson(res, error?.statusCode ?? 500, {
-      error: sanitizeError(error),
-      ...(error?.statusCode && typeof error.code === 'string' ? { code: error.code } : {}),
-    });
+    // instead of flattening everything into a 503. A refusal's code and details ride along.
+    sendError(res, error);
   }
 });
 
@@ -604,14 +628,24 @@ async function stageBase64Upload(body) {
     const temp = await incomingPath(ROOT_DIR, parsed.timestamp);
     try {
       await writeFile(temp, Buffer.from(String(body.contentBase64), 'base64'));
-      return await stageUpload(ROOT_DIR, filename, temp, {
-        verify: async (file) => (await spawnCapture('gzip', ['-t', file])).code === 0,
-      });
+      return await stageUpload(ROOT_DIR, filename, temp, { verify: gzipIntact });
     } catch (error) {
       // A full disk mid-write: the partial file goes now, not at the next boot.
       await discardIncoming(temp);
       throw error;
     }
+  });
+}
+
+/**
+ * An uploaded plain backup file is whole: `gzip -t`. A gzip that cannot start throws (a fault of
+ * ours): read as "corrupt", the upload's good bytes would be thrown away.
+ */
+function gzipIntact(file) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('gzip', ['-t', file], { cwd: ROOT_DIR, stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('close', (code) => resolve(code === 0));
   });
 }
 
@@ -882,11 +916,6 @@ async function readJsonBody(req) {
     body += chunk;
   }
   return body ? JSON.parse(body) : {};
-}
-
-function sendJson(res, statusCode, value) {
-  res.writeHead(statusCode, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  res.end(`${JSON.stringify(value)}\n`);
 }
 
 function addLog(operation, chunk) {

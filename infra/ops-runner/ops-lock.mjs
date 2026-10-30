@@ -37,6 +37,8 @@ export const UNREADABLE_LOCK_GRACE_MS = 5_000;
  */
 const liveTokens = new Set();
 
+export const OPS_BUSY_CODE = 'ops_busy';
+
 export class OpsLockBusyError extends Error {
   constructor(message = 'Another backup operation is already running.') {
     super(message);
@@ -44,6 +46,8 @@ export class OpsLockBusyError extends Error {
     // Surfaced by the HTTP layer so contention reads as 409 Conflict rather
     // than being flattened into the catch-all 500.
     this.statusCode = 409;
+    // The screen words it in the reader's language (a 409, or a Run / Restore that met it).
+    this.code = OPS_BUSY_CODE;
   }
 }
 

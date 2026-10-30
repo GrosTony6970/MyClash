@@ -3332,19 +3332,24 @@ The ops-runner ([`infra/ops-runner/server.mjs`](../infra/ops-runner/server.mjs))
 
 The HTTP surface is exposed on the internal `myclash` network at port `4075`, never published. Every request must carry `Authorization: Bearer ${OPS_RUNNER_SECRET}`. The API talks to it through `OPS_RUNNER_URL` + `OPS_RUNNER_SECRET` env vars (see [`apps/api/src/modules/admin/backups.service.ts`](../apps/api/src/modules/admin/backups.service.ts) and [`apps/api/src/modules/admin/system-actions.service.ts`](../apps/api/src/modules/admin/system-actions.service.ts) for the client pattern).
 
-| Method   | Path                               | Purpose                                                                                |
-| -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
-| `GET`    | `/status`                          | Cloud-config flag, last backup summary, currently-running operation.                   |
-| `GET`    | `/backups`                         | List all backup sets across local + S3, with per-artifact `sizeBytes`.                 |
-| `DELETE` | `/backups/{backupId}?location=...` | Delete a backup's artifacts at the given location (`local`, `s3` or `upload`).         |
-| `GET`    | `/schedule`                        | Read the nightly backup schedule (`enabled`, `hourUtc`, `minuteUtc`, `nextRunAt`).     |
-| `PUT`    | `/schedule`                        | Update the schedule.                                                                   |
-| `POST`   | `/operations/backup`               | Start an ad-hoc backup. Returns the operation id (poll via `/operations/{id}`).        |
-| `POST`   | `/operations/restore`              | Start a restore from `{location, backupId, includeStorage, confirmation}`.             |
-| `GET`    | `/operations/{id}`                 | Poll operation status; includes a tail of stdout/stderr.                               |
-| `POST`   | `/uploads`                         | Stage a backup uploaded from the admin UI (base64 body) in its night's folder.         |
-| `GET`    | `/download/{backupId}?...`         | Stream a backup artifact back to the admin UI.                                         |
-| `POST`   | `/containers/{service}/{action}`   | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`). |
+| Method   | Path                                    | Purpose                                                                                            |
+| -------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `GET`    | `/status`                               | Cloud-config flag, last backup summary, currently-running operation.                               |
+| `GET`    | `/backups`                              | List all backup sets across local + S3, with per-artifact `sizeBytes`.                             |
+| `DELETE` | `/backups/{backupId}?location=...`      | Delete a backup's artifacts at the given location (`local`, `s3` or `upload`).                     |
+| `GET`    | `/schedule`                             | Read the nightly backup schedule (`enabled`, `hourUtc`, `minuteUtc`, `nextRunAt`).                 |
+| `PUT`    | `/schedule`                             | Update the schedule.                                                                               |
+| `POST`   | `/operations/backup`                    | Start an ad-hoc backup. Returns the operation id (poll via `/operations/{id}`).                    |
+| `POST`   | `/operations/restore`                   | Start a restore from `{location, backupId, includeStorage, confirmation}`.                         |
+| `GET`    | `/operations/{id}`                      | Poll operation status; includes a tail of stdout/stderr.                                           |
+| `POST`   | `/uploads`                              | Stage a backup uploaded from the admin UI (base64 body) in its night's folder.                     |
+| `POST`   | `/upload-sessions`                      | Start (or resume, same file) a chunked upload: `{filename, sizeBytes, fingerprint}`.               |
+| `PUT`    | `/upload-sessions/{id}/chunks?offset=N` | One chunk (≤ 16 MiB, raw body) at the offset the runner holds.                                     |
+| `GET`    | `/upload-sessions/{id}`                 | Where the upload is: `receivedBytes`, `state` (receiving → verifying → staging → staged / failed). |
+| `POST`   | `/upload-sessions/{id}/complete`        | 202: `gzip -t` outside the ops lock, then the move into the night's folder under it.               |
+| `DELETE` | `/upload-sessions/{id}`                 | Cancel: the bytes and the record go. Open uploads idle for 24 h are swept.                         |
+| `GET`    | `/download/{backupId}?...`              | Stream a backup artifact back to the admin UI.                                                     |
+| `POST`   | `/containers/{service}/{action}`        | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`).             |
 
 The lifecycle endpoint accepts only the **12-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-staff`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`, `supabase-meta`, `supabase-studio`. Catastrophic / self-referential services are intentionally excluded:
 

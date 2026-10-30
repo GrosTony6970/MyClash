@@ -378,6 +378,20 @@ export function deriveLastBackup(history, newestBackup) {
 }
 
 /**
+ * The bytes of the newest local night (its db and its images): about what the safety-net backup
+ * a restore writes first will take. A fresh server has none.
+ */
+export function newestSetBytes(artifacts) {
+  const newest = artifacts
+    .map((artifact) => artifact.timestamp)
+    .sort()
+    .at(-1);
+  return artifacts
+    .filter((artifact) => artifact.timestamp === newest)
+    .reduce((sum, artifact) => sum + artifact.sizeBytes, 0);
+}
+
+/**
  * The newest set this server made, for `deriveLastBackup`. An upload is a file someone brought
  * (sets come newest first): it never stands for "the last backup".
  */

@@ -853,6 +853,8 @@ services:
       OPS_RUNNER_PORT: 4075
       OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
       MYCLASH_ROOT_DIR: /srv/myclash
+      # An uploaded backup file's limit (ruling 212): the runner is its one owner.
+      BACKUP_UPLOAD_MAX_BYTES: ${BACKUP_UPLOAD_MAX_BYTES:-2147483648}
       BACKUP_SCW_ACCESS_KEY: ${BACKUP_SCW_ACCESS_KEY:-}
       BACKUP_SCW_SECRET_KEY: ${BACKUP_SCW_SECRET_KEY:-}
       BACKUP_SCW_BUCKET: ${BACKUP_SCW_BUCKET:-}

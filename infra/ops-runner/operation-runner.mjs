@@ -79,5 +79,8 @@ async function runLocked(deps, operation, createCommand, settle) {
 function fail(deps, operation, error) {
   operation.status = 'failed';
   operation.error = deps.sanitize(error);
+  // A refusal's code (the lock's `ops_busy`) lets the screen word it; Node's own codes (ENOENT…)
+  // are not refusals and stay out, as in server.mjs's answer.
+  if (error?.statusCode && typeof error.code === 'string') operation.code = error.code;
   operation.finishedAt = new Date().toISOString();
 }

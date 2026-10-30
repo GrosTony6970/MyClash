@@ -90,16 +90,13 @@ test('every mutating ops operation runs under the shared lock', async () => {
   // The old contentless lock left no way to tell a live holder from a crashed
   // one, which is what wedged the runner permanently after a container kill.
   assert.doesNotMatch(server, /open\(lockPath, 'wx'\)/, 'the contentless lock must not come back');
+  // Lock contention keeps its own status (not a blanket 500), and a refusal's code and details
+  // ride along for the screen: `sendError` does both, tested on a socket in
+  // infra/ops-runner/upload-routes.test.mjs. Every failure of the server goes through it.
   assert.match(
     server,
-    /error\?\.statusCode \?\? 500/,
-    'lock contention must surface as its own status, not a blanket 500',
-  );
-  // A refusal's code (upload_changed) is what lets the screen word it in the reader's language.
-  assert.match(
-    server,
-    /\{ code: error\.code \}/,
-    "a refusal's code must ride along in the runner's answer",
+    /\} catch \(error\) \{[^}]*sendError\(res, error\);\s*\}\s*\}\);/,
+    "the server's failures must be answered by sendError",
   );
 });
 

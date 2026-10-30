@@ -9,6 +9,7 @@ import {
   enforceLocalRetention,
   expectedBackupArtifactFilenames,
   newestServerBackup,
+  newestSetBytes,
   nextBackupRun,
   normalizeBackupSchedule,
   shouldRunScheduledBackup,
@@ -287,4 +288,14 @@ test('enforceLocalRetention is a no-op when the count is already within budget',
   const summary = await enforceLocalRetention(root, 5);
   assert.equal(summary.deletedSets, 0);
   assert.deepEqual(summary.deletedFiles, []);
+});
+
+test('newestSetBytes is the size of the newest night, both files; none on a fresh server', () => {
+  const artifacts = [
+    { timestamp: '20261028T030000Z', sizeBytes: 900 },
+    { timestamp: '20261029T030000Z', sizeBytes: 100 },
+    { timestamp: '20261029T030000Z', sizeBytes: 250 },
+  ];
+  assert.equal(newestSetBytes(artifacts), 350);
+  assert.equal(newestSetBytes([]), 0);
 });
