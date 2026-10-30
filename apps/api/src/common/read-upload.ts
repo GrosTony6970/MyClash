@@ -46,7 +46,8 @@ interface FilePart {
   /** None on a part busboy takes for a file by its type alone (`application/octet-stream`). */
   filename?: string;
   mimetype: string;
-  file: { resume: () => void };
+  /** `truncated`: busboy cut the file at `fileSize`. */
+  file: { resume: () => void; truncated?: boolean };
   toBuffer: () => Promise<Buffer>;
 }
 
@@ -88,7 +89,7 @@ export async function readUpload(
     if (!part) return null;
     const named = { filename: part.filename ?? '', mimetype: part.mimetype };
     if (accept) refuseUnread(part, () => accept(named));
-    return { buffer: await part.toBuffer(), ...named };
+    return { buffer: await whole(part, limit, fileSize), ...named };
   } catch (err) {
     if (codeOf(err) === NOT_MULTIPART) return null;
     throw refusalOf(err, limit, fileSize);
@@ -110,7 +111,7 @@ export async function readUploadParts(
   try {
     for await (const part of multipart(request).parts(optionsFor(fileSize))) {
       if (part.type === 'field') fields[part.fieldname] = String(part.value);
-      else if (part.fieldname === 'file') buffer = await part.toBuffer();
+      else if (part.fieldname === 'file') buffer = await whole(part, limit, fileSize);
       else part.file.resume();
     }
   } catch (err) {
@@ -118,6 +119,25 @@ export async function readUploadParts(
     throw refusalOf(err, limit, fileSize);
   }
   return { buffer, fields };
+}
+
+/**
+ * The file's bytes, or the route's 413. @fastify/multipart checks `truncated` only as each chunk
+ * arrives: when busboy cuts the file after its last chunk was read, `toBuffer` resolves the bytes
+ * up to the limit and throws nothing (seen on Linux CI: 16 MiB + 1 B read as 16 MiB, no error).
+ */
+async function whole(part: FilePart, limit: UploadLimit, fileSize: number): Promise<Buffer> {
+  const buffer = await part.toBuffer();
+  if (part.file.truncated) throw fileTooLarge(limit, fileSize);
+  return buffer;
+}
+
+function fileTooLarge(limit: UploadLimit, fileSize: number): PayloadTooLargeException {
+  return new PayloadTooLargeException({
+    message: limit.tooLarge,
+    code: FILE_TOO_LARGE_CODE,
+    maxBytes: fileSize,
+  });
 }
 
 function multipart(request: FastifyRequest): MultipartRequest {
@@ -155,13 +175,7 @@ function codeOf(err: unknown): string | undefined {
  */
 function refusalOf(err: unknown, limit: UploadLimit, fileSize: number): unknown {
   const code = codeOf(err);
-  if (code === FILE_TOO_LARGE) {
-    return new PayloadTooLargeException({
-      message: limit.tooLarge,
-      code: FILE_TOO_LARGE_CODE,
-      maxBytes: fileSize,
-    });
-  }
+  if (code === FILE_TOO_LARGE) return fileTooLarge(limit, fileSize);
   const { statusCode, message } = err as MultipartError;
   if (code?.startsWith('FST_') && statusCode >= 400 && statusCode < 500) {
     return new HttpException({ message, code }, statusCode);

@@ -164,6 +164,21 @@ describe('each upload route reads under its own limit', () => {
   });
 
   it.each(ROUTES)(
+    '%s: a file the plugin cut at %i bytes in silence is still its own 413',
+    async (_route, bytes, sentence, _reader, door) => {
+      const upload: UploadRequest = tooLargeUpload(undefined, { silentCut: true });
+      const refusal = await door(upload.req).catch((err: unknown) => err);
+
+      expect(refusal).toBeInstanceOf(PayloadTooLargeException);
+      expect((refusal as PayloadTooLargeException).getResponse()).toEqual({
+        message: sentence,
+        code: FILE_TOO_LARGE_CODE,
+        maxBytes: bytes,
+      });
+    },
+  );
+
+  it.each(ROUTES)(
     '%s: %i bytes, then its own 413',
     async (_route, bytes, sentence, reader, door) => {
       const upload: UploadRequest = tooLargeUpload();

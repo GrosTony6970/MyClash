@@ -28,14 +28,22 @@ const tooLarge = (): Promise<never> =>
     }),
   );
 
-export function tooLargeUpload(user: string | null = USER): UploadRequest {
+/**
+ * `silentCut`: the other way @fastify/multipart ends a file past `fileSize` — busboy marks it
+ * `truncated` after its last chunk was read, so `toBuffer` resolves the bytes up to the limit and
+ * throws nothing (seen on Linux CI, a 16 MiB + 1 B chunk read under 16 MiB).
+ */
+export function tooLargeUpload(
+  user: string | null = USER,
+  { silentCut = false }: { silentCut?: boolean } = {},
+): UploadRequest {
   const part = {
     type: 'file',
     fieldname: 'file',
     filename: 'probe-marker.json',
     mimetype: 'application/json',
-    file: { resume: vi.fn() },
-    toBuffer: tooLarge,
+    file: { resume: vi.fn(), truncated: silentCut },
+    toBuffer: silentCut ? async () => Buffer.from('cut at the limit') : tooLarge,
   };
   const file = vi.fn(async () => part);
   const parts = vi.fn(() =>

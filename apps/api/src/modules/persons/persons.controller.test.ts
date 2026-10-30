@@ -95,6 +95,8 @@ function req(userId?: string): Req {
         yield {
           type: 'file',
           fieldname: 'file',
+          // The plugin's shape: a file read whole, not cut at the limit.
+          file: { resume: () => undefined, truncated: false },
           toBuffer: async () => Buffer.from('given_name,family_name\nEve,Example\n'),
         };
       })(),
@@ -280,7 +282,12 @@ describe("an import's decisions (O7)", () => {
     ...req('u-editor-a'),
     parts: vi.fn(() =>
       (async function* () {
-        yield { type: 'file', fieldname: 'file', toBuffer: async () => Buffer.from('a,b\n') };
+        yield {
+          type: 'file',
+          fieldname: 'file',
+          file: { resume: () => undefined, truncated: false },
+          toBuffer: async () => Buffer.from('a,b\n'),
+        };
         yield { type: 'field', fieldname: 'decisions', value: decisions };
       })(),
     ),

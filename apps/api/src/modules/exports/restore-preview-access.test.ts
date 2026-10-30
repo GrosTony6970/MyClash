@@ -59,6 +59,8 @@ beforeEach(() => build());
 function upload(token?: string) {
   const file = vi.fn().mockResolvedValue({
     filename: 'event.json',
+    // The plugin's shape: a file read whole, not cut at the limit.
+    file: { resume: () => undefined, truncated: false },
     toBuffer: () => Promise.resolve(Buffer.from('{}')),
   });
   const headers = token ? { authorization: `Bearer ${token}` } : {};
