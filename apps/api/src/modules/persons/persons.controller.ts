@@ -29,41 +29,17 @@ import { requireRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
+import { readUploadParts, type UploadLimit } from '../../common/read-upload';
 import { PersonsService } from './persons.service';
 import { noFilePreview, noFileReport } from './import-no-file';
 import { AssignmentsService } from '../registrations/assignments.service';
 import { CreatePersonDto, parseImportDecisions, UpdatePersonDto } from './dto/persons.dto';
 
-/** Read all multipart parts, returning file buffer + any JSON fields. */
-async function readMultipart(
-  req: FastifyRequest,
-): Promise<{ buffer: Buffer | null; fields: Record<string, string> }> {
-  const fields: Record<string, string> = {};
-  let buffer: Buffer | null = null;
-
-  try {
-    const parts = (
-      req as FastifyRequest & {
-        parts: () => AsyncIterable<
-          | { type: 'file'; fieldname: string; toBuffer: () => Promise<Buffer> }
-          | { type: 'field'; fieldname: string; value: string }
-        >;
-      }
-    ).parts();
-
-    for await (const part of parts) {
-      if (part.type === 'file' && part.fieldname === 'file') {
-        buffer = await part.toBuffer();
-      } else if (part.type === 'field') {
-        fields[part.fieldname] = part.value;
-      }
-    }
-  } catch {
-    // no multipart body
-  }
-
-  return { buffer, fields };
-}
+/** A roster CSV, read with its `decisions` field (operator ruling, 2026-10-30: 10 MB). */
+export const ROSTER_IMPORT_UPLOAD: UploadLimit = {
+  maxBytes: 10 * 1024 * 1024,
+  tooLarge: 'Roster import file exceeds the 10 MB size limit.',
+};
 
 /**
  * An Event's roster: emails, dates of birth, notes.
@@ -154,7 +130,7 @@ export class PersonsController {
     @Req() req: FastifyRequest,
   ) {
     await assertCanManageEvent(this.authz, eventId, await requireRequestUserId(req, this.supabase));
-    const { buffer } = await readMultipart(req);
+    const { buffer } = await readUploadParts(req, ROSTER_IMPORT_UPLOAD);
     if (!buffer) return noFilePreview();
     return this.persons.previewImport(eventId, buffer);
   }
@@ -182,7 +158,7 @@ export class PersonsController {
   async importCsv(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     const userId = await requireRequestUserId(req, this.supabase);
     await assertCanManageEvent(this.authz, eventId, userId);
-    const { buffer, fields } = await readMultipart(req);
+    const { buffer, fields } = await readUploadParts(req, ROSTER_IMPORT_UPLOAD);
 
     if (!buffer) return noFileReport();
 

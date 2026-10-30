@@ -32,7 +32,8 @@ import {
   PublicOrganizationQueryDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
-import { OrganizationsService } from './organizations.service';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
+import { ORG_LOGO_UPLOAD, OrganizationsService } from './organizations.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -156,19 +157,8 @@ export class OrganizationsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.orgs.uploadLogo(id, userId, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, ORG_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.orgs.uploadLogo(id, userId, upload);
   }
 
   // (`POST :id/approve` was removed — it duplicated the consumed

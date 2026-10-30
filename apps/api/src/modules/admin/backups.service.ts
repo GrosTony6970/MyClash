@@ -8,6 +8,7 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import path from 'node:path';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { OperationalUnavailableException } from '../../common/operational-exception';
 import { opsRunnerException, readOpsRunnerError } from './ops-runner-error';
 import type {
@@ -34,7 +35,12 @@ const BACKUP_FILENAME_PATTERN =
   /^(db-(?<dbTs>\d{8}T\d{6}Z)\.sql\.gz|storage-(?<storageTs>\d{8}T\d{6}Z)\.tar\.gz)(?<gpg>\.gpg)?$/;
 const UPLOAD_ID_PATTERN = /^[A-Za-z0-9_-]{8,80}$/;
 const DEFAULT_OPS_TIMEOUT_MS = 15_000;
-const DEFAULT_UPLOAD_MAX_BYTES = 1024 * 1024 * 1024;
+/**
+ * 150 MiB (operator ruling, 2026-10-30). A restore from an upload reads the database dump, about
+ * 1-3 MB per Event gzipped; the upload is held about four times over on its way to the ops-runner
+ * (buffer, base64, the JSON body), in a 1 GB API.
+ */
+const DEFAULT_UPLOAD_MAX_BYTES = 150 * 1024 * 1024;
 
 type FetchLike = typeof fetch;
 
@@ -54,7 +60,8 @@ export class AdminBackupsService {
   private readonly opsRunnerUrl: string;
   private readonly opsRunnerSecret: string;
   private readonly fetchImpl: FetchLike;
-  private readonly uploadMaxBytes: number;
+  /** An uploaded backup is read under it (`read-upload.ts`); the env can raise it. */
+  readonly uploadLimit: UploadLimit;
 
   constructor(options: AdminBackupsServiceOptions = {}) {
     this.rootDir = options.rootDir ?? path.resolve(process.cwd(), '..', '..');
@@ -63,9 +70,12 @@ export class AdminBackupsService {
     this.opsRunnerUrl = stripTrailingSlash(options.opsRunnerUrl ?? process.env['OPS_RUNNER_URL']);
     this.opsRunnerSecret = options.opsRunnerSecret ?? process.env['OPS_RUNNER_SECRET'] ?? '';
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.uploadMaxBytes =
-      options.uploadMaxBytes ??
-      Number(process.env['BACKUP_UPLOAD_MAX_BYTES'] ?? DEFAULT_UPLOAD_MAX_BYTES);
+    this.uploadLimit = {
+      maxBytes:
+        options.uploadMaxBytes ??
+        Number(process.env['BACKUP_UPLOAD_MAX_BYTES'] ?? DEFAULT_UPLOAD_MAX_BYTES),
+      tooLarge: 'Backup upload exceeds the configured size limit.',
+    };
   }
 
   async getStatus(): Promise<BackupStatusDto> {
@@ -168,9 +178,6 @@ export class AdminBackupsService {
     validateBackupFilename(filename);
     if (buffer.length === 0) {
       throw new BadRequestException('No backup file uploaded.');
-    }
-    if (buffer.length > this.uploadMaxBytes) {
-      throw new BadRequestException('Backup upload exceeds the configured size limit.');
     }
     return this.opsPost<BackupUploadResponseDto>('/uploads', {
       filename,

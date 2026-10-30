@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import {
   allowsDirectHardDelete,
   asEventKind,
@@ -154,11 +155,19 @@ export function countDistinctPersonIds(rows: Array<{ person_id: string }>): numb
 const EVENT_LOGO_BUCKET = 'event-assets';
 const EVENT_LOGO_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+/** The Event's and a Tournament's logo, read under it (`read-upload.ts`). */
+export const EVENT_LOGO_UPLOAD: UploadLimit = {
+  maxBytes: EVENT_LOGO_MAX_BYTES,
+  tooLarge: 'Logo upload exceeds the 10 MB size limit.',
+};
 
 // Hero shares the bucket + MIME allowlist with logos; cap matches
 // the logo limit so high-resolution camera JPEGs upload without a
 // re-encode step.
-const EVENT_HERO_MAX_BYTES = 10 * 1024 * 1024;
+export const EVENT_HERO_UPLOAD: UploadLimit = {
+  maxBytes: 10 * 1024 * 1024,
+  tooLarge: 'Hero upload exceeds the 10 MB size limit.',
+};
 const ALLOWED_EVENT_HERO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export interface EventLogoUpload {
@@ -4183,9 +4192,6 @@ export class EventsService {
     );
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > EVENT_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }
@@ -4241,9 +4247,6 @@ export class EventsService {
     );
 
     if (!file.buffer.length) throw new BadRequestException('No hero file uploaded.');
-    if (file.buffer.length > EVENT_HERO_MAX_BYTES) {
-      throw new BadRequestException('Hero upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_EVENT_HERO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Hero upload must be a PNG, JPEG, or WebP image.');
     }
@@ -4336,9 +4339,6 @@ export class EventsService {
     );
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > EVENT_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }

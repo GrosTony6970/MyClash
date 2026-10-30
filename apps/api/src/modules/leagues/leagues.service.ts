@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { asEventKind, countsTowardStats, escapeHtml } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -41,6 +42,11 @@ type Row = Record<string, unknown>;
 
 const LEAGUE_LOGO_BUCKET = 'event-assets';
 const LEAGUE_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+/** The League logo, read under it (`read-upload.ts`). */
+export const LEAGUE_LOGO_UPLOAD: UploadLimit = {
+  maxBytes: LEAGUE_LOGO_MAX_BYTES,
+  tooLarge: 'Logo upload exceeds the 10 MB size limit.',
+};
 const ALLOWED_LEAGUE_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export interface LeagueLogoUpload {
@@ -659,9 +665,6 @@ export class LeaguesService {
     await this.assertCanManageLeague(leagueId, userId);
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > LEAGUE_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_LEAGUE_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }

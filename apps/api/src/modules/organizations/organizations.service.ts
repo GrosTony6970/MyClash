@@ -7,6 +7,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { hasPlatformTier, NON_USER_IDS } from '../../common/auth/platform-role';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -25,6 +26,11 @@ const MAX_PUBLIC_ORG_PAGE = 50;
 
 const ORG_LOGO_BUCKET = 'event-assets';
 const ORG_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+/** The organization logo, read under it (`read-upload.ts`). */
+export const ORG_LOGO_UPLOAD: UploadLimit = {
+  maxBytes: ORG_LOGO_MAX_BYTES,
+  tooLarge: 'Logo upload exceeds the 10 MB size limit.',
+};
 const ALLOWED_ORG_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export interface OrgLogoUpload {
@@ -399,9 +405,6 @@ export class OrganizationsService {
     await this.assertOrgRole(id, userId, 'admin');
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > ORG_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_ORG_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }

@@ -36,7 +36,8 @@ import { hasPlatformTier, isPlatformStaff } from '../../common/auth/platform-rol
 import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
-import { FightersService, type FighterPhotoUpload } from './fighters.service';
+import { NO_UPLOAD, readUpload, type UploadLimit } from '../../common/read-upload';
+import { FIGHTER_PHOTO_UPLOAD, FightersService, type FighterPhotoUpload } from './fighters.service';
 import { FighterMergeService } from './merge.service';
 import {
   CreateFighterDto,
@@ -152,19 +153,7 @@ export class FightersController {
   @ApiOperation({ summary: 'Upload the claimed user Fighter profile photo' })
   async uploadMyPhoto(@Req() req: FastifyRequest) {
     const userId = await getClaimedUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    const file: FighterPhotoUpload = {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    };
+    const file: FighterPhotoUpload = (await readUpload(req, FIGHTER_PHOTO_UPLOAD)) ?? NO_UPLOAD;
     return this.fighters.uploadMyPhoto(userId, file);
   }
 
@@ -353,6 +342,12 @@ export class WeaponsController {
   }
 }
 
+/** The Global Profiles CSV a platform admin previews (operator ruling, 2026-10-30: 10 MB). */
+export const GLOBAL_PERSONS_IMPORT_UPLOAD: UploadLimit = {
+  maxBytes: 10 * 1024 * 1024,
+  tooLarge: 'Import file exceeds the 10 MB size limit.',
+};
+
 @ApiTags('global-persons')
 @Controller('global-persons')
 export class GlobalPersonsController {
@@ -453,17 +448,8 @@ export class GlobalPersonsController {
   })
   @ApiOperation({ summary: 'Dry-run a Global Profiles CSV import (super admin)' })
   async previewGlobalPersonsImport(@Req() req: FastifyRequest) {
-    let buffer: Buffer | null = null;
-    try {
-      const data = await (
-        req as FastifyRequest & {
-          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
-        }
-      ).file();
-      if (data) buffer = await data.toBuffer();
-    } catch {
-      // no file
-    }
+    // A file too large, or a body cut short, is the reader's refusal, not "no file".
+    const buffer = (await readUpload(req, GLOBAL_PERSONS_IMPORT_UPLOAD))?.buffer;
 
     if (!buffer) {
       return {

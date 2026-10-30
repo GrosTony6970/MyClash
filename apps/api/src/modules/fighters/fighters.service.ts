@@ -8,6 +8,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { asEventKind, countsTowardStats, type ImportRowProblem } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import { firstPubliclyKnown, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
@@ -102,6 +103,11 @@ function slugify(name: string): string {
 // source file that slips through client-side validation.
 const FIGHTER_PHOTO_BUCKET = 'fighter-photos';
 const FIGHTER_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+/** The Fighter photo, read under it (`read-upload.ts`). */
+export const FIGHTER_PHOTO_UPLOAD: UploadLimit = {
+  maxBytes: FIGHTER_PHOTO_MAX_BYTES,
+  tooLarge: 'Photo upload exceeds the 15 MB size limit.',
+};
 const ALLOWED_FIGHTER_PHOTO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export interface FighterPhotoUpload {
@@ -882,9 +888,6 @@ export class FightersService {
     const id = await this.resolveMyGlobalPersonId(userId);
 
     if (!file.buffer.length) throw new BadRequestException('No photo file uploaded.');
-    if (file.buffer.length > FIGHTER_PHOTO_MAX_BYTES) {
-      throw new BadRequestException('Photo upload exceeds the 15 MB size limit.');
-    }
     if (!ALLOWED_FIGHTER_PHOTO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Photo upload must be a PNG, JPEG, or WebP image.');
     }

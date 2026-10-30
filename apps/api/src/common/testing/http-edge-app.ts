@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   type CanActivate,
   Controller,
@@ -35,6 +36,7 @@ import { configureHttpApp } from '../http-bootstrap';
 import { LockdownInterceptor } from '../interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from '../interceptors/read-only.interceptor';
 import { applyRequestLogging } from '../observability/request-logging.middleware';
+import { readUpload, readUploadParts, type UploadLimit } from '../read-upload';
 
 /**
  * A small API built the way production builds it, for the edge tests (`http-edge*.http.test.ts`):
@@ -69,8 +71,17 @@ export class MarkerRefuser implements CanActivate {
 
 class EchoDto extends createZodDto(z.object({ marker: z.string() }).strict()) {}
 
-type UploadRequest = FastifyRequest & {
-  file: () => Promise<{ toBuffer: () => Promise<Buffer> } | undefined>;
+/** The edge tests stub the plugin's ceiling (`MULTIPART_MAX_BYTES`) at 1024 B. */
+export const EDGE_UPLOAD: UploadLimit = { maxBytes: 256, tooLarge: 'probe-marker-too-large' };
+export const EDGE_CEILING_UPLOAD: UploadLimit = {
+  maxBytes: 4096,
+  tooLarge: 'probe-marker-ceiling',
+};
+export const EDGE_REFUSED_NAME = 'probe-marker-refused-name';
+/** Over the socket buffers, under its limit: refused unread, it is drained or it stalls. */
+export const EDGE_LARGE_UPLOAD: UploadLimit = {
+  maxBytes: 8 * 1024 * 1024,
+  tooLarge: 'probe-marker-large',
 };
 
 @Controller('edge')
@@ -113,14 +124,42 @@ class EdgeController {
     return { ok: true };
   }
 
-  /** Reads the upload exactly as the backup restore does (backups.controller.ts). */
+  /** Reads the upload as every upload route does: through `readUpload`, under its own limit. */
   @Public()
   @Post('upload')
   @HttpCode(HttpStatus.OK)
   async upload(@Req() req: FastifyRequest): Promise<{ bytes: number }> {
-    const data = await (req as UploadRequest).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return { bytes: buffer.length };
+    const data = await readUpload(req, EDGE_UPLOAD);
+    return { bytes: data?.buffer.length ?? 0 };
+  }
+
+  /** A route limit above the plugin's ceiling: the ceiling still holds. */
+  @Public()
+  @Post('upload-ceiling')
+  @HttpCode(HttpStatus.OK)
+  async uploadCeiling(@Req() req: FastifyRequest): Promise<{ bytes: number }> {
+    const data = await readUpload(req, EDGE_CEILING_UPLOAD);
+    return { bytes: data?.buffer.length ?? 0 };
+  }
+
+  /** As the roster import reads: the `file` part and the text fields. */
+  @Public()
+  @Post('upload-parts')
+  @HttpCode(HttpStatus.OK)
+  async uploadParts(@Req() req: FastifyRequest): Promise<{ bytes: number | null; fields: object }> {
+    const { buffer, fields } = await readUploadParts(req, EDGE_UPLOAD);
+    return { bytes: buffer?.length ?? null, fields };
+  }
+
+  /** As the archive restore reads: a file it refuses by its name, before reading it. */
+  @Public()
+  @Post('upload-json-only')
+  @HttpCode(HttpStatus.OK)
+  async uploadJsonOnly(@Req() req: FastifyRequest): Promise<{ bytes: number }> {
+    const data = await readUpload(req, EDGE_LARGE_UPLOAD, ({ filename }) => {
+      if (!filename.endsWith('.json')) throw new BadRequestException(EDGE_REFUSED_NAME);
+    });
+    return { bytes: data?.buffer.length ?? 0 };
   }
 
   @Public()

@@ -39,7 +39,8 @@ import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
-import { EventsService } from './events.service';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
+import { EVENT_HERO_UPLOAD, EVENT_LOGO_UPLOAD, EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
 import { readMatchConfig, withEffectiveRules } from './match-config';
 
@@ -313,24 +314,8 @@ export class EventsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadEventLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              mimetype: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.events.uploadLogo(id, userId, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, EVENT_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.events.uploadLogo(id, userId, upload);
   }
 
   /** POST /api/v1/events/:id/hero — per-event hero image stored on themes.hero_image_url. */
@@ -345,24 +330,8 @@ export class EventsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadEventHero(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              mimetype: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.events.uploadHero(id, userId, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, EVENT_HERO_UPLOAD)) ?? NO_UPLOAD;
+    return this.events.uploadHero(id, userId, upload);
   }
 
   // ── Tournaments ───────────────────────────────────────────────────────────────
@@ -447,24 +416,8 @@ export class EventsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadTournamentLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              mimetype: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.events.uploadTournamentLogo(id, userId, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, EVENT_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.events.uploadTournamentLogo(id, userId, upload);
   }
 
   /** PATCH /api/v1/tournaments/:id */

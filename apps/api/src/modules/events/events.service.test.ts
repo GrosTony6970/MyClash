@@ -1743,25 +1743,6 @@ describe('EventsService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('uploadHero rejects payloads exceeding the 10 MB size limit', async () => {
-    const eventChain = makeChain({
-      data: { id: 'event-1', organization_id: 'org-1' },
-      error: null,
-    });
-    fromMock.mockReturnValueOnce(eventChain);
-    assertOrgRole.mockResolvedValue(undefined);
-
-    const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
-
-    await expect(
-      service.uploadHero('event-1', 'user-1', {
-        buffer: oversized,
-        filename: 'huge.jpg',
-        mimetype: 'image/jpeg',
-      }),
-    ).rejects.toThrow(/10 MB size limit/i);
-  });
-
   it('uploadHero requires org admin role', async () => {
     const eventChain = makeChain({
       data: { id: 'event-1', organization_id: 'org-1' },

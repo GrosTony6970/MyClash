@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { isPlatformStaff } from '../../common/auth/platform-role';
@@ -26,6 +27,11 @@ export type DeleteClubMode = 'safe' | 'archive' | 'cleanup';
 
 const CLUB_LOGO_BUCKET = 'event-assets';
 const CLUB_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+/** The club logo, read under it (`read-upload.ts`). */
+export const CLUB_LOGO_UPLOAD: UploadLimit = {
+  maxBytes: CLUB_LOGO_MAX_BYTES,
+  tooLarge: 'Logo upload exceeds the 10 MB size limit.',
+};
 const ALLOWED_CLUB_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 type ClubDeleteBlockers = {
@@ -243,9 +249,6 @@ export class ClubsService {
     await this.getClubById(id);
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > CLUB_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
     if (!ALLOWED_CLUB_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }

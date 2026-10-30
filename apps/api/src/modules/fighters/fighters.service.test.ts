@@ -575,18 +575,6 @@ describe('FightersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rejects an upload above the 15 MB cap', async () => {
-      storagePart();
-      fromMock.mockReturnValue(makeChain({ data: { id: 'gp-1' }, error: null }));
-      await expect(
-        service.uploadMyPhoto('user-1', {
-          buffer: Buffer.alloc(15 * 1024 * 1024 + 1),
-          filename: 'huge.png',
-          mimetype: 'image/png',
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
     it('clears photo_url on remove', async () => {
       const idChain = makeChain({ data: { id: 'gp-1' }, error: null });
       const updateChain = makeChain({ data: null, error: null });

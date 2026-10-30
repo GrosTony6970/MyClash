@@ -2,7 +2,16 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ALLOWED_ORIGIN, buildEdgeApp, rawRequest } from './testing/http-edge-app';
+import { FILE_TOO_LARGE_CODE } from './read-upload';
+import {
+  ALLOWED_ORIGIN,
+  buildEdgeApp,
+  EDGE_CEILING_UPLOAD,
+  EDGE_LARGE_UPLOAD,
+  EDGE_REFUSED_NAME,
+  EDGE_UPLOAD,
+  rawRequest,
+} from './testing/http-edge-app';
 
 /**
  * How the API answers at its edge: broken and oversized bodies, unknown routes, the prefix and
@@ -13,8 +22,7 @@ import { ALLOWED_ORIGIN, buildEdgeApp, rawRequest } from './testing/http-edge-ap
  * guards, cookies and the read-only switch are in `http-edge.auth.http.test.ts`.
  *
  * The "case N" names number the edge answers across both files, so a commit that changes one can
- * name it. Case 11 pins today's answer, not a wanted one: an upload over the limit is a 500 that
- * reaches Sentry, where a 413 would be right.
+ * name it. Case 11 is the one upload reader (`read-upload.ts`) on the real multipart plugin.
  */
 
 const PROBLEM_JSON = 'application/problem+json; charset=utf-8';
@@ -48,10 +56,18 @@ function postJson(path: string, body: string, contentType = 'application/json'):
   });
 }
 
-function upload(bytes: number): Promise<Response> {
-  const form = new FormData();
-  form.append('file', new Blob([Buffer.alloc(bytes, 'x')]), 'probe-marker.bin');
-  return fetch(`${base}/api/v1/edge/upload`, { method: 'POST', body: form });
+/** A multipart form: each entry a text field (string) or a file of that many bytes (number). */
+function form(entries: Array<[string, string | number]>, filename = 'probe-marker.bin'): FormData {
+  const body = new FormData();
+  for (const [name, value] of entries) {
+    if (typeof value === 'string') body.append(name, value);
+    else body.append(name, new Blob([Buffer.alloc(value, 'x')]), filename);
+  }
+  return body;
+}
+
+function upload(bytes: number, route = 'upload'): Promise<Response> {
+  return fetch(`${base}/api/v1/edge/${route}`, { method: 'POST', body: form([['file', bytes]]) });
 }
 
 describe('the API edge, as configureHttpApp builds it', () => {
@@ -155,14 +171,146 @@ describe('the API edge, as configureHttpApp builds it', () => {
     expect(reporter.mock.calls[0]?.[1]).toMatchObject({ statusCode: 500 });
   });
 
-  it('case 11: an upload over our limit is refused by that limit; one under it arrives whole', async () => {
-    const over = await upload(4096);
-    expect(over.status).toBe(500);
-    expect(reporter).toHaveBeenCalledTimes(1);
-    expect(reporter.mock.calls[0]?.[0]).toMatchObject({ code: 'FST_REQ_FILE_TOO_LARGE' });
-    const under = await upload(512);
+  it('case 11: an upload over its route’s limit is that route’s 413, unreported; one under it arrives whole', async () => {
+    const over = await upload(512);
+    expect(over.status).toBe(413);
+    expect(await over.json()).toMatchObject({
+      code: FILE_TOO_LARGE_CODE,
+      detail: EDGE_UPLOAD.tooLarge,
+      details: { maxBytes: 256 },
+    });
+    expect(reporter).not.toHaveBeenCalled();
+    const under = await upload(128);
     expect(under.status).toBe(200);
-    expect(await under.json()).toEqual({ bytes: 512 });
+    expect(await under.json()).toEqual({ bytes: 128 });
+  });
+
+  it('case 11, ceiling: a route limit above the plugin’s ceiling stops at the ceiling', async () => {
+    const over = await upload(2048, 'upload-ceiling');
+    expect(over.status).toBe(413);
+    expect(await over.json()).toMatchObject({
+      code: FILE_TOO_LARGE_CODE,
+      detail: EDGE_CEILING_UPLOAD.tooLarge,
+      details: { maxBytes: 1024 },
+    });
+  });
+
+  it('case 11, parts: twenty text fields before the file are a 413 in the plugin’s words', async () => {
+    const fields = Array.from({ length: 20 }, (_, i): [string, string] => [`f${i}`, 'x']);
+    const res = await fetch(`${base}/api/v1/edge/upload`, {
+      method: 'POST',
+      body: form([...fields, ['file', 16]]),
+    });
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ code: 'FST_PARTS_LIMIT', detail: 'reach parts limit' });
+    expect(body).not.toHaveProperty('details');
+    expect(reporter).not.toHaveBeenCalled();
+  });
+
+  it('case 11, not multipart: a JSON body is no file, not a fault', async () => {
+    const res = await postJson('/api/v1/edge/upload', '{"marker":"probe-marker-json"}');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ bytes: 0 });
+    const parts = await postJson('/api/v1/edge/upload-parts', '{"marker":"probe-marker-json"}');
+    expect(await parts.json()).toEqual({ bytes: null, fields: {} });
+    expect(reporter).not.toHaveBeenCalled();
+  });
+
+  it('case 11, parts reader: the file and the text fields after it are read', async () => {
+    const res = await fetch(`${base}/api/v1/edge/upload-parts`, {
+      method: 'POST',
+      body: form([
+        ['file', 64],
+        ['decisions', 'probe-marker-decisions'],
+      ]),
+    });
+    expect(await res.json()).toEqual({
+      bytes: 64,
+      fields: { decisions: 'probe-marker-decisions' },
+    });
+  });
+
+  it('case 11, parts reader: a second file is a 413; a file of another name is drained', async () => {
+    const two = await fetch(`${base}/api/v1/edge/upload-parts`, {
+      method: 'POST',
+      body: form([
+        ['file', 16],
+        ['file', 16],
+      ]),
+    });
+    expect(two.status).toBe(413);
+    expect(await two.json()).toMatchObject({ code: 'FST_FILES_LIMIT' });
+    // Left unread, the other file held the request open; the signal turns a hang into a red.
+    const other = await fetch(`${base}/api/v1/edge/upload-parts`, {
+      method: 'POST',
+      body: form([
+        ['other', 64],
+        ['decisions', 'probe-marker-decisions'],
+      ]),
+      signal: AbortSignal.timeout(2000),
+    });
+    expect(await other.json()).toEqual({
+      bytes: null,
+      fields: { decisions: 'probe-marker-decisions' },
+    });
+  });
+
+  it('case 11, accept: a file refused by its name is refused before it is read, and drained', async () => {
+    // Its own app and ceiling, above the 2 MiB file: under every limit, only the drain empties it
+    // (a file over its limit is cut and emptied by the plugin itself).
+    const ceiling = process.env['MULTIPART_MAX_BYTES'];
+    vi.stubEnv('MULTIPART_MAX_BYTES', String(EDGE_LARGE_UPLOAD.maxBytes));
+    const own = await buildEdgeApp({ authMode: 'shadow' });
+    let closed: unknown = 'not yet';
+    try {
+      const res = await fetch(`${own.base}/api/v1/edge/upload-json-only`, {
+        method: 'POST',
+        body: form([['file', 2 * 1024 * 1024]], 'probe-marker.exe'),
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ detail: EDGE_REFUSED_NAME });
+      // An undrained file keeps the connection busy, and close() then waits on it.
+      closed = await Promise.race([
+        own.app.close().then(() => 'closed'),
+        new Promise((resolve) => setTimeout(() => resolve('hung'), 2000)),
+      ]);
+      expect(closed).toBe('closed');
+    } finally {
+      vi.stubEnv('MULTIPART_MAX_BYTES', ceiling);
+      if (closed === 'not yet') await own.app.close().catch(() => undefined);
+    }
+  });
+
+  it('case 11, accept: a file part with no name is refused by its name, not a fault', async () => {
+    // busboy takes an `application/octet-stream` part for a file even with no filename.
+    const boundary = 'probe-marker-boundary';
+    const res = await fetch(`${base}/api/v1/edge/upload-json-only`, {
+      method: 'POST',
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      body:
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"\r\n` +
+        `Content-Type: application/octet-stream\r\n\r\nprobe-marker\r\n--${boundary}--\r\n`,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ detail: EDGE_REFUSED_NAME });
+    expect(reporter).not.toHaveBeenCalled();
+  });
+
+  it('case 11, parts reader: a file over the limit is the route’s 413', async () => {
+    const res = await fetch(`${base}/api/v1/edge/upload-parts`, {
+      method: 'POST',
+      body: form([
+        ['file', 512],
+        ['decisions', 'probe-marker-decisions'],
+      ]),
+    });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({
+      code: FILE_TOO_LARGE_CODE,
+      detail: EDGE_UPLOAD.tooLarge,
+      details: { maxBytes: 256 },
+    });
   });
 
   it('case 12: a URIError thrown by a route is an unexplained 500', async () => {

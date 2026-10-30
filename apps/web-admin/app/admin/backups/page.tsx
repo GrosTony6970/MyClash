@@ -26,7 +26,7 @@ const DELETE_ALL_TOKEN = 'DELETE ALL MYCLASH BACKUPS';
 
 // Mirror of the API default (BACKUP_UPLOAD_MAX_BYTES). Client-side guard so an
 // oversize file is rejected before a slow full-size upload the server rejects.
-const UPLOAD_MAX_BYTES = 1024 * 1024 * 1024;
+const UPLOAD_MAX_BYTES = 150 * 1024 * 1024;
 
 // Warn below this many local backup sets — too few and one bad backup can
 // leave no good copy to restore from.

@@ -46,7 +46,8 @@ import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
-import { WorkshopsService } from './workshops.service';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
+import { WORKSHOP_LOGO_UPLOAD, WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
 
@@ -349,19 +350,8 @@ export class WorkshopsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.workshops.uploadLogo(id, userId, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, WORKSHOP_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.workshops.uploadLogo(id, userId, upload);
   }
 
   // ── Instructors ───────────────────────────────────────────────────────────────

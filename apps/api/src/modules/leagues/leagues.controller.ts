@@ -32,7 +32,8 @@ import {
 import { Public } from '../../common/auth/public.decorator';
 import { CsvDownloadQueryDto, csvDownload } from '../../common/csv-download';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
-import { LeaguesService } from './leagues.service';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
+import { LEAGUE_LOGO_UPLOAD, LeaguesService } from './leagues.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -439,23 +440,8 @@ export class LeaguesController {
   @ApiOperation({ summary: 'Upload a league logo (PNG/JPEG/WebP, 10 MB max)' })
   async uploadLogo(@Param('leagueId', ParseUUIDPipe) leagueId: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.leagues.uploadLogo(
-      leagueId,
-      {
-        buffer,
-        filename: data?.filename ?? '',
-        mimetype: data?.mimetype ?? '',
-      },
-      userId,
-    );
+    const upload = (await readUpload(req, LEAGUE_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.leagues.uploadLogo(leagueId, upload, userId);
   }
 
   @Delete('admin/leagues/:leagueId/logo')

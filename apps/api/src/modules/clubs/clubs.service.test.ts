@@ -200,18 +200,6 @@ describe('ClubsService', () => {
     });
   });
 
-  it('rejects oversized club logos', async () => {
-    fromMock.mockReturnValueOnce(makeChain({ data: { id: 'club-1' }, error: null }));
-
-    await expect(
-      service.uploadLogo('club-1', {
-        buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
-        filename: 'logo.png',
-        mimetype: 'image/png',
-      }),
-    ).rejects.toThrow('10 MB');
-  });
-
   it('rejects unsupported club logo file types', async () => {
     fromMock.mockReturnValueOnce(makeChain({ data: { id: 'club-1' }, error: null }));
 

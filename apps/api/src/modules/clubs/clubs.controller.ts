@@ -28,7 +28,8 @@ import type { FastifyRequest } from 'fastify';
 import { CATALOG_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { PlatformRole } from '../admin/guards/platform-role.decorator';
-import { ClubsService, type DeleteClubMode } from './clubs.service';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
+import { CLUB_LOGO_UPLOAD, ClubsService, type DeleteClubMode } from './clubs.service';
 import {
   BulkClubIdsDto,
   BulkClubUpdateDto,
@@ -261,24 +262,8 @@ export class ClubsController {
   @ApiOperation({ summary: 'Upload a club logo (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              mimetype: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.clubs.uploadLogo(id, {
-      buffer,
-      filename: data?.filename ?? '',
-      mimetype: data?.mimetype ?? '',
-    });
+    const upload = (await readUpload(req, CLUB_LOGO_UPLOAD)) ?? NO_UPLOAD;
+    return this.clubs.uploadLogo(id, upload);
   }
 
   /** DELETE /api/v1/clubs/:id/logo */

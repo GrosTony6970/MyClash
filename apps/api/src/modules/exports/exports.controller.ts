@@ -32,6 +32,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { isPlatformStaff } from '../../common/auth/platform-role';
 import { ANONYMOUS_USER_ID, resolveRequestUserId } from '../../common/auth/request-user';
 import { CsvDownloadQueryDto, csvDownload } from '../../common/csv-download';
+import { readUpload, type UploadLimit } from '../../common/read-upload';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ArchiveService } from './archive.service';
@@ -273,17 +274,24 @@ function sendCsv(reply: FastifyReply, filename: string, text: string): void {
     .send(text);
 }
 
+/**
+ * An archive to restore (operator ruling, 2026-10-30: 25 MB). An archive is data only, a few MB for
+ * a real Event; parsing one takes several times its size, up to ~24× for a crafted file.
+ */
+export const ARCHIVE_UPLOAD: UploadLimit = {
+  maxBytes: 25 * 1024 * 1024,
+  tooLarge: 'Archive upload exceeds the 25 MB size limit.',
+};
+
+/** The archive's name is checked before a byte of it is read. */
 async function readUploadedArchive(req: FastifyRequest): Promise<Buffer> {
-  const maybeReq = req as FastifyRequest & {
-    file?: () => Promise<{ filename?: string; toBuffer: () => Promise<Buffer> } | undefined>;
-  };
-  const data = await maybeReq.file?.();
+  const data = await readUpload(req, ARCHIVE_UPLOAD, ({ filename }) => {
+    if (!filename.endsWith('.json') && !filename.endsWith('.zip')) {
+      throw new BadRequestException('Archive upload must be a .json or .zip file.');
+    }
+  });
   if (!data) throw new BadRequestException('No archive file uploaded.');
-  const filename = data.filename ?? '';
-  if (!filename.endsWith('.json') && !filename.endsWith('.zip')) {
-    throw new BadRequestException('Archive upload must be a .json or .zip file.');
-  }
-  return data.toBuffer();
+  return data.buffer;
 }
 
 function normalizeInclude(value: string): ArchiveInclude {

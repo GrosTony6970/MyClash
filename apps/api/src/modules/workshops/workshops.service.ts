@@ -18,6 +18,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { UploadLimit } from '../../common/read-upload';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
@@ -34,6 +35,11 @@ import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 // bucket's fileSizeLimit would reject the larger uploads.
 const WORKSHOP_LOGO_BUCKET = 'workshop-assets';
 const WORKSHOP_LOGO_MAX_BYTES = 15 * 1024 * 1024;
+/** The Workshop logo, read under it (`read-upload.ts`). */
+export const WORKSHOP_LOGO_UPLOAD: UploadLimit = {
+  maxBytes: WORKSHOP_LOGO_MAX_BYTES,
+  tooLarge: 'Logo upload exceeds the 15 MB size limit.',
+};
 const ALLOWED_WORKSHOP_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 /** Multipart file payload for the workshop logo upload endpoint. */
@@ -606,9 +612,6 @@ export class WorkshopsService {
     await this.assertCanManageEvent(eventId, userId);
 
     if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > WORKSHOP_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 15 MB size limit.');
-    }
     if (!ALLOWED_WORKSHOP_LOGO_MIME_TYPES.has(file.mimetype)) {
       throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
     }

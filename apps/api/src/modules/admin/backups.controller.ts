@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { NO_UPLOAD, readUpload } from '../../common/read-upload';
 import { AdminBackupsService } from './backups.service';
 import type {
   BackupActionResponseDto,
@@ -125,19 +126,8 @@ export class BackupsAdminController {
   })
   @ApiOperation({ summary: 'Stage an uploaded backup file for restore' })
   async uploadBackup(@Req() req: FastifyRequest): Promise<BackupUploadResponseDto> {
-    const data = await (
-      req as FastifyRequest & {
-        file: () => Promise<
-          | {
-              filename: string;
-              toBuffer: () => Promise<Buffer>;
-            }
-          | undefined
-        >;
-      }
-    ).file();
-    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
-    return this.backups.uploadBackup(data?.filename ?? '', buffer);
+    const { filename, buffer } = (await readUpload(req, this.backups.uploadLimit)) ?? NO_UPLOAD;
+    return this.backups.uploadBackup(filename, buffer);
   }
 
   @Get(':backupId/download')

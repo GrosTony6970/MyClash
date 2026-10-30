@@ -2,17 +2,13 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { buildCorsOrigins } from '../security/http-security';
 import { ApiExceptionFilter, type ApiExceptionReporter } from './api-exception.filter';
 import { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } from './global-prefix';
+import { multipartMaxBytes } from './multipart-limit';
 import { ZodOrClassValidationPipe } from './zod-or-class-validation.pipe';
 
 type FastifyPlugin = Parameters<NestFastifyApplication['register']>[0];
 
 function cookieSecret(): string {
   return process.env['COOKIE_SECRET'] ?? 'dev-cookie-secret-change-in-prod';
-}
-
-function multipartMaxBytes(): number {
-  const raw = process.env['MULTIPART_MAX_BYTES'];
-  return raw ? Number(raw) : 1024 * 1024 * 1024;
 }
 
 /**

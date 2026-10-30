@@ -378,7 +378,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
       state.values.get('BACKUP_SCW_ENDPOINT') || 'https://s3.fr-par.scw.cloud',
     ],
     ['BACKUP_RETENTION_DAYS', state.values.get('BACKUP_RETENTION_DAYS') || '60'],
-    ['BACKUP_UPLOAD_MAX_BYTES', state.values.get('BACKUP_UPLOAD_MAX_BYTES') || '1073741824'],
+    ['BACKUP_UPLOAD_MAX_BYTES', state.values.get('BACKUP_UPLOAD_MAX_BYTES') || '157286400'],
     ['MULTIPART_MAX_BYTES', state.values.get('MULTIPART_MAX_BYTES') || '1073741824'],
     ['SENTRY_ENVIRONMENT', state.values.get('SENTRY_ENVIRONMENT') || 'production'],
     // Fresh deploys start with tracing on at 1-in-20. This only fills an ABSENT

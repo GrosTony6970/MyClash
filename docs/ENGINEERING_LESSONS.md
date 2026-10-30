@@ -31,6 +31,12 @@ here.
   purpose. (This lesson used to require the same reference in a Drizzle column too; that mirror
   was deleted in 2026-08 — the SQL is now the only declaration, which is one fewer place to
   forget.)
+- A multipart upload is read through `readUpload` (`apps/api/src/common/read-upload.ts`), never
+  `req.file()` by hand. A limit passed to `req.file({ limits })` overrides the plugin's own limit
+  key by key, so a route limit above `MULTIPART_MAX_BYTES` silently raises the ceiling; the reader
+  clamps. Its `toBuffer` past the limit throws `FST_REQ_FILE_TOO_LARGE`, which no Nest filter
+  knows: by hand, it was a reported 500. A file part left unread holds the request open until the
+  client gives up: drain it (`part.file.resume()`).
 - Never use `import type { Foo }` for a class-validator DTO that NestJS reads through
   `@Body()/@Query()/@Param()`. The `type` keyword erases the import, so
   `Reflect.getMetadata('design:paramtypes', …)` sees `Object` instead of `Foo`, the global

@@ -289,19 +289,6 @@ describe('WorkshopsService — uploadLogo', () => {
     });
   });
 
-  it('rejects a source file over the 15 MB cap', async () => {
-    const { supabase } = buildLogoSupabase();
-    const svc = makeService(supabase);
-
-    await expect(
-      svc.uploadLogo('w-1', 'user-1', {
-        buffer: Buffer.alloc(15 * 1024 * 1024 + 1),
-        filename: 'huge.png',
-        mimetype: 'image/png',
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   it('rejects a non-image mimetype', async () => {
     const { supabase } = buildLogoSupabase();
     const svc = makeService(supabase);
