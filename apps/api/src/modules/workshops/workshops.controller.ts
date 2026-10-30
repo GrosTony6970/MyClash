@@ -349,7 +349,7 @@ export class WorkshopsController {
   @ApiOperation({ summary: 'Upload workshop logo (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const upload = (await readUpload(req, WORKSHOP_LOGO_UPLOAD)) ?? NO_UPLOAD;
     return this.workshops.uploadLogo(id, userId, upload);
   }

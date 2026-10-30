@@ -1,9 +1,10 @@
 import { vi, type Mock } from 'vitest';
 
 /**
- * A multipart request for the upload door tests (`upload-limits.*.test.ts`): signed in as `USER`,
- * carrying a file the plugin has found too large. `file` and `parts` record the options the reader
- * passed; the file's `toBuffer` rejects as @fastify/multipart does past `fileSize`.
+ * A multipart request for the upload door tests (`upload-limits.*.test.ts`): signed in as `USER`
+ * (or signed out, given `null`), carrying a file the plugin has found too large. `file` and
+ * `parts` record the options the reader passed; the file's `toBuffer` rejects as
+ * @fastify/multipart does past `fileSize`.
  *
  * Both readers sit here as properties, so the upload source guard (`read-upload.guard.test.ts`)
  * has nothing to find in this file.
@@ -27,7 +28,7 @@ const tooLarge = (): Promise<never> =>
     }),
   );
 
-export function tooLargeUpload(): UploadRequest {
+export function tooLargeUpload(user: string | null = USER): UploadRequest {
   const part = {
     type: 'file',
     fieldname: 'file',
@@ -42,7 +43,7 @@ export function tooLargeUpload(): UploadRequest {
       yield part;
     })(),
   );
-  const headers = { authorization: `Bearer ${USER}` };
+  const headers = user ? { authorization: `Bearer ${user}` } : {};
   return { req: { headers, cookies: {}, file, parts } as never, file, parts };
 }
 

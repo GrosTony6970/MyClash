@@ -39,6 +39,7 @@ import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { NO_UPLOAD, readUpload } from '../../common/read-upload';
 import { EVENT_HERO_UPLOAD, EVENT_LOGO_UPLOAD, EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
@@ -313,7 +314,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Upload event logo (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadEventLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const upload = (await readUpload(req, EVENT_LOGO_UPLOAD)) ?? NO_UPLOAD;
     return this.events.uploadLogo(id, userId, upload);
   }
@@ -329,7 +330,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Upload event hero image (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadEventHero(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const upload = (await readUpload(req, EVENT_HERO_UPLOAD)) ?? NO_UPLOAD;
     return this.events.uploadHero(id, userId, upload);
   }
@@ -415,7 +416,7 @@ export class EventsController {
   @ApiOperation({ summary: 'Upload tournament logo (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadTournamentLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const upload = (await readUpload(req, EVENT_LOGO_UPLOAD)) ?? NO_UPLOAD;
     return this.events.uploadTournamentLogo(id, userId, upload);
   }

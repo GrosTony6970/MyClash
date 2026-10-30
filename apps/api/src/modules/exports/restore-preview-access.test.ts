@@ -1,16 +1,17 @@
 /**
- * Who may check an archive before restoring it, `POST /archive/restore-preview`
- * (operator ruling 87): a signed-in admin or owner of at least one organization, or
- * platform staff. It parses only the upload, but it parsed it for anyone,
- * signed out included. A member below admin is refused, as is a competitor
- * account with no organization. Every refusal comes before the upload is read.
+ * Who may send an archive to restore (operator ruling 87): a signed-in admin or owner of at least
+ * one organization, or platform staff. It holds for both archive routes, the check
+ * (`POST /archive/restore-preview`) and the restore (`POST /archive/restore`). The restore read the
+ * upload for anyone, signed out included, and only then asked about the target club. A member
+ * below admin is refused, as is a competitor account with no organization. Every refusal comes
+ * before the upload is read.
  *
  * Driven through the controller with the real OrganizationsService and the
  * real platform-role lookup over seeded tables.
  */
 import 'reflect-metadata';
 import { ForbiddenException, HttpException, UnauthorizedException } from '@nestjs/common';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { mockSupabase, selectsFor, type TableSeed } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { ExportsController } from './exports.controller';
@@ -32,7 +33,7 @@ const TABLES: Record<string, TableSeed> = {
 };
 
 let db: ReturnType<typeof mockSupabase>;
-let previewRestore: ReturnType<typeof vi.fn>;
+let archives: { previewRestore: Mock; restoreArchiveCopy: Mock };
 let controller: ExportsController;
 
 function build(overrides: Record<string, TableSeed> = {}) {
@@ -40,11 +41,14 @@ function build(overrides: Record<string, TableSeed> = {}) {
   // The access token IS the user id here: GoTrue is the only thing doubled by hand.
   const getAuthUser = vi.fn(async (token: string) => ({ id: token }));
   const supabase = { service: db.service, getAuthUser };
-  previewRestore = vi.fn().mockResolvedValue({ canRestore: true });
+  archives = {
+    previewRestore: vi.fn().mockResolvedValue({ canRestore: true }),
+    restoreArchiveCopy: vi.fn().mockResolvedValue({ canRestore: true }),
+  };
   controller = new ExportsController(
     {} as never,
     supabase as never,
-    { previewRestore } as never,
+    archives as never,
     new OrganizationsService(supabase as never),
   );
 }
@@ -61,19 +65,32 @@ function upload(token?: string) {
   return { req: { headers, cookies: {}, file } as never, file };
 }
 
-describe('POST /archive/restore-preview (ruling 87)', () => {
+/** [route, the handler, the service method it hands the archive to]. */
+const DOORS: Array<[string, (req: never) => Promise<unknown>, () => Mock]> = [
+  [
+    'POST /archive/restore-preview',
+    (req) => controller.restorePreview(req),
+    () => archives.previewRestore,
+  ],
+  [
+    'POST /archive/restore',
+    (req) => controller.restoreArchive(req, {} as never),
+    () => archives.restoreArchiveCopy,
+  ],
+];
+
+describe.each(DOORS)('%s (ruling 87)', (_route, door, service) => {
   it.each([
     ['an admin of an organization', ADMIN],
     ['platform staff, with no organization', PLATFORM],
-  ])('lets %s check an archive', async (_label, user) => {
-    const { req } = upload(user);
-    expect(await controller.restorePreview(req)).toEqual({ canRestore: true });
-    expect(previewRestore).toHaveBeenCalledWith(expect.any(Buffer), user);
+  ])('lets %s send an archive', async (_label, user) => {
+    expect(await door(upload(user).req)).toEqual({ canRestore: true });
+    expect(service().mock.calls[0]?.slice(0, 2)).toEqual([expect.any(Buffer), user]);
   });
 
   it('answers a signed-out caller 401 before reading the upload', async () => {
     const { req, file } = upload();
-    await expect(controller.restorePreview(req)).rejects.toThrow(UnauthorizedException);
+    await expect(door(req)).rejects.toThrow(UnauthorizedException);
     expect(file).not.toHaveBeenCalled();
   });
 
@@ -82,19 +99,19 @@ describe('POST /archive/restore-preview (ruling 87)', () => {
     ['a competitor account with no organization', COMPETITOR],
   ])('refuses %s before reading the upload', async (_label, user) => {
     const { req, file } = upload(user);
-    await expect(controller.restorePreview(req)).rejects.toThrow(ForbiddenException);
+    await expect(door(req)).rejects.toThrow(ForbiddenException);
     expect(file).not.toHaveBeenCalled();
-    expect(previewRestore).not.toHaveBeenCalled();
+    expect(service()).not.toHaveBeenCalled();
   });
 
   it("asks only for the caller's own memberships", async () => {
-    await controller.restorePreview(upload(ADMIN).req);
+    await door(upload(ADMIN).req);
     expect(selectsFor(db.from, 'organization_members')).toEqual(['role']);
   });
 
   it('fails a failed membership read loudly, never as "not an admin"', async () => {
     build({ organization_members: { data: null, error: { message: 'boom' } } });
-    const call = controller.restorePreview(upload(ADMIN).req);
+    const call = door(upload(ADMIN).req);
     await expect(call).rejects.toThrow('membership read failed: boom');
     await expect(call).rejects.not.toBeInstanceOf(HttpException);
   });

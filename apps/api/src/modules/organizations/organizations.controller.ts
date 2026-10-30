@@ -156,7 +156,7 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Upload organization logo (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     const upload = (await readUpload(req, ORG_LOGO_UPLOAD)) ?? NO_UPLOAD;
     return this.orgs.uploadLogo(id, userId, upload);
   }

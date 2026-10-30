@@ -214,13 +214,7 @@ export class ExportsController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Validate an organizer archive before restore' })
   async restorePreview(@Req() req: FastifyRequest) {
-    const userId = await resolveRequestUserId(req, this.supabase);
-    // Ruling 87: signed in, and an admin of some organization or platform staff —
-    // decided before the upload is read.
-    if (userId === ANONYMOUS_USER_ID) throw new UnauthorizedException('Authentication required');
-    if (!(await isPlatformStaff(this.supabase, userId))) {
-      await this.orgs.assertAnyOrgRole(userId, 'admin');
-    }
+    const userId = await this.mayRestore(req);
     const buffer = await readUploadedArchive(req);
     return this.archives.previewRestore(buffer, userId);
   }
@@ -236,7 +230,7 @@ export class ExportsController {
     @Query('targetEventId') targetEventId?: string,
     @Query('confirmation') confirmation?: string,
   ) {
-    const userId = await resolveRequestUserId(req, this.supabase);
+    const userId = await this.mayRestore(req);
     const buffer = await readUploadedArchive(req);
     return this.archives.restoreArchiveCopy(buffer, userId, {
       ...(body ?? {}),
@@ -244,6 +238,19 @@ export class ExportsController {
       targetEventId: targetEventId ?? body?.targetEventId,
       confirmation: confirmation ?? body?.confirmation,
     });
+  }
+
+  /**
+   * Ruling 87, for both archive routes: signed in, and an admin of some organization or platform
+   * staff — decided before the upload is read. The restore then checks the target club itself.
+   */
+  private async mayRestore(req: FastifyRequest): Promise<string> {
+    const userId = await resolveRequestUserId(req, this.supabase);
+    if (userId === ANONYMOUS_USER_ID) throw new UnauthorizedException('Authentication required');
+    if (!(await isPlatformStaff(this.supabase, userId))) {
+      await this.orgs.assertAnyOrgRole(userId, 'admin');
+    }
+    return userId;
   }
 
   private sendArchive(
