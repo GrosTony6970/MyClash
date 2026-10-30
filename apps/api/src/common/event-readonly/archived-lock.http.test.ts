@@ -108,7 +108,7 @@ beforeAll(async () => {
   }).compile();
 
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  // As main.ts: the route the lock reads carries the prefix.
+  // As configureHttpApp (common/http-bootstrap.ts): the route the lock reads carries the prefix.
   app.setGlobalPrefix(API_GLOBAL_PREFIX, { exclude: API_GLOBAL_PREFIX_EXCLUDE });
   await app.init();
   await app.getHttpAdapter().getInstance().ready();

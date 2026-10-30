@@ -22,7 +22,7 @@ export class HealthController {
    * Returns HTTP 200 as long as the process is alive.
    * Does NOT check DB or Redis — those are checked by /health/deep (T-061).
    *
-   * @Public() is mandatory here, not cosmetic: main.ts excludes /health from the
+   * @Public() is mandatory here, not cosmetic: http-bootstrap.ts excludes /health from the
    * api/v1 *prefix*, which is not guard exclusion — a global guard still runs on
    * it. Without this, AuthGuard in enforce mode 401s the probe and takes down the
    * container healthcheck and the deploy/rollback smoke tests at the same time.

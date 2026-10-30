@@ -1,4 +1,5 @@
 import { Injectable, NestMiddleware, Optional } from '@nestjs/common';
+import type { MiddlewareConsumer } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { isSensitiveRoute, redactHeaders } from './redaction';
 
@@ -72,6 +73,14 @@ export class RequestLoggingMiddleware implements NestMiddleware {
     response.on?.('close', logOnce);
     next();
   }
+}
+
+/**
+ * The one wiring of the request log: every route. `AppModule.configure` and the edge tests both
+ * call it, so the tests run the routes production logs.
+ */
+export function applyRequestLogging(consumer: MiddlewareConsumer): void {
+  consumer.apply(RequestLoggingMiddleware).forRoutes('*');
 }
 
 function firstHeaderValue(value: string | string[] | undefined): string | undefined {

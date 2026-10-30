@@ -52,7 +52,7 @@ import { TournamentQueryModule } from './modules/tournament-query/tournament-que
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { PeopleContextModule } from './modules/people-context/people-context.module';
 import { SiteStatsModule } from './modules/site-stats/site-stats.module';
-import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
+import { applyRequestLogging } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
 import { AuthGuard } from './common/auth/auth.guard';
@@ -169,6 +169,6 @@ import { throttlerOptions } from './common/throttling/throttler-options';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     if (process.env['NODE_ENV'] === 'test') return;
-    consumer.apply(RequestLoggingMiddleware).forRoutes('*');
+    applyRequestLogging(consumer);
   }
 }

@@ -1,7 +1,7 @@
 /**
  * The API's global route prefix — one definition, two consumers.
  *
- * `main.ts` applies this at boot, and `apps/api/scripts/emit-openapi.cjs`
+ * `common/http-bootstrap.ts` applies this at boot, and `apps/api/scripts/emit-openapi.cjs`
  * applies it when generating openapi.json (which becomes the typed client every
  * frontend imports). Those used to be two hand-copied literals, and they drifted:
  * the emit script kept a `version` exclusion after the route moved under the

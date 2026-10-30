@@ -4,13 +4,10 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
-import { ApiExceptionFilter } from './common/api-exception.filter';
-import { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } from './common/global-prefix';
+import { configureHttpApp } from './common/http-bootstrap';
 import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
 import { trustOneLocalProxy } from './common/trust-proxy';
-import { ZodOrClassValidationPipe } from './common/zod-or-class-validation.pipe';
-import { buildCorsOrigins } from './security/http-security';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
 
@@ -30,49 +27,9 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // ── Cookie support ───────────────────────────────────────────────────────
-  // Register @fastify/cookie via the underlying Fastify instance
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fastifyCookie = require('@fastify/cookie') as {
-    default: Parameters<NestFastifyApplication['register']>[0];
-  };
-  await app.register(fastifyCookie.default ?? fastifyCookie, {
-    secret: process.env['COOKIE_SECRET'] ?? 'dev-cookie-secret-change-in-prod',
-  });
-
-  // ── Multipart (file uploads) ─────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fastifyMultipart = require('@fastify/multipart') as {
-    default: Parameters<NestFastifyApplication['register']>[0];
-  };
-  const multipartMaxBytes = process.env['MULTIPART_MAX_BYTES']
-    ? Number(process.env['MULTIPART_MAX_BYTES'])
-    : 1024 * 1024 * 1024;
-  await app.register(fastifyMultipart.default ?? fastifyMultipart, {
-    limits: { fileSize: multipartMaxBytes },
-  });
-
-  // ── Global validation pipe ───────────────────────────────────────────────
-  app.useGlobalPipes(
-    new ZodOrClassValidationPipe({
-      whitelist: true, // strip unknown properties (class-validator DTOs)
-      forbidNonWhitelisted: true,
-      transform: true, // auto-transform payloads to DTO instances
-    }),
-  );
-  app.useGlobalFilters(new ApiExceptionFilter(captureApiException));
-
-  // ── Global prefix ────────────────────────────────────────────────────────
-  // Shared with scripts/emit-openapi.cjs so the served routes and the generated
-  // client can't disagree — see common/global-prefix.ts.
-  app.setGlobalPrefix(API_GLOBAL_PREFIX, { exclude: API_GLOBAL_PREFIX_EXCLUDE });
-
-  // ── CORS ─────────────────────────────────────────────────────────────────
-  const domain = process.env['DOMAIN'] ?? 'myclash.localhost';
-  app.enableCors({
-    origin: buildCorsOrigins(domain),
-    credentials: true,
-  });
+  // Cookies, uploads, the global pipe and filter, the prefix and CORS: one owner, which the
+  // edge tests run too (common/http-bootstrap.ts).
+  await configureHttpApp(app, { reportException: captureApiException });
 
   // ── OpenAPI / Swagger (dev only) ─────────────────────────────────────────
   if (process.env['NODE_ENV'] !== 'production') {

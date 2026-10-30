@@ -38,7 +38,7 @@ const { FastifyAdapter } = require('@nestjs/platform-fastify');
 const { DocumentBuilder, SwaggerModule } = require('@nestjs/swagger');
 const { cleanupOpenApiDoc } = require('nestjs-zod');
 const { AppModule } = require('../dist/app.module');
-// Same constants main.ts applies — NOT a copy. A literal here silently taught
+// Same constants common/http-bootstrap.ts applies — NOT a copy. A literal here silently taught
 // the generated client a different route shape than the server serves.
 const { API_GLOBAL_PREFIX, API_GLOBAL_PREFIX_EXCLUDE } = require('../dist/common/global-prefix');
 

@@ -7,7 +7,7 @@ This document records the production-review security posture for MyClash. It is 
 ## Application Layer
 
 - All API traffic is served by NestJS/Fastify from `apps/api`.
-- Global validation is configured in `apps/api/src/main.ts` with `whitelist: true`, `forbidNonWhitelisted: true`, and `transform: true`.
+- Global validation is configured in `apps/api/src/common/http-bootstrap.ts` with `whitelist: true`, `forbidNonWhitelisted: true`, and `transform: true`.
 - CORS is an explicit allowlist built by `buildCorsOrigins()`:
   - `https://${DOMAIN}`
   - `https://app.${DOMAIN}`
