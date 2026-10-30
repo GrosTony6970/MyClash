@@ -63,8 +63,30 @@ test('every mutating ops operation runs under the shared lock', async () => {
     /withOpsLock\(ROOT_DIR, \{ kind: 'delete-all'/,
     'delete-all must take the lock',
   );
-  assert.match(server, /handle = await acquireOpsLock\(ROOT_DIR/, 'runLocked must take the lock');
-  assert.match(server, /await releaseOpsLock\(handle\)/);
+  // Backup and restore run in operation-runner.mjs under the lock it is handed (tested there).
+  assert.match(
+    server,
+    /acquire: \(operation\) =>\s*acquireOpsLock\(ROOT_DIR/,
+    'backup and restore must take the lock',
+  );
+  assert.match(server, /release: releaseOpsLock,/);
+  // An upload replaces a night's file and a delete removes one: never under a restore reading it.
+  assert.match(server, /withOpsLock\(ROOT_DIR, \{ kind: 'upload'/, 'an upload must take the lock');
+  assert.match(
+    server,
+    /withOpsLock\(\s*ROOT_DIR,\s*\{ kind: 'delete',/,
+    'a backup delete must take the lock',
+  );
+  assert.match(
+    server,
+    /removeAllUploads\(ROOT_DIR\)/,
+    'delete-all must clear the uploads too (ruling 218)',
+  );
+  assert.match(
+    server,
+    /await sweepIncoming\(ROOT_DIR\)/,
+    'the boot must sweep what a crash left half-written',
+  );
   // The old contentless lock left no way to tell a live holder from a crashed
   // one, which is what wedged the runner permanently after a container kill.
   assert.doesNotMatch(server, /open\(lockPath, 'wx'\)/, 'the contentless lock must not come back');

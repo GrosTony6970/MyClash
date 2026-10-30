@@ -1,28 +1,40 @@
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import {
-  BACKUP_FILENAME_PATTERN,
   BACKUP_TIMESTAMP_PATTERN,
   backupSetsFromArtifacts,
-  buildBackupSet,
   deriveLastBackup,
   enforceLocalRetention,
   expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
+  newestServerBackup,
   nextBackupRun,
   parseAwsS3List,
   parseBackupFilename,
   readBackupSchedule,
-  shouldRunScheduledBackup,
   writeBackupSchedule,
 } from './backup-core.mjs';
 import { parseDfOutput } from './disk.mjs';
 import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
+import { createOperationRunner } from './operation-runner.mjs';
+import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
+import {
+  badRequest,
+  discardIncoming,
+  incomingPath,
+  listUploadArtifacts,
+  removeAllUploads,
+  removeUploadFiles,
+  removeUploadSet,
+  resolveUploadSet,
+  restoreArgs,
+  stageUpload,
+  sweepIncoming,
+} from './upload-store.mjs';
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
@@ -50,7 +62,28 @@ const AWS_ERROR_MAX_CHARS = 400;
 const HOST_INFO_TIMEOUT_MS = 5_000;
 const operations = new Map();
 let backupSchedule = await readBackupSchedule(ROOT_DIR);
-let lastScheduledRunKey = null;
+// An `afterSuccess` (retention after a backup, the used upload files after a restore) is
+// best-effort and must not throw.
+const operationRunner = createOperationRunner({
+  operations,
+  acquire: (operation) =>
+    acquireOpsLock(ROOT_DIR, {
+      kind: operation.kind,
+      operationId: operation.id,
+      onReclaim: logReclaimedLock,
+    }),
+  release: releaseOpsLock,
+  run: appendProcess,
+  appendHistory: appendBackupHistory,
+  sanitize: sanitizeError,
+});
+const scheduledBackup = createScheduledBackup({
+  start: () => startOperation('backup', backupCommand, { scheduled: true }).started,
+  recordMissed: (slot, now) =>
+    appendBackupHistory(missedBackupRecord(slot, now)).catch((error) =>
+      console.warn(`[schedule] could not record a missed night: ${sanitizeError(error)}`),
+    ),
+});
 
 // Allowlist of compose service names that may be controlled via the lifecycle
 // endpoints. Mirrored verbatim by the API's system-actions service for
@@ -83,6 +116,11 @@ if (!SECRET) {
   console.error('OPS_RUNNER_SECRET is required');
   process.exit(1);
 }
+
+// Before the server listens, so no upload can be mid-write: what is left is a crash's.
+await sweepIncoming(ROOT_DIR).catch((error) =>
+  console.warn(`[uploads] boot sweep failed: ${sanitizeError(error)}`),
+);
 
 const server = createServer(async (req, res) => {
   try {
@@ -126,20 +164,16 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/backup') {
-      sendJson(
-        res,
-        202,
-        startOperation('backup', () => runScript(['infra/scripts/backup.sh'])),
-      );
+      sendJson(res, 202, { operation: startOperation('backup', backupCommand).operation });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/restore') {
       const body = await readJsonBody(req);
-      sendJson(
-        res,
-        202,
-        startOperation('restore', () => restoreCommand(body), body),
-      );
+      // Resolved now so a refusal is the caller's 400, and again under the lock: that is the
+      // one that runs (an upload or a delete may land between the two).
+      await restoreCommand(body);
+      const { operation } = startOperation('restore', () => restoreCommand(body), body);
+      sendJson(res, 202, { operation });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/renew-certs') {
@@ -153,7 +187,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/uploads') {
       const body = await readJsonBody(req);
-      sendJson(res, 201, await stageUpload(body));
+      sendJson(res, 201, await stageBase64Upload(body));
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/download/')) {
@@ -193,7 +227,7 @@ async function statusResponse() {
   return {
     generatedAt: new Date().toISOString(),
     cloudConfigured: s3Configured(),
-    lastBackup: deriveLastBackup(history, backups[0] ?? null),
+    lastBackup: deriveLastBackup(history, newestServerBackup(backups)),
     runningOperation,
   };
 }
@@ -233,9 +267,10 @@ async function hostResponse() {
 async function backupsResponse() {
   const localArtifacts = await listLocalBackupArtifacts(ROOT_DIR);
   const cloudArtifacts = await listCloudArtifacts();
+  const uploadArtifacts = await listUploadArtifacts(ROOT_DIR);
   return {
     generatedAt: new Date().toISOString(),
-    backups: backupSetsFromArtifacts({ localArtifacts, cloudArtifacts }),
+    backups: backupSetsFromArtifacts({ localArtifacts, cloudArtifacts, uploadArtifacts }),
   };
 }
 
@@ -264,8 +299,19 @@ async function readBackupHistory() {
  * Record the outcome of a finished operation to a small bounded ring on
  * disk, written atomically (temp + rename) so a concurrent /status read
  * never sees a torn file.
+ *
+ * Two writers can land together: an operation ending under the lock, and the scheduler
+ * recording a missed night outside it. Both read, append and rename the same file, so the
+ * writes go one after the other (one process: an in-memory queue is enough).
  */
-async function appendBackupHistory(operation) {
+let historyQueue = Promise.resolve();
+function appendBackupHistory(operation) {
+  const write = historyQueue.then(() => writeBackupHistory(operation));
+  historyQueue = write.catch(() => undefined);
+  return write;
+}
+
+async function writeBackupHistory(operation) {
   const record = {
     id: operation.id,
     kind: operation.kind,
@@ -276,6 +322,7 @@ async function appendBackupHistory(operation) {
     backupId: operation.backupId ?? null,
     source: operation.source ?? null,
     error: operation.error ?? null,
+    code: operation.code ?? null,
   };
   const history = await readBackupHistory();
   history.push(record);
@@ -287,15 +334,9 @@ async function appendBackupHistory(operation) {
   await rename(tmpPath, filePath);
 }
 
+/** The slot, the busy retry and the missed night are `scheduled-backup.mjs`'s (ruling 217). */
 async function maybeRunScheduledBackup(now = new Date()) {
-  const decision = shouldRunScheduledBackup(backupSchedule, now, lastScheduledRunKey);
-  if (!decision.shouldRun || !decision.runKey) return;
-  lastScheduledRunKey = decision.runKey;
-  const runningOperation = [...operations.values()].find((op) => op.status === 'running');
-  if (runningOperation) return;
-  startOperation('backup', () => runScript(['infra/scripts/backup.sh']), {
-    scheduled: true,
-  });
+  await scheduledBackup.tick(backupSchedule, now);
 }
 
 /**
@@ -334,20 +375,9 @@ async function listCloudArtifacts({ throwOnFailure = false } = {}) {
     .filter(Boolean);
 }
 
+/** `{ operation, started }`: see operation-runner.mjs. */
 function startOperation(kind, createCommand, body = {}) {
-  const operation = {
-    id: randomUUID(),
-    kind,
-    status: 'running',
-    startedAt: new Date().toISOString(),
-    source: body.location,
-    backupId: body.backupId,
-    scheduled: Boolean(body.scheduled),
-    logTail: [],
-  };
-  operations.set(operation.id, operation);
-  void runLocked(operation, createCommand);
-  return { operation };
+  return operationRunner.start(kind, createCommand, body);
 }
 
 /**
@@ -362,41 +392,12 @@ function logReclaimedLock(state) {
   );
 }
 
-async function runLocked(operation, createCommand) {
-  let handle;
-  try {
-    handle = await acquireOpsLock(ROOT_DIR, {
-      kind: operation.kind,
-      operationId: operation.id,
-      onReclaim: logReclaimedLock,
-    });
-  } catch (error) {
-    operation.status = 'failed';
-    operation.error = sanitizeError(error);
-    operation.finishedAt = new Date().toISOString();
-    return;
-  }
-
-  try {
-    if (operation.kind === 'restore') {
-      await appendProcess(operation, ['bash', 'infra/scripts/backup.sh']);
-    }
-    await appendProcess(operation, await createCommand());
-    operation.status = 'success';
-    // Retention enforcement runs after a successful backup, never on
-    // restore — restore creates a safety-net backup but that's the
-    // single artifact we'd be pruning otherwise.
-    if (operation.kind === 'backup') {
-      await runRetentionAfterBackup(operation);
-    }
-  } catch (error) {
-    operation.status = 'failed';
-    operation.error = sanitizeError(error);
-  } finally {
-    operation.finishedAt = new Date().toISOString();
-    await appendBackupHistory(operation).catch(() => undefined);
-    await releaseOpsLock(handle);
-  }
+/**
+ * Retention runs after a successful backup, never after a restore — a restore makes a
+ * safety-net backup, the single set we would be pruning otherwise.
+ */
+function backupCommand() {
+  return { command: ['bash', 'infra/scripts/backup.sh'], afterSuccess: runRetentionAfterBackup };
 }
 
 async function runRetentionAfterBackup(operation) {
@@ -470,7 +471,7 @@ async function enforceCloudRetention(retentionCount) {
  */
 async function deleteAllBackups(body) {
   if (!body || body.confirmation !== 'DELETE ALL MYCLASH BACKUPS') {
-    throw new Error('Invalid confirmation.');
+    throw badRequest('Invalid confirmation.');
   }
 
   // Mutual exclusion with backup/restore. Without it a wipe can delete
@@ -479,14 +480,16 @@ async function deleteAllBackups(body) {
   // delete below keeps this inside the API's request budget.
   return withOpsLock(ROOT_DIR, { kind: 'delete-all', onReclaim: logReclaimedLock }, async () => {
     const local = await deleteAllLocalBackups();
+    const uploads = await removeAllUploads(ROOT_DIR);
     const cloud = s3Configured() ? await deleteAllCloudBackups() : emptyWipe();
 
     return {
       deleted: true,
       deletedLocalSets: local.timestamps.size,
       deletedCloudSets: cloud.timestamps.size,
-      deletedFiles: [...local.deletedFiles, ...cloud.deletedFiles],
-      failedFiles: local.failedFiles,
+      deletedUploadSets: uploads.deletedSets,
+      deletedFiles: [...local.deletedFiles, ...uploads.deletedFiles, ...cloud.deletedFiles],
+      failedFiles: [...local.failedFiles, ...uploads.failedFiles],
     };
   });
 }
@@ -547,72 +550,76 @@ async function deleteAllCloudBackups() {
   };
 }
 
+/** @returns `{ command, afterSuccess? }` for `runLocked`; a bad request throws a 400. */
 async function restoreCommand(body) {
-  if (!body || typeof body !== 'object') throw new Error('Invalid restore payload.');
+  if (!body || typeof body !== 'object') throw badRequest('Invalid restore payload.');
   const { location, backupId, includeStorage = true, confirmation } = body;
-  if (!['local', 's3', 'upload'].includes(location)) throw new Error('Invalid restore location.');
-  if (confirmation !== `RESTORE MYCLASH ${backupId}`) throw new Error('Invalid confirmation.');
+  if (!['local', 's3', 'upload'].includes(location)) throw badRequest('Invalid restore location.');
+  if (confirmation !== `RESTORE MYCLASH ${backupId}`) throw badRequest('Invalid confirmation.');
+  const restore = (args) => ['bash', 'infra/scripts/restore.sh', ...args];
 
   if (location === 's3') {
-    assertTimestamp(backupId);
-    return ['bash', 'infra/scripts/restore.sh', '--from-s3', backupId, '--yes'];
+    return { command: restore(['--from-s3', assertTimestamp(backupId), '--yes']) };
   }
-
-  const dbPath =
-    location === 'upload'
-      ? await findUploadedDbBackup(backupId)
-      : await findLocalDbBackup(assertTimestamp(backupId));
-  return [
-    'bash',
-    'infra/scripts/restore.sh',
-    dbPath,
-    '--yes',
-    includeStorage ? '--include-storage' : '--db-only',
-  ];
+  if (location === 'local') {
+    const dbPath = await findLocalArtifact(assertTimestamp(backupId), 'db');
+    return {
+      command: restore([dbPath, '--yes', includeStorage ? '--include-storage' : '--db-only']),
+    };
+  }
+  // An upload restores the night's files together (ruling 209), and they go once it worked (214).
+  const { args, used } = restoreArgs(
+    await resolveUploadSet(ROOT_DIR, backupId),
+    includeStorage,
+    body.scope,
+  );
+  return {
+    command: restore(args),
+    afterSuccess: (operation) =>
+      removeUploadFiles(ROOT_DIR, used).catch((error) =>
+        addLog(
+          operation,
+          `[uploads] WARN could not remove the restored files: ${sanitizeError(error)}\n`,
+        ),
+      ),
+  };
 }
 
-async function stageUpload(body) {
-  if (!body || typeof body !== 'object') throw new Error('Invalid upload payload.');
-  const rawFilename = String(body.filename ?? '');
-  const filename = path.basename(rawFilename);
-  if (filename !== rawFilename) throw new Error('Unsupported backup filename.');
-  if (!BACKUP_FILENAME_PATTERN.test(filename)) throw new Error('Unsupported backup filename.');
+/**
+ * The base64 body of today's upload route (the chunked upload replaces it). Written and kept
+ * under the ops lock: a restore reading the night's folder never meets a half-written file, and
+ * an upload during a backup or a restore answers 409.
+ */
+async function stageBase64Upload(body) {
+  if (!body || typeof body !== 'object') throw badRequest('Invalid upload payload.');
+  const filename = String(body.filename ?? '');
   const parsed = parseBackupFilename(filename);
-  const uploadId = `upload-${parsed.timestamp}-${randomUUID().slice(0, 8)}`;
-  const uploadDir = path.join(ROOT_DIR, 'backups', 'uploads', uploadId);
-  await mkdir(uploadDir, { recursive: true });
-  const uploadPath = path.join(uploadDir, filename);
-  await writeFile(uploadPath, Buffer.from(String(body.contentBase64), 'base64'));
-  // Reject corrupt/truncated uploads up front so a bad artifact can never be
-  // selected for restore. Encrypted .gpg blobs can't be introspected without
-  // the private key, so integrity there is only verified at restore time.
-  if (!parsed.encrypted) {
-    const gz = await spawnCapture('gzip', ['-t', uploadPath]);
-    if (gz.code !== 0) {
-      await rm(uploadDir, { recursive: true, force: true }).catch(() => undefined);
-      throw new Error('Uploaded backup failed integrity check (corrupt or truncated gzip).');
+  if (!parsed) throw badRequest('Unsupported backup filename.');
+  return withOpsLock(ROOT_DIR, { kind: 'upload', onReclaim: logReclaimedLock }, async () => {
+    const temp = await incomingPath(ROOT_DIR, parsed.timestamp);
+    try {
+      await writeFile(temp, Buffer.from(String(body.contentBase64), 'base64'));
+      return await stageUpload(ROOT_DIR, filename, temp, {
+        verify: async (file) => (await spawnCapture('gzip', ['-t', file])).code === 0,
+      });
+    } catch (error) {
+      // A full disk mid-write: the partial file goes now, not at the next boot.
+      await discardIncoming(temp);
+      throw error;
     }
-  }
-  const fileStat = await stat(uploadPath);
-  const artifact = {
-    ...parsed,
-    uploadId,
-    sizeBytes: fileStat.size,
-    modifiedAt: fileStat.mtime.toISOString(),
-  };
-  return { backup: buildBackupSet(uploadId, parsed.timestamp, [artifact], 'upload') };
+  });
 }
 
 async function downloadBackup(url, res) {
   const backupId = path.basename(url.pathname);
   const location = url.searchParams.get('location') ?? 'local';
   const artifact = url.searchParams.get('artifact') ?? 'db';
-  if (!['db', 'storage', 'bundle'].includes(artifact)) throw new Error('Invalid artifact.');
-  if (!['local', 's3', 'upload'].includes(location)) throw new Error('Invalid location.');
+  if (!['db', 'storage', 'bundle'].includes(artifact)) throw badRequest('Invalid artifact.');
+  if (!['local', 's3', 'upload'].includes(location)) throw badRequest('Invalid location.');
 
   const filePath =
     location === 'upload'
-      ? await findUploadedArtifact(backupId, artifact)
+      ? await uploadedFile(backupId, artifact)
       : location === 's3'
         ? await downloadS3Artifact(assertTimestamp(backupId), artifact)
         : await findLocalArtifact(assertTimestamp(backupId), artifact);
@@ -621,20 +628,33 @@ async function downloadBackup(url, res) {
     'content-type': 'application/octet-stream',
     'content-disposition': `attachment; filename="${path.basename(filePath)}"`,
   });
-  createReadStream(filePath).pipe(res);
+  // A file deleted between the lookup and the open (a restore that just used it) must end this
+  // response, not crash the runner with an unhandled stream error.
+  createReadStream(filePath)
+    .on('error', () => res.destroy())
+    .pipe(res);
 }
 
+/**
+ * Under the ops lock (busy → 409): a delete never pulls a file from under a backup writing it or
+ * a restore reading it.
+ */
 async function deleteBackup(url) {
   const backupId = path.basename(url.pathname);
   const location = url.searchParams.get('location') ?? 'local';
-  if (!['local', 's3'].includes(location)) throw new Error('Invalid backup location.');
-  const timestamp = assertTimestamp(backupId);
-  const deletedArtifacts =
-    location === 's3'
-      ? await deleteS3BackupArtifacts(timestamp)
-      : await deleteLocalBackupArtifacts(timestamp);
-  if (deletedArtifacts.length === 0) throw new Error('No backup artifacts found to delete.');
-  return { deleted: true, backupId: timestamp, location, deletedArtifacts };
+  if (!['local', 's3', 'upload'].includes(location)) throw badRequest('Invalid backup location.');
+  if (location !== 'upload') assertTimestamp(backupId);
+  const deletedArtifacts = await withOpsLock(
+    ROOT_DIR,
+    { kind: 'delete', onReclaim: logReclaimedLock },
+    () => {
+      if (location === 'upload') return removeUploadSet(ROOT_DIR, backupId);
+      if (location === 's3') return deleteS3BackupArtifacts(backupId);
+      return deleteLocalBackupArtifacts(backupId);
+    },
+  );
+  if (deletedArtifacts.length === 0) throw badRequest('No backup artifacts found to delete.');
+  return { deleted: true, backupId, location, deletedArtifacts };
 }
 
 async function deleteLocalBackupArtifacts(timestamp) {
@@ -674,10 +694,6 @@ async function deleteS3BackupArtifacts(timestamp) {
   return deleted;
 }
 
-async function findLocalDbBackup(timestamp) {
-  return findLocalArtifact(timestamp, 'db');
-}
-
 async function findLocalArtifact(timestamp, artifact) {
   const kind = artifact === 'storage' ? 'storage' : 'db';
   const base = kind === 'storage' ? `storage-${timestamp}.tar.gz` : `db-${timestamp}.sql.gz`;
@@ -685,25 +701,16 @@ async function findLocalArtifact(timestamp, artifact) {
     const filePath = path.join(ROOT_DIR, 'backups', 'nightly', candidate);
     if (await fileExists(filePath)) return filePath;
   }
-  throw new Error('Backup artifact not found.');
+  throw badRequest('Backup artifact not found.');
 }
 
-async function findUploadedDbBackup(uploadId) {
-  return findUploadedArtifact(uploadId, 'db');
-}
-
-async function findUploadedArtifact(uploadId, artifact) {
-  if (!/^upload-\d{8}T\d{6}Z-[A-Za-z0-9_-]{8}$/.test(uploadId)) {
-    throw new Error('Invalid upload identifier.');
-  }
-  const uploadDir = path.join(ROOT_DIR, 'backups', 'uploads', uploadId);
-  const entries = await import('node:fs/promises').then((fs) => fs.readdir(uploadDir));
-  const match = entries.find((entry) => {
-    const parsed = parseBackupFilename(entry);
-    return parsed && (artifact === 'bundle' || parsed.kind === artifact);
-  });
-  if (!match) throw new Error('Uploaded backup artifact not found.');
-  return path.join(uploadDir, match);
+/** One file of an upload set; `bundle` = the database, else the images. */
+async function uploadedFile(backupId, artifact) {
+  const set = await resolveUploadSet(ROOT_DIR, backupId);
+  const file =
+    artifact === 'storage' ? set.storage : artifact === 'db' ? set.db : (set.db ?? set.storage);
+  if (!file) throw badRequest('Uploaded backup artifact not found.');
+  return file;
 }
 
 async function downloadS3Artifact(timestamp, artifact) {
@@ -749,10 +756,6 @@ async function appendProcess(operation, command) {
       else reject(new Error(`${command[0]} exited with ${code}`));
     });
   });
-}
-
-function runScript(args) {
-  return Promise.resolve(['bash', ...args]);
 }
 
 /**
@@ -901,7 +904,7 @@ function s3Configured() {
 }
 
 function assertTimestamp(value) {
-  if (!BACKUP_TIMESTAMP_PATTERN.test(String(value))) throw new Error('Invalid backup timestamp.');
+  if (!BACKUP_TIMESTAMP_PATTERN.test(String(value))) throw badRequest('Invalid backup timestamp.');
   return String(value);
 }
 

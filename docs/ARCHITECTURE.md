@@ -3323,6 +3323,8 @@ Backups now run as **ops-runner operations** rather than direct cron-on-host (se
 - **Retention:** 30 days rolling, enforced on each new backup.
 - **Schedule:** configurable from `/admin/backups` (hour + minute UTC). Persisted by the ops-runner; not in Postgres.
 - **Restore:** triggered from `/admin/backups` against a local file, an uploaded archive, or an S3 object. The UI requires typed confirmation matching `RESTORE MYCLASH <backupId>` before running.
+- **Uploads:** one folder per night, `backups/uploads/<TS>/` (`infra/ops-runner/upload-store.mjs`), listed as the set `upload-<TS>`. A restore pairs the night's database and images (or restores either alone, images via `restore.sh --storage-only`), then deletes the files it used. See `docs/DISASTER_RECOVERY.md`.
+- **A busy night:** when the scheduled backup meets the ops lock held (a restore, a delete, an upload), it is retried every 30 s tick until it starts; still not started at the next slot, the night is recorded as a failed backup (`infra/ops-runner/scheduled-backup.mjs`). The waiting night lives in memory: a redeploy while it waits forgets it.
 
 ### 17.4 ops-runner sidecar
 
@@ -3334,13 +3336,13 @@ The HTTP surface is exposed on the internal `myclash` network at port `4075`, ne
 | -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
 | `GET`    | `/status`                          | Cloud-config flag, last backup summary, currently-running operation.                   |
 | `GET`    | `/backups`                         | List all backup sets across local + S3, with per-artifact `sizeBytes`.                 |
-| `DELETE` | `/backups/{backupId}?location=...` | Delete a backup's artifacts at the given location (`local` or `s3`).                   |
+| `DELETE` | `/backups/{backupId}?location=...` | Delete a backup's artifacts at the given location (`local`, `s3` or `upload`).         |
 | `GET`    | `/schedule`                        | Read the nightly backup schedule (`enabled`, `hourUtc`, `minuteUtc`, `nextRunAt`).     |
 | `PUT`    | `/schedule`                        | Update the schedule.                                                                   |
 | `POST`   | `/operations/backup`               | Start an ad-hoc backup. Returns the operation id (poll via `/operations/{id}`).        |
 | `POST`   | `/operations/restore`              | Start a restore from `{location, backupId, includeStorage, confirmation}`.             |
 | `GET`    | `/operations/{id}`                 | Poll operation status; includes a tail of stdout/stderr.                               |
-| `POST`   | `/uploads`                         | Stage a backup uploaded from the admin UI (base64 body).                               |
+| `POST`   | `/uploads`                         | Stage a backup uploaded from the admin UI (base64 body) in its night's folder.         |
 | `GET`    | `/download/{backupId}?...`         | Stream a backup artifact back to the admin UI.                                         |
 | `POST`   | `/containers/{service}/{action}`   | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`). |
 

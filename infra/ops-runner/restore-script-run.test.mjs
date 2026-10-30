@@ -32,6 +32,8 @@ const skip = process.platform === 'win32' && !existsSync(BASH) ? 'needs Git Bash
 const NIGHT = '20261030T030000Z';
 const NIGHTLY_DB = `backups/nightly/db-${NIGHT}.sql.gz`;
 const NIGHTLY_STORAGE = `backups/nightly/storage-${NIGHT}.tar.gz`;
+const DB = `backups/uploads/${NIGHT}/db-${NIGHT}.sql.gz`;
+const STORAGE = `backups/uploads/${NIGHT}/storage-${NIGHT}.tar.gz`;
 
 const DOCKER = `#!/usr/bin/env bash
 echo "docker $*" >> "$CALL_LOG"
@@ -48,6 +50,12 @@ const GUNZIP = `#!/usr/bin/env bash
 echo "gunzip $*" >> "$CALL_LOG"
 if [[ "$1" == "-t" ]]; then exit "\${GUNZIP_TEST_EXIT:-0}"; fi
 if [[ "$1" == "-c" ]]; then cat "$2"; fi
+exit 0
+`;
+// Every plain object is in the bucket; `s3 cp <from> <to>` writes <to>.
+const AWS = `#!/usr/bin/env bash
+echo "aws $*" >> "$CALL_LOG"
+if [[ "$1 $2" == "s3 cp" ]]; then echo archive > "$4"; fi
 exit 0
 `;
 const GPG = `#!/usr/bin/env bash
@@ -80,10 +88,12 @@ function sandbox() {
     ['docker', DOCKER],
     ['gunzip', GUNZIP],
     ['gpg', GPG],
+    ['aws', AWS],
   ]) {
     writeFileSync(join(root, 'bin', name), body, { mode: 0o755 });
   }
   mkdirSync(join(root, 'backups', 'nightly'), { recursive: true });
+  mkdirSync(join(root, 'backups', 'uploads', NIGHT), { recursive: true });
   return root;
 }
 
@@ -129,8 +139,15 @@ function restore(root, args, extraEnv = {}) {
   return { status: result.status, output: `${result.stdout}${result.stderr}`, calls };
 }
 
+const BUCKET = {
+  BACKUP_SCW_ACCESS_KEY: 'key',
+  BACKUP_SCW_SECRET_KEY: 'secret',
+  BACKUP_SCW_BUCKET: 'bucket',
+  BACKUP_SCW_ENDPOINT: 'https://s3.example',
+};
 const show = (run) => `${run.output}\ncalls:\n${run.calls.join('\n')}`;
 const volumeRun = (call) => call.startsWith('docker run --rm -i -v myclash-storage-data:/vol');
+const stops = (run) => run.calls.filter((call) => / stop( |$)/u.test(call));
 
 // The EXIT trap's last command sets the script's status: a cleanup that found no decrypted file
 // to remove made every restore without an encrypted images file exit 1 — "failed" on the screen.
@@ -168,4 +185,118 @@ test('a restore that failed still exits non-zero', { skip }, () => {
   assert.ok(!broken.calls.some((call) => call.startsWith('docker')), show(broken));
   const noVolume = restore(root, [NIGHTLY_DB, '--yes'], { VOLUME_INSPECT_EXIT: '1' });
   assert.equal(noVolume.status, 1, show(noVolume));
+});
+
+// An uploaded night (ruling 209): its images are not in backups/nightly, so they are named.
+test('--storage-file restores the database with the images of the given file', { skip }, () => {
+  const root = sandbox();
+  put(root, NIGHTLY_STORAGE);
+  const run = restore(root, [put(root, DB), '--yes', '--storage-file', put(root, STORAGE)]);
+  assert.equal(run.status, 0, show(run));
+  assert.ok(
+    run.calls.some((call) => call.includes('DROP DATABASE')),
+    show(run),
+  );
+  assert.ok(run.calls.includes(`gunzip -t ${STORAGE}`), show(run));
+  assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
+  assert.ok(!run.calls.some((call) => call.includes(NIGHTLY_STORAGE)), show(run));
+  assert.match(stops(run)[0] ?? '', /supabase-auth/u, show(run));
+  assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
+});
+
+// Ruling 215: only the images of a night were uploaded.
+test('--storage-only replaces the images and never touches the database', { skip }, () => {
+  const root = sandbox();
+  const run = restore(root, ['--storage-only', put(root, STORAGE), '--yes']);
+  assert.equal(run.status, 0, show(run));
+  assert.ok(!run.calls.some((call) => /psql|DROP/u.test(call)), show(run));
+  assert.deepEqual(
+    stops(run).map((call) => call.split(' stop ')[1]),
+    ['supabase-storage'],
+    show(run),
+  );
+  assert.ok(run.calls.some(volumeRun), show(run));
+  assert.ok(run.calls.includes(`gunzip -c ${STORAGE}`), show(run));
+  assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+  assert.match(run.output, /database is not touched/iu);
+});
+
+test('a failed --storage-only on a .gpg leaves no decrypted file behind', { skip }, () => {
+  const root = sandbox();
+  const sealed = put(root, `${STORAGE}.gpg`);
+  const run = restore(root, ['--storage-only', sealed, '--yes'], { VOLUME_INSPECT_EXIT: '1' });
+  assert.equal(run.status, 1, show(run));
+  assert.ok(
+    run.calls.some((call) => call.startsWith('gpg --decrypt --output')),
+    show(run),
+  );
+  assert.deepEqual(
+    readdirSync(join(root, 'backups', 'uploads', NIGHT)).filter((name) => name.endsWith('.tmp')),
+    [],
+  );
+  assert.match(run.calls.at(-1) ?? '', / up -d --no-deps supabase-storage$/u, show(run));
+});
+
+for (const [name, args] of [
+  [
+    'a --storage-file that is not there',
+    (root) => [put(root, DB), '--yes', '--storage-file', STORAGE],
+  ],
+  ['a --storage-only file that is not there', () => ['--storage-only', STORAGE, '--yes']],
+  [
+    '--storage-only with a database file',
+    (root) => [put(root, DB), '--storage-only', put(root, STORAGE), '--yes'],
+  ],
+  [
+    '--storage-only with --db-only',
+    (root) => ['--storage-only', put(root, STORAGE), '--db-only', '--yes'],
+  ],
+  [
+    '--storage-only with --from-s3',
+    (root) => ['--storage-only', put(root, STORAGE), '--from-s3', NIGHT, '--yes'],
+  ],
+  [
+    '--storage-only with --storage-file',
+    (root) => ['--storage-only', put(root, STORAGE), '--storage-file', put(root, STORAGE), '--yes'],
+  ],
+  [
+    '--storage-file with --db-only',
+    (root) => [put(root, DB), '--storage-file', put(root, STORAGE), '--db-only', '--yes'],
+  ],
+  ['a flag with no value', (root) => [put(root, DB), '--yes', '--storage-file']],
+  ['two database files', (root) => [put(root, DB), put(root, DB), '--yes']],
+  ['a database file with --from-s3', (root) => [put(root, DB), '--from-s3', NIGHT, '--yes']],
+  [
+    '--storage-file with --from-s3',
+    (root) => ['--from-s3', NIGHT, '--storage-file', put(root, STORAGE), '--yes'],
+  ],
+  ['an option it does not know', (root) => [put(root, DB), '--yes', '--everything']],
+  ['nothing to restore', () => ['--yes']],
+]) {
+  test(`refused before anything stops: ${name}`, { skip }, () => {
+    const root = sandbox();
+    // With a bucket configured, so a refusal is the flags' and never a missing bucket's.
+    const run = restore(root, args(root), BUCKET);
+    assert.equal(run.status, 1, show(run));
+    assert.match(run.output, /✗/u, show(run));
+    assert.deepEqual(run.calls, [], show(run));
+  });
+}
+
+// The ops runner's cloud restore: `--from-s3 <ts> --yes`, unchanged by the new flags.
+test('--from-s3 pulls the night from the bucket and restores both', { skip }, () => {
+  const run = restore(sandbox(), ['--from-s3', NIGHT, '--yes'], BUCKET);
+  assert.equal(run.status, 0, show(run));
+  assert.ok(
+    run.calls.some((call) =>
+      call.startsWith(`aws s3 cp s3://bucket/myclash/db-${NIGHT}.sql.gz ${NIGHTLY_DB}`),
+    ),
+    show(run),
+  );
+  assert.ok(
+    run.calls.some((call) => call.includes('DROP DATABASE')),
+    show(run),
+  );
+  assert.ok(run.calls.includes(`gunzip -c ${NIGHTLY_STORAGE}`), show(run));
+  assert.match(run.calls.at(-1) ?? '', / up -d$/u, show(run));
 });

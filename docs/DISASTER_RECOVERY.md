@@ -29,6 +29,23 @@ restores have the roles they need.
 6. Clears and re-extracts the storage archive into the `myclash-storage-data` volume.
 7. `docker compose up -d` restarts the whole stack.
 
+`--storage-only <file>` does steps 1, 6 and 7 for the images alone: it stops and restarts
+`supabase-storage` only (the one service that mounts the volume) and never touches the
+database. **The images must come from the same night as the database in use:** the database
+holds a row per stored file (`storage` schema), so images of another night leave broken logos
+and photos, and files no row points to.
+
+## Uploaded backups
+
+A super admin can upload a set from `/admin/backups` (a new server with no `backups/nightly/`,
+for example). Each night is one folder, `backups/uploads/<TS>/`, holding at most the database
+and the images file of that night; a second upload of the same file replaces the first. The
+set is listed with the others as `upload-<TS>`. Its restore pairs the files: database + images
+(`restore.sh <db> --storage-file <storage>`), database only (`--db-only`), or images only
+(`--storage-only`, same-night rule above). After a restore that worked, the files it used are
+deleted; a failed restore keeps them for another try. An upload row also has its own Delete,
+and "Delete all backups" clears the uploads too.
+
 A restore is triggered from **`/admin/backups`** (super-admin), which requires
 typing `RESTORE MYCLASH <backupId>` to confirm and shows the destructive scope
 before it runs. The ops-runner also takes a **safety backup of current state
@@ -49,6 +66,8 @@ cd /srv/myclash
 infra/scripts/restore.sh                       # list local + S3 backups
 infra/scripts/restore.sh backups/nightly/db-<TS>.sql.gz   # local, DB + matching storage
 infra/scripts/restore.sh --from-s3 <TS>        # pull from Scaleway S3 then restore
+infra/scripts/restore.sh <db-file> --storage-file <storage-file>   # images from another path
+infra/scripts/restore.sh --storage-only <storage-file>   # images only, same night as the DB
 # add --db-only to skip storage, --yes for non-interactive
 ```
 
@@ -61,7 +80,7 @@ infra/scripts/restore.sh --from-s3 <TS>        # pull from Scaleway S3 then rest
 ## Prove it works
 
 - **Fast, non-destructive, any docker host:** `bash infra/scripts/test-restore-roundtrip.sh` — dumps a disposable postgres, restores it with the hardened flags, asserts `auth.users` + rows round-trip, and asserts a truncated dump **fails and rolls back** (proving atomicity).
-- **Regression guard (CI):** `node --test infra/ops-runner/restore-script-guard.test.mjs` pins the critical flags/stop-list so a future edit can't silently drop them.
+- **Regression guard (CI):** `node --test infra/ops-runner/restore-script-guard.test.mjs` pins the critical flags/stop-list so a future edit can't silently drop them; `restore-script-run.test.mjs` runs the script against stubbed `docker`/`gunzip`/`gpg`/`aws` for each mode (what it stops, what it restores, its exit status).
 - **Full drill (do once before launch, then periodically):** spin up a throwaway VM, deploy the stack, copy a real backup set over, run `infra/scripts/restore.sh`, and confirm a known event/fighter and a known uploaded image appear.
 
 ## Post-restore checklist

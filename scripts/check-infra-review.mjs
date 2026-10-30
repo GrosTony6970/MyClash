@@ -454,6 +454,12 @@ const adminBackupsServicePath = path.join(
 );
 const opsRunnerServerPath = path.join(rootDir, 'infra', 'ops-runner', 'server.mjs');
 const opsRunnerBackupCorePath = path.join(rootDir, 'infra', 'ops-runner', 'backup-core.mjs');
+const opsRunnerScheduledBackupPath = path.join(
+  rootDir,
+  'infra',
+  'ops-runner',
+  'scheduled-backup.mjs',
+);
 const platformRoleGuardPath = path.join(
   rootDir,
   'apps',
@@ -641,6 +647,7 @@ const adminBackupsControllerText = await pinned.readPinnedFile(adminBackupsContr
 const adminBackupsServiceText = await pinned.readPinnedFile(adminBackupsServicePath);
 const opsRunnerServerText = await pinned.readPinnedFile(opsRunnerServerPath);
 const opsRunnerBackupCoreText = await pinned.readPinnedFile(opsRunnerBackupCorePath);
+const opsRunnerScheduledBackupText = await pinned.readPinnedFile(opsRunnerScheduledBackupPath);
 const platformRoleGuardText = await pinned.readPinnedFile(platformRoleGuardPath);
 const adminDashboardStatsControllerText = await pinned.readPinnedFile(
   adminDashboardStatsControllerPath,
@@ -2205,7 +2212,6 @@ for (const expected of [
   'deleteS3BackupArtifacts',
   'readBackupSchedule',
   'writeBackupSchedule',
-  'shouldRunScheduledBackup',
   'maybeRunScheduledBackup',
   'aws',
   's3',
@@ -2235,6 +2241,12 @@ requireContains(
   opsRunnerBackupCoreText,
   'infra/ops-runner/backup-core.mjs',
   'expectedBackupArtifactFilenames',
+);
+// The scheduler decides when the nightly backup runs (ruling 217: a busy night is retried).
+requireContains(
+  opsRunnerScheduledBackupText,
+  'infra/ops-runner/scheduled-backup.mjs',
+  'shouldRunScheduledBackup',
 );
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(

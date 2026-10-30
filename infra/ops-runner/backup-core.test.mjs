@@ -8,6 +8,7 @@ import {
   deriveLastBackup,
   enforceLocalRetention,
   expectedBackupArtifactFilenames,
+  newestServerBackup,
   nextBackupRun,
   normalizeBackupSchedule,
   shouldRunScheduledBackup,
@@ -57,6 +58,19 @@ test('deriveLastBackup falls back to the newest artifact as unknown before any r
     localAvailable: true,
     cloudAvailable: true,
   });
+});
+
+test('deriveLastBackup carries the code of a failure the screen words (a missed night)', () => {
+  const missed = { kind: 'backup', status: 'failed', code: 'scheduled_backup_missed' };
+  assert.equal(deriveLastBackup([missed], null).code, 'scheduled_backup_missed');
+  assert.equal(deriveLastBackup([{ kind: 'backup', status: 'success' }], null).code, null);
+});
+
+test('an uploaded night never stands for the last backup', () => {
+  const upload = { id: 'upload-20261030T030000Z', timestamp: '20261030T030000Z', upload: {} };
+  const nightly = { id: '20261029T030000Z', timestamp: '20261029T030000Z' };
+  assert.equal(newestServerBackup([upload, nightly]), nightly);
+  assert.equal(newestServerBackup([upload]), null);
 });
 
 test('deriveLastBackup returns null with no history and no artifacts', () => {

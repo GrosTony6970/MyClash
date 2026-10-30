@@ -356,6 +356,8 @@ export function deriveLastBackup(history, newestBackup) {
       status: lastBackupRun.status ?? 'unknown',
       finishedAt: lastBackupRun.finishedAt ?? null,
       error: lastBackupRun.error ?? null,
+      // A failure the screen words itself (a missed night, ruling 217); null for the others.
+      code: lastBackupRun.code ?? null,
       localAvailable: newestBackup?.local?.available ?? false,
       cloudAvailable: newestBackup?.cloud?.available ?? false,
     };
@@ -373,6 +375,14 @@ export function deriveLastBackup(history, newestBackup) {
   }
 
   return null;
+}
+
+/**
+ * The newest set this server made, for `deriveLastBackup`. An upload is a file someone brought
+ * (sets come newest first): it never stands for "the last backup".
+ */
+export function newestServerBackup(backups) {
+  return backups.find((set) => !set.upload) ?? null;
 }
 
 function backupSchedulePath(rootDir) {
