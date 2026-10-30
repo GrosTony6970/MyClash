@@ -1,5 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { readFileSync } from 'node:fs';
+import type { IncomingMessage, Server } from 'node:http';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FILE_TOO_LARGE_CODE } from './read-upload';
@@ -262,7 +263,12 @@ describe('the API edge, as configureHttpApp builds it', () => {
     const ceiling = process.env['MULTIPART_MAX_BYTES'];
     vi.stubEnv('MULTIPART_MAX_BYTES', String(EDGE_LARGE_UPLOAD.maxBytes));
     const own = await buildEdgeApp({ authMode: 'shadow' });
-    let closed: unknown = 'not yet';
+    const server = own.app.getHttpServer() as Server;
+    // Drained = the request body read to its end. The 400 can leave before that: on Linux the
+    // client is still sending when it lands, so the test waits for the end, not for close().
+    const drained = new Promise((resolve) => {
+      server.once('request', (req: IncomingMessage) => req.once('end', () => resolve('drained')));
+    });
     try {
       const res = await fetch(`${own.base}/api/v1/edge/upload-json-only`, {
         method: 'POST',
@@ -270,15 +276,15 @@ describe('the API edge, as configureHttpApp builds it', () => {
       });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ detail: EDGE_REFUSED_NAME });
-      // An undrained file keeps the connection busy, and close() then waits on it.
-      closed = await Promise.race([
-        own.app.close().then(() => 'closed'),
-        new Promise((resolve) => setTimeout(() => resolve('hung'), 2000)),
+      const outcome = await Promise.race([
+        drained,
+        new Promise((resolve) => setTimeout(() => resolve('never read to its end'), 2000)),
       ]);
-      expect(closed).toBe('closed');
+      expect(outcome).toBe('drained');
     } finally {
       vi.stubEnv('MULTIPART_MAX_BYTES', ceiling);
-      if (closed === 'not yet') await own.app.close().catch(() => undefined);
+      server.closeAllConnections();
+      await own.app.close();
     }
   });
 
