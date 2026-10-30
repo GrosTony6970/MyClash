@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { READ_ONLY_MODE_CODE } from '@myclash/types';
+import { ADMIN_LOCKDOWN_CODE, READ_ONLY_MODE_CODE } from '@myclash/types';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   buildEdgeApp,
@@ -13,7 +13,8 @@ import {
 
 /**
  * Who gets through at the API edge: the global AuthGuard in both of its modes, a guard set on a
- * whole controller, the login cookie, and the read-only switch (a global interceptor).
+ * whole controller, the login cookie, and the read-only switch and the maintenance lockdown (two
+ * global interceptors).
  *
  * Production runs AuthGuard in shadow mode (`.env.example`, `AUTH_GUARD_MODE=shadow`): it lets an
  * anonymous request through and logs it, and the guard on the controller (PlatformRoleGuard on
@@ -171,5 +172,61 @@ describe('AuthGuard in shadow mode (production’s)', () => {
       body: JSON.stringify({ marker: 'probe-marker-echo' }),
     });
     expect(save.status).toBe(200);
+  });
+});
+
+/**
+ * The maintenance lockdown (a global interceptor) locks /api/v1/orgs/ whole for a signed-in
+ * account that is not platform staff. The router decodes `%6F` and reads an absolute-form target
+ * as its path, so each spelling below reaches the same route, and each must meet the lockdown.
+ */
+describe('the maintenance lockdown', () => {
+  const reporter = vi.fn();
+  const targets: Array<[string, (port: number) => string]> = [
+    ['the plain address', () => '/api/v1/orgs/probe-marker-org/probe'],
+    ['a percent-encoded letter', () => '/api/v1/%6Frgs/probe-marker-org/probe'],
+    [
+      'an absolute-form target',
+      (port) => `http://127.0.0.1:${port}/api/v1/orgs/probe-marker-org/probe`,
+    ],
+  ];
+  let locked: EdgeApp;
+  let open: EdgeApp;
+  beforeAll(async () => {
+    locked = await buildEdgeApp({ authMode: 'shadow', lockdown: true, reportException: reporter });
+    open = await buildEdgeApp({ authMode: 'shadow', lockdown: false });
+  });
+  afterAll(async () => {
+    await locked?.app.close();
+    await open?.app.close();
+  });
+
+  it.each(targets)(
+    'case 16: refuses a signed-in save sent as %s, unreported',
+    async (_n, target) => {
+      const res = await rawRequest(
+        locked.port,
+        'POST',
+        target(locked.port),
+        loginCookie(LOGIN_MARKER),
+      );
+      expect(res.status).toBe(503);
+      expect(JSON.parse(res.body)).toMatchObject({ code: ADMIN_LOCKDOWN_CODE });
+      expect(reporter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(targets)(
+    'case 16, twin: with the lockdown off, %s reaches the route',
+    async (_n, target) => {
+      const res = await rawRequest(open.port, 'POST', target(open.port), loginCookie(LOGIN_MARKER));
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ ok: 'probe-marker-locked' });
+    },
+  );
+
+  it('case 16, twin: an anonymous caller is not the lockdown’s to refuse', async () => {
+    const res = await rawRequest(locked.port, 'POST', targets[0]![1](locked.port));
+    expect(res.status).toBe(200);
   });
 });

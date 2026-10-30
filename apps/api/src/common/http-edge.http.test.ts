@@ -191,5 +191,9 @@ describe('the API edge, as configureHttpApp builds it', () => {
     );
     const appModule = readFileSync(join(__dirname, '..', 'app.module.ts'), 'utf8');
     expect(appModule).toContain('applyRequestLogging(consumer);');
+    // The edge app registers both switches in this order (`testing/http-edge-app.ts`).
+    expect(appModule).toMatch(
+      /provide: APP_INTERCEPTOR,\s*useClass: LockdownInterceptor,\s*\},\s*\{\s*provide: APP_INTERCEPTOR,\s*useClass: ReadOnlyInterceptor,/,
+    );
   });
 });

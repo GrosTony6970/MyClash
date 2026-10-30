@@ -7,14 +7,17 @@ import { OperationalUnavailableException } from '../operational-exception';
 interface MockRequest {
   method?: string;
   url: string;
+  /** The route the router matched; `url` when absent, none when null. */
+  route?: string | null;
   headers: Record<string, unknown>;
   cookies?: Record<string, string>;
 }
 
-function makeContext(req: MockRequest): ExecutionContext {
+function makeContext({ route, ...req }: MockRequest): ExecutionContext {
+  const routeOptions = route === null ? undefined : { url: route ?? req.url };
   return {
     getType: () => 'http',
-    switchToHttp: () => ({ getRequest: () => req }),
+    switchToHttp: () => ({ getRequest: () => ({ ...req, routeOptions }) }),
   } as never;
 }
 
@@ -55,7 +58,7 @@ describe('LockdownInterceptor', () => {
     expect(isEnabledMock).not.toHaveBeenCalled();
   });
 
-  it('passes through allow-listed paths (auth, health, public) even with a token', async () => {
+  it('passes the sign-in through even with a token: no locked list holds it', async () => {
     const ctx = makeContext({
       url: '/api/v1/auth/login',
       headers: { authorization: 'Bearer t' },
@@ -173,6 +176,41 @@ describe('LockdownInterceptor', () => {
       expect((refusal as OperationalUnavailableException).getResponse()).toMatchObject({
         code: 'admin_lockdown',
       });
+    });
+
+    // The router decodes `%6F` and matches `orgs`; the raw address is not what decides.
+    it('refuses by the matched route when the raw address is percent-encoded', async () => {
+      const ctx = makeContext({
+        method: 'POST',
+        url: '/api/v1/%6Frgs/o-1/league-requests',
+        route: '/api/v1/orgs/:orgId/league-requests',
+        headers: signedIn,
+      });
+      await expect(interceptor.intercept(ctx, makeNext())).rejects.toBeInstanceOf(
+        OperationalUnavailableException,
+      );
+    });
+
+    it('lets a route through that is not locked, whatever its raw address reads', async () => {
+      const ctx = makeContext({
+        method: 'POST',
+        url: '/api/v1/orgs/o-1/league-requests',
+        route: '/api/v1/something-else',
+        headers: signedIn,
+      });
+      expect(await firstValueFrom(await interceptor.intercept(ctx, makeNext()))).toBe(
+        'passthrough',
+      );
+    });
+
+    it('throws for a request with no matched route rather than let it through', async () => {
+      const ctx = makeContext({
+        method: 'POST',
+        url: '/api/v1/orgs/o-1',
+        route: null,
+        headers: {},
+      });
+      await expect(interceptor.intercept(ctx, makeNext())).rejects.toThrow('no matched route');
     });
   });
 });

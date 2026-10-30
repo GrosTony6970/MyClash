@@ -5,6 +5,7 @@ import { adminLockdownRefusal } from '../admin-lockdown';
 import { AdminFeatureFlagsService } from '../../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
 import { isPlatformStaff } from '../auth/platform-role';
+import { matchedRoute } from '../matched-route';
 
 /** Locked whole: a read too. */
 const LOCKED_PREFIXES = ['/api/v1/admin/', '/api/v1/orgs/', '/api/v1/global-persons'];
@@ -30,14 +31,6 @@ function isLocked(method: string, path: string): boolean {
   return !read && SAVE_LOCKED_PREFIXES.some((p) => path.startsWith(p));
 }
 
-const ALLOWLIST = [
-  '/api/v1/auth/',
-  '/api/v1/health',
-  '/api/v1/public/',
-  // Reading public event-listings without auth must still work
-  '/api/v1/events?',
-];
-
 /**
  * Lockdown interceptor: when the `admin_lockdown` flag is enabled, any
  * authenticated request to a locked address from an account that is not
@@ -48,6 +41,10 @@ const ALLOWLIST = [
  * everybody (operator ruling 327): a signed-in Fighter on the public site and
  * an account on the pad read what a visitor with no login reads. A save there
  * is refused.
+ *
+ * Every list above is matched against the route the router matched (`matched-route.ts`), never
+ * the raw address: `POST /api/v1/%6Frgs/...` reaches the `orgs` handlers, and the raw text let it
+ * past the lockdown.
  */
 @Injectable()
 export class LockdownInterceptor implements NestInterceptor {
@@ -62,10 +59,7 @@ export class LockdownInterceptor implements NestInterceptor {
     if (context.getType() !== 'http') return next.handle();
 
     const req = context.switchToHttp().getRequest<FastifyRequest>();
-    const path: string = (req.url ?? '').toString();
-
-    if (ALLOWLIST.some((p) => path.startsWith(p))) return next.handle();
-    if (!isLocked(req.method, path)) return next.handle();
+    if (!isLocked(req.method, matchedRoute(req))) return next.handle();
 
     const token = this.extractToken(req);
     if (!token) return next.handle();

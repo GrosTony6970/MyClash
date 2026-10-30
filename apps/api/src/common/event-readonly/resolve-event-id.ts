@@ -24,6 +24,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
 import { isEventUuid } from '../event-ref';
+import { matchedRoute } from '../matched-route';
 
 type Db = SupabaseService['service'];
 type Answer = { data: unknown; error: { code?: string; message: string } | null };
@@ -177,10 +178,7 @@ export async function resolveEventId(
   supabase: SupabaseService,
   request: FastifyRequest,
 ): Promise<string | null> {
-  const pattern = request.routeOptions?.url;
-  // Behind the router every request has one. A hand-built request without it
-  // would place nothing and pass: refuse to answer instead.
-  if (!pattern) throw new Error(`${request.method} ${request.url}: no matched route to read`);
+  const pattern = matchedRoute(request);
 
   const params = (request.params ?? {}) as Record<string, string | undefined>;
   for (const { segment, value } of placementsOf(pattern, params)) {

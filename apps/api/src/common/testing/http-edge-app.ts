@@ -32,14 +32,17 @@ import type { ApiExceptionReporter } from '../api-exception.filter';
 import { AuthGuard } from '../auth/auth.guard';
 import { Public } from '../auth/public.decorator';
 import { configureHttpApp } from '../http-bootstrap';
+import { LockdownInterceptor } from '../interceptors/lockdown.interceptor';
 import { ReadOnlyInterceptor } from '../interceptors/read-only.interceptor';
 import { applyRequestLogging } from '../observability/request-logging.middleware';
 
 /**
  * A small API built the way production builds it, for the edge tests (`http-edge*.http.test.ts`):
  * the real `configureHttpApp`, the real request-log wiring, the real `AuthGuard` as the global
- * guard and the real `ReadOnlyInterceptor` as a global interceptor, around test controllers.
- * Only the services behind them are stubs. Every value is a synthetic plain string.
+ * guard and the real `LockdownInterceptor` and `ReadOnlyInterceptor` as global interceptors, in
+ * AppModule's order, around test controllers. Only the services behind them are stubs: the login
+ * marker is the one account, and it holds no platform role. Every value is a synthetic plain
+ * string.
  */
 
 export const LOGIN_MARKER = 'probe-marker-login';
@@ -49,6 +52,7 @@ export const ALLOWED_ORIGIN = 'https://app.myclash.localhost';
 export interface EdgeAppOptions {
   authMode: 'enforce' | 'shadow';
   readOnly?: boolean;
+  lockdown?: boolean;
   reportException?: ApiExceptionReporter;
 }
 
@@ -139,6 +143,16 @@ class EdgeAllowlistedController {
   }
 }
 
+/** Under /api/v1/orgs/, which the maintenance lockdown locks whole. */
+@Controller('orgs')
+class EdgeLockedController {
+  @Post(':orgId/probe')
+  @HttpCode(HttpStatus.OK)
+  save(): { ok: string } {
+    return { ok: 'probe-marker-locked' };
+  }
+}
+
 @Controller('class-guarded')
 @UseGuards(MarkerRefuser)
 class ClassGuardedController {
@@ -185,10 +199,16 @@ class EdgeModule implements NestModule {
 const EDGE_CONTROLLERS = [
   EdgeController,
   EdgeAllowlistedController,
+  EdgeLockedController,
   ClassGuardedController,
   ClassPublicController,
   EdgeHealthController,
 ];
+
+/** The platform_roles read (`platform-role.ts`) finds no row: no account here is staff. */
+const noPlatformRole = {
+  select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+};
 
 const failVerify = {
   verify: (): never => {
@@ -200,6 +220,7 @@ function edgeProviders(options: EdgeAppOptions): DynamicModule['providers'] {
   return [
     MarkerRefuser,
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: LockdownInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ReadOnlyInterceptor },
     {
       provide: ConfigService,
@@ -212,6 +233,9 @@ function edgeProviders(options: EdgeAppOptions): DynamicModule['providers'] {
       useValue: {
         verifyAccessTokenLocal: (token: string) =>
           token === LOGIN_MARKER ? { id: 'probe-marker-user', email: null } : null,
+        getAuthUser: async (token: string) =>
+          token === LOGIN_MARKER ? { id: 'probe-marker-user' } : null,
+        service: { from: () => noPlatformRole },
       },
     },
     { provide: GuestJwtService, useValue: failVerify },
@@ -219,7 +243,9 @@ function edgeProviders(options: EdgeAppOptions): DynamicModule['providers'] {
     {
       provide: AdminFeatureFlagsService,
       useValue: {
-        isEnabled: async (flag: string) => flag === 'read_only_mode' && !!options.readOnly,
+        isEnabled: async (flag: string) =>
+          (flag === 'read_only_mode' && !!options.readOnly) ||
+          (flag === 'admin_lockdown' && !!options.lockdown),
       },
     },
   ];
@@ -259,8 +285,16 @@ export interface RawAnswer {
  * Sends one request line as written, for the targets `fetch` rewrites (an absolute-form target,
  * a percent-encoded letter, a double slash).
  */
-export function rawRequest(port: number, method: string, target: string): Promise<RawAnswer> {
-  const request = `${method} ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`;
+export function rawRequest(
+  port: number,
+  method: string,
+  target: string,
+  headers: Record<string, string> = {},
+): Promise<RawAnswer> {
+  const extra = Object.entries(headers)
+    .map(([name, value]) => `${name}: ${value}\r\n`)
+    .join('');
+  const request = `${method} ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\n${extra}Connection: close\r\n\r\n`;
   return new Promise((resolve, reject) => {
     let text = '';
     const socket = net.connect(port, '127.0.0.1', () => socket.write(request));
