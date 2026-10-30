@@ -70,7 +70,9 @@ API request logs are JSON lines with:
 - `path`
 - `statusCode`
 - `durationMs`
-- optional safe `actorId`
+- `actorId` when the request had a caller: its kind, then its id, as AuthGuard found it
+  (`claimed:<account id>`, `guest:<guest session id>`, `staff:<pad login id>`); never a name or an
+  email. A request the rate limit refused carries none: the limit runs before AuthGuard
 
 PII rules:
 

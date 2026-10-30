@@ -41,11 +41,14 @@ import { applyRequestLogging } from '../observability/request-logging.middleware
  * the real `configureHttpApp`, the real request-log wiring, the real `AuthGuard` as the global
  * guard and the real `LockdownInterceptor` and `ReadOnlyInterceptor` as global interceptors, in
  * AppModule's order, around test controllers. Only the services behind them are stubs: the login
- * marker is the one account, and it holds no platform role. Every value is a synthetic plain
- * string.
+ * marker is the one account, and it holds no platform role; the guest and staff markers are the
+ * one guest session and the one pad login. Every value is a synthetic plain string.
  */
 
 export const LOGIN_MARKER = 'probe-marker-login';
+/** The guest session cookie (`mc_guest`) and the pad staff cookie (`mc_staff`) that verify. */
+export const GUEST_MARKER = 'probe-marker-guest';
+export const STAFF_MARKER = 'probe-marker-staff';
 export const CLASS_GUARD_MARKER = 'probe-marker-class-guard';
 export const ALLOWED_ORIGIN = 'https://app.myclash.localhost';
 
@@ -210,11 +213,15 @@ const noPlatformRole = {
   select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
 };
 
-const failVerify = {
-  verify: (): never => {
-    throw new Error('no session');
-  },
-};
+/** A guest or staff session service that knows one token, its marker, and refuses any other. */
+function verifiesOnly(marker: string, payload: Record<string, string>) {
+  return {
+    verify: (token: string): Record<string, string> => {
+      if (token !== marker) throw new Error('no session');
+      return payload;
+    },
+  };
+}
 
 function edgeProviders(options: EdgeAppOptions): DynamicModule['providers'] {
   return [
@@ -238,8 +245,21 @@ function edgeProviders(options: EdgeAppOptions): DynamicModule['providers'] {
         service: { from: () => noPlatformRole },
       },
     },
-    { provide: GuestJwtService, useValue: failVerify },
-    { provide: StaffJwtService, useValue: failVerify },
+    {
+      provide: GuestJwtService,
+      useValue: verifiesOnly(GUEST_MARKER, {
+        sub: 'probe-marker-guest-session',
+        person_id: 'probe-marker-person',
+        event_id: 'probe-marker-event',
+      }),
+    },
+    {
+      provide: StaffJwtService,
+      useValue: verifiesOnly(STAFF_MARKER, {
+        sub: 'probe-marker-staff-id',
+        event_id: 'probe-marker-event',
+      }),
+    },
     {
       provide: AdminFeatureFlagsService,
       useValue: {

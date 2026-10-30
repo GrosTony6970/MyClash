@@ -6,15 +6,17 @@ import {
   CLASS_GUARD_MARKER,
   type EdgeApp,
   type EdgeAppOptions,
+  GUEST_MARKER,
   LOGIN_MARKER,
   MarkerRefuser,
   rawRequest,
+  STAFF_MARKER,
 } from './testing/http-edge-app';
 
 /**
  * Who gets through at the API edge: the global AuthGuard in both of its modes, a guard set on a
  * whole controller, the login cookie, and the read-only switch and the maintenance lockdown (two
- * global interceptors).
+ * global interceptors). Last, whom the request log names for the caller AuthGuard found.
  *
  * Production runs AuthGuard in shadow mode (`.env.example`, `AUTH_GUARD_MODE=shadow`): it lets an
  * anonymous request through and logs it, and the guard on the controller (PlatformRoleGuard on
@@ -228,5 +230,52 @@ describe('the maintenance lockdown', () => {
   it('case 16, twin: an anonymous caller is not the lockdown’s to refuse', async () => {
     const res = await rawRequest(locked.port, 'POST', targets[0]![1](locked.port));
     expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * The request log (`request-logging.middleware.ts`, one JSON line on stdout per request) names who
+ * made the request by the identity AuthGuard found: its kind, then its id.
+ */
+describe('the request log', () => {
+  let edge: EdgeApp;
+  beforeAll(async () => {
+    edge = await buildEdgeApp({ authMode: 'shadow' });
+  });
+  afterAll(async () => {
+    await edge?.app.close();
+  });
+
+  /** Sends one read and hands back the request-log lines written for it. */
+  async function logLinesOf(cookie?: string): Promise<Array<Record<string, unknown>>> {
+    const lines: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    const res = await fetch(`${edge.base}/api/v1/edge/public`, {
+      headers: cookie ? { cookie } : {},
+    });
+    await res.text();
+    const logged = () =>
+      lines
+        .filter((line) => line.includes('"http_request"'))
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+    await vi.waitFor(() => expect(logged()).toHaveLength(1));
+    return logged();
+  }
+
+  it.each([
+    ['a signed-in account', `sb-access-token=${LOGIN_MARKER}`, 'claimed:probe-marker-user'],
+    ['a guest session', `mc_guest=${GUEST_MARKER}`, 'guest:probe-marker-guest-session'],
+    ['a pad staff login', `mc_staff=${STAFF_MARKER}`, 'staff:probe-marker-staff-id'],
+  ])('case 17: names %s by its kind and id', async (_name, cookie, actorId) => {
+    expect(await logLinesOf(cookie)).toEqual([expect.objectContaining({ actorId })]);
+  });
+
+  it('case 17, twin: an anonymous request names nobody', async () => {
+    const [line] = await logLinesOf();
+    expect(line).toMatchObject({ path: '/api/v1/edge/public', statusCode: 200 });
+    expect(line).not.toHaveProperty('actorId');
   });
 });

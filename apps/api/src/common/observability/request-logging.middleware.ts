@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import type { MiddlewareConsumer } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import type { Identity } from '../auth/identity';
 import { isSensitiveRoute, redactHeaders } from './redaction';
 
 interface RequestLike {
@@ -8,7 +9,29 @@ interface RequestLike {
   url?: string;
   originalUrl?: string;
   headers?: Record<string, string | string[] | undefined>;
-  user?: { id?: string; sub?: string };
+  /**
+   * Written on `req.raw` by AuthGuard (`auth.guard.ts`, `attach`). None when it never ran: no route
+   * matched, Fastify refused the body, or the rate limit (ThrottlerGuard, first) refused it.
+   */
+  identity?: Identity;
+}
+
+/**
+ * Who made the request: the identity's kind, then its id. An anonymous caller is nobody.
+ * `null`, not `undefined`, so a new kind of identity this switch does not name fails the build.
+ */
+function actorOf(identity: Identity | undefined): string | null {
+  switch (identity?.kind) {
+    case 'claimed':
+      return `claimed:${identity.userId}`;
+    case 'guest':
+      return `guest:${identity.guestSessionId}`;
+    case 'staff':
+      return `staff:${identity.staffId}`;
+    case 'anonymous':
+    case undefined:
+      return null;
+  }
 }
 
 interface ResponseLike {
@@ -53,7 +76,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
       logged = true;
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       const sensitiveRoute = isSensitiveRoute(path);
-      const actorId = request.user?.id ?? request.user?.sub;
+      const actorId = actorOf(request.identity);
       this.sink({
         level: 'info',
         service: 'myclash-api',

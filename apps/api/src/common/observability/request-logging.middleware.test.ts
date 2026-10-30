@@ -26,7 +26,7 @@ describe('RequestLoggingMiddleware', () => {
           authorization: 'Bearer secret',
           'x-request-id': 'req-1',
         },
-        user: { id: 'user-1' },
+        identity: { kind: 'claimed', userId: 'user-1', email: null },
       },
       response,
       vi.fn(),
@@ -43,7 +43,7 @@ describe('RequestLoggingMiddleware', () => {
       method: 'GET',
       path: '/api/v1/events/e1',
       statusCode: 200,
-      actorId: 'user-1',
+      actorId: 'claimed:user-1',
       sensitiveRoute: false,
       headers: {
         authorization: REDACTED,
