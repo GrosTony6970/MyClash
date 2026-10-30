@@ -36,6 +36,9 @@ export const common = {
     // Read-only mode's refusal, by its code `read_only_mode`: one global check
     // answers it to nearly every save, on any screen (ruling 334).
     readOnlyMode: 'MyClash is in maintenance. Nothing can be saved for now. Try again later.',
+    // A file over its route's limit, by its code `file_too_large` and the limit the API read
+    // under: one reader answers it on every upload route (ruling 207).
+    fileTooLarge: 'This file is larger than the {mb} MB limit.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',

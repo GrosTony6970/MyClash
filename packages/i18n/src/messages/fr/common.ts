@@ -17,6 +17,7 @@ export const common = {
     adminLockdown: 'MyClash est en maintenance. Réessayez plus tard.',
     readOnlyMode:
       'MyClash est en maintenance. Rien ne peut être enregistré pour le moment. Réessayez plus tard.',
+    fileTooLarge: 'Ce fichier dépasse la limite de {mb} Mo.',
   },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',

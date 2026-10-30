@@ -63,8 +63,11 @@ import type { ApiFailure } from './request';
  * The sign-in doors answer the same code, and their screens say this same
  * sentence (ruling 328). And read-only mode's 503 (`read_only_mode`, ruling
  * 334): one interceptor answers it to a save of anybody but a super admin,
- * outside the sign-in, public and health addresses. These
- * four are the exception, not a pattern: each is answered by a global check to
+ * outside the sign-in, public and health addresses. And a file over its route's
+ * limit (`file_too_large`, ruling 207): one reader (`read-upload.ts`) answers it
+ * on all fourteen upload routes, with the limit it read under in
+ * `details.maxBytes`, so the sentence can name the limit. These
+ * five are the exception, not a pattern: each is answered by one check to
  * many screens. Another coded refusal belongs in its own screens' mapper.
  *
  * ── An intermediary is not a dead session ──────────────────────────────────
@@ -185,9 +188,28 @@ function refusedMessage(
     : t('common.apiFailure.unauthenticated');
 }
 
+/** A translator; `values` fill the `{name}` slots of a sentence. Every app's `t` fits it. */
+type Translate = (key: string, values?: Record<string, string>) => string;
+
+const MIB = 1024 * 1024;
+
+/**
+ * A file over its route's limit, said with that limit in MB — see the header (ruling 207). Rounded
+ * down: a limit clamped by `MULTIPART_MAX_BYTES` to 1.6 MB refuses a 1.7 MB file, which is not
+ * "larger than the 2 MB limit".
+ */
+function fileTooLargeMessage(
+  failure: Extract<ApiFailure, { kind: 'http' }>,
+  t: Translate,
+): string | null {
+  const maxBytes = failure.details?.['maxBytes'];
+  if (failure.code !== 'file_too_large' || typeof maxBytes !== 'number') return null;
+  return t('common.apiFailure.fileTooLarge', { mb: String(Math.floor(maxBytes / MIB)) });
+}
+
 export function failureMessage(
   failure: ApiFailure,
-  t: (key: string) => string,
+  t: Translate,
   /**
    * Already translated. A screen that can say "Could not save the backup
    * schedule." should; `common.error` is for the one that has nothing better.
@@ -228,7 +250,7 @@ export function failureMessage(
       // `detail`, so a `length > 1` test would be a branch whose two arms
       // cannot be told apart.
       if (failure.validationErrors) return failure.validationErrors.join(VALIDATION_SEPARATOR);
-      return failure.detail ?? fallback ?? t('common.error');
+      return fileTooLargeMessage(failure, t) ?? failure.detail ?? fallback ?? t('common.error');
   }
 }
 
