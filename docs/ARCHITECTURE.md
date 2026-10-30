@@ -3323,7 +3323,7 @@ Backups now run as **ops-runner operations** rather than direct cron-on-host (se
 - **Retention:** 30 days rolling, enforced on each new backup.
 - **Schedule:** configurable from `/admin/backups` (hour + minute UTC). Persisted by the ops-runner; not in Postgres.
 - **Restore:** triggered from `/admin/backups` against a local file, an uploaded archive, or an S3 object. The UI requires typed confirmation matching `RESTORE MYCLASH <backupId>` before running.
-- **Uploads:** one folder per night, `backups/uploads/<TS>/` (`infra/ops-runner/upload-store.mjs`), listed as the set `upload-<TS>`. A restore pairs the night's database and images (or restores either alone, images via `restore.sh --storage-only`), then deletes the files it used. See `docs/DISASTER_RECOVERY.md`.
+- **Uploads:** a file of up to 2 GiB (`BACKUP_UPLOAD_MAX_BYTES`, owned by the ops runner) goes from the screen in chunks of at most 16 MiB, each sized to take about 20 s, because Traefik reads a request body for 60 s at most (`apps/web-admin/app/admin/backups/chunked-upload.ts` → `admin/backups/uploads` → `infra/ops-runner/upload-chunks.mjs`). It resumes after a lost connection, and after a reload when the same file is picked again (same name, size and sha-256 of its first MiB). Kept: one folder per night, `backups/uploads/<TS>/` (`infra/ops-runner/upload-store.mjs`), listed as the set `upload-<TS>`. A restore pairs the night's database and images (or restores either alone, images via `restore.sh --storage-only`), then deletes the files it used. See `docs/DISASTER_RECOVERY.md`.
 - **A busy night:** when the scheduled backup meets the ops lock held (a restore, a delete, an upload), it is retried every 30 s tick until it starts; still not started at the next slot, the night is recorded as a failed backup (`infra/ops-runner/scheduled-backup.mjs`). The waiting night lives in memory: a redeploy while it waits forgets it.
 
 ### 17.4 ops-runner sidecar
@@ -3342,7 +3342,6 @@ The HTTP surface is exposed on the internal `myclash` network at port `4075`, ne
 | `POST`   | `/operations/backup`                    | Start an ad-hoc backup. Returns the operation id (poll via `/operations/{id}`).                    |
 | `POST`   | `/operations/restore`                   | Start a restore from `{location, backupId, includeStorage, confirmation}`.                         |
 | `GET`    | `/operations/{id}`                      | Poll operation status; includes a tail of stdout/stderr.                                           |
-| `POST`   | `/uploads`                              | Stage a backup uploaded from the admin UI (base64 body) in its night's folder.                     |
 | `POST`   | `/upload-sessions`                      | Start (or resume, same file) a chunked upload: `{filename, sizeBytes, fingerprint}`.               |
 | `PUT`    | `/upload-sessions/{id}/chunks?offset=N` | One chunk (≤ 16 MiB, raw body) at the offset the runner holds.                                     |
 | `GET`    | `/upload-sessions/{id}`                 | Where the upload is: `receivedBytes`, `state` (receiving → verifying → staging → staged / failed). |

@@ -5,6 +5,12 @@ import { z } from 'zod';
 export const BACKUP_TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
 /** An uploaded set is one night too (`infra/ops-runner/upload-store.mjs` holds the same shape). */
 export const UPLOAD_ID_PATTERN = /^upload-\d{8}T\d{6}Z$/;
+/** A backup file: a night's database or images, plain or encrypted (the ops runner's shape). */
+export const BACKUP_FILENAME_PATTERN =
+  /^(db-(?<dbTs>\d{8}T\d{6}Z)\.sql\.gz|storage-(?<storageTs>\d{8}T\d{6}Z)\.tar\.gz)(?<gpg>\.gpg)?$/;
+/** An open chunked upload (`infra/ops-runner/upload-session-files.mjs` holds the same shape). */
+export const UPLOAD_SESSION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type BackupArtifactKind = 'db' | 'storage';
 export type BackupLocation = 'local' | 's3' | 'upload';
@@ -47,6 +53,8 @@ export interface BackupOperationDto {
   backupId?: string;
   logTail: string[];
   error?: string;
+  /** A refusal the screen words itself (`ops_busy`: the lock was held). */
+  code?: string | null;
 }
 
 export interface BackupStatusDto {
@@ -116,9 +124,48 @@ export interface BackupActionResponseDto {
   operation: BackupOperationDto;
 }
 
-export interface BackupUploadResponseDto {
-  backup: BackupSetDto;
+/** Where a chunked upload is (rulings 212, 216, 219), as the ops runner says it. */
+export interface BackupUploadSessionDto {
+  uploadId: string;
+  filename: string;
+  sizeBytes: number;
+  receivedBytes: number;
+  /** A chunk is at most this long. */
+  maxChunkBytes: number;
+  state: 'receiving' | 'verifying' | 'staging' | 'staged' | 'failed';
+  /** Why it waits or failed, for the screen to word: `ops_busy`, `upload_corrupt`… */
+  code: string | null;
+  error?: string;
+  /** The night's whole set, once staged. */
+  backup?: BackupSetDto;
 }
+
+export interface BackupChunkResponseDto {
+  receivedBytes: number;
+}
+
+export interface BackupUploadCancelResponseDto {
+  cancelled: true;
+  uploadId: string;
+}
+
+const startBackupUploadSchema = z
+  .object({
+    filename: z.string().regex(BACKUP_FILENAME_PATTERN),
+    sizeBytes: z.number().int().positive(),
+    /** sha-256 of the file's first MiB, hex: the same file started again resumes (ruling 219). */
+    fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
+export class StartBackupUploadDto extends createZodDto(startBackupUploadSchema) {}
+
+const backupChunkQuerySchema = z
+  .object({
+    /** Digits only: a number parser would read `''` as 0 and `1e3` as 1000. */
+    offset: z.string().regex(/^\d+$/),
+  })
+  .strict();
+export class BackupChunkQueryDto extends createZodDto(backupChunkQuerySchema) {}
 
 export interface BackupDeleteResponseDto {
   deleted: true;

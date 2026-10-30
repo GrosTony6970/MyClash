@@ -220,6 +220,16 @@ const superAdminBackupsPagePath = path.join(
   'backups',
   'page.tsx',
 );
+// The backups screen's upload form (a chunked upload, ruling 216) lives beside the page.
+const superAdminBackupsUploadFormPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'backups',
+  'upload-form.tsx',
+);
 const superAdminSystemVersionsPagePath = path.join(
   rootDir,
   'apps',
@@ -617,6 +627,9 @@ const useAdminUsersText = await pinned.readPinnedFile(useAdminUsersPath);
 const superAdminFightersPageText = await pinned.readPinnedFile(superAdminFightersPagePath);
 const superAdminClubsPageText = await pinned.readPinnedFile(superAdminClubsPagePath);
 const superAdminBackupsPageText = await pinned.readPinnedFile(superAdminBackupsPagePath);
+const superAdminBackupsUploadFormText = await pinned.readPinnedFile(
+  superAdminBackupsUploadFormPath,
+);
 const superAdminSystemVersionsPageText = await pinned.readPinnedFile(
   superAdminSystemVersionsPagePath,
 );
@@ -2139,8 +2152,14 @@ for (const expected of [
     expected,
   );
 }
+for (const expected of ['admin.backups.browse', 'type="file"', 'className="sr-only"']) {
+  requireContains(
+    superAdminBackupsUploadFormText,
+    'apps/web-admin/app/admin/backups/upload-form.tsx',
+    expected,
+  );
+}
 for (const expected of [
-  'admin.backups.browse',
   'admin.backups.totalSize',
   'admin.backups.scheduleTitle',
   'admin.backups.scheduleSave',
@@ -2152,8 +2171,6 @@ for (const expected of [
   'admin.backups.deleteDialogTitle',
   'admin.backups.deleteFrom',
   'confirmed: true',
-  'type="file"',
-  'className="sr-only"',
 ]) {
   requireContains(superAdminBackupsPageText, 'apps/web-admin/app/admin/backups/page.tsx', expected);
 }
@@ -2191,7 +2208,7 @@ for (const expected of [
   "if (!['local', 's3', 'upload'].includes(location))",
   'getSchedule',
   'updateSchedule',
-  "opsPut<BackupScheduleDto>('/schedule'",
+  "ops.put<BackupScheduleDto>('/schedule'",
 ]) {
   requireContains(
     adminBackupsServiceText,
@@ -2199,7 +2216,7 @@ for (const expected of [
     expected,
   );
 }
-for (const expected of ['dto.confirmed', 'RESTORE MYCLASH ${dto.backupId}', 'opsDelete']) {
+for (const expected of ['dto.confirmed', 'RESTORE MYCLASH ${dto.backupId}', 'ops.delete']) {
   requireContains(
     adminBackupsServiceText,
     'apps/api/src/modules/admin/backups.service.ts',

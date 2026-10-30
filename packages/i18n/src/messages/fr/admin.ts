@@ -2618,7 +2618,31 @@ export const admin = {
       'Arrêter le service de stockage des fichiers pendant la restauration, puis le redémarrer. Le reste du site continue de tourner.',
     pollError: "Contact perdu avec l'opération en cours — nouvelle tentative automatique.",
     retry: 'Actualiser maintenant',
-    uploadTooLarge: 'Ce fichier est trop volumineux (maximum {max}).',
+    uploadSending: '{sent} sur {total} envoyés ({percent} %)',
+    uploadRetrying: 'Connexion perdue, nouvel essai… ({sent} sur {total} reçus par le serveur)',
+    uploadChecking: 'Vérification du fichier…',
+    uploadWaiting: 'En attente de la fin de la sauvegarde ou de la restauration en cours…',
+    uploadProgressLabel: "Progression de l'envoi",
+    uploadCancel: "Annuler l'envoi",
+    uploadCancelled: 'Envoi annulé. Ce que le serveur avait reçu est supprimé.',
+    uploadCancelUnconfirmed:
+      "Envoi arrêté. Le serveur n'a pas confirmé la suppression de ce qu'il avait reçu : un envoi inachevé est supprimé au bout de 24 heures.",
+    uploadUnreadable:
+      "Le fichier n'a pas pu être lu (il a peut-être changé depuis que vous l'avez choisi). Choisissez-le de nouveau.",
+    uploadGone:
+      "Cet envoi n'existe plus : supprimé avec toutes les sauvegardes, laissé inachevé pendant 24 heures, ou remplacé par un autre envoi du même fichier. Choisissez de nouveau le fichier pour l'envoyer.",
+    uploadCorrupt:
+      'Ce fichier est corrompu ou tronqué (il a échoué au contrôle gzip). Téléchargez de nouveau la sauvegarde, puis envoyez-la.',
+    uploadFailed:
+      "Le serveur n'a pas pu conserver cet envoi ({reason}). Ce qu'il a reçu est gardé : choisissez de nouveau le même fichier pour le terminer.",
+    uploadBeingChecked:
+      'Un fichier de ce nom est en cours de vérification par le serveur. Attendez la fin, puis réessayez.',
+    uploadNoSpace:
+      "Espace disque insuffisant sur le serveur : {free} libres, cet envoi demande {needed}. Supprimez d'anciennes sauvegardes, puis réessayez.",
+    uploadNoSpaceBare:
+      "Espace disque insuffisant sur le serveur pour cet envoi. Supprimez d'anciennes sauvegardes, puis réessayez.",
+    opsBusy:
+      'Une autre opération de sauvegarde est en cours (une sauvegarde, une restauration, un envoi ou une suppression). Réessayez quand elle sera terminée.',
     uploadInvalidType: 'Fichier non pris en charge. Choisissez un artefact .gz ou .gpg.',
     retentionLowWarning:
       'Rétention très faible : une seule sauvegarde corrompue pourrait vous laisser sans copie valide.',

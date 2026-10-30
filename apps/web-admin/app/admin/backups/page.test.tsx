@@ -31,61 +31,20 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const BACKUPS = '/api/v1/admin/backups';
-const artifact = (kind: 'db' | 'storage', ts: string) => ({
-  kind,
-  filename: kind === 'db' ? `db-${ts}.sql.gz` : `storage-${ts}.tar.gz`,
-  sizeBytes: 1024,
-  modifiedAt: '2026-10-30T03:00:00.000Z',
-  encrypted: false,
-});
-const uploaded = (ts: string, kinds: Array<'db' | 'storage'>) => ({
-  id: `upload-${ts}`,
-  timestamp: ts,
-  displayName: `upload-${ts}`,
-  local: { available: false, artifacts: [] },
-  cloud: { available: false, artifacts: [] },
-  upload: { available: true, artifacts: kinds.map((kind) => artifact(kind, ts)) },
-});
-const BOTH = uploaded('20261030T030000Z', ['db', 'storage']);
-const DATABASE = uploaded('20261029T030000Z', ['db']);
-const IMAGES = uploaded('20261028T030000Z', ['storage']);
-const READS = {
-  [`${BACKUPS}/status`]: {
-    generatedAt: '2026-10-30T12:00:00.000Z',
-    cloudConfigured: false,
-    lastBackup: null,
-    runningOperation: null,
-  },
-  [`${BACKUPS}/schedule`]: {
-    enabled: true,
-    frequency: 'daily',
-    hourUtc: 3,
-    minuteUtc: 0,
-    dayOfWeek: 1,
-    dayOfMonth: 1,
-    retentionCountLocal: 14,
-    retentionCountCloud: 60,
-    timezoneLabel: 'UTC',
-    updatedAt: null,
-    nextRunAt: null,
-  },
-  [BACKUPS]: { generatedAt: '2026-10-30T12:00:00.000Z', backups: [BOTH, DATABASE, IMAGES] },
-};
+import {
+  BACKUPS,
+  BOTH,
+  IMAGES,
+  READS,
+  artifact,
+  makePress,
+  rows,
+  text,
+} from './backups-page.fixtures';
 
 let page: OpenedPage;
 afterEach(() => page.unmount());
-
-const text = () => document.body.textContent ?? '';
-const rows = () => [...document.querySelectorAll('tbody tr')];
-const buttonIn = (within: ParentNode, label: string) =>
-  [...within.querySelectorAll('button')].filter((b) => b.textContent?.startsWith(label)).at(-1);
-const press = async (label: string, within: ParentNode = document.body) => {
-  const target = buttonIn(within, label);
-  expect(target, label).toBeDefined();
-  await act(async () => target!.click());
-  await page.settle();
-};
+const press = makePress(() => page);
 
 describe('the backups screen and an uploaded night', () => {
   it('says what the restore of each upload replaces', async () => {
@@ -254,18 +213,46 @@ describe('the backups screen and an uploaded night', () => {
     expect(text()).toContain('Deleted 1 local + 0 cloud sets and 3 uploaded.');
   });
 
-  it('puts a second upload of a night in place of that night’s row (ruling 213)', async () => {
-    const answer = { backup: uploaded('20261029T030000Z', ['db', 'storage']) };
-    page = await openEventPage(<AdminBackupsPage />, READS, {
-      [`POST ${BACKUPS}/upload`]: answer,
+  it('a failed run that met the held lock is worded, not the runner’s English', async () => {
+    const status = READS[`${BACKUPS}/status`];
+    page = await openEventPage(<AdminBackupsPage />, {
+      ...READS,
+      [`${BACKUPS}/status`]: {
+        ...status,
+        runningOperation: {
+          id: 'op',
+          kind: 'backup',
+          status: 'failed',
+          startedAt: '2026-10-30T03:00:00.000Z',
+          logTail: [],
+          error: 'Another backup operation is already running.',
+          code: 'ops_busy',
+        },
+      },
     });
-    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
-    const file = new File(['x'], 'storage-20261029T030000Z.tar.gz');
-    Object.defineProperty(input, 'files', { value: [file], configurable: true });
-    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
-    await press('Stage upload');
-    expect(page.writes()).toEqual([`POST ${BACKUPS}/upload`]);
-    expect(rows()).toHaveLength(3);
-    expect(text()).toContain('Backup upload staged.');
+    expect(text()).toContain('Another backup operation is running (a backup, a restore');
+    expect(text()).not.toContain('already running');
+  });
+
+  it('words the held lock on a delete, not the runner’s English', async () => {
+    page = await openEventPage(<AdminBackupsPage />, READS);
+    const stand = vi.mocked(ApiClientModule.apiRequest).getMockImplementation()!;
+    vi.mocked(ApiClientModule.apiRequest).mockImplementation(async (base, path, init) =>
+      init?.method === 'DELETE'
+        ? {
+            ok: false,
+            kind: 'http',
+            status: 409,
+            detail: 'Another backup operation is already running.',
+            validationErrors: null,
+            code: 'ops_busy',
+            details: null,
+          }
+        : stand(base, path, init),
+    );
+    await press('Delete from upload', rows()[0]!);
+    await press('Delete backup');
+    expect(text()).toContain('Another backup operation is running (a backup, a restore');
+    expect(text()).not.toContain('already running');
   });
 });

@@ -102,8 +102,7 @@ async function stage(ctx, session) {
       const staging = { ...session, state: 'staging', target, code: null };
       await writeSession(ctx, staging);
       const source = bytesPath(ctx, session.id);
-      const verify = async () => true;
-      const { backup } = await stageUpload(ctx.rootDir, session.filename, source, { verify });
+      const { backup } = await stageUpload(ctx.rootDir, session.filename, source);
       await writeSession(ctx, { ...staging, state: 'staged', backup });
     });
   } catch (error) {

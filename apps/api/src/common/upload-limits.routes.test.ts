@@ -10,8 +10,8 @@
 import 'reflect-metadata';
 import { PayloadTooLargeException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+import { BackupUploadsService } from '../modules/admin/backup-uploads.service';
 import { BackupsAdminController } from '../modules/admin/backups.controller';
-import { AdminBackupsService } from '../modules/admin/backups.service';
 import { ClubsController } from '../modules/clubs/clubs.controller';
 import { EventsController } from '../modules/events/events.controller';
 import { ExportsController } from '../modules/exports/exports.controller';
@@ -36,7 +36,7 @@ import {
 
 const MIB = 1024 * 1024;
 const LOGO_10 = 'Logo upload exceeds the 10 MB size limit.';
-const BACKUP_LIMIT = 5 * MIB;
+const UPLOAD_ID = '00000000-0000-4000-8000-000000000000';
 
 type Door = (req: never) => Promise<unknown>;
 
@@ -53,14 +53,16 @@ const exportsDoor = () =>
 /** [route, the limit it reads under, its sentence, which reader, the call]. */
 const ROUTES: Array<[string, number, string, 'file' | 'parts', Door]> = [
   [
-    'POST admin/backups/upload',
-    BACKUP_LIMIT,
-    'Backup upload exceeds the configured size limit.',
+    'PUT admin/backups/uploads/:uploadId/chunks',
+    16 * MIB,
+    'A backup upload chunk exceeds 16 MiB.',
     'file',
     (req) =>
-      new BackupsAdminController(
-        new AdminBackupsService({ uploadMaxBytes: BACKUP_LIMIT }),
-      ).uploadBackup(req),
+      new BackupsAdminController(any(), new BackupUploadsService()).sendChunk(
+        UPLOAD_ID,
+        { offset: '0' },
+        req,
+      ),
   ],
   [
     'POST clubs/:id/logo',

@@ -24,25 +24,20 @@ import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 import { createOperationRunner } from './operation-runner.mjs';
 import { createScheduledBackup, missedBackupRecord } from './scheduled-backup.mjs';
 import { createUploadSessions } from './upload-chunks.mjs';
-import { handleUploadSessions, sendError, sendJson } from './upload-routes.mjs';
+import { handleUploadSessions, readJsonBody, sendError, sendJson } from './upload-routes.mjs';
 import {
   badRequest,
-  discardIncoming,
-  incomingPath,
   listUploadArtifacts,
   removeAllUploads,
   removeUploadFiles,
   removeUploadSet,
   resolveUploadSet,
   restoreArgs,
-  stageUpload,
-  sweepIncoming,
 } from './upload-store.mjs';
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
 const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
 const ROOT_DIR = process.env.MYCLASH_ROOT_DIR ?? '/srv/myclash';
-const MAX_BODY_BYTES = Number(process.env.OPS_RUNNER_MAX_BODY_BYTES ?? 1024 * 1024 * 1024);
 // The one owner of an uploaded backup file's limit (ruling 212: 2 GB; the env changes it). A
 // value that is not a positive whole number would compare false and mean no limit at all.
 const DEFAULT_UPLOAD_MAX_BYTES = 2 * 1024 * 1024 * 1024;
@@ -143,9 +138,6 @@ if (!SECRET) {
 }
 
 // Before the server listens, so no upload can be mid-write: what is left is a crash's.
-await sweepIncoming(ROOT_DIR).catch((error) =>
-  console.warn(`[uploads] boot sweep failed: ${sanitizeError(error)}`),
-);
 await uploadSessions
   .sweep({ boot: true })
   .catch((error) => console.warn(`[uploads] open uploads sweep failed: ${sanitizeError(error)}`));
@@ -212,11 +204,6 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname.startsWith('/operations/')) {
       const id = path.basename(url.pathname);
       sendJson(res, operations.has(id) ? 200 : 404, operations.get(id) ?? { error: 'not_found' });
-      return;
-    }
-    if (req.method === 'POST' && url.pathname === '/uploads') {
-      const body = await readJsonBody(req);
-      sendJson(res, 201, await stageBase64Upload(body));
       return;
     }
     if (req.method === 'GET' && url.pathname.startsWith('/download/')) {
@@ -615,29 +602,6 @@ async function restoreCommand(body) {
 }
 
 /**
- * The base64 body of today's upload route (the chunked upload replaces it). Written and kept
- * under the ops lock: a restore reading the night's folder never meets a half-written file, and
- * an upload during a backup or a restore answers 409.
- */
-async function stageBase64Upload(body) {
-  if (!body || typeof body !== 'object') throw badRequest('Invalid upload payload.');
-  const filename = String(body.filename ?? '');
-  const parsed = parseBackupFilename(filename);
-  if (!parsed) throw badRequest('Unsupported backup filename.');
-  return withOpsLock(ROOT_DIR, { kind: 'upload', onReclaim: logReclaimedLock }, async () => {
-    const temp = await incomingPath(ROOT_DIR, parsed.timestamp);
-    try {
-      await writeFile(temp, Buffer.from(String(body.contentBase64), 'base64'));
-      return await stageUpload(ROOT_DIR, filename, temp, { verify: gzipIntact });
-    } catch (error) {
-      // A full disk mid-write: the partial file goes now, not at the next boot.
-      await discardIncoming(temp);
-      throw error;
-    }
-  });
-}
-
-/**
  * An uploaded plain backup file is whole: `gzip -t`. A gzip that cannot start throws (a fault of
  * ours): read as "corrupt", the upload's good bytes would be thrown away.
  */
@@ -905,17 +869,6 @@ async function spawnCapture(command, args) {
     child.on('close', (code) => resolve({ code, stdout, stderr }));
     child.on('error', (error) => resolve({ code: 1, stdout, stderr: error.message }));
   });
-}
-
-async function readJsonBody(req) {
-  let body = '';
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new Error('Request body too large.');
-    body += chunk;
-  }
-  return body ? JSON.parse(body) : {};
 }
 
 function addLog(operation, chunk) {

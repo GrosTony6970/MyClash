@@ -2605,7 +2605,31 @@ export const admin = {
       'Stop the file storage service during the restore, then restart it. The rest of the site keeps running.',
     pollError: 'Lost contact with the running operation — still retrying automatically.',
     retry: 'Refresh now',
-    uploadTooLarge: 'That file is too large (maximum {max}).',
+    uploadSending: '{sent} of {total} sent ({percent} %)',
+    uploadRetrying: 'Connection lost, retrying… ({sent} of {total} on the server)',
+    uploadChecking: 'Checking the file…',
+    uploadWaiting: 'Waiting for the running backup or restore to end…',
+    uploadProgressLabel: 'Upload progress',
+    uploadCancel: 'Cancel upload',
+    uploadCancelled: 'Upload cancelled. What the server received is removed.',
+    uploadCancelUnconfirmed:
+      'Upload stopped. The server did not confirm removing what it received: an unfinished upload is removed after 24 hours.',
+    uploadUnreadable:
+      'The file could not be read (it may have changed since you picked it). Pick it again.',
+    uploadGone:
+      'This upload is gone: deleted with all backups, left unfinished for 24 hours, or replaced by another upload of the same file. Pick the file again to upload it.',
+    uploadCorrupt:
+      'This file is corrupt or cut short (it failed the gzip check). Download the backup again, then upload it.',
+    uploadFailed:
+      'The server could not keep this upload ({reason}). What it received is kept: pick the same file again to finish it.',
+    uploadBeingChecked:
+      'A file of this name is being checked by the server. Wait until it ends, then try again.',
+    uploadNoSpace:
+      'Not enough disk space on the server: it has {free} free, this upload needs {needed}. Delete old backups, then try again.',
+    uploadNoSpaceBare:
+      'Not enough disk space on the server for this upload. Delete old backups, then try again.',
+    opsBusy:
+      'Another backup operation is running (a backup, a restore, an upload or a delete). Try again when it ends.',
     uploadInvalidType: 'Unsupported file. Choose a .gz or .gpg backup artifact.',
     retentionLowWarning:
       'Very low retention: a single bad backup could leave you with no good copy to restore.',

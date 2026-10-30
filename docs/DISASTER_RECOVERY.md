@@ -38,7 +38,10 @@ and photos, and files no row points to.
 ## Uploaded backups
 
 A super admin can upload a set from `/admin/backups` (a new server with no `backups/nightly/`,
-for example). Each night is one folder, `backups/uploads/<TS>/`, holding at most the database
+for example), one file at a time, each up to 2 GiB. A file goes in chunks with a progress bar:
+a dropped connection resumes, and after a page reload picking the same file again continues
+where it stopped. The server refuses a file its disk cannot hold, and checks a plain file
+(`gzip -t`) before it keeps it. Each night is one folder, `backups/uploads/<TS>/`, holding at most the database
 and the images file of that night; a second upload of the same file replaces the first. The
 set is listed with the others as `upload-<TS>`. Its restore pairs the files: database + images
 (`restore.sh <db> --storage-file <storage>`), database only (`--db-only`), or images only

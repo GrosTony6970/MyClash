@@ -1769,7 +1769,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/admin/backups/upload': {
+  '/api/v1/admin/backups/uploads': {
     parameters: {
       query?: never;
       header?: never;
@@ -1778,8 +1778,60 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Stage an uploaded backup file for restore */
-    post: operations['BackupsAdminController_uploadBackup'];
+    /** Start, or resume (the same file), a chunked backup upload */
+    post: operations['BackupsAdminController_startUpload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/backups/uploads/{uploadId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Where a chunked backup upload is */
+    get: operations['BackupsAdminController_uploadStatus'];
+    put?: never;
+    post?: never;
+    /** Cancel a backup upload: what the server received goes */
+    delete: operations['BackupsAdminController_cancelUpload'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/backups/uploads/{uploadId}/chunks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Send one chunk (at most 16 MiB) of a backup upload at its offset */
+    put: operations['BackupsAdminController_sendChunk'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/backups/uploads/{uploadId}/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Check a fully sent backup upload, then keep it as its night */
+    post: operations['BackupsAdminController_completeUpload'];
     delete?: never;
     options?: never;
     head?: never;
@@ -10200,6 +10252,11 @@ export interface components {
     DeleteAllBackupsDto: {
       confirmation: string;
     };
+    StartBackupUploadDto: {
+      filename: string;
+      sizeBytes: number;
+      fingerprint: string;
+    };
     UpdateBudgetDto: {
       monthlyBudgetEur: number | null;
     };
@@ -14755,11 +14812,74 @@ export interface operations {
       };
     };
   };
-  BackupsAdminController_uploadBackup: {
+  BackupsAdminController_startUpload: {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StartBackupUploadDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  BackupsAdminController_uploadStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        uploadId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  BackupsAdminController_cancelUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        uploadId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  BackupsAdminController_sendChunk: {
+    parameters: {
+      query: {
+        offset: string;
+      };
+      header?: never;
+      path: {
+        uploadId: string;
+      };
       cookie?: never;
     };
     requestBody: {
@@ -14771,7 +14891,26 @@ export interface operations {
       };
     };
     responses: {
-      201: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  BackupsAdminController_completeUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        uploadId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      202: {
         headers: {
           [name: string]: unknown;
         };

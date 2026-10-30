@@ -329,29 +329,4 @@ describe('AdminBackupsService', () => {
       }),
     );
   });
-
-  it('validates uploaded backup filenames', async () => {
-    const service = new AdminBackupsService({
-      opsRunnerUrl: 'http://ops-runner:4075',
-      opsRunnerSecret: 'secret',
-    });
-
-    await expect(service.uploadBackup('notes.txt', Buffer.from('x'))).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-  });
-
-  // The size is the upload reader's to refuse (`read-upload.ts`), under this limit.
-  it('reads an upload under 150 MiB by default, or the limit it is given', () => {
-    vi.stubEnv('BACKUP_UPLOAD_MAX_BYTES', undefined);
-    try {
-      expect(new AdminBackupsService().uploadLimit.maxBytes).toBe(150 * 1024 * 1024);
-    } finally {
-      vi.unstubAllEnvs();
-    }
-    expect(new AdminBackupsService({ uploadMaxBytes: 3 }).uploadLimit).toEqual({
-      maxBytes: 3,
-      tooLarge: 'Backup upload exceeds the configured size limit.',
-    });
-  });
 });

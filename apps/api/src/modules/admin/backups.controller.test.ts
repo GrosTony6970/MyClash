@@ -13,7 +13,7 @@ describe('BackupsAdminController guards', () => {
   });
 
   it('exposes backup deletion, restore, and schedule handlers', () => {
-    const controller = new BackupsAdminController({} as never);
+    const controller = new BackupsAdminController({} as never, {} as never);
 
     expect(typeof controller.deleteBackup).toBe('function');
     expect(typeof controller.restoreBackup).toBe('function');

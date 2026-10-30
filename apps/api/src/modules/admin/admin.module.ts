@@ -12,6 +12,7 @@ import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
 import { AdminPlatformLogService } from './admin-platform-log.service';
 import { BackupsAdminController } from './backups.controller';
+import { BackupUploadsService } from './backup-uploads.service';
 import { AdminBackupsService } from './backups.service';
 import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
@@ -137,6 +138,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       inject: [ConfigService],
     },
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
+    { provide: BackupUploadsService, useFactory: () => new BackupUploadsService() },
     PlatformAISettingsService,
     ModelSyncService,
     AIDataQualityService,

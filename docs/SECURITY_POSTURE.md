@@ -8,7 +8,8 @@ This document records the production-review security posture for MyClash. It is 
 
 - All API traffic is served by NestJS/Fastify from `apps/api`.
 - Global validation is configured in `apps/api/src/common/http-bootstrap.ts` with `whitelist: true`, `forbidNonWhitelisted: true`, and `transform: true`.
-- Every uploaded file is read by `readUpload` / `readUploadParts` (`apps/api/src/common/read-upload.ts`), each route under its own limit (logos 10-15 MB, CSV imports 10 MB, archives 25 MB, backups `BACKUP_UPLOAD_MAX_BYTES`, 150 MiB by default), clamped to `MULTIPART_MAX_BYTES`, with one file and 8 parts at most. The read stops at the limit; over it the answer is a 413 coded `file_too_large`, not reported. `read-upload.guard.test.ts` fails on a multipart read written anywhere else, and `upload-limits.routes.test.ts` pins each route's limit.
+- Every uploaded file is read by `readUpload` / `readUploadParts` (`apps/api/src/common/read-upload.ts`), each route under its own limit (logos 10-15 MB, CSV imports 10 MB, archives 25 MB, a backup upload's chunk 16 MiB), clamped to `MULTIPART_MAX_BYTES`, with one file and 8 parts at most. The read stops at the limit; over it the answer is a 413 coded `file_too_large`, not reported. `read-upload.guard.test.ts` fails on a multipart read written anywhere else, and `upload-limits.routes.test.ts` pins each route's limit.
+- A backup file arrives in chunks (`admin/backups/uploads`, super admin only): the ops runner owns the upload and refuses a file over `BACKUP_UPLOAD_MAX_BYTES` (2 GiB by default) or one the disk cannot hold, before a byte is sent (`infra/ops-runner/upload-chunks.mjs`).
 - CORS is an explicit allowlist built by `buildCorsOrigins()`:
   - `https://${DOMAIN}`
   - `https://app.${DOMAIN}`

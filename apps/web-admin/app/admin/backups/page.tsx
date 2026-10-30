@@ -1,12 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { lastBackupReason, restoreRefusal, restoreScope, restoreWords } from './restore-words';
+import { formatBytes } from '@/lib/format-bytes';
+import {
+  backupRefusal,
+  lastBackupReason,
+  refusalOf,
+  restoreScope,
+  restoreWords,
+} from './restore-words';
+import { BackupUploadForm } from './upload-form';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
@@ -24,10 +32,6 @@ const FREQUENCIES: BackupFrequency[] = [
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 const DELETE_ALL_TOKEN = 'DELETE ALL MYCLASH BACKUPS';
-
-// Mirror of the API default (BACKUP_UPLOAD_MAX_BYTES). Client-side guard so an
-// oversize file is rejected before a slow full-size upload the server rejects.
-const UPLOAD_MAX_BYTES = 150 * 1024 * 1024;
 
 // Warn below this many local backup sets — too few and one bad backup can
 // leave no good copy to restore from.
@@ -60,6 +64,8 @@ interface BackupOperation {
   backupId?: string;
   logTail: string[];
   error?: string;
+  /** A refusal this screen words itself (`ops_busy`: the lock was held). */
+  code?: string | null;
 }
 
 interface BackupStatus {
@@ -110,7 +116,6 @@ interface BackupListResponse {
 export default function AdminBackupsPage() {
   const apiUrl = getPublicApiUrl();
   const { t } = useI18n();
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
@@ -127,7 +132,6 @@ export default function AdminBackupsPage() {
   const [deleteAllToken, setDeleteAllToken] = useState('');
   const [backups, setBackups] = useState<BackupSet[]>([]);
   const [operation, setOperation] = useState<BackupOperation | null>(null);
-  const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [pendingRestore, setPendingRestore] = useState<{
     backup: BackupSet;
     location: BackupLocation;
@@ -245,48 +249,10 @@ export default function AdminBackupsPage() {
       .finally(() => setBusy(false));
   };
 
-  const uploadBackup = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError(t('admin.backups.uploadMissing'));
-      return;
-    }
-    // Mirror the server's required filename shape so a wrong-named file is
-    // rejected here with a precise message instead of after a full-size upload.
-    if (!/^(db-\d{8}T\d{6}Z\.sql\.gz|storage-\d{8}T\d{6}Z\.tar\.gz)(\.gpg)?$/.test(file.name)) {
-      setError(t('admin.backups.uploadInvalidType'));
-      return;
-    }
-    if (file.size > UPLOAD_MAX_BYTES) {
-      setError(t('admin.backups.uploadTooLarge', { max: formatBytes(UPLOAD_MAX_BYTES) }));
-      return;
-    }
-    const formData = new FormData();
-    formData.set('file', file);
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    // FormData reaches fetch untouched — the seam only JSON-encodes a plain
-    // body, so the multipart boundary is still the browser's to set.
-    void apiRequest<{ backup: BackupSet }>(apiUrl, '/api/v1/admin/backups/upload', {
-      method: 'POST',
-      body: formData,
-    })
-      .then((res) => {
-        if (!res.ok) {
-          const message = failureMessage(res, t, t('admin.backups.uploadError'));
-          if (message) setError(message);
-          return;
-        }
-        // The answer is the whole night (ruling 213): it replaces that night's row.
-        const staged = res.data.backup;
-        setBackups((current) => [staged, ...current.filter((backup) => backup.id !== staged.id)]);
-        setSelectedFilename(null);
-        if (fileRef.current) fileRef.current.value = '';
-        setNotice(t('admin.backups.uploadStaged'));
-      })
-      .finally(() => setBusy(false));
+  // An upload's answer is the whole night (ruling 213): it replaces that night's row.
+  const replaceUploadedNight = (staged: unknown) => {
+    const night = staged as BackupSet;
+    setBackups((current) => [night, ...current.filter((backup) => backup.id !== night.id)]);
   };
 
   const restoreBackup = (backup: BackupSet, location: BackupLocation) => {
@@ -311,7 +277,7 @@ export default function AdminBackupsPage() {
       .then((res) => {
         if (!res.ok) {
           const message =
-            restoreRefusal(failureCode(res), t) ??
+            backupRefusal(refusalOf(res), t, formatBytes) ??
             failureMessage(res, t, t('admin.backups.restoreError'));
           if (message) setError(message);
           return;
@@ -332,7 +298,9 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          const message = failureMessage(res, t, t('admin.backups.deleteError'));
+          const message =
+            backupRefusal(refusalOf(res), t, formatBytes) ??
+            failureMessage(res, t, t('admin.backups.deleteError'));
           if (message) setError(message);
           return;
         }
@@ -383,7 +351,9 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          const message = failureMessage(res, t, t('admin.backups.deleteAllError'));
+          const message =
+            backupRefusal(refusalOf(res), t, formatBytes) ??
+            failureMessage(res, t, t('admin.backups.deleteAllError'));
           if (message) setError(message);
           return;
         }
@@ -434,7 +404,7 @@ export default function AdminBackupsPage() {
               ? t('admin.backups.operationRestore')
               : t('admin.backups.operationBackup')
           }: ${t('admin.backups.operationStatuses.failed')}${
-            finishedOp.error ? ` — ${finishedOp.error}` : ''
+            finishedOp.error ? ` — ${operationReason(finishedOp, t)}` : ''
           }`}
         </Alert>
       )}
@@ -704,7 +674,9 @@ export default function AdminBackupsPage() {
               </button>
             </div>
           )}
-          {operation.error && <p className="mt-2 text-sm text-danger">{operation.error}</p>}
+          {operation.error && (
+            <p className="mt-2 text-sm text-danger">{operationReason(operation, t)}</p>
+          )}
           {operation.logTail.length > 0 && (
             <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-strong p-3 text-xs text-strong-foreground">
               {operation.logTail.join('\n')}
@@ -713,41 +685,12 @@ export default function AdminBackupsPage() {
         </section>
       )}
 
-      <form onSubmit={uploadBackup} className="mb-6 rounded-lg border border-border p-4">
-        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-          {t('admin.backups.uploadTitle')}
-        </h2>
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-          <input
-            ref={fileRef}
-            type="file"
-            name="file"
-            aria-label={t('admin.backups.uploadFile')}
-            accept=".gz,.gpg"
-            onChange={(event) => setSelectedFilename(event.target.files?.[0]?.name ?? null)}
-            className="sr-only"
-          />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary shadow-sm hover:bg-background focus:outline-none focus:ring-2 focus:ring-accent/30/30"
-          >
-            {t('admin.backups.browse')}
-          </button>
-          <p className="min-w-0 flex-1 rounded-md border border-dashed border-border bg-background px-3 py-2 text-sm text-foreground-secondary">
-            {selectedFilename
-              ? t('admin.backups.selectedFile', { file: selectedFilename })
-              : t('admin.backups.noFileSelected')}
-          </p>
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground disabled:opacity-50"
-          >
-            {t('admin.backups.stageUpload')}
-          </button>
-        </div>
-      </form>
+      <BackupUploadForm
+        apiUrl={apiUrl}
+        onStaged={replaceUploadedNight}
+        onError={setError}
+        onNotice={setNotice}
+      />
 
       <section className="rounded-lg border border-border">
         <div className="border-b border-border bg-background px-4 py-3">
@@ -1156,11 +1099,12 @@ function formatTimestamp(value: string): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} - ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+/** Why an operation failed: in the reader's language when the ops runner gave a code. */
+function operationReason(
+  operation: BackupOperation,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string | undefined {
+  return backupRefusal({ code: operation.code ?? null }, t, formatBytes) ?? operation.error;
 }
 
 function ConfirmDialog({

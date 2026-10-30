@@ -341,6 +341,12 @@ here.
   cross-platform — prefer Node scripts (`scripts/*.ts` via pnpm) over bash.
 - Bash is fine for server-only work on the VPS. Keep it in `infra/scripts/` and label it.
 - Enforce LF via `.gitattributes` — Windows checkouts otherwise corrupt Docker entrypoint scripts.
+- **A large browser upload goes in chunks.** Traefik v3's entrypoint `readTimeout` defaults to
+  60 s and none is set: one request body that takes longer is cut. The backup upload sends
+  chunks of at most 16 MiB, each sized to take about 20 s (`chunked-upload.ts`). A server that
+  refuses a request before reading its body must not add `connection: close`: with undici and a
+  16 MiB body that lost the answer 49 times in 50 on Windows (a reset); Node's own handling
+  drains the body and the client reads the status on Windows and Linux.
 - Migrations run **before** new containers replace old ones, never after. A failed migration aborts
   the deploy and leaves the previous version serving.
 - Docker images running a workspace package script must package that workspace's production

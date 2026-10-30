@@ -62,7 +62,8 @@ export async function readRawBody(req) {
   return Buffer.concat(chunks);
 }
 
-async function readJsonBody(req) {
+/** Every JSON body the runner reads (a schedule, a restore, a start): small, or refused 413. */
+export async function readJsonBody(req) {
   let body = '';
   for await (const chunk of req) {
     body += chunk;

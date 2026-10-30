@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { backupSetsFromArtifacts } from './backup-core.mjs';
 import {
-  incomingPath,
   listUploadArtifacts,
   removeAllUploads,
   removeUploadFiles,
@@ -14,13 +13,11 @@ import {
   resolveUploadSet,
   restoreArgs,
   stageUpload,
-  sweepIncoming,
 } from './upload-store.mjs';
 
 const NIGHT = '20261030T030000Z';
 const DB = `db-${NIGHT}.sql.gz`;
 const STORAGE = `storage-${NIGHT}.tar.gz`;
-const passes = async () => true;
 
 async function root() {
   return mkdtemp(path.join(tmpdir(), 'upload-store-'));
@@ -30,12 +27,12 @@ function night(rootDir, ts = NIGHT) {
   return path.join(rootDir, 'backups', 'uploads', ts);
 }
 
-/** What the base64 adapter does: write the bytes to the night's incoming file, then stage it. */
-async function upload(rootDir, filename, content, verify = passes) {
-  const ts = /\d{8}T\d{6}Z/.exec(filename)?.[0] ?? NIGHT;
-  const temp = await incomingPath(rootDir, ts);
-  await writeFile(temp, content);
-  return stageUpload(rootDir, filename, temp, { verify });
+/** What a finished chunked upload does: its bytes, already checked, are kept as their night's. */
+let sources = 0;
+async function upload(rootDir, filename, content) {
+  const source = path.join(rootDir, `source-${(sources += 1)}`);
+  await writeFile(source, content);
+  return stageUpload(rootDir, filename, source);
 }
 
 async function refusal(promise) {
@@ -79,36 +76,16 @@ test('a second upload of the same kind and night replaces the first (ruling 213)
 test('an encrypted upload keeps the plain file of its kind, and the restore prefers the plain', async () => {
   const rootDir = await root();
   await upload(rootDir, DB, 'plain');
-  let verified = 0;
-  await upload(rootDir, `${DB}.gpg`, 'sealed', async () => {
-    verified += 1;
-    return false;
-  });
-  assert.equal(verified, 0, 'a .gpg cannot be gzip-tested without the key');
+  await upload(rootDir, `${DB}.gpg`, 'sealed');
   assert.deepEqual((await readdir(night(rootDir))).sort(), [DB, `${DB}.gpg`]);
   const set = await resolveUploadSet(rootDir, `upload-${NIGHT}`);
   assert.equal(set.db, path.join(night(rootDir), DB));
 });
 
-test('a file that fails its check is refused and the earlier file stays', async () => {
-  const rootDir = await root();
-  await upload(rootDir, DB, 'good');
-  await refusal(upload(rootDir, DB, 'broken', async () => false));
-  assert.deepEqual(await readdir(night(rootDir)), [DB]);
-  assert.equal(await readFile(path.join(night(rootDir), DB), 'utf8'), 'good');
-});
-
-test('a refused first file of a night leaves no folder behind', async () => {
-  const rootDir = await root();
-  await refusal(upload(rootDir, DB, 'broken', async () => false));
-  assert.deepEqual(await readdir(path.join(rootDir, 'backups', 'uploads')), []);
-});
-
 test('a name that is not a backup file is refused before anything is written', async () => {
   const rootDir = await root();
-  await refusal(incomingPath(rootDir, 'notes'));
-  await refusal(stageUpload(rootDir, 'notes.txt', path.join(rootDir, 'x'), { verify: passes }));
-  await refusal(stageUpload(rootDir, `../${DB}`, path.join(rootDir, 'x'), { verify: passes }));
+  await refusal(stageUpload(rootDir, 'notes.txt', path.join(rootDir, 'x')));
+  await refusal(stageUpload(rootDir, `../${DB}`, path.join(rootDir, 'x')));
   assert.equal(existsSync(path.join(rootDir, 'backups', 'uploads')), false);
 });
 
@@ -127,15 +104,6 @@ test('the lister reads night folders only, and only the files of that night', as
     [[`upload-${NIGHT}`, DB]],
   );
   assert.deepEqual(await listUploadArtifacts(await root()), []);
-});
-
-test('the boot sweep removes the incoming files a crash left, and nothing else', async () => {
-  const rootDir = await root();
-  await upload(rootDir, DB, 'db');
-  await writeFile(path.join(night(rootDir), '.incoming-abc'), 'partial');
-  await sweepIncoming(rootDir);
-  assert.deepEqual(await readdir(night(rootDir)), [DB]);
-  await sweepIncoming(await root());
 });
 
 test('an unknown or malformed set is refused', async () => {

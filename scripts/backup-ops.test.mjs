@@ -84,7 +84,7 @@ test('every mutating ops operation runs under the shared lock', async () => {
   );
   assert.match(
     server,
-    /await sweepIncoming\(ROOT_DIR\)/,
+    /await uploadSessions\s*\.sweep\(\{ boot: true \}\)/,
     'the boot must sweep what a crash left half-written',
   );
   // The old contentless lock left no way to tell a live holder from a crashed

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, rename, rm, rmdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -15,7 +14,6 @@ import {
  * lock around every write here.
  */
 export const UPLOAD_SET_ID_PATTERN = /^upload-(?<ts>\d{8}T\d{6}Z)$/;
-const INCOMING_PREFIX = '.incoming-';
 
 /**
  * A refusal the HTTP layer answers with `statusCode`, not as a server fault (the API relays the
@@ -61,43 +59,24 @@ function parseUploadName(filename) {
   return parsed;
 }
 
-/** Where the caller writes an upload before `stageUpload` checks and keeps it. */
-export async function incomingPath(rootDir, timestamp) {
-  if (!BACKUP_TIMESTAMP_PATTERN.test(String(timestamp))) {
-    throw badRequest('Unsupported backup filename.');
-  }
-  await mkdir(nightDir(rootDir, timestamp), { recursive: true });
-  return path.join(nightDir(rootDir, timestamp), `${INCOMING_PREFIX}${randomUUID()}`);
-}
-
 /**
- * Keep the file the caller wrote at `sourcePath` as `filename` in its night's folder, replacing
- * the file of the same name. A plain file must pass `verify` (gzip -t); a `.gpg` cannot be read
- * without the key and is checked at restore time. A refused file is removed; the old one stays.
+ * Keep the file at `sourcePath` (a chunked upload, already checked: `upload-finish.mjs`) as
+ * `filename` in its night's folder, replacing the file of the same name. A rename: the source is
+ * on the same filesystem.
  *
  * @returns {Promise<{ backup: object }>} the night's whole set, as the list shows it.
  */
-export async function stageUpload(rootDir, filename, sourcePath, { verify }) {
-  const parsed = parseUploadName(filename);
-  if (!parsed.encrypted && !(await verify(sourcePath))) {
-    await discardIncoming(sourcePath);
-    throw badRequest('Uploaded backup failed integrity check (corrupt or truncated gzip).');
-  }
-  await mkdir(nightDir(rootDir, parsed.timestamp), { recursive: true });
-  await rename(sourcePath, path.join(nightDir(rootDir, parsed.timestamp), parsed.filename));
-  return { backup: await nightSet(rootDir, parsed.timestamp) };
+export async function stageUpload(rootDir, filename, sourcePath) {
+  const target = stagedPath(rootDir, filename);
+  await mkdir(path.dirname(target), { recursive: true });
+  await rename(sourcePath, target);
+  return { backup: await nightSet(rootDir, parseUploadName(filename).timestamp) };
 }
 
 /** One night's whole set, as the list shows it. */
 export async function nightSet(rootDir, timestamp) {
   const artifacts = await nightArtifacts(rootDir, timestamp);
   return buildBackupSet(uploadSetId(timestamp), timestamp, artifacts, 'upload');
-}
-
-/** A refused or broken incoming file goes, and its night's folder with it when that leaves it empty. */
-export async function discardIncoming(file) {
-  await rm(file, { force: true });
-  await rmdir(path.dirname(file)).catch(() => undefined);
 }
 
 function uploadSetId(timestamp) {
@@ -119,7 +98,7 @@ async function readdirOrEmpty(dir) {
   }
 }
 
-/** The backup files of one night's folder; anything else in it (an incoming file) is not one. */
+/** The backup files of one night's folder; anything else in it is not one. */
 async function nightArtifacts(rootDir, timestamp) {
   const artifacts = [];
   for (const entry of await readdirOrEmpty(nightDir(rootDir, timestamp))) {
@@ -149,18 +128,6 @@ export async function listUploadArtifacts(rootDir) {
       artifacts.push(...(await nightArtifacts(rootDir, entry)));
   }
   return artifacts;
-}
-
-/** Remove what a crash left half-written. Run once at boot, before any upload can start. */
-export async function sweepIncoming(rootDir) {
-  for (const entry of await readdirOrEmpty(uploadsRoot(rootDir))) {
-    if (!BACKUP_TIMESTAMP_PATTERN.test(entry)) continue;
-    for (const file of await readdirOrEmpty(nightDir(rootDir, entry))) {
-      if (file.startsWith(INCOMING_PREFIX)) {
-        await rm(path.join(nightDir(rootDir, entry), file), { force: true });
-      }
-    }
-  }
 }
 
 /**
