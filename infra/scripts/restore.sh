@@ -228,9 +228,11 @@ fi
 RESTORE_DB_FILE="$BACKUP_FILE"
 TEMP_DECRYPTED_DB=""
 TEMP_DECRYPTED_STORAGE=""
+# `if`, not `[[ … ]] && rm`: an EXIT trap's last status becomes the script's, so a cleanup with
+# no decrypted file to remove turned every restore that worked into exit 1 ("failed").
 cleanup_temp() {
-  [[ -n "${TEMP_DECRYPTED_DB:-}" ]] && rm -f "$TEMP_DECRYPTED_DB"
-  [[ -n "${TEMP_DECRYPTED_STORAGE:-}" ]] && rm -f "$TEMP_DECRYPTED_STORAGE"
+  if [[ -n "${TEMP_DECRYPTED_DB:-}" ]]; then rm -f "$TEMP_DECRYPTED_DB"; fi
+  if [[ -n "${TEMP_DECRYPTED_STORAGE:-}" ]]; then rm -f "$TEMP_DECRYPTED_STORAGE"; fi
 }
 trap cleanup_temp EXIT
 
