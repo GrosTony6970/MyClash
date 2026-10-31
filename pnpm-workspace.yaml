@@ -69,14 +69,6 @@ peerDependencyRules:
     # compiler directly via `import ts from 'typescript'` and the OpenAPI drift
     # gate passes on 6.0.3.
     openapi-typescript>typescript: '6'
-    # Both arrive with @astrojs/check, which web-marketing uses for `lint` and
-    # `typecheck`. Each peers typescript ^5 against our pinned ^6.0.3, for the
-    # same reason as openapi-typescript above: neither has published a range
-    # naming 6 yet. Verified rather than assumed — `astro check` drives both
-    # (tsconfck resolves the tsconfig, zod-to-ts renders the diagnostics) and
-    # reports 0 errors and 0 warnings across all 17 files on 6.0.3.
-    zod-to-ts>typescript: '6'
-    tsconfck>typescript: '6'
     # nestjs-zod 5.5.0 (the latest, and its main branch) peers @nestjs/common
     # ^10 || ^11 and @nestjs/swagger ^7.4.2 || ^8 || ^11; no release names Nest 12
     # (issue #471). Verified rather than assumed: it reaches Nest only through root
@@ -213,24 +205,17 @@ overrides:
 
 # Advisories the Dependency audit does not fail on (operator ruling,
 # 2026-10-03). Each has NO fixed release to install and reaches no running
-# service. `pnpm audit` still prints them as "(N ignored)", and a NEW advisory
+# service. `pnpm audit` reports them apart from the rest, and a NEW advisory
 # still fails the job. Trivy scans the images on the same rule
 # (`ignore-unfixed: true` in ci.yml).
 #
 # An entry never expires on its own: the audit stays silent after the fix is
-# published. Delete the entry the day `pnpm view <name> version` shows the
-# patched version, then bump the lockfile.
+# published, or after the advisory is withdrawn. Delete the entry the day
+# `pnpm view <name> version` shows the patched version, then bump the lockfile.
+# The list is empty since 2026-10-31: both earlier entries (braces,
+# http-cache-semantics) were advisories GitHub withdrew.
 auditConfig:
-  ignoreGhsas:
-    # http-cache-semantics <=4.2.0; the advisory names >=4.2.1, the registry's
-    # latest is 4.2.0. Only astro asks for it, to cache REMOTE images during
-    # `astro build`. web-marketing is `output: 'static'`, served by Caddy, and
-    # loads no remote image.
-    - GHSA-ch52-4w7c-c8xp
-    # braces <=3.0.3; the advisory names >=3.0.4, the registry's latest is
-    # 3.0.3. Only @next/eslint-plugin-next > fast-glob > micromatch asks for it:
-    # lint tooling that expands our own patterns.
-    - GHSA-vfj7-8cjw-p6xm
+  ignoreGhsas: []
 
 # Local fixes to a dependency's published code (operator ruling, 2026-10-28).
 # Every Dockerfile that runs `pnpm install` copies patches/ before it: a frozen

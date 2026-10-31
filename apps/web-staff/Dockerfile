@@ -130,8 +130,6 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/.next/static     ./apps/web-staff/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/public           ./apps/web-staff/public
-# Lock file lets Trivy resolve exact installed versions from pnpm overrides
-COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml                  ./pnpm-lock.yaml
 
 USER nextjs
 EXPOSE 3000
