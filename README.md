@@ -37,7 +37,7 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 ## Quick start (developers)
 
 ```bash
-# Prereqs: Node 26+, pnpm 11.20+, Docker Desktop
+# Prereqs: Node 26+, pnpm 12.16+, Docker Desktop
 pnpm install
 cp .env.example .env       # edit values — at minimum set POSTGRES_PASSWORD and SUPABASE_JWT_SECRET
 

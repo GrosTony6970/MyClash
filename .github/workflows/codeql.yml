@@ -45,9 +45,7 @@ jobs:
               - "**/*.test.ts"
               - "**/*.spec.ts"
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: '11.20.0'
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v4
         with:

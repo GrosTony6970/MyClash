@@ -9,7 +9,7 @@
 #   runner  — minimal production image
 
 ARG NODE_VERSION=26
-ARG PNPM_VERSION=11.20.0
+ARG PNPM_VERSION=12.16.1
 
 # ── base ─────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS base

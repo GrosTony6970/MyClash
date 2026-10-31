@@ -2,11 +2,20 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# Dependency install/postinstall scripts, allowlisted one by one. pnpm 11 blocks
-# every one of these by default (pnpm 10 only warned), so an unlisted package is
-# denied, not silently run. A build script is arbitrary code executing at install
-# time — decide each on what the script actually does, never by pasting whatever
-# `pnpm approve-builds` offers.
+# pnpm-lock.yaml is TWO YAML documents. Because package.json pins pnpm 12, pnpm
+# records its own version in a first "boot" document; the dependencies are in the
+# second. pnpm audit, turbo and Dependabot's version updates read both. A tool that
+# reads only the first sees no dependencies and reports no vulnerabilities, and
+# GitHub's dependency graph is one of them (pnpm/pnpm#13805): turning Dependabot
+# alerts on would raise no alerts. `pmOnFail: ignore` keeps one document, but
+# pnpm then stops switching to the pinned version (operator ruling, 2026-10-31).
+
+# Dependency install/postinstall scripts, allowlisted one by one. pnpm blocks
+# every one of these by default (since pnpm 11; pnpm 10 only warned), so an
+# unlisted package is denied, not silently run. A build script is arbitrary code
+# executing at install time — decide each on what the script actually does, never
+# by pasting whatever `pnpm approve-builds` offers. A `permissions:` block, if one
+# is ever added, overrides this list (pnpm 12.11): keep build approval here.
 allowBuilds:
   # Installs the platform-native binary. Vite, Vitest and tsx cannot run without it.
   esbuild: true
@@ -32,16 +41,13 @@ allowBuilds:
 # as well as by install. Every entry below is upstream version lag, not
 # breakage — no release of the package accepts our version yet.
 #
-# Getting the shape wrong here fails SILENTLY, in three different ways:
-#   - the key must be camelCase. addSettingsFromWorkspaceManifestToConfig copies
-#     top-level keys matching /^[a-z][a-zA-Z0-9]*$/ and DROPS the rest with no
-#     warning, so `peer-dependency-rules:` reads as clean and does nothing.
-#   - the value must be QUOTED. parseAllowedVersions2 calls .split("||") outside
-#     its try/catch, so a bare `10` arrives as a YAML integer and crashes with a
-#     raw TypeError rather than a PnpmError.
+# The shape, as pnpm 12 reads it (measured 2026-10-31):
+#   - the key must be camelCase. `peer-dependency-rules:` is ignored with one
+#     warning line, and the gate turns red on the peers it no longer silences.
 #   - the selector is `parent>target`, the same grammar as `overrides` below.
-#     Spaces around `>` degrade it to a match-all selector that silences the peer
-#     for EVERY parent.
+#     Spaces around `>` are trimmed.
+#   - keep the value quoted, as below. pnpm accepts a bare number, but YAML reads
+#     a bare `12.10` as the number 12.1.
 #
 # Scoped to a major so the carve-out expires on its own: eslint 11, TypeScript 7
 # or NestJS 13 will fall outside the range and redden the gate. It does NOT catch the other

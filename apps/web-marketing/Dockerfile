@@ -9,7 +9,7 @@
 # here, and it still does.
 
 ARG NODE_VERSION=26
-ARG PNPM_VERSION=11.20.0
+ARG PNPM_VERSION=12.16.1
 
 # ── deps ─────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS deps

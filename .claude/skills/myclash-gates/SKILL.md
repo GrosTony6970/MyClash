@@ -43,7 +43,7 @@ pnpm turbo run typecheck
 pnpm turbo run lint
 pnpm turbo run test
 
-pnpm quality:peers               # peerDependencyRules — a non-camelCase key no-ops silently
+pnpm quality:peers               # peerDependencyRules — a non-camelCase key is ignored (one WARN line)
 pnpm security:client-secrets     # no server secrets reachable from client bundles
 pnpm quality:todos               # untracked debt markers
 pnpm quality:source-bytes        # a raw NUL makes git call the file binary — no diff, no rg hit

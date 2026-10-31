@@ -3,7 +3,7 @@
 # Build context: repo root. Requires next.config.ts output: 'standalone'.
 
 ARG NODE_VERSION=26
-ARG PNPM_VERSION=11.20.0
+ARG PNPM_VERSION=12.16.1
 
 FROM node:${NODE_VERSION}-alpine AS base
 ARG PNPM_VERSION

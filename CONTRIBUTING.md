@@ -37,7 +37,7 @@ To configure these as required checks in GitHub:
 ## Development setup
 
 ```bash
-# Prerequisites: Node 26+, pnpm 11.20+, Docker Desktop
+# Prerequisites: Node 26+, pnpm 12.16+, Docker Desktop
 
 # 1. Clone
 git clone https://github.com/GrosTony6970/MyClash.git
