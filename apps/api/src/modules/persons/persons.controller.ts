@@ -56,7 +56,7 @@ export const ROSTER_IMPORT_UPLOAD: UploadLimit = {
  * addressed by person id checks the Event the PERSON is on, never an id the caller
  * sends. Every check runs before any upload is read.
  *
- * Deleting is `editor` too, although RLS `persons_delete` asks `admin`: the
+ * Deleting is `editor` too, although RLS `persons_delete` asked `admin` (dropped by 0247): the
  * operator's ruling (2026-09-18), not an oversight.
  */
 @ApiTags('persons')

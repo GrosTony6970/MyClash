@@ -115,9 +115,9 @@ function parseAdminUser(value: unknown): SupabaseAdminUser | null {
  * Thin wrapper around the Supabase JS client.
  *
  * Two clients are exposed:
- *  - `anon`    — uses the anon key; respects RLS. Use for user-context reads.
- *  - `service` — uses the service-role key; bypasses RLS. Use for server-side
- *                mutations (e.g. setting claim_status after magic-link click).
+ *  - `anon`    — the anon key; calls the auth server only, never a table.
+ *  - `service` — the service-role key; bypasses RLS. Every table read and
+ *                write of the API goes through it (no web role writes, 0247).
  *
  * SUPABASE_URL points at Traefik in both environments — https://app.${DOMAIN}
  * in production, https://api.myclash.localhost in dev. Traefik owns the

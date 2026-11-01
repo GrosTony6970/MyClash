@@ -10,8 +10,8 @@ import type { SupabaseService } from '../supabase/supabase.service';
  * owner for the settings save and for archive restore. A failed read throws:
  * it is not a verdict.
  *
- * Not closed: RLS `rces_write` lets an org admin write `plan_id` straight
- * through PostgREST, and ruling 69 chose no database trigger for it.
+ * Ruling 69 chose no database trigger for it: since migration 0247 only the
+ * API writes `plan_id` (the web door `rces_write` is dropped).
  */
 export async function pinnableCompensationPlan(
   supabase: SupabaseService,

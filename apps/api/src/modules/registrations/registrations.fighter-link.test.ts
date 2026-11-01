@@ -190,7 +190,7 @@ describe('RegistrationsService fighter linking', () => {
   // An entry never writes onto the global profile its person is linked to
   // (operator ruling 35, 2026-09-22). Other Events and the fighter share that
   // profile, and only the fighter or a super admin may change it — as RLS
-  // `global_persons_update` says. It used to take the entry's HEMA Ratings id, so
+  // `global_persons_update` said (dropped by 0247). It used to take the entry's HEMA Ratings id, so
   // any organiser could change a stranger's rank. The roster page sends the
   // typed id, or null for an empty field (ruling 32); neither reaches it. The
   // profile has no id on file, so even a fill-only-if-empty would write.

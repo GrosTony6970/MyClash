@@ -6,8 +6,9 @@
  * API's checks (an Event with recorded results, or an archived one, needs a deletion request);
  * `orgs_delete` let a signed-in super admin delete a club past the API's HQ guard and its audit
  * line. Only the RLS helper loop stopped either, once 0237's deferred keys removed the other
- * accident that did. Both policies go and the two public roles lose DELETE on both tables; reads,
- * inserts and updates stay. This reads the migrations in order and asserts the LAST word, so a
+ * accident that did. Both policies go and the two public roles lose DELETE on both tables; reads
+ * stay (inserts and updates went with 0247, `web-write-doors.test.ts`). This reads the migrations
+ * in order and asserts the LAST word, so a
  * later migration that brings back a delete policy, or a grant of DELETE that names the table,
  * reds here. A schema-wide grant is the running database's to catch: `pnpm db:rls-probe`
  * (API_ONLY_WRITES, each table's DELETE, as the seeded organisation admin) and 0237's post-check.
@@ -34,12 +35,12 @@ describe.each([
   {
     table: 'events',
     policy: 'events_delete',
-    kept: ['events_select_public', 'events_insert', 'events_update'],
+    kept: ['events_select_public'],
   },
   {
     table: 'organizations',
     policy: 'orgs_delete',
-    kept: ['orgs_select', 'orgs_insert', 'orgs_update'],
+    kept: ['orgs_select'],
   },
 ])('$table: only the API deletes a row', ({ table, policy, kept }) => {
   const on = (s: string) => new RegExp(` on (public\\.)?${table} `).test(`${s} `);
@@ -54,9 +55,11 @@ describe.each([
   });
 
   it.each(kept)('keeps the policy %s', (name) => {
-    const made = lastIndex((s) => s.startsWith(`create policy "${name}"`) && on(s));
+    // Quoted or not: 0247 drops its policies unquoted.
+    const named = (verb: string) => new RegExp(`^${verb} policy (if exists )?"?${name}"? `);
+    const made = lastIndex((s) => named('create').test(s) && on(s));
     expect(made).toBeGreaterThan(-1);
-    expect(lastIndex((s) => s.startsWith(`drop policy "${name}"`))).toBeLessThan(made);
+    expect(lastIndex((s) => named('drop').test(s) && on(s))).toBeLessThan(made);
   });
 
   it('revokes DELETE from both public roles, and no later grant names it again', () => {

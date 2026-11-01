@@ -30,7 +30,7 @@ import { assertCanManageEvent, type EventAuthzDeps, type OrgRole } from './event
  * through `assertCanManageSession`. Accepting and refusing an enrollee go through
  * `assertCanManageSessionAsInstructorOrLead`, which ALSO admits an instructor
  * of that workshop holding no org role — so this route is stricter than two of
- * the five. RLS `workshop_enrollments_write` says `editor`; the module has been
+ * the five. RLS `workshop_enrollments_write` said `editor` (dropped by 0247); the module has been
  * the looser of the two since it shipped, and the ruling kept the module's own
  * bar rather than RLS's.
  */

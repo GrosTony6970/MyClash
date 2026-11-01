@@ -1,6 +1,6 @@
 /**
  * Check 5 of `db-rls-probe.mjs`: every API_ONLY_WRITES table refuses the direct writes only the API
- * makes. Per entry and per verb of its own list, anon holds no grant for it, and the seeded
+ * makes. Per entry and per verb (INSERT, UPDATE, DELETE), anon holds no grant for it, and the seeded
  * organisation admin, signed in, is refused it on PRIVILEGE ("permission denied for table"), not by
  * RLS: with the grant back and no write policy, an INSERT is still 42501 ("violates row-level
  * security") and an UPDATE or DELETE touches no row in silence. The INSERT copies the seeded row
@@ -13,7 +13,7 @@ import { attempt } from './ruleset-pair-probe.mjs';
 /** What is wrong, as sentences; none when all is right. Run it after the seed, in its transaction. */
 export async function apiOnlyWritesFailures(tx) {
   const failures = [];
-  for (const { table, key, row, verbs } of API_ONLY_WRITES) {
+  for (const { table, key, row } of API_ONLY_WRITES) {
     const [seeded] =
       await tx`SELECT to_jsonb(t) AS doc FROM ${tx(table)} t WHERE ${tx(key)}::text = ${row}`;
     if (!seeded) {
@@ -28,7 +28,7 @@ export async function apiOnlyWritesFailures(tx) {
         sp`UPDATE ${sp(table)} SET ${sp(key)} = ${sp(key)} WHERE ${sp(key)}::text = ${row}`,
       DELETE: (sp) => sp`DELETE FROM ${sp(table)} WHERE ${sp(key)}::text = ${row}`,
     };
-    for (const verb of verbs ?? Object.keys(writes)) {
+    for (const verb of Object.keys(writes)) {
       const [anon] =
         await tx`SELECT has_table_privilege('anon', ${`public.${table}`}, ${verb}) AS granted`;
       if (anon.granted) failures.push(`anon holds ${verb} on ${table}: only the API writes it`);

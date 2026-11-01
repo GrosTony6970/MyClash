@@ -11,7 +11,7 @@
  *   DATABASE_URL=postgres://… pnpm db:rls-probe
  *
  * It seeds rls-probe-seed.sql and checks, past RLS, that every row a verdict names exists. Then
- * twelve checks, the reads as anon (JWT claims with no `sub`), each in a savepoint rolled back after
+ * twenty checks, the reads as anon (JWT claims with no `sub`), each in a savepoint rolled back after
  * it; the whole run is one transaction, always rolled back, so nothing it wrote survives:
  *   1. every relation anon may SELECT (any column of it) answers without an error — a table whose
  *      grant is split per column is still read, so its policy is still evaluated;
@@ -26,19 +26,18 @@
  *      refusal) to the seeded organisation admin, signed in, and grants none of them to anon: only the
  *      API's service role writes it (0209, ruling 144; the League tables, 0216; club scoring
  *      rulesets, 0225; penalty rulesets, 0226; re-pin records, 0227; a bout's copies of its rules,
- *      0229; Tournaments, 0233; an Event's and a club's DELETE alone, 0237; a bout and what is
- *      recorded on it, a phase's and a Registration's DELETE alone, 0238;
- *      `lib/api-only-writes-probe.mjs`);
+ *      0229; Tournaments, 0233; Events and clubs, 0237 and 0247; a bout and what is recorded on
+ *      it, phases and Registrations, 0238 and 0247; `lib/api-only-writes-probe.mjs`);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar;
  *   7. `account_emails` (0217) is refused to anon and to a signed-in user on privilege, and answers
  *      the service role for the accounts it asks for, no other (`lib/account-emails-probe.mjs`);
- *      checks 8 to 19 are listed with it in `lib/rls-probe-later-checks.mjs`.
+ *      checks 8 to 20 are listed with it in `lib/rls-probe-later-checks.mjs`; check 20 reads the
+ *      whole catalogue: no relation and no policy of `public` lets a web role write, and a new
+ *      table starts closed (0247, `lib/web-write-doors-probe.mjs`).
  * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose. Checks 5 and
- * 7 are a write and a function call, each refused on privilege before any policy runs. Check 10
- * moves an Event signed in past the policies, with the looping helpers made SECURITY DEFINER
- * inside its savepoint, to reach the 0224 Event-move trigger (`lib/ruleset-pair-probe.mjs`).
+ * 7 are a write and a function call, each refused on privilege before any policy runs.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -238,7 +237,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, an Event moves only to a club its Tournaments' rulesets are offered to, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} tables refuse the direct writes only the API makes, a visible League is a published one, account addresses are read by the service role only, a push address has one account, an account holds one roster row at an Event, a ruleset code has one row, a bout holds a copy of its own Tournament's rules, the programme moves only bouts that exist, an audited rules change writes only over what it read, the built-in penalty ruleset holds the FFAMHE forfeit rules, a forfeit has no winner exactly when it is a draw, a Fighter's status is worked out from its causes, a Swiss round is written in one locked step, a Swiss Fighter's pairings follow their status, TF_v1's row holds none of the engine's own values, a forfeit rules change lists the Fighters it moves by when they crossed, no table takes a web write and a new table starts closed.`,
     );
   }
 } catch (error) {

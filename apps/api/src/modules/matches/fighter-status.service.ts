@@ -26,8 +26,7 @@ import { ScoringService } from './scoring.service';
  * A Fighter's status in a Tournament, worked out from what is live now (slice B, migration 0240):
  * their live forfeits, their live black cards under the rules in force, a confirmed review, and
  * the organiser's hand. The database works it out in one locked step, `settle_fighter_status`,
- * and nothing else in the API writes it. (The web door `registrations_write` still can, until
- * ruling 98's sweep closes it.)
+ * and nothing else in the API writes it. (No web role may write it since migration 0247.)
  *
  * Every door that adds, voids or answers a cause calls `settle` AFTER its own write, and so does
  * every retry of one: the settle reads committed causes under the Registration's row lock, so the

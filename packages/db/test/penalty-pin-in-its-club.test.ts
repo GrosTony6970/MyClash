@@ -2,10 +2,10 @@
  * An Event or a Tournament pins only a penalty ruleset its own organisation may
  * pin (migration 0199, operator ruling 68).
  *
- * The API refuses a foreign pin at its five doors; RLS `events_update` still
- * lets an organisation admin write an Event's pin through PostgREST, so the rule
- * also lives in triggers. Tournaments are written by the API only since 0233; the
- * two Tournament triggers stay, and check the API's own writes. This reads the migrations in
+ * The API refuses a foreign pin at its five doors, and the rule also lives in
+ * triggers. Tournaments are written by the API only since 0233, and Events since
+ * 0247; the triggers exempt no role, so they stay and check the API's own writes.
+ * This reads the migrations in
  * order and asserts each function body and trigger statement WHOLE, so an `or`
  * turned into `and`, a widened allow-list or a `return null` cannot pass as a
  * substring. It cannot see the running database; `pnpm db:migrations:replay`

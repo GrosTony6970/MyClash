@@ -5,7 +5,7 @@
  * A browser holds one push address whoever is signed in. Saved under two accounts, it shows the
  * first account's alerts to the second. The unique index refuses the second row; the API's save
  * moves the address to its caller in one statement; a signed-in caller cannot do that move
- * through PostgREST, because the row is not theirs to update.
+ * through PostgREST, because no web role may write the table (0247).
  */
 
 const ANNA = '11111111-1111-4111-8111-111111111111';
@@ -53,9 +53,8 @@ async function failuresInside(sp) {
     await inner`SELECT set_config('request.jwt.claims', ${signedIn}, true)`;
     await save(inner, BEN);
   });
-  // Refused by the policy (42501) on a database with no account rows, and by the
-  // policies' own helper loop (54001, ruling 111a) on the seeded one.
-  if (direct?.code !== '42501' && direct?.code !== '54001')
+  // Refused on privilege: no web role may write a table since 0247.
+  if (direct?.code !== '42501' || !direct.message.startsWith('permission denied for table'))
     failures.push(
       `a signed-in caller was not refused another account's push address (${direct?.message ?? 'no error'})`,
     );

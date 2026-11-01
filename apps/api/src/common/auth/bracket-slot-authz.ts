@@ -5,8 +5,8 @@
  * from the rows, never taken from the caller. The bar is `admin` (operator
  * ruling 33, 2026-09-19), as for generating, filling, reseeding and deleting a
  * bracket and for adding or removing a Pool member, and as RLS
- * `bracket_slots_write` says. That policy also admits a super admin; the API
- * does not, like every Event check in `event-authz.ts`.
+ * `bracket_slots_write` said until 0247 dropped it. That policy also admitted a
+ * super admin; the API does not, like every Event check in `event-authz.ts`.
  */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';

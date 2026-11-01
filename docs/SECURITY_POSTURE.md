@@ -99,8 +99,8 @@ Gitleaks runs in CI as the automated secret-scan gate.
 
 ## Data Layer And RLS
 
-- RLS is the primary authorization boundary for Supabase-exposed tables; NestJS service-role checks are defense in depth for all API writes.
-- Logic tests in `packages/db/test/rls.test.ts` cover cross-tenant denial, super-admin/platform AI access, org-admin AI settings/usage access, broadcast recipient access, tournament-query history ownership, and recent service-role-only tables.
+- For reads, RLS is the authorization boundary of Supabase-exposed tables. For writes, privilege is: since migration `0247` neither `anon` nor `authenticated` holds INSERT, UPDATE or DELETE on any relation of `public`, no policy lets them write, and a new table starts closed (RLS probe check 20, `packages/db/test/web-write-doors.test.ts`). Only the API writes, as the service role, behind its own checks.
+- Logic tests in `packages/db/test/rls.test.ts` cover cross-tenant denial, org-admin AI settings/usage access, broadcast recipient access, tournament-query history ownership, and recent service-role-only tables.
 - Service-role-only tables are represented in tests as rejecting `anon` and `authenticated` writes.
 - Live Supabase/Postgres RLS verification is deferred to Phase 4 or final production sign-off because local live integration may not be available in every development environment.
 - RLS does not apply to views or functions. Views must set `security_invoker = on` and `SECURITY DEFINER` functions must be revoked from `anon` and `authenticated` **by name** — `REVOKE ... FROM public` does not remove the image's default grants. Both are enforced offline by `pnpm db:review`.

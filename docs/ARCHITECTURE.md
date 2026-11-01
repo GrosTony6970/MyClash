@@ -351,9 +351,13 @@ What is **not** derivable from the DDL, and so belongs here:
   carries `bracket_slot_id`. `phase_id` has no FK constraint, only the `NOT NULL`.
 - **The ruleset is a pin, not a join.** `tournaments` stores `ruleset_code` + `ruleset_version`
   as a pointer resolved at read time. Consequences in §7bis.
-- **RLS is the only boundary.** Without a policy a table is world-readable — PostgREST exposes
-  `public` as `anon`. Views and functions bypass RLS: an unpinned view runs as its `BYPASSRLS`
-  owner, so a view over a policed table is still a hole.
+- **RLS is the read boundary; privilege is the write boundary.** Without RLS a table is
+  world-readable — PostgREST exposes `public` as `anon`; with RLS and no policy, nobody reads it
+  through PostgREST. Views and functions bypass RLS: an
+  unpinned view runs as its `BYPASSRLS` owner, so a view over a policed table is still a hole.
+  Only the API writes, as the service role: since migration `0247` neither `anon` nor
+  `authenticated` holds INSERT, UPDATE or DELETE on any relation of `public`, no policy lets them
+  write, and the default privileges give a new table no web write either (RLS probe check 20).
 - **Migration numbering is max+1**, and applied migrations are never edited — the runner
   checksums them and throws when one changes. `0001_init.sql` and `0085` still contain colour
   values the product has since abandoned; that is history, not live config.
@@ -514,8 +518,8 @@ stateDiagram-v2
   disqualified --> checked_in: no cause left, the hand's entry
 ```
 
-The status is worked out, never written by an API door (migration `0240`; the web door
-`registrations_write` still can, ruling 98's sweep): `settle_fighter_status` reads,
+The status is worked out, never written by an API door (migration `0240`; no web role may write
+it since `0247`): `settle_fighter_status` reads,
 under the Registration's row lock, the Fighter's live forfeits (`match_forfeits.fighter_outcome`),
 their live black cards under the rules in force, a confirmed second-black-card review standing on
 two live cards it answered, "disqualify after N", and the organiser's hand
@@ -977,16 +981,12 @@ These rules keep a pinned definition from shifting under a tournament, or from l
   scoped by `SelectableRulesetsService.offeredVersion`), which also check the version; an archive
   restore has its own wider scope (the club's own ruleset at any status, `assertRestoredRulesetsUsable`,
   `apps/api/src/modules/exports/archive-rulesets.ts`). Underneath, only the API writes a Tournament
-  (migration `0233`: no write policy, no write grant for anon or authenticated), and a trigger on
-  `events` (migration `0224`, `ruleset_code_offered_to`) refuses to a writer signed in through
-  PostgREST an Event move to an organisation a Tournament's ruleset code is not offered to, a
-  platform draft included. A ruleset code has one row across every owner (the same migration's
-  unique index), so a club's own row cannot borrow another club's code, nor a built-in's, and the
-  resolver never finds two. The trigger runs after the row is written (RLS refuses a writer without
-  authority first), checks the code, not the version, and exempts only the service role (the API,
-  its workers and the restore) and direct logins, which set no role (migrations, seed scripts, the
-  probes, an operator's session). 0224's two Tournament triggers went with the write policy (0233):
-  with no web writer left they could never fire.
+  (migration `0233`) or an Event (`0247`), and the API never moves an Event to another
+  organisation. A ruleset code has one row across every owner (migration `0224`'s unique index),
+  so a club's own row cannot borrow another club's code, nor a built-in's, and the resolver never
+  finds two. 0224's triggers refused only a writer signed in through PostgREST, and went when the
+  last such writer did: its two Tournament triggers with `0233`, its Event-move trigger and its
+  helper `ruleset_code_offered_to` with `0247` (rulings "0224 triggers", 229).
 - **Delist ≠ delete.** Deleting a ruleset that any tournament pins would 400 that tournament's
   standings, so the service **soft-archives** it instead: the row leaves every picker and list but stays
   resolvable forever. Only an unreferenced ruleset is truly deleted. System and default rulesets cannot
@@ -3947,7 +3947,7 @@ V1 is constrained draft-and-review only. AI returns strict JSON actions for tour
 
 Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
 
-**`platform_ai_settings`** - singleton row (`setting_key = 'super_admin'`) with provider, AES-256-GCM ciphertext, IV, updater, and updated timestamp. RLS: super-admin only; API writes through guarded super-admin routes.
+**`platform_ai_settings`** - singleton row (`setting_key = 'super_admin'`) with provider, AES-256-GCM ciphertext, IV, updater, and updated timestamp. RLS on, no policy since migration `0247`: nobody reads or writes it through PostgREST; the API reads and writes it through guarded super-admin routes.
 
 **`platform_ai_usage_log`** - platform-level LLM usage rows with `feature = 'super_admin_data_quality'`, provider, token counts, cost, and actor. This avoids weakening `ai_usage_log.event_id` and keeps event spend caps org-scoped.
 

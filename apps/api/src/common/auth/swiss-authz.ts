@@ -16,7 +16,7 @@ import {
 /**
  * Every Swiss write needs `admin` on the Event (operator ruling 34,
  * 2026-09-19), as RLS `phases_write`, `swiss_rounds_write` and
- * `swiss_entrants_write` say, and as generating, filling, reseeding and deleting
+ * `swiss_entrants_write` said until 0247 dropped them, and as generating, filling, reseeding and deleting
  * a bracket and every Pool edit do. Adding one bout to a phase (`createMatch`)
  * needs only `editor`. The two Swiss reads need any member.
  */

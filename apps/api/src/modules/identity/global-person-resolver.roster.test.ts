@@ -17,7 +17,7 @@ const NAME = { givenName: 'Jean', familyName: 'Dupont' };
  * organiser could put their own address on a stranger's unclaimed profile — the
  * claim link is mailed to that address, and signing in with it claims the
  * profile. Only the fighter or a super admin changes a profile's details, as
- * RLS `global_persons_update` says.
+ * RLS `global_persons_update` said (dropped by 0247).
  */
 describe('a match writes nothing onto the profile it links to', () => {
   // Anna's unclaimed profile, with no email and no date of birth on file — a

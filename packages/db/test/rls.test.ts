@@ -57,18 +57,9 @@ interface PenaltyRuleset {
   ownerOrganizationId: string | null;
 }
 
-interface FighterProfileLink {
-  fighterId: string;
-  claimedByUserId: string | null;
-}
-
 interface EventScopedRow {
   eventId: string;
   organizationId: string;
-}
-
-interface PlatformAiRow {
-  id: string;
 }
 
 interface TournamentQueryHistoryRow {
@@ -145,17 +136,6 @@ function canSelectEvent(
   return ['published', 'running', 'completed'].includes(event.status);
 }
 
-// Simulates events UPDATE policy
-function canUpdateEvent(
-  userId: string | null,
-  event: Event,
-  members: OrgMember[],
-  platformRoles: Array<{ userId: string; role: string }>,
-): boolean {
-  if (isSuperAdmin(userId, platformRoles)) return true;
-  return hasOrgRole(userId, event.organizationId, 'admin', members);
-}
-
 function canManageLeague(
   userId: string | null,
   leagueId: string,
@@ -215,24 +195,8 @@ function canSelectPenaltyRuleset(
   );
 }
 
-function canManageFighterProfileLink(
-  userId: string | null,
-  link: FighterProfileLink,
-  platformRoles: Array<{ userId: string; role: string }>,
-): boolean {
-  return isSuperAdmin(userId, platformRoles) || link.claimedByUserId === userId;
-}
-
 function serviceRoleOnlyWrite(databaseRole: DatabaseRole): boolean {
   return databaseRole === 'service_role';
-}
-
-function canReadPlatformAiSettings(
-  userId: string | null,
-  _row: PlatformAiRow,
-  platformRoles: Array<{ userId: string; role: string }>,
-): boolean {
-  return isSuperAdmin(userId, platformRoles);
 }
 
 function canReadOrgAdminEventScopedRow(
@@ -271,7 +235,6 @@ const USER_SUPER = 'user-super-admin';
 const USER_ADMIN_A = 'user-admin-org-a';
 const USER_EDITOR_A = 'user-editor-org-a';
 const USER_MEMBER_B = 'user-member-org-b';
-const USER_FIGHTER = 'user-claimed-fighter';
 const USER_ANON = null; // unauthenticated
 const USER_PLATFORM_ADMIN = 'user-platform-admin';
 const USER_PLATFORM_VIEWER = 'user-platform-viewer';
@@ -324,15 +287,10 @@ const PENALTY_PRIVATE_ORG_A: PenaltyRuleset = {
   publicVisibility: false,
   ownerOrganizationId: ORG_A,
 };
-const CLAIMED_FIGHTER_LINK: FighterProfileLink = {
-  fighterId: 'fighter-claimed',
-  claimedByUserId: USER_FIGHTER,
-};
 const EVENT_A_SCOPED_ROW: EventScopedRow = {
   eventId: EVENT_A_PUBLISHED.id,
   organizationId: ORG_A,
 };
-const PLATFORM_AI_SETTINGS_ROW: PlatformAiRow = { id: 'platform-ai-settings' };
 const USER_ADMIN_A_QUERY_HISTORY: TournamentQueryHistoryRow = {
   tournamentId: 'tournament-a',
   userId: USER_ADMIN_A,
@@ -421,42 +379,11 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     expect(canSelectEvent(USER_ADMIN_A, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(true);
   });
 
-  // ── 5. Org B member cannot UPDATE Org A event ────────────────────────────
-  it('5. org-B member cannot UPDATE org-A event (cross-tenant write leak)', () => {
-    expect(canUpdateEvent(USER_MEMBER_B, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
-      false,
-    );
-  });
-
-  // ── 6. Org A editor cannot UPDATE events (needs admin) ───────────────────
-  it('6. org-A editor cannot UPDATE event (insufficient role)', () => {
-    expect(canUpdateEvent(USER_EDITOR_A, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
-      false,
-    );
-  });
-
-  // ── 7. Org A admin CAN UPDATE their own event ────────────────────────────
-  it('7. org-A admin CAN UPDATE their own event', () => {
-    expect(canUpdateEvent(USER_ADMIN_A, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(true);
-  });
+  // Tests 5-7 and 9-11 modelled `events_update`, which 0247 dropped: no web role writes an Event.
 
   // ── 8. Super admin bypasses all restrictions ──────────────────────────────
   it('8. super_admin CAN SELECT any draft event (bypass)', () => {
     expect(canSelectEvent(USER_SUPER, EVENT_B_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(true);
-  });
-
-  it('9. super_admin CAN UPDATE any event (bypass)', () => {
-    expect(canUpdateEvent(USER_SUPER, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(true);
-  });
-
-  // ── 10. Anonymous cannot UPDATE any event ────────────────────────────────
-  it('10. anonymous cannot UPDATE any event', () => {
-    expect(canUpdateEvent(USER_ANON, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(false);
-  });
-
-  // ── 11. Org B member cannot UPDATE Org B event with Org A admin role ─────
-  it('11. org-A admin role does not grant UPDATE on org-B event', () => {
-    expect(canUpdateEvent(USER_ADMIN_A, EVENT_B_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(false);
   });
 
   // ── 12. Non-member authenticated user cannot see draft event ─────────────
@@ -563,20 +490,7 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     ).toBe(false);
   });
 
-  it('23. claimed fighters can manage only their own club and weapon links', () => {
-    expect(canManageFighterProfileLink(USER_FIGHTER, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
-      true,
-    );
-    expect(canManageFighterProfileLink(USER_ADMIN_A, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
-      false,
-    );
-  });
-
-  it('24. super admins can manage fighter profile links for moderation', () => {
-    expect(canManageFighterProfileLink(USER_SUPER, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
-      true,
-    );
-  });
+  // Tests 23-24 modelled `fighter_clubs_write` and `fighter_weapons_write`, dropped by 0247.
 
   it('25. recent service-role-only tables reject anon and authenticated writes', () => {
     for (const policy of RECENT_INTERNAL_TABLE_POLICIES) {
@@ -587,17 +501,8 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     }
   });
 
-  it('26. platform AI settings are readable only by super admins', () => {
-    expect(canReadPlatformAiSettings(USER_SUPER, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
-      true,
-    );
-    expect(canReadPlatformAiSettings(USER_ADMIN_A, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
-      false,
-    );
-    expect(canReadPlatformAiSettings(USER_ANON, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
-      false,
-    );
-  });
+  // Test 26 modelled `platform_ai_settings_super_admin`, dropped by 0247: nobody reads that table
+  // through PostgREST (ruling 227).
 
   it('27. org AI settings and event AI usage require org admin or super admin reads', () => {
     expect(
@@ -651,8 +556,8 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
   // ── Platform role tiers (0170) ────────────────────────────────────────────
   //
   // The load-bearing assertion is the negative one: adding tiers must not have
-  // widened is_super_admin(), because that function guards writes in ~80
-  // policies across 0002 and 24 later migrations.
+  // widened is_super_admin(), because that function guards the reads of many
+  // policies (their writes went with 0247).
 
   it('31. is_super_admin stays exact — the lower tiers are NOT super admins', () => {
     expect(isSuperAdmin(USER_PLATFORM_ADMIN, PLATFORM_ROLES)).toBe(false);
@@ -664,10 +569,7 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     expect(canSelectEvent(USER_PLATFORM_ADMIN, EVENT_B_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
       false,
     );
-    expect(canUpdateEvent(USER_PLATFORM_ADMIN, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
-      false,
-    );
-    expect(canUpdateEvent(USER_PLATFORM_VIEWER, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+    expect(canSelectEvent(USER_PLATFORM_VIEWER, EVENT_B_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
       false,
     );
   });

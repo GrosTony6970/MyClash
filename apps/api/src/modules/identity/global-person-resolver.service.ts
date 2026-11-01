@@ -130,7 +130,7 @@ function maskEmail(email: string): string {
  *
  * A match only LINKS; it writes nothing onto the row it found (operator ruling
  * 35, 2026-09-22): only the fighter or a super admin changes an existing
- * profile's details, as RLS `global_persons_update` says. The resolver used to
+ * profile's details, as RLS `global_persons_update` said (dropped by 0247). The resolver used to
  * fill a matched row's EMPTY email and date of birth from the roster — one way
  * an organiser could put their own address on a stranger's unclaimed profile
  * and then claim it (the claim link is mailed to `global_persons.email`, and

@@ -83,7 +83,7 @@ async function resolveWeaponCatalogId(
     .maybeSingle();
   if (existing) return String((existing as { id: unknown }).id);
   // Import-created rows land INACTIVE: fighter imports run on the service client
-  // (bypassing the super-admin weapon_catalog_write RLS), so an unvetted name
+  // (no web role may write weapon_catalog since 0247), so an unvetted name
   // must not silently appear in the strict tournament/workshop picker
   // (GET /weapons?active=true). A super-admin promotes it via /admin/weapons.
   // active=false does not gate the fighter_weapons FK, so the link still works

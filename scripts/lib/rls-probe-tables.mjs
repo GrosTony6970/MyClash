@@ -123,9 +123,9 @@ export const PRIVATE_COLUMNS = [
 
 /**
  * Tables only the API writes: no write grant for either public role, so a direct write through
- * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row. An entry
- * with `verbs` is refused only those (the DELETE of an Event, a club, a phase or a Registration: each
- * stays writable otherwise).
+ * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row, and each
+ * is refused INSERT, UPDATE and DELETE. Since 0247 no table takes a web write at all; check 20
+ * reads that over the whole catalogue, and these entries prove it on a seeded row.
  */
 export const API_ONLY_WRITES = [
   // Every door that writes a referee asks the one checker and the lock (ADR-016, ADR-019).
@@ -153,16 +153,10 @@ export const API_ONLY_WRITES = [
   { table: 'match_rules', key: 'id', row: 'ad000000-0000-4000-8000-00000000000a' },
   // A Tournament, past the audited re-pin, the lock on its rules and the edit guards (0233).
   { table: 'tournaments', key: 'id', row: '77777777-0000-4000-8000-00000000000a' },
-  // An Event's delete, past the recorded-results check and the deletion request (0237, ruling
-  // 93). Only the delete: Events stay writable through PostgREST (0233's named list).
-  { table: 'events', key: 'id', row: 'eeeeeeee-0000-4000-8000-00000000000a', verbs: ['DELETE'] },
-  // A club's delete, past the HQ guard and the audit line (0237, ruling 95). Only the delete.
-  {
-    table: 'organizations',
-    key: 'id',
-    row: 'aaaaaaaa-0000-4000-8000-000000000001',
-    verbs: ['DELETE'],
-  },
+  // An Event and a club, past the recorded-results check, the deletion request, the HQ guard and
+  // the audit line (0237, rulings 93 and 95; their inserts and updates, 0247).
+  { table: 'events', key: 'id', row: 'eeeeeeee-0000-4000-8000-00000000000a' },
+  { table: 'organizations', key: 'id', row: 'aaaaaaaa-0000-4000-8000-000000000001' },
   // A Match and what is recorded on it, past the lock, the frozen results and the engine (0238,
   // ruling 96).
   { table: 'matches', key: 'id', row: 'dddddddd-0000-4000-8000-00000000000a' },
@@ -170,15 +164,10 @@ export const API_ONLY_WRITES = [
   { table: 'match_events', key: 'id', row: 'e7000000-0000-4000-8000-00000000000a' },
   { table: 'match_penalties', key: 'id', row: 'ca000000-0000-4000-8000-00000000000a' },
   { table: 'match_forfeits', key: 'id', row: 'f0f00000-0000-4000-8000-00000000000a' },
-  // A phase's and a Registration's delete, which take Match rows by cascade (0238, rulings 99 and
-  // 100). Only the delete: both stay insertable and updatable through PostgREST.
-  { table: 'phases', key: 'id', row: '99999999-0000-4000-8000-00000000000a', verbs: ['DELETE'] },
-  {
-    table: 'registrations',
-    key: 'id',
-    row: 'cccccccc-0000-4000-8000-00000000000a',
-    verbs: ['DELETE'],
-  },
+  // A phase and a Registration, whose delete takes Match rows by cascade (0238, rulings 99 and
+  // 100; their inserts and updates, 0247).
+  { table: 'phases', key: 'id', row: '99999999-0000-4000-8000-00000000000a' },
+  { table: 'registrations', key: 'id', row: 'cccccccc-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 export const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';
