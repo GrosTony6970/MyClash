@@ -2,11 +2,15 @@ name: E2E (prod)
 
 # Opt-in only. This drives a DEPLOYED environment and writes real data
 # (scoped to a throwaway event that is hard-deleted in teardown), so it never
-# runs on push/PR. Trigger it manually, or let the nightly schedule run it.
+# runs on push/PR. Trigger it manually.
+#
+# The nightly schedule is off (operator, 2026-11-01). It failed every night from
+# 10-29: the repo holds no E2E_* secrets, and app.myclash.fr times out from
+# GitHub's runners, because prod serves a staging certificate and its edge does
+# not let GitHub's addresses in. Put `schedule: - cron: '0 3 * * *'` back once a
+# hand-run against the redeployed stack passes.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *' # 03:00 UTC nightly
 
 concurrency:
   group: e2e-prod
