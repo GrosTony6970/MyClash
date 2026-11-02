@@ -59,17 +59,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const push = useCallback(
-    (variant: ToastVariant, message: string) => {
-      const id = nextId++;
-      setToasts((prev) => [...prev, { id, variant, message }]);
-      const ttl = VARIANT_AUTO_DISMISS_MS[variant];
-      if (ttl !== null) {
-        setTimeout(() => dismiss(id), ttl);
-      }
-    },
-    [dismiss],
-  );
+  const push = useCallback((variant: ToastVariant, message: string) => {
+    const id = nextId++;
+    setToasts((prev) => [...prev, { id, variant, message }]);
+  }, []);
 
   const value = useMemo<ToastContextValue>(
     () => ({
@@ -91,22 +84,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         className="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-end gap-2 px-4 sm:px-6"
       >
         {toasts.map((toast) => (
-          <ToastEntryEl key={toast.id} toast={toast} onDismiss={() => dismiss(toast.id)} />
+          <ToastEntryEl key={toast.id} toast={toast} dismiss={dismiss} />
         ))}
       </div>
     </ToastContext.Provider>
   );
 }
 
-function ToastEntryEl({ toast, onDismiss }: { toast: ToastEntry; onDismiss: () => void }) {
+function ToastEntryEl({ toast, dismiss }: { toast: ToastEntry; dismiss: (id: number) => void }) {
+  // The toast owns its timer, so the timer ends with it: when it is dismissed, and when the
+  // page closes. Entrance is CSS (.toast-enter).
   useEffect(() => {
-    // Small mount-time entrance handled via CSS .toast-enter
-  }, []);
+    const ttl = VARIANT_AUTO_DISMISS_MS[toast.variant];
+    if (ttl === null) return;
+    const timer = setTimeout(() => dismiss(toast.id), ttl);
+    return () => clearTimeout(timer);
+  }, [toast.id, toast.variant, dismiss]);
 
   return (
     <button
       type="button"
-      onClick={onDismiss}
+      onClick={() => dismiss(toast.id)}
       role="status"
       className={[
         'toast-enter pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-md border px-4 py-3 text-sm shadow-sm transition-transform hover:scale-[1.01]',
