@@ -14,10 +14,13 @@ Each nightly run produces a timestamped **set** of two artifacts (optionally
 | `db-<TS>.sql.gz`      | `pg_dump` of the **entire** `myclash` database. Because the Supabase `auth`, `storage`, and `_realtime` schemas live inside that database, **users (`auth.users`), storage object rows, RLS policies, functions, sequences and every `public` table are all captured** in one consistent MVCC snapshot. |
 | `storage-<TS>.tar.gz` | The contents of the named Docker volume `myclash-storage-data` (uploaded files: org logos, event assets), archived via a helper container.                                                                                                                                                              |
 
-Cluster-level **roles** (`anon`, `authenticated`, `supabase_auth_admin`, …) are
-not in a per-database dump, but the `db` container recreates them at init via
-`infra/db/init/01-supabase-roles.sh`, so both same-cluster and fresh-cluster
-restores have the roles they need.
+Cluster-level **roles** (`anon`, `authenticated`, `supabase_auth_admin`, …) and their
+settings are not in a per-database dump. On a fresh cluster the `db` container creates them at
+init: the image's own `migrate.sh` creates the Supabase roles, `infra/db/init/01-supabase-roles.sh`
+only `supabase_admin`, and `infra/db/init/supabase-service-roles.sh` gives the three service
+users their passwords (from `.env`) and `service_role` its 60 s statement limit. So both
+same-cluster and fresh-cluster restores have the roles they need, as long as `.env` holds
+`AUTHENTICATOR_PASSWORD`, `SUPABASE_AUTH_ADMIN_PASSWORD` and `SUPABASE_STORAGE_ADMIN_PASSWORD`.
 
 ## What restore does (`infra/scripts/restore.sh`)
 
@@ -94,6 +97,17 @@ infra/scripts/restore.sh --storage-only <storage-file>   # images only, same nig
 - Spot-check `/admin/backups` shows the last backup status.
 
 ## Known limitations / follow-ups
+
+- **A dump taken before 2026-11 (each service on its own database user, ruling 390) does not
+  restore into a working stack.** In such a dump the `auth` and `storage` tables belong to the
+  superuser, so GoTrue and Storage, which now log in as `supabase_auth_admin` and
+  `supabase_storage_admin`, cannot run their own migrations on them. Only fresh databases are
+  supported (ruling 391); there is no ownership hand-over.
+- **Changing a service user's password** (`AUTHENTICATOR_PASSWORD`,
+  `SUPABASE_AUTH_ADMIN_PASSWORD`, `SUPABASE_STORAGE_ADMIN_PASSWORD`): the init script sets them
+  once, on a fresh volume. To change one on a running database, set the new value in `.env`, run
+  `ALTER ROLE <user> PASSWORD '<new value>'` through the psql shell (infra/scripts/README.md), then
+  recreate that service.
 
 - **DB↔storage skew:** the DB dump and storage archive are taken sequentially with no write-quiesce, so a file written _between_ the two can produce an orphan storage row or file. Low probability at the nightly 03:00 UTC window; the `docs/superpowers/specs/2026-05-19-consistent-backups-design.md` quiesce lock is the planned mitigation.
 - **Integrity is truncation/corruption-level (`gunzip -t` / `gzip -t`), not a SHA-256 manifest.** A per-set checksum manifest is a deferred enhancement; it was intentionally left out of the current pass to avoid destabilizing the tested retention/listing logic.

@@ -101,9 +101,11 @@ Chosen v1 default: no PgBouncer yet.
 - The API holds **no** direct Postgres pool: it reaches the database over HTTP through
   PostgREST (`SupabaseService`). This line used to describe a `postgres.js` pool with `max: 10`
   in `packages/db/src/client.ts` — that factory had zero callers and was deleted in 2026-08.
-- The one direct `postgres.js` connection is `packages/db/scripts/migrate.mjs`, which runs as a
-  one-off container during deploy and exits.
-- Supabase Auth/Realtime/Storage/PostgREST connect directly to the internal Postgres service.
+- The direct `postgres.js` connections are deploy's one-off containers, which exit:
+  `packages/db/scripts/migrate.mjs`, and `scripts/bootstrap-super-admin.mjs` and
+  `scripts/create-demo-org.mjs` (through `createRunSql`). They get `DATABASE_URL` for their own run.
+- Supabase Auth/Realtime/Storage/PostgREST connect directly to the internal Postgres service, each
+  as its own database user except Realtime (ARCHITECTURE §17.7).
 - API and worker containers should stay within safe connection counts on the single-VPS v1 deployment.
 
 Trigger to add PgBouncer: sustained `pg_stat_activity` usage above 60% of Postgres `max_connections`, connection exhaustion errors, or adding more horizontally scaled API/worker replicas.

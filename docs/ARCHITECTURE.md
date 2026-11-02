@@ -3311,26 +3311,26 @@ routing, same plugins. The deltas:
 
 ### 17.1 Service inventory
 
-The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share a single internal `myclash` network; only Traefik publishes ports 80/443.
+The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share the internal `myclash` network, except the database console: `supabase-meta` and `supabase-studio` live on `myclash-dbadmin` alone, with `db` and Traefik also on it (ruling 396, §17.7). Only Traefik publishes ports 80/443.
 
-| Service             | Container                   | Image / Build                              | Role                                                                                                       |
-| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.                    |
-| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.                   |
-| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                    |
-| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                     |
-| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                              |
-| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                     |
-| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                    |
-| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted** — docker-network only, reachable solely by `supabase-studio`.      |
-| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                       |
-| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                           |
-| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                            |
-| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                             |
-| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                               |
-| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                             |
-| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Astro, prerendered, served by Caddy on port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect). |
-| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.       |
+| Service             | Container                   | Image / Build                              | Role                                                                                                                         |
+| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.                                      |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.                                     |
+| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                                      |
+| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                                       |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                                                |
+| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                                       |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                                      |
+| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted**, on `myclash-dbadmin` only: nothing routes to it and only `supabase-studio` uses it. |
+| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                                         |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                                             |
+| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                                              |
+| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                                               |
+| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                                                 |
+| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                                               |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Astro, prerendered, served by Caddy on port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).                   |
+| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.                         |
 
 Traefik routes by Host header. Key mappings:
 
@@ -3436,7 +3436,7 @@ THROTTLE_IP_WHITELIST=<new address>
 
 **Credentials.** `STUDIO_BASIC_AUTH` (hash) and `STUDIO_PASSWORD` (plaintext) are generated together by `scripts/ensure-prod-env.mjs` from the `BASIC_AUTH_PAIRS` table it shares with the Traefik dashboard, and printed by the deploy's Deployment secrets section. The hash is `{SHA}`, not bcrypt: Compose interpolates docker labels, so a bcrypt hash would need every `$` doubled, while base64 SHA-1 reaches Traefik untouched. The plaintext is stored rather than only printed because the hash is one-way and Studio is the only DB console — losing it would otherwise mean blanking the key and redeploying.
 
-`supabase-meta` itself is **unrouted**: no Traefik labels, no published ports. It answers unauthenticated on the compose network and speaks to Postgres as the superuser, so `supabase-studio` is the only thing that may reach it. `check-infra-review.mjs` asserts it never grows a router.
+`supabase-meta` itself is **unrouted**: no Traefik labels, no published ports. It answers unauthenticated on its network and speaks to Postgres as the superuser, so it lives on `myclash-dbadmin` with Studio, `db` and Traefik only, and nothing else can reach it; Studio, which also answers without authentication on its own port (its gates are Traefik's), sits there for the same reason (ruling 396, §17.7). `check-infra-review.mjs` asserts meta never grows a router, and the network layout. Dev keeps both on its single network, assuming a developer machine that is not exposed; Studio is published on loopback only there (dev's `db` is published on every interface for desktop tools).
 
 ### 17.6 Reaching Postgres directly
 
@@ -3444,13 +3444,13 @@ THROTTLE_IP_WHITELIST=<new address>
 
 The real coordinates live in `.env` on the VPS, never in Studio:
 
-| Field    | Value                                           |
-| -------- | ----------------------------------------------- |
-| host     | `db` — resolvable on the `myclash` network only |
-| port     | `5432`                                          |
-| user     | `${POSTGRES_USER}` (`supabase_admin`)           |
-| database | `${POSTGRES_DB}` (`myclash`)                    |
-| password | `${POSTGRES_PASSWORD}`                          |
+| Field    | Value                                                       |
+| -------- | ----------------------------------------------------------- |
+| host     | `db` — on the `myclash` and `myclash-dbadmin` networks only |
+| port     | `5432`                                                      |
+| user     | `${POSTGRES_USER}` (`supabase_admin`)                       |
+| database | `${POSTGRES_DB}` (`myclash`)                                |
+| password | `${POSTGRES_PASSWORD}`                                      |
 
 **Recipe A — psql shell on the VPS.** Same invocation `backup.sh` runs nightly, so it is exercised in production every day:
 
@@ -3465,15 +3465,36 @@ No `PGPASSWORD` — the in-container socket connection as `POSTGRES_USER` needs 
 **Recipe B — desktop client (TablePlus, DBeaver, psql on Windows).** There is no host port to forward, so tunnel to the container's own address: the docker bridge is reachable from the host's network namespace, and `ssh -L` forwards to anything the VPS can reach.
 
 ```bash
-CIP=$(ssh user@vps "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' myclash-db")
+CIP=$(ssh user@vps "docker inspect -f '{{(index .NetworkSettings.Networks \"myclash\").IPAddress}}' myclash-db")
 ssh -L 5433:$CIP:5432 user@vps      # then point the client at localhost:5433
 ```
 
-The container IP changes on every recreate, which is why the recipe reads it each time rather than hardcoding one. `ssh -L 5433:myclash-db:5432` does **not** work: container-name resolution is Docker's embedded DNS, visible from inside the network and not to the host's SSH daemon.
+The container IP changes on every recreate, which is why the recipe reads it each time rather than hardcoding one. `db` is on two networks (§17.7), so the recipe asks for its `myclash` address by name: ranging over every network would print both addresses run together. `ssh -L 5433:myclash-db:5432` does **not** work: container-name resolution is Docker's embedded DNS, visible from inside the network and not to the host's SSH daemon.
 
 **Do not publish 5432 to fix this.** Docker writes its own iptables chain and bypasses UFW, so `ports: ['5432:5432']` on `db` would be world-reachable despite `ufw default deny incoming` (`infra/scripts/vps-bootstrap.sh` allows 22/80/443 only). Dev publishes it deliberately for desktop tools; production does not, and if a publish is ever genuinely needed it must be bound: `127.0.0.1:5432:5432`.
 
 Both recipes connect as the superuser and therefore **bypass RLS**, exactly as Studio does — the warning in §17.5 applies unchanged. For a read-only look at production data without touching the live database, restore a nightly dump instead (§17.3, [`docs/DISASTER_RECOVERY.md`](./DISASTER_RECOVERY.md)).
+
+### 17.7 Each service on its own database user
+
+Until 2026-11 every service logged in to Postgres as the superuser `supabase_admin`, with the one `POSTGRES_PASSWORD`: one broken service held the whole database. Now each service uses the narrow user the `supabase/postgres` image ships, with its own password (operator rulings 390 and 392; `.env` keys generated by `scripts/ensure-prod-env.mjs`):
+
+| Service            | Database user            | Password key                      | What the user can do                                                                                                        |
+| ------------------ | ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `supabase-rest`    | `authenticator`          | `AUTHENTICATOR_PASSWORD`          | Nothing of its own (NOINHERIT): it switches to `anon`, `authenticated` or `service_role` per request, as PostgREST expects. |
+| `supabase-auth`    | `supabase_auth_admin`    | `SUPABASE_AUTH_ADMIN_PASSWORD`    | Owns schema `auth`'s tables and functions (migration 0248 hands it `auth.jwt()`, which 0002 creates).                       |
+| `supabase-storage` | `supabase_storage_admin` | `SUPABASE_STORAGE_ADMIN_PASSWORD` | Owns schema `storage`'s tables, created at its first boot.                                                                  |
+| `api`, `worker`    | none                     | none                              | They hold no `DATABASE_URL` (ruling 394): every read and write goes through PostgREST, Storage or GoTrue.                   |
+
+**Named exceptions, on the superuser (ruling 393):** the migrations and deploy's other one-off commands (`migrate.mjs`, the super-admin bootstrap, the demo org; they get `DATABASE_URL` from `infra/scripts/lib/database-url.sh` for their own run, never in argv); backup, restore and status; Realtime (it needs replication, and upstream runs it as the superuser); Studio and postgres-meta (the operator's console, §17.5). Studio and meta live on their own network, `myclash-dbadmin`, with only `db` and Traefik beside them (ruling 396): from the shared `myclash` network nothing reaches them.
+
+**How the passwords get there.** `infra/db/init/supabase-service-roles.sh` sets them on a fresh volume. Its name must sort after the image's own `migrate.sh`, which creates those users (a `03-…` name ran first and aborted the init). The `db` service refuses to start without the three keys. Init scripts run once: changing a value later means a wipe or an `ALTER ROLE` by hand. Only fresh databases are supported (ruling 391): `deploy.sh` refuses, before it migrates, a database made before this change (`mc_require_service_role_passwords`), and a dump taken before it restores `auth` and `storage` owned by the superuser ([`docs/DISASTER_RECOVERY.md`](./DISASTER_RECOVERY.md)).
+
+**Time limits.** `authenticator` logs in with `statement_timeout = 8s`, `lock_timeout = 8s` and `safeupdate` (an UPDATE or DELETE without WHERE is refused). PostgREST applies the request role's own setting on top, so the same init script gives `service_role` (the api) `statement_timeout = 60s` (rulings 395, 397). The lock wait stays 8 s (398) and `safeupdate` stays on (399). A role setting is not in a `pg_dump`; the init script runs on every new database, a restored one included.
+
+**What this does not remove.** GoTrue, Storage and PostgREST all hold `SUPABASE_JWT_SECRET`. A broken one can still sign a `service_role` token and read or write every `public` row through PostgREST. The change takes away superuser powers (DDL, other schemas, `COPY … PROGRAM`, role changes), not data access. Realtime's management API is signed with the same secret and Realtime runs as the superuser: named, not examined.
+
+**Proof.** CI's `Deploy migration run` job (`scripts/check-service-db-users.sh`) runs on the fresh database it just migrated: every `auth` table is `supabase_auth_admin`'s, `storage`'s are `supabase_storage_admin`'s, PostgREST's connection is `authenticator`'s; each user logs in over the docker network with its own key and is refused with `POSTGRES_PASSWORD`; and from `myclash` neither meta nor Studio answers. `check-infra-review.mjs` pins each service's user and key, where `${POSTGRES_PASSWORD}` may appear, and the network layout.
 
 ---
 
