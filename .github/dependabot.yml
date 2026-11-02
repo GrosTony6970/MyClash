@@ -13,6 +13,10 @@ updates:
         patterns: ['next', '@next/*']
       nest:
         patterns: ['@nestjs/*']
+    ignore:
+      # TypeScript waits for 7.1: 7.1 is offered again, 7.0.x never is.
+      - dependency-name: typescript
+        versions: ['7.0.x']
 
   - package-ecosystem: github-actions
     directory: '/'

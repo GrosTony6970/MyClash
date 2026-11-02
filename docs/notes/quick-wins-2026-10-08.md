@@ -3947,6 +3947,19 @@ takes the stored League results, and no League table was ranked again. Built in
 | On failure (232)  | The Event is deleted, then ranking one League again fails.                                                                                                                  | **The delete stands and the failure is logged**, as the other automatic recomputes; the League admin's Recompute repairs it. | `rerankAfterDelete` |
 | Club delete (233) | A super admin deletes the club "Les Lames". Its finished Event goes with it, and every other club in its League still sees its points. A cold review found this third door. | **In the same slice**: the club delete ranks the Leagues its Events fed again.                                               | `rerankAfterDelete` |
 
+### Rulings — operator, 2026-11-02: the Dependabot PRs #79-#84
+
+Asked in session 1a54f50a. Five PRs move GitHub Actions to new majors (mostly Node 24); #79 holds
+TypeScript 7.0, `@opentelemetry/api` 1.10 and picomatch 4.0.7. TypeScript waits for 7.1 (the
+deps-update order), and OTel 1.10 breaks the peers of the OTel 2.10 packages the Mistral SDK uses.
+Numbers 235-380 are taken by older tracks (`git log` and `docs/ARCHITECTURE.md` cite them too).
+
+| Row              | Story                                                                                                                                                                                                                    | Ruling                                                                                                                                                           | Built in                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Landing (381)    | Dependabot stops at five open PRs, so `download-artifact` v8 and CodeQL v4 (v3 is deprecated in December 2026) were never offered; once every action runs on Node 24, `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` does nothing. | **Our own commits** move all seven actions and delete the dead flag; #79-#84 are closed with a comment naming the commit.                                        | `.github/workflows/*.yml`             |
+| picomatch (382)  | The root `picomatch` devDependency only forced a safe version and nothing imports it. On 10-29 it was raised to `^4.0.7`, but the `^4.0.5` override won, so the lockfile kept 4.0.5.                                     | **Delete the root line, as glob and fast-uri; the override alone sets the floor, `^4.0.7`.**                                                                     | `package.json`, `pnpm-workspace.yaml` |
+| Dependabot (383) | Every Monday the dev-dependencies PR would come back with TypeScript 7.0 and OTel 1.10, red again.                                                                                                                       | **Dependabot skips TypeScript 7.0.x only**: 7.1 is offered again; OTel 1.10 keeps coming back, the sign that the Mistral SDK has caught up when its PR is green. | `.github/dependabot.yml`              |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,
