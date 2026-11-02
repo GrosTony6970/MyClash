@@ -46,6 +46,45 @@ async function check(label, request, accept) {
   }
 }
 
+// `node check-service-db-users.mjs unreachable <control url> <url>...` (ruling 396): from network
+// `myclash`, the control (a service that IS there) must answer, so this container's network works;
+// then none of the other URLs (the database console, by name and by its myclash-dbadmin address)
+// may answer. Only a network error counts as "cannot reach": a bad URL is not proof.
+const NETWORK_ERRORS = new Set([
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'TimeoutError',
+  'EHOSTUNREACH',
+  'ECONNREFUSED',
+]);
+if (process.argv[2] === 'unreachable') {
+  const [control, ...targets] = process.argv.slice(3);
+  let red = 0;
+  try {
+    const res = await fetch(control, { signal: AbortSignal.timeout(5000) });
+    console.log(`ok  the control answers: ${control} ${res.status}`);
+  } catch (error) {
+    red += 1;
+    console.log(`RED the control does not answer, nothing below proves anything: ${control}`);
+  }
+  for (const url of targets) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      red += 1;
+      console.log(`RED reached ${url}: ${res.status}`);
+    } catch (error) {
+      const code = error.cause?.code ?? error.name;
+      if (NETWORK_ERRORS.has(code)) {
+        console.log(`ok  cannot reach ${url}: ${code}`);
+      } else {
+        red += 1;
+        console.log(`RED ${url} failed for another reason (${code}): not proof it is unreachable`);
+      }
+    }
+  }
+  process.exit(red === 0 ? 0 : 1);
+}
+
 // Services come up in any order: wait for each to answer before judging it.
 async function waitFor(label, url) {
   const deadline = Date.now() + 120_000;

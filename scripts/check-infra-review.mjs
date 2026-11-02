@@ -1168,6 +1168,53 @@ for (const [service, key, user, passwordKey] of [
     errors.push(`deploy.sh must require ${passwordKey}.`);
   }
 }
+// The database console's own network (ruling 396): postgres-meta answers unauthenticated as the
+// superuser and Studio proxies SQL to it, so they live on myclash-dbadmin alone, with only db and
+// Traefik beside them. The explicit name keeps Studio's traefik.docker.network label true (a
+// network declared without `name:` becomes myclash_myclash-dbadmin).
+if (!/^ {2}myclash-dbadmin:\n {4}name: myclash-dbadmin$/m.test(composeText)) {
+  errors.push(
+    'infra/docker-compose.prod.yml must declare the network myclash-dbadmin with name: myclash-dbadmin.',
+  );
+}
+for (const name of ['supabase-meta', 'supabase-studio']) {
+  if (!/^ {4}networks: \[myclash-dbadmin\]$/m.test(services.get(name) ?? '')) {
+    errors.push(`${name} must be on myclash-dbadmin only (ruling 396).`);
+  }
+}
+if (!(services.get('supabase-studio') ?? '').includes('traefik.docker.network=myclash-dbadmin')) {
+  errors.push('supabase-studio must tell Traefik to reach it on myclash-dbadmin.');
+}
+const dbadminMembers = ['db', 'traefik', 'supabase-meta', 'supabase-studio'];
+for (const [name, text] of services) {
+  if (text.includes('myclash-dbadmin') && !dbadminMembers.includes(name)) {
+    errors.push(
+      `${name} must not join myclash-dbadmin: only ${dbadminMembers.join(', ')} (ruling 396).`,
+    );
+  }
+}
+// Read on the networks lines themselves, not anywhere in the block: a comment naming the network
+// must not stand in for membership.
+if (!/^ {4}networks: \[myclash, myclash-dbadmin\]$/m.test(services.get('db') ?? '')) {
+  errors.push('db must be on myclash and myclash-dbadmin (ruling 396).');
+}
+// Traefik routes studio.${DOMAIN} there, and its app.${DOMAIN} alias keeps Studio's calls to
+// https://app.${DOMAIN} (Auth, Table Editor, Storage pages) on the gateway. No CI check sees it.
+if (
+  !/^ {6}myclash-dbadmin:\n {8}aliases:\n {10}- app\.\$\{DOMAIN\}$/m.test(
+    services.get('traefik') ?? '',
+  )
+) {
+  errors.push('traefik must be on myclash-dbadmin with the alias app.${DOMAIN} (ruling 396).');
+}
+// network_mode shares another container's network without naming the network.
+for (const [name, text] of services) {
+  if (/^\s+network_mode:/m.test(text)) {
+    errors.push(
+      `${name} must not set network_mode: it would bypass the network layout (ruling 396).`,
+    );
+  }
+}
 // deploy.sh refuses a database made before ruling 390 (its service users have no password)
 // before it migrates or starts anything; otherwise GoTrue, PostgREST and Storage go down.
 {

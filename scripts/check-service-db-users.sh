@@ -12,6 +12,8 @@
 # Plus: each narrow user logs in over the docker network with its own password and is refused
 # with POSTGRES_PASSWORD; none is superuser or BYPASSRLS; GoTrue owns every `auth` function
 # (0248); service_role carries a 60 s statement limit and no lock limit of its own (395, 398).
+# And the database console (meta, Studio) cannot be reached from `myclash`, by name or by
+# address, while Studio's own SQL route still works (ruling 396).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -131,6 +133,45 @@ if [[ " $settings " == *" statement_timeout=60s "* && "$settings" != *lock_timeo
   ok "service_role: $settings"
 else
   red "service_role settings '$settings' (want statement_timeout=60s and no lock_timeout)"
+fi
+
+echo "--- the database console's own network (ruling 396)"
+if ! "${compose[@]}" up -d --wait supabase-meta supabase-studio >/dev/null 2>&1; then
+  red "supabase-meta and supabase-studio did not come up healthy"
+  "${compose[@]}" ps supabase-meta supabase-studio || true
+  for c in myclash-supabase-meta myclash-supabase-studio; do
+    # A container that was never created must not end the report here (set -e, pipefail).
+    docker inspect -f '{{json .State.Health.Log}}' "$c" 2>/dev/null | tail -c 600 || true
+    echo
+  done
+fi
+# An address, or empty: `docker inspect` can print "<no value>" for a network it does not have.
+ip_on_dbadmin() {
+  local ip
+  ip=$(docker inspect -f '{{(index .NetworkSettings.Networks "myclash-dbadmin").IPAddress}}' "$1" 2>/dev/null || true)
+  [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "$ip"
+  return 0
+}
+meta_ip=$(ip_on_dbadmin myclash-supabase-meta)
+studio_ip=$(ip_on_dbadmin myclash-supabase-studio)
+if [[ -z "$meta_ip" || -z "$studio_ip" ]]; then
+  red "meta ($meta_ip) or Studio ($studio_ip) has no address on myclash-dbadmin"
+fi
+# From `myclash`, where GoTrue, PostgREST, Storage and the api live: by name and by address.
+# PostgREST is the control: it IS on myclash, so it must answer from this same container. The
+# address leg only shows that docker keeps two bridges apart; the name leg is what a service on
+# the wrong network turns red.
+if ! "${compose[@]}" run --rm --no-deps -v "$PWD/scripts:/check:ro" api \
+  node /check/check-service-db-users.mjs unreachable http://supabase-rest:3000/ \
+  http://supabase-meta:8080/health http://supabase-studio:3000/api/platform/profile \
+  "http://${meta_ip:-0.0.0.0}:8080/health" "http://${studio_ip:-0.0.0.0}:3000/api/platform/profile"; then
+  red "the database console answers from network myclash"
+fi
+# From Studio itself, its SQL route still reaches meta and the database.
+if docker exec myclash-supabase-studio node -e 'fetch("http://localhost:3000/api/platform/pg-meta/default/query",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({query:"select 1 as one"})}).then(async r=>{const t=await r.text();process.exit(r.status===200&&t.includes("one")?0:1)}).catch(()=>process.exit(1))'; then
+  ok "Studio's SQL route reaches meta and the database"
+else
+  red "Studio's SQL route does not reach meta"
 fi
 
 if [[ "$failed" -ne 0 ]]; then

@@ -82,6 +82,11 @@ services:
       myclash:
         aliases:
           - app.${DOMAIN}
+      # Routes studio.${DOMAIN} to Studio, which is on this network only (ruling 396); the
+      # alias keeps Studio's calls to https://app.${DOMAIN} on the gateway, as on `myclash`.
+      myclash-dbadmin:
+        aliases:
+          - app.${DOMAIN}
     mem_limit: 256m
     cpus: 0.5
     logging:
@@ -185,7 +190,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 120s
-    networks: [myclash]
+    # Both: every service reaches it on `myclash`, the database console on its own (ruling 396).
+    networks: [myclash, myclash-dbadmin]
     mem_limit: 2g
     cpus: 2
     logging:
@@ -457,9 +463,10 @@ services:
       retries: 3
       start_period: 20s
     # Deliberately unrouted: no traefik labels, no published ports. This speaks
-    # to Postgres as POSTGRES_USER and answers unauthenticated on the docker
-    # network, so the ONLY thing that may reach it is supabase-studio.
-    networks: [myclash]
+    # to Postgres as POSTGRES_USER and answers unauthenticated on its network,
+    # so nothing routes to it and only supabase-studio uses it: it is on
+    # myclash-dbadmin alone (ruling 396), with db, Studio and Traefik (the edge).
+    networks: [myclash-dbadmin]
     mem_limit: 128m
     cpus: 0.5
     logging:
@@ -563,9 +570,10 @@ services:
       # string, which carries POSTGRES_PASSWORD, crosses the docker network in
       # clear. What makes that acceptable is written on supabase-meta above:
       # it is deliberately unrouted and answers UNAUTHENTICATED on that same
-      # network, so anything placed to read the string can already query the
-      # database directly. Encrypting it would protect nothing that is not
-      # already open.
+      # network, myclash-dbadmin, so anything placed there to read the string
+      # can already query the database directly. Encrypting it would protect
+      # nothing that is not already open. Only db, Studio and Traefik (the edge)
+      # share that network with it.
       TZ: ${TZ}
     volumes:
       # Without the mount Studio still answers 200 — it just writes into the
@@ -587,7 +595,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    networks: [myclash]
+    # Its own network only (ruling 396): Studio answers without auth on :3000 (the auth is
+    # Traefik's) and proxies SQL as the superuser, so no other service may reach it.
+    networks: [myclash-dbadmin]
     mem_limit: 512m
     cpus: 0.5
     logging:
@@ -595,6 +605,7 @@ services:
       options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
+      - traefik.docker.network=myclash-dbadmin
       - traefik.http.routers.myclash-studio.rule=Host(`studio.${DOMAIN}`)
       - traefik.http.routers.myclash-studio.entrypoints=websecure
       - traefik.http.routers.myclash-studio.tls=true
@@ -1278,6 +1289,13 @@ services:
 networks:
   myclash:
     name: myclash
+    driver: bridge
+  # The database console's own network (ruling 396): postgres-meta answers unauthenticated as
+  # the superuser, and Studio proxies SQL to it, so only db, meta, Studio and Traefik (which
+  # routes studio.${DOMAIN}) are on it. A broken GoTrue, PostgREST, Storage or api on
+  # `myclash` cannot reach either. Not `internal`: Studio calls https://app.${DOMAIN}.
+  myclash-dbadmin:
+    name: myclash-dbadmin
     driver: bridge
 
 volumes:
