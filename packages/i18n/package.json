@@ -38,7 +38,7 @@
     "test": "tsc --project tsconfig.json && node dist/index.test.js && node dist/encoding.test.js && node dist/no-literal-string-rule.test.js && node dist/t-key-references.test.js"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "eslint": "^10.13.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"

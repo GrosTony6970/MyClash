@@ -3960,6 +3960,18 @@ Numbers 235-380 are taken by older tracks (`git log` and `docs/ARCHITECTURE.md` 
 | picomatch (382)  | The root `picomatch` devDependency only forced a safe version and nothing imports it. On 10-29 it was raised to `^4.0.7`, but the `^4.0.5` override won, so the lockfile kept 4.0.5.                                     | **Delete the root line, as glob and fast-uri; the override alone sets the floor, `^4.0.7`.**                                                                     | `package.json`, `pnpm-workspace.yaml` |
 | Dependabot (383) | Every Monday the dev-dependencies PR would come back with TypeScript 7.0 and OTel 1.10, red again.                                                                                                                       | **Dependabot skips TypeScript 7.0.x only**: 7.1 is offered again; OTel 1.10 keeps coming back, the sign that the Mistral SDK has caught up when its PR is green. | `.github/dependabot.yml`              |
 
+### Rulings — operator, 2026-11-02: the Dependabot PRs #85-#89
+
+Asked in session 1a54f50a. #85 (@types/node, fake-indexeddb, lucide-react, OTel 1.10), #87
+(@google/genai), #88 (astro) and #89 (bullmq) are patches and minors; OTel 1.10 stays refused
+(383). #86 is postgres.js 3 -> 4, a rewrite below its API, and production's `migrate.mjs` runs
+on it at every deploy. #89 was red from a flake, not from bullmq.
+
+| Row               | Story                                                                                                                                                                                                | Ruling                                                                                                                                                         | Built in |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| postgres 4 (384)  | postgres.js 4 rewrites the pool, connection and protocol; a deploy would run every migration through it, and a commit the server rolled back now rejects where v3 took it as a commit.               | **Its own slice, right after the small PRs**, measured first: fresh replays on both Postgres images, the three probes, `migrate.mjs` from the built api image. | —        |
+| Toast timer (385) | A "Saved" toast hides itself after a few seconds; the timer is never cancelled when the page closes. In a test it fires after the fake browser is gone and fails a run whose tests all passed (#89). | **Fix it after the dependency commits, before postgres 4**: each toast owns its timer and cancels it, with a test that fails today.                            | —        |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

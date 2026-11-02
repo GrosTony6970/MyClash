@@ -24,8 +24,8 @@
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.118.0",
-    "lucide-react": "^1.63.0",
-    "@types/node": "^26.6.5",
+    "lucide-react": "^1.66.0",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
