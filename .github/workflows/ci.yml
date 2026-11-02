@@ -593,6 +593,37 @@ jobs:
           CASCADE_PROBE_DISPOSABLE: '1'
         run: pnpm db:cascade-probe
 
+  # ── The deploy's own migration run (ruling 386) ─────────────────────────
+  # The replay above applies the migrations with its own script. Production
+  # applies them with packages/db/scripts/migrate.mjs, inside the built api
+  # image, at every deploy (infra/scripts/deploy.sh, redeploy.sh). This job runs
+  # deploy.sh's command as it is, through the production compose file: the api
+  # image, and prod's database service (its supabase/postgres image, its init
+  # scripts, `supabase_admin`), started fresh. .env.example stands in for the
+  # server's .env. Twice: the first run applies every file, the second skips
+  # every file. scripts/check-deploy-migrations.test.mjs pins the command to
+  # deploy.sh's.
+  deploy-migrations:
+    name: Deploy migration run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build production image
+        run: docker compose --env-file .env.example -f infra/docker-compose.prod.yml build api
+
+      - name: Run the deploy migrations twice
+        run: |
+          set -euo pipefail
+          compose=(docker compose --env-file .env.example -f infra/docker-compose.prod.yml)
+          "${compose[@]}" run --rm api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/first.log"
+          "${compose[@]}" run --rm api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/second.log"
+          node scripts/check-deploy-migrations.mjs "$RUNNER_TEMP/first.log" "$RUNNER_TEMP/second.log"
+
   shellcheck:
     name: Shellcheck infra scripts
     runs-on: ubuntu-latest

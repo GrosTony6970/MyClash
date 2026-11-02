@@ -3972,6 +3972,18 @@ on it at every deploy. #89 was red from a flake, not from bullmq.
 | postgres 4 (384)  | postgres.js 4 rewrites the pool, connection and protocol; a deploy would run every migration through it, and a commit the server rolled back now rejects where v3 took it as a commit.               | **Its own slice, right after the small PRs**, measured first: fresh replays on both Postgres images, the three probes, `migrate.mjs` from the built api image. | `packages/db/package.json` |
 | Toast timer (385) | A "Saved" toast hides itself after a few seconds; the timer is never cancelled when the page closes. In a test it fires after the fake browser is gone and fails a run whose tests all passed (#89). | **Fix it after the dependency commits, before postgres 4**: each toast owns its timer and cancels it, with a test that fails today.                            | `ToastEntryEl`             |
 
+### Rulings — operator, 2026-11-02: CI runs the deploy's own migrations
+
+Asked in session 968a4da2. Production applies the migrations with `migrate.mjs`, inside the built
+api image, at every deploy. CI's `Database replay` job applies them with another script, so a
+change to `migrate.mjs`, to postgres.js or to what the image copies reached production untested.
+
+| Row                | Story                                                                                                                                                                                   | Ruling                                                                                                                         | Built in                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| Where (386)        | Once, a package missing from the api image took production down while every test was green. A step in the replay job would run `migrate.mjs` with the repo's packages, not the image's. | **A new CI job builds the api image and runs the deploy's command in it**, twice: every file applied, then every file skipped. | `ci.yml` `deploy-migrations` |
+| Database (387)     | Production runs `supabase/postgres` and migrates as `supabase_admin`; the replay runs plain `postgres:17` with a file that imitates Supabase. 0247 already behaves differently by user. | **Production's database service**, through the production compose file: its image, init scripts and user.                      | `ci.yml` `deploy-migrations` |
+| Failure case (388) | A migration that fails halfway should leave no "applied" row, so the next deploy retries it. A file that commits then fails leaves half its work anyway (named, not fixed).             | **Only the apply-then-skip pair**; no failing-file case.                                                                       | —                            |
+
 ### Fixed since they were named
 
 44 bullets, among them the four "NOT fixed" bugs (`c7cedc92`, `538b0e96`, `6b30e5bc`,

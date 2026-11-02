@@ -79,8 +79,11 @@ locally either — you will reproduce the same blindness.
 
 A change under `packages/db/` also needs CI's `Database replay` job locally: a fresh `postgres:17`
 container, then `pnpm db:migrations:replay`, `pnpm db:rls-probe`, `pnpm db:merge-probe` and
-`CASCADE_PROBE_DISPOSABLE=1 pnpm db:cascade-probe` (last: it commits rows) with `DATABASE_URL` set (the commands are in CONTRIBUTING.md, "Before pushing"). No other gate runs a
-migration. They are sequential on purpose: a probe has no verdict on a half-replayed database.
+`CASCADE_PROBE_DISPOSABLE=1 pnpm db:cascade-probe` (last: it commits rows) with `DATABASE_URL` set (the commands are in CONTRIBUTING.md, "Before pushing"). They are sequential on purpose: a probe has no verdict on a half-replayed
+database. CI's `Deploy migration run` job (ruling 386) also migrates: it runs deploy.sh's own
+`migrate.mjs` command twice through the production compose file. It is CI only, because it starts
+containers with production's fixed names (`myclash-db`, volume `myclash-postgres-data`); never run
+it on a host that runs the stack.
 
 ## Traps
 
