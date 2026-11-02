@@ -166,9 +166,15 @@ services:
       - ./db/init/01-supabase-roles.sh:/docker-entrypoint-initdb.d/01-supabase-roles.sh:ro
       - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
       - ./db/init/supabase-postgrest.sh:/docker-entrypoint-initdb.d/supabase-postgrest.sh:ro
+    # -h 127.0.0.1, over TCP like every client (ruling 389). On a fresh volume the entrypoint's
+    # init server listens on the socket only (listen_addresses=''); a socket probe reported
+    # healthy during init, and deploy.sh's migrate.mjs then met ECONNREFUSED.
     healthcheck:
       test:
-        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-supabase_admin} -d ${POSTGRES_DB:-myclash}']
+        [
+          'CMD-SHELL',
+          'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-supabase_admin} -d ${POSTGRES_DB:-myclash}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
