@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { LeaguesService } from '../leagues/leagues.service';
 import { MailService } from '../mail/mail.service';
 import { mailedLink, signInDoor } from '../mail/mailed-link';
 import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
@@ -115,6 +116,7 @@ export class AdminOrganizationsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly userDirectory: UserDirectoryService,
+    private readonly leagues: LeaguesService,
     private readonly mail?: MailService,
     private readonly config?: ConfigService,
   ) {}
@@ -437,6 +439,10 @@ export class AdminOrganizationsService {
       // Ensure a <deleted> placeholder org exists for data preservation
       await this.ensureDeletedPlaceholder();
 
+      // Read before the delete: the cascade takes the club's Events and the League results that
+      // name the Leagues they fed (ruling 233).
+      const leagueIds = await this.leagues.leaguesHoldingResultsOf('organization', id);
+
       // Log before deletion
       await this.writeAuditLog(actorUserId, 'org.delete', 'organization', id, { hard: true });
 
@@ -444,6 +450,7 @@ export class AdminOrganizationsService {
 
       if (error) throw error;
       this.logger.log(`Organization ${id} hard-deleted by ${actorUserId}`);
+      await this.leagues.rerankAfterDelete(leagueIds, `organization ${id}`);
     } catch (err) {
       if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
       this.logger.error(`Failed to delete org ${id}: ${String(err)}`);

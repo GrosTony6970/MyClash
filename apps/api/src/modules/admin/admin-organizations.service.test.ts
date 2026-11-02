@@ -103,6 +103,8 @@ function makeAwaitableChain(result: ChainResult) {
   return chain;
 }
 
+const mockLeagues = { leaguesHoldingResultsOf: vi.fn(), rerankAfterDelete: vi.fn() };
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('AdminOrganizationsService', () => {
@@ -135,9 +137,12 @@ describe('AdminOrganizationsService', () => {
     mockMail.sendMagicLink.mockResolvedValue(undefined);
     mockMail.sendOwnerWelcomePassword.mockResolvedValue(undefined);
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    mockLeagues.leaguesHoldingResultsOf.mockResolvedValue([]);
+    mockLeagues.rerankAfterDelete.mockResolvedValue(undefined);
     service = new AdminOrganizationsService(
       mockSupabase as never,
       { resolveUsers: vi.fn().mockResolvedValue(new Map()) } as never,
+      mockLeagues as never,
       mockMail as never,
       mockConfig as never,
     );
@@ -785,6 +790,47 @@ describe('AdminOrganizationsService', () => {
       );
 
       expect(protectedOrgChain.delete).not.toHaveBeenCalled();
+    });
+
+    /** The club's Events go with it, and their League points with them (ruling 233). */
+    function orgDeleteSteps() {
+      const steps: string[] = [];
+      const orgChain = makeChain({ data: { slug: 'les-lames' }, error: null });
+      orgChain.delete.mockImplementation(() => {
+        steps.push('delete');
+        return orgChain;
+      });
+      fromMock.mockImplementation((table: string) =>
+        table === 'organizations' ? orgChain : makeChain({ data: null, error: null }),
+      );
+      mockLeagues.leaguesHoldingResultsOf.mockImplementation(async (target: string, id: string) => {
+        steps.push(`read ${target} ${id}`);
+        return ['league-a'];
+      });
+      mockLeagues.rerankAfterDelete.mockImplementation(async (ids: string[], deleted: string) => {
+        steps.push(`rerank ${ids.join(',')} after ${deleted}`);
+      });
+      return { steps, orgChain };
+    }
+
+    it('reads the Leagues of the club before the delete, and ranks them again after it', async () => {
+      const { steps } = orgDeleteSteps();
+      await service.deleteOrganization('org-1', 'actor');
+      expect(steps).toEqual([
+        'read organization org-1',
+        'delete',
+        'rerank league-a after organization org-1',
+      ]);
+    });
+
+    it('deletes nothing when the League read fails', async () => {
+      const { steps, orgChain } = orgDeleteSteps();
+      mockLeagues.leaguesHoldingResultsOf.mockRejectedValueOnce(new Error('read failed'));
+      await expect(service.deleteOrganization('org-1', 'actor')).rejects.toThrow(
+        'Failed to delete organization',
+      );
+      expect(orgChain.delete).not.toHaveBeenCalled();
+      expect(steps).toEqual([]);
     });
   });
 

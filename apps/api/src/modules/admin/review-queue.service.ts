@@ -599,6 +599,11 @@ export class ReviewQueueService {
 
     const targetType = req['target_type'] as string;
     const targetId = req['target_id'] as string;
+    // Read before the delete: the cascade takes the results that name the Leagues (ruling 94).
+    const leagueIds = await this.leaguesService.leaguesHoldingResultsOf(
+      targetType === 'event' ? 'event' : 'tournament',
+      targetId,
+    );
 
     // Cascade-delete via direct Supabase (bypasses status guards — super-admin approval IS the bypass)
     if (targetType === 'event') {
@@ -616,6 +621,7 @@ export class ReviewQueueService {
     } else {
       throw new BadRequestException(`Unknown target_type: ${targetType}`);
     }
+    await this.leaguesService.rerankAfterDelete(leagueIds, `${targetType} ${targetId}`);
 
     const now = new Date().toISOString();
     const { error: updateErr } = await this.supabase.service

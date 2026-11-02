@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { UploadLimit } from '../../common/read-upload';
@@ -134,6 +135,8 @@ function publicLinks<Link extends { tournaments?: unknown }>(read: {
 
 @Injectable()
 export class LeaguesService {
+  private readonly logger = new Logger(LeaguesService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -1690,6 +1693,49 @@ export class LeaguesService {
       .is('hema_ratings_id', null);
     if (error) throw new BadRequestException(error.message);
     return ((data ?? []) as Row[]).map((row) => String(row['display_name'] ?? ''));
+  }
+
+  /**
+   * The Leagues that hold results of an Event, a Tournament or a club's Events (rulings 94, 233).
+   * A super admin's delete reads them BEFORE it deletes: the cascade takes the results, and with
+   * them the only record of which League tables carry the points. A failed read throws, so the
+   * delete does not run blind.
+   */
+  async leaguesHoldingResultsOf(target: 'event' | 'tournament' | 'organization', id: string) {
+    const results = this.supabase.service.from('league_tournament_results');
+    const { data, error } =
+      target === 'organization'
+        ? await results
+            .select('league_id, events!inner(organization_id)')
+            .eq('events.organization_id', id)
+        : await results.select('league_id').eq(`${target}_id`, id);
+    if (error) throw new Error(`League results read failed: ${error.message}`);
+    return [...new Set(((data ?? []) as Row[]).map((row) => String(row['league_id'])))];
+  }
+
+  /**
+   * After a super admin's delete, the deleted points leave each League table (rulings 94,
+   * 230-233): every League ranks again from the results the cascade left. It scores nothing again.
+   * A finalized season stays frozen (231). Never throws (232): the delete is done and stands; a
+   * failure is logged, and the League admin's Recompute still repairs the table.
+   *
+   * The race: any other write to one of these rankings (a recompute, a link review) that read the
+   * results before the delete may land after this re-rank. And results written between the read
+   * of `leagueIds` and the delete (the status ticker completing the Event) name a League this list
+   * misses. Either way the table keeps the deleted points until the next recompute.
+   */
+  async rerankAfterDelete(leagueIds: string[], deleted: string): Promise<void> {
+    for (const leagueId of leagueIds) {
+      try {
+        await this.rerankUnlessFinalized(leagueId);
+      } catch (err) {
+        this.logger.warn(
+          `League ${leagueId} was not ranked again after the delete of ${deleted}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
   }
 
   /** Re-rank from the stored results (the other links' stand), unless the season is finalized. */

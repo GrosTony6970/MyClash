@@ -7,6 +7,7 @@
  *   2. listAll with typeFilter='deletion' only queries deletion_requests.
  *   3. approve(deletion) requires typedConfirmation='DELETE' — throws BadRequestException.
  *   4. approve(deletion) with confirmation deletes the target event and flips the request.
+ *   4b. approve(deletion) ranks the Leagues the target fed again (ruling 94).
  *   5. reject persists rejection_reason and writes audit log.
  */
 
@@ -133,6 +134,8 @@ function makeMockEventsService() {
 function makeMockLeaguesService() {
   return {
     reviewTournamentLink: vi.fn().mockResolvedValue({}),
+    leaguesHoldingResultsOf: vi.fn().mockResolvedValue([]),
+    rerankAfterDelete: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -471,6 +474,89 @@ describe('ReviewQueueService', () => {
 
     // Deletion request was flipped to approved
     expect(requestsUpdateEq).toHaveBeenCalledWith('id', 'req-1');
+  });
+
+  // ── 4b. the deleted target's League points leave the League tables (ruling 94) ──
+
+  describe('approve(deletion) ranks the Leagues again (rulings 94, 230)', () => {
+    /** Every step in the order it ran: the League read, the delete, the re-rank, the flip. */
+    function build(targetType: 'event' | 'tournament', leagues = makeMockLeaguesService()) {
+      const steps: string[] = [];
+      leagues.leaguesHoldingResultsOf.mockImplementation(async (target: string, id: string) => {
+        steps.push(`read ${target} ${id}`);
+        return ['league-a', 'league-b'];
+      });
+      leagues.rerankAfterDelete.mockImplementation(async (ids: string[], deleted: string) => {
+        steps.push(`rerank ${ids.join(',')} after ${deleted}`);
+      });
+      const row = makeDeletionRow({ target_type: targetType, target_id: 'target-9' });
+      const fromMock = vi.fn((table: string) => {
+        if (table === 'deletion_requests') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn(async () => {
+                steps.push('approved');
+                return { data: null, error: null };
+              }),
+            }),
+          };
+        }
+        if (table === 'events' || table === 'tournaments') {
+          return {
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn(async (_col: string, id: string) => {
+                steps.push(`delete ${table} ${id}`);
+                return { data: null, error: null };
+              }),
+            }),
+          };
+        }
+        return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      });
+      const service = new ReviewQueueService(
+        { service: { from: fromMock } } as never,
+        makeMockEventsService() as never,
+        makeMockExchangeEditService() as never,
+        leagues as never,
+        makeMockMembershipRequestsService() as never,
+        makeMockUserDirectory() as never,
+      );
+      const approve = () =>
+        service.approve('deletion', 'req-1', 'actor-1', { typedConfirmation: 'DELETE' });
+      return { approve, steps, leagues };
+    }
+
+    it('reads the Leagues of an Event BEFORE its delete, and ranks them again after it', async () => {
+      const { approve, steps } = build('event');
+      await approve();
+      expect(steps).toEqual([
+        'read event target-9',
+        'delete events target-9',
+        'rerank league-a,league-b after event target-9',
+        'approved',
+      ]);
+    });
+
+    it('does the same for a Tournament deletion request (ruling 230)', async () => {
+      const { approve, steps } = build('tournament');
+      await approve();
+      expect(steps).toEqual([
+        'read tournament target-9',
+        'delete tournaments target-9',
+        'rerank league-a,league-b after tournament target-9',
+        'approved',
+      ]);
+    });
+
+    it('deletes nothing when the League read fails', async () => {
+      const { approve, steps, leagues } = build('event');
+      leagues.leaguesHoldingResultsOf.mockRejectedValueOnce(new Error('read failed'));
+      await expect(approve()).rejects.toThrow('read failed');
+      expect(steps).toEqual([]);
+    });
   });
 
   // ── 5. reject persists rejection_reason and writes audit log ─────────────────

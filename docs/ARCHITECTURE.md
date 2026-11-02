@@ -1177,9 +1177,12 @@ hit or a card that moves a finished Match of an Event that is **over** (complete
 scores that Event's League results again, right after the write (`LeagueRescoreService` in
 `MatchesModule`, asked last by `ScoringService.recomputeMatchScore`: a placement reads the bracket,
 and the bracket reads the Match). It is best effort: a failure is logged and the correction stands.
-A forfeit, a reset, a reopen, a result set by hand, a round or a clock ended on an over Event do
-**not** trigger it; the League admin's Recompute does. A
-League table is therefore out of date by default, and fresh only for as long as
+A super admin's delete (an approved Event or Tournament deletion request, or a club) ranks every
+League that held its results again, from the results the cascade left (rulings 94, 230-233,
+`LeaguesService.rerankAfterDelete`): it scores nothing again, a finalized season stays frozen, and
+a failure is logged while the delete stands. A forfeit, a reset, a reopen, a result set by hand, a
+round or a clock ended on an over Event do **not** trigger the re-score; the League admin's
+Recompute does. A League table is therefore out of date by default, and fresh only for as long as
 nothing has been fought since the last recompute — the inverse of what a reader
 assumes when they open a standings page, which is why freshness is a computed
 report rather than a stored flag.

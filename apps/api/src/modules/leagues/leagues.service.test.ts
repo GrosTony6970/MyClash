@@ -534,6 +534,101 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
   });
 });
 
+describe('LeaguesService.leaguesHoldingResultsOf (rulings 94, 233)', () => {
+  function build(result: { data: unknown; error: { message: string } | null }) {
+    const chain = makeAwaitableChain(result);
+    const from = vi.fn().mockReturnValue(chain);
+    const service = new LeaguesService({ service: { from } } as never, {} as never, {} as never);
+    return { service, from, chain };
+  }
+  const rows = [{ league_id: 'league-a' }, { league_id: 'league-b' }, { league_id: 'league-a' }];
+
+  it('reads the League of every stored result of a Tournament, each League once', async () => {
+    const { service, from, chain } = build({ data: rows, error: null });
+
+    const ids = await service.leaguesHoldingResultsOf('tournament', 't-9');
+
+    expect(ids).toEqual(['league-a', 'league-b']);
+    expect(from).toHaveBeenCalledWith('league_tournament_results');
+    expect(chain.select).toHaveBeenCalledWith('league_id');
+    expect(chain.eq).toHaveBeenCalledWith('tournament_id', 't-9');
+  });
+
+  it("reads a club's through its Events", async () => {
+    const { service, chain } = build({ data: rows, error: null });
+
+    const ids = await service.leaguesHoldingResultsOf('organization', 'org-1');
+
+    expect(ids).toEqual(['league-a', 'league-b']);
+    expect(chain.select).toHaveBeenCalledWith('league_id, events!inner(organization_id)');
+    expect(chain.eq).toHaveBeenCalledWith('events.organization_id', 'org-1');
+  });
+
+  it('throws on a failed read: read as "no League", the delete would leave the tables stale', async () => {
+    const { service } = build({ data: null, error: { message: 'boom' } });
+    await expect(service.leaguesHoldingResultsOf('event', 'e-1')).rejects.toThrow('boom');
+  });
+});
+
+describe('LeaguesService.rerankAfterDelete (rulings 231, 232)', () => {
+  /** league-frozen is finalized; league-broken's ranking write fails. */
+  function build() {
+    const ranked: string[] = [];
+    const from = vi.fn((table: string) => {
+      if (table === 'leagues') {
+        let id = '';
+        const chain = {
+          select: vi.fn(() => chain),
+          eq: vi.fn((_col: string, value: string) => {
+            id = value;
+            return chain;
+          }),
+          maybeSingle: vi.fn(async () => ({
+            data: {
+              id,
+              finalized_at: id === 'league-frozen' ? '2026-12-31T00:00:00.000Z' : null,
+              scoring_config: {},
+            },
+            error: null,
+          })),
+        };
+        return chain;
+      }
+      return makeAwaitableChain({ data: [], error: null });
+    });
+    const rpc = vi.fn(async (_fn: string, args: { p_league_id: string }) => {
+      if (args.p_league_id === 'league-broken') return { data: null, error: { message: 'blip' } };
+      ranked.push(args.p_league_id);
+      return { data: null, error: null };
+    });
+    const service = new LeaguesService(
+      { service: { from, rpc } } as never,
+      {} as never,
+      {
+        resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: [] }),
+        computeRankingsFromContributions: vi.fn(() => []),
+      } as never,
+    );
+    const warn = vi
+      .spyOn((service as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    return { service, ranked, warn };
+  }
+
+  it('ranks each League again, leaves a finalized one frozen, and goes on after a failure', async () => {
+    const { service, ranked, warn } = build();
+
+    await service.rerankAfterDelete(['league-broken', 'league-frozen', 'league-a'], 'event e-1');
+
+    expect(ranked).toEqual(['league-a']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('League league-broken was not ranked again after the delete of'),
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('event e-1: blip'));
+  });
+});
+
 // ── Event-side leagues views (slice A of the leagues UX overhaul) ────────────
 
 function makeAwaitableChain(result: { data: unknown; error: { message: string } | null }) {

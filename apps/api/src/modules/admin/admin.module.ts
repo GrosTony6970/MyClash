@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIUsageModule } from '../ai-usage/ai-usage.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
+import { LeaguesModule } from '../leagues/leagues.module';
 import { FrozenResultsModule } from '../matches/frozen-results.module';
 import { MatchesModule } from '../matches/matches.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
@@ -70,6 +71,8 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     FrozenResultsModule,
     OrganizationsModule,
     AIUsageModule,
+    // The club delete ranks the Leagues its Events fed again (ruling 233).
+    LeaguesModule,
   ],
   controllers: [
     OrganizationsAdminController,
