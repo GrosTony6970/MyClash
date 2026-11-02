@@ -85,11 +85,12 @@ Usage: infra/scripts/deploy.sh [options]
   -h, --help           Show this help.
 
 For a fast single-service rebuild without a full deploy, see redeploy.sh.
-To (re)provision the demo org without a full deploy, run the seeder directly:
+To (re)provision the demo org without a full deploy, run the seeder directly
+(after: set -a; source .env; set +a; source infra/scripts/lib/database-url.sh):
   docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm \\
     -e SUPABASE_URL=http://supabase-auth:9999 \\
     -e SUPABASE_SERVICE_ROLE_KEY="\$SUPABASE_SERVICE_ROLE_KEY" \\
-    -e DATABASE_URL="postgres://\$POSTGRES_USER:\$POSTGRES_PASSWORD@db:5432/\$POSTGRES_DB" \\
+    -e DATABASE_URL \\
     -e E2E_ADMIN_EMAIL=... -e E2E_ADMIN_PASSWORD=... -e E2E_ORG_SLUG=... \\
     api node /app/scripts/create-demo-org.mjs
 EOF
@@ -292,6 +293,9 @@ print_deployment_secrets() {
     STUDIO_BASIC_AUTH
     STUDIO_PASSWORD
     POSTGRES_PASSWORD
+    AUTHENTICATOR_PASSWORD
+    SUPABASE_AUTH_ADMIN_PASSWORD
+    SUPABASE_STORAGE_ADMIN_PASSWORD
     COOKIE_SECRET
     SUPABASE_JWT_SECRET
     SUPABASE_REALTIME_SECRET
@@ -427,8 +431,13 @@ set +a
 : "${RESEND_API_KEY:?Missing RESEND_API_KEY in .env}"
 : "${MAIL_FROM:?Missing MAIL_FROM in .env}"
 : "${SMTP_PASS:?Missing SMTP_PASS in .env}"
+: "${AUTHENTICATOR_PASSWORD:?Missing AUTHENTICATOR_PASSWORD in .env}"
+: "${SUPABASE_AUTH_ADMIN_PASSWORD:?Missing SUPABASE_AUTH_ADMIN_PASSWORD in .env}"
+: "${SUPABASE_STORAGE_ADMIN_PASSWORD:?Missing SUPABASE_STORAGE_ADMIN_PASSWORD in .env}"
 : "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
+# DATABASE_URL for the one-off commands below, never for the running containers (ruling 394).
+source "$SCRIPT_DIR/lib/database-url.sh"
 
 ok "Environment variables present"
 
@@ -532,6 +541,15 @@ PULL_WAY_BACK=""
 "${COMPOSE[@]}" build
 ok "Images built"
 
+# ── Service database users (ruling 390) ──────────────────────────
+# Before the migrations and `up -d`: on a database made before each service had its
+# own user, GoTrue, PostgREST and Storage could not log in. Refuse here, while the old
+# stack still runs; the only change by then is the db container itself (recreated
+# when its settings changed).
+"${COMPOSE[@]}" up -d --wait db >/dev/null
+mc_require_service_role_passwords "${COMPOSE[@]}" || exit 1
+ok "Service database users have their passwords"
+
 # ── Migrations ───────────────────────────────────────────────────
 hdr "Running database migrations"
 
@@ -541,7 +559,7 @@ else
   # Migration runs as a one-off compose run command, not a service.
   # Failure here exits the script before `up` is called — old containers stay up.
   if ! "${COMPOSE[@]}" \
-         run --rm api node packages/db/scripts/migrate.mjs; then
+         run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs; then
     err "Migration failed — deploy aborted; previous version is still running"
     err "Investigate, then either fix and re-run, or rollback with: infra/scripts/rollback.sh"
     exit 1
@@ -697,7 +715,7 @@ BOOTSTRAP_RESULT=$("${COMPOSE[@]}" \
   run --rm \
   -e SUPABASE_URL="http://supabase-auth:9999" \
   -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
-  -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
+  -e DATABASE_URL \
   -e SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}" \
   -e SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD}" \
   api node /app/scripts/bootstrap-super-admin.mjs || echo '{"error":"bootstrap failed"}')
@@ -716,7 +734,7 @@ if [[ -n "$BOOTSTRAP_ERROR" ]]; then
   warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
   [[ -n "$BOOTSTRAP_DETAIL" ]] && warn "Bootstrap detail: $BOOTSTRAP_DETAIL"
   [[ "$BOOTSTRAP_ERROR" == "Failed to verify synced admin user password" ]] && warn "SEED_ADMIN_PASSWORD was not accepted by GoTrue."
-  warn "You can run it manually: docker compose run --rm api node /app/scripts/bootstrap-super-admin.mjs"
+  warn "You can run it manually (with .env and lib/database-url.sh sourced): docker compose --env-file .env -f infra/docker-compose.prod.yml run --rm -e DATABASE_URL -e SUPABASE_URL=http://supabase-auth:9999 -e SUPABASE_SERVICE_ROLE_KEY -e SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL:-admin@${DOMAIN}} -e SEED_ADMIN_PASSWORD api node /app/scripts/bootstrap-super-admin.mjs"
 elif [[ "$BOOTSTRAP_CREATED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
   SUPER_ADMIN_STATE=created
   ok "Super admin account created — credentials print in the final Deployment secrets section"
@@ -752,7 +770,7 @@ if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
     run --rm \
     -e SUPABASE_URL="http://supabase-auth:9999" \
     -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
-    -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
+    -e DATABASE_URL \
     -e E2E_ADMIN_EMAIL="${E2E_ADMIN_EMAIL}" \
     -e E2E_ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD}" \
     -e E2E_ORG_SLUG="${E2E_ORG_SLUG}" \

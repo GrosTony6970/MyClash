@@ -21,6 +21,20 @@ const SAMPLE_VALUES = new Map([
   ['COOKIE_SECRET', new Set(['change-me-cookie-secret'])],
   ['SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['POSTGRES_PASSWORD', new Set(['change-me-strong-password', 'dev-password'])],
+  // One password per service user (rulings 390, 392). The dev compose file's fallbacks are
+  // samples too: a public value must never reach production.
+  [
+    'AUTHENTICATOR_PASSWORD',
+    new Set(['change-me-authenticator-password', 'dev-authenticator-password']),
+  ],
+  [
+    'SUPABASE_AUTH_ADMIN_PASSWORD',
+    new Set(['change-me-auth-admin-password', 'dev-auth-admin-password']),
+  ],
+  [
+    'SUPABASE_STORAGE_ADMIN_PASSWORD',
+    new Set(['change-me-storage-admin-password', 'dev-storage-admin-password']),
+  ],
   [
     'SUPABASE_JWT_SECRET',
     new Set([
@@ -53,7 +67,9 @@ const SAMPLE_VALUES = new Map([
   ['NEXT_PUBLIC_PUBLIC_APP_URL', new Set(['http://localhost:3001'])],
   // Marketing origin — hosts the terms + privacy policy the apps link to.
   ['NEXT_PUBLIC_MARKETING_URL', new Set(['https://myclash.localhost'])],
-  ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password'])],
+  // `ChangeMe-Admin-2026!` is what .env.example ships since 70191c5c; refusing only the older
+  // sample kept a public password on the super admin (ruling 401).
+  ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password', 'ChangeMe-Admin-2026!'])],
   ['SEED_ADMIN_EMAIL', new Set(['admin@yourdomain.com', ''])],
   // Scaleway S3 backup — no sample values, just detect empty
   ['BACKUP_SCW_ACCESS_KEY', new Set([''])],
@@ -68,8 +84,12 @@ const SAMPLE_VALUES = new Map([
   ['AI_KEY_SECRET', new Set([''])],
 ]);
 
-const SECRET_GENERATORS = {
+export const SECRET_GENERATORS = {
   POSTGRES_PASSWORD: () => randomBytes(32).toString('base64url'),
+  // base64url: safe inside the postgres:// URLs the compose file builds (no @ : / ?).
+  AUTHENTICATOR_PASSWORD: () => randomBytes(32).toString('base64url'),
+  SUPABASE_AUTH_ADMIN_PASSWORD: () => randomBytes(32).toString('base64url'),
+  SUPABASE_STORAGE_ADMIN_PASSWORD: () => randomBytes(32).toString('base64url'),
   COOKIE_SECRET: () => randomBytes(32).toString('hex'),
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),

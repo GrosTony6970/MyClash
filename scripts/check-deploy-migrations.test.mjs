@@ -46,7 +46,8 @@ test('a second run that applied again means the ledger lost a row', () => {
 });
 
 test("CI's job runs deploy.sh's and redeploy.sh's migrate command, from the prod compose file", () => {
-  const command = 'run --rm api node packages/db/scripts/migrate.mjs';
+  const command = 'run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs';
+  const urlHelper = 'lib/database-url.sh';
   const deploy = readFileSync(join(root, 'infra', 'scripts', 'deploy.sh'), 'utf8');
   const ci = readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
   const start = ci.indexOf('\n  deploy-migrations:\n');
@@ -62,7 +63,11 @@ test("CI's job runs deploy.sh's and redeploy.sh's migrate command, from the prod
   ]) {
     assert.ok(text.includes(command), `${name} no longer runs "${command}"`);
     assert.ok(text.includes('-f infra/docker-compose.prod.yml)'), `${name}: another compose file`);
+    assert.ok(text.includes(urlHelper), `${name} does not build DATABASE_URL with ${urlHelper}`);
   }
+  // CI builds the URL the way deploy does, from .env.example: --env-file feeds only compose.
+  assert.ok(job.includes('set -a; source .env.example; set +a'), 'the job exports .env.example');
+  assert.ok(job.includes(`source infra/scripts/${urlHelper}`), `the job sources ${urlHelper}`);
   const prodCompose = 'docker compose --env-file .env.example -f infra/docker-compose.prod.yml';
   const composeCalls = job.split('docker compose').length - 1;
   assert.ok(composeCalls > 0, 'the job runs no docker compose');

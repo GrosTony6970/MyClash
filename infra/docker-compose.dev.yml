@@ -85,6 +85,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-supabase_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       POSTGRES_DB: ${POSTGRES_DB:-myclash}
+      # One password per service user, as in prod (rulings 390, 392). Set on a fresh volume
+      # only: an older dev volume needs `down -v` (or the init script's ALTER ROLE lines).
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:-dev-authenticator-password}
+      SUPABASE_AUTH_ADMIN_PASSWORD: ${SUPABASE_AUTH_ADMIN_PASSWORD:-dev-auth-admin-password}
+      SUPABASE_STORAGE_ADMIN_PASSWORD: ${SUPABASE_STORAGE_ADMIN_PASSWORD:-dev-storage-admin-password}
       # Same collation as prod: ICU fr-FR with C as the base locale. Without it
       # dev sorts accented names differently from production.
       POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=fr-FR --locale=C'
@@ -92,11 +97,12 @@ services:
       - '5432:5432' # exposed for local DB tools (TablePlus, DBeaver, etc.)
     volumes:
       - dev_postgres_data:/var/lib/postgresql/data
-      # All three init scripts, as prod mounts them. Dev previously ran only the
+      # Every init script, as prod mounts them. Dev previously ran only the
       # realtime one, so supabase_admin/authenticator role setup differed.
       - ./db/init/01-supabase-roles.sh:/docker-entrypoint-initdb.d/01-supabase-roles.sh:ro
       - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
       - ./db/init/supabase-postgrest.sh:/docker-entrypoint-initdb.d/supabase-postgrest.sh:ro
+      - ./db/init/supabase-service-roles.sh:/docker-entrypoint-initdb.d/supabase-service-roles.sh:ro
     # -h 127.0.0.1: over TCP, not the socket the init server answers on (see the prod file).
     healthcheck:
       test:
@@ -142,7 +148,7 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: https://myclash.localhost/auth/v1
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${SUPABASE_AUTH_ADMIN_PASSWORD:-dev-auth-admin-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://myclash.localhost
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string instead of falling back to GOTRUE_SITE_URL. Host-locked.
@@ -194,7 +200,7 @@ services:
     container_name: myclash-dev-supabase-rest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD:-dev-authenticator-password}@db:5432/${POSTGRES_DB:-myclash}
       PGRST_DB_SCHEMAS: public,storage,graphql_public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
@@ -287,7 +293,7 @@ services:
       SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       POSTGREST_URL: http://supabase-rest:3000
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://supabase_storage_admin:${SUPABASE_STORAGE_ADMIN_PASSWORD:-dev-storage-admin-password}@db:5432/${POSTGRES_DB:-myclash}
       FILE_SIZE_LIMIT: 52428800
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
@@ -394,7 +400,7 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: development
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      # No DATABASE_URL (ruling 394), as in prod.
       REDIS_URL: redis://redis:6379
       # The auth server's own default (GOTRUE_JWT_SECRET): the API checks a login's
       # signature with it when the auth server gives no answer, and counts the
@@ -618,7 +624,7 @@ services:
     command: ['node', 'dist/main.js', '--worker']
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      # No DATABASE_URL (ruling 394), as in prod.
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://api.myclash.localhost
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999

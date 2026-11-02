@@ -46,6 +46,7 @@ cp .env.example .env       # edit values — at minimum set POSTGRES_PASSWORD an
 # /auth/v1, /rest/v1, /storage/v1 and /realtime/v1 rewrites (see "Production stack" below).
 docker compose --env-file .env -f infra/docker-compose.dev.yml up -d \
   traefik db redis supabase-auth supabase-rest supabase-realtime supabase-storage
+# A dev database made before each service had its own user has no password for them: `down -v` once.
 
 pnpm dev
 ```

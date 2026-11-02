@@ -1143,6 +1143,72 @@ if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIM
   errors.push('deploy.sh must require SUPABASE_REALTIME_DB_ENC_KEY.');
 }
 
+// Each service on its own database user (rulings 390, 392, 394). The init script that gives
+// the narrow users their passwords must be mounted under a name that sorts after the image's
+// migrate.sh, which creates them: this exact mount (a 03- name aborted the init).
+const serviceRolesMount =
+  './db/init/supabase-service-roles.sh:/docker-entrypoint-initdb.d/supabase-service-roles.sh:ro';
+requireContains(composeText, 'infra/docker-compose.prod.yml', serviceRolesMount);
+requireContains(devComposeText, 'infra/docker-compose.dev.yml', serviceRolesMount);
+for (const [service, key, user, passwordKey] of [
+  ['supabase-rest', 'PGRST_DB_URI', 'authenticator', 'AUTHENTICATOR_PASSWORD'],
+  [
+    'supabase-auth',
+    'GOTRUE_DB_DATABASE_URL',
+    'supabase_auth_admin',
+    'SUPABASE_AUTH_ADMIN_PASSWORD',
+  ],
+  ['supabase-storage', 'DATABASE_URL', 'supabase_storage_admin', 'SUPABASE_STORAGE_ADMIN_PASSWORD'],
+]) {
+  const text = services.get(service) ?? '';
+  if (!text.includes(`${key}: postgres://${user}:\${${passwordKey}}@db:5432/`)) {
+    errors.push(`${service} must log in as ${user} with ${passwordKey} (ruling 390).`);
+  }
+  if (!deployText.includes(`: "\${${passwordKey}:?Missing ${passwordKey} in .env}"`)) {
+    errors.push(`deploy.sh must require ${passwordKey}.`);
+  }
+}
+// deploy.sh refuses a database made before ruling 390 (its service users have no password)
+// before it migrates or starts anything; otherwise GoTrue, PostgREST and Storage go down.
+{
+  const guard = deployText.indexOf('mc_require_service_role_passwords "${COMPOSE[@]}" || exit 1');
+  for (const later of ['hdr "Running database migrations"', 'hdr "Starting stack"']) {
+    const at = deployText.indexOf(later);
+    if (guard === -1 || at === -1 || guard > at) {
+      errors.push(`deploy.sh must run mc_require_service_role_passwords before ${later}.`);
+    }
+  }
+}
+// Only the superuser tools hold the superuser password (ruling 392): the database itself, and
+// the named exceptions of ruling 393.
+const superuserPasswordHolders = ['db', 'supabase-realtime', 'supabase-meta', 'supabase-studio'];
+for (const [name, text] of services) {
+  if (/\$\{?POSTGRES_PASSWORD\b/.test(text) && !superuserPasswordHolders.includes(name)) {
+    errors.push(
+      `${name} must not hold POSTGRES_PASSWORD: only ${superuserPasswordHolders.join(', ')}.`,
+    );
+  }
+}
+for (const name of ['api', 'worker']) {
+  if (/^\s+DATABASE_URL:/m.test(services.get(name) ?? '')) {
+    errors.push(`${name} must carry no DATABASE_URL (ruling 394): one-off commands get it alone.`);
+  }
+}
+if (/^\s+DB_INSTALL_ROLES:/m.test(services.get('supabase-storage') ?? '')) {
+  errors.push('supabase-storage must not set DB_INSTALL_ROLES: its tables must stay its own.');
+}
+for (const needle of [
+  '${AUTHENTICATOR_PASSWORD:?',
+  '${SUPABASE_AUTH_ADMIN_PASSWORD:?',
+  '${SUPABASE_STORAGE_ADMIN_PASSWORD:?',
+]) {
+  if (!(services.get('db') ?? '').includes(needle)) {
+    errors.push(
+      `the db service must require ${needle.slice(2, -2)}: an empty key half-builds a volume.`,
+    );
+  }
+}
+
 // Ruling 400: bash keeps running the script it started with, so a pull in the middle of
 // deploy.sh left every later step on the OLD code (its .env repair did not know a key the
 // new compose file required). The pull + re-run must come before the .env repair and the
@@ -1188,6 +1254,19 @@ for (const [name, text] of [
     at('mc_lock_deploy "$LOCK_FILE"') > at(pullCall)
   ) {
     errors.push(`${name} must take the deploy lock (mc_lock_deploy) before it pulls.`);
+  }
+}
+
+// The service users' passwords print with the other secrets (ruling 392). Read inside the
+// secret_keys array: the names also appear in the required-keys block above it.
+const secretKeysBlock = /local secret_keys=\(([^)]*)\)/.exec(deployText)?.[1] ?? '';
+for (const key of [
+  'AUTHENTICATOR_PASSWORD',
+  'SUPABASE_AUTH_ADMIN_PASSWORD',
+  'SUPABASE_STORAGE_ADMIN_PASSWORD',
+]) {
+  if (!new RegExp(`^\\s+${key}$`, 'm').test(secretKeysBlock)) {
+    errors.push(`deploy.sh must print ${key} in the Deployment secrets section (secret_keys).`);
   }
 }
 
@@ -2402,7 +2481,7 @@ for (const expected of [
     expected,
   );
 }
-if (!deployText.includes('run --rm api node packages/db/scripts/migrate.mjs')) {
+if (!deployText.includes('run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs')) {
   errors.push('deploy.sh must run migrations from packages/db/scripts/migrate.mjs.');
 }
 if (deployText.includes('run --rm api node db-migrate.mjs')) {

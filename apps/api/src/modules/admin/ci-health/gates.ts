@@ -86,6 +86,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Database replay', step: 'Probe the fighter merge' },
   { job: 'Database replay', step: 'Probe cascade deletes' },
   { job: 'Deploy migration run', step: 'Run the deploy migrations twice' },
+  { job: 'Deploy migration run', step: 'Prove each service logs in as its own database user' },
   { job: 'Shellcheck infra scripts', step: 'Run shellcheck' },
   { job: 'Secret scan', step: 'Run Gitleaks' },
   { job: 'Trivy production image scan', step: 'Scan production image', matrix: true },

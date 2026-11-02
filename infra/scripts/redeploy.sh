@@ -155,7 +155,9 @@ fi
 # ── Optional: migrations ─────────────────────────────────────────
 if [[ "$MIGRATE" -eq 1 ]]; then
   hdr "Running database migrations"
-  if ! "${COMPOSE[@]}" run --rm api node packages/db/scripts/migrate.mjs; then
+  # The running api has no DATABASE_URL (ruling 394): this one-off gets it, by name only.
+  source "$SCRIPT_DIR/lib/database-url.sh"
+  if ! "${COMPOSE[@]}" run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs; then
     err "Migration failed — aborting before recreate; current containers still running"
     exit 1
   fi

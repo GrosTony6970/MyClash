@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createHash, createHmac } from 'node:crypto';
 
-import { ensureProdEnv, parseEnv } from './ensure-prod-env.mjs';
+import { ensureProdEnv, parseEnv, SECRET_GENERATORS } from './ensure-prod-env.mjs';
 
 function decodePayload(token) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
@@ -516,6 +516,7 @@ test('every prod fallback for POSTGRES_USER is supabase_admin', async () => {
     '.env.example',
     'infra/docker-compose.prod.yml',
     ...['deploy', 'backup', 'status', 'rollback', 'restore'].map((s) => `infra/scripts/${s}.sh`),
+    'infra/scripts/lib/database-url.sh',
   ];
   const fallback = /POSTGRES_USER(?::-|:=|=)([A-Za-z_]+)/g;
   let seen = 0;
@@ -526,6 +527,42 @@ test('every prod fallback for POSTGRES_USER is supabase_admin', async () => {
       assert.equal(user, 'supabase_admin', `${file} falls back to ${user}`);
     }
   }
-  // 1 in .env.example, 10 in the compose file, 1 per script.
-  assert.equal(seen, 16);
+  // 1 in .env.example, 5 in the compose file (db twice, realtime, meta, studio: PostgREST,
+  // GoTrue and Storage log in as their own users, ruling 390), 1 per script and the helper.
+  assert.equal(seen, 12);
+});
+
+// The test above checks the sample files; this one ties the REAL .env.example to the refusal
+// list. A sample password that drifts from SAMPLE_VALUES would be kept in production while
+// sitting in the public repo.
+test('every generated secret in the real .env.example is refused and regenerated', async () => {
+  const repo = path.join(import.meta.dirname, '..');
+  const dir = await mkdtemp(path.join(tmpdir(), 'myclash-prod-env-real-'));
+  const envPath = path.join(dir, '.env');
+  const example = await readFile(path.join(repo, '.env.example'), 'utf8');
+  const sample = parseEnv(example);
+  await writeFile(envPath, example);
+
+  const result = await ensureProdEnv(envPath, {
+    examplePath: path.join(repo, '.env.example'),
+    nonInteractive: true,
+    // Every key a human must type gets an answer; only the generated ones are under test.
+    answers: new Proxy({}, { get: (_, key) => `value-for-${String(key)}` }),
+  });
+  const after = parseEnv(await readFile(envPath, 'utf8'));
+  const keys = Object.keys(SECRET_GENERATORS);
+  // The service users' passwords must be generated: a missing generator would leave the key at
+  // its public sample, or empty, and the database would refuse to start (rulings 390, 392).
+  for (const key of [
+    'AUTHENTICATOR_PASSWORD',
+    'SUPABASE_AUTH_ADMIN_PASSWORD',
+    'SUPABASE_STORAGE_ADMIN_PASSWORD',
+  ]) {
+    assert.ok(keys.includes(key), `no generator for ${key}`);
+  }
+  for (const key of keys) {
+    assert.ok(sample.has(key), `.env.example has no ${key}`);
+    assert.ok(result.generated.includes(key), `${key}: the sample value was kept`);
+    assert.notEqual(after.get(key), sample.get(key), `${key} still holds the public sample`);
+  }
 });

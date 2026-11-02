@@ -158,6 +158,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-supabase_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-myclash}
+      # One password per service user (rulings 390, 392), set by the init script below on a
+      # fresh volume. Required here so compose refuses to start before any volume exists.
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?AUTHENTICATOR_PASSWORD is missing from .env, run node scripts/ensure-prod-env.mjs .env}
+      SUPABASE_AUTH_ADMIN_PASSWORD: ${SUPABASE_AUTH_ADMIN_PASSWORD:?SUPABASE_AUTH_ADMIN_PASSWORD is missing from .env, run node scripts/ensure-prod-env.mjs .env}
+      SUPABASE_STORAGE_ADMIN_PASSWORD: ${SUPABASE_STORAGE_ADMIN_PASSWORD:?SUPABASE_STORAGE_ADMIN_PASSWORD is missing from .env, run node scripts/ensure-prod-env.mjs .env}
       TZ: ${TZ}
       POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=fr-FR --locale=C'
     volumes:
@@ -166,6 +171,7 @@ services:
       - ./db/init/01-supabase-roles.sh:/docker-entrypoint-initdb.d/01-supabase-roles.sh:ro
       - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
       - ./db/init/supabase-postgrest.sh:/docker-entrypoint-initdb.d/supabase-postgrest.sh:ro
+      - ./db/init/supabase-service-roles.sh:/docker-entrypoint-initdb.d/supabase-service-roles.sh:ro
     # -h 127.0.0.1, over TCP like every client (ruling 389). On a fresh volume the entrypoint's
     # init server listens on the socket only (listen_addresses=''); a socket probe reported
     # healthy during init, and deploy.sh's migrate.mjs then met ECONNREFUSED.
@@ -216,7 +222,9 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: https://app.${DOMAIN}/auth/v1
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
+      # Its own user (ruling 390); it owns the `auth` tables it creates (0248 hands it
+      # auth.jwt(), which our 0002 creates before GoTrue's first boot).
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${SUPABASE_AUTH_ADMIN_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://app.${DOMAIN}
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string. Without them GoTrue rejects the redirect_to and falls back
@@ -353,7 +361,9 @@ services:
       SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       POSTGREST_URL: http://supabase-rest:3000
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      # Its own user (ruling 390); it owns the `storage` tables it creates at first boot. No
+      # DB_INSTALL_ROLES: set to true, storage-api would hand those tables to another owner.
+      DATABASE_URL: postgres://supabase_storage_admin:${SUPABASE_STORAGE_ADMIN_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       FILE_SIZE_LIMIT: 52428800
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
@@ -386,7 +396,9 @@ services:
     container_name: myclash-supabase-rest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      # Its own user (ruling 390): `authenticator` switches to anon / authenticated /
+      # service_role per request, and can do nothing in the database on its own.
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
@@ -610,7 +622,8 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      # No DATABASE_URL (ruling 394): the api reads and writes through PostgREST, Storage and
+      # GoTrue only. deploy.sh hands its one-off commands the URL for their run alone.
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://app.${DOMAIN}
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
@@ -901,7 +914,7 @@ services:
     command: ['node', 'dist/main.js', '--worker']
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      # No DATABASE_URL (ruling 394), like the api.
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://app.${DOMAIN}
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999

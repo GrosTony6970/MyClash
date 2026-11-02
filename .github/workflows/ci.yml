@@ -619,10 +619,18 @@ jobs:
       - name: Run the deploy migrations twice
         run: |
           set -euo pipefail
+          # deploy.sh's own URL (ruling 394): .env.example into the shell, then the one helper.
+          set -a; source .env.example; set +a
+          source infra/scripts/lib/database-url.sh
           compose=(docker compose --env-file .env.example -f infra/docker-compose.prod.yml)
-          "${compose[@]}" run --rm api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/first.log"
-          "${compose[@]}" run --rm api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/second.log"
+          "${compose[@]}" run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/first.log"
+          "${compose[@]}" run --rm -e DATABASE_URL api node packages/db/scripts/migrate.mjs | tee "$RUNNER_TEMP/second.log"
           node scripts/check-deploy-migrations.mjs "$RUNNER_TEMP/first.log" "$RUNNER_TEMP/second.log"
+
+      # Rulings 390-399: GoTrue, PostgREST and Storage each log in as their own database user,
+      # with their own password, on the database the step above just migrated (fresh).
+      - name: Prove each service logs in as its own database user
+        run: bash scripts/check-service-db-users.sh
 
   shellcheck:
     name: Shellcheck infra scripts
@@ -647,7 +655,8 @@ jobs:
             | tar -xJf - -C /tmp
           SHELLCHECK="/tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck"
           "$SHELLCHECK" --version
-          "$SHELLCHECK" -x infra/scripts/*.sh infra/scripts/lib/*.sh
+          "$SHELLCHECK" -x infra/scripts/*.sh infra/scripts/lib/*.sh \
+            infra/db/init/supabase-service-roles.sh scripts/check-service-db-users.sh
 
   secret-scan:
     name: Secret scan
