@@ -5,12 +5,14 @@
 # owner's local machine via the cross-platform wrapper at scripts/deploy.ts.
 #
 # What it does (in order):
-#   1. Validate environment (.env, config files, JSON syntax)
-#   2. Acquire deploy lock (flock) — only one deploy at a time
-#   3. (the pad's offline cache follows the commit by itself: see the note below)
+#   1. Acquire deploy lock (flock) — only one deploy at a time
+#   2. git fetch + reset --hard origin/main, then re-run THIS script from the new
+#      checkout (lib/pull-reexec.sh, ruling 400): every later step is the new code
+#   3. Validate environment (.env, config files, JSON syntax)
+#      (the pad's offline cache follows the commit by itself: see the note below)
 #   4. Generate VAPID keys if missing (web push)
 #   5. Pre-deploy DB backup (pg_dump → backups/pre-deploy/)
-#   6. git fetch + reset --hard origin/main
+#   6. Record the system version manifest
 #   7. docker compose build
 #   8. Run pending migrations (FAILS HERE → deploy aborts, old version still up)
 #   9. docker compose up -d
@@ -31,7 +33,15 @@ cd "$ROOT_DIR"
 
 # Wall clock for the whole run — prerequisites, lock, build, migrations, health
 # waits. Reported in the final summary and persisted to .last-deploy.json.
-DEPLOY_STARTED_AT=$(date +%s)
+# Exported so the re-run after the pull (MC_PULLED_FROM set) keeps the first run's start.
+if [[ -z "${MC_PULLED_FROM:-}" || -z "${MC_DEPLOY_STARTED_AT:-}" ]]; then
+  MC_DEPLOY_STARTED_AT=$(date +%s)
+fi
+export MC_DEPLOY_STARTED_AT
+DEPLOY_STARTED_AT="$MC_DEPLOY_STARTED_AT"
+
+# The parser below shifts every argument away; the re-run after the pull needs them.
+ORIG_ARGS=("$@")
 
 # Exports TRAEFIK_BAN_ALLOWLIST + the MW_* middleware prefixes that
 # docker-compose.prod.yml interpolates. Compose reads these from this shell,
@@ -42,6 +52,9 @@ source "$SCRIPT_DIR/lib/traefik-env.sh"
 # and the admin board reads. Sourced by every entrypoint that changes what is
 # running, so none of them can leave the board describing a previous deploy.
 source "$SCRIPT_DIR/lib/system-versions.sh"
+
+# Pull, then run the new copy of this script (ruling 400).
+source "$SCRIPT_DIR/lib/pull-reexec.sh"
 
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
@@ -344,12 +357,34 @@ ensure_prerequisites
 
 # ── Lock ─────────────────────────────────────────────────────────
 LOCK_FILE="$ROOT_DIR/.deploy.lock"
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
-  err "Another deploy is already running. Lock: $LOCK_FILE"
-  exit 1
-fi
-trap 'rm -f "$LOCK_FILE"' EXIT
+mc_lock_deploy "$LOCK_FILE" "Another deploy is already running."
+
+# Set once the checkout has moved, cleared before the build: a run that stops in
+# between leaves the new code on disk under the old containers, so say how to go back.
+PULL_WAY_BACK=""
+on_exit() {
+  local rc=$?
+  rm -f "$LOCK_FILE"
+  if [[ "$rc" -ne 0 && -n "$PULL_WAY_BACK" ]]; then
+    warn "The checkout moved to the new commit, but nothing was rebuilt. To go back: git reset --hard $PULL_WAY_BACK"
+  fi
+}
+trap on_exit EXIT
+
+# ── Pull latest code ─────────────────────────────────────────────
+# Before validation, so .env is repaired by the NEW ensure-prod-env and every
+# later step runs the new code (ruling 400).
+hdr "Updating code from git"
+
+mc_pull_then_reexec "$SCRIPT_DIR/deploy.sh" "${ORIG_ARGS[@]}"
+NEW_COMMIT="$PULLED_COMMIT"
+# previousCommit = the last commit a deploy recorded in the manifest, which is truer
+# than HEAD: with a hand pull before this run, the pre-pull HEAD is already the new
+# commit, and rollback.sh would "roll back" to itself.
+CURRENT_COMMIT="$(mc_manifest_deployed_commit)"
+[[ "$CURRENT_COMMIT" == "unknown" ]] && CURRENT_COMMIT="$PRE_PULL_COMMIT"
+[[ "$CURRENT_COMMIT" != "$NEW_COMMIT" ]] && PULL_WAY_BACK="$CURRENT_COMMIT"
+export GIT_COMMIT="$NEW_COMMIT"
 
 # ── Validate config ──────────────────────────────────────────────
 hdr "Validating configuration"
@@ -455,6 +490,8 @@ chmod 775 data/postgres data/redis data/storage logs/* 2>/dev/null || true
 ok "Directories ready"
 
 # ── Pre-deploy backup ────────────────────────────────────────────
+# Runs after the pull: `compose ps`/`exec` here read the NEW compose file. A commit
+# that renames the db service must keep this probe finding the running database.
 hdr "Pre-deploy database backup"
 
 if [[ "$SKIP_BACKUP" -eq 1 ]]; then
@@ -477,24 +514,6 @@ else
   find backups/pre-deploy -name "*.sql.gz" -mtime +30 -delete 2>/dev/null || true
 fi
 
-# ── Pull latest code ─────────────────────────────────────────────
-hdr "Updating code from git"
-
-CURRENT_COMMIT=$(git rev-parse HEAD)
-info "Current commit: ${CURRENT_COMMIT:0:8}"
-
-git fetch origin main
-NEW_COMMIT=$(git rev-parse origin/main)
-info "Target  commit: ${NEW_COMMIT:0:8}"
-
-if [[ "$CURRENT_COMMIT" == "$NEW_COMMIT" ]]; then
-  warn "No new commits to deploy"
-else
-  git reset --hard origin/main
-  ok "Code updated"
-fi
-export GIT_COMMIT="$NEW_COMMIT"
-
 # ── System version manifest ──────────────────────────────────────
 mc_write_system_versions_manifest \
   deploy \
@@ -506,6 +525,9 @@ mc_write_system_versions_manifest \
 
 # ── Build ────────────────────────────────────────────────────────
 hdr "Building images"
+
+# From here a failure has its own recovery messages (migrations, rollback.sh).
+PULL_WAY_BACK=""
 
 "${COMPOSE[@]}" build
 ok "Images built"

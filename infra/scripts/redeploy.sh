@@ -18,8 +18,8 @@
 #   infra/scripts/redeploy.sh api --migrate  # run pending migrations before recreate
 #
 # Options:
-#   --pull        Update code (git fetch + reset --hard origin/main) and re-stamp PWA
-#                 service-worker cache names before building. Default: build current checkout.
+#   --pull        Update code (git fetch + reset --hard origin/main), then re-run this script
+#                 from the new checkout before building. Default: build current checkout.
 #   --migrate     Run pending DB migrations after build, before recreate (api/worker changes).
 #   --no-build    Recreate from the existing image without rebuilding (a hard restart).
 #   --dev-certs   Add the Let's Encrypt staging-certs compose overlay (config parity).
@@ -34,10 +34,13 @@ cd "$ROOT_DIR"
 # See deploy.sh — Compose reads these from the invoking shell, not --env-file.
 source "$SCRIPT_DIR/lib/traefik-env.sh"
 
-# See deploy.sh — one owner for data/system-versions.json. Sourced before the
-# optional `git reset --hard` below so the function in memory is the one this
-# script was invoked with, not whatever the new checkout happens to ship.
+# See deploy.sh — one owner for data/system-versions.json.
 source "$SCRIPT_DIR/lib/system-versions.sh"
+
+# --pull updates the checkout, then re-runs THIS script from it (ruling 400), so the
+# build and every later step are the new code, not the copy bash started with.
+source "$SCRIPT_DIR/lib/pull-reexec.sh"
+ORIG_ARGS=("$@")
 
 usage() {
   cat <<'EOF'
@@ -50,7 +53,7 @@ Rebuild + recreate only the named app services, leaving every other container
   service...    One or more of: api worker web-public web-staff web-admin web-marketing
 
 Options:
-  --pull        git fetch + reset --hard origin/main (+ PWA stamp) before building.
+  --pull        git fetch + reset --hard origin/main, then re-run from it, before building.
   --migrate     Run pending DB migrations after build, before recreate.
   --no-build    Recreate from the existing image without rebuilding.
   --dev-certs   Add the staging-certs compose overlay.
@@ -113,11 +116,7 @@ set +a
 # ── Lock ─────────────────────────────────────────────────────────
 # Share the deploy lock so a redeploy can't race deploy.sh / rollback.sh.
 LOCK_FILE="$ROOT_DIR/.deploy.lock"
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
-  err "Another deploy/redeploy is already running. Lock: $LOCK_FILE"
-  exit 1
-fi
+mc_lock_deploy "$LOCK_FILE" "Another deploy/redeploy is already running."
 trap 'rm -f "$LOCK_FILE"' EXIT
 
 # ── Compose file selection ───────────────────────────────────────
@@ -134,20 +133,10 @@ fi
 
 hdr "Redeploying: ${SERVICES[*]}"
 
-# ── Optional: pull latest code + re-stamp PWA caches ─────────────
+# ── Optional: pull latest code, then re-run the new script ───────
 if [[ "$PULL" -eq 1 ]]; then
   hdr "Updating code from git"
-  CURRENT_COMMIT=$(git rev-parse HEAD)
-  info "Current commit: ${CURRENT_COMMIT:0:8}"
-  git fetch origin main
-  NEW_COMMIT=$(git rev-parse origin/main)
-  info "Target  commit: ${NEW_COMMIT:0:8}"
-  if [[ "$CURRENT_COMMIT" == "$NEW_COMMIT" ]]; then
-    warn "No new commits — rebuilding current checkout"
-  else
-    git reset --hard origin/main
-    ok "Code updated"
-  fi
+  mc_pull_then_reexec "$SCRIPT_DIR/redeploy.sh" "${ORIG_ARGS[@]}"
 fi
 
 # GIT_COMMIT feeds compose build args; always reflect the checkout being built.

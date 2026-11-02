@@ -30,20 +30,20 @@ answer that prompt for you. Use `--dry-run` to see what it would do.
 
 ## The scripts
 
-| Script                                 | What it does                                                                                                                                           | Rebuilds images? |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| `deploy.sh`                            | Full safe deploy: validate env → lock → pre-deploy DB backup → git reset → build all → migrate → `up -d` → health → bootstrap super admin → smoke test | yes (all)        |
-| `redeploy.sh [svc…]`                   | Rebuild + recreate only the named app service(s); everything else keeps running                                                                        | yes (named)      |
-| `refresh.sh [svc…]`                    | Restart running containers and wait for health — **no rebuild, no recreate** (mounted-file config only)                                                | no               |
-| `start.sh` / `stop.sh`                 | `up -d` / `stop` the whole stack without rebuilding                                                                                                    | no               |
-| `rollback.sh`                          | Revert the last deploy from `.last-deploy.json` (restore DB + `git reset` + rebuild)                                                                   | yes (all)        |
-| `backup.sh`                            | Nightly `pg_dump` + Supabase Storage volume → Scaleway S3 (optional GPG). Cron-driven                                                                  | no               |
-| `restore.sh [file\|--from-s3]`         | Restore Postgres and/or Storage from a backup (hardened, integrity-checked)                                                                            | no               |
-| `status.sh [--errors]`                 | Container health, last deploy, API/DB/Redis, disk, recent logs                                                                                         | no               |
-| `destroy.sh [--wipe-db\|--full\|svc…]` | Tear down containers / images / volumes / data (tiered; `backups/` + `.env` never touched); `--prune-cache` empties the build cache                    | no               |
-| `vps-bootstrap.sh [--all]`             | One-time fresh-VPS provisioning (packages, Docker, UFW, fail2ban, swap, deploy user)                                                                   | —                |
-| `test-restore-roundtrip.sh`            | Disposable-container integration test proving the DB restore is atomic + schema-coherent                                                               | —                |
-| `lib/log.sh`                           | Sourced helper: colors + `ok/err/warn/hdr/info`, `confirm`, `require_cmd`                                                                              | —                |
+| Script                                 | What it does                                                                                                                                                                   | Rebuilds images? |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `deploy.sh`                            | Full safe deploy: lock → git reset + re-run the new script → validate env → pre-deploy DB backup → build all → migrate → `up -d` → health → bootstrap super admin → smoke test | yes (all)        |
+| `redeploy.sh [svc…]`                   | Rebuild + recreate only the named app service(s); everything else keeps running                                                                                                | yes (named)      |
+| `refresh.sh [svc…]`                    | Restart running containers and wait for health — **no rebuild, no recreate** (mounted-file config only)                                                                        | no               |
+| `start.sh` / `stop.sh`                 | `up -d` / `stop` the whole stack without rebuilding                                                                                                                            | no               |
+| `rollback.sh`                          | Revert the last deploy from `.last-deploy.json` (restore DB + `git reset` + rebuild)                                                                                           | yes (all)        |
+| `backup.sh`                            | Nightly `pg_dump` + Supabase Storage volume → Scaleway S3 (optional GPG). Cron-driven                                                                                          | no               |
+| `restore.sh [file\|--from-s3]`         | Restore Postgres and/or Storage from a backup (hardened, integrity-checked)                                                                                                    | no               |
+| `status.sh [--errors]`                 | Container health, last deploy, API/DB/Redis, disk, recent logs                                                                                                                 | no               |
+| `destroy.sh [--wipe-db\|--full\|svc…]` | Tear down containers / images / volumes / data (tiered; `backups/` + `.env` never touched); `--prune-cache` empties the build cache                                            | no               |
+| `vps-bootstrap.sh [--all]`             | One-time fresh-VPS provisioning (packages, Docker, UFW, fail2ban, swap, deploy user)                                                                                           | —                |
+| `test-restore-roundtrip.sh`            | Disposable-container integration test proving the DB restore is atomic + schema-coherent                                                                                       | —                |
+| `lib/log.sh`                           | Sourced helper: colors + `ok/err/warn/hdr/info`, `confirm`, `require_cmd`                                                                                                      | —                |
 
 ## Which one do I run?
 
@@ -92,6 +92,13 @@ both covered in [`docs/ARCHITECTURE.md` §17.6](../../docs/ARCHITECTURE.md#176-r
   `node scripts/trust-staging-ca.mjs` (see [scripts/README.md](../../scripts/README.md)).
 - **`.deploy.lock`** — `deploy.sh`, `redeploy.sh`, and `rollback.sh` share one `flock` so
   they can't race each other.
+- **Pull, then re-run** — `deploy.sh` (and `redeploy.sh --pull`) pulls right after taking the
+  lock, then runs the NEW copy of itself (`lib/pull-reexec.sh`); the lock is held across. So
+  the `.env` repair, the backup and the build are always the new code, never the copy bash
+  started with. A deploy cannot protect the one that brings this mechanism: that one runs the
+  server's older `deploy.sh`, so pull by hand first. `redeploy.sh` never repairs `.env`: when a
+  commit adds a required key, run `deploy.sh`. The arguments are still parsed by the copy that
+  started, so a flag or service a new commit adds is refused until you pull by hand.
 - **`up -d` timeout** — `deploy.sh`/`redeploy.sh` bound `up -d` and treat the health poll,
   not the compose exit code, as the source of truth (compose's renderer can hang over SSH).
   `deploy.sh` allows 240s (the web tier waits on `api: service_healthy`) and retries once

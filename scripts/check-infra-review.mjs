@@ -1143,6 +1143,54 @@ if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIM
   errors.push('deploy.sh must require SUPABASE_REALTIME_DB_ENC_KEY.');
 }
 
+// Ruling 400: bash keeps running the script it started with, so a pull in the middle of
+// deploy.sh left every later step on the OLD code (its .env repair did not know a key the
+// new compose file required). The pull + re-run must come before the .env repair and the
+// backup in deploy.sh, and before the build in redeploy.sh.
+const deployPullIndex = deployText.indexOf('mc_pull_then_reexec "$SCRIPT_DIR/deploy.sh"');
+for (const [label, later] of [
+  ['the .env repair', 'node scripts/ensure-prod-env.mjs .env'],
+  ['the pre-deploy backup', 'hdr "Pre-deploy database backup"'],
+]) {
+  const laterIndex = deployText.indexOf(later);
+  if (deployPullIndex === -1 || laterIndex === -1 || deployPullIndex > laterIndex) {
+    errors.push(`deploy.sh must pull and re-run itself (mc_pull_then_reexec) before ${label}.`);
+  }
+}
+const redeployPullIndex = redeployText.indexOf('mc_pull_then_reexec "$SCRIPT_DIR/redeploy.sh"');
+const redeployBuildIndex = redeployText.indexOf('# ── Build ──');
+if (
+  redeployPullIndex === -1 ||
+  redeployBuildIndex === -1 ||
+  redeployPullIndex > redeployBuildIndex
+) {
+  errors.push(
+    'redeploy.sh --pull must pull and re-run itself (mc_pull_then_reexec) before the build.',
+  );
+}
+// The re-run gets its arguments only from ORIG_ARGS, captured before the parser shifts them
+// away; lost, `--dev-certs` would re-run against production certificates. The lock comes
+// before the pull, so no other deploy moves the checkout under it.
+for (const [name, text] of [
+  ['deploy.sh', deployText],
+  ['redeploy.sh', redeployText],
+]) {
+  const pullCall = `mc_pull_then_reexec "$SCRIPT_DIR/${name}" "\${ORIG_ARGS[@]}"`;
+  const at = (needle) => text.indexOf(needle);
+  if (at(pullCall) === -1) {
+    errors.push(`${name} must re-run itself with its original arguments: ${pullCall}`);
+  }
+  if (at('ORIG_ARGS=("$@")') === -1 || at('ORIG_ARGS=("$@")') > at('while [[ $# -gt 0 ]]')) {
+    errors.push(`${name} must capture ORIG_ARGS=("$@") before its argument parser shifts them.`);
+  }
+  if (
+    at('mc_lock_deploy "$LOCK_FILE"') === -1 ||
+    at('mc_lock_deploy "$LOCK_FILE"') > at(pullCall)
+  ) {
+    errors.push(`${name} must take the deploy lock (mc_lock_deploy) before it pulls.`);
+  }
+}
+
 const deployCompleteIndex = deployText.indexOf('hdr "Deploy complete"');
 const deploymentSecretsHeaderIndex = deployText.indexOf('hdr "Deployment secrets"');
 const deploymentSecretsCallIndex =
