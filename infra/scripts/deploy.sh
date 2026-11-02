@@ -392,7 +392,7 @@ set +a
 : "${RESEND_API_KEY:?Missing RESEND_API_KEY in .env}"
 : "${MAIL_FROM:?Missing MAIL_FROM in .env}"
 : "${SMTP_PASS:?Missing SMTP_PASS in .env}"
-: "${POSTGRES_USER:=postgres}"
+: "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 
 ok "Environment variables present"

@@ -76,7 +76,7 @@ set -a
 source ./.env
 set +a
 
-: "${POSTGRES_USER:=postgres}"
+: "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 : "${BACKUP_RETENTION_DAYS:=60}"
 

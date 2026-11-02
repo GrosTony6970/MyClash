@@ -210,7 +210,7 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: https://app.${DOMAIN}/auth/v1
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://app.${DOMAIN}
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string. Without them GoTrue rejects the redirect_to and falls back
@@ -279,7 +279,7 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-myclash}
-      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_USER: ${POSTGRES_USER:-supabase_admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_SSL: 'false'
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
@@ -347,7 +347,7 @@ services:
       SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       POSTGREST_URL: http://supabase-rest:3000
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       FILE_SIZE_LIMIT: 52428800
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
@@ -380,7 +380,7 @@ services:
     container_name: myclash-supabase-rest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
@@ -604,7 +604,7 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://app.${DOMAIN}
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999
@@ -895,7 +895,7 @@ services:
     command: ['node', 'dist/main.js', '--worker']
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      DATABASE_URL: postgres://${POSTGRES_USER:-supabase_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
       SUPABASE_URL: https://app.${DOMAIN}
       SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999

@@ -254,7 +254,7 @@ set -a
 # shellcheck source=/dev/null
 source ./.env
 set +a
-: "${POSTGRES_USER:=postgres}"
+: "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 
 if "${COMPOSE[@]}" exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then

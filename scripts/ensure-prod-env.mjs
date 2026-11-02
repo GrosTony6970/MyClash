@@ -363,7 +363,9 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['NEXT_PUBLIC_PUBLIC_APP_URL', supabaseUrl], // https://app.${DOMAIN}
     // The marketing site is the apex host (see the myclash-marketing router).
     ['NEXT_PUBLIC_MARKETING_URL', `https://${domain}`],
-    ['POSTGRES_USER', state.values.get('POSTGRES_USER') || 'postgres'],
+    // Migrations run as this user. Migration 0247 must run as a superuser; on this image
+    // `postgres` is not one, so a deploy as `postgres` stops at 0247.
+    ['POSTGRES_USER', state.values.get('POSTGRES_USER') || 'supabase_admin'],
     ['POSTGRES_DB', state.values.get('POSTGRES_DB') || 'myclash'],
     ['TZ', state.values.get('TZ') || 'Europe/Paris'],
     ['COMPOSE_PROJECT_NAME', state.values.get('COMPOSE_PROJECT_NAME') || 'myclash'],

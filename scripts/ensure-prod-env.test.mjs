@@ -303,6 +303,8 @@ test('appends generated realtime DB encryption key to existing old env files', a
   assert.ok(result.generated.includes('SUPABASE_REALTIME_DB_ENC_KEY'));
   assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
   assert.deepEqual(result.generatedCredentials, []);
+  // This .env has no POSTGRES_USER line: the filled-in user must be able to run migration 0247.
+  assert.equal(values.get('POSTGRES_USER'), 'supabase_admin');
 });
 
 // Every .env written before TRAEFIK_DASHBOARD_PASSWORD existed carries a real
@@ -504,4 +506,26 @@ test('production compose exposes the Google OAuth callback and app allow-list', 
   assert.match(compose, /https:\/\/admin\.\$\{DOMAIN\}\/auth\/oauth\/callback/);
   assert.match(compose, /https:\/\/app\.\$\{DOMAIN\}\/auth\/oauth\/callback/);
   assert.match(compose, /https:\/\/admin\.\$\{DOMAIN\}\/signup\/oauth\/callback/);
+});
+
+// Migration 0247 stops the deploy unless it runs as `supabase_admin`. A service or script that
+// falls back to another user turns a missing POSTGRES_USER line into a failed deploy.
+test('every prod fallback for POSTGRES_USER is supabase_admin', async () => {
+  const repo = path.join(import.meta.dirname, '..');
+  const files = [
+    '.env.example',
+    'infra/docker-compose.prod.yml',
+    ...['deploy', 'backup', 'status', 'rollback', 'restore'].map((s) => `infra/scripts/${s}.sh`),
+  ];
+  const fallback = /POSTGRES_USER(?::-|:=|=)([A-Za-z_]+)/g;
+  let seen = 0;
+  for (const file of files) {
+    const text = await readFile(path.join(repo, file), 'utf8');
+    for (const [, user] of text.matchAll(fallback)) {
+      seen += 1;
+      assert.equal(user, 'supabase_admin', `${file} falls back to ${user}`);
+    }
+  }
+  // 1 in .env.example, 10 in the compose file, 1 per script.
+  assert.equal(seen, 16);
 });

@@ -67,7 +67,7 @@ set -a
 # shellcheck source=/dev/null
 source ./.env
 set +a
-: "${POSTGRES_USER:=postgres}"
+: "${POSTGRES_USER:=supabase_admin}"
 : "${POSTGRES_DB:=myclash}"
 
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
