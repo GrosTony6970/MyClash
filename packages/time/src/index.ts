@@ -21,6 +21,14 @@ const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
 /**
  * Combine a wall-clock day (`YYYY-MM-DD`) + time (`HH:MM`) interpreted in
  * `tz` into the corresponding UTC ISO instant. Returns null on bad input.
+ *
+ * A wall time the clocks pass twice (the night they go back) is the EARLIER
+ * instant (ruling 413). Luxon alone answers from the offset in force today, so
+ * 02:30 Paris on the last Sunday of October was 00:30Z when asked in July and
+ * 01:30Z when asked in November. The earlier one is what V8's `setHours` gives.
+ * `getPossibleOffsets` lists both readings, whatever the size of the change
+ * (30 minutes on Lord Howe, two hours on Troll). A time the clocks skip
+ * (spring) has one reading, moved forward, as before.
  */
 export function zonedToUtcIso(
   day: string | null | undefined,
@@ -40,7 +48,8 @@ export function zonedToUtcIso(
     { zone: tz },
   );
   if (!dt.isValid) return null;
-  return dt.toUTC().toISO();
+  const first = Math.min(...dt.getPossibleOffsets().map((reading) => reading.toMillis()));
+  return DateTime.fromMillis(first, { zone: 'utc' }).toISO();
 }
 
 /** Split a UTC ISO instant into its wall-clock `{ day, hhmm }` in `tz`. */

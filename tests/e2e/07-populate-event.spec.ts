@@ -72,7 +72,9 @@ const WS_DURATION_MIN = 120;
 
 /**
  * DST-correct wall-clock (in `tz`) → UTC ISO instant. Mirrors @myclash/time's
- * `zonedToUtcIso`; inlined to avoid a workspace-package import in the e2e runner.
+ * `zonedToUtcIso`, except a wall time the clocks pass twice: that one takes the
+ * earlier instant (ruling 413), this copy the later. These May dates never meet one.
+ * Inlined to avoid a workspace-package import in the e2e runner.
  * Workshop sessions are stored as UTC instants but the board (and the workshop
  * break, given as HH:MM) render in the event timezone, so session times MUST be
  * built in the event tz or they'd drift relative to the break.
